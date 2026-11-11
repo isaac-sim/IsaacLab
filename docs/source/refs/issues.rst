@@ -28,8 +28,6 @@ The process can abort during shutdown with ``std::terminate`` in
 
 Keep Kit application initialization, updates, and shutdown on the same main thread;
 avoid pumping Kit updates or closing the application from a worker thread.
-A released fix and a validated workaround for the reported shutdown abort have not
-been confirmed. This abort is separate from the PhysX event-subscription error below.
 
 
 PhysX backends
