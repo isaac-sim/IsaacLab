@@ -174,12 +174,16 @@ class ArticulationCfg(AssetBaseCfg):
         from ...cloner import path as cloner_path  # noqa: PLC0415
         from ...sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext  # noqa: PLC0415
 
-        expressions = [self.prim_path]
         if self.spawn is not None:
-            if self.spawn.spawn_path is not None:
-                expressions.append(re.escape(self.spawn.spawn_path))
+            # Destination expressions can be shared by distinct asset prototypes. Only edit
+            # the sources assigned to this spawner; their clones inherit the exclusions.
             if isinstance(self.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)) and self.spawn.spawn_paths is not None:
-                expressions.extend(re.escape(path) for path in self.spawn.spawn_paths if path is not None)
+                return [re.escape(path) for path in self.spawn.spawn_paths if path is not None]
+            if self.spawn.spawn_path is not None:
+                return [re.escape(self.spawn.spawn_path)]
+            return [self.prim_path]
+
+        expressions = [self.prim_path]
 
         sim = SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None

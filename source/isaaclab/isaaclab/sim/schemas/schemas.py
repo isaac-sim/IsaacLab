@@ -645,7 +645,7 @@ def _apply_articulation_collision_filters(
             if (
                 path.HasPrefix(root_path)
                 if articulation_root_prim_path is None
-                else str(path) == str(root_path) + articulation_root_prim_path
+                else re.fullmatch(re.escape(str(root_path)) + articulation_root_prim_path, str(path)) is not None
             )
         ]
         if len(selected) != 1 or not selected[0].isValid:
