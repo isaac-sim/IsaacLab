@@ -36,3 +36,17 @@ prepared environments, so keep the suite out of the general test orchestrator.
 When retiring the workflow, remove `Installation Tests (x86)`,
 `Installation Tests (ARM)`, and `Installation Tests (Windows)` from any required
 status-check rules that reference them.
+
+## Multi-GPU training smoke routing
+
+The multi-GPU pytest workflow matches runtime package directories and package
+manifests for its training smoke jobs. Core and backend test-only or documentation
+changes still run the applicable unit-test lane, but do not start the unrelated
+Cartpole training smoke lanes. Changes to the smoke tests themselves, their
+conftest hooks, runtime test helpers, training entry points, dependencies, and
+shared actions retain training coverage.
+
+For a core/backend unit-test-only change, this avoids three multi-GPU runner
+allocations: the kit-less image builder and both training smoke jobs. The Kit
+image builder and unit-test job remain. This reduces total runner work without
+serializing independent tests or dropping any training configuration.

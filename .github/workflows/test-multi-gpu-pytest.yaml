@@ -63,7 +63,8 @@ jobs:
             ^\.github/actions/(run-tests|run-package-tests|ecr-build-push-pull|multi-gpu|detect-changes)/ :: Shared actions
 
       # The training smoke drives real multi-rank RL runs, so the runtime it loads is matched
-      # broadly. The task side is not: these tests exercise exactly two gym ids,
+      # broadly within runtime packages, excluding unrelated tests/docs. The task side
+      # exercises exactly two gym ids,
       # ``Isaac-Cartpole-Direct`` and ``Isaac-Cartpole-Camera-Direct``, so only their own
       # sources are matched rather than all of isaaclab_tasks/isaaclab_assets. An unrelated
       # manager task, contrib task, or robot asset must not cost an hour of multi-GPU runner.
@@ -73,13 +74,15 @@ jobs:
         with:
           triggered-jobs-pr: multi-GPU training smoke
           patterns: |
-            ^source/isaaclab/ :: Core library (app, sim, scene, renderers, sensors)
-            ^source/isaaclab_(newton|physx|ov)/ :: Physics and renderer backends
-            ^source/isaaclab_ppisp/ :: Render pipeline the Newton renderer imports
-            ^source/isaaclab_rl/ :: RL library integration (rsl_rl entry point)
-            ^source/isaaclab_visualizers/ :: Visualizer and renderer coupling
+            ^source/isaaclab/(isaaclab/|pyproject\.toml$) :: Core library (app, sim, scene, renderers, sensors)
+            ^source/isaaclab_(newton|physx|ov)/(isaaclab_[^/]+/|pyproject\.toml$) :: Physics and renderer backends
+            ^source/isaaclab_ppisp/(isaaclab_ppisp/|pyproject\.toml$) :: Render pipeline the Newton renderer imports
+            ^source/isaaclab_rl/(isaaclab_rl/|pyproject\.toml$) :: RL library integration (rsl_rl entry point)
+            ^source/isaaclab_visualizers/(isaaclab_visualizers/|pyproject\.toml$) :: Visualizer and renderer coupling
             ^source/isaaclab_tasks/isaaclab_tasks/(__init__\.py$|utils/|core/cartpole/(agents/|__init__\.py$|cartpole_direct_)) :: Direct Cartpole envs, their registration and agent configs, plus the preset resolution the presets= selector goes through
             ^source/isaaclab_assets/isaaclab_assets/robots/cartpole\.py$ :: CARTPOLE_CFG, the only asset these envs load
+            ^source/isaaclab/test/multi_gpu/ :: Multi-GPU smoke tests
+            ^(conftest\.py|source/isaaclab/test/conftest\.py)$ :: Smoke test fixtures and hooks
             ^scripts/reinforcement_learning/ :: Multi-GPU training entry point
             ^docker/Dockerfile\.(base|kitless)$ :: CI image definitions
             ^(pyproject\.toml|uv\.lock)$ :: Dependency graph (image identity)
