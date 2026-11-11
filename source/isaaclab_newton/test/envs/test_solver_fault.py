@@ -35,7 +35,7 @@ class _SceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassCfg(mass=1.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 20.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
 
 
@@ -61,7 +61,6 @@ class _EventsCfg:
 
 @configclass
 class _TerminationsCfg:
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
     fault = DoneTerm(func=solver_fault)
 
 
