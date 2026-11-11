@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -182,3 +182,23 @@ def test_invalid_reward_config(env):
 
 def env_index_scaled(env, factor: float):
     return factor * env.step * torch.arange(env.num_envs, dtype=torch.float, device=env.device)
+
+
+def test_reset_with_mask():
+    """Episodic sums are averaged over the masked environments and cleared only there."""
+    sim = MagicMock()
+    sim.is_playing.return_value = False
+    env = SimpleNamespace(num_envs=4, device="cpu", sim=sim, max_episode_length_s=2.0)
+    rew_man = RewardManager({"term_1": RewardTermCfg(func=grilled_chicken, weight=1.0)}, env)
+    for _ in range(2):
+        rew_man.compute(dt=1.0)
+
+    extras = rew_man.reset(env_mask=env_mask_from_ids([1, 3], env.num_envs, env.device))
+    torch.testing.assert_close(extras["Episode_Reward/term_1"], torch.tensor(2.0 / 2.0))
+    rew_man.compute(dt=1.0)
+    # the other environments kept their sums of three steps
+    extras = rew_man.reset(env_mask=env_mask_from_ids([0, 2], env.num_envs, env.device))
+    torch.testing.assert_close(extras["Episode_Reward/term_1"], torch.tensor(3.0 / 2.0))
+    # an empty mask logs zero
+    extras = rew_man.reset(env_mask=env_mask_from_ids([], env.num_envs, env.device))
+    torch.testing.assert_close(extras["Episode_Reward/term_1"], torch.tensor(0.0))

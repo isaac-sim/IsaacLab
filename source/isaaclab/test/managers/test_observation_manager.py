@@ -64,9 +64,9 @@ class complex_function_class(ManagerTermBase):
         self._time_passed = torch.zeros(env.num_envs, device=env.device)
 
     def reset(self, env_ids: torch.Tensor | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self._time_passed[env_ids] = 0.0
+        # index-based terms receive None for a full reset, including the one after construction
+        num_reset = self.env.num_envs if env_ids is None else len(env_ids)
+        self._time_passed[slice(None) if env_ids is None else env_ids] = torch.zeros(num_reset, device=self.env.device)
 
     def __call__(self, env: object, interval: float) -> torch.Tensor:
         self._time_passed += interval

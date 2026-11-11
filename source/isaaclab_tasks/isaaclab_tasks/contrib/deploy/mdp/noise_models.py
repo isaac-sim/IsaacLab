@@ -14,11 +14,11 @@ __all__ = [
     "ResetSampledQuaternionNoiseModelCfg",
 ]
 
-from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
@@ -48,31 +48,19 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         self._sampled_noise = torch.zeros((num_envs, 1), device=self._device)
         self._num_components: int | None = None
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None):
+    def reset(self, env_mask: wp.array) -> None:
         """Reset the noise model by sampling NEW noise values.
 
         This method samples new noise for the specified environments using the configured noise function.
         The sampled noise will remain constant until the next reset.
 
         Args:
-            env_ids: The environment ids to reset the noise model for. Defaults to None,
-                in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,).
         """
-        # resolve the environment ids
-        if env_ids is None:
-            env_ids = slice(None)
-
-        # Use the existing noise function to sample new noise
-        # Create dummy data to sample from the noise function
-        dummy_data = torch.zeros(
-            (len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids), 1),
-            device=self._device,
-        )
-
-        # Sample noise using the configured noise function
+        # sample noise for all environments and keep it for the selected ones
+        dummy_data = torch.zeros((self._num_envs, 1), device=self._device)
         sampled_noise = self._noise_model_cfg.noise_cfg.func(dummy_data, self._noise_model_cfg.noise_cfg)
-
-        self._sampled_noise[env_ids] = sampled_noise
+        self._sampled_noise = torch.where(wp.to_torch(env_mask)[:, None], sampled_noise, self._sampled_noise)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply the pre-sampled noise to the data.
@@ -136,22 +124,18 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         self._perturbation_quat = torch.zeros((num_envs, 4), device=device)
         self._perturbation_quat[:, 3] = 1.0
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None):
+    def reset(self, env_mask: wp.array) -> None:
         """Sample new rotation perturbations for the specified environments.
 
         Args:
-            env_ids: The environment ids to reset. Defaults to None (all environments).
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,).
         """
-        if env_ids is None:
-            env_ids = slice(None)
-
-        num_resets = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-
-        roll = torch.empty(num_resets, device=self._device).uniform_(*self._roll_range)
-        pitch = torch.empty(num_resets, device=self._device).uniform_(*self._pitch_range)
-        yaw = torch.empty(num_resets, device=self._device).uniform_(*self._yaw_range)
-
-        self._perturbation_quat[env_ids] = quat_from_euler_xyz(roll, pitch, yaw)
+        # sample perturbations for all environments and keep them for the selected ones
+        roll = torch.empty(self._num_envs, device=self._device).uniform_(*self._roll_range)
+        pitch = torch.empty(self._num_envs, device=self._device).uniform_(*self._pitch_range)
+        yaw = torch.empty(self._num_envs, device=self._device).uniform_(*self._yaw_range)
+        quat = quat_from_euler_xyz(roll, pitch, yaw)
+        torch.where(wp.to_torch(env_mask)[:, None], quat, self._perturbation_quat, out=self._perturbation_quat)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply the pre-sampled rotation perturbation to the quaternion data.

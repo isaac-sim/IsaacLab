@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -64,12 +64,16 @@ class object_goal_distance(ManagerTermBase):
         if self._track_success:
             self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
-    def reset(self, env_ids: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
+        """Log and clear the success of the reset environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
         if self._track_success:
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
-                self._succeeded[env_ids].float().mean().item()
-            )
-            index_fill_(self._succeeded, env_ids, False)
+            success = torch.where(env_mask.torch, self._succeeded, False).sum() / env_mask.torch.sum().clamp_min(1)
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success
+            self._succeeded.masked_fill_(env_mask.torch, False)
 
     def __call__(
         self,

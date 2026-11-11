@@ -16,6 +16,7 @@ import warp as wp
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPositionAction
 from isaaclab.utils import clone, index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -46,11 +47,16 @@ class EMARelativeJointPositionAction(RelativeJointPositionAction):
         self._processed_actions.lerp_(self._previous_delta, 1.0 - self._alpha)
         self._previous_delta.copy_(self._processed_actions)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
-        """Clear selected command history so a reset pose receives exactly zero delta."""
-        super().reset(env_ids)
-        index_fill_(self._processed_actions, env_ids, 0.0)
-        index_fill_(self._previous_delta, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        """Clear selected command history so a reset pose receives exactly zero delta.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        super().reset(env_mask=env_mask)
+        selection = env_mask.torch
+        index_fill_(self._processed_actions, selection, 0.0)
+        index_fill_(self._previous_delta, selection, 0.0)
 
 
 class CurriculumGripperPositionAction(BinaryJointPositionAction):

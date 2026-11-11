@@ -17,7 +17,8 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
-from ..utils import index_fill_, instantiate
+from ..utils import index_fill_, instantiate, takes_env_mask
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
@@ -209,6 +210,9 @@ class ActionManager(ManagerBase):
       scene (such as robots). It should be called before every simulation step.
     """
 
+    _all_env_ids = None
+    """Index-based terms receive None when every environment is reset."""
+
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the action manager.
 
@@ -384,22 +388,32 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return any(not takes_env_mask(term.reset) for term in self._terms.values())
+
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
+    ) -> dict[str, torch.Tensor]:
         """Resets the action history.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             An empty dictionary.
         """
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # reset the action history
-        index_fill_(self._prev_action, env_ids, 0.0)
-        index_fill_(self._action, env_ids, 0.0)
+        index_fill_(self._prev_action, env_mask.torch, 0.0)
+        index_fill_(self._action, env_mask.torch, 0.0)
         # reset all action terms
         for term in self._terms.values():
-            term.reset(env_ids=env_ids)
+            self._reset_term(term, env_mask, env_ids)
         # nothing to log here
         return {}
 

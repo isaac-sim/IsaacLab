@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,6 +16,7 @@ from isaaclab.controllers.pink_ik import PinkIKController
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import clone, index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -357,10 +357,10 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     # ==================== Reset ====================
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Reset the action term for specified environments.
 
         Args:
-            env_ids: A list of environment IDs to reset. If None, all environments are reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
-        index_fill_(self._raw_actions, env_ids, 0.0)
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)

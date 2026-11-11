@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,6 +16,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.utils import index_fill_, replace
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.controllers.differential_ik import NewtonDifferentialIKController
 from isaaclab_newton.controllers.operational_space import NewtonOperationalSpaceController
@@ -72,8 +72,8 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._ee_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
         self._jacobian_b = torch.zeros(self.num_envs, 6, self._num_joints, device=self.device)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
     def _joint_pos_target(self, target: str) -> torch.Tensor:
         """Resolve a named joint posture target for the controlled joints."""
@@ -333,10 +333,10 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
         )
         self._asset.set_joint_effort_target_index(target=efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        super().reset(env_ids)
+    def reset(self, env_mask: ProxyArray) -> None:
+        super().reset(env_mask=env_mask)
         if self._contact_sensor is not None:
-            self._contact_sensor.reset(env_ids)
+            self._contact_sensor.reset(env_mask=env_mask.warp)
 
     def _action_slice(self, name: str) -> torch.Tensor | None:
         return self._processed_actions[:, self._slices[name]] if name in self._slices else None

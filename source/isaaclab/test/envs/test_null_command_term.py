@@ -31,8 +31,6 @@ def test_compute(env):
     cfg = NullCommandCfg()
     command_term = instantiate(cfg, env)
 
-    # test the reset function
-    command_term.reset()
     # test the compute function
     command_term.compute(dt=env.dt)
     # expect error

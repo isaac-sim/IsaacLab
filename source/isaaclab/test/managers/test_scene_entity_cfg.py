@@ -12,11 +12,13 @@ from unittest.mock import Mock
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
@@ -41,7 +43,7 @@ def scene():
 
 @pytest.mark.parametrize("device", test_devices())
 def test_finalize_moves_resolved_selections_to_device(scene, device):
-    """Ordering, slices, and empty selections survive finalization and copies."""
+    """Ordering, slices, and empty selections survive finalization and copies, and masks match the selections."""
     cfg = SceneEntityCfg(
         "robot",
         joint_names=["part_2", "part_0"],
@@ -54,10 +56,13 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
     assert cfg.joint_ids == [2, 0]
     assert cfg.body_ids == [3, 1]
 
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     joint_ids = cfg.joint_ids
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     assert cfg.joint_ids is joint_ids
+    assert cfg.joint_mask.numpy().tolist() == [True, False, True, False]
+    assert cfg.body_mask.numpy().tolist() == [False, True, False, True]
+    assert cfg.fixed_tendon_mask is None
     assert isinstance(cfg.body_ids, torch.Tensor)
     assert cfg.body_ids.dtype == torch.long
     assert cfg.body_ids.device == torch.device(device)
@@ -77,7 +82,7 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     """A real MDP consumer and a device gather for one selected joint run without CUDA synchronization."""
     cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
     cfg.resolve(scene)
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     values = torch.arange(16, dtype=torch.float, device=device).reshape(4, 4)
     scene["robot"].data = SimpleNamespace(joint_pos=SimpleNamespace(torch=values))
     env = SimpleNamespace(scene=scene)
@@ -94,17 +99,17 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     torch.testing.assert_close(first, expected[:, 0])
 
 
-def test_external_force_uses_selected_body_count(scene):
-    """A finalized subset must size forces for that subset, rather than every body."""
+def test_external_force_writes_only_the_selected_bodies(scene):
+    """A finalized body subset masks the force write, rather than writing every body."""
     cfg = SceneEntityCfg("robot", body_ids=[3, 1])
     cfg.resolve(scene)
-    cfg.finalize("cpu")
+    cfg.finalize("cpu", scene)
     asset = scene["robot"]
     asset.device = "cpu"
-    asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_index=Mock())
+    asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_mask=Mock())
     env = SimpleNamespace(scene=scene, num_envs=2)
-    apply_external_force_torque(env, None, (2.0, 2.0), (3.0, 3.0), cfg)
-    kwargs = asset.permanent_wrench_composer.set_forces_and_torques_index.call_args.kwargs
-    torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
-    torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
-    assert kwargs["body_ids"].tolist() == [3, 1]
+    apply_external_force_torque(env, env_mask_from_ids(None, 2, "cpu"), (2.0, 2.0), (3.0, 3.0), cfg)
+    kwargs = asset.permanent_wrench_composer.set_forces_and_torques_mask.call_args.kwargs
+    torch.testing.assert_close(wp.to_torch(kwargs["forces"]), torch.full((2, 4, 3), 2.0))
+    torch.testing.assert_close(wp.to_torch(kwargs["torques"]), torch.full((2, 4, 3), 3.0))
+    assert wp.to_torch(kwargs["body_mask"]).tolist() == [False, True, False, True]

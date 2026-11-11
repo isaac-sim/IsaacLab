@@ -22,6 +22,7 @@ from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_, instantiate
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 
@@ -213,6 +214,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
 
         self._raw_actions = torch.zeros(self.num_envs, self._action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
+        # The root orientation check reads the device on the host, so it runs on the first step only.
+        self._root_orientations_validated = False
 
         # Warp scratch for the seed -> solve -> gather pipeline.
         num_coords = prototype_model.joint_coord_count
@@ -273,7 +276,9 @@ class NewtonInverseKinematicsAction(ActionTerm):
             )
         # Each pose objective maps its action slice to a prototype-world target,
         # written straight into its Warp target arrays.
-        self._validate_matching_root_orientations()
+        if not self._root_orientations_validated:
+            self._validate_matching_root_orientations()
+            self._root_orientations_validated = True
         action_wp = wp.from_torch(self._processed_actions.contiguous(), dtype=wp.float32)
         body_pos_w = self._asset.data.body_pos_w.warp
         body_quat_w = self._asset.data.body_quat_w.warp
@@ -321,8 +326,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         )
         self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""

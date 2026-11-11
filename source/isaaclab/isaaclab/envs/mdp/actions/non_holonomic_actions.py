@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,6 +15,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import euler_xyz_from_quat
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -192,5 +192,5 @@ class NonHolonomicAction(ActionTerm):
         # set the joint velocity targets
         self._asset.set_joint_velocity_target_index(target=self._joint_vel_command, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)

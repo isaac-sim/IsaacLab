@@ -51,7 +51,8 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     that terminates is reset within the same :meth:`~isaaclab.envs.ManagerBasedRLEnv.step` call, so the
     returned observation belongs to the *new* episode. When this flag is True, the observation is
     computed once more *before* the reset and stored under ``extras["final_obs"]``, so wrappers can
-    report it as the true terminal observation for value bootstrapping.
+    report it as the true terminal observation for value bootstrapping. The step computes it on every
+    step, not only on steps with a reset, so it does not wait on the device.
 
     Defaults to False, which preserves the previous behavior: no terminal observation is captured,
     ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.

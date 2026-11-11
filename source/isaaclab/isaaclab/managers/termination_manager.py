@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import takes_env_mask
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
@@ -126,18 +128,26 @@ class TerminationManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return any(not takes_env_mask(term_cfg.func.reset) for term_cfg in self._class_term_cfgs)
+
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
+    ) -> dict[str, torch.Tensor]:
         """Returns the per-term mean activation across environments.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             Dictionary mapping each termination term to its mean activation.
         """
-        if env_ids is None:
-            env_ids = slice(None)
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # add to episode dict
         extras = {}
         last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
@@ -146,7 +156,7 @@ class TerminationManager(ManagerBase):
             extras["Episode_Termination/" + key] = last_episode_done_stats[i]
         # reset all the termination terms
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_ids=env_ids)
+            self._reset_term(term_cfg.func, env_mask, env_ids)
         return extras
 
     def compute(self) -> torch.Tensor:

@@ -19,6 +19,7 @@ from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers, reset_mpm_s
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.warp import ProxyArray
 
 from .assets import (
     CUP_BOTTOM_THICKNESS,
@@ -40,14 +41,16 @@ class PalmPoseIKAction(DifferentialInverseKinematicsAction):
             raise ValueError("Palm IK targets must be finite.")
         super().process_actions(actions)
 
-    def reset(self, env_ids=None) -> None:
-        super().reset(env_ids)
-        selected = slice(None) if env_ids is None else env_ids
+    def reset(self, env_mask: ProxyArray) -> None:
+        super().reset(env_mask)
+        selected = env_mask.torch[:, None]
         pos, quat = self._compute_frame_pose()
-        self._processed_actions[selected] = torch.cat((pos[selected], quat[selected]), dim=-1)
+        actions = torch.cat((pos, quat), dim=-1)
+        torch.where(selected, actions, self._processed_actions, out=self._processed_actions)
         # Keep targets in unreset worlds unchanged.
-        self._ik_controller.ee_pos_des[selected] = pos[selected]
-        self._ik_controller.ee_quat_des[selected] = quat[selected]
+        controller = self._ik_controller
+        torch.where(selected, pos, controller.ee_pos_des, out=controller.ee_pos_des)
+        torch.where(selected, quat, controller.ee_quat_des, out=controller.ee_quat_des)
 
     def apply_actions(self) -> None:
         """Keep drive targets inside soft limits before native actuation."""

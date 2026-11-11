@@ -12,7 +12,6 @@ the observation introduced by the function.
 from __future__ import annotations
 
 import functools
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -22,6 +21,7 @@ from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import ObservationTermCfg
 from ...utils import math as math_utils
+from ...utils.array import env_ids_from_mask
 from ...utils.images import (
     CameraFrameStack,
     is_depth_like,
@@ -33,6 +33,7 @@ from ...utils.images import (
     normalize_rgb,
     normalize_segmentation,
 )
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -407,8 +408,8 @@ class CameraImageBase(ManagerTermBase):
             channel_first=cfg.params["channel_first"],
         )
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None):
-        self._frames.reset(env_ids)
+    def reset(self, env_mask: ProxyArray):
+        self._frames.reset(env_mask.torch)
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -671,12 +672,17 @@ class image_features(ManagerTermBase):
         self._reset_fn = model_config.get("reset")
         self._inference_fn = model_config["inference"]
 
-    def reset(self, env_ids: torch.Tensor | None = None):
+    def reset(self, env_mask: ProxyArray):
         # reset the model if a reset function is provided
         # this might be useful when the model has a state that needs to be reset
         # for example: video transformers
-        if self._reset_fn is not None:
-            self._reset_fn(self._model, env_ids)
+        if self._reset_fn is None:
+            return
+        # the reset function takes indices, which requires a host sync
+        env_ids = env_ids_from_mask(env_mask)
+        if len(env_ids) == 0:
+            return
+        self._reset_fn(self._model, env_ids)
 
     def __call__(
         self,
@@ -858,8 +864,8 @@ class stacked_image(ManagerTermBase):
         super().__init__(cfg, env)
         self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params["frame_stack"])
 
-    def reset(self, env_ids: torch.Tensor | None = None):
-        self._frames.reset(env_ids)
+    def reset(self, env_mask: ProxyArray):
+        self._frames.reset(env_mask.torch)
 
     def __call__(
         self,

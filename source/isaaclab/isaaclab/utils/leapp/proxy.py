@@ -13,6 +13,7 @@ import torch
 from leapp.utils.tensor_description import TensorSemantics
 
 from ...managers import ManagerTermBase
+from ..array import env_selection_kwargs
 from ..warp.proxy_array import ProxyArray
 from .leapp_semantics import resolve_leapp_element_names
 from .utils import TracedProxyArray, build_write_connection
@@ -425,9 +426,11 @@ class _ManagerTermProxy(ManagerTermBase):
         """Expose the wrapped term name for compatibility and debugging."""
         return getattr(self._target, "__name__", self._target.__class__.__name__)
 
-    def reset(self, env_ids=None) -> None:
-        """Forward resets to the wrapped term instance."""
-        self._target.reset(env_ids=env_ids)
+    def reset(self, env_mask: ProxyArray) -> None:
+        """Forward resets to the wrapped term instance, with the selection its ``reset`` takes."""
+        selection = env_selection_kwargs(self._target.reset, env_mask)
+        if selection is not None:
+            self._target.reset(**selection)
 
     def serialize(self) -> dict:
         """Forward serialization to the wrapped term instance."""

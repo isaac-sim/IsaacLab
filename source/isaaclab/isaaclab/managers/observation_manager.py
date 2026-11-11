@@ -16,8 +16,9 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, noise, tensor_processors, to_dict
+from ..utils import instantiate, noise, takes_env_mask, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -69,6 +70,9 @@ class ObservationManager(ManagerBase):
     keyword-only parameter ``out=None`` write into a fresh manager allocation. Clipping and scaling create
     independent storage when needed, allowing subsequent processing to reuse that storage.
     """
+
+    _all_env_ids = None
+    """Index-based terms receive None when every environment is reset."""
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
@@ -330,20 +334,42 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        reset_fns = [term_cfg.func.reset for cfgs in self._group_obs_class_term_cfgs.values() for term_cfg in cfgs]
+        reset_fns += [processor.reset for processor in self._group_obs_class_instances]
+        return any(not takes_env_mask(fn) for fn in reset_fns)
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
+        """Resets the class terms, modifiers, and the delay and history buffers of the selected environments.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
+
+        Returns:
+            An empty dictionary.
+        """
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
-                term_cfg.func.reset(env_ids=env_ids)
+                self._reset_term(term_cfg.func, env_mask, env_ids)
             # reset delay and observation histories for the selected environments
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_delay_buffer[group_name]:
-                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
+                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_mask.torch)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
-                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
+                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_mask.torch)
         # call all tensor processors that are classes
         for tensor_processor in self._group_obs_class_instances:
-            tensor_processor.reset(env_ids=env_ids)
+            # tensor processors and noise models take a Warp mask
+            if takes_env_mask(tensor_processor.reset):
+                tensor_processor.reset(env_mask=env_mask.warp)
+            else:
+                self._reset_term(tensor_processor, env_mask, env_ids)
 
         # nothing to log here
         return {}
@@ -786,7 +812,7 @@ class ObservationManager(ManagerBase):
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
-                    term_cfg.func.reset()
+                    self._reset_term(term_cfg.func, *self._env_selection(None, None))
             # time-major output joins terms per history index, so all terms must share the direction
             directions = {cfg.history_newest_first for cfg in self._group_obs_term_cfgs[group_name]}
             if self._group_obs_time_major[group_name] and len(directions) > 1:

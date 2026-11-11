@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -24,6 +23,7 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -240,8 +240,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
     """
     Helper functions.
@@ -590,17 +590,17 @@ class OperationalSpaceControllerAction(ActionTerm):
         )
         self._asset.set_joint_effort_target_index(target=self._joint_efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
-        index_fill_(self._raw_actions, env_ids, 0.0)
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
         if self._contact_sensor is not None:
-            self._contact_sensor.reset(env_ids)
+            self._contact_sensor.reset(env_mask=env_mask.warp)
         if self._task_frame_transformer is not None:
-            self._task_frame_transformer.reset(env_ids)
+            self._task_frame_transformer.reset(env_mask=env_mask.warp)
 
     """
     Helper functions.

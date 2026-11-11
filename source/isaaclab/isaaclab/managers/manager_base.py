@@ -14,13 +14,16 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import env_mask_from_ids, env_selection_kwargs, string_to_callable, to_dict
 from ..utils import string as string_utils
-from ..utils import string_to_callable, to_dict
 from ..utils.tensor_processors import TensorProcessorCfg
+from ..utils.warp import ProxyArray
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
+    import torch
+
     from ..envs import ManagerBasedEnv
 
 
@@ -90,12 +93,16 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Resets the manager term.
 
+        Managers call ``reset`` on every environment reset and leave it to the term to change only the selected
+        environments. A term may instead take ``env_ids``: it then receives the selected indices, which
+        synchronizes the device, and is skipped when none are selected. See
+        :func:`~isaaclab.utils.env_selection_kwargs`.
+
         Args:
-            env_ids: The environment ids. Defaults to None, in which case
-                all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         pass
 
@@ -128,6 +135,9 @@ class ManagerTermBase(ABC):
 
 class ManagerBase(ABC):
     """Base class for all managers."""
+
+    _all_env_ids: slice | None = slice(None)
+    """The ``env_ids`` that index-based terms receive when every environment is reset."""
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the manager.
@@ -206,16 +216,23 @@ class ManagerBase(ABC):
         """Name of active terms."""
         raise NotImplementedError
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return False
+
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
             env_ids: The environment ids for which to log data.
                 Defaults None, which logs data for all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             Dictionary containing the logging information.
@@ -299,6 +316,45 @@ class ManagerBase(ABC):
     """
     Internal functions.
     """
+
+    def _env_selection(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
+    ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
+        """Resolve a reset selection.
+
+        Args:
+            env_ids: Indices or a slice. None selects every environment. With ``env_mask``, the indices it selects.
+            env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
+
+        Returns:
+            The boolean mask, and the indices for index-based terms, or None when only ``env_mask`` was given.
+        """
+        if env_mask is not None:
+            return env_mask, env_ids
+        env_ids = slice(None) if env_ids is None else env_ids
+        return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
+
+    def _reset_term(
+        self, term: Any, env_mask: ProxyArray, env_ids: Sequence[int] | torch.Tensor | slice | None = None
+    ) -> Any:
+        """Reset a term (or modifier) with the selection its ``reset`` takes.
+
+        See :func:`~isaaclab.utils.env_selection_kwargs`.
+
+        Args:
+            term: Object with a ``reset`` method.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The caller's indices that ``env_mask`` was built from, if any.
+
+        Returns:
+            What ``reset`` returns, or None when it was skipped because no environment was selected.
+        """
+        selection = env_selection_kwargs(term.reset, env_mask, env_ids)
+        if selection is None:
+            return None
+        if selection.get("env_ids") == slice(None):
+            selection["env_ids"] = self._all_env_ids
+        return term.reset(**selection)
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
         """Resolve common attributes of the term configuration.
@@ -418,7 +474,7 @@ class ManagerBase(ABC):
         device selections. See :meth:`SceneEntityCfg.finalize`.
         """
         for scene_entity_cfg in self._scene_entity_cfgs:
-            scene_entity_cfg.finalize(self.device)
+            scene_entity_cfg.finalize(self.device, self._env.scene)
 
     def _resolve_param_value(
         self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False

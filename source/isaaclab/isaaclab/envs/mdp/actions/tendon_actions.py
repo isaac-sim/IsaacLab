@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,6 +16,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -162,6 +162,7 @@ class FixedTendonPositionAction(ActionTerm):
             target=self._processed_actions, fixed_tendon_ids=self._tendon_ids
         )
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
-        index_fill_(self._processed_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        env_selection = env_mask.torch
+        index_fill_(self._raw_actions, env_selection, 0.0)
+        index_fill_(self._processed_actions, env_selection, 0.0)

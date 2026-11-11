@@ -76,7 +76,8 @@ class EpisodeErrorRecorder:
         """Summarize and clear completed episodes.
 
         Args:
-            env_ids: Environments whose episodes completed, or ``None`` for all.
+            env_ids: Environments whose episodes completed, as indices, a slice, or a boolean mask of shape
+                (num_envs,), or ``None`` for all. A boolean mask does not synchronize the device.
 
         Returns:
             Mean, median, and 90th-percentile episode-minimum errors as 0-dim
@@ -90,7 +91,11 @@ class EpisodeErrorRecorder:
             env_ids = slice(None)
         statistics = {}
         if self._updated:
-            values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
+            if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+                # unselected environments are NaN, so the NaN-aware statistics ignore them
+                values = torch.where(env_ids & self._has_sample, self.minimum_error, torch.nan)
+            else:
+                values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
             statistics = {
                 "mean": values.nanmean(),
                 "median": values.nanmedian(),
@@ -146,24 +151,13 @@ class SuccessTracker:
         self._goals_reached = torch.zeros(num_envs, device=device)
         self._skip_update = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-    def record_goal_reached(
-        self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: torch.Tensor | None = None
-    ) -> None:
+    def record_goal_reached(self, env_mask: torch.Tensor) -> None:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Indices of the environments whose goal was just resampled.
-            env_mask: Boolean mask of those environments, counted without a device synchronization.
-
-        Raises:
-            ValueError: If not exactly one of ``env_ids`` and ``env_mask`` is given.
+            env_mask: Boolean mask of the environments whose goal was just resampled. Shape is (num_envs,).
         """
-        if (env_ids is None) == (env_mask is None):
-            raise ValueError("Pass exactly one of env_ids and env_mask.")
-        if env_mask is not None:
-            self._goals_reached += env_mask
-        else:
-            self._goals_reached[env_ids] += 1.0
+        self._goals_reached += env_mask
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.
@@ -210,15 +204,20 @@ class SuccessTracker:
         resample counted is discarded.
 
         Args:
-            env_ids: Environments whose episodes completed.
+            env_ids: Environments whose episodes completed, as indices, a slice, or a boolean mask of
+                shape (num_envs,). A boolean mask does not synchronize the device.
             skip_next_update: Whether each environment is reset mid-step, with the
                 task evaluating its new goal before any physics runs against it.
                 Only those need the guard :meth:`earned` applies: a reset that ends
                 the step leaves the task to evaluate the new goal a full step later,
-                where a reach is earned.
+                where a reach is earned. Aligned with :paramref:`env_ids`, or of shape
+                (num_envs,) when :paramref:`env_ids` is a boolean mask.
         """
         index_fill_(self._goals_reached, env_ids, 0.0)
-        self._skip_update[env_ids] = skip_next_update
+        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+            torch.where(env_ids, skip_next_update, self._skip_update, out=self._skip_update)
+        else:
+            self._skip_update[env_ids] = skip_next_update
 
 
 def sample_joint_positions_within_limits(

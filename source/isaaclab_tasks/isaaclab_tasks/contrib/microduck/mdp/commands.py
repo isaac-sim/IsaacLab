@@ -17,6 +17,7 @@ from isaaclab.envs.mdp.commands.commands_cfg import UniformVelocityCommandCfg
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -45,15 +46,11 @@ class UniformPoseDeltaCommand(CommandTerm):
     def _update_command(self):
         pass
 
-    def _resample_command(self, env_ids: Sequence[int] | slice):
-        if isinstance(env_ids, slice):
-            env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
-        num_envs = len(env_ids)
-        if num_envs == 0:
-            return
+    def _resample_command(self, env_mask: ProxyArray):
         # Read the bounds on every resample: the curriculum widens the head-pose ranges during training.
         low, high = torch.tensor(self.cfg.ranges, device=self.device).unbind(-1)
-        self._command[env_ids] = low + (high - low) * torch.rand(num_envs, self.dim, device=self.device)
+        sample = low + (high - low) * torch.rand(self.num_envs, self.dim, device=self.device)
+        torch.where(env_mask.torch[:, None], sample, self._command, out=self._command)
 
 
 @configclass
@@ -71,33 +68,22 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
     cfg: MicroDuckVelocityCommandCfg
     """Configuration for the command term."""
 
-    def _resample_command(self, env_ids: Sequence[int] | slice):
-        if isinstance(env_ids, slice):
-            env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
-        else:
-            env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-        super()._resample_command(env_ids)
-        r = torch.empty(len(env_ids), device=self.device)
-        forward_ids = env_ids[r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs]
-        if len(forward_ids) > 0:
-            self.vel_command_b[forward_ids, 0] = (
-                self.vel_command_b[forward_ids, 0].abs().clamp(min=self.cfg.forward_min_speed)
-            )
-            self.vel_command_b[forward_ids, 1] = 0.0
-            self.vel_command_b[forward_ids, 2] = 0.0
+    def _resample_command(self, env_mask: ProxyArray):
+        super()._resample_command(env_mask)
+        mask, r, vel = env_mask.torch, self._sample, self.vel_command_b
+        forward = mask & (r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs)
+        vel[:, 0] = torch.where(forward, vel[:, 0].abs().clamp(min=self.cfg.forward_min_speed), vel[:, 0])
+        vel[:, 1:].masked_fill_(forward[:, None], 0.0)
         if self.cfg.rel_turn_in_place_envs <= 0.0:
             return
-        turn_ids = env_ids[r.uniform_(0.0, 1.0) < self.cfg.rel_turn_in_place_envs]
-        if len(turn_ids) == 0:
-            return
-        self.vel_command_b[turn_ids, :2] = 0.0
+        turn = mask & (r.uniform_(0.0, 1.0) < self.cfg.rel_turn_in_place_envs)
+        vel[:, :2].masked_fill_(turn[:, None], 0.0)
         low, high = self.cfg.ranges.ang_vel_z
         max_rate = max(abs(low), abs(high))
-        turn_r = torch.empty(len(turn_ids), device=self.device)
-        sign = torch.where(turn_r.uniform_(0.0, 1.0) < 0.5, -1.0, 1.0)
-        magnitude = turn_r.uniform_(self.cfg.turn_in_place_min_fraction * max_rate, max_rate)
-        self.vel_command_b[turn_ids, 2] = sign * magnitude
-        self.is_standing_env[turn_ids] = False
+        sign = torch.where(r.uniform_(0.0, 1.0) < 0.5, -1.0, 1.0)
+        magnitude = r.uniform_(self.cfg.turn_in_place_min_fraction * max_rate, max_rate)
+        vel[:, 2] = torch.where(turn, sign * magnitude, vel[:, 2])
+        self.is_standing_env.masked_fill_(turn, False)
 
 
 @configclass
@@ -161,11 +147,10 @@ class MicroDuckRoughVelocityCommand(MicroDuckVelocityCommand):
         super()._update_metrics()
         self.record_terrain_progress()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         """Clear progress after the curriculum has consumed the completed episodes."""
-        extras = super().reset(env_ids)
-        ids = slice(None) if env_ids is None else env_ids
+        extras = super().reset(env_mask)
         for value in self.terrain_progress.values():
-            value[ids] = 0.0
-        self._last_progress_step[ids] = 0
+            value.masked_fill_(env_mask.torch, 0.0)
+        self._last_progress_step.masked_fill_(env_mask.torch, 0)
         return extras

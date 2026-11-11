@@ -10,18 +10,20 @@ import logging
 import math
 import sys
 import warnings
+from collections.abc import Sequence
 from typing import Any
 
 import torch
 
 from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers import ActionManager, EventManager, ManagerBase, ObservationManager, RecorderManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
-from ..utils import validate
+from ..utils import env_ids_from_mask, env_mask_from_ids, validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
+from ..utils.warp import ProxyArray
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .utils.io_descriptors import (
@@ -122,6 +124,8 @@ class ManagerBasedEnv:
         self._physics_handles_decimation = False
         # decided on the first step
         self._physics_handles_actions: bool | None = None
+        # whether a reset computes environment indices for index-based terms, decided on the first reset
+        self._reset_takes_env_ids: bool | None = None
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -667,27 +671,78 @@ class ManagerBasedEnv:
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
+        self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids)
+
+    def _reset_mask(self, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None = None):
+        """Reset the environments selected by a boolean mask.
+
+        The reset runs on every call, and unselected environments are left unchanged, so it never waits on the
+        device unless a manager term only accepts indices.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The indices ``env_mask`` selects, if the caller has them. Defaults to None.
+        """
+        # note: This is order-sensitive! Certain things need be reset before others.
+        managers = (self.observation_manager, self.action_manager, self.event_manager, self.recorder_manager)
+        env_ids = self._reset_env_ids(env_mask, env_ids, managers)
+        if env_ids is not None and not isinstance(env_ids, slice) and len(env_ids) == 0:
+            return
+
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_mask=env_mask.warp)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+            self.event_manager.apply(
+                mode="reset", env_ids=env_ids, env_mask=env_mask, global_env_step_count=env_step_count
+            )
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
-        # note: This is order-sensitive! Certain things need be reset before others.
-        self.extras["log"] = dict()
-        # -- observation manager
-        info = self.observation_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- action manager
-        info = self.action_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- event manager
-        info = self.event_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
-        self.extras["log"].update(info)
+        self._reset_managers(env_mask, env_ids, managers)
+
+    def _reset_env_ids(
+        self, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None, managers: Sequence[ManagerBase]
+    ) -> torch.Tensor | slice | None:
+        """Return the indices ``env_mask`` selects when a manager passes indices to a term, else ``env_ids``.
+
+        Computing them synchronizes the device once per reset, shared by every index-based term.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The indices ``env_mask`` selects, if the caller has them.
+            managers: Managers the reset goes through.
+        """
+        if self._reset_takes_env_ids is None:
+            self._reset_takes_env_ids = any(manager.takes_env_ids for manager in managers)
+        if env_ids is None and self._reset_takes_env_ids:
+            env_ids = env_ids_from_mask(env_mask)
+        return env_ids
+
+    def _reset_managers(
+        self, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None, managers: Sequence[ManagerBase]
+    ):
+        """Reset ``managers`` in order and store their logs in ``extras["log"]``.
+
+        Terms may also write into ``extras["log"]`` while resetting. A logged tensor keeps its previous value
+        when no environment was reset, and a key that no term logged this time (an index-based term with nothing
+        selected) keeps its previous value, so logs describe the last completed episodes without reading the mask
+        on the host.
+
+        Args:
+            env_mask: Boolean mask of the reset environments. Shape is (num_envs,).
+            env_ids: The indices ``env_mask`` selects, for index-based terms, if known.
+            managers: Managers to reset, in order.
+        """
+        previous = self.extras.get("log", {})
+        log = self.extras["log"] = {}
+        for manager in managers:
+            log.update(manager.reset(env_ids=env_ids, env_mask=env_mask))
+        any_reset = env_mask.torch.any()
+        for key, last in previous.items():
+            value = log.setdefault(key, last)
+            if value is not last and isinstance(value, torch.Tensor) and isinstance(last, torch.Tensor):
+                if value.shape == last.shape:
+                    log[key] = torch.where(any_reset, value, last)

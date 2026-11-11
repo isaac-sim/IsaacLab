@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import trimesh
+import warp as wp
 
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
@@ -357,22 +358,27 @@ class TerrainImporter:
             # compute environment origins
             self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
 
-    def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
-        """Update the environment origins based on the terrain levels."""
-        # check if grid-like spawning
+    def update_env_origins(self, env_mask: wp.array, move_up: torch.Tensor, move_down: torch.Tensor):
+        """Update the terrain levels and origins of the selected environments, without synchronizing the device.
+
+        Args:
+            env_mask: Boolean mask of the environments to update, dtype ``wp.bool``. Shape is (num_envs,).
+            move_up: Whether each environment moves to a harder terrain level. Shape is (num_envs,).
+            move_down: Whether each environment moves to an easier terrain level. Shape is (num_envs,).
+        """
         if self.terrain_origins is None:
             return
-        # update terrain level for the envs
-        self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
-        # robots that solve the last level are sent to a random one
-        # the minimum level is zero
-        self.terrain_levels[env_ids] = torch.where(
-            self.terrain_levels[env_ids] >= self.max_terrain_level,
-            torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
-            torch.clip(self.terrain_levels[env_ids], 0),
+        selected = wp.to_torch(env_mask)
+        # robots that solve the last level are sent to a random one; the minimum level is zero
+        terrain_levels = self.terrain_levels + 1 * move_up - 1 * move_down
+        terrain_levels = torch.where(
+            terrain_levels >= self.max_terrain_level,
+            torch.randint_like(terrain_levels, self.max_terrain_level),
+            torch.clip(terrain_levels, 0),
         )
-        # update the env origins
-        self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+        torch.where(selected, terrain_levels, self.terrain_levels, out=self.terrain_levels)
+        env_origins = self.terrain_origins[self.terrain_levels, self.terrain_types]
+        torch.where(selected[:, None], env_origins, self.env_origins, out=self.env_origins)
 
     """
     Internal helpers.

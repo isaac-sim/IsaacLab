@@ -15,6 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import env_mask_from_ids
 
 from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
 
@@ -70,7 +71,7 @@ class HandoverCommand(CommandTerm):
         goals = self._goal.success.snapshot(env_ids)
         self.metrics["success_rate"][env_ids] = goals / (goals + 1.0)
         self.metrics["consecutive_success"][env_ids] = goals
-        extras = super().reset(env_ids)
+        extras = super().reset(env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids=env_ids)
         log = self._env.extras.setdefault("log", {})
         # Route both metrics to the unified ``Metrics/`` cards shared across tasks; pop them so
         # CommandManager does not also log them under ``Metrics/<term_name>/``.

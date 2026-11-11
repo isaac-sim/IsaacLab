@@ -31,6 +31,7 @@ from isaaclab.envs.mdp.events import randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
+from isaaclab.utils import env_mask_from_ids  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 pytestmark = pytest.mark.ov
@@ -84,7 +85,7 @@ def test_randomize_material_writes_friction_within_range(device):
 
         cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
         term = randomize_rigid_body_material(cfg, env)
-        term(env, None, **cfg.params)
+        term(env, env_mask_from_ids(None, num_cubes, sim.device), **cfg.params)
 
         materials = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         assert materials.shape[0] == num_cubes and materials.shape[-1] == 3
@@ -101,7 +102,7 @@ def test_randomize_material_writes_friction_within_range(device):
         )
         before = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)).clone()
         assert (before[0, :, 2] == -15700.0).all()
-        term(env, torch.tensor([0]), **cfg.params)
+        term(env, env_mask_from_ids([0], num_cubes, sim.device), **cfg.params)
         after = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         torch.testing.assert_close(after[0, :, 2], before[0, :, 2])
         torch.testing.assert_close(after[1], before[1])

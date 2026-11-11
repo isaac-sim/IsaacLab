@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -15,6 +14,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -141,8 +141,8 @@ class BinaryJointAction(ActionTerm):
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
 
 class BinaryJointPositionAction(BinaryJointAction):

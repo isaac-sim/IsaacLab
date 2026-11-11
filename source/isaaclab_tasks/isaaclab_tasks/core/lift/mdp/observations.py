@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,9 +15,10 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+from isaaclab.utils.warp import ProxyArray
 
 from .utils import sample_object_point_cloud
 
@@ -256,20 +256,21 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         asset: DeformableObject = env.scene[self.asset_cfg.name]
         self.num_nodes = asset.data.nodal_pos_w.shape[1]
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
-        self.reset()
+        self.reset(env_mask_from_ids(None, env.num_envs, env.device))
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
-        """Resample observed deformable nodes for the selected environments."""
-        if env_ids is None:
-            env_ids = slice(None)
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    def reset(self, env_mask: ProxyArray) -> None:
+        """Resample observed deformable nodes for the selected environments.
 
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        # sample for every environment and keep the unselected ones
         if self.num_points <= self.num_nodes:
-            self.node_ids[env_ids] = (
-                torch.rand((num_envs, self.num_nodes), device=self.device).topk(self.num_points, dim=1).indices
-            )
+            node_ids = torch.rand((self.num_envs, self.num_nodes), device=self.device).topk(self.num_points, dim=1)
+            node_ids = node_ids.indices
         else:
-            self.node_ids[env_ids] = torch.randint(self.num_nodes, (num_envs, self.num_points), device=self.device)
+            node_ids = torch.randint(self.num_nodes, (self.num_envs, self.num_points), device=self.device)
+        torch.where(env_mask.torch.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
 
     def __call__(
         self,

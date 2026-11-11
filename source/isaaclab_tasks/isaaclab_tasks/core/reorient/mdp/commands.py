@@ -7,15 +7,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
+from isaaclab.utils.warp import ProxyArray
 
 from ..utils import SuccessTracker
 
@@ -73,6 +74,8 @@ class ReorientCommand(CommandTerm):
         self.metrics["consecutive_success"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
         self._success = SuccessTracker(self.num_envs, self.device)
+        # environments whose goal was reached this step
+        self._goal_resets = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
         # marker positions are constant per run and cached on first use to avoid a per-frame host-to-device copy
         self._marker_pos_offset: torch.Tensor | None = None
         self._fixed_marker_pos_w: torch.Tensor | None = None
@@ -114,38 +117,38 @@ class ReorientCommand(CommandTerm):
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
         self.metrics["consecutive_success"] += successes.float()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         # snapshot the goal count before the base class logs and zeros the metrics
-        if env_ids is None:
-            env_ids = slice(None)
         # Reaching a goal draws a replacement, so exactly one goal is outstanding when
         # the episode ends: the episode presented ``goals + 1`` and completed ``goals``.
-        goals = self._success.snapshot(env_ids)
-        self.metrics["success_rate"][env_ids] = goals / (goals + 1.0)
-        extras = super().reset(env_ids)
+        goals = self._success.snapshot(slice(None))
+        success_rate = self.metrics["success_rate"]
+        torch.where(env_mask.torch, goals / (goals + 1.0), success_rate, out=success_rate)
+        extras = super().reset(env_mask=env_mask)
         # only an auto-reset lands mid-step, with the new goal evaluated before any
         # physics runs against it; an explicit reset is followed by a full step
-        self._success.clear(env_ids, skip_next_update=self._env.reset_buf[env_ids])
+        self._success.clear(env_mask.torch, skip_next_update=self._env.reset_buf)
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # card across tasks); pop it from the returned dict so CommandManager does not
         # additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
         return extras
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        self._success.record_goal_reached(env_ids)
+    def _resample_command(self, env_mask: ProxyArray):
+        self._success.record_goal_reached(env_mask=env_mask.torch)
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        quat = math_utils.random_orientation(num_envs, device=self.device)
+        quat = math_utils.random_orientation(self.num_envs, device=self.device)
         # make sure the quaternion real-part is always positive
-        self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
+        if self.cfg.make_quat_unique:
+            quat = math_utils.quat_unique(quat)
+        torch.where(env_mask.torch[:, None], quat, self.quat_command_w, out=self.quat_command_w)
 
     def _update_command(self):
         if not self.cfg.update_goal_on_success:
             return
         reached = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
-        goal_resets = self._success.earned(reached)
-        self._resample(goal_resets.nonzero(as_tuple=False).squeeze(-1))
+        self._goal_resets.torch.copy_(self._success.earned(reached))
+        self._resample(self._goal_resets)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers

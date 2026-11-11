@@ -18,6 +18,7 @@ from isaaclab.assets import Articulation, CableObject, RigidObject
 from isaaclab.envs.mdp.events import reset_joints_by_offset
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_mul, sample_uniform
+from isaaclab.utils.warp import ProxyArray
 
 from ..shoelace_assets import read_shoelace_attribute
 
@@ -63,7 +64,7 @@ def install_settled_default_state(env: ManagerBasedEnv, env_ids: torch.Tensor | 
 
 def reset_arm_joints(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor | slice,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
     asset_cfg: SceneEntityCfg,
 ) -> None:
@@ -71,14 +72,15 @@ def reset_arm_joints(
 
     Args:
         env: Environment containing the arm.
-        env_ids: Environments to reset.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         position_range: Uniform joint position offset bounds [rad].
         asset_cfg: Arm articulation and joints to randomize; exclude finger joints.
     """
-    reset_joints_by_offset(env, env_ids, position_range, (0.0, 0.0), asset_cfg)
+    reset_joints_by_offset(env, env_mask, position_range, (0.0, 0.0), asset_cfg)
     robot: Articulation = env.scene[asset_cfg.name]
-    joint_pos = robot.data.joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
-    robot.actuators.target_command.set_position_index(value=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    robot.actuators.target_command.set_position_mask(
+        value=robot.data.joint_pos.torch, joint_mask=asset_cfg.joint_mask, env_mask=env_mask.warp
+    )
 
 
 def reset_shoe_position(
