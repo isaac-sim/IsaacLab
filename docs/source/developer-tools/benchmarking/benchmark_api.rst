@@ -495,7 +495,7 @@ MJWarp/VBD configuration records ``["newton_mjwarp", "newton_vbd"]`` and
 ``"proxy"``. ``physics_backend`` retains the existing Kamino-before-MJWarp
 precedence for mixed configurations.
 
-The performance smoke gate includes solver and coupling identity in composite
+The performance regression gate includes solver and coupling identity in composite
 workload contracts. Single-solver contracts retain their existing shape, so
 older single-solver baselines remain comparable. Older composite bundles lack
 the additional identity and cannot be pooled with the new composite contracts.

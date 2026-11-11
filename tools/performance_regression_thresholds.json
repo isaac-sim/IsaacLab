@@ -1,5 +1,5 @@
 {
-  "_comment": "Performance smoke policy. Relative thresholds are compared against baseline history. No hard FPS floors are calibrated for the Kit-free matrix.",
+  "_comment": "Performance regression policy. Relative thresholds are compared against baseline history. No hard FPS floors are calibrated for the Kit-free matrix.",
   "schema_version": 1,
   "defaults": {
     "warn_regression_pct": 5.0,

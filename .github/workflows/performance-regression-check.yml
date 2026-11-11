@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish performance regression comparison
+
+on:
+  workflow_run:
+    workflows: ['Docker \+ Tests']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  publish:
+    name: Report performance regression
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.id != github.event.repository.id
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        id: checkout
+        with:
+          sparse-checkout: tools/performance_regression
+
+      - uses: astral-sh/setup-uv@v6
+        id: uv
+        with:
+          enable-cache: false
+
+      - name: Compare history and publish PR checks
+        if: always()
+        uses: actions/github-script@v9
+        env:
+          REPORT_READY: ${{ steps.checkout.outcome == 'success' && steps.uv.outcome == 'success' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const run = context.payload.workflow_run;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+              ...context.repo, run_id: run.id, attempt_number: run.run_attempt, per_page: 100,
+            });
+            const summaryJob = jobs.find(job => ['performance-regression', 'performance-regression-summary'].includes(job.name));
+            if (!summaryJob || ['skipped', 'cancelled', 'timed_out'].includes(summaryJob.conclusion)) return;
+            const origin = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`;
+            const sourceUrl = `${origin}/actions/runs/${run.id}/attempts/${run.run_attempt}#summary-${summaryJob.id}`;
+            const summaryUrl = `${origin}/actions/runs/${context.runId}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+            const createCheck = (name, fields) => github.rest.checks.create({
+              ...context.repo, name, head_sha: run.head_sha, details_url: summaryUrl, ...fields,
+            });
+            const {data: check} = await createCheck('performance-regression', {
+              status: 'in_progress',
+              external_id: `performance-regression-history:${run.id}:${run.run_attempt}`,
+              details_url: sourceUrl,
+            });
+            if (process.env.REPORT_READY === 'true') {
+              try {
+                await exec.exec('uv', [
+                  'run', '--no-project', '--python', '3.12',
+                  '--with-requirements', 'tools/performance_regression/requirements.txt',
+                  'python', '-m', 'tools.performance_regression.pr_comparison', 'report',
+                  '--run_id', String(run.id), '--run_attempt', String(run.run_attempt),
+                  '--history_dir', 'rolling-history',
+                ], {ignoreReturnCode: true});
+              } catch {
+                core.warning('The history reporter could not start. See the setup logs.');
+              }
+            }
+            const read = name => fs.existsSync(name) ? fs.readFileSync(name, 'utf8') : '';
+            const historyStatus = read('rolling-history/status.json');
+            const failed = historyStatus ? JSON.parse(historyStatus).failed === true : false;
+            const comparison = read('build-comparison/build-comparison.md')
+              || 'The paired comparison could not be regenerated. See the original benchmark Summary.\n';
+            const history = (historyStatus && read('rolling-history/rolling-history.md'))
+              || '### Rolling-history CI gate: 🚫 ERROR\n\nHistory reporting could not complete. No history verdict is available; reporting errors remain non-blocking.\n';
+            await core.summary.addRaw([
+              '## Performance regression', comparison, history,
+              `[Original benchmark Summary](${sourceUrl})`,
+            ].join('\n\n')).write();
+            await github.rest.checks.update({
+              ...context.repo,
+              check_run_id: check.id,
+              status: 'completed',
+              conclusion: failed ? 'failure' : 'success',
+              details_url: summaryUrl,
+              output: {title: 'Rolling-history CI gate', summary: history},
+            });
+            await createCheck('Performance regression comparison', {
+              status: 'completed',
+              conclusion: 'neutral',
+              external_id: `performance-regression-comparison:${run.id}:${run.run_attempt}`,
+              output: {
+                title: 'Performance regression comparison',
+                summary: `## [Open rendered Performance regression Summary](${summaryUrl})\n\n`
+                  + 'View the base-versus-PR comparison and the separate rolling-history gate result.',
+              },
+            });

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exercise workflow activation and cancellation without starting GPU jobs."""
+"""Exercise workflow activation, source mounts, and cancellation without starting GPU jobs."""
 
 import json
 import os
@@ -89,18 +89,19 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     command = next(
         step["run"]
-        for step in workflow["jobs"]["performance-smoke"]["steps"]
+        for step in workflow["jobs"]["performance-regression"]["steps"]
         if step.get("name") == "Run runtime benchmarks"
     )
     step_script = tmp_path / "workflow-step.sh"
     step_script.write_text(command, encoding="utf-8")
-    scripts = tmp_path / "tools/performance_regression"
+    controller = tmp_path / "controller"
+    scripts = controller / "tools/performance_regression"
     scripts.mkdir(parents=True)
     (scripts / "run_benchmarks.sh").write_bytes(
         (_WORKFLOW.parents[2] / "tools/performance_regression/run_benchmarks.sh").read_bytes()
     )
     (scripts / "source_revision.py").write_text("", encoding="utf-8")
-    (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
+    (controller / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
     executables = tmp_path / "bin"
     executables.mkdir()
     docker = executables / "docker"
@@ -117,14 +118,9 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             workspace = Path(os.environ["GITHUB_WORKSPACE"])
             marker = workspace / "running-container"
             if sys.argv[1] == "run" and "--name" in sys.argv:
-                required_mount = f"{workspace}/source:/workspace/isaaclab/source:rw"
-                assert any(
-                    option == "-v" and value == required_mount
-                    for option, value in zip(sys.argv[1:], sys.argv[2:])
-                ), f"Benchmark must mount the selected checkout source: {required_mount}"
                 name = sys.argv[sys.argv.index("--name") + 1]
                 marker.write_text(name, encoding="utf-8")
-                print(json.dumps({"pid": os.getpid()}), flush=True)
+                print(json.dumps({"pid": os.getpid(), "argv": sys.argv[1:]}), flush=True)
                 while marker.exists():
                     time.sleep(0.01)
             elif sys.argv[1] == "rm" and marker.exists():
@@ -139,14 +135,25 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     timeout = executables / "timeout"
     timeout.write_text('#!/bin/bash\nshift\nexec "$@"\n', encoding="utf-8")
     timeout.chmod(0o755)
+    df = executables / "df"
+    df.write_text('#!/bin/bash\nprintf "Filesystem 1B-blocks\\nshm 1073741824\\n"\n', encoding="utf-8")
+    df.chmod(0o755)
     environment = {
         **os.environ,
         "PATH": f"{executables}{os.pathsep}{os.environ['PATH']}",
         "GITHUB_WORKSPACE": str(tmp_path),
+        "PERF_CONTROLLER": str(controller),
+        "PERF_MEASUREMENT_ROOT": str(controller / "measurement"),
         "GITHUB_RUN_ID": "123",
         "GITHUB_RUN_ATTEMPT": "2",
         "CI_IMAGE_TAG": "fixture-image",
     }
+    expected_mounts = {
+        f"{tmp_path}/{path}:/workspace/isaaclab/{path}:{mode}"
+        for path, mode in (("source", "rw"), ("scripts", "ro"), ("apps", "ro"))
+    }
+    for path in ("source/isaaclab/isaaclab/benchmark", "source/isaaclab/isaaclab/utils/timer.py"):
+        expected_mounts.add(f"{controller}/measurement/{path}:/workspace/isaaclab/{path}:ro")
     for stop_signal in (signal.SIGINT, signal.SIGTERM):
         process = subprocess.Popen(
             ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(step_script)],
@@ -160,6 +167,14 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
         try:
             started = next((json.loads(line) for line in process.stdout if line.startswith("{")), None)
             assert started is not None, (stop_signal.name, process.stderr.read())
+            docker_args = started["argv"][: started["argv"].index(environment["CI_IMAGE_TAG"])]
+            assert "--ipc=private" in docker_args and "--ipc=host" not in docker_args
+            assert docker_args[docker_args.index("--shm-size") + 1] == "1073741824"
+            mounts = {docker_args[index + 1] for index, arg in enumerate(docker_args) if arg == "-v"}
+            assert expected_mounts <= mounts, (
+                f"Missing or incorrect Docker source mounts: {sorted(expected_mounts - mounts)};"
+                f" observed: {sorted(mounts)}"
+            )
             process.send_signal(stop_signal)
             # GitHub escalates cancellation after 7.5 s + 2.5 s, then kills the process tree.
             stdout, stderr = process.communicate(timeout=10)
