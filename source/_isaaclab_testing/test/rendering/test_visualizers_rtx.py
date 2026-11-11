@@ -21,7 +21,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab.test.utils import launch_test_simulation
 from isaaclab.visualizers import VisualizerCfg
 
-launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton_rtx"])
+launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton"])
 # This process exercises both physics backends; register schemas before the first native USD population.
 OvPhysxManager._prepare_stage_creation()
 
@@ -30,7 +30,7 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-from isaaclab_visualizers.newton import NewtonRTXBackendCfg  # noqa: E402
+from isaaclab_visualizers.newton import NewtonGLBackendCfg  # noqa: E402
 from rendering_runtime import build_rendering_scene
 from rendering_scene_cfgs import CartpoleRenderingSceneCfg
 from visualizer_checks import changed_pixels, check_motion_and_pause
@@ -87,12 +87,14 @@ def test_newton_rtx_mpm_points_follow_world_state():
                 headless=True,
                 window=WindowCfg(size=(256, 256)),
                 cameras=[PerspectiveCameraCfg(eye=(0.0, -1.0, 1.1), lookat=(0.0, 0.0, 1.1))],
-                backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 0)}),
+                backend=NewtonGLBackendCfg(
+                    initial_renderer="rtx", rtx_render_settings={"omni:rtx:quality": ("Int", 0)}
+                ),
             )
         ],
     )
     scene_cfg = ParticleSceneCfg(num_envs=1, env_spacing=0.0)
-    with launch_simulation(SimpleNamespace(sim=cfg, scene=scene_cfg), {"visualizer": ["newton_rtx"]}):
+    with launch_simulation(SimpleNamespace(sim=cfg, scene=scene_cfg), {"visualizer": ["newton"]}):
         sim = SimulationContext(cfg)
         scene = instantiate(scene_cfg)
         sim.reset()
@@ -138,12 +140,12 @@ def test_directly_spawned_camera_drives_rtx_window():
         physics=OvPhysxCfg(),
         visualizer_cfgs=[VisualizerCfg(
             headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64)),
-            backend=NewtonRTXBackendCfg(),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )],
     )  # fmt: skip
     target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
     light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1000.0))
-    with launch_simulation(sim_cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
+    with launch_simulation(sim_cfg, {"visualizer": ["newton"], "device": "cuda:0"}):
         sim = sim_utils.SimulationContext(sim_cfg)
         with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=3, env_spacing=0.0):
             instantiate(target_cfg)
@@ -188,7 +190,7 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
         eye=(2.25, 0.0, 3.5),
         lookat=(0.0, 0.0, 2.25),
         streaming_view=False,
-        backend=NewtonRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(enable_shadows=True)),
+        backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_renderer_cfg=OVRTXRendererCfg(enable_shadows=True)),
     )
     cfg.camera.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
     with build_rendering_scene(cfg, "newton", data_types=("rgb",), visualizer_cfgs=[viewer_cfg]) as runtime:
@@ -353,10 +355,10 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
                 PerspectiveCameraCfg(eye=(0.0, -6.0, 2.0), lookat=(0.0, -2.0, 2.0), focal_length=24.0),
                 SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera"),
             ],
-            backend=NewtonRTXBackendCfg(),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )
     ]
-    with launch_simulation(cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
+    with launch_simulation(cfg, {"visualizer": ["newton"], "device": "cuda:0"}):
         sim = SimulationContext(cfg.sim)
         scene = instantiate(cfg.scene)
         sim.reset()

@@ -16,7 +16,7 @@ Examples and tasks
 ------------------
 
 These examples and demos introduce MPM construction and interaction. They
-default to Newton GL for interactive viewing. The launcher uses ``cuda:0`` by
+default to the Newton visualizer for interactive viewing. The launcher uses ``cuda:0`` by
 default. Pass ``--device cuda:N`` to select a different GPU.
 
 .. grid:: 1 1 2 2
@@ -310,23 +310,23 @@ material behavior. Run the teapot demo to compare the available modes:
 
    # Reconstructed surface
    uv run isaaclab demo teapot-fill \
-     --visualizer newton_gl --fluid_render_mode surface
+     --visualizer newton --fluid_render_mode surface
    # Surface and source particles together
    uv run isaaclab demo teapot-fill \
-     --visualizer newton_gl --fluid_render_mode both
+     --visualizer newton --fluid_render_mode both
 
-The teapot demo uses Newton GL and defaults to the reconstructed surface. Select
+The teapot demo uses the Newton visualizer and defaults to the reconstructed surface. Select
 ``particles`` or ``both`` to inspect the source MPM state. Its ``--visualizer`` / ``--viz``
-option accepts only ``newton_gl``; omit the option to use that default.
+option accepts only ``newton``; omit the option to use that default.
 
-For a path-traced surface, use the surface-reconstruction tutorial:
+For a path-traced surface, use the surface-reconstruction tutorial, which starts the Newton window in RTX:
 
 .. code-block:: bash
 
    uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
-     --visualizer newton_rtx --fluid_render_mode surface
+     --visualizer newton --fluid_render_mode surface
 
-Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers.
+Surface rendering is available in the Kit and Newton visualizers, with OpenGL or RTX rendering in the latter.
 
 .. raw:: html
 

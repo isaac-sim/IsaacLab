@@ -36,6 +36,7 @@ from isaaclab_newton.sim.schemas import (
 )
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -55,6 +56,7 @@ from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 
 class Assembly(NamedTuple):
@@ -571,7 +573,7 @@ def main() -> None:
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
     parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton_rtx"])
+    parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
     if args.num_envs < 1:
         parser.error("num_envs must be positive.")
@@ -583,6 +585,7 @@ def main() -> None:
     ).eval()
     cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs))
     cfg.sim.device = args.device
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
     print("Assets:", ", ".join(part.name for part in cfg.assemblies), flush=True)
     with launch_simulation(cfg=cfg, launcher_args=args) as physics:
         cfg.sim.physics = physics

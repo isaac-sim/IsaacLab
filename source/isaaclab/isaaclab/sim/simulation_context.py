@@ -433,13 +433,7 @@ class SimulationContext:
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
                 ])  # fmt: skip
-            if visualizer.cfg.backend.visualizer_type == "newton_rtx":
-                # An RTX window shows scene cameras, so tracking cameras have nothing to follow there.
-                cameras = [camera for camera in cameras if not (isinstance(camera, TrackingCameraCfg))]
-            else:
-                cameras = with_free_view(
-                    cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length
-                )
+            cameras = with_free_view(cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length)
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
@@ -563,7 +557,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return cfg.backend.visualizer_type == "newton_gl" and cfg.backend.enable_picking and not cfg.headless
+        return cfg.backend.visualizer_type == "newton" and cfg.backend.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.

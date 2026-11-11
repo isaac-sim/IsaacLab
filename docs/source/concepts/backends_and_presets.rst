@@ -91,7 +91,7 @@ Choose a selector
      - ``renderer=newton_renderer``
      - Selects a renderer configuration for tasks that produce camera data.
    * - ``visualizer=NAME[,NAME,...]``
-     - ``visualizer=newton_gl``
+     - ``visualizer=newton``
      - Selects interactive viewers; ``visualizer=none`` disables them.
    * - ``presets=NAME[,NAME,...]``
      - ``presets=rgb``

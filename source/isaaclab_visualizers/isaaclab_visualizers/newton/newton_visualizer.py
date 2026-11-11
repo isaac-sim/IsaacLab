@@ -14,6 +14,7 @@ import math
 import os
 import sys
 import time
+import webbrowser
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
@@ -47,7 +48,6 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
@@ -74,6 +74,9 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
+
+VISUALIZER_DOCS_URL = "https://isaac-sim.github.io/IsaacLab/main/source/concepts/visualization.html"
+"""Published documentation of the visualizers, opened from the viewer's HUD."""
 
 _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 
@@ -140,6 +143,33 @@ DEFAULT_TILED_ENVS = 16
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
+@contextlib.contextmanager
+def _header_tooltips(imgui, tips: dict[str, str], titles: dict[str, str] | None = None):
+    """Add tooltips and titles to the collapsing headers that another panel draws while this context is open.
+
+    Args:
+        imgui: The ``imgui`` module.
+        tips: Tooltip text by the header's original label.
+        titles: Displayed title by the header's original label. The original label stays the header's ID, so its
+            open state and saved layout carry over.
+    """
+    draw_header = imgui.collapsing_header
+    titles = titles or {}
+
+    def with_tooltip(label, *args, **kwargs):
+        shown = f"{titles[label]}###{label}" if label in titles else label
+        expanded = draw_header(shown, *args, **kwargs)
+        if label in tips:
+            hover_tooltip(imgui, tips[label])
+        return expanded
+
+    imgui.collapsing_header = with_tooltip
+    try:
+        yield
+    finally:
+        imgui.collapsing_header = draw_header
+
+
 def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str, hint: str = "") -> bool:
     """Render a checkbox greyed out with the reason as tooltip when *available* is False, else with *hint*."""
     if not available:
@@ -176,6 +206,10 @@ class NewtonViewerGL(ViewerGL):
     _overlay_capture = None
     """Publisher that also receives the line and arrow overlays, while the OVRTX view draws them."""
     _view_controls = None
+    _run_info: dict = {}
+    _steps_per_second = 0.0
+    _real_time_factor = 0.0
+    _rate_sample = (0.0, 0)
 
     PICKING_ARROW_SCALE = 4.0
     """Screen-space size of the arrow drawn while dragging a body in the OpenGL view, relative to a contact arrow."""
@@ -292,20 +326,21 @@ class NewtonViewerGL(ViewerGL):
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
-        Section order:
+        An always-visible header (task and run, physics backend and device, step and simulation
+        time, simulation rate and real-time factor, status badges, and a documentation link) sits above the
+        sections, which are ordered by how often they are used:
 
-        1. **Simulation** (open) — physics backend, model info, playback and environment controls.
-        2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
-           is called.
-        3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
-        4. **Rendering Options** (open) — VSync, the renderer and camera source, and renderer-specific options.
-        5. **Controls** (closed) — camera keyboard reference.
-        6. **Selection API** (closed) — Newton's selection panel.
+        1. **Playback** (open) — pause, rendering pause, and reset controls, and any ``"side"`` UI callbacks.
+        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
+        3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+           and Viser), and visual overlays.
+        4. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        5. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        6. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
-        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
-        handled by the IsaacLab controls inside **Simulation**.
+        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
+        inside **Playback**.
         """
-        import newton as nt
 
         gui = self.gui
 
@@ -330,7 +365,8 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+            # The window title already names the visualizer, so the panel has no title bar of its own.
+            if not imgui.begin("Newton Visualizer###newton_panel", flags=imgui.WindowFlags_.no_title_bar.value):
                 imgui.end()
                 return
 
@@ -340,60 +376,47 @@ class NewtonViewerGL(ViewerGL):
             for callback in _g._ui_callbacks.get("panel", []):
                 callback(imgui)
 
-            # --- Simulation -------------------------------------------------
+            viewer._draw_header(imgui)
+
+            # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Simulation"):
-                imgui.separator()
-                imgui.text(f"Physics: {viewer._backend_display}")
-                if viewer.model is not None:
-                    axis_names = ["X", "Y", "Z"]
-                    imgui.text(f"Up Axis: {axis_names[viewer.model.up_axis]}")
-                    gravity = viewer._metadata["gravity"]
-                    imgui.text(f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})")
+            playback_open = imgui.collapsing_header("Playback")
+            hover_tooltip(imgui, "Pause, resume, or reset the simulation, and set how often the window updates")
+            if playback_open:
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
-                if viewer._has_environment_controls():
-                    viewer._render_environment_controls(imgui)
+
+            # --- Camera View ------------------------------------------------
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
+            view_open = imgui.collapsing_header("Camera View")
+            hover_tooltip(imgui, "Choose the renderer and camera source, and adjust how the window draws")
+            if view_open:
+                imgui.separator()
+                if viewer._view_controls is not None:
+                    viewer._view_controls(imgui)
+
+            # --- Scene ------------------------------------------------------
+            viewer._draw_scene_controls(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
 
-            # --- Model overlays ---------------------------------------------
-            if viewer.model is not None:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Model Overlays"):
-                    imgui.separator()
-                    if viewer._fullscreen_image_active and not viewer.image_matches_camera:
-                        imgui.text_disabled("OpenGL only")
-                        hover_tooltip(
-                            imgui, "Switch the Renderer to OpenGL to draw joints, contacts, and other overlays"
-                        )
-                    elif viewer.image_matches_camera:
-                        viewer._draw_model_overlays(imgui, rtx=True)
-                        imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
-                    else:
-                        viewer._draw_model_overlays(imgui)
-            if viewer.marker_groups:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization Markers"):
-                    viewer._draw_marker_controls(imgui)
+            # --- Articulation Inspector (Newton's Selection API) ------------
+            with _header_tooltips(
+                imgui,
+                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
+                {"Selection API": "Articulation Inspector"},
+            ):
+                _g._render_selection_panel()
 
-            # --- Rendering Options ------------------------------------------
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Rendering Options"):
-                imgui.separator()
-                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                if viewer._view_controls is not None:
-                    viewer._view_controls(imgui)
-                for callback in _g._ui_callbacks.get("rendering", []):
-                    callback(imgui)
-
-            # --- Controls ---------------------------------------------------
+            # --- Control Bindings -------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Controls"):
+            controls_open = imgui.collapsing_header("Control Bindings###Controls")
+            hover_tooltip(imgui, "What each camera, keyboard, and mouse control does")
+            if controls_open:
                 imgui.separator()
                 picking = viewer.picking_enabled and (
                     not viewer._fullscreen_image_active or viewer.image_matches_camera
@@ -437,12 +460,43 @@ class NewtonViewerGL(ViewerGL):
                         imgui.text(line)
                     imgui.spacing()
 
-            # --- Selection API ----------------------------------------------
-            _g._render_selection_panel()
-
             imgui.end()
 
         gui._render_left_panel = _render_left_panel
+        render_stats = gui._render_stats_overlay
+
+        def _hide_stats_button(imgui):
+            imgui.separator()
+            if imgui.small_button("Hide##stats"):
+                self._show_stats = False
+            hover_tooltip(imgui, "Close the performance and model statistics")
+
+        gui._ui_callbacks.setdefault("stats", []).append(_hide_stats_button)
+
+        def _render_overlays(_g=gui):
+            imgui, io, scale = _g.ui.imgui, _g.ui.io, _g.ui.dpi_scale
+            if self._show_stats:
+                render_stats()
+            else:  # The statistics start closed; a small button in the corner opens them.
+                imgui.set_next_window_pos(
+                    imgui.ImVec2(io.display_size[0] - 10 * scale, 10 * scale), pivot=imgui.ImVec2(1.0, 0.0)
+                )
+                imgui.set_next_window_bg_alpha(0.7)
+                flags = (
+                    imgui.WindowFlags_.no_decoration.value
+                    | imgui.WindowFlags_.always_auto_resize.value
+                    | imgui.WindowFlags_.no_saved_settings.value
+                    | imgui.WindowFlags_.no_focus_on_appearing.value
+                    | imgui.WindowFlags_.no_nav.value
+                    | imgui.WindowFlags_.no_move.value
+                )
+                if imgui.begin("Performance Stats Toggle", flags=flags):
+                    if imgui.small_button("Stats"):
+                        self._show_stats = True
+                    hover_tooltip(imgui, "Show the frame rate and the model's body, shape, and joint counts")
+                imgui.end()
+
+        gui._render_stats_overlay = _render_overlays
 
     def _has_environment_controls(self) -> bool:
         """Return whether more than one environment can be shown, so the Environments section is useful."""
@@ -459,8 +513,39 @@ class NewtonViewerGL(ViewerGL):
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
 
+    def _draw_scene_controls(self, imgui) -> None:
+        """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        expanded = imgui.collapsing_header("Scene")
+        hover_tooltip(imgui, "Choose which environments, markers, and visual overlays are drawn")
+        if not expanded:
+            return
+        imgui.separator()
+        if self._has_environment_controls():
+            self._render_environment_controls(imgui)
+        self._draw_marker_controls(imgui)
+        if self.model is not None:
+            imgui.separator_text("Visual Overlays")
+            if self._fullscreen_image_active and not self.image_matches_camera:
+                imgui.text_disabled("OpenGL only")
+                hover_tooltip(
+                    imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
+                )
+            elif self.image_matches_camera:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.tree_node("Overlay options"):
+                    self._draw_model_overlays(imgui, rtx=True)
+                    imgui.tree_pop()
+                imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
+            else:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.tree_node("Overlay options"):
+                    self._draw_model_overlays(imgui)
+                    imgui.tree_pop()
+
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
+        imgui.separator_text("Visualization Markers")
         groups = list(self.marker_groups)
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
@@ -578,8 +663,67 @@ class NewtonViewerGL(ViewerGL):
         _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
         tip("Draw each body's inertia as a box")
 
+    def _update_rates(self, steps: int, dt: float) -> None:
+        """Refresh the simulation rate and real-time factor from the step counter, about twice a second."""
+        now = time.perf_counter()
+        wall, last_steps = self._rate_sample
+        if wall == 0.0:
+            self._rate_sample = (now, steps)
+        elif now - wall >= 0.5:
+            self._steps_per_second = max(0, steps - last_steps) / (now - wall)
+            self._real_time_factor = self._steps_per_second * dt
+            self._rate_sample = (now, steps)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        self._run_info = {key: value for key, value in (("task", task), ("mode", mode), ("run", run)) if value}
+
+    def _draw_header(self, imgui) -> None:
+        """Draw the always-visible summary: run, physics, scale, progress, rates, and status badges."""
+        owner = self._owner
+        info = self._run_info
+        if "task" in info:
+            imgui.text_wrapped(f"Task: {info['task']}")
+            hover_tooltip(imgui, "Task this run was launched with")
+        if "run" in info or "mode" in info:
+            imgui.text(f"Run: {' · '.join(info[key] for key in ('mode', 'run') if key in info)}")
+            hover_tooltip(imgui, "How the task is used (play or train) and the name of the run's log directory")
+        device = getattr(getattr(owner, "_sim", None), "device", None)
+        imgui.text(f"Physics: {self._backend_display}" + (f" ({device})" if device else ""))
+        hover_tooltip(imgui, "Physics backend and the device it runs on")
+        if owner is not None and owner._num_envs:
+            imgui.text(f"Envs: {owner._num_envs:,}")
+            hover_tooltip(imgui, "Number of simulated environments")
+        if owner is not None and owner._sim is not None:
+            sim = owner._sim
+            steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
+            self._update_rates(steps, dt)
+            imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
+            hover_tooltip(imgui, "Physics steps taken so far and the simulated time they add up to")
+            imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
+            hover_tooltip(imgui, "Physics steps per second. 1.00x means simulated time passes as fast as real time")
+        badges = []
+        if self._paused_training or self._paused:
+            badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
+        for index, (text, color) in enumerate(badges):
+            if index:
+                imgui.same_line()
+            imgui.text_colored(imgui.ImVec4(*color), f"[{text}]")
+        if imgui.text_link("Visualizer docs"):
+            webbrowser.open(VISUALIZER_DOCS_URL)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(VISUALIZER_DOCS_URL)
+        imgui.same_line()
+        imgui.text_disabled(f"Newton v{newton.__version__}")
+
     def _render_training_controls(self, imgui):
-        """Render the Isaac Lab playback controls inside the Simulation section."""
+        """Render the Isaac Lab playback controls inside the Playback section."""
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
@@ -875,6 +1019,26 @@ class NewtonVisualizerBase(BaseVisualizer):
             hidden=hidden, backface_culling=backface_culling, color=color,
             roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
         )  # fmt: skip
+        renderers = self._rtx_renderers
+        for renderer in renderers:
+            # The OVRTX viewer camera draws its own scene, so the mesh is published there as well.
+            renderer.log_mesh(
+                f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
+                backface_culling, color, roughness, metallic, dynamic, opacity,
+            )  # fmt: skip
+        if renderers:
+            # The cached RTX image predates the mesh, which matters while paused or between renders.
+            view = self._image_views[self.rtx_view_index]
+            view.camera.update(0.0)
+            view.invalidate()
+
+    @property
+    def _rtx_renderers(self) -> tuple:
+        """OVRTX renderers of the viewer camera; empty when the scene has none."""
+        index = getattr(self, "rtx_view_index", None)
+        if index is None or self._sim is None:
+            return ()
+        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
 
     @staticmethod
     def _is_tracking_view(view) -> bool:
@@ -1782,6 +1946,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
         if self.rtx_view_index is not None:
             self._overlay_publisher = OverlayMeshPublisher(f"Viewer_{id(self)}")
+        if self.cfg.backend.initial_renderer == "rtx":
+            if self.rtx_view_index is None:
+                raise RuntimeError(
+                    "NewtonGLBackendCfg.initial_renderer='rtx' needs the OVRTX viewer camera. Launch declares it for"
+                    " a run with an InteractiveSceneCfg (see NewtonGLBackendCfg.rtx_camera); a script that builds its"
+                    " scene itself must add an OVRTX Camera whose prim_path starts with '/World/viewer_camera_'."
+                )
+            self.set_rtx_rendering(True)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -1939,14 +2111,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         return None
 
     @property
-    def _rtx_renderers(self) -> tuple:
-        """OVRTX renderers of the viewer camera; empty when the scene has none."""
-        index = self.rtx_view_index
-        if index is None or self._sim is None:
-            return ()
-        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
-
-    @property
     def sensor_view_selected(self) -> bool:
         """Whether the main view shows a scene sensor, which is rendered by its own renderer."""
         view = self.current_image_view
@@ -1978,6 +2142,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        if self._viewer is not None:
+            self._viewer.set_run_info(task, mode, run)
 
     @property
     def visible_env_limit(self) -> int:
@@ -2276,79 +2451,3 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.backend.light_color)
-
-
-class NewtonRTXVisualizer(NewtonVisualizerBase):
-    """Display simulation-owned RTX images in a Newton GL window.
-
-    Scene cameras and the perspective product share the configured OVRTX renderer. Window resizing
-    only scales presentation; sensor and perspective output storage keeps its initial resolution.
-    """
-
-    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Bind existing scene cameras to the window; cameras retain renderer ownership."""
-        if self._is_initialized:
-            return
-        if FactoryBase._get_backend(sim=sim) == "physx":
-            raise RuntimeError(
-                "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
-            )
-        if any(isinstance(camera, PerspectiveCameraCfg) for camera in cameras) or (
-            self.cfg.view is not None and isinstance(self.cfg.view.source, PerspectiveCameraCfg)
-        ):
-            raise ValueError(
-                "RTX perspective cameras must be declared before scene construction. Pass the environment config "
-                "to launch_simulation, or use instantiate(camera_cfg) within ReplicateSession and select it with "
-                "SceneCameraCfg."
-            )
-        super().initialize(sim, cameras=cameras)
-        self._viewer.renderer.set_title("Isaac Lab RTX")
-        self._viewer.picking_enabled = False
-        self._select_camera(0)
-        self._renderers = tuple(dict.fromkeys(
-            sim.get_or_create_backend(view.camera.cfg.renderer_cfg) for view in self._image_views
-            if view.camera.cfg.renderer_cfg.renderer_type == "ovrtx"
-        ))  # fmt: skip
-        if self.cfg.enable_markers:
-            for renderer in self._renderers:
-                renderer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._marker_revision = -1
-        self._is_initialized = True
-
-    def log_mesh(self, name: str, *args, **kwargs) -> None:
-        """Publish geometry to the shared scene, including cameras captured without a window."""
-        if not self._is_initialized:
-            raise RuntimeError("The visualizer must be initialized before logging a mesh.")
-        for renderer in self._renderers:
-            renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
-        for view in self._image_views:
-            view.camera.update(0.0)
-            view.invalidate()
-
-    def _render_frame(self) -> None:
-        """Update navigation and scene overlays, then display the selected camera's GPU image."""
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            if not self._viewer.is_paused():
-                self._navigate_scene_camera()
-                if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
-                    for view in self._image_views:
-                        view.camera.update(0.0)
-                        view.invalidate()
-                    self._marker_revision = self._sim.vis_marker_registry.revision
-            self._log_streaming_image()
-            self._last_render_step = self._sim.get_physics_step_count()
-        finally:
-            self._viewer.end_frame()
-
-    def close(self) -> None:
-        """Close the window; scene cameras retain their render products and shared renderer."""
-        if self._is_closed:
-            return
-        self._close_key_event_source()
-        try:
-            if self._viewer is not None:
-                self._viewer.close()
-        finally:
-            self._viewer = None
-            super().close()

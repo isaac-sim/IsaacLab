@@ -7,12 +7,12 @@ into a cup, and optionally stir using scripted IK.
 uv run isaaclab demo rizon-sharpa-coffee
 ```
 
-The default is a dry Newton GL scene with a 4 mm grid and one visual grain
+The default is a dry Newton scene with a 4 mm grid and one visual grain
 per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
-conversion, conservative colour diffusion and stirring. Kit and Newton RTX
-load the same full kitchen presentation; use `--water --visualizer kit` or
-`--water --visualizer newton_rtx`. Both support `--backdrop studio` for the
-plain studio. Newton GL keeps its tabletop scene. `--visualizer none --headless`
+conversion, conservative colour diffusion and stirring. Kit and the Newton visualizer in RTX
+(`initial_renderer="rtx"`, used by `--video`) load the same full kitchen presentation;
+use `--water --visualizer kit` for Kit. Both support `--backdrop studio` for the
+plain studio. Newton's OpenGL view keeps its tabletop scene. `--visualizer none --headless`
 runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
@@ -59,7 +59,7 @@ Native Newton reconstructs and smooths the surface using bounded reusable
 storage. The rendering code adds the local coffee colour. Kit stays separate
 because its runtime cannot be imported during configuration. Its camera
 session-layer handling is local to this demo. The RTX visualizer publishes grains and liquid colours into the scene camera's
-shared renderer; Newton GL displays the completed image.
+shared renderer; Newton displays the completed image.
 
 The custom MPM solver retains its manager's USD configuration preparation and
 only specializes solver construction. Task-specific RTX material paths and updates
@@ -125,12 +125,12 @@ Lab's differential IK action and DLS controller. Finger commands use its normal
 joint-position action. Scripted waypoints enter steeply, flatten inside the
 coffee, lift, pour and optionally stir. The camera follows smoothly.
 
-`--video` uses Isaac Lab's `VideoRecorderCfg` and defaults to Newton RTX.
+`--video` uses Isaac Lab's `VideoRecorderCfg` and starts Newton in RTX.
 Install the recording and renderer extras for the selected viewer:
 
 ```bash
 uv run --extra ovrtx --extra video isaaclab demo rizon-sharpa-coffee --water --video
-uv run --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer newton_gl
+uv run --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer newton
 uv run --extra isaacsim --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer kit
 ```
 

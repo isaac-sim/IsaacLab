@@ -300,8 +300,8 @@ motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
 .. note::
 
    Visualization markers are debug overlays provided by visualizers, not camera outputs. Their
-   support is independent of the camera renderer: the Kit, Newton GL, Rerun, and Viser visualizers
-   support markers, while the experimental Newton RTX visualizer does not. See
+   support is independent of the camera renderer: the Kit, Newton, Rerun, and Viser visualizers
+   support markers, in both OpenGL and RTX rendering for Newton. See
    :doc:`/source/concepts/visualization` for the visualizer support matrix.
 
 .. note::
