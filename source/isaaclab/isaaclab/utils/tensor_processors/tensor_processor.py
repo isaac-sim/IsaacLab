@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Union
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from ..warp import ProxyArray
@@ -57,12 +58,14 @@ class TensorProcessor(ABC):
         self._data_dim = data_dim
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset state for selected batch entries, or all entries when None.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
         pass
 
