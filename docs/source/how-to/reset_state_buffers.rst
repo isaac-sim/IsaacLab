@@ -95,9 +95,9 @@ environments receive new row assignments.
 
 The sampler reuses the shared success monitor and sampling strategies from
 :mod:`isaaclab_tasks.utils.sampling`. Configure row selection through
-``ResetStateSamplerCfg.sampling``; the monitor config controls outcome history.
-Non-default monitor sampling controls are rejected. For a uniform baseline,
-configure the existing uniform strategy:
+``ResetStateSamplerCfg.sampling`` and outcome history through
+``ResetStateSamplerCfg.monitored_history_len``. For a uniform baseline, configure
+the existing uniform strategy:
 
 .. code-block:: python
 
@@ -148,7 +148,8 @@ point ``(0.5, 0.0, 0.15)`` [m] in the robot root frame, within a radius of
 ``0.04`` [m]. The reward is a terminal ``+1`` on that transition.
 
 The registered ``IsaacContrib-Cube-Pickup-Franka`` task collects table, approach,
-pregrasp, and physical grasp starts. It uses relative Cartesian actions and a
+pregrasp, and physical grasp starts. The reference currently supports Newton
+MJWarp as its default physics backend. It uses relative Cartesian actions and a
 binary pickup-to-point reward. Generate and inspect a small buffer first:
 
 .. code-block:: bash

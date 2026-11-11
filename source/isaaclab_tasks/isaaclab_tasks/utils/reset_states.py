@@ -33,17 +33,12 @@ class ResetStateSampler:
     def __init__(self, cfg: ResetStateSamplerCfg, num_envs: int, row_count: int, device: str | torch.device) -> None:
         if num_envs < 1 or row_count < 1:
             raise ValueError("num_envs and row_count must be positive.")
-        monitor_defaults = SuccessMonitorCfg()
-        if (
-            cfg.success_monitor.target_success_rate != monitor_defaults.target_success_rate
-            or cfg.success_monitor.kappa != monitor_defaults.kappa
-            or cfg.success_monitor.temperature != monitor_defaults.temperature
-        ):
-            raise ValueError("Configure reset-row selection through sampling, not success_monitor sampling fields.")
         self.cfg = cfg
         self.row_ids = torch.zeros(num_envs, dtype=torch.long, device=device)
         """Current reset-row assignment for every environment, shape [num_envs]."""
-        self.success_monitor: SuccessMonitor = instantiate(cfg.success_monitor, 1, row_count, device)
+        self.success_monitor = SuccessMonitor(
+            SuccessMonitorCfg(monitored_history_len=cfg.monitored_history_len), 1, row_count, device
+        )
         """Rolling outcomes indexed by reset row."""
         self.sampler: Sampler = instantiate(cfg.sampling, self.success_monitor.success_rate)
         self._probabilities = self.sampler.probabilities()
