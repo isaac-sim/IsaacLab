@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import torch
@@ -68,32 +69,34 @@ class MountedSpoonAttachment:
         self._model = self._backend_manager.backend.model
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
+        bodies = defaultdict(lambda: ([], []))
+        for index, (label, world) in enumerate(
+            zip(self._model.body_label, self._model.body_world.numpy(), strict=True)
+        ):
+            if palm_pattern.fullmatch(label):
+                bodies[world][0].append(index)
+            if spoon_pattern.fullmatch(label):
+                bodies[world][1].append(index)
         palm_ids, spoon_ids = [], []
-        body_world = self._model.body_world.numpy()
         for env_index in range(robot.num_instances):
-            palms = [
-                index
-                for index, label in enumerate(self._model.body_label)
-                if body_world[index] == env_index and palm_pattern.fullmatch(label)
-            ]
-            spoons = [
-                index
-                for index, label in enumerate(self._model.body_label)
-                if body_world[index] == env_index and spoon_pattern.fullmatch(label)
-            ]
+            palms, spoons = bodies[env_index]
             if len(palms) != 1 or len(spoons) != 1:
                 raise ValueError(f"Expected one native palm and spoon in env_{env_index}; got {palms}, {spoons}.")
             palm_ids.append(palms[0])
             spoon_ids.append(spoons[0])
         self._palm_ids = wp.array(palm_ids, dtype=int, device=self._model.device)
         self._spoon_ids = wp.array(spoon_ids, dtype=int, device=self._model.device)
-        children = self._model.joint_child.numpy()
-        types = self._model.joint_type.numpy()
+        free_joints = defaultdict(list)
+        for index, (child, joint_type) in enumerate(
+            zip(self._model.joint_child.numpy(), self._model.joint_type.numpy(), strict=True)
+        ):
+            if joint_type == JointType.FREE:
+                free_joints[child].append(index)
         q_starts = self._model.joint_q_start.numpy()
         qd_starts = self._model.joint_qd_start.numpy()
         spoon_joints = []
         for body in spoon_ids:
-            joints = [index for index, child in enumerate(children) if child == body and types[index] == JointType.FREE]
+            joints = free_joints[body]
             if len(joints) != 1:
                 raise ValueError(f"Expected one free root joint for mounted spoon body {body}; got {joints}.")
             spoon_joints.append(joints[0])

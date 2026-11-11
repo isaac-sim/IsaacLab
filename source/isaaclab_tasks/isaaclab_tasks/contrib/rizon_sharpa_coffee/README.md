@@ -71,7 +71,7 @@ absorption. GL uses its native textured surface.
 
 ## Shared scene setup and camera benchmark
 
-`configure_scene_rigid` configures the robot and props on a `CoffeeSceneCfg` without
+`CoffeeSceneCfg` declares the shared robot and props without
 sampling coffee or water or constructing a material solver. The full demo continues
 to use `configure_scene`, which adds its original material initialization and physics
 settings. `CoffeeKitchenCfg` gives both consumers the same kitchen import preparation;

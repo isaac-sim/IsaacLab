@@ -30,7 +30,6 @@ from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
     KITCHEN_CAMERA_LOOKAT,
     CoffeeKitchenCfg,
     CoffeeSceneCfg,
-    configure_scene_rigid,
 )
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -83,9 +82,6 @@ class CoffeeKitchenSceneCfg(CoffeeSceneCfg):
             )
         },
     )
-
-    def __post_init__(self) -> None:
-        configure_scene_rigid(self)
 
 
 _PHYSICS = NewtonCfg(

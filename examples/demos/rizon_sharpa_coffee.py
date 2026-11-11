@@ -265,16 +265,14 @@ class _SpoonCamera:
         self.reset()
 
     def reset(self):
-        self._eye = self._initial_eye.copy()
-        self._target = self._initial_target.copy()
         distance = np.linalg.norm(self._offset)
         elevation = math.asin(self._offset[2] / distance)
         # Three cascaded filters keep position, velocity and acceleration
         # continuous even when the scripted phase changes its framing target.
-        self._framing = np.tile((*self._target, math.log(distance), elevation, self._azimuth), (3, 1))
+        self._framing = np.tile((*self._initial_target, math.log(distance), elevation, self._azimuth), (3, 1))
         self._stirring = False
         for visualizer in self._visualizers:
-            visualizer.set_camera_view(self._eye, self._target)
+            visualizer.set_camera_view(self._initial_eye, self._initial_target)
 
     def update(self, spoon_position, phase, dt):
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION
@@ -309,18 +307,18 @@ class _SpoonCamera:
         self._framing[0] = goal + decay * errors[0]
         self._framing[1] = goal + decay * (errors[1] + elapsed * errors[0])
         self._framing[2] = goal + decay * (errors[2] + elapsed * errors[1] + 0.5 * elapsed**2 * errors[0])
-        self._target = self._framing[2, :3].copy()
+        target = self._framing[2, :3].copy()
         distance = math.exp(self._framing[2, 3])
         elevation = self._framing[2, 4]
         azimuth = self._framing[2, 5]
         horizontal = distance * math.cos(elevation)
-        self._eye = self._target + (
+        eye = target + (
             horizontal * math.cos(azimuth),
             horizontal * math.sin(azimuth),
             distance * math.sin(elevation),
         )
         for visualizer in self._visualizers:
-            visualizer.set_camera_view(self._eye, self._target)
+            visualizer.set_camera_view(eye, target)
 
 
 if __name__ == "__main__":
