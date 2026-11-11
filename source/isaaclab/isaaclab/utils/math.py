@@ -1680,7 +1680,7 @@ def create_rotation_matrix_from_view(
     z_axis = -torch.nn.functional.normalize(forward, eps=1e-5)
     x_axis = torch.nn.functional.normalize(torch.cross(up_axis_vec, z_axis, dim=1), eps=1e-5)
     y_axis = torch.nn.functional.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
-    is_close = torch.isclose(x_axis, x_axis.new_zeros(()), atol=5e-3).all(dim=1, keepdim=True)
+    is_close = torch.isclose(x_axis, torch.tensor(0.0, dtype=x_axis.dtype), atol=5e-3).all(dim=1, keepdim=True)
     if is_close.any():
         # alt-up substitution when up_axis_vec is parallel to z_axis; both x and y must be recomputed.
         # World X is non-parallel to z whenever the symptom fires for the supported up_axis values.

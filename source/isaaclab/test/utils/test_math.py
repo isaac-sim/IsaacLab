@@ -1117,24 +1117,30 @@ def test_euler_xyz_from_quat():
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
-    "eye, up_axis, dtype",
-    [
-        ((0.0, 0.0, 5.0), "Z", torch.float32),
-        ((0.0, 5.0, 0.0), "Y", torch.float32),
-        ((0.0, 0.0, -5.0), "Z", torch.float32),
-        ((0.0, 0.0, 5.0), "Z", torch.float64),
-    ],
-    ids=["along_up_axis_z", "along_up_axis_y", "along_negative_up_axis", "along_up_axis_z_float64"],
+    "eye, up_axis",
+    [((0.0, 0.0, 5.0), "Z"), ((0.0, 5.0, 0.0), "Y"), ((0.0, 0.0, -5.0), "Z")],
+    ids=["along_up_axis_z", "along_up_axis_y", "along_negative_up_axis"],
 )
-def test_create_rotation_matrix_from_view_lookat_along_up_axis(device, eye, up_axis, dtype):
-    """Camera looking along (or against) the up axis should return a valid orthonormal frame in the input dtype."""
-    eyes = torch.tensor([eye], device=device, dtype=dtype)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device, dtype=dtype)
+def test_create_rotation_matrix_from_view_lookat_along_up_axis(device, eye, up_axis):
+    """Camera looking along (or against) the up axis should return a valid orthonormal frame."""
+    eyes = torch.tensor([eye], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
     R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=device)
     assert R is not None
-    identity = torch.eye(3, device=device, dtype=dtype).expand(1, 3, 3)
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
     torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
-    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device, dtype=dtype), atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+def test_create_rotation_matrix_from_view_keeps_float64():
+    """float64 eyes and targets, including a view along the up axis, should return a float64 orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, 5.0], [1.0, 2.0, 3.0]], dtype=torch.float64)
+    targets = torch.zeros(2, 3, dtype=torch.float64)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device="cpu")
+    assert R.dtype == torch.float64
+    identity = torch.eye(3, dtype=torch.float64).expand(2, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(2, dtype=torch.float64), atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", test_devices())
