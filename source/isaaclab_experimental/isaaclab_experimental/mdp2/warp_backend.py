@@ -19,7 +19,7 @@ from collections.abc import Callable, Hashable, Iterable, Sequence
 import warp as wp
 
 from .compiled import MDP
-from .config import FieldSelector, Phase, episode_length, last_action, terminated
+from .config import FieldSelector, Phase, episode_length, last_action, term_state, terminated
 from .eager import call_eager
 from .fusion import Fusion
 from .plan import Call, Launches, Step, StepKind, TermOp
@@ -91,21 +91,19 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         (mdp.action_dim,), f"{last_actions}[world, element] = {actions}[world, element]", writes=[last_action]
     )
 
+    # Fields with more dimensions per world are flattened; joint fields are views of the solver state that may be
+    # strided, so they are passed as they are.
+    def rows(call: Call, selector: FieldSelector) -> wp.array:
+        field = call.state.fields[selector].warp
+        return field if field.ndim == 2 else field.reshape((mdp.num_worlds, -1))
+
     for step in mdp.plan.apply_actions:
         op = step.op
-        target = code.argument(
-            op.target,
-            wp.array2d(dtype=wp.float32),
-            lambda call, op=op: call.state.fields[op.target].warp.reshape((mdp.num_worlds, -1)),
-        )
+        target = code.argument(op.target, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.target))
         index = "element" if op.subset is None else f"{_field(code, op.subset, wp.array(dtype=wp.int32))}[element]"
         offset = code.constant(float, op.offset)
         if isinstance(op.offset, FieldSelector):
-            offsets = code.argument(
-                op.offset,
-                wp.array2d(dtype=wp.float32),
-                lambda call, op=op: call.state.fields[op.offset].warp.reshape((mdp.num_worlds, -1)),
-            )
+            offsets = code.argument(op.offset, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.offset))
             offset = f"{offsets}[world, {index}]"
         value = f"{actions}[world, {op.columns.start} + element] * {code.constant(float, op.scale)} + {offset}"
         code.elements(
@@ -168,7 +166,7 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
     """Add the statements for the steps of a runtime function. ``stepping`` is true for ``evaluate``."""
     for step in steps:
         op = step.op
-        state = [(op.name, name) for name in op.state]
+        state = [term_state(op.name, name) for name in op.state]
         active = _active(code, op)
         match step.kind:
             case StepKind.COMPUTE:
@@ -186,24 +184,29 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                 _run(code, mdp, op, op.reset, state, active, mask=_mask)
             case StepKind.RESET_STATE:
                 _reset_state(code, mdp, op, active)
+            case StepKind.COMMIT:
+                code.call(lambda call: call.commit())
 
 
 def _reset_state(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str]) -> None:
     """Fill the state of an op that has no reset hook with its initial values, under ``conditions``."""
     shape = (mdp.num_worlds, -1)
     for name, spec in op.state.items():
+        if spec.persistent:
+            continue
+        # The state flattened per world, which is another argument than the state as its hooks take it.
         values = code.argument(
-            (op.name, name),
+            ("flat", op.name, name),
             wp.array2d(dtype=wp.float32),
             lambda call, name=name: call.state.arguments[op.name][name].reshape(shape),
         )
         fill = f"{code.function(_fill)}(world, {values}, {code.constant(float, spec.initial)})"
-        code.world(*_under(conditions, fill), writes=[(op.name, name)])
+        code.world(*_under(conditions, fill), writes=[("flat", op.name, name)])
 
 
 def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (), stepping: bool = False) -> None:
     """Compute an op into its destination, nested under ``conditions``. Stepping advances observation histories."""
-    state = [(op.name, name) for name in op.state]
+    state = [term_state(op.name, name) for name in op.state]
     reset_like = op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS) or op.phase is Phase.COMMANDS and not stepping
     if op.worlds is not None and reset_like and not isinstance(op.compute, wp.Function):
         # The hook gets the reset worlds where the op is active.
@@ -211,6 +214,12 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
         return
 
     match op.phase:
+        case Phase.QUANTITIES:
+            value = _value(code, mdp, op)
+            field = _field(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
+            loops = [f"for i{d} in range({size}):" for d, size in enumerate(op.shape)]
+            assignment = f"{field}[{_index(op.shape)}] = {value}"
+            code.world(*_under([*conditions, *loops], assignment), writes=op.writes)
         case Phase.TERMINATIONS:
             writes = ["truncated" if op.time_out else "terminated", "done"]
             flags = [f"{_result(code, key)}[world] = True" for key in writes]
@@ -256,7 +265,10 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
     if op.noise is not None:
         low, high = code.constant(float, op.noise.n_min), code.constant(float, op.noise.n_max)
         seed = f"{_rng(code)}[{op.noise_stream}, world]"
-        value = f"({value} + wp.randf(wp.rand_init({seed}, element), {low}, {high}))"
+        noise = f"wp.randf(wp.rand_init({seed}, element), {low}, {high})"
+        if op.noise.scale is not None:
+            noise = f"{noise} * {_field(code, op.noise.scale, wp.array(dtype=wp.float32))}[world]"
+        value = f"({value} + {noise})"
     if op.clip is not None:
         low, high = (code.constant(float, bound) for bound in op.clip)
         value = f"wp.clamp({value}, {low}, {high})"
@@ -357,7 +369,7 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
         if name in op.params:
             values.append(code.constant(annotation, op.params[name]))
         elif name in op.inputs or name in op.state:
-            key = op.inputs.get(name, (op.name, name))
+            key = op.inputs.get(name, term_state(op.name, name))
             values.append(code.argument(key, annotation, lambda call, name=name: call.state.arguments[op.name][name]))
         else:
             values.append(f"{_rng(code)}[{op.stream}, world]")
@@ -402,7 +414,7 @@ def _timer(code: Fusion, op: TermOp) -> str:
 
 def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
     """Return the keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
-    state = {(op.name, name) for name in op.state}
+    state = {term_state(op.name, name) for name in op.state}
     reads = {*op.inputs.values(), *state, ("selected", op.name), *(["rng"] if op.random else [])}
     return reads, {*op.writes, *state, ("scratch", op.name)}
 

@@ -71,6 +71,9 @@ class TermOp:
     random: bool = False  # Whether the term draws from its stream
     capturable: bool = True  # Whether its hooks may run inside a CUDA graph
     eager: bool = False  # Whether ``compute`` is an eager term's ``fn(ctx, **params)``, see :mod:`.eager`
+    init: Callable | None = None  # Eager ``fn(ctx, **params)`` that fills the state once, before the startup events
+    commit: bool = False  # Reset events: whether the scene commits the earlier events' writes before it runs
+    log: bool = False  # Quantities: whether the environment logs it as a metric
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
 
 
@@ -82,6 +85,7 @@ class StepKind(enum.Enum):
     UPDATE_STATE = enum.auto()  # Advance the term's state after its compute, or a command's value every step
     RESET_TIMER = enum.auto()  # Draw a new time until the command resamples or the interval event runs
     RESET_STATE = enum.auto()  # Run the reset hook, or set the state to its initial value
+    COMMIT = enum.auto()  # Have the scene commit the writes of the reset events so far, before the op's event
 
 
 @dataclass(frozen=True)
@@ -94,7 +98,7 @@ class Step:
     @property
     def capturable(self) -> bool:
         """Whether the step may run inside a CUDA graph. Only steps that call a non-capturable hook may not."""
-        if isinstance(self.op, ActionOp) or self.op.capturable or self.kind is StepKind.RESET_TIMER:
+        if isinstance(self.op, ActionOp) or self.op.capturable or self.kind in (StepKind.RESET_TIMER, StepKind.COMMIT):
             return True
         return self.kind is StepKind.RESET_STATE and self.op.reset is None
 
@@ -128,20 +132,36 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
     """Order the steps of every runtime function from the ops of each phase. This defines the step contract."""
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
-    # Commands write their state when they resample.
-    stateful = [op for phase in Phase if phase not in (Phase.ACTIONS, Phase.COMMANDS) for op in ops[phase] if op.state]
+    # Commands write their state when they resample, and persistent state outlives episodes.
+    stateful = [
+        op
+        for phase in Phase
+        if phase not in (Phase.ACTIONS, Phase.COMMANDS)
+        for op in ops[phase]
+        if op.reset is not None or any(not spec.persistent for spec in op.state.values())
+    ]
+
+    quantities = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.QUANTITIES])
+    quantity_fields = {op.writes[0] for op in ops[Phase.QUANTITIES]}
+    observed = any(selector in quantity_fields for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values())
 
     terminations_and_rewards = []
-    for op in ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
+    for op in ops[Phase.QUANTITIES] + ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
         terminations_and_rewards.append(Step(StepKind.COMPUTE, op))
         if op.update is not None:
             terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
+
+    reset_events = []
+    for op in ops[Phase.RESET_EVENTS]:
+        if op.commit:
+            reset_events.append(Step(StepKind.COMMIT, op))
+        reset_events.append(Step(StepKind.COMPUTE, op))
 
     return ExecutionPlan(
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
         apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
         evaluate=(
-            # Terminations and rewards see the commands that governed the action.
+            # Quantities, terminations, and rewards see the commands that governed the action.
             *terminations_and_rewards,
             *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed if op.phase is Phase.COMMANDS),
             # Commands with an update hook track something every step, like a heading.
@@ -153,11 +173,13 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
         ),
         reset=(
             *(Step(StepKind.RESET_TIMER, op) for op in timed),
-            *(Step(StepKind.COMPUTE, op) for op in ops[Phase.RESET_EVENTS] + ops[Phase.COMMANDS]),
+            *reset_events,
+            *(Step(StepKind.COMPUTE, op) for op in ops[Phase.COMMANDS]),
             # State restarts last, from the fields and commands of the new episode.
             *(Step(StepKind.RESET_STATE, op) for op in stateful),
         ),
-        observe=observations,
+        # Quantities keep the values of the last step, so observations that read them get them computed again.
+        observe=(*(quantities if observed else ()), *observations),
     )
 
 
@@ -170,6 +192,7 @@ class Call:
     mask: ProxyArray | None = None
     transition: Transition | None = None
     observations: dict[str, ProxyArray] | None = None
+    commit: Callable[[], None] | None = None  # Commits the scene writes of the reset events, see StepKind.COMMIT
 
 
 @dataclass(frozen=True)

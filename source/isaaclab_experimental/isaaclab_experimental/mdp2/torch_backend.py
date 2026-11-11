@@ -94,10 +94,14 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             op.update(**hook_arguments(op.update, {**state.arguments[op.name], "mask": mask}))
         case StepKind.RESET_TIMER:
             _restart(op, state, mask)
+        case StepKind.COMMIT:
+            call.commit()
         case StepKind.RESET_STATE if op.reset is not None:
             op.reset(mask=mask, **hook_arguments(op.reset, state.arguments[op.name]))
         case StepKind.RESET_STATE:
             for name, spec in op.state.items():
+                if spec.persistent:
+                    continue
                 values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
                 values.masked_fill_(mask[:, None], spec.initial)
 
@@ -118,6 +122,13 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         value = state.scratch[op.name].torch
     else:
         value = op.compute(**hook_arguments(op.compute, state.arguments[op.name]))
+    if op.phase is Phase.QUANTITIES:
+        destination = state.fields[op.writes[0]].torch
+        if mask is not None:
+            value = torch.where(mask.view(-1, *[1] * len(op.shape)), value, destination)
+        destination.copy_(value)
+        return
+
     if mask is not None and op.phase in (Phase.TERMINATIONS, Phase.REWARDS):
         value = torch.where(mask, value, torch.zeros_like(value))
 
@@ -141,6 +152,8 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
     destination = call.observations[op.group].torch[:, op.columns]
     if op.noise is not None:
         noise = rng.uniform(state.rng.torch[op.noise_stream], op.noise.n_min, op.noise.n_max, op.shape)
+        if op.noise.scale is not None:
+            noise = noise * state.fields[op.noise.scale].torch.view(-1, *[1] * len(op.shape))
         value = value + noise
     if op.clip is not None:
         value = value.clamp(*op.clip)

@@ -44,6 +44,19 @@ is_terminated = Term(torch=lambda terminated: terminated.float(), warp=_is_termi
 """One for worlds whose episode terminated this step, not by a time-out, bound to ``mdp2.terminated``."""
 
 
+@wp.func
+def _value(world: int, value: wp.array(dtype=float)) -> float:
+    return value[world]
+
+
+def _value_torch(value):
+    return value
+
+
+value = Term(torch=_value_torch, warp=_value)
+"""The ``value`` input itself, one float per world, such as a quantity or the state of another term."""
+
+
 # Joint state.
 
 

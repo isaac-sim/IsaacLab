@@ -16,6 +16,22 @@ from ..terms import Term
 from .observations import projected_gravity_b, projected_gravity_torch
 from .rewards import contact_count, contact_mask_torch
 
+# Episode.
+
+
+@wp.func
+def _is_positive(world: int, value: wp.array(dtype=float)) -> bool:
+    return value[world] > 0.0
+
+
+def _is_positive_torch(value):
+    return value > 0.0
+
+
+is_positive = Term(torch=_is_positive_torch, warp=_is_positive)
+"""Whether the ``value`` input, one float per world such as a quantity, is positive."""
+
+
 # Joint state.
 
 
@@ -37,6 +53,28 @@ def _joint_pos_out_of_manual_limit_torch(joint_pos, joint_ids, *, bounds):
 
 joint_pos_out_of_manual_limit = Term(torch=_joint_pos_out_of_manual_limit_torch, warp=_joint_pos_out_of_manual_limit)
 """Whether a joint position is outside ``bounds``, a ``(lower, upper)`` pair."""
+
+
+@wp.func
+def _joint_vel_out_of_limit(
+    world: int,
+    joint_vel: wp.array2d(dtype=float),
+    soft_joint_vel_limits: wp.array2d(dtype=float),
+    joint_ids: wp.array(dtype=wp.int32),
+) -> bool:
+    outside = bool(False)
+    for k in range(joint_ids.shape[0]):
+        j = joint_ids[k]
+        outside = outside or wp.abs(joint_vel[world, j]) > soft_joint_vel_limits[world, j]
+    return outside
+
+
+def _joint_vel_out_of_limit_torch(joint_vel, soft_joint_vel_limits, joint_ids):
+    return (joint_vel[:, joint_ids].abs() > soft_joint_vel_limits[:, joint_ids]).any(-1)
+
+
+joint_vel_out_of_limit = Term(torch=_joint_vel_out_of_limit_torch, warp=_joint_vel_out_of_limit)
+"""Whether a joint speed exceeds its soft velocity limit."""
 
 
 # Root state.

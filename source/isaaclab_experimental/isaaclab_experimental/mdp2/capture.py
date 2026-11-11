@@ -29,7 +29,15 @@ class CapturedMDP:
     launches run eagerly.
     """
 
-    def __init__(self, mdp: MDP, state: MDPState, transition: Transition, actions: ProxyArray, mask: ProxyArray):
+    def __init__(
+        self,
+        mdp: MDP,
+        state: MDPState,
+        transition: Transition,
+        actions: ProxyArray,
+        mask: ProxyArray,
+        commit: Callable[[], None] | None = None,
+    ):
         self.mdp = mdp
         self.num_graphs = 0  # CUDA graphs replayed by one call of each runtime function, summed over the functions
         self._on_cuda = wp.get_device(mdp.device).is_cuda
@@ -40,7 +48,7 @@ class CapturedMDP:
         self._evaluate = self._capture(
             launches.evaluate, Call(state, transition=transition, observations=transition.observations)
         )
-        self._reset = self._capture(launches.reset, Call(state, mask=mask))
+        self._reset = self._capture(launches.reset, Call(state, mask=mask, commit=commit))
         self._observe = self._capture(launches.observe, Call(state, mask=mask, observations=transition.observations))
 
     def apply_actions(self) -> None:

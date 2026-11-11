@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -15,6 +15,8 @@ import torch
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
+
+from .config import FieldSelector
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,10 @@ class SceneData(Protocol):
         """Return the scene object of an entity, such as an articulation, for eager terms."""
         ...
 
+    def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
+        """Make the simulation see the ``fields`` that events wrote in the masked worlds, and refresh derived data."""
+        ...
+
 
 class PointMassScene:
     """Test scene: one ``"robot"`` whose joints are unit point masses driven by their effort targets."""
@@ -82,6 +88,9 @@ class PointMassScene:
 
     def data(self, entity: str, field: str) -> ProxyArray:
         return self._data[entity][field]
+
+    def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
+        """Nothing to commit: the fields are the simulation state."""
 
     def step(self) -> None:
         """Advance one control step: ``decimation`` substeps of semi-implicit Euler."""

@@ -29,6 +29,7 @@ from .config import (
     FieldSelector,
     Observation,
     Phase,
+    Quantity,
     Reward,
     SubsetSelector,
     TaskCfg,
@@ -38,7 +39,9 @@ from .config import (
     commands,
     episode_length,
     last_action,
+    quantities,
     step_dt,
+    term_state,
     terminated,
 )
 from .plan import ActionOp, Segment, TermOp, build_plan
@@ -51,7 +54,7 @@ class ScheduleEntry:
     """Handle to one term use in the schedule, returned by the ``add_*`` methods."""
 
     path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
-    cfg: DirectAction | Command | Observation | Reward | Termination | TimeLimit | Event
+    cfg: DirectAction | Command | Quantity | Observation | Reward | Termination | TimeLimit | Event
 
     def __str__(self) -> str:
         return ".".join(self.path)
@@ -65,15 +68,20 @@ class ScheduleEntry:
         """Fields the use reads, which are its field inputs."""
         if not isinstance(self.cfg, TermCfg):
             return ()
-        return tuple(selector for selector in self.cfg.inputs.values() if isinstance(selector, FieldSelector))
+        reads = [selector for selector in self.cfg.inputs.values() if isinstance(selector, FieldSelector)]
+        if isinstance(self.cfg, Observation) and self.cfg.noise is not None and self.cfg.noise.scale is not None:
+            reads.append(self.cfg.noise.scale)
+        return tuple(reads)
 
     @property
     def writes(self) -> tuple[FieldSelector, ...]:
-        """Fields the use writes: an action's target, a command's value, or an event's outputs."""
+        """Fields the use writes: an action's target, the value of a command or quantity, or an event's outputs."""
         if isinstance(self.cfg, DirectAction):
             return (self.cfg.target,)
         if isinstance(self.cfg, Command):
             return (FieldSelector(commands.name, self.path[1], scene=False),)
+        if isinstance(self.cfg, Quantity):
+            return (FieldSelector(quantities.name, self.path[1], scene=False),)
         if isinstance(self.cfg, Event):
             return tuple(self.cfg.outputs.values())
         return ()
@@ -96,7 +104,7 @@ class CompileContext:
     backend: Backend
     errors: list[str]
     ops: dict[Phase, list] = field(default_factory=lambda: {phase: [] for phase in Phase})
-    mdp_fields: dict[FieldSelector, ArrayLayout] = field(  # Fields owned by the MDP; commands are added as they compile
+    mdp_fields: dict[FieldSelector, ArrayLayout] = field(  # Fields owned by the MDP; uses add theirs as they compile
         default_factory=lambda: {
             last_action: ArrayLayout(wp.float32, 2, {"actions": 0}, (0,)),
             episode_length: ArrayLayout(wp.int32, 1, {}),
@@ -143,6 +151,9 @@ class MDPBuilder:
         for name, command in task.commands.items():
             if command is not None:
                 self.add_command(name, command)
+        for name, quantity in task.quantities.items():
+            if quantity is not None:
+                self.add_quantity(name, quantity)
         for group, observations in task.observations.items():
             for name, observation in observations.terms.items():
                 if observation is not None:
@@ -162,6 +173,9 @@ class MDPBuilder:
 
     def add_command(self, name: str, command: Command) -> ScheduleEntry:
         return self._add(ScheduleEntry(("commands", name), command))
+
+    def add_quantity(self, name: str, quantity: Quantity) -> ScheduleEntry:
+        return self._add(ScheduleEntry(("quantities", name), quantity))
 
     def add_event(self, name: str, event: Event) -> ScheduleEntry:
         return self._add(ScheduleEntry(("events", name), event))
@@ -289,10 +303,10 @@ class MDPBuilder:
 
         if len(time_limits) > 1:
             errors.append(f"The world configs must share one time limit, found {sorted(map(str, time_limits))} s.")
-        command_shapes = {}
+        field_shapes = {}
         for context in contexts:
-            for op in context.ops[Phase.COMMANDS]:
-                if command_shapes.setdefault(op.writes[0], op.shape) != op.shape:
+            for op in context.ops[Phase.COMMANDS] + context.ops[Phase.QUANTITIES]:
+                if field_shapes.setdefault(op.writes[0], op.shape) != op.shape:
                     errors.append(f"The world configs give '{op.writes[0]}' different shapes.")
         if errors:
             raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
@@ -345,14 +359,39 @@ class MDPBuilder:
         context = CompileContext(backend, _dependency_errors(schedule))
         time_limits = []
 
-        # Actions and commands compile first, so that terms of earlier phases can read them.
-        for entry in sorted(schedule, key=lambda entry: entry.phase not in (Phase.ACTIONS, Phase.COMMANDS)):
-            if isinstance(entry.cfg, TimeLimit):
-                time_limits.append(entry)
-            elif isinstance(entry.cfg, DirectAction):
-                self._compile_action(entry, context)
-            else:
-                self._compile_term(entry, context)
+        # Actions compile first, then each use once the commands, quantities, and term state it reads are compiled.
+        pending = sorted(schedule, key=lambda entry: entry.phase is not Phase.ACTIONS)
+        while pending:
+            ready = [
+                entry
+                for entry in pending
+                if all(selector.scene or selector in context.mdp_fields for selector in entry.reads)
+            ]
+            # Uses that read fields nothing provides compile last, and report them.
+            for entry in ready or pending:
+                if isinstance(entry.cfg, TimeLimit):
+                    time_limits.append(entry)
+                elif isinstance(entry.cfg, DirectAction):
+                    self._compile_action(entry, context)
+                else:
+                    self._compile_term(entry, context)
+            compiled = {entry.path for entry in ready or pending}
+            pending = [entry for entry in pending if entry.path not in compiled]
+
+        # Restore the schedule order within each phase, with the positions and observation columns it gives.
+        position = {str(entry): k for k, entry in enumerate(schedule)}
+        for phase, ops in context.ops.items():
+            if phase is Phase.ACTIONS:
+                continue
+            ops.sort(key=lambda op: position[op.name])
+            starts = dict.fromkeys(context.observation_dims, 0)
+            for k, op in enumerate(ops):
+                columns = op.columns
+                if op.group:
+                    width = columns.stop - columns.start
+                    columns = slice(starts[op.group], starts[op.group] + width)
+                    starts[op.group] = columns.stop
+                ops[k] = replace(op, index=k, columns=columns)
 
         if len(time_limits) > 1:
             context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
@@ -412,18 +451,32 @@ class MDPBuilder:
         fields = {
             arg: self._resolve(entry, arg, selector, context) for arg, selector in {**cfg.inputs, **outputs}.items()
         }
-        sizes = _dimension_sizes(entry, fields, errors)
+        # Int params, such as a number of points, can also size dimensions.
+        sizes = {name: value for name, value in cfg.params.items() if type(value) is int}
+        sizes |= _dimension_sizes(fields)
         output_shape = _resolve_shape(entry, "output", term.shape, sizes, errors)
         if output_shape and isinstance(cfg, (Reward, Termination)):
             errors.append(f"{entry}: {type(cfg).__name__} outputs must have shape ('worlds',), got {output_shape}.")
-        state_shapes = {
-            name: _resolve_shape(entry, f"state {name!r}", spec.shape, sizes, errors)
-            for name, spec in term.state.items()
-        }
+        # State without the world dimension is one buffer for every world.
+        shared = {name for name, spec in term.state.items() if "worlds" not in spec.shape}
+        state_shapes = {}
+        for name, spec in term.state.items():
+            shape = ("worlds", *spec.shape) if name in shared else spec.shape
+            dims = _resolve_shape(entry, f"state {name!r}", shape, sizes, errors)
+            if dims is not None:
+                state_shapes[name] = dims if name in shared else (self.schema.num_worlds, *dims)
         if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
             errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
+        if isinstance(cfg, Quantity) and cfg.log and output_shape:
+            errors.append(f"{entry}: a logged quantity must have shape ('worlds',), got {output_shape}.")
+        if isinstance(cfg, Event) and cfg.commit and cfg.mode is not EventMode.RESET:
+            errors.append(f"{entry}: only reset events can ask for a commit.")
         if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
             errors.append(f"{entry}: commands write their state when they resample, so they have no reset hook.")
+        if isinstance(cfg, Observation) and cfg.noise is not None and cfg.noise.scale is not None:
+            layout = self._resolve(entry, "noise scale", cfg.noise.scale, context)
+            if layout is not None and (layout.ndim != 1 or layout.dtype is not wp.float32):
+                errors.append(f"{entry}: the noise scale '{cfg.noise.scale}' must be a float field of one per world.")
 
         if len(errors) > num_errors:
             return
@@ -433,9 +486,14 @@ class MDPBuilder:
         arguments = {
             **dict.fromkeys(names),
             **fields,
-            **{name: ArrayLayout(wp.float32, 1 + len(shape), {}) for name, shape in state_shapes.items()},
+            **{name: ArrayLayout(wp.float32, len(shape), {}) for name, shape in state_shapes.items()},
             **{name: ArrayLayout(wp.float32, 1 + len(output_shape), {}) for name in command},
         }
+        if term.init is not None:
+            try:
+                inspect.signature(term.init).bind(None, **dict.fromkeys(cfg.params))
+            except TypeError as error:
+                errors.append(f"{entry}: init {term.init.__name__!r} is called with (ctx, **params): {error}.")
         # Events and commands take the mask of the worlds to write; other Warp functions take the output to write.
         if term.eager is not None:
             try:
@@ -472,9 +530,13 @@ class MDPBuilder:
             start = context.observation_dims.get(group, 0)
             columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
             context.observation_dims[group] = columns.stop
-        if isinstance(cfg, Command):
+        if isinstance(cfg, (Command, Quantity)):
             named = {dim: size for dim, size in zip(term.shape[1:], output_shape) if isinstance(dim, str)}
             context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named, output_shape)
+        # Other terms can read its state.
+        for name, shape in state_shapes.items():
+            selector = term_state(str(entry), name)
+            context.mdp_fields[selector] = ArrayLayout(wp.float32, len(shape), {}, () if name in shared else shape[1:])
 
         context.ops[cfg.phase].append(
             TermOp(
@@ -491,7 +553,7 @@ class MDPBuilder:
                 ),
                 state=MappingProxyType(
                     {
-                        name: replace(spec, shape=(self.schema.num_worlds, *state_shapes[name]))
+                        name: replace(spec, shape=state_shapes[name], persistent=spec.persistent or name in shared)
                         for name, spec in term.state.items()
                     }
                 ),
@@ -511,6 +573,9 @@ class MDPBuilder:
                 random=term.random,
                 capturable=term.capturable and term.eager is None,
                 eager=term.eager is not None,
+                init=term.init,
+                commit=isinstance(cfg, Event) and cfg.commit,
+                log=isinstance(cfg, Quantity) and cfg.log,
             )
         )
 
@@ -566,14 +631,14 @@ def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -
     return implementation
 
 
-def _dimension_sizes(
-    entry: ScheduleEntry, fields: Mapping[str, ArrayLayout | None], errors: list[str]
-) -> dict[str, int]:
-    """Return the size of each named dimension of a term's inputs, recording inputs that disagree.
+def _dimension_sizes(fields: Mapping[str, ArrayLayout | None]) -> dict[str, int]:
+    """Return the size of each named dimension of a term's inputs.
 
-    The argument name of a subset, or of a field with one dimension after the worlds, is also a dimension.
+    The argument name of a subset, or of a field with one dimension after the worlds, is also a dimension. A name
+    that inputs give different sizes, such as the bodies of two entities, is left out.
     """
     sizes: dict[str, int] = {}
+    ambiguous = set()
     for arg, layout in fields.items():
         if layout is None:
             continue
@@ -582,8 +647,8 @@ def _dimension_sizes(
             named[arg] = layout.shape[0]
         for dim, size in named.items():
             if sizes.setdefault(dim, size) != size:
-                errors.append(f"{entry}: inputs disagree on the size of {dim!r} ({sizes[dim]} and {size}).")
-    return sizes
+                ambiguous.add(dim)
+    return {dim: size for dim, size in sizes.items() if dim not in ambiguous}
 
 
 def _check_hook(
@@ -641,7 +706,10 @@ def _resolve_shape(
         return None
     unknown = [dim for dim in shape[1:] if isinstance(dim, str) and dim not in sizes]
     if unknown:
-        errors.append(f"{entry}: the {role} dimensions {unknown} are not dimensions of the term's inputs.")
+        errors.append(
+            f"{entry}: the {role} dimensions {unknown} are not dimensions of the term's inputs, or inputs give them"
+            " different sizes."
+        )
         return None
     return tuple(sizes.get(dim, dim) for dim in shape[1:])
 

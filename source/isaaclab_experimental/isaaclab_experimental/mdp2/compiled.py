@@ -10,7 +10,7 @@ from __future__ import annotations
 import enum
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -38,7 +38,7 @@ class MDPState:
     episode_length: ProxyArray  # (num_worlds,), control steps since the last reset
     actions: ProxyArray  # (num_worlds, action_dim), last actions
     fields: dict[FieldSelector | SubsetSelector, ProxyArray]  # Every selected field of the scene and of the MDP
-    term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name
+    term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name; shared state has no world dimension
     reward_weights: ProxyArray  # (num_worlds, num_rewards), can be changed at runtime, also under graph capture
     rng: ProxyArray  # (num_streams, num_worlds), see :mod:`.rng`
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
@@ -48,6 +48,7 @@ class MDPState:
     selected: dict[str, wp.array]  # (num_worlds,) per timed or masked event op: the worlds its hook acts on
     active: dict[str, ProxyArray]  # (num_worlds,) per op active in only some worlds: where it is active
     scene_data: SceneData  # The scene the state is bound to, for eager terms
+    caches: dict[str, dict] = field(default_factory=dict)  # Host objects that eager terms keep, by op name
 
 
 @dataclass
@@ -122,6 +123,11 @@ class MDP:
         functions = [segments for function, segments in self.segments.items() if function != "startup"]
         return all(segment.capturable for segments in functions for segment in segments)
 
+    @property
+    def reset_writes(self) -> frozenset[FieldSelector]:
+        """Scene fields that the reset events write, which the scene commits after a reset."""
+        return frozenset(selector for op in self.ops[Phase.RESET_EVENTS] for selector in op.writes if selector.scene)
+
     def describe(self) -> str:
         """Return the compiled MDP as readable text: ops by phase with their layout, then each function's steps."""
         lines = [
@@ -177,19 +183,12 @@ class MDP:
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
         }
-        for op in self.ops[Phase.COMMANDS]:
+        for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
             fields[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
         for subset, indices in self.subsets.items():
             fields[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
 
-        selectors = [op.target for op in self.ops[Phase.ACTIONS]]
-        selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
-        selectors += [selector for op in self.term_ops for selector in op.inputs.values()]
-        for selector in selectors:
-            if selector not in fields:
-                fields[selector] = scene_data.data(selector.entity, selector.field)
-
-        # Term state, random streams, and the hook arguments that view them.
+        # Term state, which other terms may also select.
         term_state = {
             op.name: {
                 name: ProxyArray(wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device))
@@ -197,6 +196,20 @@ class MDP:
             }
             for op in self.term_ops
         }
+
+        selectors = [op.target for op in self.ops[Phase.ACTIONS]]
+        selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
+        selectors += [selector for op in self.term_ops for selector in op.inputs.values()]
+        selectors += [op.noise.scale for op in self.ops[Phase.OBSERVATIONS] if op.noise and op.noise.scale]
+        for selector in selectors:
+            if selector in fields:
+                continue
+            if not selector.scene:
+                fields[selector] = term_state[selector.entity][selector.field]
+            else:
+                fields[selector] = scene_data.data(selector.entity, selector.field)
+
+        # Random streams, and the hook arguments that view the fields and state.
         streams = ProxyArray(wp.from_torch(rng.streams(seed, self.streams, self.num_worlds, self.device)))
         weights = np.zeros((self.num_worlds, len(self.ops[Phase.REWARDS])), dtype=np.float32)
         for index, config in enumerate(self.world_configs):

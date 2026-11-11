@@ -4,3 +4,6 @@
   :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands.
 * Added ``Isaac-Velocity-Flat-WalkStand-UnitreeGo2-MDP2``, which trains one Go2 policy in a scene where half of the
   worlds follow velocity commands and the other half stand still, with their own rewards.
+* Added ``Isaac-Lift-KukaAllegro-MDP2``, the Kuka Allegro lift task written with :mod:`isaaclab_experimental.mdp2`,
+  with its adaptive difficulty curriculum, curriculum gravity, and a reset bank of valid start states per world, all
+  inside the step's CUDA graph.

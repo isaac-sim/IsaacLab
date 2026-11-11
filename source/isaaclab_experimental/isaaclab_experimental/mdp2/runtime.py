@@ -11,16 +11,23 @@ Each function runs its launches eagerly. To replay them as CUDA graphs, bind fix
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
+from .eager import call_eager
 from .plan import Call
 
 
 def startup(mdp: MDP, state: MDPState) -> None:
-    """Run the startup events once, in every world."""
+    """Run the ``init`` hooks of the terms, then the startup events, once, in every world."""
+    for op in mdp.term_ops:
+        if op.init is not None:
+            call_eager(mdp, op, state, hook=op.init)
+
     mask = ProxyArray(wp.ones(mdp.num_worlds, dtype=wp.bool, device=mdp.device))
     call = Call(state, mask=mask)
     for launch in mdp.launches.startup:
@@ -41,9 +48,13 @@ def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
         launch(call)
 
 
-def reset(mdp: MDP, state: MDPState, mask: ProxyArray) -> None:
-    """Reset the masked worlds: restart timers, run reset events, resample commands, then reset term state."""
-    call = Call(state, mask=mask)
+def reset(mdp: MDP, state: MDPState, mask: ProxyArray, commit: Callable[[], None] | None = None) -> None:
+    """Reset the masked worlds: restart timers, run reset events, resample commands, then reset term state.
+
+    ``commit`` makes the scene see the writes of the reset events so far. It is called before every event that asks
+    for it, and tasks without such events need none. The caller commits the writes once more after the reset.
+    """
+    call = Call(state, mask=mask, commit=commit)
     for launch in mdp.launches.reset:
         launch(call)
 

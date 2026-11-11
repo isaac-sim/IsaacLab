@@ -7,15 +7,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 
 import warp as wp
+from newton import ModelFlags
 
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import BaseContactSensor
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, SceneSchema
+from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
 
 
 class InteractiveSceneData:
@@ -35,13 +38,15 @@ class InteractiveSceneData:
     Contact sensors provide ``net_forces_w`` and their histories ``net_forces_w_history`` and
     ``net_normal_forces_w_history`` (``wp.vec3f``, most recent first), and the air and contact times
     ``current_air_time``, ``last_air_time``, ``current_contact_time``, and ``last_contact_time``, per world and body.
+    Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) per world, body, and filter.
 
     The joint state and the root state of floating bases alias the solver state, so events may write them in place;
-    the environment commits the writes. Root writes to fixed bases do not reach the solver.
+    :meth:`commit` makes the solver see the writes. Root writes to fixed bases do not reach the solver. ``gravity_w``
+    is the gravity of the physics model, which events may also write.
     """
 
     def __init__(self, scene: InteractiveScene, step_dt: float):
-        self._scene = scene
+        self.scene = scene
         assets = {**scene.articulations, **scene.rigid_objects}
         entities: dict[str, EntitySchema] = {}
         self._views: dict[str, dict[str, ProxyArray]] = {}
@@ -110,6 +115,7 @@ class InteractiveSceneData:
                 "net_forces_w": data.net_forces_w,
                 "net_forces_w_history": data.net_forces_w_history,
                 "net_normal_forces_w_history": data.net_normal_forces_w_history,
+                "normal_force_matrix_w": data.normal_force_matrix_w,
             }
             times = {
                 "current_air_time": data.current_air_time,
@@ -121,14 +127,18 @@ class InteractiveSceneData:
                 "net_forces_w": FieldSchema(("bodies",), wp.vec3f),
                 "net_forces_w_history": FieldSchema(("history", "bodies"), wp.vec3f),
                 "net_normal_forces_w_history": FieldSchema(("history", "bodies"), wp.vec3f),
+                "normal_force_matrix_w": FieldSchema(("bodies", "filters"), wp.vec3f),
                 **dict.fromkeys(times, FieldSchema(("bodies",))),
             }
 
-            # Fields the sensor does not track, like air times without ``track_air_time``, are left out.
+            # Fields the sensor does not track, like air times without ``track_air_time``, or the forces against
+            # filter objects without ``filter_prim_paths_expr``, are left out.
             views = {field: view for field, view in {**forces, **times}.items() if view is not None}
             history = tuple(str(step) for step in range(data.net_forces_w_history.shape[1]))
+            matrix = data.normal_force_matrix_w
+            filters = () if matrix is None else tuple(str(index) for index in range(matrix.shape[2]))
             entities[name] = EntitySchema(
-                names={"bodies": tuple(sensor.body_names), "history": history},
+                names={"bodies": tuple(sensor.body_names), "history": history, "filters": filters},
                 fields={field: fields[field] for field in views},
             )
             self._views[name] = views
@@ -152,4 +162,15 @@ class InteractiveSceneData:
 
     def entity(self, name: str) -> Any:
         """Return the scene object of an entity, such as an articulation."""
-        return self._scene[name]
+        return self.scene[name]
+
+    def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
+        """Recompute the body poses of the masked worlds from their joint and root state, and pass a written gravity
+        to the solver. Safe to capture in a CUDA graph."""
+        manager = SimulationContext.instance().backend_manager
+        if FieldSelector("scene", "gravity_w") in fields:
+            manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+
+        for asset in (*self.scene.articulations.values(), *self.scene.rigid_objects.values()):
+            manager.invalidate_fk(env_mask=mask, articulation_ids=asset.root_view.articulation_ids)
+        SimulationContext.instance().forward()

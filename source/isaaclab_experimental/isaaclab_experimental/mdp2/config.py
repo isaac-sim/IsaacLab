@@ -23,6 +23,7 @@ class Phase(enum.IntEnum):
 
     STARTUP_EVENTS = enum.auto()
     ACTIONS = enum.auto()
+    QUANTITIES = enum.auto()
     TERMINATIONS = enum.auto()
     REWARDS = enum.auto()
     COMMANDS = enum.auto()
@@ -101,11 +102,24 @@ class Entity:
 commands = Entity("commands", scene=False)
 """Command values, selected by command name: ``mdp2.commands.target``."""
 
+quantities = Entity("quantities", scene=False)
+"""Quantity values, selected by quantity name: ``mdp2.quantities.goal_error``."""
+
 last_action = FieldSelector("mdp", "last_action", scene=False)
 """The last actions, zero after a reset. Their shape is ``("worlds", "actions")``."""
 
 episode_length = FieldSelector("mdp", "episode_length", scene=False)
 """Control steps since the last reset, ``int32`` of shape ``(num_worlds,)``."""
+
+
+def term_state(use: str, name: str) -> FieldSelector:
+    """Select the state ``name`` of another term use, as in ``term_state("rewards.success", "succeeded")``.
+
+    Terms read it as an input; only the use that owns it writes it. Reset events see the state of the episode that
+    ended, since term state resets after them.
+    """
+    return FieldSelector(use, name, scene=False)
+
 
 terminated = FieldSelector("mdp", "terminated", scene=False)
 """Whether a termination, not a time-out, ended the episode this step, ``bool`` of shape ``(num_worlds,)``.
@@ -120,6 +134,7 @@ class UniformNoise:
 
     n_min: float
     n_max: float
+    scale: FieldSelector | None = None  # A float field of shape (num_worlds,) that multiplies the noise, if given
 
 
 @dataclass
@@ -131,6 +146,20 @@ class TermCfg:
     term: Term
     inputs: dict[str, FieldSelector | SubsetSelector] = field(default_factory=dict)  # Passed by name, read-only
     params: dict[str, Any] = field(default_factory=dict)  # Constant keyword arguments
+
+
+@dataclass
+class Quantity(TermCfg):
+    """Configuration for a quantity: a value per world that other terms read as ``mdp2.quantities.<name>``.
+
+    Quantities are computed once per step, before the terminations and rewards, so that terms share a calculation
+    instead of repeating it. A quantity keeps its value until the next step: reset events read what the episode that
+    ended left, such as whether it succeeded. Observations that read quantities get them recomputed after a reset.
+    """
+
+    phase: ClassVar[Phase] = Phase.QUANTITIES
+
+    log: bool = False  # Log its average over the worlds' last finished episodes, taken at their end, as a metric
 
 
 @dataclass
@@ -183,6 +212,8 @@ class Event(TermCfg):
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the event writes them
     mode: EventMode = EventMode.RESET
     interval_range_s: tuple[float, float] | None = None  # Seconds between interval events
+    # Reset events: commit the writes of the earlier reset events first, so that it reads the body poses they gave
+    commit: bool = False
 
     @property
     def phase(self) -> Phase:
@@ -231,6 +262,7 @@ class TaskCfg:
 
     actions: dict[str, DirectAction | None] = field(default_factory=dict)
     commands: dict[str, Command | None] = field(default_factory=dict)
+    quantities: dict[str, Quantity | None] = field(default_factory=dict)
     observations: dict[str, ObservationGroup] = field(default_factory=dict)
     rewards: dict[str, Reward | None] = field(default_factory=dict)
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)

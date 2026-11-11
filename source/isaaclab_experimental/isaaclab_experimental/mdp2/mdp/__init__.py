@@ -21,9 +21,13 @@ Terms keep the names of their MDP1 functions, and bind scene data through inputs
 """
 
 from .commands import heading_velocity_command, uniform_pose_command, uniform_velocity_command
+from .curriculums import difficulty_scheduler
 from .events import (
     push_by_setting_velocity,
+    randomize_actuator_gains,
+    randomize_joint_parameters,
     randomize_rigid_body_com,
+    randomize_rigid_body_inertia,
     randomize_rigid_body_mass,
     randomize_rigid_body_material,
     reset_joints_by_offset,
@@ -64,10 +68,13 @@ from .rewards import (
     track_ang_vel_z_exp,
     track_lin_vel_xy_exp,
     undesired_contacts,
+    value,
 )
 from .terminations import (
     bad_orientation,
     illegal_contact,
+    is_positive,
     joint_pos_out_of_manual_limit,
+    joint_vel_out_of_limit,
     root_height_below_minimum,
 )

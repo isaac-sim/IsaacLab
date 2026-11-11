@@ -12,7 +12,7 @@ runtime function it belongs to. It gets Torch views of its data through a :class
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,14 +38,20 @@ class TermContext:
     out: torch.Tensor | None  # (num_worlds, *shape) output to fill for every world, except for events
     selectors: Mapping[str, FieldSelector | SubsetSelector]  # The selectors bound to the inputs, by argument name
     scene_data: SceneData  # The scene, whose entity objects eager events may change directly
+    cache: dict  # Host objects the use keeps across calls, such as Warp meshes built on its first call
 
     def entity(self, argument: str) -> Any:
         """Return the scene object, such as an articulation, of the entity that an input selects."""
         return self.scene_data.entity(self.selectors[argument].entity)
 
 
-def call_eager(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None = None) -> None:
-    """Call an eager term with a context bound to the MDP state, and write its output to the op's scratch buffer."""
+def call_eager(
+    mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None = None, hook: Callable | None = None
+) -> None:
+    """Call an eager term, or another eager ``hook`` of its op, with a context bound to the MDP state.
+
+    An eager term writes its output to the op's scratch buffer.
+    """
     inputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes}
     outputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector in op.writes}
 
@@ -60,6 +66,7 @@ def call_eager(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None 
         out=state.scratch[op.name].torch if op.name in state.scratch else None,
         selectors=op.inputs,
         scene_data=state.scene_data,
+        cache=state.caches.setdefault(op.name, {}),
     )
 
-    op.compute(context, **op.params)
+    (op.compute if hook is None else hook)(context, **op.params)

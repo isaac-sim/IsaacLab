@@ -16,10 +16,13 @@ from typing import Any
 
 @dataclass(frozen=True)
 class State:
-    """A ``float32`` buffer that a term keeps across steps, with one value per world and element."""
+    """A ``float32`` buffer that a term keeps across steps, with one value per world and element by default."""
 
-    shape: tuple[str | int, ...] = ("worlds",)  # Resolved like Term.shape
+    # Resolved like Term.shape. Without "worlds", the worlds share one buffer, which outlives episodes: a hook that
+    # launches its own kernels can reduce over the worlds into it, such as a sum with ``wp.atomic_add``.
+    shape: tuple[str | int, ...] = ("worlds",)
     initial: float = 0.0  # Value at creation, and on reset when the term has no reset hook
+    persistent: bool = False  # Whether it outlives episodes, such as data that the term's ``init`` fills once
 
 
 @dataclass(frozen=True)
@@ -66,10 +69,11 @@ class Term:
 
     torch: Implementation | Callable | None = None
     warp: Implementation | Callable | None = None
-    shape: tuple[str | int, ...] = ("worlds",)  # Output shape; names other than "worlds" come from the inputs
+    shape: tuple[str | int, ...] = ("worlds",)  # Output shape; other names are dimensions of inputs or int params
     state: dict[str, State] = field(default_factory=dict)
     random: bool = False  # Pass the use's per-world random stream as ``rng``, see :mod:`.rng`
     eager: Callable | None = None  # ``fn(ctx, **params)`` run eagerly instead of the hooks, see :mod:`.eager`
+    init: Callable | None = None  # ``fn(ctx, **params)`` run eagerly once by ``startup``, to fill the state
     capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
 
     def __post_init__(self):

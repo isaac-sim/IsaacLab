@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import Any, ClassVar
 
@@ -95,7 +96,7 @@ class MDP2Env:
 
         self._capturable = (
             cfg.capture
-            and cfg.backend is mdp2.Backend.WARP
+            and self.mdp.backend is mdp2.Backend.WARP
             and self.mdp.is_fully_capturable
             and wp.get_device(self.device).is_cuda
         )
@@ -163,9 +164,9 @@ class MDP2Env:
         self.common_step_counter += 1
 
     def _step(self) -> None:
-        mdp2.apply_actions(self.mdp, self.state, self.actions)
-
+        # Actions apply before every physics step, as in MDP1, so targets relative to the joint state follow it.
         for _ in range(self.cfg.decimation // self._substeps):
+            mdp2.apply_actions(self.mdp, self.state, self.actions)
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.scene.update(dt=self.physics_dt * self._substeps)
@@ -181,14 +182,11 @@ class MDP2Env:
         # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.
         for sensor in self.scene.sensors.values():
             sensor.reset(env_mask=mask.warp)
-        mdp2.reset(self.mdp, self.state, mask)
 
-        # Reset events wrote joint and root state in place: recompute the body poses of the masked worlds.
-        for asset in assets:
-            self.sim.backend_manager.invalidate_fk(
-                env_mask=mask.warp, articulation_ids=asset.root_view.articulation_ids
-            )
-        self.sim.forward()
+        # Reset events write scene fields in place, which the scene commits to the solver.
+        commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
+        mdp2.reset(self.mdp, self.state, mask, commit)
+        commit()
 
         mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
 
@@ -198,7 +196,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
 
     :meth:`step` returns copies of the observations after resets, and the rewards and the terminated and truncated
     flags of the step as Torch views of buffers that the next step overwrites. ``extras["log"]`` holds, per term, the
-    average over worlds of their last finished episode: the reward sum per second, and whether the term ended it.
+    average over worlds of their last finished episode: the reward sum per second, whether the term ended it, and
+    the value that each logged quantity had at its end.
     """
 
     is_vector_env: ClassVar[bool] = True
@@ -236,6 +235,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._episode_rewards = torch.zeros(self.num_envs, len(self._reward_names), device=self.device)
         self._last_episode_rewards = torch.zeros_like(self._episode_rewards)
         self._last_terminations = torch.zeros(self.num_envs, len(self._termination_names), device=self.device)
+        self._metrics = {
+            op.name.split(".", 1)[1]: (
+                self.state.fields[op.writes[0]].torch,
+                torch.zeros(self.num_envs, device=self.device),
+            )
+            for op in self.mdp.ops[mdp2.Phase.QUANTITIES]
+            if op.log
+        }
         self.obs_buf: VecEnvObs = {}
 
     @property
@@ -301,4 +308,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         terminations = self._last_terminations.sum(dim=0) / self._active_worlds[mdp2.Phase.TERMINATIONS]
         log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
         log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
+        # Quantities keep the values of the step that ended the episode until the next step.
+        for name, (value, last) in self._metrics.items():
+            last.copy_(torch.where(transition.done.torch, value, last))
+            log[f"Metrics/{name}"] = last.mean()
         self.extras["log"] = log

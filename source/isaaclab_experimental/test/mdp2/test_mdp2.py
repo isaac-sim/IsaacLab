@@ -1112,3 +1112,99 @@ def test_library_commands():
         assert ((pose[:, axis] >= low) & (pose[:, axis] <= high)).all()
     torch.testing.assert_close(pose[:, 3:].norm(dim=-1), torch.ones(256, device=DEVICE))
     assert (pose[:, 6] >= 0.0).all()
+
+
+@wp.func
+def reached_warp(world: int, joint_pos: wp.array2d(dtype=float), reached: wp.array(dtype=float)) -> float:
+    return wp.where(joint_pos[world, 0] > 0.0, 1.0, reached[world])
+
+
+@wp.func
+def reached_update_warp(world: int, joint_pos: wp.array2d(dtype=float), reached: wp.array(dtype=float)):
+    if joint_pos[world, 0] > 0.0:
+        reached[world] = 1.0
+
+
+def reached_torch(joint_pos, reached):
+    return torch.where(joint_pos[:, 0] > 0.0, 1.0, reached)
+
+
+def reached_update_torch(joint_pos, reached):
+    reached.copy_(reached_torch(joint_pos, reached))
+
+
+reached = mdp2.Term(
+    torch=mdp2.Implementation(compute=reached_torch, update=reached_update_torch),
+    warp=mdp2.Implementation(compute=reached_warp, update=reached_update_warp),
+    state={"reached": mdp2.State()},
+)
+"""Whether the first joint position was ever positive this episode, sticky like MDP1's success flags."""
+
+
+def test_curriculum_reads_quantity_and_scales_noise():
+    """A sticky quantity is shared by a reward, an observation, and a curriculum, which reads what the episodes that
+    ended left and scales observation noise by its progress, all inside CUDA graphs."""
+    results = {}
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_quantity("reached", mdp2.Quantity(reached, inputs={"joint_pos": robot.joint_pos}))
+        builder.add_reward("reach", mdp2.Reward(mdp2.mdp.value, inputs={"value": mdp2.quantities.reached}))
+        curriculum = mdp2.Event(
+            mdp2.mdp.difficulty_scheduler,
+            inputs={"succeeded": mdp2.quantities.reached},
+            params={"max_difficulty": 2, "min_progress": 0.5},
+        )
+        builder.add_event("curriculum", curriculum)
+        noise = mdp2.UniformNoise(-1.0, 1.0, scale=mdp2.term_state("events.curriculum", "progress"))
+        observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}, noise=noise)
+        builder.add_observation("policy", "joint_pos", observation)
+        observation = mdp2.Observation(mdp2.mdp.value, inputs={"value": mdp2.quantities.reached})
+        builder.add_observation("policy", "reached", observation)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        all_worlds = torch.ones(4, dtype=torch.bool, device=DEVICE)
+        joint_positions = scene.data("robot", "joint_pos").torch
+
+        assert mdp.is_fully_capturable
+
+        # No episode succeeded yet, so there is no progress and no noise.
+        env_reset(mdp, state, scene, transition.observations, all_worlds)
+        assert torch.equal(transition.observations["policy"].torch[:, 0], joint_positions[:, 0])
+
+        # Every world reaches, then resets: each difficulty rises to 1 of 2, and the noise grows to half its range.
+        joint_positions[:, 0] = 0.5
+        mdp2.evaluate(mdp, state, transition)
+        assert (transition.rewards.torch > 0.0).all()
+        env_reset(mdp, state, scene, transition.observations, all_worlds)
+
+        curriculum_state = state.term_state["events.curriculum"]
+        assert curriculum_state["progress"].torch.tolist() == [0.5] * 4
+        # The sticky state restarts after the curriculum read it, and the new episode's observation sees that.
+        assert state.term_state["quantities.reached"]["reached"].torch.tolist() == [0.0] * 4
+        assert transition.observations["policy"].torch[:, 2].tolist() == [0.0] * 4
+        noise_values = transition.observations["policy"].torch[:, :2] - joint_positions
+        assert (noise_values.abs() <= 0.5).all() and (noise_values != 0.0).any()
+        results[backend] = noise_values
+
+    assert torch.equal(results["torch"], results["warp"])
+
+
+def test_reset_commits_before_events_that_ask_for_it():
+    """The scene commits the writes of the earlier reset events before an event that asks for it."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_event("push", mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}))
+        scale = mdp2.Event(scale_joint_vel, outputs={"joint_vel": robot.joint_vel}, params={"factor": 3.0}, commit=True)
+        builder.add_event("scale", scale)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state = mdp.state(scene)
+        joint_velocities = scene.data("robot", "joint_vel").torch
+
+        committed = []
+        mask = ProxyArray(wp.from_torch(torch.ones(2, dtype=torch.bool, device=DEVICE)))
+        mdp2.reset(mdp, state, mask, commit=lambda: committed.append(joint_velocities.clone()))
+
+        assert len(committed) == 1 and (committed[0] == 1.0).all()
+        assert (joint_velocities == 3.0).all()

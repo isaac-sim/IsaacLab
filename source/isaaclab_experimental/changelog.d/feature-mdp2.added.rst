@@ -48,3 +48,30 @@
   :class:`~isaaclab_experimental.envs.MDP2EnvCfg` may be a list of tasks, which split the worlds evenly, and
   ``extras["log"]`` averages each term over the worlds where it runs. Function ``update`` hooks may take ``mask``,
   the worlds where their use runs, so that a command's update changes only its own worlds.
+* Added ``init`` hooks to :class:`~isaaclab_experimental.mdp2.Term`, eager functions that
+  :func:`~isaaclab_experimental.mdp2.startup` runs once to fill a term's state, and ``persistent``
+  :class:`~isaaclab_experimental.mdp2.State` that outlives episodes. Int params can size the dimensions of a term's
+  output and state, and inputs of different entities may give a dimension name different sizes.
+* Added :data:`~isaaclab_experimental.mdp2.mdp.joint_vel_out_of_limit` and the startup events
+  :data:`~isaaclab_experimental.mdp2.mdp.randomize_rigid_body_inertia`,
+  :data:`~isaaclab_experimental.mdp2.mdp.randomize_actuator_gains`, and
+  :data:`~isaaclab_experimental.mdp2.mdp.randomize_joint_parameters`.
+  :data:`~isaaclab_experimental.mdp2.mdp.randomize_rigid_body_material` also randomizes rigid objects. The scene data
+  of :class:`~isaaclab_experimental.envs.MDP2Env` provides the filtered contact forces ``normal_force_matrix_w``, and
+  the environment applies the actions before every physics step, as MDP1 does.
+* Added :func:`~isaaclab_experimental.mdp2.term_state`, which lets a term read the state of another term use, the
+  ``scale`` of :class:`~isaaclab_experimental.mdp2.UniformNoise`, a field that multiplies the noise, and the
+  curriculum term :data:`~isaaclab_experimental.mdp2.mdp.difficulty_scheduler`, whose persistent progress other terms
+  read. It runs inside CUDA graphs: :class:`~isaaclab_experimental.mdp2.State` whose shape has no ``"worlds"`` is one
+  buffer for every world, into which a hook that launches its own kernels can reduce. Eager terms keep host objects
+  across calls in ``ctx.cache``.
+* Added :class:`~isaaclab_experimental.mdp2.Quantity` uses, values per world that are computed once per step and
+  that other terms read as ``mdp2.quantities.<name>``, so that terms share a calculation. Quantities may keep
+  state, keep their value through a reset for the reset events to read, and are logged by
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` as ``Metrics/<name>`` with ``log=True``. The terms
+  :data:`~isaaclab_experimental.mdp2.mdp.value` and :data:`~isaaclab_experimental.mdp2.mdp.is_positive` reward and
+  end episodes on a quantity.
+* Added :meth:`~isaaclab_experimental.mdp2.SceneData.commit`, with which the environment makes the simulation see
+  the fields that reset events wrote, and ``Event(commit=True)``, a reset event before which the scene commits the
+  writes of the earlier ones, so that it reads the body poses they gave. The ``gravity_w`` field of the scene data of
+  :class:`~isaaclab_experimental.envs.MDP2Env` is the gravity of the physics model, which events may write.
