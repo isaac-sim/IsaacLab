@@ -118,10 +118,10 @@ def test_marker_backend_selection(
 ):
     """Marker backend selection follows rendering state and active visualizer type.
 
-    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton_gl``) alone
+    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton``) alone
     would still spin up the Kit/USD marker backend (because it also makes ``sim.is_rendering``
     true), leaving raw USD marker writes undigested by Fabric. That desynced the point-instancer
-    prototype table and crashed the next PhysX GPU step. The ``newton_gl``-only case below
+    prototype table and crashed the next PhysX GPU step. The ``newton``-only case below
     (``rtx_sensors``/``xr_enabled``/``has_gui``/``has_offscreen_render`` all False) must select
     only the ``newton`` backend, never ``kit``.
     """

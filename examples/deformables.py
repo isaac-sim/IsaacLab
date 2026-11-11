@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 backend_args, _ = parser.parse_known_args()
-default_visualizer = None if backend_args.physics == "ovphysx" else ["newton_gl"]
+default_visualizer = None if backend_args.physics == "ovphysx" else ["newton"]
 if backend_args.physics == "isaacsim_physx":
     default_visualizer = ["kit"]
 parser.set_defaults(visualizer=default_visualizer)

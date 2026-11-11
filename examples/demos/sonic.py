@@ -9,8 +9,8 @@ Usage:
     uv sync --extra isaacsim --extra video
     uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
     uv run --extra isaacsim --extra video isaaclab demo sonic
-    uv run isaaclab demo sonic --viz newton_gl
-    uv run --extra video isaaclab demo sonic --viz newton_gl --video
+    uv run isaaclab demo sonic --viz newton
+    uv run --extra video isaaclab demo sonic --viz newton --video
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
 Face under their upstream model license. The robot USD is downloaded from the

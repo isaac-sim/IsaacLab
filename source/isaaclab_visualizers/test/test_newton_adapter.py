@@ -23,8 +23,6 @@ from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizer,
     ParticleSurfaceRenderer,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
@@ -946,7 +944,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             backend=NewtonGLBackendCfg(),
         )
     ]
-    with launch_simulation(cfg, {"visualizer": ["newton_gl"], "device": device}):
+    with launch_simulation(cfg, {"visualizer": ["newton"], "device": device}):
         env = gym.make("Isaac-Cartpole", cfg=cfg)
         try:
             env.reset()
@@ -1136,7 +1134,7 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     sim._visualizers = [visualizer]
     BaseVisualizer.initialize(visualizer, sim, cameras=[camera])
     recorder = VideoRecorder(
-        VideoRecorderCfg(source="viz:newton_gl:streaming_view", video_length=3, fps=30, output_dir=str(tmp_path)),
+        VideoRecorderCfg(source="viz:newton:streaming_view", video_length=3, fps=30, output_dir=str(tmp_path)),
         SimpleNamespace(sim=sim),
     )
 
@@ -1318,20 +1316,15 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# RTX backend tests
+# Config tests
 # ---------------------------------------------------------------------------
 
 
 def test_newton_visualizer_cfg():
-    assert VisualizerCfg(backend=NewtonGLBackendCfg()).backend.visualizer_type == "newton_gl"
-    assert VisualizerCfg(backend=NewtonRTXBackendCfg()).backend.visualizer_type == "newton_rtx"
-    assert not issubclass(NewtonRTXVisualizer, NewtonGLVisualizer)
-    for option in ("rtx_environment", "world_spacing", "enable_picking"):
-        with pytest.raises(TypeError, match=option):
-            VisualizerCfg(backend=NewtonRTXBackendCfg(**{option: None}))
+    assert VisualizerCfg(backend=NewtonGLBackendCfg()).backend.visualizer_type == "newton"
     # Public viewer options are accepted as cfg fields.
     VisualizerCfg(backend=NewtonGLBackendCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3)))
-    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="/Camera")], backend=NewtonRTXBackendCfg())
+    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="/Camera")], backend=NewtonGLBackendCfg())
     validate(cfg)
 
 
@@ -1350,15 +1343,6 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     expected_lower = cfg.backend.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
-
-
-def test_newton_rtx_visualizer_rejects_kit_physics_backend():
-    """Reject Kit physics before constructing the incompatible kitless RTX resources."""
-    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
-    sim = SimpleNamespace(backend_manager=SimpleNamespace(backend_name="physx"))
-
-    with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(sim, cameras=[])
 
 
 def test_marker_tooltip_describes_known_markers_and_falls_back():
@@ -1458,3 +1442,22 @@ def test_the_statistics_overlay_starts_closed():
     from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 
     assert NewtonViewerGL._show_stats is False
+
+
+def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    visualizer = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    camera = Mock()
+    camera.cfg = SimpleNamespace(prim_path="/World/viewer_camera_0_rtx", renderer_cfg="ovrtx")
+    view = Mock(camera=camera)
+    renderer = Mock()
+    visualizer._is_initialized, visualizer._viewer = True, object()
+    visualizer._pending_mesh_submissions = {}
+    visualizer._image_views, visualizer._sim = [view], SimpleNamespace(get_or_create_backend=lambda cfg: renderer)
+
+    visualizer.log_mesh("/m", points=None, indices=None)
+
+    renderer.log_mesh.assert_called_once()
+    camera.update.assert_called_once_with(0.0)
+    view.invalidate.assert_called_once_with()

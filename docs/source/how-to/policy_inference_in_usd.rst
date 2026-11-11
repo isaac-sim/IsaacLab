@@ -40,9 +40,9 @@ when ``--device cpu`` is explicitly selected.
 The height scanner starts below the warehouse roof so its downward rays measure the floor.
 
 Keep the same physics preset for training, export, and inference. The commands below use
-Newton MJWarp with the ``newton_gl`` visualizer and do not require Isaac Sim. For a PhysX
+Newton MJWarp with the ``newton`` visualizer and do not require Isaac Sim. For a PhysX
 checkpoint trained with Isaac Sim, use ``physics=isaacsim_physx`` throughout and install Isaac Sim;
-the Newton GL viewer can still be used.
+the Newton viewer can still be used.
 Cross-backend policy transfer needs additional validation; see
 :doc:`transfer_policies_between_physx_and_newton`.
 
@@ -70,7 +70,7 @@ where you started the simulation.
 
       .. code-block:: bash
 
-        uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz newton_gl
+        uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz newton
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -87,7 +87,7 @@ We can then load the warehouse asset and run inference on the H1 robot using the
 
       .. code-block:: bash
 
-        uv run python scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt physics=newton_mjwarp --viz newton_gl
+        uv run python scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt physics=newton_mjwarp --viz newton
 
 
 .. figure:: ../_static/tutorials/tutorial_policy_inference_in_usd.jpg

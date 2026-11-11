@@ -15,7 +15,7 @@ Use ``--fluid_render_mode both`` to view the surface and its source particles.
       --surface_preset coarse_grid
 
     uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
-      --visualizer newton_rtx
+      --visualizer newton --initial_renderer rtx
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
@@ -151,7 +151,13 @@ parser.add_argument(
     "--rtx_quality",
     type=_nonnegative_int,
     default=16,
-    help="Newton RTX convergence quality. Use 0 for interactive one-sample rendering.",
+    help="RTX convergence quality of the Newton visualizer. Use 0 for interactive one-sample rendering.",
+)
+parser.add_argument(
+    "--initial_renderer",
+    choices=("opengl", "rtx"),
+    default="opengl",
+    help="Renderer the Newton visualizer opens with; the window's Renderer selector switches it afterwards.",
 )
 parser.add_argument(
     "--particle_jitter_fraction",
@@ -168,7 +174,7 @@ parser.add_argument(
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable CUDA graph capture for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 if not 0.0 <= args_cli.surface_opacity <= 1.0:
@@ -178,9 +184,9 @@ if not 0.0 <= args_cli.particle_jitter_fraction <= 0.5:
 if args_cli.fluid_render_mode != "particles":
     requested_visualizers = set(args_cli.visualizer or [])
     if "kit" in requested_visualizers:
-        parser.error("Surface reconstruction is available in Newton GL and Newton RTX, not Kit.")
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested_visualizers):
-        parser.error("Surface reconstruction requires the Newton GL or Newton RTX visualizer.")
+        parser.error("Surface reconstruction is available in the Newton visualizer, not Kit.")
+    if not {"newton", "newton_gl"}.intersection(requested_visualizers):
+        parser.error("Surface reconstruction requires the Newton visualizer.")
 
 _preset = SURFACE_PRESETS[args_cli.surface_preset]
 SURFACE_CFG = SurfacePreset(
@@ -241,13 +247,15 @@ def create_sim_cfg():
             focal_length=30.0,
             enable_live_plots=False,
             backend=MultiBackendVisualizerCfg(
-                newton_gl=NewtonGLBackendCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
-                newton_rtx=NewtonRTXBackendCfg(
-                    render_settings={
+                newton=NewtonGLBackendCfg(
+                    show_particles=SHOW_PARTICLES,
+                    particle_color=WATER_COLOR,
+                    initial_renderer=args_cli.initial_renderer,
+                    rtx_render_settings={
                         "omni:rtx:quality": ("Int", args_cli.rtx_quality),
                         "omni:rtx:rt:reflections:enabled": ("Bool", True),
                         "omni:rtx:rt:reflections:maxBounces": ("Int", 2),
-                    }
+                    },
                 ),
             ),
         ),

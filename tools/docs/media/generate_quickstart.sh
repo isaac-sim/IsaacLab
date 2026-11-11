@@ -57,7 +57,7 @@ record_policy() {
         --num_envs 1 \
         --video \
         --video_length "${CAPTURE_STEPS}" \
-        --viz newton_rtx \
+        --viz newton \
         --external_callback capture_quickstart.configure_playback \
         "physics=${physics}"
 }

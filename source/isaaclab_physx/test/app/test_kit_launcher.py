@@ -225,9 +225,9 @@ def test_visualizer_alias_parsing(monkeypatch):
     assert args.visualizer_explicit is True
     monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
     cfg = SimulationCfg(device="cpu")
-    with pytest.warns(FutureWarning, match="newton_gl"), sim_launcher.launch_simulation(cfg, args):
+    with pytest.warns(FutureWarning, match="newton"), sim_launcher.launch_simulation(cfg, args):
         pass
-    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -548,7 +548,7 @@ def test_cuda_initialization_remains_deferred_when_torch_is_not_loaded(monkeypat
 @pytest.mark.parametrize(
     "visualizer, headless_env, expected_headless",
     [
-        (["kit", "newton_gl"], 0, False),
+        (["kit", "newton"], 0, False),
         (["rerun"], 0, True),
         # a Kit visualizer only a video records from (``--video viz:kit``) is not selected, and records headless
         ([], 0, True),
@@ -729,7 +729,7 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
         ["--visualizer", "kit,newton_gl,rerun,viser", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
-    assert args.visualizer == ["kit", "newton_gl", "rerun", "viser"]
+    assert args.visualizer == ["kit", "newton", "rerun", "viser"]
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 

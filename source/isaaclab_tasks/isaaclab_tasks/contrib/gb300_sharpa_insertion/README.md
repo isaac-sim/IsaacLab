@@ -10,7 +10,7 @@ this scenery adds no physics bodies or colliders. Cinematic overlays remain loca
 
 ```bash
 uv run isaaclab example sharpa-rj45
-uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton_rtx
+uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton
 uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
 ```
 

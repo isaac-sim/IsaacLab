@@ -14,7 +14,7 @@ import sys
 
 import gymnasium as gym
 import torch
-from isaaclab_visualizers.newton import NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, VideoRecorderCfg
@@ -106,7 +106,7 @@ def main():
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--video-length", type=int, default=360)
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton_rtx"])
+    parser.set_defaults(visualizer=["newton"])
     args, hydra_args = setup_preset_cli(parser)
     sys.argv = [sys.argv[0], *hydra_args]
 
@@ -116,7 +116,7 @@ def main():
     _configure_resolved_sim(env_cfg.sim, eye=_FRANKA_EYE, lookat=_FRANKA_LOOKAT, focal_length=24.0)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="viz:newton_rtx",
+            source="viz:newton",
             output_dir=args.output_dir,
             output_filename_prefix=args.policy,
             video_length=args.video_length,
@@ -156,7 +156,7 @@ def _configure_capture(
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="viz:newton_rtx",
+                source="viz:newton",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("QUICKSTART_VIDEO_PREFIX", "clip"),
                 fps=60,
@@ -178,7 +178,7 @@ def _configure_resolved_sim(
             focal_length=focal_length,
             window=WindowCfg(size=(1280, 720)),
             headless=True,
-            backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 100)}),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_render_settings={"omni:rtx:quality": ("Int", 100)}),
         )
     ]
 
