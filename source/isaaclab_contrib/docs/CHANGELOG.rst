@@ -3,6 +3,32 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the unused manual MJWarp/VBD solver, its configuration, and the opt-in
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task. Use
+  :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` and ``Isaac-Lift-Soft-Franka`` with
+  ``physics=newton_mjwarp_vbd_proxy`` instead.
+* **Breaking:** Removed ``isaaclab_contrib.coupling``. Import the generic coupler and its configurations from
+  :mod:`isaaclab_newton.physics.coupling` instead.
+
+
+6.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_contrib.coupling.CouplerSolver` and
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` into solver drivers. The coupler kept each entry's
+  driver in ``entries`` and ``build_coupled`` became an instance method; the custom coupled solver kept its sub-solver
+  drivers as ``rigid`` and ``soft``.
+
+
 5.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~
 

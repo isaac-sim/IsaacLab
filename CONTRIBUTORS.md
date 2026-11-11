@@ -86,6 +86,7 @@ Guidelines for modifications:
 * David Cao-Mueller
 * David Leon
 * David Yang
+* Daniel Florea
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar

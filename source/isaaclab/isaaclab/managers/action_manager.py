@@ -11,7 +11,7 @@ import inspect
 import re
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 from prettytable import PrettyTable
@@ -38,6 +38,15 @@ class ActionTerm(ManagerTermBase):
     * Applying actions: This operation is performed once per **simulation step** and is
       responsible for applying the processed actions to the asset managed by the term.
     """
+
+    is_graphable: ClassVar[bool] = False
+    """Whether :meth:`apply_actions` can be recorded into a CUDA graph: it writes from buffers updated in place."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A subclass that overrides how actions are processed or applied declares its own flag; it does not inherit it.
+        if "apply_actions" in cls.__dict__ or "process_actions" in cls.__dict__:
+            cls.is_graphable = cls.__dict__.get("is_graphable", False)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -85,7 +94,10 @@ class ActionTerm(ManagerTermBase):
     @property
     @abstractmethod
     def processed_actions(self) -> torch.Tensor:
-        """The actions computed by the term after applying any processing."""
+        """The actions computed by the term after applying any processing.
+
+        Terms that support graph capture update this tensor in place, so a held reference sees later commands.
+        """
         raise NotImplementedError
 
     @property
@@ -213,6 +225,7 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
+        self._graphable = True
         # fixed once the terms are built
         self._action_term_dim = [term.action_dim for term in self._terms.values()]
         self._total_action_dim = sum(self._action_term_dim)
@@ -273,6 +286,19 @@ class ActionManager(ManagerBase):
     def prev_action(self) -> torch.Tensor:
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
+
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`apply_action` can be recorded into a CUDA graph.
+
+        True when all terms are. Set it to False before the environment's first step to keep :meth:`apply_action` in
+        the environment's loop, for example when wrapping it in Python.
+        """
+        return self._graphable and all(term.is_graphable for term in self._terms.values())
+
+    @is_graphable.setter
+    def is_graphable(self, value: bool):
+        self._graphable = value
 
     @property
     def has_debug_vis_implementation(self) -> bool:

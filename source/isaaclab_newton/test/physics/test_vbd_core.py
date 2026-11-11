@@ -117,9 +117,9 @@ def test_vbd_solver_force_input_capability():
     """
     physics = importlib.import_module("isaaclab_newton.physics")
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
-    solver = physics.VBDSolver.build(solver_cfg, ModelBuilder().finalize(device="cpu"), NOT_GUARANTEED)
+    solver = physics.VBDSolver(solver_cfg, ModelBuilder().finalize(device="cpu"), NOT_GUARANTEED)
 
-    assert physics.VBDSolver.applies_body_forces(solver_cfg, solver) is False
+    assert solver.applies_body_forces() is False
 
 
 @pytest.mark.parametrize(
@@ -132,7 +132,7 @@ def test_vbd_rigid_solver_controls(overrides):
     assert kwargs["rigid_body_contact_buffer_size"] == 64
     model = ModelBuilder().finalize(device="cpu")
     native_solver = SolverVBD(model, **overrides)
-    configured_solver = physics.VBDSolver.build(physics.VBDSolverCfg(**overrides), model, NOT_GUARANTEED)
+    configured_solver = physics.VBDSolver(physics.VBDSolverCfg(**overrides), model, NOT_GUARANTEED).native
     for name in (
         "rigid_compliant_alm",
         "rigid_joint_linear_ke",
@@ -163,7 +163,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.color()
     model = builder.finalize(device="cpu")
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
-    solver = physics.VBDSolver.build(solver_cfg, model, NOT_GUARANTEED)
+    solver = physics.VBDSolver(solver_cfg, model, NOT_GUARANTEED).native
     assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
@@ -199,7 +199,7 @@ def test_vbd_structural_joint_stiffness_under_load():
         rigid_joint_linear_ke=linear_ke,
         rigid_joint_angular_ke=angular_ke,
     )
-    solver = physics.VBDSolver.build(solver_cfg, model, NOT_GUARANTEED)
+    solver = physics.VBDSolver(solver_cfg, model, NOT_GUARANTEED).native
     state_0, state_1, control = model.state(), model.state(), model.control()
     for _ in range(480):
         state_0.clear_forces()

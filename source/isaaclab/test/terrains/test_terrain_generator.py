@@ -30,6 +30,7 @@ from isaaclab.terrains.height_field import (
     HfSteppingStonesTerrainCfg,
     HfWaveTerrainCfg,
 )
+from isaaclab.terrains.height_field.utils import height_field_to_mesh
 from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
@@ -186,6 +187,23 @@ def test_random_uniform_terrain_samples_every_pixel_with_border():
     meshes, _ = cfg.function(0.5, cfg)
 
     np.testing.assert_allclose(np.unique(meshes[0].vertices[:, 2].round(6)), [0.0, 0.02, 0.04, 0.06, 0.08, 0.1])
+
+
+def test_height_field_generator_without_origin_raises_type_error():
+    """A height-field generator that returns no origin raises a TypeError and leaves the terrain size unchanged."""
+
+    @height_field_to_mesh
+    def flat_terrain(difficulty: float, cfg: HfRandomUniformTerrainCfg) -> np.ndarray:
+        return np.zeros((1, 1), dtype=np.int16)
+
+    cfg = HfRandomUniformTerrainCfg(
+        size=(2.0, 2.0), horizontal_scale=0.1, border_width=0.2, noise_range=(0.0, 0.0), noise_step=0.02
+    )
+
+    with pytest.raises(TypeError, match=r"'flat_terrain' must return \(height_field, origin\)"):
+        flat_terrain(0.5, cfg)
+
+    assert cfg.size == (2.0, 2.0)
 
 
 @pytest.mark.parametrize("size, border_width", [(4.6, 0.3), (4.67, 0.37)])

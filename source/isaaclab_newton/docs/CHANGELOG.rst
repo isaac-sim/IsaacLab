@@ -3,6 +3,63 @@ Changelog
 
 .. towncrier release notes start
 
+17.1.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`NewtonManager.handle_actions <isaaclab_newton.physics.NewtonManager.handle_actions>`. When every action
+  term and written asset could be recorded, the environment's actions and asset writes ran as pre-actuator callbacks
+  before every physics step, and one step advanced the whole decimation loop. Hard resets registered them again.
+* Added ``NewtonBackend.handles_actions``. When the step handled actions, every physics step staged the body forces
+  that the asset writes produced, and reordered or ball-jointed articulations republished their state before writing,
+  so the writes read the current physics step.
+* Added :mod:`isaaclab_newton.physics.coupling`, the named-entry coupler over Newton's proxy and ADMM coupled solvers,
+  moved from ``isaaclab_contrib.coupling``.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`NewtonBackend.handles_decimation <isaaclab_newton.physics.NewtonBackend.handles_decimation>` to also
+  run the decimation loop in one step when it handled the environment's actions.
+* Changed Newton articulations, rigid objects and rigid object collections to record their wrench work into a
+  captured step only once a wrench composer was used, which captured the step again.
+
+Fixed
+^^^^^
+
+* Fixed ``pos_w`` and ``quat_w`` of the Newton contact sensor returning never-written zeros of the wrong shape when
+  ``track_pose`` was enabled. Newton does not track the sensor pose, so reading them now raises
+  ``NotImplementedError`` as documented, and the configuration warns about ``track_pose``.
+
+
+17.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated Newton contact sensors from the deprecated ``Contacts.force`` path to solver observables for MuJoCo, XPBD,
+  VBD, Kamino, and Steel. Featherstone and implicit MPM contact sensors require ``CONTACT_F`` support in Newton.
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonSolver` from a stateless class of classmethods into a
+  driver built from its configuration and model, so that callers no longer pass the configuration and Newton's solver
+  to every call. :meth:`~isaaclab_newton.physics.NewtonBackend.init_solver` stored it as ``NewtonBackend.solver_ops``,
+  while ``NewtonBackend.solver`` stayed Newton's solver. Configuration-level hooks such as ``prepare_builder`` and
+  ``fixed_tendon_control`` stayed classmethods. Custom solvers override ``build(self, model, mode, env_template)`` and
+  instance methods such as ``pre_step(self, state)``, reading ``self.cfg`` and ``self.native``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``Articulation.write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``, deprecated in Isaac Lab 3.0 for removal in 3.1. Use
+  ``randomize_actuator_gains`` for managed randomization, or
+  ``isaaclab.actuators.newton.write_group_parameter`` with the ``"drive"`` component and
+  ``"kp"`` or ``"kd"`` for direct native gain writes. The direct writer takes an actuator
+  group name and group-local joint indices.
+
+
 16.0.0 (2026-11-06)
 ~~~~~~~~~~~~~~~~~~~
 

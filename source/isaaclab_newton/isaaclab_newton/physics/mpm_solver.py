@@ -203,8 +203,11 @@ def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
 class MPMSolver(NewtonSolver):
     """Newton's implicit MPM solver, which steps particle materials in place on one state."""
 
+    cfg: MPMSolverCfg
+
     solver_class = SolverImplicitMPM
     single_state = True
+    contact_sensors = False
 
     @classmethod
     def prepare_builder(cls, cfg: MPMSolverCfg, builder: ModelBuilder) -> None:
@@ -237,54 +240,45 @@ class MPMSolver(NewtonSolver):
             return "uses MPMSolverCfg and must set in_place=True"
         return None
 
-    @classmethod
-    def build(
-        cls, cfg: MPMSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverImplicitMPM:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverImplicitMPM:
         """Construct implicit MPM from the configuration authored on the active physics scene."""
-        return cls.solver_class(model, mpm_solver_config(cfg), temporary_store=TemporaryStore())
+        return self.solver_class(model, mpm_solver_config(self.cfg), temporary_store=TemporaryStore())
 
-    @classmethod
-    def applies_body_forces(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
+    def applies_body_forces(self) -> bool:
         return False
 
-    @classmethod
-    def supports_capture(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
-        return mpm_supports_graph_capture(solver)
+    def supports_capture(self) -> bool:
+        return mpm_supports_graph_capture(self.native)
 
-    @classmethod
-    def uses_collision_pipeline(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
+    def uses_collision_pipeline(self) -> bool:
         return False
 
-    @classmethod
     def step(
-        cls,
-        cfg: MPMSolverCfg,
-        solver: SolverImplicitMPM,
+        self,
         state_in: State,
         state_out: State,
         control: Control,
         contacts: Contacts | None,
         dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
     ) -> None:
         """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
-        solver.step(state_in, state_out, control, contacts, dt)
-        if cfg.project_outside_colliders:
-            solver.project_outside(state_out, state_out, dt)
+        self.native.step(state_in, state_out, control, contacts, dt)
+        if self.cfg.project_outside_colliders:
+            self.native.project_outside(state_out, state_out, dt)
 
-    @classmethod
-    def reset(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM, state: State, world_mask: wp.array) -> None:
+    def reset(self, state: State, world_mask: wp.array) -> None:
         """Keep implicit-MPM history across automatic asset resets.
 
         Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
         exact history reset call :func:`reset_mpm_solver_state` after authoring their state.
         """
 
-    @classmethod
-    def check_step(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM, captured: bool, debug: bool) -> None:
+    def check_step(self, captured: bool, debug: bool) -> None:
         """Raise asynchronous sparse-grid rebuild failures after a graph replay."""
         if captured:
-            solver.check_sparse_grid_rebuild_status()
+            self.native.check_sparse_grid_rebuild_status()
 
 
 def reset_mpm_solver_state(
