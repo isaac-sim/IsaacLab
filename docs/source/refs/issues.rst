@@ -13,6 +13,26 @@ apply to the others unless it says so.
    :depth: 2
 
 
+Kit runtime
+-----------
+
+Threading-related abort during shutdown
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** Kit-based Isaac Sim / Isaac Lab workflows; reported with Kit 110.4,
+independent of the physics backend.
+
+The process can abort during shutdown with ``std::terminate`` in
+``carb::thread::recursive_shared_mutex::unlock``, called from
+``omni::usd::UsdContext::Impl::render``. This is a Kit threading issue tracked in
+`NVIDIA bug 6956781`_ (NVIDIA access required).
+
+Keep Kit application initialization, updates, and shutdown on the same main thread;
+avoid pumping Kit updates or closing the application from a worker thread.
+A released fix and a validated workaround for the reported shutdown abort have not
+been confirmed. This abort is separate from the PhysX event-subscription error below.
+
+
 PhysX backends
 --------------
 
@@ -257,6 +277,7 @@ are stored in the instanceable asset's USD file and not in its stage reference's
 .. _Isaac Lab issue #8412: https://github.com/isaac-sim/IsaacLab/issues/8412
 .. _Omniverse Isaac Sim documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/overview/known_issues.html#
 .. _OpenUSD PR #4002: https://github.com/PixarAnimationStudios/OpenUSD/pull/4002
+.. _NVIDIA bug 6956781: https://nvbugspro.nvidia.com/bug/6956781
 
 
 Asset import
