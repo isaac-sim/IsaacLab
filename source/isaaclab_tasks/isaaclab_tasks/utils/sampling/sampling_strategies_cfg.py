@@ -9,11 +9,6 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils.sampling.sampling_strategies import (
-    BetaSamplingStrategy,
-    UniformSamplingStrategy,
-)
-
 
 @configclass
 class BetaSamplingStrategyCfg:
@@ -32,7 +27,7 @@ class BetaSamplingStrategyCfg:
           0          target             1
     """
 
-    class_type: type[BetaSamplingStrategy] | str = "{DIR}.sampling_strategies:BetaSamplingStrategy"
+    class_type: type | str = "{DIR}.sampling_strategies:BetaSamplingStrategy"
     """Runtime strategy class."""
     weight: float = 1.0
     """Multiplier on this strategy's score before sampler normalization."""
@@ -58,7 +53,7 @@ class UniformSamplingStrategyCfg:
           +----------------------------> item index
     """
 
-    class_type: type[UniformSamplingStrategy] | str = "{DIR}.sampling_strategies:UniformSamplingStrategy"
+    class_type: type | str = "{DIR}.sampling_strategies:UniformSamplingStrategy"
     """Runtime strategy class."""
     weight: float = 1.0
     """Multiplier on this strategy's constant score before sampler normalization."""

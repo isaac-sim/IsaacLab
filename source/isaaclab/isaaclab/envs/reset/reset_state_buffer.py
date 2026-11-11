@@ -14,21 +14,7 @@ from typing import TypeAlias
 import numpy as np
 import torch
 
-from isaaclab.utils import configclass
-
-
-@configclass
-class ResetStateBufferCfg:
-    """Configuration for bounded reset-state collection."""
-
-    size: int = 4096
-    """Number of accepted states to collect, shared approximately equally across named generators."""
-
-    max_batches: int = 100
-    """Maximum candidate batches per generator before collection fails."""
-
-    seed: int = 0
-    """Collection seed. The caller's Torch, NumPy, and Python random states are restored afterward."""
+from .reset_state_buffer_cfg import ResetStateBufferCfg
 
 
 class ResetStateBuffer:
@@ -55,32 +41,34 @@ class ResetStateBuffer:
         if type(cfg.seed) is not int or not 0 <= cfg.seed < 2**32:
             raise ValueError("seed must be an integer in [0, 2**32).")
         self.cfg = cfg
-        self.state: ResetStateBuffer.State = {}
-        """Collected tensor tree. Treat its tensors as read-only."""
-        self.group_names: tuple[str, ...] = ()
-        """Generator names, in collection order."""
-        self.group_ids = torch.empty(0, dtype=torch.long)
-        """Generator index for every stored row, shape [num_states]."""
+        self._state: ResetStateBuffer.State = {}
+        self._group_names: tuple[str, ...] = ()
+        self._group_ids = torch.empty(0, dtype=torch.long)
         self.collection_report: dict[str, dict[str, int]] = {}
-        """Attempted, accepted, and rejected candidate counts for each generator."""
+        """Attempted, accepted, and rejected counts for the most recent successful collection."""
 
     @property
     def num_states(self) -> int:
         """Number of collected states."""
-        return self.group_ids.numel()
+        return self._group_ids.numel()
 
     @property
-    def rejection_counts(self) -> dict[str, int]:
-        """Derive rejected candidates per named condition from the collection report.
+    def group_names(self) -> tuple[str, ...]:
+        """Generator names, in collection order."""
+        return self._group_names
 
-        One candidate can fail several conditions. Keys have the form ``generator/condition``.
+    @property
+    def group_ids(self) -> torch.Tensor:
+        """Copy of each stored row's generator index, shape [num_states]."""
+        return self._group_ids.clone()
+
+    @property
+    def state(self) -> ResetStateBuffer.State:
+        """Copy of the collected tensor tree, preserving the captured fields' units.
+
+        Use :meth:`get_state` to copy only selected rows during reset.
         """
-        return {
-            f"{group}/{key.removeprefix('rejected/')}": count
-            for group, report in self.collection_report.items()
-            for key, count in report.items()
-            if key.startswith("rejected/")
-        }
+        return _map_state(self._state, lambda value: value.clone())
 
     def collect(
         self,
@@ -99,6 +87,8 @@ class ResetStateBuffer:
 
         The callbacks own simulation synchronization and any settling; collection does not step
         the simulation or advance the environment's episode bookkeeping itself.
+        Failed collection preserves the previous catalog, group metadata, and report. An exhausted
+        generation budget includes the failed attempt's report in its exception.
 
         Args:
             env_ids: Candidate environment indices, shape [N], on the simulation device.
@@ -118,9 +108,10 @@ class ResetStateBuffer:
         checks = checks or {}
         if "generator" in checks:
             raise ValueError("The check name 'generator' is reserved for generator validity.")
-        batches: list[ResetStateBuffer.State] = []
-        groups: list[torch.Tensor] = []
-        self.collection_report = {}
+        state: ResetStateBuffer.State = {}
+        group_ids = torch.empty(self.cfg.size, dtype=torch.long, device=env_ids.device)
+        collected = 0
+        collection_report: dict[str, dict[str, int]] = {}
         devices = [env_ids.device.index] if env_ids.is_cuda else []
         numpy_state, python_state = np.random.get_state(), random.getstate()
         try:
@@ -134,7 +125,7 @@ class ResetStateBuffer:
                 for group, (name, generator) in enumerate(generators.items()):
                     quota = self.cfg.size // len(generators) + int(group < self.cfg.size % len(generators))
                     accepted = 0
-                    report = self.collection_report[name] = {"attempted": 0, "accepted": 0}
+                    report = collection_report[name] = {"attempted": 0, "accepted": 0}
                     for _ in range(self.cfg.max_batches):
                         report["attempted"] += env_ids.numel()
                         reported = generator(env_ids)
@@ -152,11 +143,15 @@ class ResetStateBuffer:
                         selected = env_ids[valid][: quota - accepted]
                         if selected.numel():
                             captured = capture(selected)
-                            if not _validate_state(captured, selected.numel(), batches[0] if batches else None):
+                            if not _validate_state(captured, selected.numel(), state if state else None):
                                 raise ValueError("capture must return a non-empty tree of batched tensors.")
-                            state = _map_state(captured, lambda value: value.detach().clone())
-                            batches.append(state)
-                            groups.append(torch.full_like(selected, group))
+                            if not state:
+                                state = _map_state(
+                                    captured, lambda value: value.new_empty((self.cfg.size, *value.shape[1:]))
+                                )
+                            _copy_state(state, captured, collected)
+                            group_ids[collected : collected + selected.numel()] = group
+                            collected += selected.numel()
                             accepted += selected.numel()
                             report["accepted"] = accepted
                         if accepted == quota:
@@ -164,14 +159,17 @@ class ResetStateBuffer:
                     if accepted < quota:
                         raise RuntimeError(
                             f"Reset group '{name}' collected {accepted}/{quota} states after "
-                            f"{self.cfg.max_batches} batches. Rejections: {self.rejection_counts}"
+                            f"{self.cfg.max_batches} batches. Collection report: {collection_report}"
                         )
         finally:
             np.random.set_state(numpy_state)
             random.setstate(python_state)
-        self.state = _concatenate_states(batches)
-        self.group_ids = torch.cat(groups).long()
-        self.group_names = tuple(generators)
+        self._state, self._group_ids, self._group_names, self.collection_report = (
+            state,
+            group_ids,
+            tuple(generators),
+            collection_report,
+        )
 
     def get_state(self, row_ids: torch.Tensor) -> ResetStateBuffer.State:
         """Return the selected rows of the captured state tree.
@@ -180,9 +178,9 @@ class ResetStateBuffer:
             row_ids: Buffer row indices, shape [N], on the buffer device.
 
         Returns:
-            Tensor tree with a leading dimension of N and the captured fields' units.
+            Copied tensor tree with a leading dimension of N and the captured fields' units.
         """
-        return _map_state(self.state, lambda value: value[row_ids])
+        return _map_state(self._state, lambda value: value[row_ids])
 
 
 def _validate_state(
@@ -221,12 +219,9 @@ def _map_state(
     }
 
 
-def _concatenate_states(states: list[ResetStateBuffer.State]) -> ResetStateBuffer.State:
-    return {
-        key: (
-            _concatenate_states([state[key] for state in states])
-            if isinstance(value, dict)
-            else torch.cat([state[key] for state in states])
-        )
-        for key, value in states[0].items()
-    }
+def _copy_state(destination: ResetStateBuffer.State, source: ResetStateBuffer.State, start: int) -> None:
+    for key, value in source.items():
+        if isinstance(value, dict):
+            _copy_state(destination[key], value, start)
+        else:
+            destination[key][start : start + value.shape[0]].copy_(value.detach())

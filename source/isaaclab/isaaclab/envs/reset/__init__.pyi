@@ -5,4 +5,5 @@
 
 __all__ = ["ResetStateBuffer", "ResetStateBufferCfg"]
 
-from .reset_state_buffer import ResetStateBuffer, ResetStateBufferCfg
+from .reset_state_buffer import ResetStateBuffer
+from .reset_state_buffer_cfg import ResetStateBufferCfg

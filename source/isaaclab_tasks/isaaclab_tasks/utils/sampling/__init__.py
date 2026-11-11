@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sampling strategies for multi-task curriculum selection."""
+"""Success-guided sampling over fixed catalogs of task choices or reset states."""
 
 from isaaclab.utils.module import lazy_export
 

@@ -9,27 +9,11 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import instantiate
 
-from .sampling import BetaSamplingStrategyCfg, Sampler, SamplerCfg, UniformSamplingStrategyCfg
+from .reset_states_cfg import ResetStateSamplerCfg
+from .sampling import Sampler
 from .success_monitor import SuccessMonitor, SuccessMonitorCfg
-
-
-@configclass
-class ResetStateSamplerCfg:
-    """Configure outcome tracking and sampling independently of a task's state representation."""
-
-    class_type: type[ResetStateSampler] | str = "{DIR}.reset_states:ResetStateSampler"
-    """Runtime sampler implementation."""
-
-    success_monitor: SuccessMonitorCfg = SuccessMonitorCfg(monitored_history_len=50)
-    """Rolling episode history for each reset row."""
-
-    sampling: SamplerCfg = SamplerCfg(
-        strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0), UniformSamplingStrategyCfg(weight=0.05)],
-        eps=1.0e-4,
-    )
-    """Sampling strategies; the default favors intermediate success while retaining all rows."""
 
 
 class ResetStateSampler:
@@ -49,21 +33,31 @@ class ResetStateSampler:
     def __init__(self, cfg: ResetStateSamplerCfg, num_envs: int, row_count: int, device: str | torch.device) -> None:
         if num_envs < 1 or row_count < 1:
             raise ValueError("num_envs and row_count must be positive.")
+        monitor_defaults = SuccessMonitorCfg()
+        if (
+            cfg.success_monitor.target_success_rate != monitor_defaults.target_success_rate
+            or cfg.success_monitor.kappa != monitor_defaults.kappa
+            or cfg.success_monitor.temperature != monitor_defaults.temperature
+        ):
+            raise ValueError("Configure reset-row selection through sampling, not success_monitor sampling fields.")
         self.cfg = cfg
         self.row_ids = torch.zeros(num_envs, dtype=torch.long, device=device)
         """Current reset-row assignment for every environment, shape [num_envs]."""
         self.success_monitor: SuccessMonitor = instantiate(cfg.success_monitor, 1, row_count, device)
         """Rolling outcomes indexed by reset row."""
         self.sampler: Sampler = instantiate(cfg.sampling, self.success_monitor.success_rate)
-        self.probabilities = self.sampler.probabilities()
-        """Most recently used row probabilities, shape [row_count]. Treat this tensor as read-only."""
+        self._probabilities = self.sampler.probabilities()
+
+    @property
+    def probabilities(self) -> torch.Tensor:
+        """Copy of the most recently used row probabilities, shape [row_count]."""
+        return self._probabilities.clone()
 
     def reset(
         self,
         env_ids: torch.Tensor,
         success: torch.Tensor | None = None,
         valid: torch.Tensor | None = None,
-        row_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Record the finished episodes before selecting their next reset rows.
 
@@ -75,18 +69,13 @@ class ResetStateSampler:
             env_ids: Resetting environment indices, shape [N], on the sampler device.
             success: Whether each selected episode succeeded, shape [N]. ``None`` skips recording.
             valid: Which selected outcomes to record, shape [N]. ``None`` records every outcome.
-            row_mask: Eligible catalog rows, shape [row_count]. ``None`` permits every row.
-                At least one permitted row must have positive sampling weight.
 
         Returns:
             The newly assigned reset-row indices, shape [N], in ``env_ids`` order.
         """
         if success is not None:
             self.success_monitor.success_update(self.row_ids[env_ids], success, valid)
-        self.probabilities = self.sampler.probabilities()
-        if row_mask is not None:
-            self.probabilities = self.probabilities * row_mask
-            self.probabilities.div_(self.probabilities.sum())
+        self._probabilities = self.sampler.probabilities()
         if env_ids.numel():
-            self.row_ids[env_ids] = self.sampler.sample(self.probabilities, env_ids.numel())
+            self.row_ids[env_ids] = self.sampler.sample(self._probabilities, env_ids.numel())
         return self.row_ids[env_ids]
