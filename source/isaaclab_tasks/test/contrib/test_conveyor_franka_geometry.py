@@ -7,6 +7,8 @@
 
 from collections import Counter
 
+import pytest
+
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import _collision_properties, _cube
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     MeshSpec,
@@ -14,6 +16,8 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     belt_mesh_spec,
     guard_mesh_specs,
 )
+
+pytestmark = pytest.mark.kitless
 
 
 def _edge_use_counts(spec: MeshSpec) -> Counter[tuple[int, int]]:

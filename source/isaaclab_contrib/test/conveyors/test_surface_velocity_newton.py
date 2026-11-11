@@ -16,6 +16,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab_contrib.conveyors.newton import SurfaceVelocity
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_transport_reset_rebind_and_close(device):

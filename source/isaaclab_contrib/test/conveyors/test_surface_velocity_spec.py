@@ -11,6 +11,8 @@ import pytest
 
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize(
     ("kwargs", "message"),

@@ -14,6 +14,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_box_acquisition_lift_release_and_rebind(device):

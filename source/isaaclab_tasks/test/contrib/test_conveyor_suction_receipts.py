@@ -21,6 +21,8 @@ from isaaclab_tasks.contrib.conveyor_suction.actions import solve_tool_ik
 from isaaclab_tasks.contrib.conveyor_suction.scene import PARCEL_SIZES, OutfeedLayout, OutfeedsCfg
 from isaaclab_tasks.utils import parse_env_cfg
 
+pytestmark = pytest.mark.kitless
+
 
 def _check_receipt_pulse(env, actions, env_id):
     pulses = 0
