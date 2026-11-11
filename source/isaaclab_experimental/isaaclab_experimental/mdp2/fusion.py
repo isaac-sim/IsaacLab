@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fusion of per-world statements into generated Warp kernels."""
+"""Code generation that fuses per-world Warp statements into a few generated kernels."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import linecache
 import math
 import re
 from collections.abc import Callable, Hashable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import warp as wp
@@ -22,7 +22,7 @@ _ARGUMENT = re.compile(r"\ba\d+\b")
 
 @dataclass(frozen=True)
 class FusedKernel:
-    """A generated kernel. Calling it with a runtime call launches the kernel with arguments read from it."""
+    """A generated kernel, and how to read its launch arguments from a runtime call."""
 
     kernel: wp.Kernel
     dim: int
@@ -33,22 +33,30 @@ class FusedKernel:
         wp.launch(self.kernel, self.dim, [get(call) for get in self.arguments], device=self.device)
 
 
+@dataclass
+class ThreadAccess:
+    """Kernel arguments that the statements of one kind of thread read or write."""
+
+    touched: set[str] = field(default_factory=set)
+    written: set[str] = field(default_factory=set)
+
+
 class Fusion:
-    """Fuses the statements of one runtime function into as few kernels as their data allows.
+    """Fuses the statements of one runtime function into as few Warp kernels as data dependencies allow.
 
-    Statements are source lines that name kernel arguments. A kernel runs them in two kinds of threads:
+    Statements are source lines that refer to kernel arguments. A kernel runs them in two kinds of threads:
 
-    - the world thread, one per world, runs its statements in the order they were added;
-    - an element block runs one statement for every world and element of a shape, one thread each. Threads are
-      ordered by block, world, then element, so neighbors run the same statement and write adjacent elements.
+    - one world thread per world, which runs its statements in the order they were added;
+    - element blocks, which run one statement per world and output element, one thread each. Threads are ordered by
+      block, then world, then element, so neighboring threads run the same statement and write adjacent memory.
 
-    All threads of a kernel run at once, and element threads only write outputs that nothing reads. A new kernel
-    therefore starts wherever an element thread would read an argument that the world thread writes, and at
-    every step that launches its own kernels.
+    All threads of a kernel run concurrently, so a new kernel starts whenever a statement would read or write an
+    argument that another thread writes, and before every hook that launches its own kernels. Statements declare the
+    arguments they write, except their own output elements.
     """
 
     def __init__(self, name: str, num_worlds: int, device: str, mask: Callable[[Any], wp.array] | None = None):
-        """With ``mask``, which reads the boolean array of worlds to run for from a call, other worlds do nothing."""
+        """If ``mask`` is given, it reads the worlds to run from each call, and threads of other worlds return."""
         self.name = name
         self.num_worlds = num_worlds
         self.device = device
@@ -59,56 +67,62 @@ class Fusion:
         self._mask = None if mask is None else self.argument(mask, wp.array(dtype=wp.bool), mask)
         self._blocks: list[tuple[tuple[int, ...], list[str]]] = []
         self._world: list[str] | None = None
-        self._written: set[str] = set()  # Arguments the world thread writes in the current kernel
-        self._read: set[str] = set()  # Arguments the element threads read in the current kernel
+        # Arguments that the world thread and the element threads touch and write in the current kernel.
+        self._world_access = ThreadAccess()
+        self._element_access = ThreadAccess()
 
     def argument(self, key: Hashable, annotation: Any, get: Callable[[Any], Any]) -> str:
-        """Source name of the kernel argument whose value is ``get(call)``. A key names one argument."""
+        """Return the source name of a kernel argument read with ``get(call)``. Each key maps to one argument."""
         if key not in self._arguments:
             self._arguments[key] = (f"a{len(self._arguments)}", annotation, get)
         return self._arguments[key][0]
 
     def constant(self, annotation: Any, value: Any) -> str:
-        """Source name of a kernel argument with a fixed value. Kernels are reused when only values change."""
+        """Return the source name of an argument with a fixed value, so changing the value reuses the kernel."""
         return self.argument(object(), annotation, lambda call: value)
 
     def function(self, function: wp.Function) -> str:
-        """Source name of a ``wp.func``."""
+        """Return the source name of a ``wp.func`` for use in statements."""
         name = self._functions.setdefault(function, f"f{len(self._functions)}")
         self._namespace[name] = function
         return name
 
     def world(self, *lines: str, writes: Iterable[Hashable] = ()) -> None:
-        """Add a statement to the world thread. ``writes`` are the keys of the arguments it writes."""
-        written = {self._arguments[key][0] for key in writes}
-        if written & self._read:
-            self._cut()
+        """Append a statement to the world thread. ``writes`` lists the keys of the arguments it writes."""
+        self._join(self._world_access, [self._element_access], lines, writes)
         if self._world is None:
             self._world = []
             self._blocks.append(((), self._world))
         self._world += lines
-        self._written |= written
 
-    def elements(self, shape: tuple[int, ...], *lines: str) -> None:
-        """Add an element block: a statement for ``world``, the indices ``i0, i1, ...``, and the flat ``element``."""
-        read = set(_ARGUMENT.findall("\n".join(lines)))
-        if read & self._written:
-            self._cut()
+    def elements(self, shape: tuple[int, ...], *lines: str, writes: Iterable[Hashable] = ()) -> None:
+        """Append an element block that runs a statement with ``world``, indices ``i0, i1, ...``, and ``element``."""
+        self._join(self._element_access, [self._world_access, self._element_access], lines, writes)
         self._blocks.append((shape, list(lines)))
-        self._read |= read
+
+    def _join(
+        self, access: ThreadAccess, others: list[ThreadAccess], lines: Iterable[str], writes: Iterable[Hashable]
+    ) -> None:
+        """Record what a statement reads and writes, starting a new kernel first if it would race with ``others``."""
+        touched = set(_ARGUMENT.findall("\n".join(lines)))
+        written = {self._arguments[key][0] for key in writes}
+        if any(touched & other.written or written & other.touched for other in others):
+            self._cut()
+        access.touched |= touched
+        access.written |= written
 
     def call(self, step: Callable[[Any], None]) -> None:
-        """Add a step that launches its own kernels, after the statements added so far."""
+        """Append a hook that launches its own kernels, after the statements added so far."""
         self._cut()
         self._steps.append(step)
 
     def steps(self) -> tuple[Callable[[Any], None], ...]:
-        """The generated kernels and the added steps, in order."""
+        """Return the generated kernels and hooks in launch order."""
         self._cut()
         return tuple(self._steps)
 
     def _cut(self) -> None:
-        """Generate the kernel of the current blocks, and start a new one."""
+        """Generate a kernel from the pending blocks, and start a new one."""
         if not self._blocks:
             return
         body, begin = [], 0
@@ -145,4 +159,7 @@ class Fusion:
                 device=self.device,
             )
         )
-        self._blocks, self._world, self._written, self._read = [], None, set(), set()
+        self._blocks, self._world = [], None
+        for access in (self._world_access, self._element_access):
+            access.touched.clear()
+            access.written.clear()

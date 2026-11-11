@@ -9,6 +9,9 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental import mdp2
+from isaaclab_experimental.mdp2.fusion import Fusion
+
+from isaaclab.utils.warp import ProxyArray
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -21,6 +24,23 @@ def joint_pos_warp(world: int, joint: int, joint_pos: wp.array2d(dtype=float)) -
 @wp.func
 def joint_vel_warp(world: int, joint: int, joint_vel: wp.array2d(dtype=float)) -> float:
     return joint_vel[world, joint]
+
+
+@wp.func
+def last_action_warp(world: int, action: int, actions: wp.array2d(dtype=float)) -> float:
+    return actions[world, action]
+
+
+@wp.func
+def episode_length_warp(world: int, episode_length: wp.array(dtype=wp.int32)) -> float:
+    return float(episode_length[world])
+
+
+@wp.func
+def joint_pos_subset_warp(
+    world: int, joint: int, joint_pos: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32)
+) -> float:
+    return joint_pos[world, joint_ids[joint]]
 
 
 @wp.func
@@ -108,6 +128,12 @@ def push_by_adding_velocity_warp(world: int, joint_vel: wp.array2d(dtype=float))
         joint_vel[world, j] += 1.0
 
 
+@wp.func
+def scale_joint_vel_warp(world: int, joint_vel: wp.array2d(dtype=float), factor: float):
+    for j in range(joint_vel.shape[1]):
+        joint_vel[world, j] *= factor
+
+
 @wp.kernel
 def _reset_joints_by_offset_kernel(
     mask: wp.array(dtype=bool), rng: wp.array(dtype=wp.int32), joint_pos: wp.array2d(dtype=float)
@@ -131,6 +157,21 @@ robot = mdp2.Entity("robot")
 joint_pos = mdp2.Term(torch=lambda joint_pos: joint_pos, warp=joint_pos_warp, shape=("worlds", "joints"))
 joint_vel = mdp2.Term(torch=lambda joint_vel: joint_vel, warp=joint_vel_warp, shape=("worlds", "joints"))
 generated_commands = mdp2.Term(torch=lambda command: command, warp=generated_commands_warp)
+last_action = mdp2.Term(torch=lambda actions: actions, warp=last_action_warp, shape=("worlds", "actions"))
+episode_length = mdp2.Term(torch=lambda episode_length: episode_length.float(), warp=episode_length_warp)
+joint_pos_subset = mdp2.Term(
+    torch=lambda joint_pos, joint_ids: joint_pos[:, joint_ids],
+    warp=joint_pos_subset_warp,
+    shape=("worlds", "joint_ids"),
+)
+mdp_observations = {
+    "last_action": mdp2.Observation(last_action, inputs={"actions": mdp2.last_action}),
+    "episode_length": mdp2.Observation(episode_length, inputs={"episode_length": mdp2.episode_length}),
+    "joint_pos_subset": mdp2.Observation(
+        joint_pos_subset, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints("[xz]")}
+    ),
+}
+"""Observations of the MDP's own fields and of the joints named x and z."""
 is_alive = mdp2.Term(torch=lambda joint_pos: torch.ones_like(joint_pos[:, 0]), warp=is_alive_warp)
 joint_pos_l2 = mdp2.Term(torch=lambda joint_pos: joint_pos.square().sum(dim=-1), warp=joint_pos_l2_warp)
 joint_pos_out_of_manual_limit = mdp2.Term(
@@ -167,6 +208,10 @@ push_by_adding_velocity = mdp2.Term(
     torch=lambda mask, joint_vel: joint_vel.add_(mask[:, None].float()), warp=push_by_adding_velocity_warp
 )
 """Add one to the joint velocities of the masked worlds."""
+scale_joint_vel = mdp2.Term(
+    torch=lambda mask, joint_vel, *, factor: joint_vel.mul_(torch.where(mask[:, None], factor, 1.0)),
+    warp=scale_joint_vel_warp,
+)
 reset_joints_by_offset = mdp2.Term(
     torch=lambda mask, joint_pos, rng: joint_pos.add_(
         mask[:, None] * mdp2.uniform(rng, -0.5, 0.5, joint_pos.shape[1:])
@@ -177,7 +222,7 @@ reset_joints_by_offset = mdp2.Term(
 """Offset the joint positions of the masked worlds by uniform samples."""
 push_robot = mdp2.Event(
     push_by_adding_velocity,
-    inputs={"joint_vel": robot.joint_vel},
+    outputs={"joint_vel": robot.joint_vel},
     mode=mdp2.EventMode.INTERVAL,
     interval_range_s=(0.04, 0.04),
 )
@@ -224,9 +269,11 @@ def make_task(
         builder.add_observation(
             "policy", "target", mdp2.Observation(generated_commands, inputs={"command": mdp2.commands.target})
         )
+        for name, observation in mdp_observations.items():
+            builder.add_observation("policy", name, observation)
         builder.add_event("push_robot", push_robot)
         builder.add_event(
-            "reset_robot_joints", mdp2.Event(reset_joints_by_offset, inputs={"joint_pos": robot.joint_pos})
+            "reset_robot_joints", mdp2.Event(reset_joints_by_offset, outputs={"joint_pos": robot.joint_pos})
         )
     mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
@@ -237,28 +284,33 @@ def env_step(mdp, state, scene, actions, transition) -> dict[str, torch.Tensor]:
 
     Returns the bootstrap observations: the successor observations before ended worlds are reset.
     """
-    mdp2.apply_actions(mdp, state, actions)
+    mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
     scene.step()
     mdp2.evaluate(mdp, state, transition)
     bootstrap = {group: values.torch.clone() for group, values in transition.observations.items()}
-    ended = transition.terminated.torch | transition.truncated.torch
-    scene.reset(ended)
-    mdp2.reset(mdp, state, ended)
-    mdp2.observe(mdp, state, transition.observations, ended)
+    scene.reset(transition.done.torch)
+    mdp2.reset(mdp, state, transition.done)
+    mdp2.observe(mdp, state, transition.observations, transition.done)
     return bootstrap
 
 
 def env_reset(mdp, state, scene, observations, mask):
     """The phase order of ``MDP2RLEnv.reset``."""
     scene.reset(mask)
-    mdp2.reset(mdp, state, mask)
-    mdp2.observe(mdp, state, observations, mask)
+    mdp2.reset(mdp, state, ProxyArray(wp.from_torch(mask)))
+    mdp2.observe(mdp, state, observations, ProxyArray(wp.from_torch(mask)))
 
 
 def test_finalize_reports_all_errors():
     builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
     builder.add_reward("unknown_entity", mdp2.Reward(is_alive, inputs={"joint_pos": mdp2.Entity("table").joint_pos}))
     builder.add_reward("unknown_field", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_angle}))
+    builder.add_reward("unknown_command", mdp2.Reward(generated_commands, inputs={"command": mdp2.commands.typo}))
+    builder.add_reward("unmatched_subset", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joints("x", "elbow")}))
+    for name in ("joint_effort", "second_writer"):
+        builder.add_action(name, mdp2.DirectAction(robot.joint_effort_target))
+    builder.add_reward("array_type", mdp2.Reward(generated_commands, inputs={"command": robot.joint_pos}))
+    builder.add_termination("return_type", mdp2.Termination(is_alive, inputs={"joint_pos": robot.joint_pos}))
     builder.add_reward("no_warp", mdp2.Reward(mdp2.Term(), inputs={"joint_pos": robot.joint_pos}))
     builder.add_observation(
         "policy",
@@ -267,25 +319,96 @@ def test_finalize_reports_all_errors():
     )
     builder.add_event(
         "no_interval",
-        mdp2.Event(push_by_adding_velocity, inputs={"joint_vel": robot.joint_vel}, mode=mdp2.EventMode.INTERVAL),
+        mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, mode=mdp2.EventMode.INTERVAL),
     )
     builder.add_reward("func_arguments", mdp2.Reward(joint_pos_l2, inputs={"pos": robot.joint_pos}))
-    builder.add_event("function_arguments", mdp2.Event(reset_joints_by_offset, inputs={"pos": robot.joint_pos}))
+    builder.add_event("function_arguments", mdp2.Event(reset_joints_by_offset, outputs={"pos": robot.joint_pos}))
 
     with pytest.raises(ValueError) as error:
         builder.finalize(backend="warp")
 
     message = str(error.value)
-    assert "rewards.unknown_entity: input 'joint_pos' selects unknown entity 'table'" in message
-    assert "rewards.unknown_field: input 'joint_pos' selects unknown field 'robot.joint_angle'" in message
+    assert "rewards.unknown_entity: unknown entity 'table' in 'table.joint_pos'" in message
+    assert "rewards.unknown_field: unknown field 'robot.joint_angle'" in message
+    assert "rewards.unknown_command: unknown field 'commands.typo'. Fields of the MDP:" in message
+    assert "rewards.unmatched_subset: 'robot.joints('x', 'elbow')' matches no name with ['elbow']" in message
+    assert (
+        "actions.second_writer: 'robot.joint_effort_target' is already the target of 'actions.joint_effort'" in message
+    )
+    assert "rewards.array_type: wp.func 'generated_commands_warp' takes 'command' as a 1-dimensional array" in message
+    assert "terminations.return_type: wp.func 'is_alive_warp' must return bool" in message
     assert "rewards.no_warp: the term has no 'warp' implementation" in message
-    assert "observations.policy.name_clash: inputs, state, params, and rng must have distinct names" in message
+    assert "observations.policy.name_clash: inputs, outputs, state, params, and rng must have distinct names" in message
     assert "events.no_interval: interval events need an interval_range_s" in message
     assert (
         "rewards.func_arguments: wp.func 'joint_pos_l2_warp' must take the world, 0 output indices, and ['pos']"
         in message
     )
     assert "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'pos', 'rng']" in message
+
+
+def test_schedule_edits_keep_phases_and_dependencies():
+    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    target = builder.add_command("target", mdp2.Command(uniform_command))
+    target_copy = builder.add_command(
+        "target_copy", mdp2.Command(generated_commands, inputs={"command": mdp2.commands.target})
+    )
+    alive = builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
+    schedule = builder.schedule()
+
+    with pytest.raises(ValueError, match="'commands.target_copy' reads 'commands.target', so it must run after"):
+        builder.move_before(target_copy, target)
+    with pytest.raises(ValueError, match="a use stays in its phase"):
+        builder.move_after(alive, target)
+    with pytest.raises(ValueError, match="must list each of its entries once"):
+        builder.set_order(mdp2.Phase.COMMANDS, [target_copy])
+    assert builder.schedule() == schedule
+    assert builder.describe() == "\n".join(
+        [
+            "rewards",
+            "  rewards.alive         reads robot.joint_pos",
+            "commands",
+            "  commands.target       writes commands.target",
+            "  commands.target_copy  reads commands.target; writes commands.target_copy",
+        ]
+    )
+
+    # Added again, the command runs after its reader.
+    builder.remove(target)
+    builder.add_command("target", mdp2.Command(uniform_command))
+    with pytest.raises(ValueError, match="'commands.target_copy' reads 'commands.target', so it must run after"):
+        builder.validate()
+
+
+def test_schedule_edits_change_execution_order():
+    """Pushing then doubling the velocity differs from doubling then pushing. Finalized MDPs keep their order."""
+    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=2).schema)
+    push = builder.add_event("push_robot", push_robot)
+    double = builder.add_event(
+        "double_joint_vel",
+        mdp2.Event(
+            scale_joint_vel,
+            outputs={"joint_vel": robot.joint_vel},
+            params={"factor": 2.0},
+            mode=mdp2.EventMode.INTERVAL,
+            interval_range_s=(0.04, 0.04),
+        ),
+    )
+    for backend in ("torch", "warp"):
+        builder.set_order(mdp2.Phase.INTERVAL_EVENTS, [push, double])
+        push_first = builder.finalize(device=DEVICE, backend=backend)
+        builder.move_before(double, push)
+        double_first = builder.finalize(device=DEVICE, backend=backend)
+
+        assert push_first.schedule == ("events.push_robot", "events.double_joint_vel")
+        assert double_first.schedule == ("events.double_joint_vel", "events.push_robot")
+        for mdp, expected in ((push_first, 2.0), (double_first, 1.0)):
+            scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+            state, transition = mdp.state(scene), mdp.transition()
+            env_reset(mdp, state, scene, transition.observations, torch.ones(2, dtype=torch.bool, device=DEVICE))
+            for _ in range(2):  # the events run on the second step
+                env_step(mdp, state, scene, torch.zeros(2, 1, device=DEVICE), transition)
+            assert torch.equal(scene.data("robot", "joint_vel").torch, torch.full((2, 1), expected, device=DEVICE))
 
 
 def test_step_matches_point_mass_dynamics():
@@ -346,7 +469,7 @@ def test_reset_touches_only_selected_worlds():
     env_reset(mdp, state, scene, observations, torch.ones(3, dtype=torch.bool, device=DEVICE))
     for _ in range(2):
         env_step(mdp, state, scene, torch.full((3, 1), 0.01, device=DEVICE), mdp.transition())
-    mdp2.observe(mdp, state, observations, torch.ones(3, dtype=torch.bool, device=DEVICE))
+    mdp2.observe(mdp, state, observations, ProxyArray(wp.ones(3, dtype=wp.bool, device=DEVICE)))
 
     def snapshot():
         buffers = [state.episode_length, state.actions, observations["policy"], scene.data("robot", "joint_pos")]
@@ -362,6 +485,64 @@ def test_reset_touches_only_selected_worlds():
     for expected, actual in zip(before, snapshot()):
         assert expected[0].abs().sum() > 0.0 and actual[0].abs().sum() == 0.0
         assert torch.equal(actual[1:], expected[1:])
+
+
+def test_state_resets_after_reset_events():
+    """The delta observation restarts from the joint positions that the reset event offset."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        mdp, state = make_task(scene, backend=backend, random=True)
+        observations = mdp.observations()
+        env_reset(mdp, state, scene, observations, torch.ones(2, dtype=torch.bool, device=DEVICE))
+        joint_pos, joint_pos_delta = observations["policy"].torch[:, 0], observations["policy"].torch[:, 2]
+        assert (joint_pos != 0.0).all() and (joint_pos_delta == 0.0).all()
+
+
+def test_mdp_fields_subsets_weights_and_diagnostics():
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y", "z"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
+        for name, observation in mdp_observations.items():
+            builder.add_observation("policy", name, observation)
+        builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
+        builder.add_reward("joint_pos_l2", mdp2.Reward(joint_pos_l2, inputs={"joint_pos": robot.joint_pos}))
+        limit = mdp2.Termination(joint_pos_out_of_manual_limit, inputs={"joint_pos": robot.joint_pos})
+        limit.params["limit"] = 0.01
+        builder.add_termination("out_of_bounds", limit)
+        mdp = builder.finalize(device=DEVICE, backend=backend, diagnostics=True)
+        limit.params["limit"] = 1.0e6  # a finalized MDP keeps its params
+        state, transition = mdp.state(scene), mdp.transition()
+        env_reset(mdp, state, scene, transition.observations, torch.ones(2, dtype=torch.bool, device=DEVICE))
+
+        actions = torch.tensor([[0.1, 0.2, 0.3], [100.0, 0.0, 0.0]], device=DEVICE)
+        mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
+        scene.step()
+        mdp2.evaluate(mdp, state, transition)
+
+        joint_pos = scene.data("robot", "joint_pos").torch
+        expected = torch.cat([actions, torch.ones(2, 1, device=DEVICE), joint_pos[:, [0, 2]]], dim=-1)
+        torch.testing.assert_close(transition.observations["policy"].torch, expected)
+        assert transition.terminated.torch.tolist() == transition.done.torch.tolist() == [False, True]
+        assert torch.equal(transition.termination_terms.torch[:, 0], transition.terminated.torch)
+        torch.testing.assert_close(transition.reward_terms.torch.sum(dim=-1), transition.rewards.torch)
+
+        state.reward_weights.torch[1] = 0.0  # weights are state, and may change while the MDP runs
+        mdp2.evaluate(mdp, state, transition)
+        torch.testing.assert_close(transition.rewards.torch, torch.full((2,), mdp.step_dt, device=DEVICE))
+
+
+def test_fusion_cuts_kernels_where_threads_would_race():
+    code = Fusion("racing", 2, DEVICE)
+    values = code.argument("values", wp.array2d(dtype=wp.float32), lambda call: call)
+    code.elements((3,), f"{values}[world, element] = 1.0", writes=["values"])
+    code.world(f"{values}[world, 0] = {values}[world, 1] + {values}[world, 2]", writes=["values"])
+    launches = code.steps()
+
+    array = wp.zeros((2, 3), dtype=wp.float32, device=DEVICE)
+    for launch in launches:
+        launch(array)
+    assert len(launches) == 2 and array.numpy()[:, 0].tolist() == [2.0, 2.0]
 
 
 def test_commands_and_interval_events_follow_their_timers():
@@ -418,8 +599,8 @@ def test_warp_fuses_functions_into_few_kernels():
     mdp, _ = make_task(mdp2.PointMassScene(num_worlds=2, device=DEVICE), backend="warp")
 
     # Observations share the kernel of the terminations and rewards. The state updates wait for them in a second one.
-    program = mdp.program
-    assert [len(steps) for steps in (program.apply_actions, program.evaluate, program.observe)] == [1, 2, 1]
+    kernels = mdp.kernels
+    assert [len(launches) for launches in (kernels.apply_actions, kernels.evaluate, kernels.observe)] == [1, 2, 1]
 
 
 def test_warp_matches_torch():

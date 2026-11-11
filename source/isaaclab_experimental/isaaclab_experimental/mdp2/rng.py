@@ -23,7 +23,7 @@ _UINT32 = 0xFFFFFFFF
 
 
 def uniform(rng: torch.Tensor, low: float, high: float, shape: tuple[int, ...] = (), offset: int = 0) -> torch.Tensor:
-    """Samples of shape ``(num_worlds, *shape)``, drawing flattened element ``j`` at ``offset + j``."""
+    """Draw uniform samples of shape ``(num_worlds, *shape)``. Flattened element ``j`` uses draw ``offset + j``."""
     offsets = torch.arange(offset, offset + math.prod(shape), device=rng.device) & _UINT32
     state = _pcg(((rng.long()[:, None] & _UINT32) + _pcg(offsets)) & _UINT32)
     values = (_pcg(state) >> 8).float() * (1.0 / 16777216.0)
@@ -37,7 +37,7 @@ def uniform(rng: torch.Tensor, low: float, high: float, shape: tuple[int, ...] =
 
 
 def advance(rng: torch.Tensor, mask: torch.Tensor | None = None) -> None:
-    """Advance streams of shape ``(num_streams, num_worlds)`` in place, for the worlds selected by ``mask``."""
+    """Advance streams of shape ``(num_streams, num_worlds)`` in place, only for the worlds in ``mask`` if given."""
     if rng.numel() == 0:
         return
     advanced = _int32(_pcg(rng.long() & _UINT32))
@@ -45,7 +45,7 @@ def advance(rng: torch.Tensor, mask: torch.Tensor | None = None) -> None:
 
 
 def streams(seed: int, names: tuple[str, ...], num_worlds: int, device: str) -> torch.Tensor:
-    """Initial streams of shape ``(len(names), num_worlds)``, each keyed by a name and world."""
+    """Create initial streams of shape ``(len(names), num_worlds)``, seeded from each name and world index."""
     keys = torch.tensor(
         [(seed + zlib.crc32(name.encode())) & _UINT32 for name in names], dtype=torch.int64, device=device
     )

@@ -12,6 +12,7 @@ __all__ = [
     "Event",
     "EventMode",
     "EntitySchema",
+    "FieldSchema",
     "FieldSelector",
     "Implementation",
     "MDPBuilder",
@@ -20,11 +21,15 @@ __all__ = [
     "ObservationGroup",
     "Phase",
     "PointMassScene",
+    "ExecutionPlan",
     "Reward",
     "ScheduleEntry",
     "SceneData",
     "SceneSchema",
     "State",
+    "Step",
+    "StepKind",
+    "SubsetSelector",
     "TaskCfg",
     "Term",
     "TermCfg",
@@ -33,7 +38,9 @@ __all__ = [
     "Transition",
     "apply_actions",
     "commands",
+    "episode_length",
     "evaluate",
+    "last_action",
     "observe",
     "reset",
     "uniform",
@@ -51,14 +58,18 @@ from .config import (
     ObservationGroup,
     Phase,
     Reward,
+    SubsetSelector,
     TaskCfg,
     TermCfg,
     Termination,
     TimeLimit,
     commands,
+    episode_length,
+    last_action,
 )
 from .mdp import MDP, Backend, MDPState, Transition
-from .scene import EntitySchema, PointMassScene, SceneData, SceneSchema
+from .plan import ExecutionPlan, Step, StepKind
+from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema
 from .rng import uniform
 from .runtime import apply_actions, evaluate, observe, reset
 from .terms import Implementation, State, Term

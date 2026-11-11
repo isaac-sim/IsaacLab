@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Term descriptors: what a calculation produces, the state it keeps, and how each backend computes it."""
+"""Term descriptors: what a term computes, the state it keeps, and its implementation per backend."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class State:
-    """A ``float32`` buffer a term keeps across steps, with one value per world and element."""
+    """A ``float32`` buffer that a term keeps across steps, with one value per world and element."""
 
     shape: tuple[str | int, ...] = ("worlds",)  # Resolved like Term.shape
     initial: float = 0.0  # Value at creation, and on reset when the term has no reset hook
@@ -23,12 +23,15 @@ class State:
 class Implementation:
     """Backend hooks of a term. Hooks take the term's inputs, state, params, and ``rng`` by name.
 
+    Fields arrive as arrays of shape ``(num_worlds, ...)``, and subsets as ``int32`` index arrays.
+
     Torch hooks are batched over worlds:
 
     - ``compute(**args)`` returns the output. It must not change state: observations are computed again after a
       reset, and continuing worlds must get the same sample.
     - ``update(**args)`` advances state in place, once per step after ``compute``.
-    - ``reset(mask, **args)`` resets the masked worlds' state. Without it, state is set to ``initial``.
+    - ``reset(mask, **args)`` resets the masked worlds' state, after the reset events ran and the commands were
+      resampled. Without it, state is set to ``initial``.
 
     Warp hooks are ``wp.func`` s that handle one world, called from the kernels generated for the MDP:
 
@@ -43,7 +46,7 @@ class Implementation:
     It runs between the generated kernels.
 
     Event terms are ``compute(mask, **args)``, or a func ``compute(world, **args)`` run for the selected worlds, and
-    write their inputs in place.
+    write their outputs in place.
     """
 
     compute: Callable
@@ -53,7 +56,7 @@ class Implementation:
 
 @dataclass(frozen=True)
 class Term:
-    """One reusable calculation; each use gets its own state. A function means ``Implementation(compute=fn)``."""
+    """A reusable calculation with separate state per use. A function is short for ``Implementation(compute=fn)``."""
 
     torch: Implementation | Callable | None = None
     warp: Implementation | Callable | None = None

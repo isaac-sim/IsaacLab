@@ -1,0 +1,110 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Compiled ops and the execution plan, which lists the steps each runtime function runs, in order."""
+
+from __future__ import annotations
+
+import enum
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import Any
+
+from .config import FieldSelector, Phase, SubsetSelector
+from .terms import State
+
+
+@dataclass(frozen=True)
+class ActionOp:
+    """Compiled action that writes a slice of the action to an entity field."""
+
+    name: str
+    target: FieldSelector
+    columns: slice  # Columns of the action
+    scale: float
+    offset: float
+
+
+@dataclass(frozen=True)
+class TermOp:
+    """Compiled term use for one backend."""
+
+    name: str
+    phase: Phase
+    index: int  # Position among the ops of its phase
+    compute: Callable
+    update: Callable | None
+    reset: Callable | None
+    inputs: Mapping[str, FieldSelector | SubsetSelector]  # Hook arguments bound to fields and subsets
+    params: Mapping[str, Any]
+    state: Mapping[str, State]  # Shapes resolved to sizes, including the world dimension
+    shape: tuple[int, ...]  # Output dimensions after the world dimension
+    dtype: type  # Output element type
+    writes: tuple[FieldSelector, ...] = ()  # A command's value, or the outputs of an event
+    weight: float = 1.0  # Rewards: initial value of MDPState.reward_weights[index]
+    time_out: bool = False  # Terminations: whether a true output truncates
+    group: str = ""  # Observations: name of the observation group
+    columns: slice = slice(None)  # Observations: columns of the group
+    timer: tuple[float, float] | None = None  # Seconds between command resamples or interval events
+    stream: int | None = None  # Row of MDPState.rng, for timers and random terms
+    random: bool = False  # Whether the term draws from its stream
+
+
+class StepKind(enum.Enum):
+    """Kind of work a step does with its op."""
+
+    COMPUTE = enum.auto()  # Compute the output and write it to its destination
+    COMPUTE_IF_DUE = enum.auto()  # Count down the timer, and compute for the worlds where it expired
+    UPDATE_STATE = enum.auto()  # Advance the term's state, after its compute
+    RESET_TIMER = enum.auto()  # Draw a new time until the command resamples or the interval event runs
+    RESET_STATE = enum.auto()  # Run the reset hook, or set the state to its initial value
+
+
+@dataclass(frozen=True)
+class Step:
+    """One unit of work on an op in a runtime function."""
+
+    kind: StepKind
+    op: ActionOp | TermOp
+
+
+@dataclass(frozen=True)
+class ExecutionPlan:
+    """Ordered steps of each runtime function. ``reset`` and ``observe`` only act on the masked worlds."""
+
+    apply_actions: tuple[Step, ...]
+    evaluate: tuple[Step, ...]
+    reset: tuple[Step, ...]
+    observe: tuple[Step, ...]
+
+
+def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
+    """Order the steps of every runtime function from the ops of each phase. This defines the step contract."""
+    timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
+    observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
+    stateful = [op for phase in Phase if phase is not Phase.ACTIONS for op in ops[phase] if op.state]
+    terminations_and_rewards = []
+    for op in ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
+        terminations_and_rewards.append(Step(StepKind.COMPUTE, op))
+        if op.update is not None:
+            terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
+    return ExecutionPlan(
+        apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
+        evaluate=(
+            # Terminations and rewards see the commands that governed the action.
+            *terminations_and_rewards,
+            *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed),
+            # Successor observations see the new commands and the events. Their state advances after all of them.
+            *observations,
+            *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.OBSERVATIONS] if op.update is not None),
+        ),
+        reset=(
+            *(Step(StepKind.RESET_TIMER, op) for op in timed),
+            *(Step(StepKind.COMPUTE, op) for op in ops[Phase.RESET_EVENTS] + ops[Phase.COMMANDS]),
+            # State restarts last, from the fields and commands of the new episode.
+            *(Step(StepKind.RESET_STATE, op) for op in stateful),
+        ),
+        observe=observations,
+    )

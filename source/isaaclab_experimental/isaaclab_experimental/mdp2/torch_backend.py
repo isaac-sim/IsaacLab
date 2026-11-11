@@ -3,79 +3,112 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Torch backend: batched term functions, run eagerly one term at a time."""
+"""Torch backend: runs batched term functions eagerly, one step at a time."""
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterable
 
 import torch
 
 from isaaclab.utils.warp import ProxyArray
 
 from . import rng
-from .mdp import MDP, MDPState, TermOp, Transition
+from .config import Phase
+from .mdp import MDP, MDPState, Transition
+from .plan import Step, StepKind, TermOp
 
 
-def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
-    state.actions.torch.copy_(actions)
-    for op in mdp.action_ops:
-        state.fields[op.target].torch.copy_(actions[:, op.columns] * op.scale + op.offset)
+def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
+    state.actions.torch.copy_(actions.torch)
+    for step in mdp.plan.apply_actions:
+        op = step.op
+        state.fields[op.target].torch.copy_(actions.torch[:, op.columns] * op.scale + op.offset)
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
     rng.advance(state.rng.torch)
-    episode_length = state.episode_length.torch
-    episode_length += 1
-
-    terminated, truncated = transition.terminated.torch, transition.truncated.torch
-    terminated.zero_()
-    truncated.zero_()
+    state.episode_length.torch.add_(1)
+    transition.terminated.torch.zero_()
+    transition.truncated.torch.zero_()
     if mdp.max_episode_length is not None:
-        truncated |= episode_length >= mdp.max_episode_length
-    for op in mdp.termination_ops:
-        flags = truncated if op.time_out else terminated
-        flags |= _step(op, state).bool()
-
-    rewards = transition.rewards.torch
-    rewards.zero_()
-    for op in mdp.reward_ops:
-        rewards += _step(op, state) * (op.weight * mdp.step_dt)
-
-    for op in mdp.command_ops:
-        if op.timer is not None:
-            _resample(mdp, op, state, _tick(mdp, op, state))
-    for op in mdp.interval_event_ops:
-        op.compute(mask=_tick(mdp, op, state), **_arguments(op, state))
-
-    for op in mdp.observation_ops:
-        transition.observations[op.group].torch[:, op.columns] = _step(op, state).reshape(mdp.num_worlds, -1)
+        transition.truncated.torch.copy_(state.episode_length.torch >= mdp.max_episode_length)
+    transition.rewards.torch.zero_()
+    _run(mdp, mdp.plan.evaluate, state, None, transition, transition.observations)
+    transition.done.torch.copy_(transition.terminated.torch | transition.truncated.torch)
 
 
-def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
-    rng.advance(state.rng.torch, mask)
-    state.episode_length.torch.masked_fill_(mask, 0)
-    state.actions.torch.masked_fill_(mask[:, None], 0.0)
-    for op in mdp.term_ops:
-        if op.reset is not None:
-            op.reset(mask=mask, **_arguments(op, state))
-            continue
-        for name, spec in op.state.items():
-            state.term_state[op.name][name].torch.view(mdp.num_worlds, -1).masked_fill_(mask[:, None], spec.initial)
-    for op in mdp.interval_event_ops + mdp.command_ops:
-        if op.timer is not None:
-            _restart(op, state, mask)
-    for op in mdp.reset_event_ops:
-        op.compute(mask=mask, **_arguments(op, state))
-    for op in mdp.command_ops:
-        _resample(mdp, op, state, mask)
+def reset(mdp: MDP, state: MDPState, mask: ProxyArray) -> None:
+    rng.advance(state.rng.torch, mask.torch)
+    state.episode_length.torch.masked_fill_(mask.torch, 0)
+    state.actions.torch.masked_fill_(mask.torch[:, None], 0.0)
+    _run(mdp, mdp.plan.reset, state, mask.torch)
 
 
-def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
-    for op in mdp.observation_ops:
-        columns = observations[op.group].torch[:, op.columns]
-        value = op.compute(**_arguments(op, state)).reshape(mdp.num_worlds, -1)
-        columns.copy_(torch.where(mask[:, None], value, columns))
+def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: ProxyArray) -> None:
+    _run(mdp, mdp.plan.observe, state, mask.torch, observations=observations)
+
+
+def _run(
+    mdp: MDP,
+    steps: Iterable[Step],
+    state: MDPState,
+    mask: torch.Tensor | None,
+    transition: Transition | None = None,
+    observations: dict[str, ProxyArray] | None = None,
+) -> None:
+    """Run the steps of a runtime function, for the masked worlds if a mask is given."""
+    for step in steps:
+        op, arguments = step.op, state.arguments[step.op.name]
+        match step.kind:
+            case StepKind.COMPUTE:
+                _compute(mdp, op, state, mask, transition, observations)
+            case StepKind.COMPUTE_IF_DUE:
+                _compute(mdp, op, state, _tick(mdp, op, state), transition, observations)
+            case StepKind.UPDATE_STATE:
+                op.update(**arguments)
+            case StepKind.RESET_TIMER:
+                _restart(op, state, mask)
+            case StepKind.RESET_STATE if op.reset is not None:
+                op.reset(mask=mask, **arguments)
+            case StepKind.RESET_STATE:
+                for name, spec in op.state.items():
+                    values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
+                    values.masked_fill_(mask[:, None], spec.initial)
+
+
+def _compute(
+    mdp: MDP,
+    op: TermOp,
+    state: MDPState,
+    mask: torch.Tensor | None,
+    transition: Transition | None,
+    observations: dict[str, ProxyArray] | None,
+) -> None:
+    """Compute an op and write the result to its destination, for the masked worlds if a mask is given."""
+    arguments = state.arguments[op.name]
+    if op.phase in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS):
+        op.compute(mask=mask, **arguments)
+        return
+    value = op.compute(**arguments)
+    match op.phase:
+        case Phase.TERMINATIONS:
+            flags = transition.truncated if op.time_out else transition.terminated
+            flags.torch.logical_or_(value)
+            if mdp.diagnostics:
+                transition.termination_terms.torch[:, op.index] = value
+        case Phase.REWARDS:
+            value = value * (state.reward_weights.torch[op.index] * mdp.step_dt)
+            transition.rewards.torch.add_(value)
+            if mdp.diagnostics:
+                transition.reward_terms.torch[:, op.index] = value
+        case Phase.COMMANDS | Phase.OBSERVATIONS:
+            if op.phase is Phase.COMMANDS:
+                destination = state.fields[op.writes[0]].torch.view(mdp.num_worlds, -1)
+            else:
+                destination = observations[op.group].torch[:, op.columns]
+            value = value.reshape(destination.shape)
+            destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))
 
 
 def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
@@ -90,27 +123,3 @@ def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
 def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     time_left = state.timers[op.name].torch
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
-
-
-def _resample(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
-    """Write fresh command samples to the masked worlds."""
-    command = state.fields[op.target].torch.view(mdp.num_worlds, -1)
-    value = op.compute(**_arguments(op, state)).reshape(command.shape)
-    command.copy_(torch.where(mask[:, None], value, command))
-
-
-def _step(op: TermOp, state: MDPState) -> torch.Tensor:
-    """Compute a term, then advance its state."""
-    arguments = _arguments(op, state)
-    value = op.compute(**arguments)
-    if op.update is not None:
-        op.update(**arguments)
-    return value
-
-
-def _arguments(op: TermOp, state: MDPState) -> dict[str, Any]:
-    inputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items()}
-    term_state = {name: value.torch for name, value in state.term_state[op.name].items()}
-    if op.random:
-        term_state["rng"] = state.rng.torch[op.stream]
-    return {**inputs, **term_state, **op.params}

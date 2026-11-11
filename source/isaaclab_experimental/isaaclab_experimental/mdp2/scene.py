@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data: the schema an MDP is built against and the views it runs on."""
+"""Scene data: the schema an MDP is built against, and the data views it runs on."""
 
 from __future__ import annotations
 
@@ -18,16 +18,24 @@ from isaaclab.utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)
+class FieldSchema:
+    """Layout of an entity field, an array of shape ``(num_worlds, *dims)``."""
+
+    dims: tuple[str, ...] = ()  # Named dimensions after worlds, e.g. ("joints",)
+    dtype: type = wp.float32  # Element type, e.g. wp.vec3f for a position per body
+
+
+@dataclass(frozen=True)
 class EntitySchema:
-    """Names and fields of one scene entity."""
+    """Element names and field layouts of one scene entity."""
 
     names: Mapping[str, tuple[str, ...]]  # Element names per dimension, e.g. {"joints": ("x", "y")}
-    fields: Mapping[str, tuple[str, ...]]  # float32 field dimensions after worlds, e.g. {"joint_pos": ("joints",)}
+    fields: Mapping[str, FieldSchema]
 
 
 @dataclass(frozen=True)
 class SceneSchema:
-    """What a scene provides to an MDP. Builders resolve selectors against it."""
+    """Description of what a scene provides to an MDP. The builder resolves selectors against it."""
 
     num_worlds: int
     step_dt: float  # Duration of one control step [s]
@@ -35,12 +43,12 @@ class SceneSchema:
 
 
 class SceneData(Protocol):
-    """Scene data as seen by an MDP. The environment owns the scene itself."""
+    """Interface through which an MDP reads and writes scene data. The environment owns the scene."""
 
     schema: SceneSchema
 
     def data(self, entity: str, field: str) -> ProxyArray:
-        """Live view of an entity field, shape ``(num_worlds, ...)``."""
+        """Return a live view of an entity field, of shape ``(num_worlds, ...)``."""
         ...
 
 
@@ -55,11 +63,11 @@ class PointMassScene:
         decimation: int = 2,
         device: str = "cpu",
     ):
-        fields = ("joint_pos", "joint_vel", "joint_effort_target")
+        fields = dict.fromkeys(("joint_pos", "joint_vel", "joint_effort_target"), FieldSchema(("joints",)))
         self.schema = SceneSchema(
             num_worlds=num_worlds,
             step_dt=dt * decimation,
-            entities={"robot": EntitySchema(names={"joints": joint_names}, fields=dict.fromkeys(fields, ("joints",)))},
+            entities={"robot": EntitySchema(names={"joints": joint_names}, fields=fields)},
         )
         self.dt = dt
         self.decimation = decimation

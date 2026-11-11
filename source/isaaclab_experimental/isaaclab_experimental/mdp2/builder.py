@@ -3,14 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Builder that collects schedule entries and compiles them into an :class:`MDP`, like Newton's ``ModelBuilder``."""
+"""Builder that collects term uses into a schedule and compiles it into an :class:`MDP`, like Newton's ModelBuilder."""
 
 from __future__ import annotations
 
 import inspect
+import itertools
 import math
-from collections.abc import Callable
-from dataclasses import dataclass, replace
+import re
+import typing
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 
 import warp as wp
 
@@ -24,17 +28,23 @@ from .config import (
     Observation,
     Phase,
     Reward,
+    SubsetSelector,
     TaskCfg,
+    TermCfg,
     Termination,
     TimeLimit,
+    commands,
+    episode_length,
+    last_action,
 )
-from .mdp import MDP, ActionOp, Backend, TermOp
+from .mdp import MDP, Backend
+from .plan import ActionOp, TermOp, build_plan
 from .scene import SceneSchema
 
 
 @dataclass(frozen=True)
 class ScheduleEntry:
-    """A term use placed in the schedule. Returned by the ``add_*`` methods as a handle to it."""
+    """Handle to one term use in the schedule, returned by the ``add_*`` methods."""
 
     path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
     cfg: DirectAction | Command | Observation | Reward | Termination | TimeLimit | Event
@@ -42,16 +52,70 @@ class ScheduleEntry:
     def __str__(self) -> str:
         return ".".join(self.path)
 
+    @property
+    def phase(self) -> Phase:
+        return self.cfg.phase
+
+    @property
+    def reads(self) -> tuple[FieldSelector, ...]:
+        """Fields the use reads, which are its field inputs."""
+        if not isinstance(self.cfg, TermCfg):
+            return ()
+        return tuple(selector for selector in self.cfg.inputs.values() if isinstance(selector, FieldSelector))
+
+    @property
+    def writes(self) -> tuple[FieldSelector, ...]:
+        """Fields the use writes: an action's target, a command's value, or an event's outputs."""
+        if isinstance(self.cfg, DirectAction):
+            return (self.cfg.target,)
+        if isinstance(self.cfg, Command):
+            return (FieldSelector(commands.name, self.path[1], scene=False),)
+        return tuple(self.cfg.outputs.values()) if isinstance(self.cfg, Event) else ()
+
+
+@dataclass(frozen=True)
+class ArrayLayout:
+    """Element type, number of dimensions, and named dimension sizes of an array passed to a hook."""
+
+    dtype: type
+    ndim: int
+    sizes: Mapping[str, int]
+
+
+@dataclass
+class CompileContext:
+    """Ops, layouts, random streams, and errors collected while compiling the schedule."""
+
+    backend: Backend
+    errors: list[str]
+    ops: dict[Phase, list] = field(default_factory=lambda: {phase: [] for phase in Phase})
+    mdp_fields: dict[FieldSelector, ArrayLayout] = field(  # Fields owned by the MDP; commands are added as they compile
+        default_factory=lambda: {
+            last_action: ArrayLayout(wp.float32, 2, {"actions": 0}),
+            episode_length: ArrayLayout(wp.int32, 1, {}),
+        }
+    )
+    subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
+    observation_dims: dict[str, int] = field(default_factory=dict)
+    streams: list[str] = field(default_factory=list)
+    action_dim: int = 0
+
 
 class MDPBuilder:
-    """Collects schedule entries and compiles them with :meth:`finalize`; columns follow insertion order."""
+    """Collects term uses, lets users edit their order, and compiles them with :meth:`finalize`.
+
+    Uses run phase by phase. Within a phase they run in the order they were added, unless the order is edited with
+    :meth:`move_before`, :meth:`move_after`, or :meth:`set_order`. Every edit is checked so that a use that reads a
+    field still runs after the uses of its phase that write it. Action and observation columns follow the schedule
+    order.
+    """
 
     def __init__(self, schema: SceneSchema):
         self.schema = schema
         self._entries: dict[tuple[str, ...], ScheduleEntry] = {}
 
     def add_task(self, task: TaskCfg) -> None:
-        """Add every term use of a task, in declaration order. Uses set to ``None`` are skipped."""
+        """Add all term uses of a task in declaration order, skipping uses set to ``None``."""
         for name, action in task.actions.items():
             if action is not None:
                 self.add_action(name, action)
@@ -95,60 +159,94 @@ class MDPBuilder:
         return self._entries[path]
 
     def schedule(self) -> tuple[ScheduleEntry, ...]:
-        """Entries in execution order: by phase, then in the order they were added."""
-        return tuple(sorted(self._entries.values(), key=lambda entry: entry.cfg.phase))
+        """All entries in execution order: by phase, then by their order within the phase."""
+        return tuple(sorted(self._entries.values(), key=lambda entry: entry.phase))
 
-    def finalize(self, device: str = "cpu", backend: Backend | str = Backend.TORCH) -> MDP:
-        """Validate and compile. Raises one ``ValueError`` listing every error."""
-        backend = Backend(backend)
-        errors: list[str] = []
-        ops = {phase: [] for phase in Phase}
-        observation_dims: dict[str, int] = {}
-        command_dims: dict[str, dict[str, int]] = {}
-        streams: list[str] = []
-        action_dim = 0
+    def move_before(self, entry: ScheduleEntry, anchor: ScheduleEntry) -> None:
+        """Run ``entry`` just before ``anchor``, which must be in the same phase."""
+        self._move(entry, anchor, 0)
+
+    def move_after(self, entry: ScheduleEntry, anchor: ScheduleEntry) -> None:
+        """Run ``entry`` just after ``anchor``, which must be in the same phase."""
+        self._move(entry, anchor, 1)
+
+    def set_order(self, phase: Phase, entries: list[ScheduleEntry]) -> None:
+        """Set the execution order of all entries of a phase."""
+        current = [entry for entry in self.schedule() if entry.phase is phase]
+        if sorted(entry.path for entry in entries) != sorted(entry.path for entry in current):
+            raise ValueError(
+                f"The order of {phase.name} must list each of its entries once: {', '.join(map(str, current))}."
+            )
+        self._reorder([entry for entry in self.schedule() if entry.phase is not phase] + list(entries))
+
+    def remove(self, entry: ScheduleEntry) -> None:
+        del self._entries[entry.path]
+
+    def describe(self) -> str:
+        """Return the schedule as readable text, listing each use with the fields it reads and writes."""
+        schedule = self.schedule()
+        width = max((len(str(entry)) for entry in schedule), default=0)
+        lines = []
+        for phase, entries in itertools.groupby(schedule, lambda entry: entry.phase):
+            lines.append(phase.name.lower().replace("_", " "))
+            for entry in entries:
+                fields = [
+                    f"{verb} {', '.join(map(str, selectors))}"
+                    for verb, selectors in (("reads", entry.reads), ("writes", entry.writes))
+                    if selectors
+                ]
+                lines.append(f"  {str(entry):{width}}  {'; '.join(fields)}".rstrip())
+        return "\n".join(lines)
+
+    def inspect(self, entry: ScheduleEntry, backend: Backend | str = Backend.TORCH) -> ActionOp | TermOp | None:
+        """Compile the schedule and return the op of an entry, or ``None`` for a time limit."""
+        mdp = self._compile("cpu", Backend(backend))
+        return {op.name: op for ops in mdp.ops.values() for op in ops}.get(str(entry))
+
+    def validate(self, backend: Backend | str = Backend.TORCH) -> None:
+        """Run all checks of :meth:`finalize` without generating kernels."""
+        self._compile("cpu", Backend(backend))
+
+    def finalize(self, device: str = "cpu", backend: Backend | str = Backend.TORCH, diagnostics: bool = False) -> MDP:
+        """Validate the schedule and compile it into an immutable MDP.
+
+        Raises a single ``ValueError`` that lists every error found. Editing the builder afterwards does not change the
+        returned MDP. With ``diagnostics``, :func:`evaluate` also writes the reward and termination flag of each term.
+        """
+        mdp = self._compile(device, Backend(backend), diagnostics)
+        return replace(mdp, kernels=warp_backend.compile_kernels(mdp)) if mdp.backend is Backend.WARP else mdp
+
+    def _compile(self, device: str, backend: Backend, diagnostics: bool = False) -> MDP:
+        context = CompileContext(backend, _dependency_errors(self.schedule()))
         time_limits = []
-        # Commands compile first, so that terms of earlier phases can read their values.
-        schedule = sorted(self.schedule(), key=lambda entry: not isinstance(entry.cfg, Command))
-        for entry in schedule:
-            cfg = entry.cfg
-            if isinstance(cfg, TimeLimit):
+        # Actions and commands compile first, so that terms of earlier phases can read them.
+        for entry in sorted(self.schedule(), key=lambda entry: entry.phase not in (Phase.ACTIONS, Phase.COMMANDS)):
+            if isinstance(entry.cfg, TimeLimit):
                 time_limits.append(entry)
-            elif isinstance(cfg, DirectAction):
-                dims = self._field_dims(entry, "target", cfg.target, errors)
-                if dims is not None:
-                    columns = slice(action_dim, action_dim + math.prod(dims.values()))
-                    action_dim = columns.stop
-                    ops[Phase.ACTIONS].append(ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset))
+            elif isinstance(entry.cfg, DirectAction):
+                self._compile_action(entry, context)
             else:
-                op = self._compile_term(entry, backend, errors, observation_dims, command_dims, streams)
-                ops[cfg.phase].append(op)
-                if op is not None and isinstance(cfg, Command):
-                    dims = zip(cfg.term.shape[1:], op.shape)
-                    command_dims[entry.path[1]] = {dim: size for dim, size in dims if isinstance(dim, str)}
+                self._compile_term(entry, context)
         if len(time_limits) > 1:
-            errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
-        if errors:
-            raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
-        mdp = MDP(
+            context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
+        if context.errors:
+            raise ValueError("Invalid MDP:\n  " + "\n  ".join(context.errors))
+        ops = MappingProxyType({phase: tuple(ops) for phase, ops in context.ops.items()})
+        return MDP(
             schema=self.schema,
             device=device,
             backend=backend,
-            action_ops=tuple(ops[Phase.ACTIONS]),
-            termination_ops=tuple(ops[Phase.TERMINATIONS]),
-            reward_ops=tuple(ops[Phase.REWARDS]),
-            command_ops=tuple(ops[Phase.COMMANDS]),
-            interval_event_ops=tuple(op for op in ops[Phase.EVENTS] if op.timer is not None),
-            reset_event_ops=tuple(op for op in ops[Phase.EVENTS] if op.timer is None),
-            observation_ops=tuple(ops[Phase.OBSERVATIONS]),
-            action_dim=action_dim,
-            observation_dims=observation_dims,
+            ops=ops,
+            plan=build_plan(ops),
+            action_dim=context.action_dim,
+            observation_dims=MappingProxyType(context.observation_dims),
             max_episode_length=math.ceil(time_limits[0].cfg.episode_length_s / self.schema.step_dt)
             if time_limits
             else None,
-            streams=tuple(streams),
+            streams=tuple(context.streams),
+            subsets=MappingProxyType(context.subsets),
+            diagnostics=diagnostics,
         )
-        return replace(mdp, program=warp_backend.compile_program(mdp)) if backend is Backend.WARP else mdp
 
     def _add(self, entry: ScheduleEntry) -> ScheduleEntry:
         if entry.path in self._entries:
@@ -156,55 +254,86 @@ class MDPBuilder:
         self._entries[entry.path] = entry
         return entry
 
-    def _compile_term(
-        self,
-        entry: ScheduleEntry,
-        backend: Backend,
-        errors: list[str],
-        observation_dims: dict[str, int],
-        command_dims: dict[str, dict[str, int]],
-        streams: list[str],
-    ) -> TermOp | None:
-        """Compile a term use. Appends to ``errors`` instead of raising."""
+    def _move(self, entry: ScheduleEntry, anchor: ScheduleEntry, offset: int) -> None:
+        if entry.phase is not anchor.phase:
+            raise ValueError(
+                f"Cannot move '{entry}' next to '{anchor}': a use stays in its phase"
+                f" ({entry.phase.name}, not {anchor.phase.name})."
+            )
+        order = [other for other in self.schedule() if other.path != entry.path]
+        order.insert(order.index(anchor) + offset, entry)
+        self._reorder(order)
+
+    def _reorder(self, order: list[ScheduleEntry]) -> None:
+        """Apply a new schedule order, or raise if a use would then read a field before it is written."""
+        errors = _dependency_errors(sorted(order, key=lambda entry: entry.phase))
+        if errors:
+            raise ValueError("Invalid schedule:\n  " + "\n  ".join(errors))
+        self._entries = {entry.path: entry for entry in order}
+
+    def _compile_action(self, entry: ScheduleEntry, context: CompileContext) -> None:
         cfg = entry.cfg
+        target = self._resolve(entry, "target", cfg.target, context)
+        if target is None:
+            return
+        for op in context.ops[Phase.ACTIONS]:
+            if op.target == cfg.target:
+                context.errors.append(f"{entry}: '{cfg.target}' is already the target of '{op.name}'.")
+        if target.dtype is not wp.float32:
+            context.errors.append(f"{entry}: the target '{cfg.target}' must be a float32 field.")
+        columns = slice(context.action_dim, context.action_dim + math.prod(target.sizes.values()))
+        context.action_dim = columns.stop
+        context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": context.action_dim})
+        context.ops[Phase.ACTIONS].append(ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset))
+
+    def _compile_term(self, entry: ScheduleEntry, context: CompileContext) -> None:
+        """Compile a term use into an op, or record why it cannot be compiled."""
+        cfg, errors = entry.cfg, context.errors
         num_errors = len(errors)
-        implementation = cfg.term.torch if backend is Backend.TORCH else cfg.term.warp
+        implementation = cfg.term.torch if context.backend is Backend.TORCH else cfg.term.warp
         if implementation is None:
-            errors.append(f"{entry}: the term has no '{backend.value}' implementation.")
+            errors.append(f"{entry}: the term has no '{context.backend.value}' implementation.")
+        outputs = cfg.outputs if isinstance(cfg, Event) else {}
+        names = [*cfg.inputs, *outputs, *cfg.term.state, *cfg.params, *(["rng"] if cfg.term.random else [])]
+        if len(set(names)) != len(names):
+            errors.append(f"{entry}: inputs, outputs, state, params, and rng must have distinct names, got {names}.")
+        fields = {
+            arg: self._resolve(entry, arg, selector, context) for arg, selector in {**cfg.inputs, **outputs}.items()
+        }
         sizes: dict[str, int] = {}
-        for arg, selector in cfg.inputs.items():
-            if selector.entity == "commands" and selector.field in command_dims:
-                dims = command_dims[selector.field]
-            else:
-                dims = self._field_dims(entry, f"input {arg!r}", selector, errors)
-            for dim, size in (dims or {}).items():
+        for resolved in filter(None, fields.values()):
+            for dim, size in resolved.sizes.items():
                 if sizes.setdefault(dim, size) != size:
                     errors.append(f"{entry}: inputs disagree on the size of {dim!r} ({sizes[dim]} and {size}).")
-        output_shape = self._resolve_shape(entry, "output", cfg.term.shape, sizes, errors)
+        output_shape = _resolve_shape(entry, "output", cfg.term.shape, sizes, errors)
         if output_shape and isinstance(cfg, (Reward, Termination)):
             errors.append(f"{entry}: {type(cfg).__name__} outputs must have shape ('worlds',), got {output_shape}.")
         state_shapes = {
-            name: self._resolve_shape(entry, f"state {name!r}", spec.shape, sizes, errors)
+            name: _resolve_shape(entry, f"state {name!r}", spec.shape, sizes, errors)
             for name, spec in cfg.term.state.items()
         }
-        names = [*cfg.inputs, *cfg.term.state, *cfg.params, *(["rng"] if cfg.term.random else [])]
-        if len(set(names)) != len(names):
-            errors.append(f"{entry}: inputs, state, params, and rng must have distinct names, got {names}.")
         if isinstance(cfg, (Command, Event)) and cfg.term.state:
             errors.append(f"{entry}: commands and events cannot keep state.")
         if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
             errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
-        if implementation is not None and output_shape is not None:
+        dtype = wp.bool if isinstance(cfg, Termination) else wp.float32
+        if len(errors) == num_errors:
+            # Params and rng are not arrays.
+            arguments = {
+                **dict.fromkeys(names),
+                **fields,
+                **{name: ArrayLayout(wp.float32, 1 + len(shape), {}) for name, shape in state_shapes.items()},
+            }
             # Events take the mask of the worlds to write; other Warp functions take the output to write.
             if isinstance(cfg, Event):
-                self._check_hook(entry, implementation.compute, names, errors, extra="mask")
+                _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
             else:
-                extra = "out" if backend is Backend.WARP else None
-                self._check_hook(entry, implementation.compute, names, errors, len(output_shape), extra)
-            self._check_hook(entry, implementation.update, names, errors)
-            self._check_hook(entry, implementation.reset, names, errors, extra="mask")
+                extra = "out" if context.backend is Backend.WARP else None
+                _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)
+            _check_hook(entry, implementation.update, arguments, errors)
+            _check_hook(entry, implementation.reset, arguments, errors, extra="mask")
         if len(errors) > num_errors:
-            return None
+            return
 
         timer = (
             cfg.resampling_time_range
@@ -215,84 +344,145 @@ class MDPBuilder:
         )
         stream = None
         if timer is not None or cfg.term.random:
-            stream = len(streams)
-            streams.append(str(entry))
+            stream = len(context.streams)
+            context.streams.append(str(entry))
 
         group = ""
         columns = slice(None)
         if isinstance(cfg, Observation):
             group = entry.path[1]
-            start = observation_dims.get(group, 0)
+            start = context.observation_dims.get(group, 0)
             columns = slice(start, start + math.prod(output_shape))
-            observation_dims[group] = columns.stop
-        return TermOp(
-            name=str(entry),
-            compute=implementation.compute,
-            update=implementation.update,
-            reset=implementation.reset,
-            inputs=cfg.inputs,
-            params=cfg.params,
-            state={
-                name: replace(spec, shape=(self.schema.num_worlds, *state_shapes[name]))
-                for name, spec in cfg.term.state.items()
-            },
-            weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
-            time_out=cfg.time_out if isinstance(cfg, Termination) else False,
-            group=group,
-            columns=columns,
-            target=FieldSelector("commands", entry.path[1]) if isinstance(cfg, Command) else None,
-            shape=output_shape,
-            dtype=wp.bool if isinstance(cfg, Termination) else wp.float32,
-            timer=timer,
-            stream=stream,
-            random=cfg.term.random,
+            context.observation_dims[group] = columns.stop
+        if isinstance(cfg, Command):
+            dims = zip(cfg.term.shape[1:], output_shape)
+            named = {dim: size for dim, size in dims if isinstance(dim, str)}
+            context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named)
+        context.ops[cfg.phase].append(
+            TermOp(
+                name=str(entry),
+                phase=cfg.phase,
+                index=len(context.ops[cfg.phase]),
+                compute=implementation.compute,
+                update=implementation.update,
+                reset=implementation.reset,
+                inputs=MappingProxyType({**cfg.inputs, **outputs}),
+                params=MappingProxyType(dict(cfg.params)),
+                state=MappingProxyType(
+                    {
+                        name: replace(spec, shape=(self.schema.num_worlds, *state_shapes[name]))
+                        for name, spec in cfg.term.state.items()
+                    }
+                ),
+                shape=output_shape,
+                dtype=dtype,
+                writes=entry.writes,
+                weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
+                time_out=cfg.time_out if isinstance(cfg, Termination) else False,
+                group=group,
+                columns=columns,
+                timer=timer,
+                stream=stream,
+                random=cfg.term.random,
+            )
         )
 
-    def _check_hook(
-        self,
-        entry: ScheduleEntry,
-        hook: Callable | None,
-        names: list[str],
-        errors: list[str],
-        indices: int = 0,
-        extra: str | None = None,
-    ) -> None:
-        """Check that a func takes the world, output indices, and ``names``, and a function ``names`` and ``extra``."""
-        if isinstance(hook, wp.Function):
-            if set(list(hook.input_types)[1 + indices :]) != set(names):
-                errors.append(
-                    f"{entry}: wp.func {hook.key!r} must take the world, {indices} output indices, and"
-                    f" {sorted(names)}, got {list(hook.input_types)}."
-                )
-        elif hook is not None:
-            names = sorted({*names, extra} - {None})
-            try:
-                inspect.signature(hook).bind(**dict.fromkeys(names))
-            except TypeError as error:
-                errors.append(f"{entry}: {hook.__name__!r} is called with {names}: {error}.")
-
-    def _resolve_shape(
-        self, entry: ScheduleEntry, role: str, shape: tuple[str | int, ...], sizes: dict[str, int], errors: list[str]
-    ) -> tuple[int, ...] | None:
-        """Sizes of a symbolic shape's dimensions after ``"worlds"``, or ``None`` with an error."""
-        if shape[:1] != ("worlds",) or "worlds" in shape[1:]:
-            errors.append(f"{entry}: the {role} shape {shape} must start with 'worlds' and contain it once.")
-            return None
-        unknown = [dim for dim in shape[1:] if isinstance(dim, str) and dim not in sizes]
-        if unknown:
-            errors.append(f"{entry}: the {role} dimensions {unknown} are not dimensions of the term's inputs.")
-            return None
-        return tuple(sizes.get(dim, dim) for dim in shape[1:])
-
-    def _field_dims(
-        self, entry: ScheduleEntry, role: str, selector: FieldSelector, errors: list[str]
-    ) -> dict[str, int] | None:
-        """Sizes of a selected field's dimensions after the world dimension, or ``None`` with an error."""
+    def _resolve(
+        self, entry: ScheduleEntry, arg: str, selector: FieldSelector | SubsetSelector, context: CompileContext
+    ) -> ArrayLayout | None:
+        """Look up the array that a selector binds to the argument ``arg``, or report an error and return ``None``."""
+        if isinstance(selector, FieldSelector) and not selector.scene:
+            if selector not in context.mdp_fields:
+                fields = sorted(map(str, context.mdp_fields))
+                context.errors.append(f"{entry}: unknown field '{selector}'. Fields of the MDP: {fields}.")
+            return context.mdp_fields.get(selector)
         entity = self.schema.entities.get(selector.entity)
         if entity is None:
-            errors.append(f"{entry}: {role} selects unknown entity {selector.entity!r} (in '{selector}').")
+            context.errors.append(f"{entry}: unknown entity {selector.entity!r} in '{selector}'.")
             return None
-        if selector.field not in entity.fields:
-            errors.append(f"{entry}: {role} selects unknown field '{selector}'. Fields: {sorted(entity.fields)}.")
+        if isinstance(selector, FieldSelector):
+            if selector.field not in entity.fields:
+                context.errors.append(f"{entry}: unknown field '{selector}'. Fields: {sorted(entity.fields)}.")
+                return None
+            schema = entity.fields[selector.field]
+            return ArrayLayout(schema.dtype, 1 + len(schema.dims), {dim: len(entity.names[dim]) for dim in schema.dims})
+        names = entity.names.get(selector.dim, ())
+        unmatched = [pattern for pattern in selector.patterns if not any(re.fullmatch(pattern, name) for name in names)]
+        if unmatched or not selector.patterns:
+            context.errors.append(f"{entry}: '{selector}' matches no name with {unmatched}. Names: {list(names)}.")
             return None
-        return {dim: len(entity.names[dim]) for dim in entity.fields[selector.field]}
+        context.subsets[selector] = tuple(
+            index
+            for index, name in enumerate(names)
+            if any(re.fullmatch(pattern, name) for pattern in selector.patterns)
+        )
+        return ArrayLayout(wp.int32, 1, {arg: len(context.subsets[selector])})
+
+
+def _check_hook(
+    entry: ScheduleEntry,
+    hook: Callable | None,
+    arguments: Mapping[str, ArrayLayout | None],
+    errors: list[str],
+    indices: int = 0,
+    extra: str | None = None,
+    returns: type | None = None,
+) -> None:
+    """Check that a hook's signature matches the arguments it will be called with.
+
+    A ``wp.func`` must take the world index, ``indices`` output indices, and ``arguments`` with matching array types,
+    and return ``returns``. A Python function must accept ``arguments`` and ``extra`` as keywords.
+    """
+    if isinstance(hook, wp.Function):
+        annotations = dict(list(hook.input_types.items())[1 + indices :])
+        if set(annotations) != set(arguments):
+            errors.append(
+                f"{entry}: wp.func {hook.key!r} must take the world, {indices} output indices, and"
+                f" {sorted(arguments)}, got {list(hook.input_types)}."
+            )
+            return
+        for name, bound in arguments.items():
+            annotation = annotations[name]
+            if bound is None or not isinstance(annotation, wp.array):
+                continue
+            if annotation.dtype is not bound.dtype or annotation.ndim != bound.ndim:
+                errors.append(
+                    f"{entry}: wp.func {hook.key!r} takes {name!r} as a {annotation.ndim}-dimensional array of"
+                    f" {annotation.dtype.__name__}, but it is a {bound.ndim}-dimensional array of"
+                    f" {bound.dtype.__name__}."
+                )
+        annotation = typing.get_type_hints(hook.func).get("return")
+        # An array annotation holds the Warp type of a Python type.
+        if returns is not None and annotation is not None and wp.array(dtype=annotation).dtype is not returns:
+            errors.append(f"{entry}: wp.func {hook.key!r} must return {returns.__name__}.")
+    elif hook is not None:
+        names = sorted({*arguments, extra} - {None})
+        try:
+            inspect.signature(hook).bind(**dict.fromkeys(names))
+        except TypeError as error:
+            errors.append(f"{entry}: {hook.__name__!r} is called with {names}: {error}.")
+
+
+def _resolve_shape(
+    entry: ScheduleEntry, role: str, shape: tuple[str | int, ...], sizes: dict[str, int], errors: list[str]
+) -> tuple[int, ...] | None:
+    """Resolve a symbolic shape's dimensions after ``"worlds"`` to sizes, or report an error and return ``None``."""
+    if shape[:1] != ("worlds",) or "worlds" in shape[1:]:
+        errors.append(f"{entry}: the {role} shape {shape} must start with 'worlds' and contain it once.")
+        return None
+    unknown = [dim for dim in shape[1:] if isinstance(dim, str) and dim not in sizes]
+    if unknown:
+        errors.append(f"{entry}: the {role} dimensions {unknown} are not dimensions of the term's inputs.")
+        return None
+    return tuple(sizes.get(dim, dim) for dim in shape[1:])
+
+
+def _dependency_errors(schedule: tuple[ScheduleEntry, ...] | list[ScheduleEntry]) -> list[str]:
+    """Report each use that reads a field before a later use of the same phase writes it."""
+    errors = []
+    for index, reader in enumerate(schedule):
+        for writer in itertools.takewhile(lambda entry: entry.phase is reader.phase, schedule[index + 1 :]):
+            for selector in dict.fromkeys(reader.reads):
+                if selector in writer.writes:
+                    errors.append(f"'{reader}' reads '{selector}', so it must run after '{writer}', which writes it.")
+    return errors
