@@ -123,7 +123,7 @@ class LocomanipulationG1MimicEnv(ManagerBasedRLMimicEnv):
         Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).
 
         Args:
-            actions: environment actions. The shape is (num_envs, num steps in a demo, action_dim).
+            actions: Environment actions for one demonstration. Shape is (num_steps, action_dim).
 
         Returns:
             A dictionary of torch.Tensor gripper actions. Key to each dict is an eef_name.
