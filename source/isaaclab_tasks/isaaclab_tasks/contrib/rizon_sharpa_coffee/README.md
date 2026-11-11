@@ -67,7 +67,7 @@ belong to the camera product and are released with it.
 Kit and RTX use the same backdrop declared in the scene configuration.
 The scene owns its lights, geometry and lifetime. Both use the
 authored refracting water material, with local coffee colour driving optical
-absorption. GL uses its native textured surface.
+absorption. GL interpolates the same local tint over the reconstructed surface.
 
 ## Shared scene setup and camera benchmark
 

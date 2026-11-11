@@ -1,1 +1,2 @@
 * Changed the coffee demo and benchmark to share declarative rigid scene defaults, kitchen preparation, camera defaults and spoon synchronization. Existing demo entrypoints and material behavior were preserved; rigid-only consumers can instantiate the scene without constructing particle fills.
+* Changed the coffee demo's Newton GL liquid surface to display smoothly interpolated local tint while retaining the existing demo controls and material simulation.
