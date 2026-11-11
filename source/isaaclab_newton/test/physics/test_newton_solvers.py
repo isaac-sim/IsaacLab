@@ -30,6 +30,7 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCfg,
     NewtonManager,
+    SteelSolverCfg,
     VBDSolver,
     VBDSolverCfg,
     XPBDSolverCfg,
@@ -52,11 +53,22 @@ def _model_stub(state_attributes=()) -> SimpleNamespace:
     )
 
 
-def test_solver_kwargs_include_newton_deterministic_mode():
-    """Solver construction receives the mode configured on the outer Newton config."""
+def test_solver_kwargs_include_configured_options_and_newton_deterministic_mode():
+    """Solver construction receives the selected options and outer Newton determinism mode."""
     kwargs = solver_kwargs(SolverXPBD, XPBDSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
 
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
+    steel_kwargs = solver_kwargs(newton.solvers.SolverSteel, SteelSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
+    assert steel_kwargs["friction_anchor_beta"] == 0.0
+    assert steel_kwargs["use_parallel_streams"] is False
+    parallel_kwargs = solver_kwargs(
+        newton.solvers.SolverSteel,
+        SteelSolverCfg(use_parallel_streams=True, parallel_tree=True),
+        wp.DeterministicMode.GPU_TO_GPU,
+    )
+    assert parallel_kwargs["use_parallel_streams"] is True
+    assert parallel_kwargs["parallel_tree"] is True
+    assert steel_kwargs["parallel_tree"] is False
 
 
 @pytest.mark.parametrize(
@@ -65,6 +77,7 @@ def test_solver_kwargs_include_newton_deterministic_mode():
         (MJWarpSolverCfg(), "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
         (KaminoPADMMSolverCfg(), "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
         (MPMSolverCfg(), "mpm:young_modulus", ("mujoco:condim", "kamino:max_solver_iterations")),
+        (SteelSolverCfg(), "steel:min_torsional_patch_radius", ("mujoco:condim", "kamino:max_solver_iterations")),
     ],
 )
 def test_solver_registers_only_its_builder_attributes(solver_cfg, active, inactive):
