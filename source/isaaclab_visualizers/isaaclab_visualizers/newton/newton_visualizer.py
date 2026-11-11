@@ -60,6 +60,7 @@ from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublish
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_key_event_source import NewtonKeyEventSource
+from .newton_recording import NewtonRecordingPanel, hover_tooltip
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
 logger = logging.getLogger(__name__)
@@ -104,12 +105,6 @@ _MARKER_TIPS = {
     "HandJointMarkers": "Hand joint positions from the hand tracker",
 }
 """What each marker group shows, by the last component of its prim path."""
-
-
-def hover_tooltip(imgui: Any, text: str) -> None:
-    """Show ``text`` while the last item is hovered, including when it is disabled."""
-    if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-        imgui.set_tooltip(text)
 
 
 def marker_tooltip(prim_path: str) -> str:
@@ -199,6 +194,7 @@ class NewtonViewerGL(ViewerGL):
     keyboard_frame_hook: Callable[[], object] | None = None
     """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
     _owner = None
+    _recording_panel = None
     _show_stats = False
     """Whether the performance and model statistics overlay in the top-right corner is open."""
     image_matches_camera = False
@@ -334,9 +330,10 @@ class NewtonViewerGL(ViewerGL):
         2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        5. **Articulation Inspector** (closed) — Newton's articulation selection panel.
-        6. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
+        4. **Recording** (closed) — video, screenshot, policy checkpoint, and their output settings.
+        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        6. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        7. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -398,6 +395,10 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
+
+            # --- Recording --------------------------------------------------
+            if viewer._recording_panel is not None:
+                viewer._recording_panel.draw(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
@@ -1863,6 +1864,8 @@ class NewtonVisualizerBase(BaseVisualizer):
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
+    _recording: NewtonRecordingPanel | None = None
+
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
@@ -1966,6 +1969,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids = self._env_ids
         self._num_envs = num_envs
         self._viewer._owner = self
+        self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
         self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
@@ -2058,6 +2062,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
+        if self._recording is not None and not viewer.is_paused():
+            self._recording.capture()
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -2190,6 +2196,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._viewer is not None:
             self._viewer.set_run_info(task, mode, run)
 
+    def attach_checkpoint_saver(self, save: Callable[[str], None]) -> None:
+        """Enable the HUD's Checkpoint button for a run that has a policy.
+
+        Args:
+            save: Callable that writes the policy checkpoint to the given path.
+        """
+        if self._recording is not None:
+            self._recording.set_checkpoint_saver(save)
+
     @property
     def visible_env_limit(self) -> int:
         """Largest value of the visible-environment count: the environments the cfg allows, else all."""
@@ -2303,6 +2318,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._close_key_event_source()
         try:
+            if self._recording is not None:
+                self._recording.close()
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
