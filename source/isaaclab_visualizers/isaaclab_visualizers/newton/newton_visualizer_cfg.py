@@ -82,6 +82,20 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
 
+    rtx_camera: bool | None = None
+    """Declare an OVRTX viewer camera so the HUD can switch the main view between Newton GL and OVRTX.
+
+    The camera is added to the scene at launch because scene sensors cannot be added later. It renders only
+    while the OVRTX view is selected. ``None`` enables it when the ``ovrtx`` package is installed and the physics
+    backend is not PhysX; ``False`` disables it.
+    """
+
+    rtx_renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
+    """Renderer of the OVRTX viewer camera."""
+
+    rtx_render_settings: dict[str, Any] = dict()
+    """Additional RTX render settings of the OVRTX viewer camera."""
+
 
 @configclass
 class NewtonRTXBackendCfg(VisualizerBackendCfg):
