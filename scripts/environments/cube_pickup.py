@@ -25,7 +25,9 @@ import gymnasium as gym
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import to_dict
+from isaaclab.utils.math import combine_frame_transforms
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.cube_pickup import mdp
@@ -52,7 +54,16 @@ def main() -> None:
         parser.error("--checkpoint is required for policy evaluation")
     if min(args.num_envs, args.bank_size, args.episodes, args.steps) < 1:
         parser.error("environment, bank, episode and step counts must be positive")
+    if args.mode == "generate":
+        bank_path = args.bank_output or args.output.with_suffix(".pt")
+        if bank_path.resolve() == args.output.resolve():
+            parser.error("the reset-state bank and --output report must use different paths")
+        if bank_path.resolve() == bank_path.with_suffix(".json").resolve():
+            parser.error("the reset-state bank must use a different path from its .json metadata")
+    elif args.mode == "evaluate" and args.checkpoint.resolve() == args.output.resolve():
+        parser.error("--output must not overwrite the policy checkpoint")
 
+    configure_console_logging(vars(args))
     cfg, agent_cfg = resolve_task_config(TASK_NAME, "rsl_rl_cfg_entry_point", overrides=overrides)
     cfg.scene.num_envs = args.num_envs
     cfg.seed = args.seed
@@ -68,7 +79,6 @@ def main() -> None:
             task = env.unwrapped
             if args.mode == "generate":
                 validation = _validate_replay(env)
-                bank_path = args.bank_output or args.output.with_suffix(".pt")
                 task.save_reset_buffer(bank_path)
                 report = {**task.generation_report, "bank_path": str(bank_path), "replay_validation": validation}
             else:
@@ -99,7 +109,7 @@ def _validate_replay(env: gym.Env) -> dict[str, bool]:
         raise RuntimeError("A reset state already satisfies the grasped-cube goal.")
     before = task.scene.get_state(is_relative=True)
     split = max(1, task.num_envs // 2)
-    task._reset_idx(torch.arange(split, device=task.device))
+    task.reset(env_ids=torch.arange(split, device=task.device))
     if success_cfg.func(task, **success_cfg.params).any():
         raise RuntimeError("Partial replay produced an already successful reset state.")
     after = task.scene.get_state(is_relative=True)
@@ -130,48 +140,52 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
         observations = wrapped.get_observations()
     else:
         env.reset()
+        elapsed = torch.zeros(task.num_envs, device=task.device)
+        cube_start = mdp.object_position(task).clone()
+        orientation = cube_start.new_tensor((1.0, 0.0, 0.0, 0.0)).expand(task.num_envs, -1)
 
-    elapsed = torch.zeros(task.num_envs, device=task.device)
-    cube_start = mdp.object_position(task).clone()
-    orientation = task._tcp_pose()[:, 3:].clone()
-    orientation[:] = orientation.new_tensor((1.0, 0.0, 0.0, 0.0))
-    completed = 0
-    successes = 0
+    counts = torch.zeros(2, dtype=torch.long, device=task.device)
     remaining = torch.full((task.num_envs,), args.episodes // task.num_envs, dtype=torch.long, device=task.device)
     remaining[: args.episodes % task.num_envs] += 1
-    finite = True
-    maximum_height = 0.0
+    finite = torch.ones((), dtype=torch.bool, device=task.device)
+    maximum_height = torch.zeros((), device=task.device)
     with torch.inference_mode():
         for step in range(args.steps):
             if args.mode == "evaluate":
                 observations, reward, done, _ = wrapped.step(policy(observations))
                 done = done.bool()
                 policy.reset(done)
-                finite &= bool(torch.isfinite(observations["policy"]).all().item())
             else:
                 target = torch.cat((cube_start, orientation), dim=-1)
                 target[:, 2] += torch.where(elapsed < 5.0, 0.10, 0.0)
                 goal = task.command_manager.get_command("object_pose")[:, :3]
+                goal, _ = combine_frame_transforms(
+                    task.scene["robot"].data.root_pos_w.torch,
+                    task.scene["robot"].data.root_quat_w.torch,
+                    goal,
+                )
+                goal -= task.scene.env_origins
                 target[:, :3] = torch.where((elapsed >= 7.6)[:, None], goal, target[:, :3])
                 action = task.scripted_action(target, close=False)
                 action[:, 6] = torch.where(elapsed >= 7.0, -1.0, 1.0)
                 observations, reward, terminated, truncated, _ = env.step(action)
                 done = terminated | truncated
-                finite &= bool(torch.isfinite(observations["policy"]).all().item())
 
             # Same-step auto-reset restores the cube before this read. The successful terminal
-            # transition is counted from its binary reward, never from a post-reset observation.
-            finite &= bool(torch.isfinite(reward).all().item())
+            # transition remains cached in the termination manager until the next step.
+            finite &= torch.isfinite(observations["policy"]).all() & torch.isfinite(reward).all()
             counted = done & (remaining > 0)
-            completed += int(counted.sum().item())
-            successes += int(((reward > 0.5) & counted).sum().item())
-            remaining[counted] -= 1
-            maximum_height = max(maximum_height, float(mdp.object_position(task)[:, 2].max().item()))
-            elapsed += task.step_dt
-            elapsed[done] = 0.0
-            cube_start[done] = mdp.object_position(task)[done]
-            if not remaining.any() or not finite:
+            counts += torch.stack((counted.sum(), (task.termination_manager.get_term("success") & counted).sum()))
+            remaining.sub_(counted.long())
+            cube_position = mdp.object_position(task)
+            maximum_height = torch.fmax(maximum_height, cube_position[:, 2].max())
+            if args.mode == "scripted":
+                elapsed += task.step_dt
+                elapsed[done] = 0.0
+                cube_start[done] = cube_position[done]
+            if not (remaining.any() & finite):
                 break
+    completed, successes = counts.tolist()
     return {
         "mode": args.mode,
         "task": TASK_NAME,
@@ -185,8 +199,8 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
         "completed_episodes": completed,
         "successful_episodes": successes,
         "success_rate": successes / completed if completed else 0.0,
-        "all_finite": finite,
-        "maximum_observed_cube_height_m": maximum_height,
+        "all_finite": bool(finite),
+        "maximum_observed_cube_height_m": float(maximum_height),
     }
 
 

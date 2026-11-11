@@ -12,36 +12,39 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_apply
+from isaaclab.utils.math import quat_apply, quat_mul
 
-from isaaclab_tasks.core.lift.mdp import object_reached_goal
+from ...core.lift.mdp import object_reached_goal
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
 def object_position(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Cube center position relative to the environment origin [m]."""
+    """Cube center positions [m] relative to environment origins in world axes, shape (num_envs, 3)."""
     return env.scene["object"].data.root_pos_w.torch - env.scene.env_origins
 
 
 def hand_pose(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names="panda_hand")
 ) -> torch.Tensor:
-    """Grasp-center position [m] and orientation [xyzw] relative to the environment origin."""
-    robot = env.scene[asset_cfg.name]
-    body_id = asset_cfg.body_ids[0]
-    orientation = robot.data.body_link_quat_w.torch[:, body_id]
-    offset = orientation.new_tensor((0.0, 0.0, 0.107)).expand(env.num_envs, -1)
-    position = robot.data.body_link_pos_w.torch[:, body_id] + quat_apply(orientation, offset)
+    """Grasp-center poses with shape (num_envs, 7).
+
+    Positions [m] are relative to environment origins in world axes; orientations are
+    world-frame quaternions in xyzw order.
+    """
+    orientation = env.scene[asset_cfg.name].data.body_link_quat_w.torch[:, asset_cfg.body_ids[0]]
+    if env._tcp_offset_rot is not None:
+        orientation = quat_mul(orientation, env._tcp_offset_rot)
+    position = _hand_position(env, asset_cfg)
     return torch.cat((position - env.scene.env_origins, orientation), dim=-1)
 
 
 def object_to_hand(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names="panda_hand")
 ) -> torch.Tensor:
-    """Cube displacement from the grasp center [m]."""
-    return object_position(env) - hand_pose(env, asset_cfg)[:, :3]
+    """Cube-minus-grasp-center displacements [m] in world axes, shape (num_envs, 3)."""
+    return env.scene["object"].data.root_pos_w.torch - _hand_position(env, asset_cfg)
 
 
 def goal_reached(
@@ -74,11 +77,21 @@ def goal_reached(
 
 
 def success_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return the binary goal success for the terminal transition."""
-    return env.termination_manager.get_term("success").float()
+    """Return goal success per second [1/s], shape (num_envs,), for a unit terminal reward."""
+    return env.termination_manager.get_term("success").float() / env.step_dt
 
 
 def object_dropped(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate when the cube leaves the table workspace [m]."""
+    """Return workspace-exit flags with shape (num_envs,), using positions in environment-frame [m]."""
     position = object_position(env)
     return (position[:, 2] < -0.02) | (position[:, 0] < 0.15) | (position[:, 0] > 0.85) | (position[:, 1].abs() > 0.45)
+
+
+def _hand_position(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Compute the configured grasp-center position in the world frame."""
+    robot = env.scene[asset_cfg.name]
+    body_id = asset_cfg.body_ids[0]
+    position = robot.data.body_link_pos_w.torch[:, body_id]
+    if env._tcp_offset_pos is not None:
+        position = position + quat_apply(robot.data.body_link_quat_w.torch[:, body_id], env._tcp_offset_pos)
+    return position

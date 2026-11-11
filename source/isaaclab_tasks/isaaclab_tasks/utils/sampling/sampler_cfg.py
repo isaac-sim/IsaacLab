@@ -11,16 +11,16 @@ from dataclasses import field
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils.sampling.sampler import Sampler
+from .sampling_strategies_cfg import SamplingStrategyCfg
 
 
 @configclass
 class SamplerCfg:
     """Blueprint for a :class:`Sampler`."""
 
-    class_type: type[Sampler] | str = "{DIR}.sampler:Sampler"
+    class_type: type | str = "{DIR}.sampler:Sampler"
     """Runtime sampler class."""
-    strategies: list = field(default_factory=list)
+    strategies: list[SamplingStrategyCfg] = field(default_factory=list)
     """Weighted sampling-strategy cfgs composed by the sampler."""
     eps: float = 1e-3
     """Soft floor on per-item probability before normalization."""

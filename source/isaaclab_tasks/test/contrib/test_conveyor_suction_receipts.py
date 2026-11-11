@@ -181,7 +181,7 @@ def test_receipts_record_success_and_continue_without_reset(device, monkeypatch)
                 # Invalid canonical rows must fail, rather than duplicate or renumber valid recipes.
                 with pytest.raises(RuntimeError, match=f"after 1 batches.*{condition}") as error:
                     type(reset)(term, env)
-                assert f"'default/{condition}': 1" in str(error.value)
+                assert f"'rejected/{condition}': 1" in str(error.value)
         samples = cfg.events.reset_parcels.params["samples_per_path"]
         rows = torch.tensor([samples // 2 + 1, samples // 2 + 2], device=device)
         reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]

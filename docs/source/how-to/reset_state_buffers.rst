@@ -100,8 +100,10 @@ outcomes for the initial draw and mask manual or zero-step resets. Only resettin
 environments receive new row assignments.
 
 The sampler reuses the shared success monitor and sampling strategies from
-:mod:`isaaclab_tasks.utils.sampling`. For a uniform baseline, configure the existing
-uniform strategy:
+:mod:`isaaclab_tasks.utils.sampling`. Configure row selection through
+``ResetStateSamplerCfg.sampling``; the monitor config controls outcome history.
+Non-default monitor sampling controls are rejected. For a uniform baseline,
+configure the existing uniform strategy:
 
 .. code-block:: python
 
@@ -148,7 +150,7 @@ Use the cube pickup reference to compare sparse-reward training with ordinary an
 buffered starts. Generate grasp starts by physically approaching and closing the
 fingers. Starts captured after grasping must remain outside the goal region.
 The example succeeds as soon as a grasped cube reaches the commanded
-point ``(0.5, 0.0, 0.15)`` [m] in environment coordinates, within a radius of
+point ``(0.5, 0.0, 0.15)`` [m] in the robot root frame, within a radius of
 ``0.04`` [m]. The reward is a terminal ``+1`` on that transition.
 
 The registered ``IsaacContrib-Cube-Pickup-Franka`` task collects table, approach,
@@ -158,7 +160,7 @@ binary pickup-to-point reward. Generate and inspect a small buffer first:
 .. code-block:: bash
 
    uv run python scripts/environments/cube_pickup.py --mode generate \
-       --num_envs 64 --bank_size 256 --headless --output outputs/pickup/reset_states.json
+       --num_envs 64 --bank_size 256 --output outputs/pickup/reset_states.json
 
 Train with the existing RSL-RL runner. ``--num_envs`` is the number of environments
 per GPU in distributed training. Training runs without a viewer when no visualizer
@@ -176,7 +178,7 @@ saved checkpoint from ordinary table starts using a separate seed:
 
    uv run python scripts/environments/cube_pickup.py --mode evaluate \
        --checkpoint /path/to/model.pt --num_envs 64 --episodes 512 \
-       --seed 10000 --headless --output outputs/pickup/evaluation.json
+       --seed 10000 --output outputs/pickup/evaluation.json
 
 Evaluate the learned policy separately from ordinary table starts using held-out
 positions and seeds. Report that result separately from success under the adaptive

@@ -152,7 +152,7 @@ def test_checkpoint_interface_and_invalid_action_recovery(monkeypatch):
                 # A bad canonical row must fail, rather than duplicate or renumber accepted recipes.
                 with pytest.raises(RuntimeError, match=f"after 1 batches.*{condition}") as error:
                     type(term.func)(term, env)
-                assert f"'default/{condition}': 1" in str(error.value)
+                assert f"'rejected/{condition}': 1" in str(error.value)
         _check_physical_reset_anchors(env)
         obs, _ = env.reset()
         assert obs["policy"].shape == (2, 123)

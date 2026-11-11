@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 import torch
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.utils.sampling.sampling_strategies_cfg import (
+    from .sampling_strategies_cfg import (
         BetaSamplingStrategyCfg,
         UniformSamplingStrategyCfg,
     )
