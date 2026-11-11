@@ -6,9 +6,7 @@
 """Regression coverage for recording command configuration."""
 
 import math
-import runpy
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -17,10 +15,11 @@ pytestmark = pytest.mark.unit
 
 def test_recording_defers_command_resampling(monkeypatch, tmp_path):
     """Recording defers command resampling beyond a realistic demonstration."""
-    script = Path(__file__).resolve().parents[3] / "scripts/tools/record_demos.py"
-    monkeypatch.setattr(sys, "argv", [str(script), "--task", "Isaac-Reach-Franka", "--teleop_device", "spacemouse"])
-    recorder = runpy.run_path(str(script), run_name="record_demos_test")
-    cfg, _, _ = recorder["create_environment_config"](str(tmp_path), "reach")
+    from isaaclab_teleop.entrypoints import record_demos
+
+    monkeypatch.setattr(sys, "argv", ["record_demos.py"])
+    record_demos._parse_args(["--task", "Isaac-Reach-Franka", "--teleop_device", "spacemouse"])
+    cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
 
     resampling_time_range = cfg.commands.ee_pose.resampling_time_range
     assert all(math.isfinite(bound) for bound in resampling_time_range)

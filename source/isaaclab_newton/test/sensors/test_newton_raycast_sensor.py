@@ -140,6 +140,7 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
     # Another consumer may acquire the shared builder before this sensor is constructed.
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     scene_cfg = GenericRaycastTestSceneCfg(num_envs=2) if generic_cfg else RaycastTestSceneCfg(num_envs=2)
+    scene_cfg.raycast.use_cuda_graph = sim.cfg.physics.use_cuda_graph
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
     assert builder.default_bvh_cfg.shape_flags == expected_bvh_flags
@@ -154,6 +155,20 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
     expected_normal = torch.tensor([0.0, 0.0, 1.0], device=normals.device).expand_as(normals)
     torch.testing.assert_close(normals, expected_normal, atol=1e-3, rtol=0)
+
+    # Sharing the local pattern must not couple per-environment poses or reset drift.
+    carrier = scene["sensor_body"]
+    pose = carrier.data.root_link_pose_w.torch.clone()
+    pose[0, 2] += 0.5
+    carrier.write_root_pose_to_sim_index(root_pose=pose)
+    sensor.cfg.ray_cast_drift_range = {"z": (0.15, 0.15)}
+    sensor.reset(env_ids=[0])
+    data = sensor.data
+    torch.testing.assert_close(data.ray_hits_w.torch[0, :, 2], torch.full_like(distances[0], 0.15))
+    torch.testing.assert_close(data.ray_hits_w.torch[1, :, 2], torch.zeros_like(distances[1]), atol=1e-3, rtol=0)
+    expected_distances = torch.full_like(distances, RAY_START_HEIGHT)
+    expected_distances[0] += 0.5
+    torch.testing.assert_close(data.ray_distances.torch, expected_distances, atol=1e-3, rtol=0)
     if generic_cfg:
         assert isinstance(sensor, NewtonRaycastSensor)
         # Camera and multi-mesh factories retain their explicit legacy implementations.

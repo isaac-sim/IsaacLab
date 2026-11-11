@@ -20,6 +20,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         self.sim.visualizer_cfgs.cameras[0].eye = (2.0, -3.0, 1.4)
 
+        self.sim.physics.newton_steel.solver_cfg.iterations = 16
         # scene
         self.scene.robot = replace(
             ANYMAL_D_CFG,

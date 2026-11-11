@@ -21,6 +21,8 @@ from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from ..cloner import ReplicateContext
+    from ..managers import ActionManager
+    from ..scene import InteractiveScene
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
     from .physics_manager_cfg import PhysicsCfg
@@ -213,8 +215,9 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
         """Ensure that an articulation root has one enabled world fixed joint.
 
-        The base implementation leaves the root in place. Backends whose parser requires a different
-        root topology may relocate it and return the resulting root prim.
+        An articulation rooted at a fixed joint that attaches it to the world, a layout that UsdPhysics allows, is
+        fixed by that joint. The base implementation leaves the root in place. Backends whose parser requires a
+        different root topology may relocate it and return the resulting root prim.
 
         Args:
             articulation_prim: The articulation-root prim to fix.
@@ -665,6 +668,20 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
 
         When this returns ``True`` the environment should call :meth:`step`
         once per policy step instead of looping ``decimation`` times.
+        """
+        return False
+
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+        """Run the environment's actions and asset writes inside :meth:`step`, before every physics step.
+
+        The default implementation handles nothing.
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets write to the simulation.
+
+        Returns:
+            Whether :meth:`step` now applies the actions and writes the assets.
         """
         return False
 

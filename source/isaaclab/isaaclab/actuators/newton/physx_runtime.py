@@ -125,10 +125,16 @@ class PhysxActuatorRuntime:
                     return
         self._run_native_actuator_kernels(collection, dt)
 
-    def reset(self, env_ids: Sequence[int] | slice) -> None:
-        """Reset selected native actuator state."""
+    def reset(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
+        """Reset selected native actuator state.
+
+        Args:
+            env_ids: Environments to reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
+                ``env_ids``. Defaults to None.
+        """
         if self.adapter is not None:
-            self.adapter.reset(env_ids)
+            self.adapter.reset(env_ids, env_mask)
 
     def _run_native_actuator_kernels(self, collection: ActuatorCollection, dt: float) -> None:
         from . import kernels as actuator_kernels  # noqa: PLC0415
@@ -168,7 +174,7 @@ class PhysxActuatorRuntime:
         graphs = []
         try:
             for _ in range(2):
-                with wp.ScopedCapture(device=self._articulation.device, force_module_load=True) as capture:
+                with wp.ScopedCapture(device=self._articulation.device) as capture:
                     self._run_native_actuator_kernels(collection, dt)
                 graphs.append(capture.graph)
         except Exception as exc:

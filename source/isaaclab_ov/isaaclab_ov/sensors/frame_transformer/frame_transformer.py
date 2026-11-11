@@ -16,6 +16,7 @@ from pxr import UsdPhysics
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
+from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
@@ -23,7 +24,7 @@ import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .frame_transformer_data import FrameTransformerData
-from .kernels import frame_transformer_update_kernel, gather_body_pose_kernel
+from .kernels import gather_body_pose_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg

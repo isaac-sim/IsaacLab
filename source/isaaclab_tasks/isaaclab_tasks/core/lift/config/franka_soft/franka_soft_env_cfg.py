@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -40,8 +41,6 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg

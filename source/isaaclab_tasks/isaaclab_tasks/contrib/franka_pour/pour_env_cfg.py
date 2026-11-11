@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
@@ -39,7 +40,7 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 

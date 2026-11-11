@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,15 +14,12 @@ import torch
 import warp as wp
 
 from .warp import ProxyArray
-from .warp.kernels import (
-    add_forces_to_dual_buffers_index_kernel,
-    add_forces_to_dual_buffers_mask,
+from .warp.index_kernel import selector_dtype
+from .warp.wrench import (
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
-    reset_wrench_composer_index_kernel,
-    reset_wrench_composer_mask,
-    set_forces_to_dual_buffers_index_kernel,
-    set_forces_to_dual_buffers_mask,
+    make_reset_wrench,
+    make_write_wrench,
 )
 
 if TYPE_CHECKING:
@@ -35,6 +32,7 @@ class WrenchComposer:
         asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection,
         *,
         supports_world_at_com: bool = False,
+        on_first_use: Callable[[], None] | None = None,
     ) -> None:
         """Wrench composer with dual-buffer architecture.
 
@@ -63,6 +61,8 @@ class WrenchComposer:
             supports_world_at_com: Whether the consumer can apply a world-frame wrench at the body's
                 center of mass. When False, :meth:`get_forces_and_torques` always returns a body-frame
                 wrench. Defaults to False.
+            on_first_use: Called at the first write of forces or torques, e.g. to capture the step again with the
+                wrench work. Defaults to None.
         """
         self.num_envs = asset.num_instances
         self.num_bodies = asset.num_bodies
@@ -70,6 +70,8 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._used = False
+        self._on_first_use = on_first_use
         self._supports_world_at_com = supports_world_at_com
         # Conservative until a full reset; partial resets do not scan the remaining buffers.
         self._has_local_wrench = False
@@ -117,6 +119,19 @@ class WrenchComposer:
         compared to scanning the buffers every frame.
         """
         return self._active
+
+    @property
+    def pending(self) -> bool:
+        """Whether a writer must apply the wrench now: :attr:`active`, or always while recording after first use.
+
+        Recorded wrench work does not depend on host flags; every replay adds, composes and clears the buffers.
+        """
+        return self._recording or self._active
+
+    @property
+    def _recording(self) -> bool:
+        """Whether a CUDA graph is recording this composer's work after its first write."""
+        return self._used and wp.get_device(self.device).is_capturing
 
     @property
     def global_force_w(self) -> wp.array:
@@ -264,16 +279,9 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
-        if is_global:
-            self._has_global_wrench = True
-            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
-        else:
-            self._has_local_wrench = True
-
+        force_buffer, torque_buffer = self._prepare_write(forces, positions, is_global)
         wp.launch(
-            add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids), accumulate=True),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -281,12 +289,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                force_buffer,
+                torque_buffer,
             ],
             device=self.device,
         )
@@ -332,16 +336,9 @@ class WrenchComposer:
         # Clear input buffers for the targeted environments before writing
         self.reset(env_ids=env_ids)
 
-        self._active = True
-        self._dirty = True
-        if is_global:
-            self._has_global_wrench = True
-            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
-        else:
-            self._has_local_wrench = True
-
+        force_buffer, torque_buffer = self._prepare_write(forces, positions, is_global)
         wp.launch(
-            set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -349,12 +346,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                force_buffer,
+                torque_buffer,
             ],
             device=self.device,
         )
@@ -397,16 +390,9 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
-        if is_global:
-            self._has_global_wrench = True
-            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
-        else:
-            self._has_local_wrench = True
-
+        force_buffer, torque_buffer = self._prepare_write(forces, positions, is_global)
         wp.launch(
-            add_forces_to_dual_buffers_mask,
+            make_write_wrench(accumulate=True),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -414,12 +400,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                force_buffer,
+                torque_buffer,
             ],
             device=self.device,
         )
@@ -467,16 +449,9 @@ class WrenchComposer:
         # Clear input buffers for the masked environments before writing
         self.reset(env_mask=env_mask)
 
-        self._active = True
-        self._dirty = True
-        if is_global:
-            self._has_global_wrench = True
-            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
-        else:
-            self._has_local_wrench = True
-
+        force_buffer, torque_buffer = self._prepare_write(forces, positions, is_global)
         wp.launch(
-            set_forces_to_dual_buffers_mask,
+            make_write_wrench(),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -484,12 +459,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                force_buffer,
+                torque_buffer,
             ],
             device=self.device,
         )
@@ -503,7 +474,7 @@ class WrenchComposer:
         Args:
             other: Another WrenchComposer whose input buffers will be added into this one.
         """
-        if not other._active:
+        if not other._active and not self._recording:
             return
         if __debug__:
             if other.num_envs != self.num_envs or other.num_bodies != self.num_bodies:
@@ -512,8 +483,7 @@ class WrenchComposer:
                     f"into composer with shape ({self.num_envs}, {self.num_bodies})."
                 )
 
-        self._active = True
-        self._dirty = True
+        self._mark_active()
         self._has_local_wrench = self._has_local_wrench or other._has_local_wrench
         self._has_global_wrench = self._has_global_wrench or other._has_global_wrench
         self._has_global_positions = self._has_global_positions or other._has_global_positions
@@ -581,6 +551,9 @@ class WrenchComposer:
             ``(num_envs, num_bodies)`` with dtype ``wp.vec3f``. The arrays are owned by the composer
             and stay valid until the next mutating call.
         """
+        if self._recording:
+            self.compose_to_body_frame()
+            return self._out_force_b, self._out_torque_b, False
         if not self._has_global_wrench:
             return self._local_force_b, self._local_torque_b, False
         if self._supports_world_at_com and not self._has_local_wrench and not self._has_global_positions:
@@ -606,7 +579,7 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
-        if not self._active:
+        if not self._active and not self._recording:
             return
         full_reset = env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)))
         if full_reset:
@@ -623,32 +596,14 @@ class WrenchComposer:
             self._has_local_wrench = False
             self._has_global_wrench = False
             self._has_global_positions = False
-        elif env_mask is not None:
-            wp.launch(
-                reset_wrench_composer_mask,
-                dim=(self.num_envs, self.num_bodies),
-                inputs=[
-                    env_mask,
-                    self._global_force_w,
-                    self._global_torque_w,
-                    self._global_force_at_com_w,
-                    self._local_force_b,
-                    self._local_torque_b,
-                    self._out_force_b,
-                    self._out_torque_b,
-                ],
-                device=self.device,
-            )
-            self._dirty = True
         else:
-            # Partial reset via index
-            env_ids = self._resolve_env_ids(env_ids)
-
+            selection = env_mask if env_mask is not None else self._resolve_env_ids(env_ids)
+            dtype = wp.bool if env_mask is not None else selector_dtype(selection)
             wp.launch(
-                reset_wrench_composer_index_kernel(env_ids),
-                dim=(env_ids.shape[0], self.num_bodies),
+                make_reset_wrench(dtype),
+                dim=(selection.shape[0], self.num_bodies),
                 inputs=[
-                    env_ids,
+                    selection,
                     self._global_force_w,
                     self._global_torque_w,
                     self._global_force_at_com_w,
@@ -710,6 +665,30 @@ class WrenchComposer:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _prepare_write(self, forces, positions, is_global: bool) -> tuple[wp.array, wp.array]:
+        """Mark pending contributions and select buffers without reading device values.
+
+        Frame and argument presence are launch-time choices, fixed during graph capture.
+        Selection contents and force/torque values remain device inputs on every replay.
+        """
+        self._mark_active()
+        if is_global:
+            self._has_global_wrench = True
+            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
+            force = self._global_force_w if positions is not None else self._global_force_at_com_w
+            return force, self._global_torque_w
+        self._has_local_wrench = True
+        return self._local_force_b, self._local_torque_b
+
+    def _mark_active(self) -> None:
+        """Mark pending contributions, calling :attr:`_on_first_use` at the first one."""
+        self._active = True
+        self._dirty = True
+        if not self._used:
+            self._used = True
+            if self._on_first_use is not None:
+                self._on_first_use()
 
     def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array | torch.Tensor:
         """Resolve environment IDs.

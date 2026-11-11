@@ -412,6 +412,71 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
     assert joint.GetJointEnabledAttr().Get() is False
 
 
+@pytest.mark.parametrize("legacy_writer", [False, True], ids=["fragments", "legacy"])
+def test_fix_root_link_preserves_fixed_world_joint_root(setup_simulation, caplog, legacy_writer):
+    """Enable the existing joint with True; warn and preserve it with False."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/root_joint")
+    joint.CreateBody0Rel().SetTargets(["/World/Robot"])
+    joint.CreateBody1Rel().SetTargets(["/World/Robot/base"])
+    joint.CreateJointEnabledAttr(False)
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    for fix_root_link in (True, False):
+        # Exercise the legacy subtree lookup's empty-world-target case when disabling.
+        if not fix_root_link and legacy_writer:
+            joint.GetBody0Rel().SetTargets([])
+        with caplog.at_level("WARNING"):
+            if legacy_writer:
+                with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+                    schemas.modify_articulation_root_properties(
+                        "/World/Robot/root_joint", schemas.ArticulationRootBaseCfg(fix_root_link=fix_root_link)
+                    )
+            else:
+                schemas.apply_articulation_root_properties("/World/Robot/root_joint", [], fix_root_link=fix_root_link)
+        assert joint.GetJointEnabledAttr().Get() is True
+
+    assert "fix_root_link=False is not supported for articulation '/World/Robot/root_joint'" in caplog.text
+    robot = stage.GetPrimAtPath("/World/Robot")
+    assert [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.Joint)] == ["root_joint"]
+    roots = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == ["root_joint"]
+
+
+@pytest.mark.parametrize(
+    "body0, body1",
+    [
+        ("/World/Robot/base", "/World/Robot/link"),
+        ("/World/Robot/static_base", "/World/Robot/link"),
+        ("/World/Robot", "/World/Robot"),
+        ("/World/Robot", "/World/Robot/static_base"),
+    ],
+    ids=["rigid_base", "static_collider_base", "no_rigid_body", "world_static_collider"],
+)
+def test_fix_root_link_rejects_non_world_fixed_joint_root(setup_simulation, body0, body1):
+    """``fix_root_link=True`` still raises for a fixed joint root between two bodies, a body and a static collider,
+    or two prims that are not rigid bodies."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    UsdPhysics.CollisionAPI.Apply(sim_utils.create_prim("/World/Robot/static_base", prim_type="Cube"))
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/link", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/joint")
+    joint.CreateBody0Rel().SetTargets([body0])
+    joint.CreateBody1Rel().SetTargets([body1])
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    with pytest.raises(NotImplementedError):
+        schemas.apply_articulation_root_properties("/World/Robot/joint", [], fix_root_link=True)
+    with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+        with pytest.raises(NotImplementedError):
+            schemas.modify_articulation_root_properties(
+                "/World/Robot/joint", schemas.ArticulationRootBaseCfg(fix_root_link=True)
+            )
+
+
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
     """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must author

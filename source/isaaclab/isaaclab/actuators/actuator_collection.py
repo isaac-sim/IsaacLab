@@ -24,7 +24,6 @@ from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from .actuator_compat import resolve_limit_aliases
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -88,8 +87,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
-        for name, cfg in resolved_cfgs.items():
-            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -164,6 +161,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         return self._control.device
 
     @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
+        return not self._execution_actuators
+
+    @property
     def has_implicit_actuators(self) -> bool:
         """Whether any configured actuator group is implicit."""
         return self._has_implicit_actuators
@@ -180,18 +182,20 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     # Lifecycle.
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
-        group_env_ids = self._control._normalize_index_sequence(env_ids)
+        group_env_ids = None if env_mask is not None else self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(group_env_ids)
-        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
+                actuator.reset(group_env_ids, env_mask)
+        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.
@@ -640,6 +644,7 @@ class _ImplicitExecutor:
         """Compute all the executor's joints through the cached Warp launch."""
         collection._launch_cache.launch(
             self._cache_key,
+            wp.launch,
             actuator_kernels.compute_implicit_actuator_batch,
             dim=(collection.num_instances, self.joint_indices_wp.shape[0]),
             inputs=self.kernel_inputs,

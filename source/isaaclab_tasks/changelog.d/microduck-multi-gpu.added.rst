@@ -1,1 +1,0 @@
-* Added automatic sample-budget scaling for MicroDuck walking with 4,096 environments per GPU, dividing the iteration budget, checkpoint interval, and fixed-step curriculum boundaries by ``WORLD_SIZE``. Added paired ``env.ngpus`` and ``env.nnodes`` Hydra overrides for explicit recipe scaling.

@@ -83,6 +83,12 @@ def physx_replicate(
     _replicate_instances(stage, copies, env_ids, **options)
 
 
+_EXCLUDED_PATHS: list[str] = []
+# PhysX 110.4 caches the first attach callback's list; preserve its identity across registrations.
+# Assumes Isaac Lab attaches first and each registration attaches before the next one.
+# Multiple replicators are unsupported: https://github.com/NVIDIA-Omniverse/PhysX/issues/590#issuecomment-6436165383
+
+
 def _replicate_instances(
     stage: Usd.Stage,
     copies: Iterable[tuple[tuple[str, str], np.ndarray]],
@@ -98,24 +104,20 @@ def _replicate_instances(
     if len(env_ids) <= 1:
         return
 
-    native_paths: list[str] = []
-
     for (src, destination), world_ids in copies:
         if not len(world_ids) or world_ids[0] == -1:
             continue
         worlds = tuple(map(int, env_ids[world_ids]))
-        if has_usd_only_sources:
-            native_paths.append(src)
-            native_paths.extend(destination.format(world) for world in worlds)
+        if len(worlds) == 1 and src == destination.format(worlds[0]):
+            has_usd_only_sources = True
+            continue
         if exclude_self_replication:
             matched = cloner.path.match(src, destination)
             if matched is not None and matched.instance.isdigit():
                 worlds = tuple(world for world in worlds if world != int(matched.instance)) or worlds
         physx_queue.append((src, destination, worlds))
 
-    # Self-only layouts already exist in USD. Skip registration: one native self-copy per
-    # source has triggered intermittent heap corruption in multi-GPU runs.
-    if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
+    if not physx_queue:
         return
 
     physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
@@ -124,16 +126,18 @@ def _replicate_instances(
 
     current_worlds: tuple[int, ...] = ()
     current_template: str = ""
-    prefixes = [destination.partition("{}")[0] for _, destination, _ in physx_queue]
-    env_namespaces = [prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes]
-    excluded_paths = (
-        list(dict.fromkeys(native_paths))
-        if has_usd_only_sources
-        else list(dict.fromkeys((*[source for source, _, _ in physx_queue], *env_namespaces)))
-    )
+    excluded_paths = []
+    for src, destination, worlds in physx_queue:
+        excluded_paths.append(src)
+        if has_usd_only_sources:
+            excluded_paths.extend(destination.format(world) for world in worlds)
+        else:
+            prefix = destination.partition("{}")[0]
+            excluded_paths.append(prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0])
+    _EXCLUDED_PATHS[:] = dict.fromkeys(excluded_paths)
 
     def attach_fn(_stage_id: int):
-        return excluded_paths
+        return _EXCLUDED_PATHS
 
     def rename_fn(_replicate_path: str, i: int):
         return current_template.format(current_worlds[i])

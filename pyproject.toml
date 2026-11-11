@@ -53,7 +53,7 @@ dependencies = [
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
-    "omniverseclient==2.74.0",
+    "ovstorage==0.3.0",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
@@ -84,7 +84,7 @@ dependencies = [
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin the current Newton development revision until it is included in a release.
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@42f7def118c2c4299ce493457bafd4e8a22a696e",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@7f0c13af6e4dd75253709c31dc65c0edcaf22b44",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -114,7 +114,7 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 importers = [
-    "isaacsim-asset-isolated==6.2.0.0",
+    "isaacsim-asset-isolated==6.2.0.1",
     "tinyobjloader==2.0.0rc13",
 ]
 
@@ -178,9 +178,14 @@ isaacsim = [
     "PyJWT[crypto]>=2.15.1,<3",
 ]
 
-ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
-ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922"]
-ovrtx = ["ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
+ov = [
+    "ovphysx==0.7.0.74035321",
+    "ovrtx==0.6.0.1791947691",
+    "ovstage==0.3.0.1791986420",
+    "physx-usd-schemas==25.11.2.72696984",
+]
+ovphysx = ["ovphysx==0.7.0.74035321", "ovstage==0.3.0.1791986420", "physx-usd-schemas==25.11.2.72696984"]
+ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
 
 mimic = [
     "isaaclab-mimic",
@@ -195,7 +200,7 @@ mimic = [
 teleop = [
     "isaaclab-teleop",
     "isaaclab-mimic",
-    "isaaccapture[retargeters,ui,cloudxr]~=1.7.44a1 ; platform_system == 'Linux'",
+    "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [
@@ -227,10 +232,10 @@ isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
-ovphysx = "0.6.4.72118723"
-ovrtx = "0.5.1.385782"
-ovstage = "0.2.1.385922"
-newton = "1.8.0.dev0"
+ovphysx = "0.7.0.74035321"
+ovrtx = "0.6.0.1791947691"
+ovstage = "0.3.0.1791986420"
+newton = "1.9.0.dev0"
 warp = "1.17.0"
 
 [tool.ruff]
@@ -372,6 +377,7 @@ markers = [
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
     "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+    "ov: test runs or imports the OV libraries (ovphysx, ovrtx, ovstage)",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
@@ -410,15 +416,18 @@ environments = [
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.15.0",
-    "mujoco-warp~=3.15.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@42f7def118c2c4299ce493457bafd4e8a22a696e",
+    "mujoco~=3.17.0",
+    "mujoco-warp~=3.17.0",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@7f0c13af6e4dd75253709c31dc65c0edcaf22b44",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.
     "usd-exchange==3.0.1",
     # usd-optimize must share usd-exchange's OpenUSD build (26.08); bump the two together.
     "usd-optimize~=1.3.1",
+    # Standalone importer 6.2.0.1 requires these converters; Isaac Sim 6.2 pins older releases.
+    "urdf-usd-converter==0.3.4",
+    "mujoco-usd-converter==0.7.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     # isaacsim-core 6.2 pins fsspec 2026.2.0, while torch 2.11 requires 2026.6.0.
@@ -436,10 +445,11 @@ package = false
 egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
-omniverseclient = { index = "pypi-public" }
+ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }
+physx-usd-schemas = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

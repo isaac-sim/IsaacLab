@@ -306,13 +306,13 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 
 .. raw:: html
 
-   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
+   <img src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/sim2sim/sim2sim_anymal_d_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
 
 .. raw:: html
 
-   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
+   <img src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/sim2sim/sim2sim_allegro_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 .. tip::
 

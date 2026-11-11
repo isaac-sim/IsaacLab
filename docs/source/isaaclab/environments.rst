@@ -13,6 +13,8 @@ Build a command and browse the core and contributed tasks available in Isaac Lab
 Command Builder
 ---------------
 
+Select ``newton_steel`` under ``physics=`` for tasks that offer the Steel solver.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-browser>
@@ -98,6 +100,16 @@ Task Preview
        </dl>
      </section>
    </div>
+
+Try Manipulation in Your Browser
+--------------------------------
+
+UR10 reach and Franka lift use pretrained policies. Cube stacking
+uses a scripted controller. Each scene also offers Manual end-effector control.
+
+.. isaaclab-demos:: ur10_reach, franka_lift, franka_stack
+   :title: Explore manipulation
+   :physics: rigid
 
 Benchmarks
 ----------

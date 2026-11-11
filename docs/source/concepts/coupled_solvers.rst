@@ -17,7 +17,7 @@ forces between them during each simulation step. This lets a task combine
 solver families that target different physics, such as an MJWarp rigid robot
 interacting with VBD cloth or an MPM material.
 
-Configure coupling through :mod:`isaaclab_contrib.coupling` and
+Configure coupling through :mod:`isaaclab_newton.physics.coupling` and
 :class:`~isaaclab_newton.physics.NewtonCfg`. Newton's `Coupled Solvers guide
 <https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_ describes
 the algorithms, constraints, and solver internals.
@@ -41,8 +41,8 @@ material owned by a destination solver through local proxies:
             poster="../../_static/newton/proxy-coupling.jpg"
             aria-label="Proxy coupling between source and destination solvers"
             aria-describedby="coupling-animation-caption">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4" type="video/mp4">
-       <a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Watch the proxy coupling animation.</a>
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/coupled_solvers/proxy_coupling_explainer.mp4" type="video/mp4">
+       <a href="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/coupled_solvers/proxy_coupling_explainer.mp4">Watch the proxy coupling animation.</a>
      </video>
      <figcaption id="coupling-animation-caption">
        <p>Filled teal fingers belong to the source solver; outlined blue fingers are
@@ -51,7 +51,7 @@ material owned by a destination solver through local proxies:
        <p>The upper arrow synchronizes source state with the proxies, including pose
          and velocity. Contact produces the force and torque feedback shown by the
          lower arrow, which returns to a later source solve or coupling iteration.</p>
-       <p><a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Open the animation</a> to pause or scrub through the exchange.</p>
+       <p><a href="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/coupled_solvers/proxy_coupling_explainer.mp4">Open the animation</a> to pause or scrub through the exchange.</p>
      </figcaption>
    </figure>
 
@@ -117,10 +117,10 @@ more accurate; compare them on task-relevant physical metrics.
 Configure a coupled solver
 --------------------------
 
-In Isaac Lab, :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` defines each
+In Isaac Lab, :class:`~isaaclab_newton.physics.coupling.CouplerEntryCfg` defines each
 entry's solver and ownership. Use
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` or
-:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` as the
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` or
+:class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` as the
 :class:`~isaaclab_newton.physics.NewtonCfg` solver configuration.
 
 The following configuration mirrors the maintained Franka rigid--deformable tasks. It
@@ -129,7 +129,7 @@ to VBD, and exposes only the hand and fingers as VBD proxy colliders:
 
 .. code-block:: python
 
-   from isaaclab_contrib.coupling import (
+   from isaaclab_newton.physics.coupling import (
        CouplerEntryCfg,
        CouplerProxyCfg,
        CouplerProxyMappingCfg,
@@ -174,7 +174,7 @@ symmetric interfaces that should be coupled:
 
 .. code-block:: python
 
-   from isaaclab_contrib.coupling import CouplerAdmmCfg
+   from isaaclab_newton.physics.coupling import CouplerAdmmCfg
 
    physics = NewtonCfg(
        solver_cfg=CouplerAdmmCfg(
@@ -208,7 +208,7 @@ Stabilize each entry independently before changing coupling controls.
 More substeps or iterations can improve stability or convergence, but cost
 runtime and cannot repair an unstable entry. The generated
 :doc:`coupling configuration API
-</source/api/lab_contrib/isaaclab_contrib.coupling>` lists every field and
+</source/api/lab_newton/isaaclab_newton.physics.coupling>` lists every field and
 default; Newton's concept page explains the underlying algorithms.
 
 
@@ -259,7 +259,7 @@ identical when measuring a coupling effect.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_g1_one_way.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_g1_one_way.mp4" type="video/mp4">
          </video>
 
    .. grid-item-card:: Two-way, full-body proxies
@@ -267,7 +267,7 @@ identical when measuring a coupling effect.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_g1_two_way.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_g1_two_way.mp4" type="video/mp4">
          </video>
 
 

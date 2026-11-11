@@ -291,6 +291,13 @@ class modify_term_cfg(modify_env_param):
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
 
 
+def set_value_after_steps(env: ManagerBasedRLEnv, env_ids: Sequence[int], data: Any, value: Any, num_steps: int) -> Any:
+    """Set a term parameter on the first reset at or after ``num_steps`` global environment steps."""
+    if env.common_step_counter >= num_steps:
+        return value
+    return modify_term_cfg.NO_CHANGE
+
+
 class DifficultyScheduler(ManagerTermBase):
     """Adaptive difficulty scheduler for curriculum learning.
 

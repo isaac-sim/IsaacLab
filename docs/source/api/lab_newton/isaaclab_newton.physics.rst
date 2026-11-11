@@ -22,6 +22,7 @@
     VBDSolver
     XPBDSolver
     FeatherstoneSolver
+    SteelSolver
     KaminoSolver
     MPMSolver
     NewtonSolverCfg
@@ -29,6 +30,7 @@
     VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
+    SteelSolverCfg
     KaminoCollisionDetectorCfg
     KaminoConstraintsCfg
     KaminoDVICfg
@@ -60,6 +62,11 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: capture_graph
+
+.. currentmodule:: isaaclab_newton.physics
+
 Solvers
 -------
 
@@ -76,6 +83,9 @@ Solvers
   :show-inheritance:
 
 .. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: SteelSolver
   :show-inheritance:
 
 .. autoclass:: KaminoSolver
@@ -137,6 +147,11 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: FeatherstoneSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: SteelSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
