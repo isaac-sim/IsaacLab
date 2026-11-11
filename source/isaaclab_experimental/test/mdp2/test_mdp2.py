@@ -654,7 +654,7 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         torch.testing.assert_close(transition.reward_terms.torch.sum(dim=-1), transition.rewards.torch)
 
         # Weights are state, and may change while the MDP runs.
-        state.reward_weights.torch[1] = 0.0
+        state.reward_weights.torch[:, 1] = 0.0
         mdp2.evaluate(mdp, state, transition)
 
         torch.testing.assert_close(transition.rewards.torch, torch.full((2,), mdp.step_dt, device=DEVICE))
@@ -911,9 +911,10 @@ def test_world_configs_match_single_config_runs():
             runs.append((mdp, history))
 
         (first, first_run), (second, second_run), (mixed_mdp, mixed_run) = runs
-        names = {op.name: op.worlds for ops in mixed_mdp.ops.values() for op in ops}
-        assert names["rewards.alive"] is None  # A use both configs share runs once, in every world.
-        assert names["rewards.joint_pos_l2[0]"] == (0, 1, 2) and names["rewards.joint_pos_l2[1]"] == (3, 4, 5)
+        ops = {op.name: op for ops in mixed_mdp.ops.values() for op in ops}
+        assert ops["rewards.alive"].worlds is None  # A use both configs share runs once, in every world.
+        assert ops["rewards.joint_pos_l2"].weights == (-10.0, -1.0)  # Each config keeps its own weight.
+        assert ops["terminations.out_of_bounds[0]"].worlds == (0, 1, 2)  # Different uses run apart.
 
         observation_dims = [config.observation_dims["policy"] for config in mixed_mdp.world_configs]
         assert observation_dims == [first.observation_dims["policy"], second.observation_dims["policy"]]
@@ -1029,6 +1030,44 @@ def test_command_resamples_keep_their_state():
     # The reset samples once, then the 0.03 s timer expires every second 0.02 s step, then the reset samples again.
     assert torch.equal(results["torch"], torch.full((4,), 4.0, device=DEVICE))
     assert torch.equal(results["warp"], results["torch"])
+
+
+def drift_torch(mask, command, *, step):
+    command.add_(step if mask is None else mask.float() * step)
+
+
+def drift_warp(mask, command, *, step):
+    # A hook that launches its own kernels, here through Torch.
+    drift_torch(None if mask is None else wp.to_torch(mask), wp.to_torch(command), step=step)
+
+
+drifting_count = mdp2.Term(
+    torch=mdp2.Implementation(compute=count_samples_torch, update=drift_torch),
+    warp=mdp2.Implementation(compute=count_samples_warp, update=drift_warp),
+    state={"samples": mdp2.State()},
+)
+"""A command that counts its samples and drifts by ``step`` every step, only in the worlds where it runs."""
+
+
+def test_command_updates_change_only_their_worlds():
+    """Update hooks that write a field shared by world configs get the worlds where their op runs as ``mask``."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        for step in (1.0, 2.0):
+            config = mdp2.MDPBuilder(scene.schema)
+            command = mdp2.Command(drifting_count, resampling_time_range=(10.0, 10.0), params={"step": step})
+            config.add_command("count", command)
+            builder.replicate(config, 2)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+
+        mdp2.reset(mdp, state, ProxyArray(wp.ones(4, dtype=wp.bool, device=DEVICE)))
+        for _ in range(3):
+            mdp2.evaluate(mdp, state, transition)
+
+        expected = torch.tensor([4.0, 4.0, 7.0, 7.0], device=DEVICE)
+        assert torch.equal(state.fields[mdp2.commands.count].torch, expected)
 
 
 def test_library_commands():

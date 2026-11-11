@@ -91,7 +91,7 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             due = _tick(mdp, op, state)
             _compute(mdp, op, call, due if active is None else due & active.torch, stepping)
         case StepKind.UPDATE_STATE:
-            op.update(**hook_arguments(op.update, state.arguments[op.name]))
+            op.update(**hook_arguments(op.update, {**state.arguments[op.name], "mask": mask}))
         case StepKind.RESET_TIMER:
             _restart(op, state, mask)
         case StepKind.RESET_STATE if op.reset is not None:
@@ -132,7 +132,7 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         return
 
     if op.phase is Phase.REWARDS:
-        value = value * (state.reward_weights.torch[op.index] * mdp.step_dt)
+        value = value * (state.reward_weights.torch[:, op.index] * mdp.step_dt)
         transition.rewards.torch.add_(value)
         if mdp.diagnostics:
             transition.reward_terms.torch[:, op.index] = value

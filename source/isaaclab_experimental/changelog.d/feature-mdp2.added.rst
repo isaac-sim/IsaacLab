@@ -43,3 +43,8 @@
   the velocity tracking, joint torque, joint acceleration, and base height rewards, and field offsets of
   :class:`~isaaclab_experimental.mdp2.DirectAction`, such as the default joint positions. The scene data provides
   joint position targets, joint accelerations, and the applied efforts.
+* Added per-world reward weights: :attr:`~isaaclab_experimental.mdp2.MDPState.reward_weights` has one row per world,
+  so world configs whose uses differ only in their weights share those uses. The ``task`` of
+  :class:`~isaaclab_experimental.envs.MDP2EnvCfg` may be a list of tasks, which split the worlds evenly, and
+  ``extras["log"]`` averages each term over the worlds where it runs. Function ``update`` hooks may take ``mask``,
+  the worlds where their use runs, so that a command's update changes only its own worlds.

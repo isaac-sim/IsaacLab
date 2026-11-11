@@ -38,3 +38,10 @@ class UnitreeGo2FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class UnitreeGo2FlatWalkStandPPORunnerCfg(UnitreeGo2FlatPPORunnerCfg):
+    # With half of the worlds standing, standing still is a local optimum that walking leaves after 300 iterations.
+    max_iterations = 1000
+    experiment_name = "unitree_go2_flat_walk_stand"

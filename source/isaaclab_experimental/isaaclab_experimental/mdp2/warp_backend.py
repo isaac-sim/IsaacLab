@@ -176,7 +176,9 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
             case StepKind.COMPUTE_IF_DUE:
                 _compute(code, mdp, op, [*active, f"if {_due(code, mdp, op, active)}:"], stepping)
             case StepKind.UPDATE_STATE:
-                _run(code, mdp, op, op.update, [*state, *op.writes], active)
+                # A function hook gets the worlds where the op runs, None for every world.
+                running = None if op.worlds is None else lambda call, op=op: call.state.active[op.name].warp
+                _run(code, mdp, op, op.update, [*state, *op.writes], active, running)
             case StepKind.RESET_TIMER:
                 restart = f"{code.function(_restart)}({_timer(code, op)})"
                 code.world(*_under(active, restart), writes=[("timer", op.name)])
@@ -222,9 +224,9 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             code.world(*_under(conditions, *lines), writes=writes)
         case Phase.REWARDS:
             weights = code.argument(
-                "reward_weights", wp.array(dtype=wp.float32), lambda call: call.state.reward_weights.warp
+                "reward_weights", wp.array2d(dtype=wp.float32), lambda call: call.state.reward_weights.warp
             )
-            scale = f"{weights}[{op.index}] * {code.constant(float, mdp.step_dt)}"
+            scale = f"{weights}[world, {op.index}] * {code.constant(float, mdp.step_dt)}"
             rewards = _result(code, "rewards")
             lines = [f"reward = {scale} * {_value(code, mdp, op)}", f"{rewards}[world] = {rewards}[world] + reward"]
             writes = ["rewards"]
@@ -304,19 +306,18 @@ def _run(
     """Run a hook that has no output.
 
     A func runs in the world thread under ``conditions``, and ``writes`` are the keys of the arguments it writes.
-    A function that launches its own kernels, or an eager term, runs on its own, and gets ``mask(call)`` if given.
+    A function that launches its own kernels, or an eager term, runs on its own, and gets ``mask(call)`` as ``mask``
+    if it takes it.
     """
     if isinstance(hook, wp.Function):
         code.world(*_under(conditions, _call(code, op, hook)), writes=writes)
     elif op.eager:
         code.call(lambda call: call_eager(mdp, op, call.state, wp.to_torch(mask(call))), False, *_accesses(op))
-    elif mask is None:
-        code.call(
-            lambda call: hook(**hook_arguments(hook, call.state.arguments[op.name])), op.capturable, *_accesses(op)
-        )
     else:
         code.call(
-            lambda call: hook(mask=mask(call), **hook_arguments(hook, call.state.arguments[op.name])),
+            lambda call: hook(
+                **hook_arguments(hook, {**call.state.arguments[op.name], "mask": None if mask is None else mask(call)})
+            ),
             op.capturable,
             *_accesses(op),
         )

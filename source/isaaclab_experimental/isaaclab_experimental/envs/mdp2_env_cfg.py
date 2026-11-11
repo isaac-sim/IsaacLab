@@ -22,7 +22,8 @@ class MDP2EnvCfg:
 
     sim: SimulationCfg = SimulationCfg()
     scene: InteractiveSceneCfg = MISSING
-    task: TaskCfg = MISSING  # Actions, commands, observations, rewards, terminations, and events
+    # Actions, commands, observations, rewards, terminations, and events; a list splits the worlds evenly between tasks
+    task: TaskCfg | list[TaskCfg] = MISSING
     decimation: int = MISSING  # Physics steps per control step
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None

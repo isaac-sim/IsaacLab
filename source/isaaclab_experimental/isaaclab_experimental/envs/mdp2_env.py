@@ -72,8 +72,17 @@ class MDP2Env:
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
 
         self.scene_data = InteractiveSceneData(self.scene, self.step_dt)
-        builder = mdp2.MDPBuilder(self.scene_data.schema)
-        builder.add_task(cfg.task)
+        schema = self.scene_data.schema
+        builder = mdp2.MDPBuilder(schema)
+        if isinstance(cfg.task, mdp2.TaskCfg):
+            builder.add_task(cfg.task)
+        else:
+            # The first tasks get one more world when the worlds do not split evenly.
+            for index, task in enumerate(cfg.task):
+                task_builder = mdp2.MDPBuilder(schema)
+                task_builder.add_task(task)
+                num_worlds = schema.num_worlds // len(cfg.task) + (index < schema.num_worlds % len(cfg.task))
+                builder.replicate(task_builder, num_worlds)
         self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
         mdp2.startup(self.mdp, self.state)
@@ -216,6 +225,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         # Per-term episode statistics, kept on the device so that logging needs no host sync.
         self._reward_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.REWARDS]]
         self._termination_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.TERMINATIONS]]
+        # Terms are averaged over the worlds where they are active.
+        self._active_worlds = {
+            phase: torch.tensor(
+                [self.num_envs if op.worlds is None else len(op.worlds) for op in self.mdp.ops[phase]],
+                device=self.device,
+            )
+            for phase in (mdp2.Phase.REWARDS, mdp2.Phase.TERMINATIONS)
+        }
         self._episode_rewards = torch.zeros(self.num_envs, len(self._reward_names), device=self.device)
         self._last_episode_rewards = torch.zeros_like(self._episode_rewards)
         self._last_terminations = torch.zeros(self.num_envs, len(self._termination_names), device=self.device)
@@ -279,8 +296,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._last_terminations = torch.where(ended, terminations, self._last_terminations)
         self._episode_rewards = torch.where(ended, 0.0, self._episode_rewards)
 
-        rewards = self._last_episode_rewards.mean(dim=0) / self.max_episode_length_s
-        terminations = self._last_terminations.mean(dim=0)
+        rewards = self._last_episode_rewards.sum(dim=0) / self._active_worlds[mdp2.Phase.REWARDS]
+        rewards /= self.max_episode_length_s
+        terminations = self._last_terminations.sum(dim=0) / self._active_worlds[mdp2.Phase.TERMINATIONS]
         log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
         log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
         self.extras["log"] = log

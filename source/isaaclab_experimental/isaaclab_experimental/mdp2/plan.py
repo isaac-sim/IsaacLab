@@ -57,7 +57,7 @@ class TermOp:
     shape: tuple[int, ...]  # Output dimensions after the world dimension
     dtype: type  # Output element type
     writes: tuple[FieldSelector, ...] = ()  # A command's value, or the outputs of an event
-    weight: float = 1.0  # Rewards: initial value of MDPState.reward_weights[index]
+    weights: tuple[float, ...] = ()  # Rewards: initial weight per world config, 0 where the op is inactive
     time_out: bool = False  # Terminations: whether a true output truncates
     group: str = ""  # Observations: name of the observation group
     columns: slice = slice(None)  # Observations: columns of the group

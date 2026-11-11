@@ -32,7 +32,9 @@ class Implementation:
 
     - ``compute(**args)`` returns the output. It must not change state: observations are computed again after a
       reset, and continuing worlds must get the same sample.
-    - ``update(**args)`` advances state in place, once per step after ``compute``.
+    - ``update(**args)`` advances state in place, once per step after ``compute``. A hook that writes a field that
+      other world configs share, such as a command, also takes ``mask``, the worlds where its op runs (None for
+      every world).
     - ``reset(mask, **args)`` resets the masked worlds' state, after the reset events ran and the commands were
       resampled. Without it, state is set to ``initial``.
 

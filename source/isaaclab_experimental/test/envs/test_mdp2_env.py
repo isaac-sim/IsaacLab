@@ -6,6 +6,7 @@
 """Tests for MDP2RLEnv on a headless Newton Cartpole, built from a local USD file."""
 
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -200,3 +201,22 @@ def test_captured_steps_match_eager_steps_and_the_torch_backend():
         for key, value in captured_step.items():
             assert torch.equal(value, eager_step[key])
             torch.testing.assert_close(torch_step[key], value, atol=1e-4, rtol=1e-4)
+
+
+def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run():
+    cfg = cartpole_cfg()
+    without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
+    cfg.task = [cfg.task, without_alive]
+    env = MDP2RLEnv(cfg)
+    try:
+        assert [config.worlds for config in env.mdp.world_configs] == [range(0, 8), range(8, 16)]
+
+        env.reset()
+        for _ in range(env.max_episode_length):
+            _, _, _, _, extras = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+
+        # Unpushed carts stay in bounds, so every world was alive for its whole episode.
+        assert extras["log"]["Episode_Termination/cart_out_of_bounds"] == 0.0
+        assert extras["log"]["Episode_Reward/alive"].item() == pytest.approx(1.0)
+    finally:
+        env.close()

@@ -242,6 +242,36 @@ TASK = mdp2.TaskCfg(
 )
 """The MDP of the task."""
 
+STAND_TASK = replace(
+    TASK,
+    commands={
+        "base_velocity": replace(
+            TASK.commands["base_velocity"],
+            params={
+                "lin_vel_x": (0.0, 0.0),
+                "lin_vel_y": (0.0, 0.0),
+                "ang_vel_z": (0.0, 0.0),
+                "heading": (0.0, 0.0),
+                "rel_standing_envs": 1.0,
+                "rel_heading_envs": 0.0,
+                "heading_control_stiffness": 0.5,
+            },
+        )
+    },
+    rewards={
+        **TASK.rewards,
+        # A stronger action rate penalty would shrink the exploration noise that the policy shares with walking.
+        "flat_orientation_l2": replace(TASK.rewards["flat_orientation_l2"], weight=-5.0),
+        "feet_air_time": None,
+        "joint_deviation_l1": mdp2.Reward(
+            mdp.joint_deviation_l1,
+            inputs={"joint_pos": robot.joint_pos, "default_joint_pos": robot.default_joint_pos, "joint_ids": joints},
+            weight=-0.5,
+        ),
+    },
+)
+"""The task with zero velocity commands, rewarding the robot for standing still in its default pose."""
+
 
 @configclass
 class UnitreeGo2FlatEnvCfg(MDP2RLEnvCfg):
@@ -257,3 +287,10 @@ class UnitreeGo2FlatEnvCfg(MDP2RLEnvCfg):
     scene: UnitreeGo2FlatSceneCfg = UnitreeGo2FlatSceneCfg(num_envs=4096, env_spacing=2.5)
     task: mdp2.TaskCfg = TASK
     decimation: int = DECIMATION
+
+
+@configclass
+class UnitreeGo2FlatWalkStandEnvCfg(UnitreeGo2FlatEnvCfg):
+    """The Go2 flat environment with half of the worlds walking and the other half standing still."""
+
+    task: list[mdp2.TaskCfg] = [TASK, STAND_TASK]

@@ -447,7 +447,9 @@ class MDPBuilder:
         else:
             extra = "out" if context.backend is Backend.WARP else None
             _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)
-        _check_hook(entry, implementation.update, arguments, errors)
+        # A function update hook may also take the worlds where its op runs, as ``mask``.
+        update_arguments = arguments if isinstance(implementation.update, wp.Function) else {**arguments, "mask": None}
+        _check_hook(entry, implementation.update, update_arguments, errors)
         _check_hook(entry, implementation.reset, arguments, errors, extra="mask")
         if len(errors) > num_errors:
             return
@@ -496,7 +498,7 @@ class MDPBuilder:
                 shape=output_shape,
                 dtype=dtype,
                 writes=entry.writes,
-                weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
+                weights=(cfg.weight,) if isinstance(cfg, Reward) else (),
                 time_out=cfg.time_out if isinstance(cfg, Termination) else False,
                 group=group,
                 columns=columns,
@@ -661,36 +663,41 @@ def _merge_ops(
     """Merge the ops of the world configs, phase by phase, keeping the order of each config.
 
     An op equal to one of another config that is still ahead in the merged order becomes one op active in the worlds
-    of both. Other ops with the same name get a suffix with the index of their config.
+    of both, with the reward weight of each config. Other ops with the same name get a suffix with the index of their
+    config.
     """
-    merged: dict[Phase, list[list]] = {phase: [] for phase in Phase}  # Per phase: [op, worlds, config index]
+    merged: dict[Phase, list[list]] = {phase: [] for phase in Phase}  # Per phase: [op, worlds, config index, weights]
     for index, (ops, worlds) in enumerate(configs):
         for phase in Phase:
             phase_ops, cursor, unshared = merged[phase], 0, []
             for op in ops[phase]:
-                # Ops of different configs match regardless of their index and of which random stream they draw from.
-                key = op if phase is Phase.ACTIONS else replace(op, index=0, stream=op.stream is not None)
+                # Ops of different configs match regardless of their index, of which random stream they draw from,
+                # and of their reward weight, which is read per world.
+                key = op if phase is Phase.ACTIONS else replace(op, index=0, stream=op.stream is not None, weights=())
+                weights = {index: op.weights[0]} if phase is Phase.REWARDS else {}
                 match = next((i for i in range(cursor, len(phase_ops)) if phase_ops[i][0] == key), None)
                 if match is None:
-                    unshared.append([key, list(worlds), index])
+                    unshared.append([key, list(worlds), index, weights])
                     continue
                 # Ops of this config that no other config shares go just before its next shared op.
                 phase_ops[match:match] = unshared
                 match += len(unshared)
                 phase_ops[match][1] += worlds
+                phase_ops[match][3] |= weights
                 cursor, unshared = match + 1, []
             phase_ops += unshared
 
     result = {}
     for phase, phase_ops in merged.items():
-        counts = collections.Counter(op.name for op, _, _ in phase_ops)
+        counts = collections.Counter(op.name for op, _, _, _ in phase_ops)
         result[phase] = tuple(
             replace(
                 op,
                 **({} if phase is Phase.ACTIONS else {"index": position, "stream": 0 if op.stream else None}),
+                **({"weights": tuple(weights.get(k, 0.0) for k in range(len(configs)))} if weights else {}),
                 name=op.name if counts[op.name] == 1 else f"{op.name}[{index}]",
                 worlds=None if len(worlds) == schema.num_worlds else tuple(sorted(worlds)),
             )
-            for position, (op, worlds, index) in enumerate(phase_ops)
+            for position, (op, worlds, index, weights) in enumerate(phase_ops)
         )
     return result

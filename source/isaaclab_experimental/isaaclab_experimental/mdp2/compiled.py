@@ -39,7 +39,7 @@ class MDPState:
     actions: ProxyArray  # (num_worlds, action_dim), last actions
     fields: dict[FieldSelector | SubsetSelector, ProxyArray]  # Every selected field of the scene and of the MDP
     term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name
-    reward_weights: ProxyArray  # (num_rewards,), can be changed at runtime, also under graph capture
+    reward_weights: ProxyArray  # (num_worlds, num_rewards), can be changed at runtime, also under graph capture
     rng: ProxyArray  # (num_streams, num_worlds), see :mod:`.rng`
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
     arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the MDP's backend
@@ -143,7 +143,9 @@ class MDP:
                     details += [f"{name}={value!r}" for name, value in op.params.items()]
                     details += [f"shape {op.shape}"] if op.shape else []
                     details += [f"{op.group}[{op.columns.start}:{op.columns.stop}]"] if op.group else []
-                    details += [f"weight {op.weight}"] if phase is Phase.REWARDS else []
+                    if phase is Phase.REWARDS:
+                        same = len(set(op.weights)) == 1
+                        details += [f"weight {op.weights[0]}" if same else f"weights {op.weights}"]
                     details += ["time out"] if op.time_out else []
                     details += [f"every {op.timer[0]}-{op.timer[1]} s"] if op.timer is not None else []
                     details += [f"state {', '.join(op.state)}"] if op.state else []
@@ -196,7 +198,9 @@ class MDP:
             for op in self.term_ops
         }
         streams = ProxyArray(wp.from_torch(rng.streams(seed, self.streams, self.num_worlds, self.device)))
-        weights = [op.weight for op in self.ops[Phase.REWARDS]]
+        weights = np.zeros((self.num_worlds, len(self.ops[Phase.REWARDS])), dtype=np.float32)
+        for index, config in enumerate(self.world_configs):
+            weights[config.worlds.start : config.worlds.stop] = [op.weights[index] for op in self.ops[Phase.REWARDS]]
 
         arguments = {
             op.name: {
