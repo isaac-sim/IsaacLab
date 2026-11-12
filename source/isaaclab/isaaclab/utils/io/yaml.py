@@ -13,10 +13,10 @@ from .. import to_dict
 
 
 def load_yaml(filename: str) -> dict:
-    """Loads an input PKL file safely.
+    """Loads an input YAML file.
 
     Args:
-        filename: The path to pickled file.
+        filename: The path to the YAML file.
 
     Raises:
         FileNotFoundError: When the specified file does not exist.

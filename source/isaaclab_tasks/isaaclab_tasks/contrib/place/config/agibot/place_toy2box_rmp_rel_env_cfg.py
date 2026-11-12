@@ -274,7 +274,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
 
 """
-Env to Replay Sim2Lab Demonstrations with JointSpaceAction
+Env to Place Toy into Box with AgiBot Right Arm using RMPFlow
 """
 
 

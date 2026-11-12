@@ -205,7 +205,7 @@ class PinholeCameraCfg(SpawnerCfg):
     """
 
     vertical_aperture: float | None = None
-    r"""Vertical aperture (in mm). Defaults to None.
+    r"""Vertical aperture (in cm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
     horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:
@@ -261,8 +261,8 @@ class PinholeCameraCfg(SpawnerCfg):
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
             clipping_range: Near and far clipping distances (in m). Defaults to (0.01, 1e6).
-            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None
-                focal_length will be calculated 1 / width.
+            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
+                the pixel size is taken as 1 / width.
             focus_distance: Distance from the camera to the focus plane (in m). Defaults to 400.0 m.
             f_stop: Lens aperture. Defaults to 0.0, which turns off focusing.
             projection_type: Type of projection to use for the camera. Defaults to "pinhole".
