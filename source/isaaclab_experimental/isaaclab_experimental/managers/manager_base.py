@@ -61,7 +61,7 @@ class ManagerTermBase(ABC):
     .. code-block:: python
 
         from isaaclab.utils import configclass
-        from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
+        from isaaclab.managers import ManagerBase, ManagerTermBaseCfg
 
 
         @configclass
@@ -256,7 +256,7 @@ class ManagerBase(ABC):
         specified as regular expressions or a list of regular expressions. The search is
         performed on the active terms in the manager.
 
-        Please check the :meth:`~isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`~isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:

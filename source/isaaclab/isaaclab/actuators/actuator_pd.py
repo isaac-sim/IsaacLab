@@ -145,9 +145,9 @@ class ImplicitActuator(ActuatorBase):
         """Actuator effort limit [N or N·m, depending on joint type].
 
         The actuator's rated force/torque reflected at the joint when configured through
-        :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit`; it clips the
-        effort telemetry but is not pushed to the solver. When unset, it tracks the live
-        articulation joint effort limit (:attr:`joint_effort_limit`).
+        :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit`; it is not pushed to the
+        solver, and the effort telemetry is clipped by :attr:`joint_effort_limit` instead. When unset,
+        it tracks the live articulation joint effort limit (:attr:`joint_effort_limit`).
         """
         if self._rated_effort_limit is not None:
             return self._rated_effort_limit

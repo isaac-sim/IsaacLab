@@ -80,7 +80,7 @@ the intended physics backend.
 
 With ``run_asset_transformer=False``, the tested converters produce flat output without a
 ``Physics`` variant set. Isaac Lab leaves that output unchanged rather than selecting a variant.
-For an existing layered asset, :attr:`~sim.UsdFileCfg.variants` can override an available
+For an existing layered asset, :attr:`~sim.spawners.from_files.UsdFileCfg.variants` can override an available
 selection at spawn time.
 Use :ref:`asset-config-backends` to choose configuration overrides for the selected backend.
 
@@ -443,7 +443,7 @@ effort mode because Isaac Lab computes its effort directly.
 
 Joints without an Isaac Lab actuator configuration retain their imported USD settings.
 Consequently, an asset with zero-gain USD drives no longer needs
-:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist` solely
 to make configured joints actuate in Newton.
 
 The ``ensure_drives_exist`` option remains useful when a workflow needs to

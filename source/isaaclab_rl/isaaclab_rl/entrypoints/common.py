@@ -1043,7 +1043,7 @@ def run_playback(
             :func:`torch.inference_mode`.
         dt: Environment step duration [s], used to pace real-time playback.
         args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
-        env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
+        env_cfg: Environment config whose video recorders bound a ``--video`` run until each finishes its first clip.
         is_running: Optional simulation lifecycle check. Playback ends when it returns False.
     """
     max_steps = video_playback_steps(args_cli, env_cfg)

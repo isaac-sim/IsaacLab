@@ -86,7 +86,7 @@ class CubeActionTerm(ActionTerm):
     """
 
     _asset: RigidObject
-    """The articulation asset on which the action term is applied."""
+    """The rigid object asset on which the action term is applied."""
 
     def __init__(self, cfg: CubeActionTermCfg, env: ManagerBasedEnv):
         # call super constructor
@@ -153,7 +153,7 @@ class CubeActionTermCfg(ActionTermCfg):
 
 
 def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Root linear velocity in the asset's root frame."""
+    """Root position of the asset relative to its environment origin."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch - env.scene.env_origins
@@ -270,7 +270,7 @@ class EventCfg:
 
 @configclass
 class CubeEnvCfg(ManagerBasedEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the floating cube environment."""
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)

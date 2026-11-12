@@ -23,7 +23,7 @@ The packaged ``multi-asset`` example provides the reference script, ``multi_asse
       :language: python
       :linenos:
 
-With the default Newton configuration, this script creates multiple environments containing:
+With the PhysX configuration (``--physics isaacsim_physx``), this script creates multiple environments containing:
 
 * a rigid object collection containing a sphere, a cube, and a cylinder
 * a rigid object selected from nine geometry and material variants by the clone plan

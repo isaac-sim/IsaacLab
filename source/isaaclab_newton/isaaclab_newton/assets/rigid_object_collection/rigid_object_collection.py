@@ -338,8 +338,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             body_velocities: Body velocities in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6),
-                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+                Shape is (len(env_ids), len(body_ids), 6)
+                or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
@@ -494,7 +494,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -546,7 +547,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set the body center of mass pose over selected environment mask into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.

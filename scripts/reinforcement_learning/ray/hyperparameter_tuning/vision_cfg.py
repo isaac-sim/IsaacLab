@@ -35,8 +35,8 @@ class CameraJobCfg(tuner.JobCfg):
         cfg["hydra_args"]["agent.params.config.max_epochs"] = 200
 
         if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size
-            # Check from 512 to 8196 envs in powers of 2
-            # check horizon lengths of 8 to 256
+            # Check from 512 to 4096 envs in powers of 2
+            # check horizon lengths of 8 to 128
             # More envs should be better, but different batch sizes can improve gradient estimation
             env_counts = [2**x for x in range(9, 13)]
             horizon_lengths = [2**x for x in range(3, 8)]
