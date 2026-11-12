@@ -19,6 +19,8 @@ pytest.importorskip("ovrtx")
 from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import hide_environment_bodies_kernel  # noqa: E402
 
+pytestmark = pytest.mark.ov
+
 
 def test_hidden_environments_drop_only_their_own_bodies():
     # Row-vector matrices keep the translation in the last row; bodies 0-1 are in env 0, 2 in env 1, 3 in no env.
@@ -44,6 +46,7 @@ def _renderer(visible):
     renderer = object.__new__(OVRTXRenderer)
     renderer._env_paths = ["/World/envs/env_0", "/World/envs/env_1", "/World/envs/env_2"]
     renderer._visible_envs = None if visible is None else np.asarray(visible, dtype=bool)
+    renderer._hidden_marker_rows = None
     return renderer
 
 

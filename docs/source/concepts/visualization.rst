@@ -307,7 +307,7 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view. Model overlays and rigid-body dragging apply to the OpenGL view only.
+      the RTX view, and picking draws the drag arrow there. Model overlays apply to the OpenGL view only.
 
       .. warning::
 
@@ -1042,7 +1042,7 @@ Limitations
      - ✗
      - ✓
 
-In Newton's RTX view, model overlays and rigid-body dragging are not available.
+In Newton's RTX view, model overlays are not available.
 
 **Lighting differences across visualizers**
 

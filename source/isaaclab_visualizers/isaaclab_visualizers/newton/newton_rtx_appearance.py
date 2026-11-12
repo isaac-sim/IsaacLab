@@ -260,16 +260,16 @@ class RtxAppearance:
             self._dome_texture_file, self.texture_status = "", ""
             self._apply_texture()
             return
-        if self._texture_thread is not None and self._texture_thread.is_alive():
-            return
         self.texture_status = "Loading sky..."
 
         def work() -> None:
             try:
-                self._texture_result = retrieve_file_path(source)
+                result = retrieve_file_path(source)
             except Exception as exc:
                 logger.exception("[NewtonRtxAppearance] Could not load the sky texture %s.", source)
-                self._texture_result = exc
+                result = exc
+            if self.dome_texture == source:  # A newer choice, a removal, or a reset supersedes this download.
+                self._texture_result = result
 
         self._texture_thread = threading.Thread(target=work, name="rtx-sky-texture", daemon=True)
         self._texture_thread.start()
