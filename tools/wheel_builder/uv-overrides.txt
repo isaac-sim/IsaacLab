@@ -1,4 +1,4 @@
-numpy>=2
+numpy>=2,<2.5
 mujoco~=3.17.0
 mujoco-warp~=3.17.0
 newton[sim] @ git+https://github.com/newton-physics/newton.git@7f0c13af6e4dd75253709c31dc65c0edcaf22b44

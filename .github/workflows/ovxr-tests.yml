@@ -1,0 +1,69 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: OVXR Adapter Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "source/isaaclab_teleop/**"
+      - "source/isaaclab_ov/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ovxr-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ovxr-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adapter-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.12.9"
+          enable-cache: true
+      - name: Install the locked OVXR test selection
+        run: uv sync --python 3.12 --locked --extra ovxr --extra test
+      - name: Require the Capture owner and native module imports
+        run: |
+          uv run --no-sync python - <<'PY'
+          import importlib.metadata as metadata
+          import ovrtx
+          import ovstage
+          from isaaccapture.ovxr_session_manager import OvxrSession, StageOrdinalLedger
+
+          assert metadata.version("isaaccapture") == "1.7.93a1"
+          print("Capture", metadata.version("isaaccapture"), "OVXR", metadata.version("ovxr"))
+          PY
+      - name: Run adapter contracts in separate processes
+        run: |
+          set -euo pipefail
+          mkdir -p tests/ovxr
+          for test in test_ovxr_session test_ov_libraries_xr; do
+            uv run --no-sync python -m pytest "source/isaaclab_teleop/test/${test}.py" \
+              -q --junitxml="tests/ovxr/${test}.xml"
+          done
+      - name: Reject missing or skipped adapter coverage
+        run: |
+          uv run --no-sync python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          for name in ("test_ovxr_session", "test_ov_libraries_xr"):
+              root = ElementTree.parse(Path("tests/ovxr") / f"{name}.xml")
+              cases = root.findall(".//testcase")
+              assert cases, f"{name}: no adapter tests ran"
+              skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
+              assert not skipped, f"{name}: skipped adapter coverage: {skipped}"
+          PY
