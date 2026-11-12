@@ -19,7 +19,12 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def partition_visual_meshes(stage: Usd.Stage, patterns: Sequence[str]) -> Iterator[tuple[str, ...]]:
+def partition_visual_meshes(
+    stage: Usd.Stage,
+    patterns: Sequence[str],
+    *,
+    environment_root_path: str = DEFAULT_ENV_TEMPLATE.format(0),
+) -> Iterator[tuple[str, ...]]:
     """Exclude matching visual meshes from environment cameras during export.
 
     A temporary session sublayer is flattened into the borrowed render Stage.
@@ -27,15 +32,17 @@ def partition_visual_meshes(stage: Usd.Stage, patterns: Sequence[str]) -> Iterat
     changed. Patterns match mesh paths, including instance proxies, not links.
 
     Args:
-        stage: Application Stage with exactly one environment, ``/World/envs/env_0``.
+        stage: Application Stage containing the selected environment root.
         patterns: Regular expressions that must each fully match at least one visual mesh path.
+        environment_root_path: Absolute root of the single environment selected by the caller.
+            Defaults to ``/World/envs/env_0``. Only meshes beneath this root are considered.
 
     Yields:
         The excluded mesh paths, or an empty tuple without patterns.
 
     Raises:
-        ValueError: If the Stage has other environments, a pattern matches no visual mesh,
-            or a match is collision geometry.
+        ValueError: If the selected environment root is absent or invalid, a pattern matches
+            no visual mesh beneath that root, or a match is collision geometry.
         RuntimeError: If a stronger source opinion prevents the partition or deinstancing.
     """
     if not patterns:
@@ -44,13 +51,15 @@ def partition_visual_meshes(stage: Usd.Stage, patterns: Sequence[str]) -> Iterat
 
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-    env_0 = DEFAULT_ENV_TEMPLATE.format(0)
-    envs = stage.GetPrimAtPath(env_0.rsplit("/", 1)[0])
-    if not envs or [str(p.GetPath()) for p in envs.GetChildren()] != [env_0]:
-        raise ValueError("XR visual partitions require exactly env_0")
+    root_path = Sdf.Path(environment_root_path)
+    if not root_path.IsAbsolutePath() or not root_path.IsPrimPath():
+        raise ValueError(f"XR environment root must be an absolute prim path: {environment_root_path!r}")
+    environment = stage.GetPrimAtPath(root_path)
+    if not environment:
+        raise ValueError(f"XR environment root is absent from the Stage: {environment_root_path!r}")
     expressions = [re.compile(pattern) for pattern in patterns]
     matches = [[] for _ in expressions]
-    for prim in Usd.PrimRange(envs, Usd.TraverseInstanceProxies()):
+    for prim in Usd.PrimRange(environment, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh):
             continue
         for index, expression in enumerate(expressions):

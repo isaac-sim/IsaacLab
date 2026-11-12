@@ -359,6 +359,8 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        self.readback_buffers: dict[tuple, wp.array] = {}
+        self.readback_stream: wp.Stream | None = None
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
@@ -382,6 +384,9 @@ class OVRTXCameraRenderData:
         Resources are released in reverse acquisition order, before the shared renderer or stage
         is closed. The product path remains as an identifier for renderer bookkeeping.
         """
+        if self.readback_stream is not None:
+            # Retain storage and native resources if completion cannot be established.
+            wp.synchronize_stream(self.readback_stream)
         try:
             with self.resources:
                 self.camera_writes.close()
@@ -391,6 +396,8 @@ class OVRTXCameraRenderData:
             self.camera_xform_binding = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
+            self.readback_buffers.clear()
+            self.readback_stream = None
             self.renderer_info.clear()
             self.ppisp_pipeline = None
 
@@ -966,18 +973,30 @@ class OVRTXRenderer(BaseRenderer):
         finally:
             mapping.unmap(stream=stream)
 
-    def _on_simulation_device(self, tiled_buffer: wp.array) -> wp.array:
-        """Return ``tiled_buffer`` on the simulation device, copying it when OVRTX mapped it elsewhere.
+    def _on_simulation_device(self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array) -> wp.array:
+        """Copy foreign-device pixels into reusable camera-owned storage.
 
-        OVRTX maps a render var on the GPU that rendered it, which differs from the simulation GPU when
-        :attr:`OVRTXRendererCfg.active_cuda_gpus` excludes that GPU. Copying keeps the extraction kernels
-        on device-local memory, so readback does not depend on CUDA peer access between the two GPUs.
-        Warp runs the copy on the simulation device's current stream, the stream that waited for the
-        render and on which the mapping is released.
+        The mapping has already waited for rendering on the simulation stream (or the host).
+        Queue the copy and extraction on that same stream, which is passed to native unmap
+        after both operations. A stream change waits for the preceding extraction before
+        overwriting its staging buffer.
         """
         if str(tiled_buffer.device) == self._device:
             return tiled_buffer
-        return wp.clone(tiled_buffer, device=self._device)
+        stream = self._warp_device.stream if self._warp_device.is_cuda else None
+        if render_data.readback_stream is not None and render_data.readback_stream != stream:
+            if stream is None:
+                wp.synchronize_stream(render_data.readback_stream)
+            else:
+                stream.wait_stream(render_data.readback_stream)
+        key = (tiled_buffer.shape, tiled_buffer.dtype, self._device)
+        target = render_data.readback_buffers.get(key)
+        if target is None:
+            target = wp.empty(tiled_buffer.shape, dtype=tiled_buffer.dtype, device=self._device)
+            render_data.readback_buffers[key] = target
+        wp.copy(target, tiled_buffer, stream=stream)
+        render_data.readback_stream = stream
+        return target
 
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
@@ -1007,7 +1026,7 @@ class OVRTXRenderer(BaseRenderer):
                 if tiled_data.dtype != wp.uint32:
                     continue
                 if colorize:
-                    tiled_data = self._on_simulation_device(tiled_data)
+                    tiled_data = self._on_simulation_device(render_data, tiled_data)
                     color_buffer = self._output_id_color_buffers.get(key)
                     if color_buffer is None or color_buffer.shape != tiled_data.shape:
                         color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
@@ -1069,7 +1088,7 @@ class OVRTXRenderer(BaseRenderer):
                 " extract_all_tiles_kernel would read out of bounds."
             )
 
-        tiled_buffer = self._on_simulation_device(tiled_buffer)
+        tiled_buffer = self._on_simulation_device(render_data, tiled_buffer)
         wp.launch(
             kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),

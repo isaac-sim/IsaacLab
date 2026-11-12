@@ -62,7 +62,7 @@ def test_ovxr_presentation_preserves_camera_layout(monkeypatch, layout_mode):
         ovxr_session_mode="ar",
         cloudxr_env="none",
         auto_launch_cloudxr=False,
-        headless=False,
+        ovxr_desktop_mirror=True,
         ovxr_desktop_mirror_fps=20.0,
     )
     # Environment preparation resolves the panels that the presentation receives.
@@ -95,10 +95,10 @@ def test_ovxr_presentation_preserves_camera_layout(monkeypatch, layout_mode):
 @pytest.mark.parametrize(
     "kit_active,run_index,backend,viewer,hard_reset",
     [
-        (False, 0, "ovphysx", False, True),
-        (True, 0, "ovphysx", False, True),
-        (True, 1, "ovphysx", False, True),
-        (False, 0, "ovphysx", True, True),
+        (False, 0, "ovphysx", False, False),
+        (True, 0, "ovphysx", False, False),
+        (True, 1, "ovphysx", False, False),
+        (False, 0, "ovphysx", True, False),
         (False, 0, "newton_mjwarp", True, False),
     ],
 )

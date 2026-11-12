@@ -396,7 +396,9 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "stage-snapshot-mesh", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(  # noqa: C901
+    monkeypatch, capfd, use_ovstage, asynchronous, geometry
+):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -853,8 +855,9 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
         if source_device == "cpu"
         else types.SimpleNamespace(device=source_device, dtype=wp.float32, shape=hdr.shape)
     )
-    clone = MagicMock(return_value=hdr)
-    monkeypatch.setattr(wp, "clone", clone)
+    native_copy = wp.copy
+    copy = MagicMock(side_effect=lambda target, value, **kwargs: native_copy(target, hdr))
+    monkeypatch.setattr(wp, "copy", copy)
 
     @contextlib.contextmanager
     def map_hdr(render_var):
@@ -872,9 +875,10 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
     renderer._process_render_frame(render_data, frame, {"rgba": object(), "rgb_hdr": output})
     np.testing.assert_array_equal(output.numpy(), 0.5)
     if source_device == "cpu":
-        clone.assert_not_called()
+        copy.assert_not_called()
     else:
-        clone.assert_called_once_with(source, device="cpu")
+        assert copy.call_count == 1
+        assert copy.call_args.args[1] is source
 
 
 def test_ovrtx_extraction_copies_foreign_render_vars_to_simulation_device(monkeypatch):
@@ -892,8 +896,9 @@ def test_ovrtx_extraction_copies_foreign_render_vars_to_simulation_device(monkey
     # Stand-ins for render vars mapped on a rendering GPU; extraction kernels cannot read them.
     sources = [types.SimpleNamespace(device="cuda:1", dtype=copy.dtype, shape=copy.shape) for copy in copies]
     copy_of = {id(source): copy for source, copy in zip(sources, copies, strict=True)}
-    clone = MagicMock(side_effect=lambda array, device: copy_of[id(array)])
-    monkeypatch.setattr(wp, "clone", clone)
+    native_copy = wp.copy
+    copy = MagicMock(side_effect=lambda target, value, **kwargs: native_copy(target, copy_of[id(value)]))
+    monkeypatch.setattr(wp, "copy", copy)
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
     frame = types.SimpleNamespace(
         render_vars={
@@ -906,7 +911,36 @@ def test_ovrtx_extraction_copies_foreign_render_vars_to_simulation_device(monkey
     renderer._process_render_frame(render_data, frame, {"rgba": rgba, "semantic_segmentation": segmentation})
     np.testing.assert_array_equal(rgba.numpy(), 7)
     np.testing.assert_array_equal(segmentation.numpy(), np.broadcast_to(random_color_from_id(2), segmentation.shape))
-    assert clone.call_args_list == [((source,), {"device": "cpu"}) for source in sources]
+    targets = [call.args[0] for call in copy.call_args_list]
+    assert [call.args[1] for call in copy.call_args_list] == sources
+    # A changed second frame must overwrite the same staging storage, not allocate full images again.
+    copies[0].fill_(9)
+    renderer._process_render_frame(render_data, frame, {"rgba": rgba, "semantic_segmentation": segmentation})
+    assert [call.args[0] for call in copy.call_args_list[2:]] == targets
+    np.testing.assert_array_equal(rgba.numpy(), 9)
+
+
+def test_readback_cleanup_retains_storage_until_consumer_completion(monkeypatch):
+    data = _make_ovrtx_camera_render_data()
+    buffer = wp.zeros((2, 2, 4), dtype=wp.uint8, device="cpu")
+    data.readback_buffers["frame"] = buffer
+    stream = data.readback_stream = object()
+    released = []
+    data.resources.callback(lambda: released.append("native"))
+
+    def incomplete(actual_stream):
+        assert actual_stream is stream
+        raise RuntimeError("consumer did not complete")
+
+    monkeypatch.setattr(wp, "synchronize_stream", incomplete)
+    with pytest.raises(RuntimeError, match="consumer did not complete"):
+        data.cleanup()
+    assert data.readback_buffers["frame"] is buffer
+    assert released == []
+    monkeypatch.setattr(wp, "synchronize_stream", lambda actual_stream: released.append("complete"))
+    data.cleanup()
+    assert released == ["complete", "native"]
+    assert not data.readback_buffers
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
@@ -1810,6 +1844,27 @@ def test_render_lease_complete_scene_components_share_the_supplied_ordinal(compl
     assert not renderer._render_lease._poisoned
 
 
+def test_missing_camera_sample_is_rejected_before_any_component_and_can_recover(complete_scene_publication):
+    """A missing second camera cannot leave the first camera or geometry partially committed."""
+    state = complete_scene_publication
+    ready = types.SimpleNamespace(state=("sample",), render_data=types.SimpleNamespace(camera_xform_binding=object()))
+    missing = types.SimpleNamespace(state=None, render_data=types.SimpleNamespace(camera_xform_binding=object()))
+    state.lease._auxiliary_cameras = [ready, missing]
+    original_ordinal = state.renderer.scene.ordinal
+    for publish in (state.publisher.validate_scene_inputs, state.publish):
+        with pytest.raises(RuntimeError, match="no live world-pose sample"):
+            publish()
+        assert not state.events
+        assert state.renderer.scene.ordinal == original_ordinal
+        assert not state.renderer._render_lease._poisoned
+        assert state.renderer._render_lease._last_step_id == state.initial_id
+    missing.state = ("fresh sample",)
+    state.publisher.validate_scene_inputs()
+    state.publish()
+    assert state.renderer._render_lease._last_step_id == "step"
+    assert state.events
+
+
 @pytest.mark.parametrize("failure", ["material", "transform", "geometry", "auxiliary", "partition", "material-drain"])
 def test_render_lease_complete_scene_failure_preserves_commit_boundary(complete_scene_publication, failure):
     state = complete_scene_publication
@@ -2220,6 +2275,20 @@ def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypa
     renderer.close()
     assert removed == [7]
     assert data not in renderer._camera_render_data
+
+
+def test_external_camera_matches_the_actual_custom_clone_root(leased_renderer):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    renderer.scene = types.SimpleNamespace(clone_env_paths=["/Lab/Cell0"])
+    cfg = types.SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Head", width=640, height=480, data_types=("rgb",))
+    lease.configure_auxiliary_camera(cfg)
+    spec = types.SimpleNamespace(
+        cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=("/Lab/Cell0/Robot/Head/camera",)
+    )
+    assert renderer._render_lease.accept_camera_spec(spec)
+    assert lease._auxiliary_cameras[0].spec is spec
+    lease.release()
 
 
 def test_selected_external_camera_order_is_independent_of_sensor_preparation(leased_renderer):

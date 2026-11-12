@@ -68,7 +68,12 @@ def require_kitless_physics(env_cfg: Any, task: str) -> None:
 
 def add_ovxr_presentation_args(parser: argparse.ArgumentParser) -> None:
     """Add the OVXR camera-panel and desktop-mirror options shared by live teleoperation and replay."""
-    parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
+    parser.add_argument(
+        "--ovxr_desktop_mirror",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Show the OVXR desktop mirror (disabled by default).",
+    )
     parser.add_argument(
         "--ovxr_desktop_mirror_fps",
         type=float,
@@ -116,8 +121,8 @@ def validate_ovxr_presentation_args(
         parser.error("--ovxr_pip_camera requires --ovxr")
     if (args.ovxr_pip_head_locked or args.ovxr_pip_view_position is not None) and not using_ovxr:
         parser.error("OVXR presentation options require --ovxr")
-    if args.headless and not using_ovxr:
-        parser.error("--headless requires --ovxr; Kit runs headless unless --visualizer is given")
+    if args.ovxr_desktop_mirror and not using_ovxr:
+        parser.error("--ovxr_desktop_mirror requires --ovxr")
     if args.ovxr_pip_camera is not None and args.disable_external_cameras:
         parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
     if not math.isfinite(args.ovxr_pip_fps) or args.ovxr_pip_fps <= 0.0:
@@ -186,5 +191,10 @@ def reject_ovxr_runtime_conflicts(configs: Sequence[Any], kit_sources: Sequence[
     """
     from isaaclab.visualizers import VisualizerBackendCfg
 
-    if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-        raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+    visualizers = [cfg for cfg in configs if isinstance(cfg, VisualizerBackendCfg)]
+    if any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in visualizers):
+        raise ValueError("--ovxr does not support the deprecated Kit visualizer; remove the Kit --viz selection")
+    if kit_sources:
+        raise ValueError(f"--ovxr requires kitless runtime components; Kit is required by: {', '.join(kit_sources)}")
+    if visualizers:
+        raise ValueError("Local visualizers are not currently supported with --ovxr; remove the --viz selection")

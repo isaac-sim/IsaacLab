@@ -44,6 +44,19 @@ def select_ovxr_camera_feeds(
 
     Selection order is retained. Each name must identify a scene camera and exactly
     one enabled feed. Validation completes before any camera configuration changes.
+
+    Args:
+        env_cfg: Environment configuration containing ``scene`` cameras and ``isaac_teleop`` feeds.
+        names: Up to three distinct scene camera names, in panel order.
+        renderer_cfg: Shared renderer configuration assigned to the selected cameras in place.
+
+    Returns:
+        Camera names and the original camera/feed configuration objects, in selection order.
+        These are references to ``env_cfg``, not copies.
+
+    Raises:
+        ValueError: If names repeat, exceed the panel limit, or do not resolve to one camera
+            and exactly one enabled feed each.
     """
     from isaaclab.sensors import CameraCfg
 
@@ -74,6 +87,21 @@ def resolve_ovxr_camera_configs(
 
     A feed's positive update cap limits the caller's rate; zero leaves that rate
     unchanged. A position override applies only to a single selected panel.
+
+    Args:
+        selected: Camera/feed references returned by :func:`select_ovxr_camera_feeds`.
+        layout: Head-locked panel layout, including spacing and panel dimensions in metres.
+        max_fps: Maximum panel update rate in frames per second; must be finite and positive.
+        position_override: Optional single-panel centre in OpenXR VIEW coordinates, in metres
+            (right, up, backward). A negative Z places the panel in front of the viewer.
+
+    Returns:
+        Panel configurations in selection order. Layout and feed configuration are not mutated.
+        Each panel contains a copied camera configuration. Equivalent renderer configurations
+        still select the same shared renderer; session preparation takes a further snapshot.
+
+    Raises:
+        ValueError: If the layout, feed, rate, or override is invalid or unsupported.
     """
     from .ovxr_cfg import OvLibrariesXrCameraCfg
 

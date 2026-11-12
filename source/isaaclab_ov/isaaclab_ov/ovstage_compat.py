@@ -24,7 +24,12 @@ OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OV
 
 
 def populate_stage(
-    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False,
+    stage: "ovstage.Stage",
+    usda: str,
+    *,
+    ordinal: int,
+    domains: "ovstage.PopulationDomain",
+    physics: bool = False,
     population_desc: "ovstage.population.Desc | None" = None,
 ) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
@@ -54,7 +59,10 @@ def populate_stage(
         domains |= physics_domain
     if population_desc is not None:
         ovstage.population.open_usd_from_string_with_desc(
-            stage, usda, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME,
+            stage,
+            usda,
+            ordinal=ordinal,
+            time=ovstage.population.DEFAULT_TIME,
             descs=(ovstage.population.Desc(domains=domains), population_desc),
         )
     else:

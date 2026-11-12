@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -29,7 +30,7 @@ def prepare_teleop_action(
     """
     issue = validator(action) if validator is not None else None
     if issue is None and conditioner is not None:
-        candidate = dict(state)
+        candidate = copy.deepcopy(state)
         action = conditioner(env, action, candidate)
         issue = validator(action) if validator is not None else None
         if issue is None:

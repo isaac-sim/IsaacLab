@@ -104,6 +104,18 @@ class OvxrSessionBootstrap:
         self._sim = sim
         self._lease = lease
 
+    @property
+    def simulation_context(self) -> SimulationContext:
+        """Return the exact pre-created simulation context."""
+        self._require_open()
+        assert self._sim is not None
+        return self._sim
+
+    @property
+    def closed(self) -> bool:
+        """Whether the lease and its retained publication resources retired successfully."""
+        return self._closed
+
     def capture_scene_publisher(self) -> OvLibrariesScenePublisher:
         """Capture the application scene publisher before render ownership transfers."""
         self._require_open()
@@ -117,13 +129,6 @@ class OvxrSessionBootstrap:
         if self._bound or self._lease is None:
             raise RuntimeError("Auxiliary camera must be configured before OVXR Stage binding")
         self._lease.configure_auxiliary_camera(camera_cfg, max_fps=max_fps)
-
-    @property
-    def simulation_context(self) -> SimulationContext:
-        """Return the exact pre-created simulation context."""
-        self._require_open()
-        assert self._sim is not None
-        return self._sim
 
     def validate_environment(self, env: Any) -> None:
         """Check that a constructed environment uses the prepared simulation context.
@@ -261,11 +266,6 @@ class OvxrSessionBootstrap:
         if not np.all(np.isfinite(target_T_world)):
             raise RuntimeError(f"Inverse target-frame transform {prim_path!r} is non-finite")
         return target_T_world.astype(np.float32)
-
-    @property
-    def closed(self) -> bool:
-        """Whether the lease and its retained publication resources retired successfully."""
-        return self._closed
 
     def close(self) -> None:
         """Release after every borrower is destroyed; retain ownership for retry on failure."""

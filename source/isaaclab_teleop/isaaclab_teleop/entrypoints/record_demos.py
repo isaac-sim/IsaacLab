@@ -302,6 +302,23 @@ def create_environment_config(
         logger.error(f"Failed to parse environment configuration: {e}")
         exit(1)
 
+    # HDF5 recording still depends on Kit reset/recorder semantics and does not
+    # run the kitless action-conditioning policy used by live and MCAP replay.
+    from isaaclab_physx.physics import PhysxCfg
+
+    from isaaclab.app import validate_launch
+    from isaaclab.physics import PhysxAutoCfg
+
+    if isinstance(env_cfg.sim.physics, PhysxAutoCfg):
+        # An automatic PhysX preset still chooses Kit when --xr or a Kit
+        # visualizer requires it. Apply the launcher's own resolution policy.
+        validate_launch(env_cfg, vars(args_cli).copy())
+    if env_cfg.sim.physics is not None and not isinstance(env_cfg.sim.physics, PhysxCfg):
+        raise ValueError(
+            "HDF5 demo recording currently supports Kit PhysX only; select physics=isaacsim_physx."
+            " Kitless live teleoperation and MCAP replay use the teleop entrypoints."
+        )
+
     teleop_cfg = select_teleop_cfg(
         env_cfg,
         args_cli.teleop_device,

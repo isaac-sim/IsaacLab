@@ -122,7 +122,16 @@ def run_live_workflow(monkeypatch):
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
     def run(
-        env, interface, session, *, conditioner=None, validator=None, step_hz=0.0, refresh=lambda: None, started=True
+        env,
+        interface,
+        session,
+        *,
+        conditioner=None,
+        validator=None,
+        step_hz=0.0,
+        refresh=lambda: None,
+        started=True,
+        require_hands=False,
     ):
         class Device:
             target_frame_prim_path = None
@@ -142,9 +151,16 @@ def run_live_workflow(monkeypatch):
             def reset(self):
                 return interface.reset()
 
+            def notify_reset(self):
+                return interface.notify_reset()
+
             @property
             def last_control_events(self):
                 return interface.control_events()
+
+            @property
+            def hand_tracking_presence(self):
+                return interface.hand_tracking_presence()
 
         camera = SimpleNamespace(bind=lambda _env: contextlib.nullcontext(), refresh=refresh, close=lambda: None)
         session.external_oxr_handles = None
@@ -161,6 +177,7 @@ def run_live_workflow(monkeypatch):
             isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
                 action_conditioner=conditioner,
                 action_validator=validator,
+                require_initial_bimanual_hand_tracking=require_hands,
             ),
         )
         monkeypatch.setattr(
@@ -250,6 +267,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     def step(value):
         applied.append(clock)
         stepped_values.append(value.clone())
+        return None, None, torch.tensor([False]), torch.tensor([False]), {}
 
     def condition(_env, value, state):
         previous = state.get("frames", 0)
@@ -343,7 +361,7 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
         num_envs=1,
         step_dt=0.02,
         reset=lambda: None,
-        step=lambda action: steps.append(action),
+        step=lambda action: (steps.append(action), None, torch.tensor([False]), torch.tensor([False]), {}),
         sim=SimpleNamespace(
             is_running=lambda: advances < 4, get_physics_step_count=lambda: len(steps), get_physics_dt=lambda: 0.005
         ),
@@ -451,8 +469,8 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
 @pytest.mark.parametrize(
     "backend,viewer,hard_reset",
     [
-        ("ovphysx", False, True),
-        ("ovphysx", True, True),
+        ("ovphysx", False, False),
+        ("ovphysx", True, False),
         ("physx", False, True),
         (None, False, True),
         ("newton", False, False),
@@ -501,7 +519,8 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
     )
     presentation = (
         SimpleNamespace(
-            session=SimpleNamespace(shutdown_requested=False),
+            session=SimpleNamespace(shutdown_requested=False, wait_for_shutdown=lambda _: None),
+            reset_pending=False,
             start=lambda *_args, **_kwargs: True,
             publish=lambda *_args, **kwargs: calls.append("publish-reset") if kwargs.get("reset") else None,
         )
@@ -727,21 +746,22 @@ def test_ovxr_presentation_closes_only_after_input_drain(drained, shutdown_fails
 
 
 @pytest.mark.parametrize(
-    ("configs", "kit_sources"),
+    ("configs", "kit_sources", "message"),
     [
-        pytest.param((), ("renderer",), id="kit-source"),
-        pytest.param(("visualizer",), (), id="local-visualizer"),
+        pytest.param((), ("renderer",), "kitless runtime components", id="kit-source"),
+        pytest.param(("visualizer",), (), "not currently supported", id="local-visualizer"),
+        pytest.param(("kit",), ("visualizer",), "deprecated Kit visualizer", id="kit-visualizer"),
     ],
 )
-def test_ovxr_rejects_kit_runtimes_and_local_visualizers(configs, kit_sources):
+def test_ovxr_rejects_kit_runtimes_and_local_visualizers(configs, kit_sources, message):
     """Live and replay share one rejection for components that compete with the OVXR frame loop."""
     from isaaclab_teleop.entrypoints._ovxr_launch import reject_ovxr_runtime_conflicts
 
     from isaaclab.visualizers import VisualizerBackendCfg
 
-    configs = tuple(VisualizerBackendCfg() if cfg == "visualizer" else cfg for cfg in configs)
+    configs = tuple(VisualizerBackendCfg(visualizer_type=cfg) for cfg in configs)
     reject_ovxr_runtime_conflicts((object(),), ())
-    with pytest.raises(ValueError, match="no Kit runtime or local visualizer"):
+    with pytest.raises(ValueError, match=message):
         reject_ovxr_runtime_conflicts(configs, kit_sources)
 
 
@@ -806,6 +826,7 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
 
         def step(self, action):
             self.actions.append(action.clone())
+            return None, None, torch.tensor([False]), torch.tensor([False]), {}
 
     env = Env()
     haptics = {"update": 0, "stop": 0}
@@ -820,9 +841,12 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     driver = HapticDriver()
     valid = torch.arange(36, dtype=torch.float32)
 
-    assert agent._apply_teleop_frame(env, valid, None, driver)
-    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver)
-    assert agent._apply_teleop_frame(env, valid, None, driver)
+    assert agent._apply_teleop_frame(env, valid, None, driver) == (True, False)
+    assert agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver) == (
+        False,
+        False,
+    )
+    assert agent._apply_teleop_frame(env, valid, None, driver) == (True, False)
 
     assert env.sim.render_count == 1
     assert len(env.actions) == 2
@@ -834,8 +858,9 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
 @pytest.mark.parametrize(
     "flags, expected",
     [
-        ([], True),
-        (["--headless"], False),
+        ([], False),
+        (["--ovxr_desktop_mirror"], True),
+        (["--no-ovxr_desktop_mirror"], False),
     ],
 )
 def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, flags, expected):
@@ -854,7 +879,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
         argv += ["--replay_file", "recording.mcap"]
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
     module._parse_args(argv)
-    assert module.args_cli.headless is ("--headless" in flags)
+    assert module.args_cli.ovxr_desktop_mirror is expected
     cfg = SimpleNamespace(sim=SimpleNamespace(device="cpu"), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
     received = []
 
@@ -875,7 +900,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
             lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
         )
         with pytest.raises(PreparationReached):
-            module.run_teleoperation(cfg, cfg.isaac_teleop, True, ())
+            module.run_teleoperation(cfg, cfg.isaac_teleop, True)
     else:
         with pytest.raises(PreparationReached):
             module._run_replay_batch(cfg, None, ())
@@ -883,9 +908,11 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
     assert isaaclab_teleop.OvLibrariesXrCfg().desktop_mirror_enabled is False
 
 
-@pytest.mark.parametrize("entrypoint, flags", [("live", ["--xr", "--headless"]), ("replay", ["--headless"])])
-def test_headless_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
-    """Kit runs headless by default, so only the OVXR desktop mirror accepts ``--headless``."""
+@pytest.mark.parametrize(
+    "entrypoint, flags", [("live", ["--xr", "--ovxr_desktop_mirror"]), ("replay", ["--ovxr_desktop_mirror"])]
+)
+def test_desktop_mirror_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
+    """The mirror switch selects an OVXR feature, independently of ordinary visualizers."""
     from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
 
     module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
@@ -897,7 +924,7 @@ def test_headless_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
     with pytest.raises(SystemExit):
         module._parse_args(argv)
-    assert "--headless requires --ovxr" in capsys.readouterr().err
+    assert "--ovxr_desktop_mirror requires --ovxr" in capsys.readouterr().err
 
 
 def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls, *, pip_camera=True):
@@ -1008,7 +1035,7 @@ def test_ovxr_pip_cli_reaches_session_construction(monkeypatch, entrypoint, plac
 
     assert calls == [("keep", ("head_cam",)), "launch", "prepare"]
     [(xr_cfg, renderer_cfg)] = prepared
-    assert xr_cfg.desktop_mirror_enabled is True
+    assert xr_cfg.desktop_mirror_enabled is False
     assert xr_cfg.desktop_mirror_max_fps == 20.0
     [camera] = xr_cfg.auxiliary_cameras
     # Configclasses copy their fields, so the panel holds a copy of the scene sensor configuration.
@@ -1336,3 +1363,248 @@ def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, 
     assert renders == [] and steps == []
     assert requests == [True]  # Only the reset publication; the held scene is not republished.
     assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.
+
+
+@pytest.mark.parametrize("failure", ["validation", "exception"])
+def test_action_conditioning_does_not_mutate_nested_state_on_failure(failure):
+    """A rejected proposal cannot mutate accepted tensor or container history."""
+    from isaaclab_teleop.action_policy import prepare_teleop_action
+
+    state = {"history": {"samples": [1], "previous": torch.tensor([2.0])}}
+
+    def condition(_env, action, candidate):
+        candidate["history"]["samples"].append(3)
+        candidate["history"]["previous"].add_(4)
+        if failure == "exception":
+            raise RuntimeError("conditioning failed")
+        return action + 1
+
+    if failure == "exception":
+        with pytest.raises(RuntimeError, match="conditioning failed"):
+            prepare_teleop_action(None, 0, condition, None, state)
+    else:
+        _, issue = prepare_teleop_action(None, 0, condition, lambda action: "invalid" if action else None, state)
+        assert issue == "invalid"
+    assert state["history"]["samples"] == [1]
+    torch.testing.assert_close(state["history"]["previous"], torch.tensor([2.0]))
+
+
+@pytest.mark.parametrize("close_while_pending", [False, True])
+def test_replay_waits_for_initial_and_recorded_reset_publication(monkeypatch, close_while_pending):
+    """A denied reset admission cannot consume the next MCAP frame or target pose."""
+    from isaaclab_teleop import IsaacTeleopCfg
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+    frames = []
+    resets = []
+    admissions = []
+    ready = False
+    epoch_attempts = {}
+
+    class Device:
+        target_frame_prim_path = "/World/Robot"
+        xr_render_anchor_path = "/World/XRAnchor"
+        external_anchor_state = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def reset(self):
+            nonlocal ready
+            ready = False
+
+        def request_start(self):
+            pass
+
+        def advance(self, *, target_T_world):
+            assert ready, "MCAP input advanced before reset publication was admitted"
+            frames.append(target_T_world)
+            return torch.zeros(1)
+
+        @property
+        def last_control_events(self):
+            return SimpleNamespace(is_active=False, should_reset=len(frames) == 1)
+
+    def request(identity, *, force=False):
+        nonlocal ready
+        assert force
+        epoch = identity[0]
+        epoch_attempts[epoch] = epoch_attempts.get(epoch, 0) + 1
+        admissions.append((epoch, epoch_attempts[epoch]))
+        if epoch_attempts[epoch] == 1:
+            return None
+        ready = True
+        return len(admissions)
+
+    session = SimpleNamespace(
+        shutdown_requested=False,
+        start_render_worker=lambda *_args, **_kwargs: True,
+        request_render=request,
+        report_host_timing=lambda *_args: None,
+        get_target_frame_T_world=lambda _path: len(resets),
+    )
+
+    def wait(_seconds):
+        if close_while_pending:
+            session.shutdown_requested = True
+
+    session.wait_for_shutdown = wait
+    if close_while_pending:
+        session.request_render = lambda *_args, **_kwargs: None
+    env = SimpleNamespace(
+        scene=SimpleNamespace(physics_backend="ovphysx", env_prim_paths=["/World/envs/env_0"]),
+        sim=SimpleNamespace(
+            device="cpu",
+            is_running=lambda: len(frames) < 2,
+            reset=lambda: pytest.fail("A leased OvPhysX stage must not be rebuilt"),
+            render=lambda: pytest.fail("The host must not render the leased stage"),
+            get_physics_step_count=lambda: 0,
+            get_physics_dt=lambda: 0.01,
+        ),
+        reset=lambda: resets.append("env"),
+        recorder_manager=SimpleNamespace(reset=lambda: None),
+        step_dt=0.01,
+    )
+    monkeypatch.setattr(
+        replay,
+        "args_cli",
+        SimpleNamespace(
+            device="cpu",
+            replay_file="recording.mcap",
+            start_on_replay=False,
+            enable_debug_visualization=False,
+            max_replay_duration_s=1,
+            max_stage_load_wait_s=1,
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(replay, "create_isaac_teleop_device", lambda *_args, **_kwargs: Device())
+    monkeypatch.setattr(replay, "NvmlGpuStatsProvider", lambda: SimpleNamespace(summary=lambda: {}))
+    stats = replay._run_single_replay(env, IsaacTeleopCfg(), None, 1, 2, OvxrPresentation(session))
+    if close_while_pending:
+        assert frames == []
+        assert resets == ["env"]
+        assert stats.outcome == "incomplete"
+    else:
+        assert frames == [1, 2]
+        assert resets == ["env", "env"]
+        assert admissions == [(1, 1), (1, 2), (2, 1), (2, 2)]
+
+
+@pytest.mark.parametrize("termination", ["terminated", "truncated"])
+def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, run_live_workflow, termination):
+    """Auto-reset changes the anchor epoch without resetting the environment twice."""
+    import numpy as np
+    from isaaclab_teleop import IsaacTeleopCfg, IsaacTeleopDevice
+    from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle
+    from isaaclab_teleop.xr_anchor_manager import XrAnchorManager
+    from isaaclab_teleop.xr_cfg import XrAnchorRotationMode, XrCfg
+    from scipy.spatial.transform import Rotation
+
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.utils.stage import use_stage
+
+    stage = Usd.Stage.CreateInMemory()
+    with use_stage(stage):
+        UsdGeom.Xform.Define(stage, "/World/Robot")
+        anchor = XrAnchorManager(
+            XrCfg(
+                anchor_prim_path="/World/Robot",
+                fixed_anchor_height=True,
+                anchor_rotation_mode=XrAnchorRotationMode.FOLLOW_PRIM,
+            ),
+            ovxr_session=True,
+        )
+    lifecycle = TeleopSessionLifecycle(IsaacTeleopCfg(), use_kit_xr_bridge=False)
+    initial_pose = np.eye(4)
+    initial_pose[:3, 3] = (1, 2, 3)
+    reset_pose = np.eye(4)
+    reset_pose[:3, :3] = Rotation.from_euler("z", 65, degrees=True).as_matrix()
+    reset_pose[:3, 3] = (4, 5, 6)
+    pose = initial_pose
+    reset_calls = []
+    actions = []
+    reads = []
+    seeds = []
+    publications = []
+    refreshes = []
+    rejected_reset = False
+
+    def publish(identity, *, force):
+        nonlocal rejected_reset
+        publications.append((identity, force))
+        if len(actions) == 1 and not rejected_reset:
+            rejected_reset = True
+            return None
+        anchor.commit_external_pose(pose, 0.02, anchor.external_epoch[0], lambda _matrix: None)
+        return len(publications)
+
+    def step(action):
+        nonlocal pose
+        actions.append(action)
+        pose = reset_pose
+        done = len(actions) == 1
+        return (
+            None,
+            None,
+            torch.tensor([done and termination == "terminated"]),
+            torch.tensor([done and termination == "truncated"]),
+            {},
+        )
+
+    def advance():
+        reads.append((anchor.external_epoch[0], anchor.get_world_matrix().copy()))
+        return torch.ones(1)
+
+    def condition(_env, action, state):
+        seeds.append(state.get("previous"))
+        state["previous"] = 1
+        return action
+
+    interface = SimpleNamespace(
+        advance=advance,
+        reset=anchor.reset,
+        control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
+        _anchor_manager=anchor,
+        _session_lifecycle=lifecycle,
+        hand_tracking_presence=lambda: (True, len(reads) != 2),
+    )
+    interface.notify_reset = lambda: IsaacTeleopDevice.notify_reset(interface)
+    run_live_workflow(
+        SimpleNamespace(
+            num_envs=1,
+            step_dt=0.02,
+            reset=lambda: reset_calls.append("env"),
+            step=step,
+            sim=SimpleNamespace(
+                is_running=lambda: len(reads) < 3,
+                get_physics_step_count=lambda: len(actions),
+                get_physics_dt=lambda: 0.01,
+            ),
+        ),
+        interface,
+        SimpleNamespace(
+            shutdown_requested=False,
+            request_render=publish,
+            report_host_timing=lambda *_args: None,
+            wait_for_shutdown=lambda _: None,
+        ),
+        conditioner=condition,
+        refresh=lambda: refreshes.append("refresh"),
+        require_hands=True,
+    )
+    assert reset_calls == ["env"]
+    assert len(actions) == 2
+    assert seeds == [None, None]
+    assert refreshes == ["refresh"]
+    assert reads[1][0] == reads[0][0] + 1
+    np.testing.assert_allclose(reads[1][1][:3, 3] - reads[0][1][:3, 3], (3, 3, 3), atol=1e-6)
+    # FOLLOW_PRIM rebases the robot's new yaw at reset; it must not rotate the
+    # tracking frame by the jump between the two episodes.
+    np.testing.assert_allclose(reads[0][1][:3, :3], reads[1][1][:3, :3], atol=1e-6)
+    assert publications[:3] == [((1, 0), True), ((2, 1), True), ((2, 1), True)]

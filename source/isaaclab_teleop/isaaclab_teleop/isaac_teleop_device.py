@@ -366,6 +366,17 @@ class IsaacTeleopDevice:
         """
         self._session_lifecycle.request_start()
 
+    def notify_reset(self) -> None:
+        """Notify the device that the environment has reset, without requesting another reset.
+
+        Reset anchor and haptic state immediately, and reset main-pipeline
+        retargeters on their next execution. Operator pause/start/reset commands
+        remain on the control channel and are not consumed by this notification.
+        """
+        self._anchor_manager.reset()
+        self._session_lifecycle.notify_reset()
+        self._session_lifecycle.reset_haptics()
+
     def request_stop(self) -> None:
         """Stop (pause) teleoperation without an XR client.
 
