@@ -24,7 +24,7 @@ def apply_rtx_exposure_overrides(stage: Usd.Stage, prim_paths: list[str]) -> Non
         prim_paths: Resolved camera prim paths (typically one per env).
     """
     warnings.warn(
-        "apply_rtx_exposure_overrides is deprecated. Set CameraCfg.exposure = ExposureCfg(mode=\"neutral\") or call"
+        'apply_rtx_exposure_overrides is deprecated. Set CameraCfg.exposure = ExposureCfg(mode="neutral") or call'
         " isaaclab.sensors.camera.camera_exposure.apply_neutral_exposure.",
         FutureWarning,
         stacklevel=2,
