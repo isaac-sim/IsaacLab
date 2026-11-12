@@ -265,19 +265,20 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
     manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append("destroy_view"))
     scene = manager.backend.scene = SimpleNamespace(
         stage=object(), ordinal=2, reset=lambda: events.append("destroy_stage"),
-        populate=lambda usda: events.append(("populate", usda)),
+        populate=lambda layer: events.append(("populate", layer)),
     )  # fmt: skip
 
     stage = manager.backend.stage
+    layer = manager_module.Sdf.Layer.CreateAnonymous()
     with pytest.raises(RuntimeError, match="detach failed") if fails else nullcontext():
-        manager.backend.load("#usda 1.0")
+        manager.backend.load(layer)
 
     assert events == [
         "destroy_view",
         ("close_views", physx),
         "reset",
         ("wait", receipt),
-    ] + ([] if fails else ["destroy_stage", ("populate", "#usda 1.0"), ("attach", scene.stage, 1)]) + (
+    ] + ([] if fails else ["destroy_stage", ("populate", layer), ("attach", scene.stage, 1)]) + (
         [("wait", receipt)] if modern and not fails else []
     )
     assert manager.backend.rigid_body_view is None
