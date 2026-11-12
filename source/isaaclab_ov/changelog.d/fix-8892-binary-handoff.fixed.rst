@@ -1,7 +1,9 @@
 * Fixed OVRTX and OVStage scene loading for large inline attribute values by using binary USD
   files instead of USDA text. Kept backing files alive until their native scenes released them.
-* Cleared legacy OVRTX scenes before deleting their binary backing files, including when the
-  renderer system remained alive. Allocated backing storage only when legacy population needed it.
+* Prevented Windows file locks from retained zero-copy arrays by using positioned reads during
+  legacy OVRTX binary scene loading. Restored the caller's read setting after each synchronous
+  load, including failures, and destroyed native renderers before deleting their backing files.
+  Allocated backing storage only when legacy population needed it.
 * Reported diagnostic scene export failures instead of logging a successful write.
 * Changed OVRTX diagnostic scene dumps to USDC files so debugging also supported large attributes.
   Readers of ``pre_ovrtx_renderer_stage.usda`` and ``ovrtx_renderer_stage.usda`` must use the

@@ -8,6 +8,7 @@
 import contextlib
 import ctypes
 import importlib.util
+import os
 import sys
 import types
 from builtins import ExceptionGroup
@@ -101,42 +102,59 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def test_legacy_scene_keeps_binary_backing_files_until_reset_succeeds() -> None:
-    """Replacement and native failures retain each crate until the native scene closes."""
-    from pxr import Sdf, Usd
+@pytest.mark.parametrize(
+    ("platform", "previous_pread"),
+    [
+        ("win32", None),
+        ("win32", "0"),
+        ("win32", "1"),
+        pytest.param(
+            "linux",
+            "0",
+            marks=pytest.mark.skipif(sys.platform == "win32", reason="POSIX permits unlinking mapped crate files."),
+        ),
+    ],
+)
+def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds(
+    monkeypatch: pytest.MonkeyPatch, platform: str, previous_pread: str | None
+) -> None:
+    """Copied arrays outlive temporary-file cleanup without losing data."""
+    from pxr import Sdf, Usd, Vt
 
+    monkeypatch.setattr(ovrtx_renderer_module, "sys", types.SimpleNamespace(platform=platform))
+    if previous_pread is None:
+        monkeypatch.delenv("USDC_USE_PREAD", raising=False)
+    else:
+        monkeypatch.setenv("USDC_USE_PREAD", previous_pread)
     stage = Usd.Stage.CreateInMemory()
+    expected = np.random.default_rng(812).normal(size=(100_000, 3)).astype(np.float32)
     attribute = stage.DefinePrim("/Splat").CreateAttribute("coefficients", Sdf.ValueTypeNames.Float3Array)
-    attribute.Set([(0.125, -0.25, 0.5), (-1.0, 2.0, 3.0)])
+    attribute.Set(Vt.Vec3fArray.FromNumpy(expected))
     files = []
-    retained_layers = []
+    retained_values = []
 
     class NativeRenderer:
         fail_load = False
-        fail_reset = True
         fail_destroy = True
 
         def open_usd(self, path: str) -> None:
+            pread = os.environ.get("USDC_USE_PREAD")
+            assert pread == ("1" if platform == "win32" else previous_pread)
             file = Path(path)
-            assert file.read_bytes()[:8] == b"PXR-USDC"
+            with file.open("rb") as binary_file:
+                assert binary_file.read(8) == b"PXR-USDC"
             files.append(file)
             layer = Sdf.Layer.FindOrOpen(path)
-            retained_layers.append(layer)
             values = layer.GetAttributeAtPath("/Splat.coefficients").default
-            np.testing.assert_array_equal(values, [(0.125, -0.25, 0.5), (-1.0, 2.0, 3.0)])
+            retained_values.append(values)
+            np.testing.assert_array_equal(values, expected)
+            del layer
             if self.fail_load:
                 raise RuntimeError("load failed")
 
-        def reset_stage(self) -> None:
-            assert all(file.exists() for file in files)
-            if self.fail_reset:
-                raise RuntimeError("reset failed")
-            retained_layers.clear()
-
         def destroy(self) -> None:
-            assert not retained_layers
-            assert not any(file.exists() for file in files)
             if self.fail_destroy:
+                assert all(file.exists() for file in files)
                 raise RuntimeError("destroy failed")
 
     backend = OVRTXBackend.__new__(OVRTXBackend)
@@ -144,27 +162,29 @@ def test_legacy_scene_keeps_binary_backing_files_until_reset_succeeds() -> None:
     backend.renderer = native = NativeRenderer()
     try:
         backend.populate(stage.Flatten())
+        assert os.environ.get("USDC_USE_PREAD") == previous_pread
         directory = Path(backend._usd_files.name)
         native.fail_load = True
         with pytest.raises(RuntimeError, match="load failed"):
             backend.populate(stage.Flatten())
+        assert os.environ.get("USDC_USE_PREAD") == previous_pread
         assert len(set(files)) == 2
         assert all(file.exists() for file in files)
-        with pytest.raises(RuntimeError, match="reset failed"):
-            backend.close()
-        assert directory.exists()
-        native.fail_reset = False
         with pytest.raises(RuntimeError, match="destroy failed"):
             backend.close()
-        assert not directory.exists()
+        assert directory.exists()
         native.fail_destroy = False
         backend.close()
         backend.close()
         assert not directory.exists()
+        for values in retained_values:
+            np.testing.assert_array_equal(values, expected)
     finally:
-        native.fail_reset = False
         native.fail_destroy = False
-        backend.close()
+        retained_values.clear()
+        native.destroy()
+        if backend._usd_files is not None:
+            backend._usd_files.cleanup()
 
 
 @pytest.fixture(autouse=True)

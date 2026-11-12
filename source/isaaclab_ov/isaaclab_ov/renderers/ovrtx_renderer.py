@@ -28,6 +28,7 @@ import math
 import os
 import sys
 import tempfile
+import threading
 import uuid
 import warnings
 import weakref
@@ -123,6 +124,7 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
+_WINDOWS_USD_READ_LOCK = threading.Lock()
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
@@ -293,7 +295,7 @@ class OVRTXBackend:
         self._usd_files: tempfile.TemporaryDirectory | None = None
 
     def populate(self, layer: Sdf.Layer) -> None:
-        """Load binary USD and retain its backing file until the native scene is cleared.
+        """Load binary USD and retain its backing file until native destruction succeeds.
 
         Args:
             layer: Prepared scene containing the routed prototypes and their materials.
@@ -303,7 +305,22 @@ class OVRTXBackend:
         usd_path = str(Path(self._usd_files.name) / f"scene-{uuid.uuid4().hex}.usdc")
         if not layer.Export(usd_path):
             raise RuntimeError(f"Failed to export the native USD scene to {usd_path}.")
-        self.renderer.open_usd(usd_path)
+        if sys.platform != "win32":
+            self.renderer.open_usd(usd_path)
+            return
+
+        # Copied zero-copy USD arrays can retain crate mappings after their source scene closes.
+        # Windows cannot remove those mapped files. OpenUSD checks this setting per file open.
+        with _WINDOWS_USD_READ_LOCK:
+            previous_pread = os.environ.get("USDC_USE_PREAD")
+            os.environ["USDC_USE_PREAD"] = "1"
+            try:
+                self.renderer.open_usd(usd_path)
+            finally:
+                if previous_pread is None:
+                    os.environ.pop("USDC_USE_PREAD", None)
+                else:
+                    os.environ["USDC_USE_PREAD"] = previous_pread
 
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed."""
@@ -314,15 +331,13 @@ class OVRTXBackend:
     def close(self) -> None:
         """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
         if self.renderer is not None:
-            if self._usd_files is not None:
-                # Clear the legacy USD stage before removing crates that Windows may still map.
-                self.renderer.reset_stage()
-                self._usd_files.cleanup()
-                self._usd_files = None
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
             self.renderer = None
             self.attached = False
+        if self._usd_files is not None:
+            self._usd_files.cleanup()
+            self._usd_files = None
 
 
 class OVRTXCameraRenderData:
