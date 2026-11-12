@@ -2,9 +2,14 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+"""Asimov-1 observation terms.
+
+The foot terms read a foot site: a point fixed in the foot link frame, below the ankle and under the sole.
+"""
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 import torch
@@ -12,100 +17,81 @@ import torch
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
-from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
-
-FOOT_SITE_OFFSET = (0.05, 0.0, -0.025)
-
-_DEFAULT_FEET_CFG = SceneEntityCfg(
-    "robot", body_names=["left_ankle_roll_link", "right_ankle_roll_link"], preserve_order=True
-)
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 
-def foot_pos_w(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = _DEFAULT_FEET_CFG,
-    offset: tuple[float, float, float] = FOOT_SITE_OFFSET,
-) -> torch.Tensor:
+@lru_cache(maxsize=8)
+def _offset_tensor(offset: tuple[float, float, float], device: str) -> torch.Tensor:
+    return torch.tensor(offset, device=device)
+
+
+def _site_offset_w(asset: Articulation, body_ids, offset: tuple[float, float, float]) -> torch.Tensor:
+    """Site offset [m] of the selected bodies, rotated into the world frame."""
+    quat = asset.data.body_link_quat_w.torch[:, body_ids]
+    return math_utils.quat_apply(quat, _offset_tensor(tuple(offset), str(asset.device)).expand(*quat.shape[:2], 3))
+
+
+def foot_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, offset: tuple[float, float, float]) -> torch.Tensor:
+    """World position [m] of the foot sites, shape (num_envs, num_feet, 3).
+
+    Args:
+        env: The environment.
+        asset_cfg: The robot with the foot bodies selected.
+        offset: The site position [m] in the foot link frame.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
-    pos = asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids]
-    quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
-    off = torch.tensor(offset, device=env.device).expand(pos.shape[0], pos.shape[1], 3)
-    return pos + math_utils.quat_apply(quat, off)
+    return asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids] + _site_offset_w(asset, asset_cfg.body_ids, offset)
 
 
-def foot_vel_w(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = _DEFAULT_FEET_CFG,
-    offset: tuple[float, float, float] = FOOT_SITE_OFFSET,
-) -> torch.Tensor:
+def foot_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, offset: tuple[float, float, float]) -> torch.Tensor:
+    """World linear velocity [m/s] of the foot sites, shape (num_envs, num_feet, 3).
+
+    The site velocity includes the contribution of the link's angular velocity about the link origin.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
-    quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
     lin_vel = asset.data.body_link_lin_vel_w.torch[:, asset_cfg.body_ids]
     ang_vel = asset.data.body_link_ang_vel_w.torch[:, asset_cfg.body_ids]
-    off = torch.tensor(offset, device=env.device).expand(quat.shape[0], quat.shape[1], 3)
-    r = math_utils.quat_apply(quat, off)
-    return lin_vel + torch.cross(ang_vel, r, dim=-1)
+    return lin_vel + torch.cross(ang_vel, _site_offset_w(asset, asset_cfg.body_ids, offset), dim=-1)
 
 
-def foot_height(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = _DEFAULT_FEET_CFG,
+def foot_height(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, offset: tuple[float, float, float]) -> torch.Tensor:
+    """Height [m] of the foot sites above the origin of the environment's terrain patch.
+
+    This removes the elevation of the terrain patch but not the local surface variation inside it.
+    """
+    return foot_pos_w(env, asset_cfg, offset)[:, :, 2] - env.scene.env_origins[:, 2:3]
+
+
+def foot_air_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Time [s] each selected foot has been in the air, zero while in contact."""
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    return sensor.data.current_air_time.torch[:, sensor_cfg.body_ids]
+
+
+def foot_contact(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, force_threshold: float = 1.0) -> torch.Tensor:
+    """Contact flag of each selected foot: 1 if the net contact force exceeds ``force_threshold`` [N]."""
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    forces = sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+    return (forces.norm(dim=-1) > force_threshold).float()
+
+
+def foot_contact_forces(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """World-frame net contact force [N] on each selected foot, flattened to (num_envs, 3 * num_feet)."""
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    return sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids].reshape(env.num_envs, -1)
+
+
+def joint_pos_rel_measured(
+    env: ManagerBasedEnv, action_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    return foot_pos_w(env, asset_cfg)[:, :, 2]
+    """Joint positions [rad] relative to the default pose, as read through the joint-zero offsets.
 
-
-def foot_air_time(env: ManagerBasedRLEnv, sensor_name: str) -> torch.Tensor:
-    sensor: ContactSensor = env.scene.sensors[sensor_name]
-    return sensor.data.current_air_time.torch
-
-
-def foot_contact(env: ManagerBasedRLEnv, sensor_name: str, force_threshold: float = 1.0) -> torch.Tensor:
-    sensor: ContactSensor = env.scene.sensors[sensor_name]
-    return (sensor.data.net_forces_w.torch.norm(dim=-1) > force_threshold).float()
-
-
-def foot_contact_forces(env: ManagerBasedRLEnv, sensor_name: str) -> torch.Tensor:
-    sensor: ContactSensor = env.scene.sensors[sensor_name]
-    return sensor.data.net_forces_w.torch.reshape(env.num_envs, -1)
-
-
-class delayed_obs(ManagerTermBase):
-    """Observation term that applies a randomized per-environment sensor lag."""
-
-    _QUANTITIES = {
-        "base_ang_vel": base_mdp.base_ang_vel,
-        "projected_gravity": base_mdp.projected_gravity,
-    }
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._min_lag = int(cfg.params["min_lag"])
-        self._max_lag = int(cfg.params["max_lag"])
-        self._fn = self._QUANTITIES[cfg.params["quantity"]]
-        self._lags = torch.randint(self._min_lag, self._max_lag + 1, (env.num_envs,), device=env.device)
-        self._buffer: torch.Tensor | None = None
-        self._pending_reset: torch.Tensor | None = None
-
-    def reset(self, env_ids: torch.Tensor | slice | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        num_resets = self._lags[env_ids].numel()
-        self._lags[env_ids] = torch.randint(self._min_lag, self._max_lag + 1, (num_resets,), device=self._env.device)
-        self._pending_reset = env_ids
-
-    def __call__(self, env: ManagerBasedRLEnv, quantity: str, min_lag: int, max_lag: int) -> torch.Tensor:
-        value = self._fn(env)
-        if self._buffer is None:
-            self._buffer = value.unsqueeze(1).repeat(1, self._max_lag + 1, 1)
-        else:
-            self._buffer = torch.roll(self._buffer, shifts=1, dims=1)
-            self._buffer[:, 0] = value
-        if self._pending_reset is not None:
-            self._buffer[self._pending_reset] = value[self._pending_reset].unsqueeze(1)
-            self._pending_reset = None
-        env_ids = torch.arange(env.num_envs, device=env.device)
-        return self._buffer[env_ids, self._lags]
+    The offsets belong to the :class:`~.actions.JointZeroOffsetPositionAction` term named ``action_name``, so
+    a zero action targets the pose where this observation is zero.
+    """
+    zero_offset = env.action_manager.get_term(action_name).joint_zero_offset
+    return base_mdp.joint_pos_rel(env, asset_cfg) - zero_offset[:, asset_cfg.joint_ids]

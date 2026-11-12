@@ -4,26 +4,32 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Asimov-1 velocity configurations.
 
-The task supports the Isaac Sim PhysX backend.
+The task builds on the shared rough-terrain velocity configuration and supports the Isaac Sim PhysX backend.
+The policy is blind: the height scanner and the terrain curriculum of the shared configuration are disabled.
 """
 
 import math
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+
+from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg, LocomotionVelocityRoughEnvCfg, MySceneCfg
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.asimov_1 import (
     ASIMOV_1_ACTION_SCALE,
@@ -86,6 +92,8 @@ SLOT_4_5 = (
 
 FEET_BODIES = ["left_ankle_roll_link", "right_ankle_roll_link"]
 TORSO_BODY = "waist_yaw_link"
+FOOT_SITE_OFFSET = (0.05, 0.0, -0.025)
+"""Position [m] of the foot site in the ankle-roll link frame."""
 
 # Each contact filter must match exactly one body per environment, so both sides are listed. Only links
 # with collision shapes in the asset are included.
@@ -120,11 +128,26 @@ def _slot_cfg(names: tuple[str, ...]) -> SceneEntityCfg:
 
 
 def _feet_cfg() -> SceneEntityCfg:
+    """The feet on the robot, in the same order as :func:`_feet_sensor_cfg`."""
     return SceneEntityCfg("robot", body_names=list(FEET_BODIES), preserve_order=True)
 
 
+def _feet_sensor_cfg() -> SceneEntityCfg:
+    """The feet on the contact sensor, in the same order as :func:`_feet_cfg`."""
+    return SceneEntityCfg("contact_forces", body_names=list(FEET_BODIES), preserve_order=True)
+
+
 @configclass
-class Asimov1SceneCfg(InteractiveSceneCfg):
+class Asimov1PhysicsCfg(PresetCfg):
+    """Physics configuration for the Asimov-1 velocity environment."""
+
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
+
+
+@configclass
+class Asimov1SceneCfg(MySceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="generator",
@@ -139,52 +162,24 @@ class Asimov1SceneCfg(InteractiveSceneCfg):
         ),
         debug_vis=False,
     )
-
     robot: ArticulationCfg = ASIMOV_1_DELAYED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-    feet_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*_ankle_roll_link",
-        history_length=3,
-        track_air_time=True,
-    )
+    # the policy is blind
+    height_scanner = None
     self_collision = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*_(elbow|knee|ankle_roll)_link",
         filter_prim_paths_expr=SELF_COLLISION_FILTER_PATHS,
     )
 
-    sky_light = AssetBaseCfg(
-        prim_path="/World/skyLight",
-        spawn=sim_utils.DomeLightCfg(intensity=750.0, color=(0.9, 0.9, 0.9)),
-    )
-
-
-@configclass
-class CommandsCfg:
-    twist = mdp.UniformVelocityCommandCfg(
-        asset_name="robot",
-        resampling_time_range=(3.0, 8.0),
-        rel_standing_envs=0.2,
-        rel_heading_envs=0.3,
-        heading_command=True,
-        heading_control_stiffness=0.5,
-        debug_vis=True,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.6, 0.8),
-            lin_vel_y=(-0.5, 0.5),
-            ang_vel_z=(-0.8, 0.8),
-            heading=(0.0, 0.0),
-        ),
-    )
-
 
 @configclass
 class ActionsCfg:
-    joint_pos = mdp.JointPositionActionCfg(
+    joint_pos = mdp.JointZeroOffsetPositionActionCfg(
         asset_name="robot",
         joint_names=list(ASIMOV_1_JOINT_NAMES),
         preserve_order=True,
         scale=ASIMOV_1_ACTION_SCALE,
         use_default_offset=True,
+        zero_offset_range=(-0.02, 0.02),
     )
 
 
@@ -193,34 +188,33 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         base_ang_vel = ObsTerm(
-            func=mdp.delayed_obs,
-            params={"quantity": "base_ang_vel", "min_lag": 0, "max_lag": 1},
+            func=mdp.base_ang_vel,
+            delay_min_lag=0,
+            delay_max_lag=1,
             noise=Unoise(n_min=-0.01, n_max=0.01),
             scale=0.25,
         )
         projected_gravity = ObsTerm(
-            func=mdp.delayed_obs,
-            params={"quantity": "projected_gravity", "min_lag": 0, "max_lag": 2},
+            func=mdp.projected_gravity,
+            delay_min_lag=0,
+            delay_max_lag=2,
             noise=Unoise(n_min=-0.02, n_max=0.02),
         )
-        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "twist"})
+        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         joint_pos_slot01 = ObsTerm(
-            func=mdp.joint_pos_rel,
-            params={"asset_cfg": _slot_cfg(SLOT_0_1)},
+            func=mdp.joint_pos_rel_measured,
+            params={"action_name": "joint_pos", "asset_cfg": _slot_cfg(SLOT_0_1)},
             noise=Unoise(n_min=-0.01, n_max=0.01),
-            scale=1.0,
         )
         joint_pos_slot23 = ObsTerm(
-            func=mdp.joint_pos_rel,
-            params={"asset_cfg": _slot_cfg(SLOT_2_3)},
+            func=mdp.joint_pos_rel_measured,
+            params={"action_name": "joint_pos", "asset_cfg": _slot_cfg(SLOT_2_3)},
             noise=Unoise(n_min=-0.01, n_max=0.01),
-            scale=1.0,
         )
         joint_pos_slot45 = ObsTerm(
-            func=mdp.joint_pos_rel,
-            params={"asset_cfg": _slot_cfg(SLOT_4_5)},
+            func=mdp.joint_pos_rel_measured,
+            params={"action_name": "joint_pos", "asset_cfg": _slot_cfg(SLOT_4_5)},
             noise=Unoise(n_min=-0.01, n_max=0.01),
-            scale=1.0,
         )
         joint_vel_slot01 = ObsTerm(
             func=mdp.joint_vel_rel,
@@ -250,19 +244,19 @@ class ObservationsCfg:
     class CriticCfg(ObsGroup):
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.25)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "twist"})
-        joint_pos_slot01 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_0_1)}, scale=1.0)
-        joint_pos_slot23 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_2_3)}, scale=1.0)
-        joint_pos_slot45 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_4_5)}, scale=1.0)
-        joint_vel_slot01 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_0_1)}, scale=1.0)
-        joint_vel_slot23 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_2_3)}, scale=1.0)
-        joint_vel_slot45 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_4_5)}, scale=1.0)
+        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        joint_pos_slot01 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_0_1)})
+        joint_pos_slot23 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_2_3)})
+        joint_pos_slot45 = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _slot_cfg(SLOT_4_5)})
+        joint_vel_slot01 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_0_1)})
+        joint_vel_slot23 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_2_3)})
+        joint_vel_slot45 = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _slot_cfg(SLOT_4_5)})
         actions = ObsTerm(func=mdp.last_action)
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        foot_height = ObsTerm(func=mdp.foot_height, params={"asset_cfg": _feet_cfg()})
-        foot_air_time = ObsTerm(func=mdp.foot_air_time, params={"sensor_name": "feet_contact"})
-        foot_contact = ObsTerm(func=mdp.foot_contact, params={"sensor_name": "feet_contact"})
-        foot_contact_forces = ObsTerm(func=mdp.foot_contact_forces, params={"sensor_name": "feet_contact"})
+        foot_height = ObsTerm(func=mdp.foot_height, params={"asset_cfg": _feet_cfg(), "offset": FOOT_SITE_OFFSET})
+        foot_air_time = ObsTerm(func=mdp.foot_air_time, params={"sensor_cfg": _feet_sensor_cfg()})
+        foot_contact = ObsTerm(func=mdp.foot_contact, params={"sensor_cfg": _feet_sensor_cfg()})
+        foot_contact_forces = ObsTerm(func=mdp.foot_contact_forces, params={"sensor_cfg": _feet_sensor_cfg()})
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -273,8 +267,8 @@ class ObservationsCfg:
 
 
 @configclass
-class EventCfg:
-    foot_friction = EventTerm(
+class Asimov1EventsCfg(EventsCfg):
+    physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
@@ -286,14 +280,7 @@ class EventCfg:
             "make_consistent": True,
         },
     )
-    qpos0_rand = EventTerm(
-        func=mdp.randomize_joint_default_pos,
-        mode="startup",
-        params={
-            "ranges": (-0.02, 0.02),
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
-        },
-    )
+    add_base_mass = None
     base_com = EventTerm(
         func=mdp.randomize_rigid_body_com,
         mode="startup",
@@ -302,6 +289,7 @@ class EventCfg:
             "com_range": {"x": (0.0, 0.05), "y": (0.0, 0.0), "z": (0.03, 0.07)},
         },
     )
+    base_external_force_torque = None
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -328,7 +316,7 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
         },
     )
-    pd_gains_rand = EventTerm(
+    actuator_gains = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="reset",
         params={
@@ -358,30 +346,29 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    track_linear_velocity = RewTerm(
-        func=mdp.track_linear_velocity,
+    # -- task
+    track_lin_vel_xy_exp = RewTerm(
+        func=mdp.track_lin_vel_xy_exp,
         weight=5.0,
-        params={"command_name": "twist", "std": 0.5},
+        params={"command_name": "base_velocity", "std": 0.5},
     )
-    track_angular_velocity = RewTerm(
-        func=mdp.track_angular_velocity,
+    track_ang_vel_z_exp = RewTerm(
+        func=mdp.track_ang_vel_z_exp,
         weight=3.0,
-        params={"command_name": "twist", "std": 0.7071},
+        params={"command_name": "base_velocity", "std": math.sqrt(0.5)},
     )
-    upright = RewTerm(
-        func=mdp.flat_orientation,
-        weight=1.0,
-        params={
-            "std": math.sqrt(0.2),
-            "asset_cfg": SceneEntityCfg("robot", body_names=[TORSO_BODY]),
-        },
-    )
+    # -- base motion
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
+    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.1)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.03)
+    # -- posture
     pose = RewTerm(
         func=mdp.variable_posture,
         weight=1.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=list(POSE_JOINT_PATTERNS)),
-            "command_name": "twist",
+            "command_name": "base_velocity",
             "walking_threshold": 0.1,
             "running_threshold": 1.5,
             "pose_weight_velocity_threshold": 0.3,
@@ -419,24 +406,37 @@ class RewardsCfg:
             },
         },
     )
-    air_time = RewTerm(
-        func=mdp.feet_air_time,
-        weight=0.5,
+    stand_still = RewTerm(
+        func=mdp.stand_still_joint_deviation_l1,
+        weight=-1.0,
         params={
-            "sensor_name": "feet_contact",
-            "threshold_min": 0.05,
-            "threshold_max": 0.5,
-            "command_name": "twist",
-            "command_threshold": 0.5,
+            "command_name": "base_velocity",
+            "command_threshold": 0.1,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=list(POSE_JOINT_PATTERNS)),
         },
+    )
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.5)
+    # -- feet
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_positive_biped,
+        weight=1.0,
+        params={"command_name": "base_velocity", "sensor_cfg": _feet_sensor_cfg(), "threshold": 0.4},
+    )
+    feet_slide = RewTerm(
+        func=mdp.feet_slide,
+        weight=-0.25,
+        params={"sensor_cfg": _feet_sensor_cfg(), "asset_cfg": _feet_cfg()},
     )
     foot_clearance = RewTerm(
         func=mdp.feet_clearance,
         weight=-2.0,
         params={
             "target_height": 0.1,
-            "command_name": "twist",
+            "offset": FOOT_SITE_OFFSET,
+            "command_name": "base_velocity",
             "command_threshold": 0.05,
+            "sensor_cfg": _feet_sensor_cfg(),
             "asset_cfg": _feet_cfg(),
         },
     )
@@ -444,68 +444,34 @@ class RewardsCfg:
         func=mdp.feet_swing_height,
         weight=-0.25,
         params={
-            "sensor_name": "feet_contact",
             "target_height": 0.1,
-            "command_name": "twist",
+            "offset": FOOT_SITE_OFFSET,
+            "command_name": "base_velocity",
             "command_threshold": 0.05,
+            "sensor_cfg": _feet_sensor_cfg(),
             "asset_cfg": _feet_cfg(),
         },
     )
-    foot_slip = RewTerm(
-        func=mdp.feet_slip,
-        weight=-0.1,
-        params={
-            "sensor_name": "feet_contact",
-            "command_name": "twist",
-            "command_threshold": 0.05,
-            "asset_cfg": _feet_cfg(),
-        },
-    )
-    feet_orientation = RewTerm(
-        func=mdp.feet_orientation_penalty,
-        weight=-1.0,
-        params={"asset_cfg": _feet_cfg()},
-    )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.5)
-    body_ang_vel = RewTerm(
-        func=mdp.body_angular_velocity_penalty,
-        weight=-0.08,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=[TORSO_BODY])},
-    )
-    angular_momentum = RewTerm(func=mdp.angular_momentum_penalty, weight=-0.03)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
+    feet_orientation = RewTerm(func=mdp.feet_orientation_l1, weight=-1.0, params={"asset_cfg": _feet_cfg()})
     soft_landing = RewTerm(
         func=mdp.soft_landing,
         weight=-1e-5,
-        params={
-            "sensor_name": "feet_contact",
-            "command_name": "twist",
-            "command_threshold": 0.05,
-        },
-    )
-    joint_deviation_l1 = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-1.0,
-        params={
-            "command_name": "twist",
-            "command_threshold": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=list(POSE_JOINT_PATTERNS)),
-        },
+        params={"sensor_cfg": _feet_sensor_cfg(), "command_name": "base_velocity", "command_threshold": 0.05},
     )
     feet_stumble = RewTerm(
         func=mdp.feet_stumble,
         weight=-1.25,
-        params={"sensor_name": "feet_contact", "ratio_threshold": 4.0},
+        params={"sensor_cfg": _feet_sensor_cfg(), "ratio_threshold": 4.0},
     )
-    feet_contact_force_limit = RewTerm(
-        func=mdp.feet_contact_force_limit,
+    feet_contact_forces = RewTerm(
+        func=mdp.contact_forces,
         weight=-5e-4,
-        params={"sensor_name": "feet_contact", "max_force": 350.0},
+        params={"sensor_cfg": _feet_sensor_cfg(), "threshold": 350.0},
     )
     self_collisions = RewTerm(
         func=mdp.self_collision_cost,
         weight=-1.0,
-        params={"sensor_name": "self_collision"},
+        params={"sensor_cfg": SceneEntityCfg("self_collision")},
     )
 
 
@@ -516,34 +482,39 @@ class TerminationsCfg:
 
 
 @configclass
-class Asimov1RoughEnvCfg(ManagerBasedRLEnvCfg):
+class Asimov1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for Asimov-1 rough-terrain velocity tracking."""
 
+    sim: SimulationCfg = SimulationCfg(physics=Asimov1PhysicsCfg())
     scene: Asimov1SceneCfg = Asimov1SceneCfg(num_envs=4096, env_spacing=2.5)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: Asimov1EventsCfg = Asimov1EventsCfg()
 
     def __post_init__(self):
-        """Set simulation timing and the shared terrain material."""
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        self.sim.dt = 0.005
-        self.sim.render_interval = self.decimation
-        self.sim.physics_material = self.scene.terrain.physics_material
+        # the terrain distribution is fixed
+        self.curriculum.terrain_levels = None
+        super().__post_init__()
+
+        # commands
+        self.commands.base_velocity.resampling_time_range = (3.0, 8.0)
+        self.commands.base_velocity.rel_standing_envs = 0.2
+        self.commands.base_velocity.rel_heading_envs = 0.3
+        self.commands.base_velocity.ranges.lin_vel_x = (-0.6, 0.8)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.8, 0.8)
+        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
 
     def play_mode(self):
         """Apply deterministic overrides for policy playback."""
         super().play_mode()
         self.scene.num_envs = 32
-        self.events.push_robot = None
-        self.events.qpos0_rand = None
-        self.events.pd_gains_rand = None
+        self.actions.joint_pos.zero_offset_range = (0.0, 0.0)
+        self.events.physics_material = None
         self.events.base_com = None
-        self.events.foot_friction = None
+        self.events.actuator_gains = None
         self.events.reset_robot_joints.params["position_range"] = (0.0, 0.0)
         self.events.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
         self.events.reset_base.params["pose_range"] = {
@@ -552,8 +523,6 @@ class Asimov1RoughEnvCfg(ManagerBasedRLEnvCfg):
         self.events.reset_base.params["velocity_range"] = {
             k: (0.0, 0.0) for k in self.events.reset_base.params["velocity_range"]
         }
-        self.commands.twist.ranges.lin_vel_x = (0.6, 0.8)
-        self.commands.twist.ranges.lin_vel_y = (-0.5, 0.5)
-        self.commands.twist.ranges.ang_vel_z = (-0.6, 0.6)
-        self.scene.terrain.terrain_generator = COBBLESTONE_ROAD_CFG.replace(num_rows=5, num_cols=5, border_width=10.0)
-        self.scene.terrain.max_init_terrain_level = 4
+        self.commands.base_velocity.ranges.lin_vel_x = (0.6, 0.8)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.6, 0.6)

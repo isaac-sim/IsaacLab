@@ -4,59 +4,47 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "angular_momentum_penalty",
-    "delayed_obs",
-    "feet_swing_height",
-    "variable_posture",
-    "body_angular_velocity_penalty",
-    "feet_air_time",
+    "JointZeroOffsetPositionAction",
+    "JointZeroOffsetPositionActionCfg",
+    "angular_momentum_l2",
     "feet_clearance",
-    "feet_contact_force_limit",
-    "feet_orientation_penalty",
-    "feet_slip",
+    "feet_orientation_l1",
     "feet_stumble",
-    "flat_orientation",
+    "feet_swing_height",
     "foot_air_time",
     "foot_contact",
     "foot_contact_forces",
     "foot_height",
     "foot_pos_w",
     "foot_vel_w",
-    "joint_deviation_l1",
-    "randomize_joint_default_pos",
+    "joint_pos_rel_measured",
     "self_collision_cost",
     "soft_landing",
-    "track_angular_velocity",
-    "track_linear_velocity",
+    "variable_posture",
+    "whole_body_angular_momentum",
 ]
 
-from isaaclab.envs.mdp import *
+from isaaclab_tasks.core.velocity.mdp import *
 
-from .events import randomize_joint_default_pos
+from .actions import JointZeroOffsetPositionAction
+from .actions_cfg import JointZeroOffsetPositionActionCfg
 from .observations import (
-    delayed_obs,
     foot_air_time,
     foot_contact,
     foot_contact_forces,
     foot_height,
     foot_pos_w,
     foot_vel_w,
+    joint_pos_rel_measured,
 )
 from .rewards import (
-    angular_momentum_penalty,
-    feet_swing_height,
-    variable_posture,
-    body_angular_velocity_penalty,
-    feet_air_time,
+    angular_momentum_l2,
     feet_clearance,
-    feet_contact_force_limit,
-    feet_orientation_penalty,
-    feet_slip,
+    feet_orientation_l1,
     feet_stumble,
-    flat_orientation,
-    joint_deviation_l1,
+    feet_swing_height,
     self_collision_cost,
     soft_landing,
-    track_angular_velocity,
-    track_linear_velocity,
+    variable_posture,
+    whole_body_angular_momentum,
 )
