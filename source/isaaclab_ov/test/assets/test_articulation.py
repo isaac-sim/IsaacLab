@@ -489,8 +489,8 @@ def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     joint.GetPrim().SetMetadata("apiSchemas", schemas)
 
 
-def _make_articulation_root_stage_usda() -> str:
-    """Serialize one relevant articulation subtree and unrelated joints in memory."""
+def _make_articulation_root_stage_layer() -> Sdf.Layer:
+    """Return a flattened layer with one articulation subtree and unrelated joints."""
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World", "Xform")
     stage.DefinePrim("/World/envs", "Xform")
@@ -520,7 +520,7 @@ def _make_articulation_root_stage_usda() -> str:
         "PhysxTendonAttachmentLeafAPI:inst0",
     )
 
-    return stage.Flatten().ExportToString()
+    return stage.Flatten()
 
 
 def _make_articulation_shell() -> Articulation:
@@ -557,9 +557,9 @@ def _make_articulation_shell() -> Articulation:
 def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
-    stage_usda = _make_articulation_root_stage_usda()
+    stage_layer = _make_articulation_root_stage_layer()
     articulation._backend_manager = OvPhysxManager(OvPhysxCfg())
-    articulation._backend_manager._stage_usda = stage_usda
+    articulation._backend_manager._stage_layer = stage_layer
     articulation._process_tendons()
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would

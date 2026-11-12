@@ -6,8 +6,8 @@
 """OvPhysX Manager for Isaac Lab.
 
 This module manages an ovphysx-based physics simulation lifecycle without Kit dependencies.
-It serializes the current USD stage in memory, attaches it to ovphysx through OVStage, and
-steps the simulation using the ovphysx C/Python API.
+It prepares the current USD stage as a layer, loads its binary file through OVStage, and
+steps the attached simulation using the ovphysx C/Python API.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import stat
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -44,8 +45,8 @@ from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
 
+from ..stage import OvstageBackend, OvstageBackendCfg, export_stage_to_layer
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
@@ -333,12 +334,30 @@ class OvPhysxBackend:
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
-    def load(self, stage_usda: str) -> None:
+    def load(self, stage_layer: Sdf.Layer | str | None = None, *, stage_usda: str | None = None) -> None:
         """Replace the attached scene after draining its native bindings.
 
         Args:
-            stage_usda: Exported USD scene to populate before physics attaches.
+            stage_layer: Exported USD scene to populate before physics attaches. USDA text is deprecated.
+            stage_usda: Deprecated text-input keyword. Pass ``stage_layer`` instead.
         """
+        if stage_layer is not None and stage_usda is not None:
+            raise TypeError("Specify only one of stage_layer and stage_usda.")
+        if stage_usda is not None:
+            stage_layer = stage_usda
+        if stage_layer is None:
+            raise TypeError("OvPhysxBackend.load requires a USD layer or deprecated USDA text.")
+        if isinstance(stage_layer, str):
+            warnings.warn(
+                "USDA text in OvPhysxBackend.load is deprecated and will be removed in Isaac Lab 4.0. "
+                "Pass stage_layer with an Sdf.Layer, for example from export_stage_to_layer, instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            parsed_layer = Sdf.Layer.CreateAnonymous()
+            if not parsed_layer.ImportFromString(stage_layer):
+                raise ValueError("Failed to import the supplied USDA text.")
+            stage_layer = parsed_layer
         if self.stage is not None:
             if self.rigid_body_view is not None:
                 self.rigid_body_view.destroy()
@@ -351,7 +370,7 @@ class OvPhysxBackend:
             # Include rendering data for native-instance collider dependencies as well as physics.
             self.scene = instantiate(OvstageBackendCfg(populate_physics=True))
         try:
-            self.scene.populate(stage_usda)
+            self.scene.populate(stage_layer)
             operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
         except Exception:
             if self.owns_scene:
@@ -421,7 +440,7 @@ class OvPhysxManager(PhysicsManager):
         self._cfg: OvPhysxCfg = cfg
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
-        self._stage_usda: str | None = None
+        self._stage_layer: Sdf.Layer | None = None
         self._warmup_done: bool = False
         self._requires_full_stage: bool = False
         self._clone_recipes: list[CloneRecipe] = []
@@ -523,7 +542,7 @@ class OvPhysxManager(PhysicsManager):
         self._gravity = tuple(sim_context.cfg.gravity)
         self._warmup_done = False
         self._requires_full_stage = False
-        self._stage_usda = None
+        self._stage_layer = None
         self._clone_recipes = []
         # SimulationContext retains this backend; native bindings remain deferred until the first SDP read.
         self._scene_data_backend = OvPhysxSceneDataBackend(self)
@@ -533,9 +552,9 @@ class OvPhysxManager(PhysicsManager):
         """Reset physics simulation.
 
         On the first (non-soft) reset the method:
-        - Serializes the current USD stage in memory
+        - Prepares the current USD stage as a layer
         - Creates the ovphysx.PhysX instance
-        - Populates and attaches an OVStage
+        - Exports a binary USD file, populates an OVStage, and attaches it
         - Runs the runtime warmup entry point (on CPU and CUDA)
         - Dispatches PHYSICS_READY
 
@@ -605,7 +624,7 @@ class OvPhysxManager(PhysicsManager):
                         atexit.unregister(self._close_at_exit)
                         self._atexit_registered = False
             finally:
-                self._stage_usda = None
+                self._stage_layer = None
                 self._warmup_done = False
                 self._requires_full_stage = False
                 self._clone_recipes = []
@@ -687,7 +706,7 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     def _warmup_and_load(self) -> None:
-        """Serialize the USD stage and attach it to the ovphysx runtime.
+        """Prepare the USD layer and attach its binary-file population to the ovphysx runtime.
 
         When no runtime is active, constructs a new :class:`ovphysx.PhysX` instance for the
         simulation device and registers process-exit cleanup. CPU and CUDA simulations may follow
@@ -721,7 +740,7 @@ class OvPhysxManager(PhysicsManager):
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
         if shared_scene is not None:
-            stage_usda = export_stage_to_string(
+            stage_layer = export_stage_to_layer(
                 sim.stage,
                 shared_scene.clone_env_paths,
                 source_paths=tuple(source for source, _ in shared_scene.clone_copies),
@@ -729,21 +748,18 @@ class OvPhysxManager(PhysicsManager):
                 env_paths=shared_scene.population_env_paths,
             )
             if ovphysx_compat.OVPHYSX_USES_TASKS:
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, self._cfg.legacy_joint_friction_replacements)
-                stage_usda = layer.ExportToString()
+                _convert_legacy_joint_properties(stage_layer, self._cfg.legacy_joint_friction_replacements)
             native_clones = ()
         else:
             full_stage = self._requires_full_stage or ovphysx_device == "cpu"
-            stage_usda, native_clones = _serialize_stage(
+            stage_layer, native_clones = _serialize_stage(
                 sim.stage,
                 self._clone_recipes,
                 full_stage,
                 plan,
                 friction_replacements=self._cfg.legacy_joint_friction_replacements,
             )
-        self._stage_usda = stage_usda
+        self._stage_layer = stage_layer
 
         self.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
@@ -755,7 +771,7 @@ class OvPhysxManager(PhysicsManager):
         if not self._atexit_registered:
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
-        self.backend.load(stage_usda)
+        self.backend.load(stage_layer)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:

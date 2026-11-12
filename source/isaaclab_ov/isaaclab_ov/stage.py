@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import tempfile
+import uuid
+import warnings
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 
 import numpy as np
 import ovstage
@@ -174,99 +178,7 @@ def ovstage_replicate(
             paths.destroy_path_list(path_list)
 
 
-@configclass
-class OvstageBackendCfg(BackendCfg):
-    """Configuration of a simulation-owned stage and its populated domains."""
-
-    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
-    scene_key: BackendCfg | int | None = None
-    """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
-    population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
-    """Native USD domains to populate, independent of the physics population API."""
-    populate_physics: bool = False
-    """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
-
-
-class OvstageBackend:
-    """Own a detached stage and its paths until the simulation has closed its consumers."""
-
-    def __init__(self, cfg: OvstageBackendCfg):
-        """Create the stage identified by its consumer configuration and population domains.
-
-        Args:
-            cfg: Scene identity and USD domains to populate.
-        """
-        self.cfg = cfg
-        self.clone_copies: list[tuple[str, list[str]]] = []
-        self.clone_env_paths: list[str] = []
-        self.population_env_paths: list[str] = []
-        self.clone_positions: np.ndarray | None = None
-        self.resources = contextlib.ExitStack()
-        """Release borrowers before paths and stage, in reverse registration order."""
-        self.reset()
-
-    def populate(self, usda: str) -> None:
-        """Import the exported prototypes and apply the clone context's prepared operations.
-
-        Population commits ordinal 1. Consumers may then author render products and poses
-        starting at ordinal 2, after every cloned camera path exists.
-
-        Args:
-            usda: USD scene containing the routed prototypes and their materials.
-        """
-        if self.ordinal:
-            return
-
-        # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        populate_stage(
-            self.stage, usda, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
-        )
-        ovstage_replicate(
-            self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
-        )
-        self.ordinal = 1
-        self.commit()
-
-    @contextlib.contextmanager
-    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
-        """Retain a query and its path list together until the caller leaves the context.
-
-        Args:
-            prim_paths: Prim paths in the query's binding order.
-
-        Yields:
-            The query, released before its caller-owned path list.
-        """
-        paths = self.paths.create_path_list_from_strings(prim_paths)
-        try:
-            with self.stage.query_from_path_list(paths) as query:
-                yield query
-        finally:
-            self.paths.destroy_path_list(paths)
-
-    def commit(self) -> int:
-        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
-        ordinal = self.ordinal
-        self.stage.advance_write_floor(ordinal=ordinal).wait()
-        self.ordinal += 1
-        return ordinal
-
-    def close(self) -> None:
-        """Release borrowers, then the path dictionary and stage."""
-        self.resources.close()
-        self.stage = self.paths = None
-
-    def reset(self) -> None:
-        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
-        self.close()
-        self.ordinal = self.next_camera_id = 0
-        with contextlib.ExitStack() as resources:
-            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
-            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
-            self.resources = resources.pop_all()
-
-
-def export_stage_to_string(
+def export_stage_to_layer(
     stage: Usd.Stage,
     clone_env_paths: Sequence[str],
     source_paths: tuple[str, ...],
@@ -274,7 +186,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     preserve_references: bool = False,
-) -> str:
+) -> Sdf.Layer:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
     An anonymous session layer hides non-source subtrees, including copies already authored
@@ -288,11 +200,11 @@ def export_stage_to_string(
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Environment frames to create in the private export before native cloning.
         preserve_references: Retain clean file-backed references and instances instead of baking
-            their geometry into text. Anonymous or unsaved referenced layers require full
-            composition so that the returned string does not depend on their Python lifetime.
+            their geometry. Anonymous or unsaved referenced layers require full composition
+            so that the returned layer does not depend on their Python lifetime.
 
     Returns:
-        USDA text containing the selected prototypes. By default, composition arcs are baked.
+        USD layer containing the selected prototypes. By default, composition arcs are baked.
     """
     export_session = Sdf.Layer.CreateAnonymous()
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
@@ -337,7 +249,7 @@ def export_stage_to_string(
     # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
     # Author them only in the export; native cloning writes their poses from the plan.
     # The local layer stack is baked either way. External in-memory edits cannot be borrowed
-    # by a detached string; retain the fully composed export for those scenes and legacy callers.
+    # by a detached consumer; retain the fully composed export for those scenes.
     external_layers = set(export_stage.GetUsedLayers()) - set(export_stage.GetLayerStack())
     if preserve_references and all(not (layer.anonymous or layer.dirty) for layer in external_layers):
         # Keeping reference arcs avoids duplicating dense geometry and preserves material
@@ -376,4 +288,155 @@ def export_stage_to_string(
             while prim and prim.specifier == Sdf.SpecifierOver:
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
-    return layer.ExportToString()
+    return layer
+
+
+def export_stage_to_string(
+    stage: Usd.Stage,
+    clone_env_paths: Sequence[str],
+    source_paths: tuple[str, ...],
+    keep_env_roots: bool = True,
+    *,
+    env_paths: Sequence[str] = (),
+    preserve_references: bool = False,
+) -> str:
+    """Serialize the selected prototypes as USDA text.
+
+    Native consumers use :func:`export_stage_to_layer` and binary USD files to avoid
+    the USDA writer's limit on the text length of an individual attribute value.
+
+    Args:
+        stage: USD stage to export.
+        clone_env_paths: Declared environment roots. Source filtering is skipped for one environment.
+        source_paths: Prototype subtrees retained with their materials and descendants.
+        keep_env_roots: Whether to retain non-source environment roots and their transforms.
+        env_paths: Environment frames to create in the private export before native cloning.
+        preserve_references: Retain clean file-backed references and instances. Anonymous
+            or unsaved referenced layers require full composition.
+
+    Returns:
+        USDA text containing the selected prototypes.
+    """
+    return export_stage_to_layer(
+        stage,
+        clone_env_paths,
+        source_paths,
+        keep_env_roots,
+        env_paths=env_paths,
+        preserve_references=preserve_references,
+    ).ExportToString()
+
+
+@configclass
+class OvstageBackendCfg(BackendCfg):
+    """Configuration of a simulation-owned stage and its populated domains."""
+
+    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
+    scene_key: BackendCfg | int | None = None
+    """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
+    population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
+    """Native USD domains to populate, independent of the physics population API."""
+    populate_physics: bool = False
+    """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
+
+
+class OvstageBackend:
+    """Own a detached stage and its paths until the simulation has closed its consumers."""
+
+    def __init__(self, cfg: OvstageBackendCfg):
+        """Create the stage identified by its consumer configuration and population domains.
+
+        Args:
+            cfg: Scene identity and USD domains to populate.
+        """
+        self.cfg = cfg
+        self.clone_copies: list[tuple[str, list[str]]] = []
+        self.clone_env_paths: list[str] = []
+        self.population_env_paths: list[str] = []
+        self.clone_positions: np.ndarray | None = None
+        self.resources = contextlib.ExitStack()
+        """Release borrowers before paths and stage, in reverse registration order."""
+        self.reset()
+
+    def populate(self, layer: Sdf.Layer | str | None = None, *, usda: str | None = None) -> None:
+        """Import the exported prototypes and apply the clone context's prepared operations.
+
+        Population commits ordinal 1. Consumers may then author render products and poses
+        starting at ordinal 2, after every cloned camera path exists.
+
+        Args:
+            layer: USD scene containing the routed prototypes and their materials. USDA text is deprecated.
+            usda: Deprecated text-input keyword. Pass a layer instead.
+        """
+        if layer is not None and usda is not None:
+            raise TypeError("Specify only one of layer and usda.")
+        if usda is not None:
+            layer = usda
+        if layer is None:
+            raise TypeError("OvstageBackend.populate requires a USD layer or deprecated USDA text.")
+        if isinstance(layer, str):
+            warnings.warn(
+                "USDA text in OvstageBackend.populate is deprecated and will be removed in Isaac Lab 4.0. "
+                "Pass an Sdf.Layer, for example from export_stage_to_layer, instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            parsed_layer = Sdf.Layer.CreateAnonymous()
+            if not parsed_layer.ImportFromString(layer):
+                raise ValueError("Failed to import the supplied USDA text.")
+            layer = parsed_layer
+        if self.ordinal:
+            return
+
+        usd_path = str(Path(self._usd_directory) / f"scene-{uuid.uuid4().hex}.usdc")
+        if not layer.Export(usd_path):
+            raise RuntimeError(f"Failed to export the native USD scene to {usd_path}.")
+        # Ordinal 0 is the empty state; population and cloning form the first committed write.
+        populate_stage(
+            self.stage, usd_path, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
+        )
+        ovstage_replicate(
+            self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
+        )
+        self.ordinal = 1
+        self.commit()
+
+    @contextlib.contextmanager
+    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
+        """Retain a query and its path list together until the caller leaves the context.
+
+        Args:
+            prim_paths: Prim paths in the query's binding order.
+
+        Yields:
+            The query, released before its caller-owned path list.
+        """
+        paths = self.paths.create_path_list_from_strings(prim_paths)
+        try:
+            with self.stage.query_from_path_list(paths) as query:
+                yield query
+        finally:
+            self.paths.destroy_path_list(paths)
+
+    def commit(self) -> int:
+        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
+        ordinal = self.ordinal
+        self.stage.advance_write_floor(ordinal=ordinal).wait()
+        self.ordinal += 1
+        return ordinal
+
+    def close(self) -> None:
+        """Release borrowers, then the path dictionary and stage."""
+        self.resources.close()
+        self.stage = self.paths = None
+
+    def reset(self) -> None:
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        self.close()
+        self.ordinal = self.next_camera_id = 0
+        with contextlib.ExitStack() as resources:
+            # Native USD can retain mapped crate data until the stage has closed.
+            self._usd_directory = resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab-ovstage-"))
+            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
+            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
+            self.resources = resources.pop_all()

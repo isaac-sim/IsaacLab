@@ -8,9 +8,11 @@
 import contextlib
 import ctypes
 import importlib.util
+import os
 import sys
 import types
 from builtins import ExceptionGroup
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -82,6 +84,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
+    renderer.backend._usd_files = None
     renderer.scene = renderer.backend
     from isaaclab_ov.stage import OvstageBackend
 
@@ -97,6 +100,91 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend.cfg = cfg
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
+
+
+@pytest.mark.parametrize(
+    ("platform", "previous_pread"),
+    [
+        ("win32", None),
+        ("win32", "0"),
+        ("win32", "1"),
+        pytest.param(
+            "linux",
+            "0",
+            marks=pytest.mark.skipif(sys.platform == "win32", reason="POSIX permits unlinking mapped crate files."),
+        ),
+    ],
+)
+def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds(
+    monkeypatch: pytest.MonkeyPatch, platform: str, previous_pread: str | None
+) -> None:
+    """Copied arrays outlive temporary-file cleanup without losing data."""
+    from pxr import Sdf, Usd, Vt
+
+    monkeypatch.setattr(ovrtx_renderer_module, "sys", types.SimpleNamespace(platform=platform))
+    if previous_pread is None:
+        monkeypatch.delenv("USDC_USE_PREAD", raising=False)
+    else:
+        monkeypatch.setenv("USDC_USE_PREAD", previous_pread)
+    stage = Usd.Stage.CreateInMemory()
+    expected = np.random.default_rng(812).normal(size=(100_000, 3)).astype(np.float32)
+    attribute = stage.DefinePrim("/Splat").CreateAttribute("coefficients", Sdf.ValueTypeNames.Float3Array)
+    attribute.Set(Vt.Vec3fArray.FromNumpy(expected))
+    files = []
+    retained_values = []
+
+    class NativeRenderer:
+        fail_load = False
+        fail_destroy = True
+
+        def open_usd(self, path: str) -> None:
+            pread = os.environ.get("USDC_USE_PREAD")
+            assert pread == ("1" if platform == "win32" else previous_pread)
+            file = Path(path)
+            with file.open("rb") as binary_file:
+                assert binary_file.read(8) == b"PXR-USDC"
+            files.append(file)
+            layer = Sdf.Layer.FindOrOpen(path)
+            values = layer.GetAttributeAtPath("/Splat.coefficients").default
+            retained_values.append(values)
+            np.testing.assert_array_equal(values, expected)
+            del layer
+            if self.fail_load:
+                raise RuntimeError("load failed")
+
+        def destroy(self) -> None:
+            if self.fail_destroy:
+                assert all(file.exists() for file in files)
+                raise RuntimeError("destroy failed")
+
+    backend = OVRTXBackend.__new__(OVRTXBackend)
+    backend._usd_files = None
+    backend.renderer = native = NativeRenderer()
+    try:
+        backend.populate(stage.Flatten())
+        assert os.environ.get("USDC_USE_PREAD") == previous_pread
+        directory = Path(backend._usd_files.name)
+        native.fail_load = True
+        with pytest.raises(RuntimeError, match="load failed"):
+            backend.populate(stage.Flatten())
+        assert os.environ.get("USDC_USE_PREAD") == previous_pread
+        assert len(set(files)) == 2
+        assert all(file.exists() for file in files)
+        with pytest.raises(RuntimeError, match="destroy failed"):
+            backend.close()
+        assert directory.exists()
+        native.fail_destroy = False
+        backend.close()
+        backend.close()
+        assert not directory.exists()
+        for values in retained_values:
+            np.testing.assert_array_equal(values, expected)
+    finally:
+        native.fail_destroy = False
+        retained_values.clear()
+        native.destroy()
+        if backend._usd_files is not None:
+            backend._usd_files.cleanup()
 
 
 @pytest.fixture(autouse=True)
@@ -1468,18 +1556,16 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
 
-    export_stage = ovrtx_renderer_module.export_stage_to_string
+    export_stage = ovrtx_renderer_module.export_stage_to_layer
 
     def export(*args, **kwargs):
         events.append("export")
         assert stage_mode != "shared"
         return export_stage(*args, **kwargs)
 
-    monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_string", export)
+    monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_layer", export)
 
-    def load(text):
-        layer = Sdf.Layer.CreateAnonymous()
-        assert layer.ImportFromString(text)
+    def load(layer):
         result = Usd.Stage.Open(layer)
         assert result.GetPrimAtPath("/World/Asset/Geometry").IsA(UsdGeom.Mesh)
         assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not populate_physics
@@ -1500,7 +1586,7 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         assert ("disable-camera-reads" in events) is needs_fallback
         events.append("attach")
 
-    renderer.backend.renderer = types.SimpleNamespace(open_usd_from_string=load, attach_ovstage=attach)
+    renderer.backend.renderer = types.SimpleNamespace(attach_ovstage=attach)
     renderer.scene = types.SimpleNamespace(
         clone_env_paths=[],
         clone_copies=[],

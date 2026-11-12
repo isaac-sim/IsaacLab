@@ -44,7 +44,11 @@ if not _MISSING_MODULES:
     )
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _resolve_env_light_partitions  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        OVRTXBackend,
+        OVRTXRenderer,
+        _resolve_env_light_partitions,
+    )
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade  # noqa: E402
 else:
@@ -59,8 +63,8 @@ else:
     UsdShade = None
 
 
-_PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usda"
-_OVRTX_STAGE_FILE = "ovrtx_renderer_stage.usda"
+_PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usdc"
+_OVRTX_STAGE_FILE = "ovrtx_renderer_stage.usdc"
 
 
 def _make_multi_env_stage(num_envs: int, env_template: str = "/World/envs/env_{}") -> Usd.Stage:
@@ -98,8 +102,10 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
+    renderer.backend._usd_files = None
+    renderer.backend.populate = OVRTXBackend.populate.__get__(renderer.backend)
     renderer.backend.renderer = SimpleNamespace(
-        open_usd_from_string=Mock(),
+        open_usd=Mock(),
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
         remove_usd=lambda reference: None,
         clone_usd=lambda *args, **kwargs: None,
@@ -277,9 +283,11 @@ def test_object_bindings_preserve_source_and_destination_scales(env_template):
     )
 
 
-@pytest.mark.parametrize("dump_enabled", [False, True])
-def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypatch, dump_enabled):
-    """The optional dump preserves the raw stage; default preparation performs no file writes."""
+@pytest.mark.parametrize("dump_enabled, export_succeeds", [(False, True), (True, True), (True, False)])
+def test_prepare_stage_writes_debug_dump_only_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dump_enabled: bool, export_succeeds: bool
+) -> None:
+    """The optional dump preserves the raw stage and remains absent by default."""
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),)
     plan = make_clone_plan(assets, ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32))
 
@@ -292,11 +300,28 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     expected_pre_export = stage.ExportToString()
 
     _prepare_clones(renderer, plan)
-    renderer.prepare_stage(stage, 2)
+    if not export_succeeds:
+        export = Sdf.Layer.Export
+        monkeypatch.setattr(
+            Sdf.Layer, "Export", lambda layer, path: False if Path(path).parent == output_dir else export(layer, path)
+        )
+        with (
+            pytest.warns(FutureWarning, match="pre_ovrtx_renderer_stage.usdc"),
+            pytest.raises(RuntimeError, match="Failed to export USD diagnostic"),
+        ):
+            renderer.prepare_stage(stage, 2)
+        return
+    with (
+        pytest.warns(FutureWarning, match="pre_ovrtx_renderer_stage.usdc") if dump_enabled else contextlib.nullcontext()
+    ):
+        renderer.prepare_stage(stage, 2)
 
     assert output_dir.exists() is dump_enabled
     if dump_enabled:
-        assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
+        assert Sdf.Layer.FindOrOpen(str(output_dir / _PRE_OVRTX_STAGE_FILE)).ExportToString() == expected_pre_export
+        for name in (_PRE_OVRTX_STAGE_FILE, _OVRTX_STAGE_FILE):
+            with (output_dir / name).open("rb") as file:
+                assert file.read(8) == b"PXR-USDC"
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
 
 
@@ -349,7 +374,7 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     scene.SetMetadata("metersPerUnit", 1.0)
 
     open_calls: list[str] = []
-    renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
+    renderer.backend.renderer.open_usd = lambda path: open_calls.append(path)
     reference_calls = []
     renderer.backend.renderer.add_usd_reference_from_string = lambda usd, path: reference_calls.append((usd, path))
     renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
@@ -373,9 +398,7 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     second_camera = renderer.create_render_data(spec)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
-    combined_text = combined_path.read_text(encoding="utf-8")
-    combined_layer = Sdf.Layer.CreateAnonymous("combined.usda")
-    assert combined_layer.ImportFromString(combined_text)
+    combined_layer = Sdf.Layer.FindOrOpen(str(combined_path))
     assert combined_layer.defaultPrim == "World"
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
     assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
@@ -408,7 +431,7 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
     call_order: list[str] = []
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
 
-    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
+    renderer.backend.renderer.open_usd = lambda _path: call_order.append("open")
     _prepare_clones(renderer, plan)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: call_order.append("clone"))
 
@@ -479,21 +502,20 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: contextlib.nullcontext(native))
         monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
-        monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
+        monkeypatch.setattr(ovstage.population, "open_usd", imported)
         cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.RENDERING)
         backend = OvstageBackend(cfg)
         sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
         OvstageReplicateContext(sim).replicate(plan, (0,))
-        exported_usd = renderer.backend.renderer.open_usd_from_string.call_args.args[0]
-        backend.populate(exported_usd)
-        assert imported.call_args.args == (native, exported_usd)
+        exported_usd = renderer.backend.renderer.open_usd.call_args.args[0]
+        backend.populate(Sdf.Layer.FindOrOpen(exported_usd))
+        assert imported.call_args.args[0] is native
         assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.RENDERING
         native.clone.assert_called_once_with(source, [env_template.format(i) + suffix for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()
-    exported = Usd.Stage.CreateInMemory()
-    assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])
+    exported = Usd.Stage.Open(renderer.backend.renderer.open_usd.call_args.args[0])
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
     assert settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault").Get() is True
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()

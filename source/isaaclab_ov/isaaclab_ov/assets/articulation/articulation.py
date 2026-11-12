@@ -4157,16 +4157,13 @@ class Articulation(BaseArticulation):
         self._num_spatial_tendons = self._root_view.spatial_tendon_count
 
         if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
-            stage_usda = self._backend_manager._stage_usda
-            if stage_usda is not None:
+            layer = self._backend_manager._stage_layer
+            if layer is not None:
                 try:
-                    from pxr import Sdf, Usd
+                    from pxr import Usd
 
                     from isaaclab.sim.utils.queries import get_all_matching_child_prims
 
-                    layer = Sdf.Layer.CreateAnonymous("isaaclab_ov.usda")
-                    if not layer.ImportFromString(stage_usda):
-                        raise RuntimeError("Failed to import the serialized OVPhysX stage.")
                     stage = Usd.Stage.Open(layer)
 
                     articulation_root_path = getattr(self, "_articulation_root_path", None)

@@ -29,7 +29,7 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend  # noqa:
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
-from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
+from pxr import Gf, Usd, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -950,9 +950,8 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths
         assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
-        assert sim.backend_manager._stage_usda is not None
-        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
-        assert layer.ImportFromString(sim.backend_manager._stage_usda)
+        assert sim.backend_manager._stage_layer is not None
+        layer = sim.backend_manager._stage_layer
         materialized_stage = Usd.Stage.Open(layer)
         assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
         assert all(materialized_stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)

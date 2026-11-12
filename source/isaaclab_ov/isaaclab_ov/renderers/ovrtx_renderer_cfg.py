@@ -79,9 +79,13 @@ class OVRTXRendererCfg(RendererCfg):
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
-    When set, the renderer writes ``pre_ovrtx_renderer_stage.usda`` (raw stage before
-    partition attributes and export trimming) and ``ovrtx_renderer_stage.usda`` (exported
+    When set, the renderer writes ``pre_ovrtx_renderer_stage.usdc`` (raw stage before
+    partition attributes and export trimming) and ``ovrtx_renderer_stage.usdc`` (exported
     stage plus injected render products) under this directory. Must be writable.
+
+    Readers of the former ``.usda`` filenames must use the corresponding ``.usdc`` paths.
+    Load these files with USD APIs instead of text readers. Binary dumps preserve oversized
+    attributes that USDA cannot represent. A migration warning is emitted until Isaac Lab 4.0.
     """
 
     # FIXME: revert once OVRTX stops warning on every cloned attribute without data.

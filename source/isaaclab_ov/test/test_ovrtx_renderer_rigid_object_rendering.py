@@ -75,7 +75,7 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     monkeypatch.setattr(ovstage.Stage, "clone", record_clone)
     monkeypatch.setattr(ovphysx.PhysX, "clone", reject_duplicate_scene)
     monkeypatch.setattr(ovrtx.Renderer, "clone_usd", reject_duplicate_scene)
-    monkeypatch.setattr(ovrtx_renderer, "export_stage_to_string", reject_duplicate_scene)
+    monkeypatch.setattr(ovrtx_renderer, "export_stage_to_layer", reject_duplicate_scene)
     monkeypatch.setattr(ovphysx.PhysX, "attach_ovstage", attach_physx)
     monkeypatch.setattr(ovrtx.Renderer, "attach_ovstage", attach_rtx)
     sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())

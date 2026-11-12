@@ -265,19 +265,20 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
     manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append("destroy_view"))
     scene = manager.backend.scene = SimpleNamespace(
         stage=object(), ordinal=2, reset=lambda: events.append("destroy_stage"),
-        populate=lambda usda: events.append(("populate", usda)),
+        populate=lambda layer: events.append(("populate", layer)),
     )  # fmt: skip
 
     stage = manager.backend.stage
+    layer = manager_module.Sdf.Layer.CreateAnonymous()
     with pytest.raises(RuntimeError, match="detach failed") if fails else nullcontext():
-        manager.backend.load("#usda 1.0")
+        manager.backend.load(layer)
 
     assert events == [
         "destroy_view",
         ("close_views", physx),
         "reset",
         ("wait", receipt),
-    ] + ([] if fails else ["destroy_stage", ("populate", "#usda 1.0"), ("attach", scene.stage, 1)]) + (
+    ] + ([] if fails else ["destroy_stage", ("populate", layer), ("attach", scene.stage, 1)]) + (
         [("wait", receipt)] if modern and not fails else []
     )
     assert manager.backend.rigid_body_view is None
@@ -689,7 +690,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     sim.get_or_create_backend = lambda cfg, *, scene: backend
     monkeypatch.setattr(manager, "_device", "cuda:0")
     monkeypatch.setattr(manager, "_clone_recipes", clones)
-    monkeypatch.setattr(manager_module, "_serialize_stage", lambda *args, **kwargs: ("#usda 1.0", clones))
+    monkeypatch.setattr(manager_module, "_serialize_stage", lambda *args, **kwargs: (stage.Flatten(), clones))
     monkeypatch.setattr(
         manager, "_scene_data_backend", SimpleNamespace(_defer_setup=lambda *args: events.append("defer_bindings"))
     )

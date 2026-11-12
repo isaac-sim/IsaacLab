@@ -481,7 +481,7 @@ def _serialize_stage(
     plan: ClonePlan | None = None,
     *,
     friction_replacements: dict[str, tuple[float, float, float]] | None = None,
-) -> tuple[str, list[CloneRecipe]]:
+) -> tuple[Sdf.Layer, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
@@ -598,4 +598,4 @@ def _serialize_stage(
                     del (parent.nameChildren if parent else layer.rootPrims)[spec.name]
                     spec = parent
 
-    return layer.ExportToString(), list(native.values())
+    return layer, list(native.values())
