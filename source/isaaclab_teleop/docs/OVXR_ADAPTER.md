@@ -26,6 +26,12 @@ same simulation context and native renderer/scene pair. Start the render worker
 after the environment exists. Publish simulation updates through the session;
 the worker owns rendering. Stop input consumers before closing the XR session,
 and retire the lease before destroying the simulation's renderer or stage.
+Pass `environment_owner="host"` to `prepare()` when Lab owns environment or
+window destruction. Stop input, close the session, require `session.retirement_complete`,
+then close the environment on the host. The default `"render_worker"` policy
+preserves worker-owned environment cleanup after lease retirement. Both policies
+retain the environment when retirement cannot be proved.
+
 If startup fails before the worker takes ownership, the caller closes the
 environment after releasing the lease. If input retirement fails, request
 shutdown and retain the borrowed resources until their retirement is proved.
