@@ -10,6 +10,8 @@ import torch
 
 from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize(
     ("query", "expected_point", "expected_distance"),
@@ -22,8 +24,9 @@ from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath
         ([0.5, 0.2], [0.5, 0.0], 0.5),
     ],
 )
-def test_find_nearest_distance_matches_nearest_point(query, expected_point, expected_distance):
-    """The distance along the path is the arc length of the returned nearest point, also at the endpoints."""
+def test_find_nearest_distance_matches_nearest_point(
+    query: list[float], expected_point: list[float], expected_distance: float
+) -> None:
     path = ParameterizedPath(torch.tensor([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]))
 
     point, distance, _, _ = path.find_nearest(torch.tensor(query))
