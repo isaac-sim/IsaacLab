@@ -536,7 +536,7 @@ class OvPhysxManager(PhysicsManager):
         - Serializes the current USD stage in memory
         - Creates the ovphysx.PhysX instance
         - Populates and attaches an OVStage
-        - Runs the runtime warmup entry point (on CPU and CUDA)
+        - Runs the runtime warmup entry point when provided (on CPU and CUDA)
         - Dispatches PHYSICS_READY
 
         A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
@@ -693,8 +693,8 @@ class OvPhysxManager(PhysicsManager):
         simulation device and registers process-exit cleanup. CPU and CUDA simulations may follow
         each other in one process. On a forced re-warm before :meth:`close`, it reuses the active
         instance, attaches the new USD through OVStage, rebuilds active clone recipes through
-        full-stage materialization or runtime replay, and re-runs the supported warmup entry point
-        so the new stage's bodies are resident.
+        full-stage materialization or runtime replay, and calls warmup when the runtime provides it.
+        Runtimes without warmup make bodies ready when attach and clone operations complete.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set.
@@ -763,8 +763,10 @@ class OvPhysxManager(PhysicsManager):
                 self.backend.physx, self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
             )
 
-        # Native metadata and bindings must see the newly attached bodies, including on CPU.
-        getattr(self.backend.physx, OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"])()
+        # New runtimes prepare bodies during attach/clone completion; older ones still need warmup.
+        warmup = getattr(self.backend.physx, OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"], None)
+        if warmup is not None:
+            warmup()
 
         # The central SceneDataProvider can request these bindings later. Headless
         # training never consumes them, so avoid binding every rigid link here.

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Regression tests for OVPhysX 0.5.9 bootstrap and shutdown."""
+"""Regression tests for OVPhysX bootstrap and shutdown."""
 
 from __future__ import annotations
 
@@ -641,15 +641,17 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]
 
 
-@pytest.mark.parametrize("warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), ("warmup", True)])
+@pytest.mark.parametrize(
+    "warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), (None, False), ("warmup", True)]
+)
 def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, manager, warmup, clone_fails):
-    """Accepted clone failures prevent warmup and model-ready publication."""
+    """Collect clones before optional runtime warmup and model-ready publication."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent
 
     monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", True)
-    monkeypatch.setattr(manager_module, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": warmup})
+    monkeypatch.setattr(manager_module, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": warmup or "warmup"})
     events = []
     task = object()
     targets = ["/World/env_1", "/World/env_2"]
@@ -658,12 +660,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
-        def warmup(self):
-            events.append("warmup")
-
-        def warmup_gpu(self):
-            events.append("warmup_gpu")
-
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -674,7 +670,10 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, load=lambda usda: None)
+    physx = FakePhysX()
+    if warmup is not None:
+        setattr(physx, warmup, lambda: events.append(warmup))
+    backend = SimpleNamespace(physx=physx, stage=None, load=lambda usda: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -699,6 +698,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         manager._warmup_and_load()
 
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else ([warmup] if warmup is not None else []) + ["defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)
