@@ -1771,9 +1771,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         for view in self._image_views:
             camera = view.camera
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
-                # Tile the first environments; the HUD changes how many, down to a single chosen one.
+                # Tile the first environments unless the view chose its own; the HUD changes how many.
                 self._sensor_tiles[view] = camera.num_instances
-                view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
+                if view.cfg.envs == (0,):
+                    view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
