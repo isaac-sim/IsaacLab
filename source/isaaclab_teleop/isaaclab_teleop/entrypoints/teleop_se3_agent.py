@@ -255,9 +255,9 @@ def run_teleoperation(
                 f"The environment '{args_cli.task}' does not support gripper control. The device command will be"
                 " ignored."
             )
-    except Exception as e:
-        logger.error(f"Failed to create environment: {e}")
-        return
+    except Exception:
+        logger.exception("Failed to create environment")
+        raise
 
     # Flags for controlling teleoperation flow
     should_reset_recording_instance = False
@@ -334,10 +334,10 @@ def run_teleoperation(
             use_kit_xr_bridge=args_cli.xr,
             haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
         )
-    except Exception as e:
-        logger.error(f"Failed to create teleop device: {e}")
+    except Exception:
+        logger.exception("Failed to create teleop device")
         env.close()
-        return
+        raise
 
     print(f"Using teleop device: {teleop_interface}")
 
