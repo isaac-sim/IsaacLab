@@ -119,8 +119,16 @@ def run_live_workflow(monkeypatch):
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
     def run(
-        env, interface, session, *, conditioner=None, validator=None, step_hz=0.0, refresh=lambda: None,
-        started=True, require_hands=False
+        env,
+        interface,
+        session,
+        *,
+        conditioner=None,
+        validator=None,
+        step_hz=0.0,
+        refresh=lambda: None,
+        started=True,
+        require_hands=False,
     ):
         class Device:
             target_frame_prim_path = None
