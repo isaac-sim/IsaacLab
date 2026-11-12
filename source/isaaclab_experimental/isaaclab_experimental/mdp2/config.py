@@ -116,7 +116,9 @@ def term_state(use: str, name: str) -> FieldSelector:
     """Select the state ``name`` of another term use, as in ``term_state("rewards.success", "succeeded")``.
 
     Terms read it as an input; only the use that owns it writes it. Reset events see the state of the episode that
-    ended, since term state resets after them.
+    ended, since term state resets after them. World configs that define the use differently share its state, each
+    in its own worlds, so its shapes must agree; state that the worlds share, such as a table filled by ``init``, is
+    filled by each of them in turn.
     """
     return FieldSelector(use, name, scene=False)
 

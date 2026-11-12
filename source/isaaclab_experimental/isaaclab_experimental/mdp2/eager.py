@@ -61,7 +61,7 @@ def call_eager(
         step_dt=mdp.step_dt,
         inputs=inputs,
         outputs=outputs,
-        state={name: arrays[term_state(op.name, name)].torch for name in op.state},
+        state={name: arrays[term_state(op.use, name)].torch for name in op.state},
         rng=state.rng.torch[op.stream] if op.random else None,
         mask=mask,
         out=arrays["scratch", op.name].torch if ("scratch", op.name) in arrays else None,

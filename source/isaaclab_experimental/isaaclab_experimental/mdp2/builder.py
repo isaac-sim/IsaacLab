@@ -316,6 +316,13 @@ class MDPBuilder:
             for op in context.ops[Phase.COMMANDS] + context.ops[Phase.QUANTITIES]:
                 if field_shapes.setdefault(op.writes[0], op.shape) != op.shape:
                     errors.append(f"The world configs give '{op.writes[0]}' different shapes.")
+            # The ops of one use share its state, each in its own worlds.
+            for phase, ops in context.ops.items():
+                for op in ops if phase is not Phase.ACTIONS else ():
+                    for name, spec in op.state.items():
+                        selector = term_state(op.use, name)
+                        if field_shapes.setdefault(selector, spec.shape) != spec.shape:
+                            errors.append(f"The world configs give '{selector}' different shapes.")
         if errors:
             raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
 

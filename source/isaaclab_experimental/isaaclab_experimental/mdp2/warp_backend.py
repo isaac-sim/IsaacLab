@@ -167,7 +167,7 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
     """Add the statements for the steps of a runtime function. ``stepping`` is true for ``evaluate``."""
     for step in steps:
         op = step.op
-        state = [term_state(op.name, name) for name in op.state]
+        state = [term_state(op.use, name) for name in op.state]
         active = _active(code, op)
         match step.kind:
             case StepKind.COMPUTE:
@@ -194,7 +194,7 @@ def _reset_state(code: Fusion, op: TermOp, conditions: Sequence[str]) -> None:
     for name, spec in op.state.items():
         if spec.persistent:
             continue
-        key, shape = term_state(op.name, name), spec.shape[1:]
+        key, shape = term_state(op.use, name), spec.shape[1:]
         values = _array(code, key, wp.array(dtype=wp.float32, ndim=len(spec.shape)))
         loops = [f"for i{d} in range({size}):" for d, size in enumerate(shape)]
         fill = f"{values}[{_index(shape)}] = {code.constant(float, spec.initial)}"
@@ -203,7 +203,7 @@ def _reset_state(code: Fusion, op: TermOp, conditions: Sequence[str]) -> None:
 
 def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (), stepping: bool = False) -> None:
     """Compute an op into its destination, nested under ``conditions``. Stepping advances observation histories."""
-    state = [term_state(op.name, name) for name in op.state]
+    state = [term_state(op.use, name) for name in op.state]
     reset_like = op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS) or op.phase is Phase.COMMANDS and not stepping
     if op.worlds is not None and reset_like and not isinstance(op.compute, wp.Function):
         # The hook gets the reset worlds where the op is active.
@@ -366,7 +366,7 @@ def _computed_state(op: TermOp) -> list[FieldSelector]:
     """Return the keys of the state that the compute func of a quantity, termination, or reward may write."""
     if not isinstance(op.compute, wp.Function):
         return []
-    return [term_state(op.name, name) for name in op.state if name in op.compute.input_types]
+    return [term_state(op.use, name) for name in op.state if name in op.compute.input_types]
 
 
 def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = ()) -> str:
@@ -376,7 +376,7 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
         if name in op.params:
             values.append(code.constant(annotation, op.params[name]))
         elif name in op.inputs or name in op.state:
-            key = op.inputs.get(name, term_state(op.name, name))
+            key = op.inputs.get(name, term_state(op.use, name))
             values.append(_array(code, key, annotation))
         else:
             values.append(f"{_rng(code)}[{op.stream}, world]")
@@ -419,7 +419,7 @@ def _timer(code: Fusion, op: TermOp) -> str:
 
 def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
     """Return the keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
-    state = {term_state(op.name, name) for name in op.state}
+    state = {term_state(op.use, name) for name in op.state}
     reads = {*op.inputs.values(), *state, ("selected", op.name), *(["rng"] if op.random else [])}
     return reads, {*op.writes, *state, ("scratch", op.name)}
 

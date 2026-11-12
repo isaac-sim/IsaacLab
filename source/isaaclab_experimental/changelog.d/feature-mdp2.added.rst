@@ -94,3 +94,6 @@
   action offsets read are computed again after a reset; the others keep the values of the episode that ended.
 * Added ``MDP2EnvCfg.task_worlds``, the number of worlds of each task of a task list, for shares other than even
   ones, such as a few evaluation worlds next to the training worlds.
+* Added sharing of term state between the world configs that define a use differently: the state belongs to the
+  use, each config's op writes it in its own worlds, and terms of every config read it with
+  ``mdp2.term_state(use, name)``.

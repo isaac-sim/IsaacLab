@@ -211,10 +211,12 @@ class MDP:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
         for subset, indices in self.subsets.items():
             arrays[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
+        # State belongs to the use: the ops that other world configs define differently share it.
         for op in self.term_ops:
             for name, spec in op.state.items():
-                values = wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device)
-                arrays[term_state(op.name, name)] = ProxyArray(values)
+                if term_state(op.use, name) not in arrays:
+                    values = wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device)
+                    arrays[term_state(op.use, name)] = ProxyArray(values)
 
         selectors = [op.target for op in self.ops[Phase.ACTIONS]]
         selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
@@ -260,7 +262,7 @@ class MDP:
             views = torch_views if self.backend is Backend.TORCH or op.torch_hooks else warp_views
             arguments[op.name] = {
                 **{arg: views[selector] for arg, selector in op.inputs.items()},
-                **{name: views[term_state(op.name, name)] for name in op.state},
+                **{name: views[term_state(op.use, name)] for name in op.state},
                 **({"rng": views["rng"][op.stream]} if op.random else {}),
                 **op.params,
             }

@@ -1243,6 +1243,47 @@ def test_action_offset_follows_a_quantity_through_resets():
         assert state.arrays[mdp2.quantities.reached].torch.tolist() == [1.0] * 4
 
 
+@wp.func
+def accumulate_warp(world: int, joint_pos: wp.array2d(dtype=float), total: wp.array(dtype=float), gain: float) -> float:
+    total[world] = total[world] + gain * joint_pos[world, 0]
+    return total[world]
+
+
+def accumulate_torch(joint_pos, total, *, gain):
+    total.add_(gain * joint_pos[:, 0])
+    return total
+
+
+accumulate = mdp2.Term(torch=accumulate_torch, warp=accumulate_warp, state={"total": mdp2.State()})
+"""Sum of ``gain`` times the first joint position over the episode."""
+
+
+def test_world_configs_share_the_state_of_a_use_they_define_differently():
+    """Two world configs give a quantity different params: it is two ops with one state, each in its own worlds,
+    which a reward of both configs reads."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        for gain in (1.0, 2.0):
+            config = mdp2.MDPBuilder(scene.schema)
+            quantity = mdp2.Quantity(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": gain})
+            config.add_quantity("sum", quantity)
+            total = mdp2.term_state("quantities.sum", "total")
+            config.add_reward("sum", mdp2.Reward(mdp2.mdp.value, inputs={"value": total}))
+            builder.replicate(config, 2)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        assert [op.name for op in mdp.ops[mdp2.Phase.QUANTITIES]] == ["quantities.sum[0]", "quantities.sum[1]"]
+
+        scene.data("robot", "joint_pos").torch.fill_(1.0)
+        for _ in range(2):
+            mdp2.evaluate(mdp, state, transition)
+        assert state.arrays[mdp2.term_state("quantities.sum", "total")].torch.tolist() == [2.0, 2.0, 4.0, 4.0]
+        torch.testing.assert_close(
+            transition.rewards.torch / mdp.step_dt, torch.tensor([2.0, 2.0, 4.0, 4.0], device=DEVICE)
+        )
+
+
 def test_uses_that_read_each_other_are_reported_as_a_cycle():
     """A quantity that reads the state of an event that reads the quantity cannot be ordered: the only error."""
     counting = mdp2.Term(torch=lambda mask, value, count: None, state={"count": mdp2.State()})

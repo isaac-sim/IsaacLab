@@ -86,7 +86,17 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
 
     match step.kind:
         case StepKind.COMPUTE:
+            # A compute hook that advances state does so for every world, but the op may share the state of its use
+            # with the ops of other world configs: keep what the hook wrote in its own worlds only.
+            stepped = op.phase in (Phase.QUANTITIES, Phase.TERMINATIONS, Phase.REWARDS)
+            names = [name for name in op.state if stepped and active is not None]
+            states = [state.arrays[term_state(op.use, name)].torch for name in names]
+            states = [values for values in states if values.shape[:1] == active.torch.shape]
+            before = [values.clone() for values in states]
             _compute(mdp, op, call, mask, stepping)
+            for values, kept in zip(states, before):
+                own = active.torch.view(-1, *[1] * (values.ndim - 1))
+                values.copy_(torch.where(own, values, kept))
         case StepKind.COMPUTE_IF_DUE:
             due = _tick(mdp, op, state)
             _compute(mdp, op, call, due if active is None else due & active.torch, stepping)
@@ -102,7 +112,7 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             for name, spec in op.state.items():
                 if spec.persistent:
                     continue
-                values = state.arrays[term_state(op.name, name)].torch.view(mdp.num_worlds, -1)
+                values = state.arrays[term_state(op.use, name)].torch.view(mdp.num_worlds, -1)
                 values.masked_fill_(mask[:, None], spec.initial)
 
 

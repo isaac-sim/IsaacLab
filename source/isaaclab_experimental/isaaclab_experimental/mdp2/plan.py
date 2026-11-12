@@ -58,7 +58,7 @@ class TermOp:
     """Compiled term use for one backend."""
 
     name: str  # Unique among the ops; the use's name, with a suffix if other world configs define it differently
-    use: str  # Name of the term use, such as "rewards.alive", which keys its random stream
+    use: str  # Name of the term use, such as "rewards.alive", which keys its random stream and its state
     phase: Phase
     index: int  # Position among the ops of its phase
     compute: Callable
