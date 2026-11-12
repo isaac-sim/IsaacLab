@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from filelock import FileLock
 
-from isaaclab.utils.version import has_kit
-
 from ... import converters, schemas
 from ...utils import (
     add_labels,
@@ -756,7 +754,7 @@ def spawn_from_usd_file(
                     shader, _, _ = UsdShade.Material(prim).ComputeSurfaceSource(context)
                     if shader:
                         _author_material_inputs(shader.GetPrim(), cfg.visual_material)
-        elif has_kit():
+        else:
             material_path = (
                 cfg.visual_material_path
                 if cfg.visual_material_path.startswith("/")
@@ -764,8 +762,6 @@ def spawn_from_usd_file(
             )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
-        else:
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
         from pxr import UsdShade  # noqa: PLC0415
