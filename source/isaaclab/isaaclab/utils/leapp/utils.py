@@ -34,8 +34,12 @@ class TracedProxyArray(ProxyArray):
         super().__init__(proxy_array.warp)
         astorch = super().torch
         kind = semantics_meta.kind
+        # LEAPP 0.8 velocity helpers still require the old vx/wx component labels.
         constructor = (
-            getattr(leapp, kind.name.lower()) if isinstance(kind, Kind) else partial(TensorSemantics, kind=kind)
+            getattr(leapp, kind.name.lower())
+            if isinstance(kind, Kind)
+            and kind not in (Kind.FRAME_TWIST, Kind.FRAME_LINEAR_VELOCITY, Kind.FRAME_ANGULAR_VELOCITY)
+            else partial(TensorSemantics, kind=kind)
         )
         kwargs = {
             "axes": resolve_semantics_axes(semantics_meta, real_data, astorch),

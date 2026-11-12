@@ -145,9 +145,9 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
 @pytest.mark.parametrize(
     ("property_name", "source_name", "components"),
     [
-        ("root_lin_vel_w", "root_com_lin_vel_w", ["vx", "vy", "vz"]),
-        ("root_ang_vel_w", "root_com_ang_vel_w", ["wx", "wy", "wz"]),
-        ("root_vel_w", "root_com_vel_w", ["vx", "vy", "vz", "wx", "wy", "wz"]),
+        ("root_lin_vel_w", "root_com_lin_vel_w", ["x", "y", "z"]),
+        ("root_ang_vel_w", "root_com_ang_vel_w", ["angular_x", "angular_y", "angular_z"]),
+        ("root_vel_w", "root_com_vel_w", ["x", "y", "z", "angular_x", "angular_y", "angular_z"]),
     ],
 )
 def test_root_velocity_components_follow_leapp_conventions(monkeypatch, property_name, source_name, components):
@@ -712,7 +712,7 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         assert semantics.axes == common["axes"]
     else:
         names = {
-            "velocity": ["vx", "vy", "wz"],
+            "velocity": ["x", "y", "angular_z"],
             "pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
             "planar": ["x", "y", "z", "heading"],
         }[command_type]

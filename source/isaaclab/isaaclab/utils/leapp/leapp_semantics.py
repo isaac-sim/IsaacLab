@@ -63,9 +63,9 @@ QUAT_XYZW_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["qx", "qy", "qz
 POSE7_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
 POSE6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "angular_x", "angular_y", "angular_z"])
 WRENCH6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["fx", "fy", "fz", "tx", "ty", "tz"])
-LINEAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz"])
-ANGULAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["wx", "wy", "wz"])
-TWIST_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz", "wx", "wy", "wz"])
+LINEAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z"])
+ANGULAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["angular_x", "angular_y", "angular_z"])
+TWIST_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "angular_x", "angular_y", "angular_z"])
 
 
 def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
