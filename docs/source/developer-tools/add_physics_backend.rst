@@ -92,8 +92,8 @@ transforms in the Warp-native format consumed by renderers and visualizers.
     class MyBackendManager(PhysicsManager):
         backend_name = "mybackend"
 
-        def __init__(self):
-            super().__init__()
+        def __init__(self, cfg):
+            super().__init__(cfg)
             self._scene_data_backend: MyBackendSceneDataBackend | None = None
 
         def initialize(self, sim_context):

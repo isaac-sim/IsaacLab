@@ -96,6 +96,10 @@ def reset_tray_with_random_rotation(
             - tuple (min, max): Random rotation between min and max degrees
             - float value: Random rotation between -value and +value degrees
             Examples: (0, 10), (-5, 15), 5.0 (equivalent to (-5, 5))
+        deterministic_per_env: Whether to reuse a stable yaw for each environment index
+            and seed across resets. If False (default), sample a fresh yaw on each reset.
+        deterministic_seed: Seed for deterministic_per_env. If None (default), use
+            :func:`torch.initial_seed`. Ignored when deterministic_per_env is False.
     """
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     if num_envs == 0:

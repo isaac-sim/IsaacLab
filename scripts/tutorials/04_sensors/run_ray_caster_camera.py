@@ -109,8 +109,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     camera.set_world_poses_from_view(eyes, targets)
     # -- Option-2: Set pose using ROS
     # position = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device)
-    # orientation = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=sim.device)
-    # camera.set_world_poses(position, orientation, indices=[0], convention="ros")
+    # orientation = torch.tensor([[0.33985114, 0.82047325, -0.42470819, -0.17591989]], device=sim.device)
+    # camera.set_world_poses(position, orientation, env_ids=[0], convention="ros")
 
     # Simulate physics
     while sim.is_running():

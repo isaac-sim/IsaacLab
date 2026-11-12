@@ -699,10 +699,14 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia in the world frame.
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        The tensors are flattened in row-major order and can be non-diagonal. World-frame inertia is
+        ``R @ I @ R.transpose(-1, -2)``, where ``R`` is the rotation matrix from :attr:`body_link_quat_w` and ``I``
+        is the reshaped 3-by-3 tensor.
         """
         return self._body_inertia_ta
 
@@ -1350,7 +1354,8 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
 
-        This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
+        Newton keeps the COM axes aligned with the link frame, so this equals the root link orientation.
+        These axes need not coincide with the principal axes of inertia.
         """
         root_com_pose_w = self.root_com_pose_w.warp
         if self._root_com_quat_w_ta is None:
@@ -1455,12 +1460,13 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_quat_w(self) -> ProxyArray:
-        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
+        """COM orientation (x, y, z, w) of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
 
-        This quantity is the orientation of the principal axes of inertia of the articulation bodies.
+        Newton keeps the COM axes aligned with the link frames, so these equal the body link orientations.
+        These axes need not coincide with the principal axes of inertia.
         """
         body_com_pose_w = self.body_com_pose_w.warp
         if self._body_com_quat_w_ta is None:
@@ -1525,13 +1531,13 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_quat_b(self) -> ProxyArray:
-        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their respective link
-        frames.
+        """COM orientation (x, y, z, w) of all bodies in their respective link frames.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
 
-        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
+        Newton keeps the COM axes aligned with the link frames, so these are identity quaternions (0, 0, 0, 1).
+        The local inertia tensors can be non-diagonal in these axes.
         """
         body_com_pose_b = self.body_com_pose_b.warp
         if self._body_com_quat_b_ta is None:
