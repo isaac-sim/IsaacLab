@@ -142,7 +142,9 @@ parser.add_argument(
     help="SimReady catch-bowl USD used for both visualization and fluid collisions.",
 )
 add_launcher_args(parser)
-parser.add_argument("--visualizer", "--viz", choices=["newton"], default="newton", help="Visualizer backend.")
+parser.add_argument(
+    "--visualizer", "--viz", choices=["newton", "newton_gl"], default="newton", help="Visualizer backend."
+)
 args_cli = parser.parse_args()
 ROBOT_ENABLED = args_cli.robot == "rizon_sharpa"
 

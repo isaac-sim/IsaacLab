@@ -217,7 +217,7 @@ def test_add_launcher_args_registers_every_launcher_option():
 
 
 def test_visualizer_alias_parsing(monkeypatch):
-    """Test that --viz alias maps to visualizer values, resolving the deprecated ``newton`` name."""
+    """Test that --viz alias maps to visualizer values."""
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
 
@@ -225,7 +225,7 @@ def test_visualizer_alias_parsing(monkeypatch):
     assert args.visualizer_explicit is True
     monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
     cfg = SimulationCfg(device="cpu")
-    with pytest.warns(FutureWarning, match="newton"), sim_launcher.launch_simulation(cfg, args):
+    with sim_launcher.launch_simulation(cfg, args):
         pass
     assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton"]
 
@@ -729,7 +729,7 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
         ["--visualizer", "kit,newton_gl,rerun,viser", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
-    assert args.visualizer == ["kit", "newton", "rerun", "viser"]
+    assert args.visualizer == ["kit", "newton_gl", "rerun", "viser"]
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
