@@ -17,7 +17,6 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonSDFCollisionCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxConvexDecompositionCfg, PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -38,8 +37,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.apple_pick_place import mdp
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
 from isaaclab_tasks.utils import PresetCfg, preset
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 # Joint groups in the order of the policy's state inputs.
 LEFT_LEG = [
@@ -177,20 +176,9 @@ G1_DEX3_CFG = ArticulationCfg(
 )
 
 
-# Placed like the robot's head camera in the real demonstrations: offset from the robot's head, but held still at
-# the pose of each environment's first reset (see ``reset_fixed_head_camera``), so it is not a child of the robot.
-HEAD_CAMERA_CFG = CameraCfg(
-    prim_path="{ENV_REGEX_NS}/HeadCamera",
-    offset=CameraCfg.OffsetCfg(
-        pos=(0.04485, 0.0, 0.35325), rot=(-0.62721, 0.62721, -0.32651, 0.32651), convention="ros"
-    ),
-    data_types=["rgb"],
-    width=640,
-    height=480,
-    # Isaac RTX needs Isaac Sim; ``renderer=ovrtx`` or ``renderer=newton_renderer`` render without it.
-    renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
-    spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, clipping_range=(0.1, 5.0)),
-)
+# The G1 head camera of the real demonstrations, but held still at the pose of each environment's first reset (see
+# ``reset_fixed_head_camera``), so it is not a child of the robot. Its offset is applied from the robot's head then.
+HEAD_CAMERA_CFG = g1_robot_pov_camera_cfg().replace(prim_path="{ENV_REGEX_NS}/HeadCamera")
 
 
 @configclass
