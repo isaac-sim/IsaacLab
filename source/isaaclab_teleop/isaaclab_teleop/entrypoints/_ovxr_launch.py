@@ -72,5 +72,10 @@ def reject_ovxr_runtime_conflicts(configs: Sequence[Any], kit_sources: Sequence[
     """
     from isaaclab.visualizers import VisualizerBackendCfg
 
-    if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-        raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+    visualizers = [cfg for cfg in configs if isinstance(cfg, VisualizerBackendCfg)]
+    if any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in visualizers):
+        raise ValueError("--ovxr does not support the deprecated Kit visualizer; remove the Kit --viz selection")
+    if kit_sources:
+        raise ValueError(f"--ovxr requires kitless runtime components; Kit is required by: {', '.join(kit_sources)}")
+    if visualizers:
+        raise ValueError("Local visualizers are not currently supported with --ovxr; remove the --viz selection")

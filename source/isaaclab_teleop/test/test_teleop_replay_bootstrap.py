@@ -19,10 +19,10 @@ import pytest
 @pytest.mark.parametrize(
     "kit_active,run_index,backend,viewer,hard_reset",
     [
-        (False, 0, "ovphysx", False, True),
-        (True, 0, "ovphysx", False, True),
-        (True, 1, "ovphysx", False, True),
-        (False, 0, "ovphysx", True, True),
+        (False, 0, "ovphysx", False, False),
+        (True, 0, "ovphysx", False, False),
+        (True, 1, "ovphysx", False, False),
+        (False, 0, "ovphysx", True, False),
         (False, 0, "newton_mjwarp", True, False),
     ],
 )

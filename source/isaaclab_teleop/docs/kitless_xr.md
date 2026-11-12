@@ -26,13 +26,12 @@ commands in that guide belong to Kit XR.
 
 Use Python 3.12 and the Isaac Capture wheel selected by the installation
 guide.
-Configure the `ovxr` dependency selection using
+Use the checked-in `ovxr` dependency selection described in
 [Installing kitless XR](kitless_xr_source.md), then install and
 check that selection:
 
 ```bash
 uv sync --python 3.12 --locked --extra ovxr
-uv pip check
 ```
 
 The runtime commands below use this prepared `ovxr` selection.

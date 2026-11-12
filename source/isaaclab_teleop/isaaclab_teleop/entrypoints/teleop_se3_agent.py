@@ -52,7 +52,7 @@ from .. import (
 )
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
-from ._ovxr_presentation import OvxrPresentation
+from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -558,8 +558,7 @@ def run_teleoperation(  # noqa: C901
                     with torch.inference_mode():
                         # Reset invalidates the tracking anchor. Publish the new epoch
                         # before reading input, retaining force across deferred admissions.
-                        if presentation is not None and presentation.reset_pending and not presentation.publish(env):
-                            presentation.session.wait_for_shutdown(env.step_dt)
+                        if not admit_reset_publication(env, presentation):
                             continue
                         # get device command
                         target_frame_prim_path = (
@@ -580,11 +579,11 @@ def run_teleoperation(  # noqa: C901
                             if ctrl.should_reset:
                                 should_reset_recording_instance = True
 
+                        auto_reset = False
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
-                            if presentation is None:
-                                env.sim.render()
+                            update_idle_presentation(env, presentation)
                             if haptic_driver is not None:
                                 haptic_driver.stop()
                             action_applied = False
@@ -592,16 +591,23 @@ def run_teleoperation(  # noqa: C901
                             # process actions
                             actions = action.repeat(env.num_envs, 1)
                             # apply actions
-                            env.step(actions)
+                            _, _, terminated, truncated, _ = env.step(actions)
+                            auto_reset = bool(torch.any(terminated) or torch.any(truncated))
                             # render controller haptics from post-step contact forces
                             if haptic_driver is not None:
                                 haptic_driver.update()
                             action_applied = True
 
-                        reset_applied = should_reset_recording_instance
-                        if should_reset_recording_instance:
-                            env.reset()
-                            teleop_interface.reset()
+                        reset_applied = should_reset_recording_instance or auto_reset
+                        if reset_applied:
+                            if should_reset_recording_instance:
+                                env.reset()
+                                teleop_interface.reset()
+                            elif use_isaac_teleop:
+                                # env.step already reset the environment; preserve operator controls.
+                                teleop_interface.notify_reset()
+                            else:
+                                teleop_interface.reset()
                             camera_feed_session.refresh()
                             should_reset_recording_instance = False
                             print("Environment reset complete")

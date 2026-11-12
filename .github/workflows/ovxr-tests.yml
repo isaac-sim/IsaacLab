@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tests/ovxr
-          for test in test_ovxr_session test_ov_libraries_xr; do
+          for test in test_ovxr_session test_ov_libraries_xr test_host_reset_pipeline; do
             uv run --no-sync python -m pytest "source/isaaclab_teleop/test/${test}.py" \
               -q --junitxml="tests/ovxr/${test}.xml"
           done
@@ -60,7 +60,7 @@ jobs:
           from pathlib import Path
           from xml.etree import ElementTree
 
-          for name in ("test_ovxr_session", "test_ov_libraries_xr"):
+          for name in ("test_ovxr_session", "test_ov_libraries_xr", "test_host_reset_pipeline"):
               root = ElementTree.parse(Path("tests/ovxr") / f"{name}.xml")
               cases = root.findall(".//testcase")
               assert cases, f"{name}: no adapter tests ran"
