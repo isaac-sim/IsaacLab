@@ -189,9 +189,9 @@ def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPat
     assert orientation.extra == {"isaaclab_connection": "state:ray_caster:quat_w"}
 
 
-@pytest.mark.parametrize("layout", ["physx-aggregate", "physx-filtered", "newton"])
+@pytest.mark.parametrize("layout", ["physx-aggregate", "physx-filtered", "ovphysx", "newton"])
 def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPatch, layout):
-    """Contact aliases retain component axes across aggregate, filtered, and pose layouts."""
+    """Contact poses retain body order and backend layout; force aliases keep their component axes."""
     common = dict(
         num_envs=2,
         num_sensors=2,
@@ -208,9 +208,16 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         data.create_buffers(**common, num_filter_objects=1, generate_force_matrix=True)
         pose_shape, friction_shape = (2,), (2, 2)
     else:
-        contact_data = pytest.importorskip("isaaclab_physx.sensors.contact_sensor.contact_sensor_data")
+        backend = "isaaclab_ov" if layout == "ovphysx" else "isaaclab_physx"
+        contact_data = pytest.importorskip(f"{backend}.sensors.contact_sensor.contact_sensor_data")
         data = contact_data.ContactSensorData()
-        data.create_buffers(**common, num_filter_shapes=1, supports_total_contact_forces=layout == "physx-aggregate")
+        if layout == "ovphysx":
+            data.create_buffers(**common, num_filter_shapes=1)
+        else:
+            data.create_buffers(
+                **common, num_filter_shapes=1, supports_total_contact_forces=layout == "physx-aggregate"
+            )
+        data._body_names = ["right_foot", "left_foot"]
         pose_shape = (2, 2)
         friction_shape = (2, 2, 1) if layout == "physx-filtered" else (2, 2)
 
@@ -226,10 +233,21 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         assert proxy.quat_w.torch.shape == (*pose_shape, 4)
         assert proxy.friction_forces_w.torch.shape == (*friction_shape, 3)
     position, orientation, friction = [semantics for _, semantics in annotated_inputs]
-    assert position.axes == [None] * len(pose_shape) + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
-    assert orientation.axes == [None] * len(pose_shape) + [
-        leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])
-    ]
+    pose_axes = [leapp.Axis(leapp.AxisKind.SYSTEM)]
+    if layout != "newton":
+        pose_axes.append(leapp.Axis(leapp.AxisKind.ELEMENT, names=["right_foot", "left_foot"]))
+    assert position.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert orientation.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
+    if layout == "newton":
+        with pytest.raises(NotImplementedError, match="pose_w is not supported"):
+            _ = proxy.pose_w
+    else:
+        pose = proxy.pose_w.torch
+        torch.testing.assert_close(pose[..., :3], data.pos_w.torch)
+        torch.testing.assert_close(pose[..., 3:], data.quat_w.torch)
+        assert annotated_inputs[-1][1].axes == pose_axes + [
+            leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
+        ]
     assert friction.axes == [None] * len(friction_shape) + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
 
 

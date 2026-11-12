@@ -154,6 +154,8 @@ def _compound_axes_resolver(outer_fn: Callable, component_axis: Axis) -> Callabl
     """Build axes for batched body/frame quantities with trailing components."""
 
     def resolver(data_self, ref) -> list[Axis | None] | None:
+        if ref.ndim == 2:
+            return [Axis(AxisKind.SYSTEM), component_axis]
         names = outer_fn(data_self)
         return [Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=names), component_axis] if names else None
 
