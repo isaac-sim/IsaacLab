@@ -310,7 +310,7 @@ def test_manager_camera_term_steps_the_feature_extractor_and_resets_held_images(
 def _held_image_extractor(log_dir) -> FeatureExtractor:
     """Return a real feature extractor that holds image targets and never changes its weights."""
     extractor = FeatureExtractor(
-        FeatureExtractorCfg(train=True, image_update_frames=4),
+        FeatureExtractorCfg(train=True, hold_image_targets=True),
         device="cpu",
         data_types=["rgb"],
         log_dir=str(log_dir),

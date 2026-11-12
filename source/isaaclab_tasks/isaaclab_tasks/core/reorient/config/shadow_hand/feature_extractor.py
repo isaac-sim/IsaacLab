@@ -129,14 +129,14 @@ class FeatureExtractorCfg:
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
-    image_update_frames: int = 1
-    """Camera captures per generated RGB update after the initial image, as the image transfer is configured.
+    hold_image_targets: bool = False
+    """Pair each image with the pose of the step it appeared, for images that change less often than captures.
 
-    Training only distinguishes one from more than one. Values greater than one hold each view's pose target
-    from the step its image appears until that image changes, and skip views whose image is black, such as a
-    view waiting for its first generated image after a reset. Views may update at different captures. An
-    image transfer that publishes several frames per update needs it equal to its ``update_frames``.
-    Default is 1.
+    An image transfer that publishes a generated image every few captures holds it across captures. When True,
+    each view keeps its pose target from the step its image appears until that image changes, and views whose
+    image is black, such as a view waiting for its first generated image after a reset, are left out of the
+    loss. Views may update at different captures. Default is False, which pairs every capture with the current
+    pose.
     """
 
     load_checkpoint: bool = False
@@ -203,8 +203,6 @@ class FeatureExtractor:
         self.cfg = cfg
         self.device = device
         self.data_types = data_types
-        if type(cfg.image_update_frames) is not int or cfg.image_update_frames < 1:
-            raise ValueError("Feature extractor image_update_frames must be a positive integer.")
         self._image_target_pose: torch.Tensor | None = None
         self._held_images: torch.Tensor | None = None
 
@@ -341,7 +339,7 @@ class FeatureExtractor:
             with torch.enable_grad():
                 with torch.inference_mode(False):
                     trained = None
-                    if self.cfg.image_update_frames > 1:
+                    if self.cfg.hold_image_targets:
                         # A generated image is held across captures, and views update at different
                         # captures after independent resets. Pair each image with the pose of the step
                         # it appeared, and skip views that are still black.
