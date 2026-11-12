@@ -253,13 +253,17 @@ def test_captured_steps_match_eager_steps_and_the_torch_backend():
                 assert torch.equal(value, eager_step[key])
 
 
-def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run():
+@pytest.mark.parametrize("task_worlds", [None, [12, 4]])
+def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_worlds):
     cfg = cartpole_cfg()
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
     cfg.task = [cfg.task, without_alive]
+    cfg.task_worlds = task_worlds
     env = MDP2RLEnv(cfg)
     try:
-        assert [config.worlds for config in env.mdp.world_configs] == [range(0, 8), range(8, 16)]
+        # Even shares, or the given number of worlds per task.
+        first = 8 if task_worlds is None else task_worlds[0]
+        assert [config.worlds for config in env.mdp.world_configs] == [range(0, first), range(first, 16)]
 
         env.reset()
         for _ in range(env.max_episode_length):

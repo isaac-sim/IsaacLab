@@ -88,7 +88,7 @@ class MDP2Env:
                 task_builder = mdp2.MDPBuilder(schema)
                 task_builder.add_task(task)
                 num_worlds = schema.num_worlds // len(cfg.task) + (index < schema.num_worlds % len(cfg.task))
-                builder.replicate(task_builder, num_worlds)
+                builder.replicate(task_builder, num_worlds if cfg.task_worlds is None else cfg.task_worlds[index])
         self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
         mdp2.startup(self.mdp, self.state)

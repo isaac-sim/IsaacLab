@@ -92,3 +92,5 @@
 * Added quantities as action offsets, ``mdp2.DirectAction(target, offset=mdp2.quantities.<name>)``, so that a
   policy can act relative to a reference that changes every step. Only the quantities that observations and
   action offsets read are computed again after a reset; the others keep the values of the episode that ended.
+* Added ``MDP2EnvCfg.task_worlds``, the number of worlds of each task of a task list, for shares other than even
+  ones, such as a few evaluation worlds next to the training worlds.

@@ -1243,6 +1243,19 @@ def test_action_offset_follows_a_quantity_through_resets():
         assert state.arrays[mdp2.quantities.reached].torch.tolist() == [1.0] * 4
 
 
+def test_uses_that_read_each_other_are_reported_as_a_cycle():
+    """A quantity that reads the state of an event that reads the quantity cannot be ordered: the only error."""
+    counting = mdp2.Term(torch=lambda mask, value, count: None, state={"count": mdp2.State()})
+    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    count = mdp2.term_state("events.counting", "count")
+    builder.add_quantity("mirror", mdp2.Quantity(mdp2.mdp.value, inputs={"value": count}))
+    builder.add_event("counting", mdp2.Event(counting, inputs={"value": mdp2.quantities.mirror}))
+    with pytest.raises(ValueError) as error:
+        builder.validate()
+    assert "in a cycle: quantities.mirror, events.counting" in str(error.value)
+    assert "unknown field" not in str(error.value)
+
+
 def test_reset_commits_before_events_that_ask_for_it():
     """The scene commits the writes of the earlier reset events before an event that asks for it."""
     for backend in ("torch", "warp"):

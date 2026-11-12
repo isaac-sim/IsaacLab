@@ -386,10 +386,12 @@ class MDPBuilder:
         try:
             order = list(graphlib.TopologicalSorter(reads).static_order())
         except graphlib.CycleError as error:
+            # Without an order, every use after the cycle would also be reported for the fields it cannot find.
             context.errors.append(
-                f"Uses read each other's fields in a cycle: {', '.join(map('.'.join, error.args[1]))}."
+                f"Uses read each other's fields in a cycle: {', '.join(map('.'.join, error.args[1]))}. A use is"
+                " compiled after the uses whose commands, quantities, and state it reads."
             )
-            order = list(entries)
+            return context, None
 
         actions = [entry for entry in schedule if entry.phase is Phase.ACTIONS]
         for entry in (*actions, *(entries[path] for path in order if entries[path].phase is not Phase.ACTIONS)):
