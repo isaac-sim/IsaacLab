@@ -25,9 +25,7 @@
   still follows ``WindowCfg.fps``.
 * The performance and model statistics overlay in the top-right corner of the Newton window now starts closed. A small
   "Stats" button opens it and a "Hide" button inside it closes it.
-* Removed the Background selector from the RTX Appearance options, since the dome light already chooses the sky. A
-  "Solid Background" checkbox with a color replaces the sky behind the scene without changing the lighting.
+* Removed the Background selector from the RTX Appearance options, since the dome light already chooses the sky.
 * The RTX sky texture list offers only outdoor skies, and the sky's loading status shows beside the Sky selector in
   yellow, or in red when the file could not be loaded.
-* Renamed the Camera View "Appearance" options to "Lighting & Appearance" and moved them up, right below the Camera
-  Source selector.
+* Renamed the Camera View "Appearance" options to "Lighting & Appearance" and placed them right below the renderer toggle.
