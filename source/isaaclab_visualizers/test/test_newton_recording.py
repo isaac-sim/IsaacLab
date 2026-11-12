@@ -15,10 +15,12 @@ import pytest
 from isaaclab_visualizers.newton import NewtonRecordingCfg, newton_recording
 from isaaclab_visualizers.newton.newton_recording import NewtonRecordingPanel, _ffmpeg_executable, resolve_output_dir
 
+pytestmark = pytest.mark.kitless
+
 
 class _Array:
     def __init__(self, values):
-        self._values = np.asarray(values, dtype=np.float32)
+        self._values = np.asarray(values)
 
     def numpy(self):
         return self._values
@@ -107,7 +109,7 @@ def test_stopped_video_is_kept_only_when_saved(tmp_path):
     panel.stop_video()
 
     assert panel.unsaved_video and not panel.recording_video
-    assert [file.name for file in video_dir.iterdir()] == [".unsaved_video.mp4"]  # Nothing numbered yet.
+    assert [file.name for file in video_dir.iterdir()] == [panel._video_temp.name]  # Nothing numbered yet.
 
     panel.start_video()  # Starting again replaces the unsaved clip.
     assert not panel.unsaved_video
@@ -230,8 +232,8 @@ def test_screenshot_writes_the_next_frame_as_a_numbered_png(tmp_path):
 class _Encoder:
     """Stand-in for the ffmpeg process whose input pipe can break."""
 
-    def __init__(self, broken=False):
-        self.broken, self.waited, self.written = broken, False, 0
+    def __init__(self, broken=False, returncode=0):
+        self.broken, self.returncode, self.waited, self.written = broken, returncode, False, 0
         self.stdin = SimpleNamespace(write=self._write, close=self._close)
 
     def _write(self, data):
@@ -245,25 +247,58 @@ class _Encoder:
 
     def wait(self):
         self.waited = True
+        return self.returncode
 
 
 def _recording_to(tmp_path, encoder, **recording):
     panel = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), **recording))
     panel._video, panel._video_shape, panel._video_limit = encoder, (4, 4), None
     panel._video_temp = tmp_path / ".unsaved_video.mp4"
+    panel._video_started = None
     panel._video_temp.write_bytes(b"partial")
     return panel
 
 
-def test_a_broken_encoder_pipe_ends_the_recording_and_keeps_the_partial_clip(tmp_path):
-    encoder = _Encoder(broken=True)
+def test_a_broken_encoder_pipe_ends_the_recording_and_reaps_the_process(tmp_path):
+    encoder = _Encoder(broken=True, returncode=1)
     panel = _recording_to(tmp_path, encoder)
 
     panel._write_video_frame(np.zeros((4, 4, 3), np.uint8))
 
     assert not panel.recording_video and encoder.waited  # The dead process is reaped, not left as a zombie.
-    assert panel.unsaved_video  # The partial clip can still be saved or discarded.
+    assert not panel.unsaved_video and not panel._video_temp.exists()  # A failed encode is not offered for saving.
     assert "ffmpeg stopped unexpectedly" in panel._message
+
+
+def test_an_encoder_that_exits_with_an_error_leaves_nothing_to_save(tmp_path):
+    panel = _recording_to(tmp_path, _Encoder(returncode=1))
+
+    panel.stop_video()
+
+    assert not panel.unsaved_video and "ffmpeg failed" in panel._message
+
+
+def test_each_panel_encodes_to_its_own_temporary_file_and_a_prefix_cannot_leave_the_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(newton_recording, "_ffmpeg_executable", lambda: "ffmpeg")
+    first = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), filename_prefix="../outside"))
+    second = NewtonRecordingPanel(_owner(output_dir=str(tmp_path)))
+    first.start_video()
+    second.start_video()
+
+    assert first._video_temp != second._video_temp
+    assert first._output_path("video", ".mp4").parent == tmp_path / "video"
+    assert first._output_path("video", ".mp4").name == "outside_0001.mp4"
+
+
+def test_a_screenshot_is_taken_while_rendering_is_paused_but_a_video_gets_no_frame(tmp_path):
+    panel = NewtonRecordingPanel(_owner(frames=[np.zeros((4, 6, 3), np.uint8)], output_dir=str(tmp_path)))
+    encoder = _Encoder()
+    panel._video, panel._video_shape = encoder, (4, 6)
+
+    panel.request_screenshot()
+    panel.capture(paused=True)
+
+    assert encoder.written == 0 and (tmp_path / "screenshot" / "newton_0001.png").exists()
 
 
 def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, monkeypatch):
@@ -283,7 +318,9 @@ def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, 
 def test_hud_is_captured_only_when_the_toggle_asks_for_it(tmp_path):
     requested = []
     owner = _owner(frames=[np.zeros((4, 6, 3), np.uint8)] * 2, output_dir=str(tmp_path))
-    owner._viewer.get_frame = lambda render_ui=False: requested.append(render_ui) or _Array(np.zeros((4, 6, 3)))
+    owner._viewer.get_frame = lambda render_ui=False: (
+        requested.append(render_ui) or _Array(np.zeros((4, 6, 3), np.uint8))
+    )
     panel = NewtonRecordingPanel(owner)
 
     panel.request_screenshot()
