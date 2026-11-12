@@ -946,15 +946,15 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _draw_camera_info(self, imgui) -> None:
         """Draw the navigation camera's position, field of view, and orientation."""
         camera = getattr(self._viewer, "camera", None)
-        if camera is None:
+        if camera is None or self.sensor_view_selected:  # A sensor draws its own image, not this camera's view.
             return
         imgui.separator()
         pos = camera.pos
-        imgui.text(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
+        imgui.text_disabled(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
         hover_tooltip(imgui, "World position of the camera [m]")
-        imgui.text(f"Rotation: (pitch {camera.pitch:.1f}, yaw {camera.yaw:.1f}) deg")
+        imgui.text_disabled(f"Rotation: (pitch {camera.pitch:.1f}, yaw {camera.yaw:.1f}) deg")
         hover_tooltip(imgui, "Look direction: pitch up or down, yaw around the vertical axis")
-        imgui.text(f"FOV: {camera.fov:.1f} deg")
+        imgui.text_disabled(f"FOV: {camera.fov:.1f} deg")
         hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:

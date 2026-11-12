@@ -47,7 +47,7 @@ def _renderer(visible):
     return renderer
 
 
-def test_markers_keep_only_the_rows_of_visible_environments():
+def test_markers_of_hidden_environments_drop_below_the_scene_without_changing_the_batch():
     marker = SimpleNamespace(
         translations=torch.arange(0.0, 12.0, 2.0)[:, None].repeat(1, 3),  # 6 markers: 2 per env
         orientations=None,
@@ -57,9 +57,11 @@ def test_markers_keep_only_the_rows_of_visible_environments():
 
     translations, orientations, scales, indices = _renderer([True, False, True])._visible_marker_rows(marker)
 
-    assert translations[:, 0].tolist() == [0.0, 2.0, 8.0, 10.0]
+    assert translations.shape == marker.translations.shape
+    assert translations[:, 0].tolist() == marker.translations[:, 0].tolist()
+    assert translations[:, 2].tolist() == [0.0, 2.0, 4.0 - 1.0e6, 6.0 - 1.0e6, 8.0, 10.0]
     assert orientations is None and scales is None
-    assert indices.tolist() == [0, 1, 0, 1]
+    assert indices is marker.marker_indices
 
 
 def test_markers_are_untouched_when_all_environments_show_or_the_batch_is_global():
