@@ -315,9 +315,9 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
     # a mass schema on a collider describes that collider, so it stays with the collider
     if body.HasAPI(UsdPhysics.CollisionAPI) and "PhysicsMassAPI" in moved:
         moved.remove("PhysicsMassAPI")
-    names = {*UsdPhysics.RigidBodyAPI.GetSchemaAttributeNames(False), "physics:simulationOwner"}
-    if "PhysicsMassAPI" in moved:
-        names.update(UsdPhysics.MassAPI.GetSchemaAttributeNames(False))
+    # the PhysX schema is registered only with Kit, so its properties are matched by their namespace
+    definitions = [Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(schema) for schema in moved]
+    names = {name for definition in definitions if definition for name in definition.GetPropertyNames()}
     for prop in body.GetAuthoredProperties():
         name = prop.GetName()
         if name not in names and not name.startswith("physxRigidBody:"):
