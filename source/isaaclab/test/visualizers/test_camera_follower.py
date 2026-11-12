@@ -187,13 +187,26 @@ def test_clearing_the_asset_keeps_the_view_tied_to_its_environment():
     assert cfg.track_path is None and isinstance(cfg, TrackingCameraCfg)
 
 
-def test_two_updates_a_millisecond_apart_are_not_mistaken_for_an_environment_reset():
+def test_a_steady_turn_with_heavy_smoothing_is_not_mistaken_for_an_environment_reset():
+    cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=2.0)
+    follower = CameraFollower(cfg, _NamedScene())
+    previous = None
+    for step in range(120):  # one radian per second sampled at 10 Hz, so the filter lags by more than a reset jump
+        raw = 0.1 * step
+        yaw = follower._filtered_yaw([0.0, 0.0, math.sin(raw / 2), math.cos(raw / 2)], [0.0, 0.0, 0.5], 0.1)
+        if previous is not None:
+            assert abs(math.remainder(yaw - previous, math.tau)) < 0.2
+        previous = yaw
+
+
+def test_the_heading_filter_starts_afresh_after_a_reset():
     cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=1.0)
     follower = CameraFollower(cfg, _NamedScene())
-    follower.pose(0.0)
-    follower._yaw = 0.0
-    follower._last_position = [0.0, 0.0, 0.5]
-    assert follower._filtered_yaw([0.0, 0.0, 0.0099995, 0.99995], [0.0, 0.0, 0.5], 0.001) < 0.02
+    follower._filtered_yaw([0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.5], 0.1)
+
+    follower.reset()
+
+    assert follower._filtered_yaw([0.0, 0.0, 0.2, 0.98], [0.0, 0.0, 0.5], 0.1) == pytest.approx(0.4027, abs=1e-3)
 
 
 def test_without_an_env_index_the_middle_visible_environment_is_followed():

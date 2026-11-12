@@ -46,6 +46,7 @@ class CameraFollower:
         self._scene = scene
         self._env = 0
         self._yaw: float | None = None
+        self._raw_yaw: float | None = None
         self._last_position: list[float] | None = None
         self._time: float | None = None
         if cfg.env_index is not None:
@@ -80,11 +81,11 @@ class CameraFollower:
                 raise ValueError(f"track_path must match exactly one body: {track_path!r}.")
         self.cfg.track_path = track_path or None
         self._asset, self._body_name, self._body_index = asset, body_name, None
-        self._yaw = self._last_position = self._time = None
+        self._yaw = self._raw_yaw = self._last_position = self._time = None
 
     def reset(self) -> None:
         """Forget the heading history, so the next pose is not smoothed against the previous episode."""
-        self._yaw = self._last_position = self._time = None
+        self._yaw = self._raw_yaw = self._last_position = self._time = None
 
     def asset_names(self) -> list[str]:
         """Return the names of the scene assets the view can follow."""
@@ -112,7 +113,7 @@ class CameraFollower:
         if not 0 <= index < self._scene.num_envs:
             raise ValueError(f"env_index {index} is outside the {self._scene.num_envs} environments of the scene.")
         self._env = int(index)
-        self._yaw = self._last_position = self._time = None
+        self._yaw = self._raw_yaw = self._last_position = self._time = None
 
     def pose(self, time: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         """Return the world eye and look-at target at simulation *time*, or None until the asset is ready.
@@ -161,8 +162,10 @@ class CameraFollower:
         last, self._last_position = self._last_position, position
         reset = self._yaw is None or last is None or math.dist(position, last) > _RESET_JUMP
         if not reset:
-            # an environment can reset in place with a new heading
-            reset = abs(math.remainder(yaw - self._yaw, math.tau)) > _RESET_YAW_JUMP
+            # an environment can reset in place with a new heading; the raw heading is compared, since the filtered
+            # one lags behind a steady turn
+            reset = abs(math.remainder(yaw - self._raw_yaw, math.tau)) > _RESET_YAW_JUMP
+        self._raw_yaw = yaw
         tau = self.cfg.heading_smoothing_time_constant
         if tau > 0.0 and not reset:
             yaw = self._yaw + -math.expm1(-dt / tau) * math.remainder(yaw - self._yaw, math.tau)
