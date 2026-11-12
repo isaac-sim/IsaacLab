@@ -699,6 +699,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         manager._warmup_and_load()
 
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT, manager._binding_init_event]
+        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT, manager.binding_init_event]
     )
     assert manager._warmup_done is (not clone_fails)

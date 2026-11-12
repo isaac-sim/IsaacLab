@@ -419,7 +419,6 @@ class OvPhysxManager(PhysicsManager):
 
     def __init__(self, cfg: OvPhysxCfg):
         super().__init__(cfg)
-        self._binding_init_event = _OvPhysxEvent.BINDINGS_READY
         self._cfg: OvPhysxCfg = cfg
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
@@ -437,6 +436,11 @@ class OvPhysxManager(PhysicsManager):
 
     backend_name = "ovphysx"
     clone_context_type = OvPhysxReplicateContext
+
+    @property
+    def binding_init_event(self) -> Enum:
+        """Binding phase after native cloning and warmup, before render cloning and public readiness."""
+        return _OvPhysxEvent.BINDINGS_READY
 
     def get_dt(self) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
@@ -551,7 +555,7 @@ class OvPhysxManager(PhysicsManager):
                 self._warmup_and_load()
             else:
                 # Consumers added since the previous reset still need their binding callback.
-                self.dispatch_event(self._binding_init_event, payload={})
+                self.dispatch_event(self.binding_init_event, payload={})
             self.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         self.kinematics_dirty = True
         self._scene_data_backend.transforms_timestamp += 1
@@ -779,7 +783,7 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend._defer_setup(self.backend, self._device, entries)
 
         self.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
-        self.dispatch_event(self._binding_init_event, payload={})
+        self.dispatch_event(self.binding_init_event, payload={})
         if shared_scene is not None and shared_scene.render_copies_pending:
             # Acquire publication bindings while the stage still contains only originals.
             # Complete the reserved ordinal before public callbacks can author gravity or cameras.

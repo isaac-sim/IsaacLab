@@ -43,12 +43,24 @@ an OVStage is synchronous.
 Shared-stage attachment order
 -----------------------------
 
-Shared mode uses early physics attachment without an additional flag. It populates complete original worlds at
-ordinal 1, attaches OVPhysX, and waits for native clones before physics warmup. The physics manager
-initializes asset, contact, and scene-data bindings before the stage owner commits the remaining render
-copies at ordinal 2. Only then does it publish ``PHYSICS_READY``, so startup gravity callbacks and
-camera preparation see the completed stage. OVRTX then attaches. Later physics edits consume their exact
-update ordinals and exclude the render-copy ordinal. A failed copy requires a stage rebuild before retry;
-a forced reset rebuilds this sequence after releasing bindings.
+Shared mode uses early physics attachment without an additional flag:
 
-Attaching physics before expanding the render hierarchy reduces initialization work and host memory.
+#. Populate complete original worlds and required render sources in the shared OVStage, then seal ordinal 1.
+#. Attach OVPhysX to ordinal 1 and wait for attachment to complete.
+#. Execute native physics clones, wait for completion, and run physics warmup.
+#. Initialize asset and contact bindings on the manager's
+   :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`, then acquire scene-data bindings.
+#. Clone the remaining render prims into the shared OVStage, apply environment placement, and seal ordinal 2.
+#. Publish ``PHYSICS_READY``, allowing startup gravity callbacks and camera preparation to use the completed stage.
+#. Attach OVRTX to the shared stage during renderer preparation and continue normal rendering.
+
+Sensors select their initialization phase through the read-only
+:attr:`~isaaclab.sensors.SensorBase.initialize_event` property. Ordinary sensors use ``PHYSICS_READY``;
+OVPhysX contact sensors use the manager's earlier binding event.
+
+Later physics edits consume their exact update ordinals and exclude the render-copy ordinal 2.
+A failed render copy requires a stage rebuild before retry. A forced reset releases bindings before
+their native owners and rebuilds the attachment sequence.
+
+Attaching OVPhysX before cloning the remaining render prims reduced initialization work and host memory
+in the measured workloads.

@@ -96,8 +96,14 @@ class SensorBase(ABC):
     """
 
     @property
-    def _initialize_event(self) -> Enum:
-        """Lifecycle phase in which this sensor can acquire its native resources."""
+    def initialize_event(self) -> Enum:
+        """Lifecycle event on which this sensor acquires its native resources.
+
+        Defaults to :attr:`PhysicsEvent.PHYSICS_READY`. Backend sensor implementations may override
+        this read-only property to select an earlier event when their native resources are valid.
+        Physics-binding consumers can use :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`
+        from their backend manager. The event is selected when initialization callbacks are registered.
+        """
         return PhysicsEvent.PHYSICS_READY
 
     @property
@@ -367,7 +373,7 @@ class SensorBase(ABC):
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
-            self._initialize_event,
+            self.initialize_event,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(

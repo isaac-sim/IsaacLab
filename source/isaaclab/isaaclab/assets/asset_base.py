@@ -376,7 +376,7 @@ class AssetBase(Asset, ABC):
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
-            physics_mgr._binding_init_event,
+            physics_mgr.binding_init_event,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(

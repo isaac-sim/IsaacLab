@@ -161,10 +161,19 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         self._sim_time: float = 0.0
         self._callbacks: dict[int, tuple[Any, Callable, int, str | None, Any]] = {}
         self._callback_id: int = 0
-        self._binding_init_event: Enum = PhysicsEvent.PHYSICS_READY
-        """Backend-owned phase for asset and contact bindings; may precede public readiness."""
         self.views: dict[str, Any] = {}
         """Backend views by prim path expression, shared by the consumers of this manager."""
+
+    @property
+    def binding_init_event(self) -> Enum:
+        """Lifecycle event on which assets and contact sensors acquire native physics bindings.
+
+        Defaults to :attr:`PhysicsEvent.PHYSICS_READY`. Backends may override this read-only property
+        to select an earlier event, dispatched after native handles are valid and before public
+        readiness. The manager dispatches the selected event on non-soft resets; consumers use it
+        to register initialization callbacks without depending on backend-specific event names.
+        """
+        return PhysicsEvent.PHYSICS_READY
 
     @classmethod
     def _deprecated_active(cls, owner: str) -> PhysicsManager:
