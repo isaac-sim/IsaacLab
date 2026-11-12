@@ -389,7 +389,9 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(  # noqa: C901
+    monkeypatch, capfd, use_ovstage, asynchronous, geometry
+):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -1724,6 +1726,27 @@ def test_render_lease_complete_scene_components_share_the_supplied_ordinal(compl
     assert not renderer._render_lease._poisoned
 
 
+def test_missing_camera_sample_is_rejected_before_any_component_and_can_recover(complete_scene_publication):
+    """A missing second camera cannot leave the first camera or geometry partially committed."""
+    state = complete_scene_publication
+    ready = types.SimpleNamespace(state=("sample",), render_data=types.SimpleNamespace(camera_xform_binding=object()))
+    missing = types.SimpleNamespace(state=None, render_data=types.SimpleNamespace(camera_xform_binding=object()))
+    state.lease._auxiliary_cameras = [ready, missing]
+    original_ordinal = state.renderer.scene.ordinal
+    for publish in (state.publisher.validate_scene_inputs, state.publish):
+        with pytest.raises(RuntimeError, match="no live world-pose sample"):
+            publish()
+        assert not state.events
+        assert state.renderer.scene.ordinal == original_ordinal
+        assert not state.renderer._render_lease._poisoned
+        assert state.renderer._render_lease._last_step_id == state.initial_id
+    missing.state = ("fresh sample",)
+    state.publisher.validate_scene_inputs()
+    state.publish()
+    assert state.renderer._render_lease._last_step_id == "step"
+    assert state.events
+
+
 @pytest.mark.parametrize("failure", ["material", "transform", "geometry", "auxiliary", "partition", "material-drain"])
 def test_render_lease_complete_scene_failure_preserves_commit_boundary(complete_scene_publication, failure):
     state = complete_scene_publication
@@ -2129,6 +2152,20 @@ def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypa
     renderer.close()
     assert removed == [7]
     assert data not in renderer._camera_render_data
+
+
+def test_external_camera_matches_the_actual_custom_clone_root(leased_renderer):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    renderer.scene = types.SimpleNamespace(clone_env_paths=["/Lab/Cell0"])
+    cfg = types.SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Head", width=640, height=480, data_types=("rgb",))
+    lease.configure_auxiliary_camera(cfg)
+    spec = types.SimpleNamespace(
+        cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=("/Lab/Cell0/Robot/Head/camera",)
+    )
+    assert renderer._render_lease.accept_camera_spec(spec)
+    assert lease._auxiliary_cameras[0].spec is spec
+    lease.release()
 
 
 def test_selected_external_camera_order_is_independent_of_sensor_preparation(leased_renderer):

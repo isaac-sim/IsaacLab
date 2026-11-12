@@ -24,7 +24,6 @@ import torch
 
 from pxr import Gf, Sdf, Usd
 
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 if TYPE_CHECKING:
@@ -301,8 +300,9 @@ class OvLibrariesScenePublisher:
 
     1. On the application thread, call :meth:`publication_required` with the identity of the
        current physics state.
-    2. If it returns ``True``, reserve a nonzero Stage ordinal and call
-       :meth:`write_complete_scene` with it. The write does not advance the Stage write floor:
+    2. If it returns ``True``, refresh selected camera poses and call :meth:`validate_scene_inputs`.
+       Then reserve a nonzero Stage ordinal and call :meth:`write_complete_scene` with it.
+       The write does not advance the Stage write floor:
        the borrower seals that ordinal afterwards, or abandons it if the write fails.
     3. Hold one application publication guard around both calls and around every operation the
        render owner performs in :meth:`~isaaclab_ov.renderers.OvLibrariesRenderLease.ovstage_owner_lane`, so that scene
@@ -343,6 +343,22 @@ class OvLibrariesScenePublisher:
             if self._closed:
                 raise RuntimeError("OVStage scene publisher is closed")
             return self._controller.producer_publication_required(self._lease, physics_step_id)
+
+    def validate_scene_inputs(self) -> None:
+        """Reject incomplete auxiliary-camera samples before reserving a publication ordinal.
+
+        Call after refreshing camera poses and before opening the native write transaction.
+        A rejected sample has not changed the Stage and does not poison the leased pair.
+
+        Raises:
+            RuntimeError: If the publisher is unavailable or a selected camera lacks its live pose or binding.
+        """
+        self._require_application_thread()
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("OVStage scene publisher is closed")
+            self._controller.producer_publication_required(self._lease, _NO_PHYSICS_STEP_ID)
+            self._controller.validate_camera_samples()
 
     def write_complete_scene(self, ordinal: int, physics_step_id: Hashable) -> None:
         """Write, but do not publish, one complete batch at ``ordinal``.
@@ -596,6 +612,7 @@ class RenderLeaseController:
             raise ValueError("OVStage publication ordinal must be nonzero")
         if not self.producer_publication_required(lease, physics_step_id):
             raise RuntimeError("OVStage scene publication is not required for this complete state")
+        self.validate_camera_samples()
         publish_camera_partitions = lease._external_camera_scene_partitions_pending
         try:
             self._write_scene_components(ordinal, partition_lease=lease if publish_camera_partitions else None)
@@ -614,7 +631,12 @@ class RenderLeaseController:
             expected = camera.cfg
             if spec.num_instances != 1 or spec.view_count != 1 or len(spec.camera_prim_paths) != 1:
                 raise RuntimeError("An external camera requires exactly one camera view")
-            pattern = expand_env_regex_ns(str(expected.prim_path))
+            pattern = str(expected.prim_path)
+            if "{ENV_REGEX_NS}" in pattern:
+                roots = self._renderer.scene.clone_env_paths
+                if len(roots) != 1:
+                    raise RuntimeError("An external camera requires exactly one cloned environment root")
+                pattern = pattern.replace("{ENV_REGEX_NS}", re.escape(roots[0]))
             if (
                 int(spec.cfg.width) == int(expected.width)
                 and int(spec.cfg.height) == int(expected.height)
@@ -925,6 +947,18 @@ class RenderLeaseController:
             camera.product_path = camera.render_data.render_product_path
         if lease._auxiliary_cameras:
             self._renderer.scene.commit()
+
+    def validate_camera_samples(self) -> None:
+        """Validate the whole camera batch before any scene component starts writing."""
+        lease = self.active
+        if lease is not None:
+            for camera in lease._auxiliary_cameras:
+                if (
+                    camera.state is None
+                    or camera.render_data is None
+                    or camera.render_data.camera_xform_binding is None
+                ):
+                    raise RuntimeError("Auxiliary camera has no live world-pose sample")
 
     def _update_cameras(self) -> None:
         lease = self.active

@@ -20,8 +20,8 @@ OVXR viewer:
 
     Optional camera quads use ``--ovxr_pip_camera NAME`` with the same rate, placement
     and position options as live teleoperation (``--ovxr_pip_head_locked`` overrides a
-    task layout that is not head-locked). The desktop mirror is enabled by default;
-    ``--headless`` disables it.
+    task layout that is not head-locked). The desktop mirror is disabled by default;
+    ``--ovxr_desktop_mirror`` enables it.
 
 Inputs:
     ``--replay_file`` is an MCAP capture produced by Isaac Capture's
@@ -313,7 +313,7 @@ from ._ovxr_launch import (
     resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
-from ._ovxr_presentation import OvxrPresentation
+from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -1168,9 +1168,9 @@ def _prepare_env_cfg(
 
 def _replay_requires_hard_sim_reset(physics_backend: str | None) -> bool:
     """Return whether replay must rebuild the simulator before an environment reset."""
-    # Scene identity comes from the constructed manager, so preset aliases all
-    # resolve to NewtonManager.backend_name == "newton" before this policy runs.
-    return physics_backend is None or not physics_backend.startswith("newton")
+    # Only Kit PhysX needs articulation-view rebinding for Pink IK. Both kitless
+    # backends retain their constructed solver and any leased presentation stage.
+    return physics_backend in (None, "physx")
 
 
 def _reset_replay_environment(env: gym.Env, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
@@ -1193,8 +1193,8 @@ def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice, *, hard_sim
     recorders are configured (the default for this script), but kept for
     parity with record_demos.py so future recorder additions don't have to
     re-derive the call sequence.
-    With ``hard_sim_reset=False`` (Newton), the hard reinit is skipped so the
-    solver constructed before replay stays alive.
+    With ``hard_sim_reset=False`` (Newton or OvPhysX), the hard reinit is skipped
+    so the solver and any stage leased to the XR worker stay alive.
     """
     print("Resetting environment...")
     _reset_replay_environment(env, hard_sim_reset=hard_sim_reset, reset_recorder=True)
@@ -1268,13 +1268,11 @@ def _warmup_replay(env: gym.Env, run_index: int, presentation: OvxrPresentation 
             )
             buffer_start_s = time.monotonic()
             while env.sim.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
-                if presentation is None:
-                    env.sim.render()
-                else:
-                    if presentation.session.shutdown_requested:
-                        raise RuntimeError("OVXR viewer closed before replay started")
-                    presentation.publish(env)
-                    time.sleep(0.01)
+                if presentation is not None and presentation.session.shutdown_requested:
+                    raise RuntimeError("OVXR viewer closed before replay started")
+                update_idle_presentation(env, presentation)
+                if presentation is not None:
+                    presentation.session.wait_for_shutdown(0.01)
 
 
 def _start_replay_presentation(env: gym.Env, presentation: OvxrPresentation) -> None:
@@ -1294,14 +1292,12 @@ def _advance_replay_input(device: IsaacTeleopDevice, presentation: OvxrPresentat
 
 def _render_replay_idle(env: gym.Env, presentation: OvxrPresentation | None) -> None:
     """Keep the selected presentation responsive without advancing physics."""
-    if presentation is None:
-        env.sim.render()
-    else:
-        presentation.publish(env)
-        time.sleep(env.step_dt)
+    update_idle_presentation(env, presentation)
+    if presentation is not None:
+        presentation.session.wait_for_shutdown(env.step_dt)
 
 
-def _run_single_replay(
+def _run_single_replay(  # noqa: C901
     env: gym.Env,
     isaac_teleop_cfg,
     success_term: object | None,
@@ -1406,7 +1402,7 @@ def _run_single_replay(
         # and to compute ``target = curr + delta``; if the articulation view is
         # stale, every IK call produces zero-delta arm targets while the
         # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
-        # Newton skips the hard reset: its constructed solver must stay alive.
+        # Kitless backends retain the constructed solver and leased stage.
         _reset_replay_environment(
             env,
             hard_sim_reset=_replay_requires_hard_sim_reset(env.scene.physics_backend),
@@ -1460,6 +1456,8 @@ def _run_single_replay(
                         print("OVXR viewer requested shutdown before replay completed.")
                         stats.outcome = "incomplete"
                         break
+                    if not admit_reset_publication(env, presentation):
+                        continue
                     action = _advance_replay_input(teleop_interface, presentation)
                     ctrl = poll_control_events(teleop_interface)
 

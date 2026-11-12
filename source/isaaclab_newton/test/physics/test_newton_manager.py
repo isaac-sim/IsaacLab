@@ -650,7 +650,6 @@ def test_graph_capture_allows_concurrent_legacy_stream_copy(device: str) -> None
     np.testing.assert_array_equal(copied.cpu().numpy(), [23.0] * 4)
 
 
-
 # ----- Reset masks -------------------------------------------------------------------------
 
 

@@ -10,46 +10,48 @@ from isaaclab_teleop.xr_scene_partition import partition_visual_meshes
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 
-def _scene():
+def _scene(root: str = "/World/envs/env_0") -> Usd.Stage:
     stage = Usd.Stage.CreateInMemory()
-    env = UsdGeom.Xform.Define(stage, "/World/envs/env_0").GetPrim()
+    env = UsdGeom.Xform.Define(stage, root).GetPrim()
     env.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
     UsdGeom.Mesh.Define(stage, "/Asset/head/mesh")
     UsdGeom.Mesh.Define(stage, "/Asset/body/mesh")
-    visual = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/visuals").GetPrim()
+    visual = UsdGeom.Xform.Define(stage, f"{root}/Robot/visuals").GetPrim()
     visual.GetReferences().AddInternalReference("/Asset")
     visual.SetInstanceable(True)
-    collision = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Robot/collisions/head").GetPrim()
+    collision = UsdGeom.Mesh.Define(stage, f"{root}/Robot/collisions/head").GetPrim()
     UsdPhysics.CollisionAPI.Apply(collision)
-    UsdGeom.Camera.Define(stage, "/World/envs/env_0/Robot/Camera")
+    UsdGeom.Camera.Define(stage, f"{root}/Robot/Camera")
     return stage
 
 
-@pytest.mark.parametrize("settings_path", [None, "/Render/AuthoredSettings"])
-def test_partition_export_preserves_source_visibility_physics_and_camera(settings_path):
-    stage = _scene()
+@pytest.mark.parametrize(
+    "settings_path,root", [(None, "/World/envs/env_0"), ("/Render/AuthoredSettings", "/World/custom/scene_0")]
+)
+def test_partition_export_preserves_source_visibility_physics_and_camera(settings_path, root) -> None:
+    stage = _scene(root)
     if settings_path is not None:
         stage.DefinePrim(settings_path, "RenderSettings")
         stage.SetMetadata("renderSettingsPrimPath", settings_path)
     original = stage.GetRootLayer().ExportToString()
     session = stage.GetSessionLayer().ExportToString()
-    head = "/World/envs/env_0/Robot/visuals/head/mesh"
-    with partition_visual_meshes(stage, [head]):
+    head = f"{root}/Robot/visuals/head/mesh"
+    with partition_visual_meshes(stage, [head], environment_root_path=root):
         prim = stage.GetPrimAtPath(head)
         assert UsdGeom.PrimvarsAPI(prim).FindPrimvarWithInheritance("omni:scenePartition").Get() == "xr_excluded"
         assert UsdGeom.Imageable(prim).ComputeVisibility() == "inherited"
-        for path in ("/World/envs/env_0/Robot/visuals/body/mesh", "/World/envs/env_0/Robot/collisions/head"):
+        for path in (f"{root}/Robot/visuals/body/mesh", f"{root}/Robot/collisions/head"):
             assert (
                 UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(path)).FindPrimvarWithInheritance("omni:scenePartition").Get()
                 == "env_0"
             )
-        assert stage.GetPrimAtPath("/World/envs/env_0/Robot/Camera").IsA(UsdGeom.Camera)
+        assert stage.GetPrimAtPath(f"{root}/Robot/Camera").IsA(UsdGeom.Camera)
         layer = Sdf.Layer.CreateAnonymous()
         layer.ImportFromString(
             export_stage_to_string(
                 stage,
-                ("/World/envs/env_0",),
-                source_paths=("/World/envs/env_0",),
+                (root,),
+                source_paths=(root,),
                 preserve_partition_visibility=True,
             )
         )

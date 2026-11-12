@@ -15,13 +15,11 @@ import time
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
-
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
 from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
@@ -45,7 +43,6 @@ _DEFAULT_OVXR_RENDER_VAR_PATHS = (
     "/Render/Vars/XRDepth",
 )
 _DEFAULT_OVXR_RENDER_SETTINGS_PATH = "/Render/OmniverseGlobalRenderSettings"
-_ENVIRONMENT_ROOT_PATH = DEFAULT_ENV_TEMPLATE.format(0)
 
 
 class _CounterRate:
@@ -114,20 +111,6 @@ class _StageOrdinalLedger(StageOrdinalLedger):
         self._closed = False
         self._floor = self._read_floor()
 
-    def _read_floor(self) -> int:
-        with self._stage.get_attribute_write_floor() as query:
-            query.wait()
-            floor = int(query.fetch())
-        if floor < 0 or floor > (1 << 64) - 1:
-            raise RuntimeError(f"OVStage returned an invalid write floor: {floor}")
-        return floor
-
-    def _require_active(self, ordinal: int) -> None:
-        if self._active_ordinal != ordinal:
-            raise RuntimeError(
-                f"OVStage ordinal {ordinal} is not the active application reservation ({self._active_ordinal=})"
-            )
-
     def reserve(self) -> int:
         """Reserve exactly ``floor + 1`` while the application publication guard is held."""
         with self._state_lock:
@@ -195,6 +178,20 @@ class _StageOrdinalLedger(StageOrdinalLedger):
                 raise RuntimeError(f"Cannot close with unresolved OVStage ordinal {self._active_ordinal}")
             self._closed = True
 
+    def _read_floor(self) -> int:
+        with self._stage.get_attribute_write_floor() as query:
+            query.wait()
+            floor = int(query.fetch())
+        if floor < 0 or floor > (1 << 64) - 1:
+            raise RuntimeError(f"OVStage returned an invalid write floor: {floor}")
+        return floor
+
+    def _require_active(self, ordinal: int) -> None:
+        if self._active_ordinal != ordinal:
+            raise RuntimeError(
+                f"OVStage ordinal {ordinal} is not the active application reservation ({self._active_ordinal=})"
+            )
+
 
 class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
     """Supply only the renderer/Stage/coordinator and simulation publication."""
@@ -206,9 +203,12 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         cfg: OvLibrariesXrCfg,
         excluded_visual_meshes: Iterable[str] = (),
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
+        *,
+        environment_owner: Literal["render_worker", "host"] = "render_worker",
     ) -> None:
         self._bootstrap = bootstrap
         self._env = env
+        self._environment_owner = environment_owner
         self._cfg = cfg
         self._excluded_visual_meshes = tuple(excluded_visual_meshes)
         self._publication_lock = threading.Lock()
@@ -246,13 +246,17 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         from .xr_scene_partition import partition_visual_meshes
 
         stage = unwrapped.scene.stage
-        with partition_visual_meshes(stage, self._excluded_visual_meshes):
+        environment_paths = unwrapped.scene.env_prim_paths
+        if len(environment_paths) != 1:
+            raise RuntimeError("OVXR scene partitions require exactly one environment root")
+        environment_root_path = environment_paths[0]
+        with partition_visual_meshes(stage, self._excluded_visual_meshes, environment_root_path=environment_root_path):
             self._lease = self._bootstrap.bind_environment(self._env)
         auxiliary_paths = ()
         if self._auxiliary_cameras:
             auxiliary_paths = self._lease.auxiliary_render_product_paths
         with self._lease.ovstage_owner_lane():
-            self._lease.configure_external_camera_scene_partitions(_ENVIRONMENT_ROOT_PATH, self._cfg.camera_paths)
+            self._lease.configure_external_camera_scene_partitions(environment_root_path, self._cfg.camera_paths)
             self._ordinal_ledger = _StageOrdinalLedger(self._lease.ovstage)
             if self._external_anchor is not None:
                 import ovstage
@@ -335,6 +339,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                 # OVXR presentation bypasses Camera's image-update path. Refresh only poses
                 # after simulation/reset kinematics, before publishing the matching scene.
                 sensors[camera.name].refresh_world_poses()
+        self._scene_publisher.validate_scene_inputs()
         snapshot = None
         seed = False
         if self._external_anchor is not None:
@@ -476,13 +481,19 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         self._bootstrap.close()
 
     def close_environment_on_render_thread(self) -> None:
+        """Verify XR retirement before the selected owner destroys the environment.
+
+        Capture always calls this on its worker. Host ownership leaves Lab's
+        environment and desktop windows for the host after session retirement.
+        """
         if self._ordinal_ledger is not None:
             raise RuntimeError("OVStage write retirement is unproved; retaining its environment")
         if self._anchor_retirement_failed:
             raise RuntimeError("Anchor query retirement is unproved; retaining its environment")
         if not self._bootstrap.closed:
             raise RuntimeError("Render lease retirement is unproved; retaining its environment")
-        self._env.close()
+        if self._environment_owner == "render_worker":
+            self._env.close()
 
     def abort(self) -> None:
         # The caller owns an environment even when worker startup failed.
@@ -491,7 +502,13 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
 
 
 class OvLibrariesXrSession:
-    """Thin Isaac Lab adapter around Isaac Capture's OVXR session."""
+    """Isaac Lab adapter around Isaac Capture's OVXR session.
+
+    The default delegates environment cleanup to the render worker. Callers
+    selecting ``environment_owner="host"`` must drain input, close this session,
+    and establish :attr:`retirement_complete` before closing the environment and
+    desktop windows on the host thread. Worker termination alone is insufficient.
+    """
 
     @runtime_checkable
     class ExternalAnchorState(Protocol):
@@ -541,46 +558,49 @@ class OvLibrariesXrSession:
             """
             ...
 
-    def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrCfg) -> None:
+    def __init__(
+        self,
+        bootstrap: OvxrSessionBootstrap,
+        cfg: OvLibrariesXrCfg,
+        *,
+        environment_owner: Literal["render_worker", "host"] = "render_worker",
+    ) -> None:
+        if environment_owner not in ("render_worker", "host"):
+            raise ValueError(f"Unknown XR environment owner: {environment_owner!r}")
         self._bootstrap = bootstrap
         self._cfg = cfg
+        self._environment_owner = environment_owner
         self._owner = None
         self._desktop_mirror = None
         self._host = None
         self._closed = False
         self._physics_rate = _CounterRate()
 
-    @classmethod
-    def prepare(
-        cls,
-        sim_cfg: SimulationCfg,
-        cfg: OvLibrariesXrCfg,
-        renderer_cfg: OVRTXRendererCfg | None = None,
-    ) -> OvLibrariesXrSession:
-        """Snapshot session selection, create simulation and reserve its OVRTX lease.
+    def __enter__(self) -> OvLibrariesXrSession:
+        self._require_open()
+        return self
 
-        Renderer settings are process-global on the stock renderer interface;
-        use one configured session per process. No supported readback exists
-        here to restore a previous renderer's settings on close.
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+    @property
+    def async_worker_owns_environment(self) -> bool:
+        """Whether the selected policy delegates environment teardown to the worker."""
+        return self._environment_owner == "render_worker" and self._owner is not None and self._owner.owns_environment
+
+    @property
+    def retirement_complete(self) -> bool:
+        """Whether all XR borrowers retired, including after a failed startup.
+
+        This remains readable after close succeeds or raises. A stopped or joined
+        worker alone does not authorize destruction of the borrowed environment.
         """
-        cfg = replace(cfg, auxiliary_cameras=tuple(cfg.auxiliary_cameras))
-        validate_ovxr_session_preparation()
-        import ovxr
+        return self._bootstrap.closed if self._owner is None else self._owner.retirement_complete
 
-        # Stock settings are applied before Renderer construction. Preserve explicit caller choices.
-        ovxr.apply_renderer_settings(cfg.renderer_settings.strip())
-        bootstrap = OvxrSessionBootstrap(sim_cfg, renderer_cfg)
-        try:
-            for camera in cfg.auxiliary_cameras:
-                bootstrap.configure_auxiliary_camera(camera.camera_cfg, max_fps=camera.max_fps)
-            return cls(bootstrap, cfg)
-        except BaseException as preparation_error:
-            try:
-                bootstrap.abort()
-            except BaseException as abort_error:
-                # Cleanup follows the failure; retain its original cause.
-                preparation_error.add_note(f"Cleanup after failed XR preparation also failed: {abort_error!r}")
-            raise
+    @property
+    def shutdown_requested(self) -> bool:
+        """Whether the OVXR session requested application shutdown."""
+        return self._owner is not None and self._owner.shutdown_requested
 
     def start_render_worker(
         self,
@@ -609,7 +629,8 @@ class OvLibrariesXrSession:
                 prepared simulation context, has no completed stage or not exactly one environment,
                 or selects a different simulation device or physics time step.
             TypeError: If ``external_anchor_state`` does not implement :class:`ExternalAnchorState`.
-            ValueError: If ``max_blank_frames`` is not a nonnegative integer.
+            ValueError: If ``max_blank_frames`` is not a nonnegative integer, or selected
+                auxiliary cameras use eager scene sensor updates.
         """
         self._require_open()
         if self._owner is not None:
@@ -619,6 +640,11 @@ class OvLibrariesXrSession:
         _require_external_anchor_state(external_anchor_state)
         # Reject an inconsistent environment before the worker claims the lease.
         self._bootstrap.validate_environment(env)
+        if self._cfg.auxiliary_cameras and not env.unwrapped.scene.cfg.lazy_sensor_update:
+            raise ValueError(
+                "OVXR auxiliary cameras require scene.lazy_sensor_update=True; eager sensor updates"
+                " would capture cameras whose renderer is owned by the XR worker"
+            )
         from isaaccapture.ovxr_session_manager.ovxr_session import (
             OvxrSession,
             OvxrSessionConfig,
@@ -628,7 +654,12 @@ class OvLibrariesXrSession:
 
         anchor_path = self._cfg.tracking_anchor_path if tracking_anchor_path is None else tracking_anchor_path
         host = _IsaacLabOvxrApplicationInterface(
-            self._bootstrap, env, self._cfg, excluded_visual_meshes, external_anchor_state
+            self._bootstrap,
+            env,
+            self._cfg,
+            excluded_visual_meshes,
+            external_anchor_state,
+            environment_owner=self._environment_owner,
         )
         self._host = host
         self._owner = OvxrSession(
@@ -698,24 +729,20 @@ class OvLibrariesXrSession:
         return self._owner.get_target_frame_T_world(prim_path)
 
     def close(self) -> None:
-        """Close Isaac Capture's owner before releasing the application environment."""
+        """Retire XR borrowers before the selected owner releases the environment.
+
+        Failed retirement leaves the session open and its environment borrowed.
+        Stop all input borrowers before calling, including after worker failure.
+        """
         if self._closed:
             return
         if self._owner is None:
             self._bootstrap.close()
         else:
             self._owner.close()
+        if not self.retirement_complete:
+            raise RuntimeError("OVXR retirement is unproved; retaining its borrowed environment")
         self._closed = True
-
-    @property
-    def async_worker_owns_environment(self) -> bool:
-        """Whether Isaac Capture accepted environment teardown ownership."""
-        return self._owner is not None and self._owner.owns_environment
-
-    @property
-    def shutdown_requested(self) -> bool:
-        """Whether the OVXR session requested application shutdown."""
-        return self._owner is not None and self._owner.shutdown_requested
 
     def request_shutdown(self) -> None:
         """Request orderly OVXR shutdown."""
@@ -734,6 +761,58 @@ class OvLibrariesXrSession:
         self._require_started()
         return self._owner.wait_for_shutdown(timeout_s)
 
+    @classmethod
+    def prepare(
+        cls,
+        sim_cfg: SimulationCfg,
+        cfg: OvLibrariesXrCfg,
+        renderer_cfg: OVRTXRendererCfg | None = None,
+        *,
+        environment_owner: Literal["render_worker", "host"] = "render_worker",
+    ) -> OvLibrariesXrSession:
+        """Snapshot session selection, create simulation and reserve its OVRTX lease.
+
+        Renderer settings are process-global on the stock renderer interface;
+        use one configured session per process. No supported readback exists
+        here to restore a previous renderer's settings on close.
+
+        Args:
+            sim_cfg: Simulation configuration used to construct the context immediately
+                before the environment. The environment must reuse that exact context.
+            cfg: XR session configuration, snapshotted before native preparation.
+            renderer_cfg: Renderer registered in that context to lease. ``None`` selects
+                the default :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+            environment_owner: ``"render_worker"`` closes the environment on Capture's
+                worker. ``"host"`` leaves it for the caller after XR retirement.
+
+        Returns:
+            A prepared session whose lease is reserved but has not transferred to a worker.
+
+        Raises:
+            RuntimeError: If a simulation context already exists or extension mode is active.
+            ValueError: If the environment ownership policy or XR configuration is invalid.
+        """
+        if environment_owner not in ("render_worker", "host"):
+            raise ValueError(f"Unknown XR environment owner: {environment_owner!r}")
+        cfg = replace(cfg, auxiliary_cameras=tuple(cfg.auxiliary_cameras))
+        validate_ovxr_session_preparation()
+        import ovxr
+
+        # Stock settings are applied before Renderer construction. Preserve explicit caller choices.
+        ovxr.apply_renderer_settings(cfg.renderer_settings.strip())
+        bootstrap = OvxrSessionBootstrap(sim_cfg, renderer_cfg)
+        try:
+            for camera in cfg.auxiliary_cameras:
+                bootstrap.configure_auxiliary_camera(camera.camera_cfg, max_fps=camera.max_fps)
+            return cls(bootstrap, cfg, environment_owner=environment_owner)
+        except BaseException as preparation_error:
+            try:
+                bootstrap.abort()
+            except BaseException as abort_error:
+                # Cleanup follows the failure; retain its original cause.
+                preparation_error.add_note(f"Cleanup after failed XR preparation also failed: {abort_error!r}")
+            raise
+
     def _require_open(self) -> None:
         if self._closed:
             raise RuntimeError("OVXR session is closed")
@@ -742,13 +821,6 @@ class OvLibrariesXrSession:
         self._require_open()
         if self._owner is None:
             raise RuntimeError("OVXR session is not started")
-
-    def __enter__(self) -> OvLibrariesXrSession:
-        self._require_open()
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        self.close()
 
 
 def _require_external_anchor_state(state: object) -> None:

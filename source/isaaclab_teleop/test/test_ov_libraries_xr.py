@@ -53,6 +53,9 @@ class _FakePublisher:
     def publication_required(self, _publication_id):
         return self.required
 
+    def validate_scene_inputs(self) -> None:
+        pass
+
     def write_complete_scene(self, ordinal, publication_id):
         self.calls.append((ordinal, publication_id, threading.get_native_id()))
         if self.fail is not None:
@@ -313,7 +316,10 @@ def test_runtime_render_prim_declaration_preserves_disabled_and_fails_on_conflic
 
 def _make_host(xr_module, monkeypatch):
     bootstrap = _FakeBootstrap()
-    env = SimpleNamespace(scene=SimpleNamespace(stage=None), close=lambda: bootstrap.events.append("environment-close"))
+    env = SimpleNamespace(
+        scene=SimpleNamespace(stage=None, env_prim_paths=["/World/envs/env_0"]),
+        close=lambda: bootstrap.events.append("environment-close"),
+    )
     monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda _env, _cfg: bootstrap.events.append("declare"))
@@ -424,7 +430,9 @@ def test_host_lends_the_selected_auxiliary_product_without_rendering_it(xr_modul
     bootstrap.lease.auxiliary_render_product_paths = ("/IsaacLabAuxiliaryRender/RenderProduct_robot_pov_cam",)
     camera = object()
     env = SimpleNamespace(
-        unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": camera}))
+        unwrapped=SimpleNamespace(
+            scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": camera}, env_prim_paths=["/World/envs/env_0"])
+        )
     )
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)
@@ -494,7 +502,7 @@ def test_selected_camera_poses_follow_motion_and_reset_before_publication(xr_mod
             pytest.fail("Publication must not fetch/render camera images")
 
     cameras = {name: PoseOnlyCamera() for name in (*names, "unselected")}
-    env.scene = SimpleNamespace(stage=None, sensors=cameras)
+    env.scene = SimpleNamespace(stage=None, sensors=cameras, env_prim_paths=["/World/envs/env_0"])
     host._auxiliary_cameras = tuple(
         xr_module.OvLibrariesXrCameraCfg(name, SimpleNamespace(width=720, height=450)) for name in names
     )
@@ -523,6 +531,17 @@ def test_selected_camera_poses_follow_motion_and_reset_before_publication(xr_mod
     cameras["left_wrist"].fail = True
     reserved = list(binding.ordinal_ledger.reserved)
     with host.publication_guard(), pytest.raises(RuntimeError, match="pose unavailable"):
+        host.publish_complete_scene(3)
+    assert binding.ordinal_ledger.reserved == reserved
+    assert len(published) == 3
+    cameras["left_wrist"].fail = False
+
+    def reject_camera_state() -> None:
+        assert tuple(cameras[name].cached for name in names) == (0, 4, 5)
+        raise RuntimeError("camera sample unavailable")
+
+    bootstrap.publisher.validate_scene_inputs = reject_camera_state
+    with host.publication_guard(), pytest.raises(RuntimeError, match="camera sample unavailable"):
         host.publish_complete_scene(3)
     assert binding.ordinal_ledger.reserved == reserved
     assert len(published) == 3
@@ -685,13 +704,18 @@ def test_publication_retains_primary_cause_when_abandon_fails(xr_module, monkeyp
     assert any("abandon failed" in note for note in caught.value.__notes__)
 
 
-@pytest.mark.parametrize("camera_enabled", [False, True])
-def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch, camera_enabled):
+@pytest.mark.parametrize(
+    "camera_enabled,environment_owner", [(False, "render_worker"), (True, "render_worker"), (False, "host")]
+)
+def test_session_delegates_lifecycle_to_isaacteleop_owner(
+    xr_module, monkeypatch, camera_enabled, environment_owner
+) -> None:
     calls = []
 
     class FakeOwner:
         owns_environment = True
         shutdown_requested = False
+        retirement_complete = False
 
         def __init__(self, host, config, **kwargs):
             calls.append(("init", host, config, kwargs))
@@ -718,6 +742,9 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
 
         def close(self):
             calls.append(("close",))
+            self.host.close_on_render_thread()
+            self.host.close_environment_on_render_thread()
+            self.retirement_complete = True
 
     class FakeMirror:
         status = SimpleNamespace(main_thread_fps=30.0, render_thread_fps=40.0)
@@ -749,8 +776,17 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
             if camera_enabled
             else (),
         ),
+        environment_owner=environment_owner,
     )
-    env = SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": object()}))
+    env = SimpleNamespace(
+        scene=SimpleNamespace(
+            stage=None,
+            sensors={"robot_pov_cam": object()},
+            env_prim_paths=["/World/envs/env_0"],
+            cfg=SimpleNamespace(lazy_sensor_update=True),
+        ),
+        close=lambda: calls.append(("environment-close",)),
+    )
     env.unwrapped = env
     bootstrap.lease.auxiliary_render_product_paths = ("/Render/robot_pov_cam",)
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
@@ -789,7 +825,8 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
         ("status", "Main  30.0 FPS   Physics 114.7/120 Hz (0.96× RT)   Render  40.0 FPS"),
     ]
     assert session.get_target_frame_T_world("/target") == ("target", "/target")
-    assert session.async_worker_owns_environment
+    assert session.async_worker_owns_environment is (environment_owner == "render_worker")
+    assert not session.retirement_complete
     assert not session.shutdown_requested
     session.request_shutdown()
     assert calls[-1] == ("request_shutdown",)
@@ -797,7 +834,14 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
     session._owner.shutdown_requested = True
     assert session.shutdown_requested
     session.close()
-    assert calls[-1] == ("close",)
+    assert session.retirement_complete
+    if environment_owner == "render_worker":
+        assert calls[-2:] == [("close",), ("environment-close",)]
+    else:
+        assert calls[-1] == ("close",)
+        assert ("environment-close",) not in calls
+        env.close()
+        assert calls[-1] == ("environment-close",)
 
 
 @pytest.fixture
@@ -856,6 +900,132 @@ def test_failed_start_releases_lease_before_environment_and_context(xr_module, b
     context.clear_instance()
     assert events == ["lease-release", "environment-close", "context-close"]
     assert not hasattr(builtins, module._TERMINAL_MODE_SENTINEL)
+
+
+@pytest.mark.parametrize(
+    "environment_owner,retirement_fails", [("render_worker", False), ("host", False), ("host", True)]
+)
+def test_capture_worker_retires_post_claim_attachment_failure(
+    xr_module, monkeypatch, real_lease_type, bootstrap_context, environment_owner, retirement_fails
+) -> None:
+    """Run Capture's actual worker/finally callbacks against the thread-affine Lab lease."""
+    from isaaccapture.ovxr_session_manager import frame_pump
+
+    module, context, events = bootstrap_context
+    monkeypatch.setattr(builtins, module._TERMINAL_MODE_SENTINEL, True, raising=False)
+    controller_type = sys.modules[real_lease_type.__module__].RenderLeaseController
+    renderer = SimpleNamespace(
+        _closed=False, _initialized_scene=False, backend=None, scene=None, _geometry_publication=None
+    )
+    controller = controller_type(renderer)
+    renderer.acquire_ov_libraries_render_lease = controller.acquire
+    monkeypatch.setattr(context, "get_or_create_backend", lambda _self, _cfg: renderer)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    cfg = SimpleNamespace(device="cpu", dt=0.01)
+    bootstrap = module.OvxrSessionBootstrap(cfg)
+    context.current.cfg = cfg
+    failure = RuntimeError("attachment failed after owner claim")
+    worker_ids = []
+
+    def fail_attachment(_env) -> None:
+        worker_ids.append(threading.get_native_id())
+        if retirement_fails:
+            controller._publisher = SimpleNamespace(close=fail_retirement)
+        raise failure
+
+    def fail_retirement() -> None:
+        raise RuntimeError("producer storage did not retire")
+
+    monkeypatch.setattr(bootstrap, "bind_environment", fail_attachment)
+    monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)
+    # Native creation is never reached; provider validation still executes before
+    # the real Capture worker performs the failing attachment and cleanup.
+    native_context = SimpleNamespace(
+        begin_frame=lambda: None,
+        bind_frame=lambda: None,
+        submit_frame=lambda: None,
+        cancel_frame=lambda: None,
+        get_vulkan_handles=lambda: None,
+        set_frame_render_products=lambda: None,
+    )
+    monkeypatch.setattr(frame_pump, "_import_ovxr", lambda: SimpleNamespace(Context=native_context))
+
+    def close_environment() -> None:
+        assert bootstrap.closed
+        events.append(("environment-close", threading.get_native_id()))
+
+    env = SimpleNamespace(
+        sim=context.current,
+        cfg=SimpleNamespace(sim=cfg),
+        num_envs=1,
+        scene=SimpleNamespace(stage=object(), env_prim_paths=["/World/envs/env_0"]),
+        close=close_environment,
+    )
+    env.unwrapped = env
+    session = xr_module.OvLibrariesXrSession(
+        bootstrap, xr_module.OvLibrariesXrCfg(), environment_owner=environment_owner
+    )
+    with pytest.raises(RuntimeError) as raised:
+        session.start_render_worker(env, timeout_s=1.0)
+    assert raised.value is failure
+    # close joins any still-running cleanup and preserves the primary startup error.
+    with pytest.raises(RuntimeError) as raised:
+        session.close()
+    assert raised.value is failure
+    assert len(worker_ids) == 1 and worker_ids[0] != threading.get_native_id()
+    assert session.retirement_complete is (not retirement_fails)
+    assert bootstrap.closed is (not retirement_fails)
+    if retirement_fails:
+        assert controller.active is not None
+        assert not events
+        with pytest.raises(RuntimeError, match="owner thread"):
+            bootstrap.close()
+    else:
+        assert controller.active is None
+        if environment_owner == "host":
+            assert not events
+            env.close()
+            assert events == [("environment-close", threading.get_native_id())]
+        else:
+            assert events == [("environment-close", worker_ids[0])]
+
+
+def test_host_owned_session_requires_proven_retirement(xr_module) -> None:
+    """A normally returned owner close cannot release the host's environment without proof."""
+    session = xr_module.OvLibrariesXrSession(_FakeBootstrap(), xr_module.OvLibrariesXrCfg(), environment_owner="host")
+    session._owner = SimpleNamespace(close=lambda: None, owns_environment=True, retirement_complete=False)
+    with pytest.raises(RuntimeError, match="retirement is unproved"):
+        session.close()
+    assert not session.retirement_complete
+    assert not session.async_worker_owns_environment
+    session._owner.retirement_complete = True
+    session.close()
+    assert session.retirement_complete
+
+
+def test_eager_selected_cameras_are_rejected_before_worker_ownership(xr_module, monkeypatch) -> None:
+    """Eager scene updates would call ordinary capture on the leased panel renderer."""
+    external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
+    monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: pytest.fail("created an XR owner"))
+    bootstrap = _FakeBootstrap()
+    camera = xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", SimpleNamespace(width=720, height=450))
+    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg(auxiliary_cameras=(camera,)))
+    env = SimpleNamespace(
+        unwrapped=SimpleNamespace(scene=SimpleNamespace(cfg=SimpleNamespace(lazy_sensor_update=False)))
+    )
+    with pytest.raises(ValueError, match="lazy_sensor_update=True"):
+        session.start_render_worker(env)
+    assert bootstrap.events == []
+    assert not session.async_worker_owns_environment
+
+
+def test_attachment_uses_the_actual_clone_root(xr_module, monkeypatch) -> None:
+    """A valid custom clone namespace is forwarded to the lease's partition validation."""
+    host, bootstrap, env = _make_host(xr_module, monkeypatch)
+    env.scene.env_prim_paths = ["/World/custom/scene_0"]
+    host.attach_on_render_thread(host.offer_render_owner_transfer())
+    assert bootstrap.lease.partition_calls == [("/World/custom/scene_0", host._cfg.camera_paths)]
 
 
 @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])

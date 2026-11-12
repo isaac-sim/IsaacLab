@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import collections
+import dataclasses
 import json
 import logging
 import os
+import threading
 import time
+import weakref
 from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any, Protocol
@@ -382,6 +385,13 @@ class TeleopSessionLifecycle:
         self._restart_holdoff_until = 0.0
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
+        # Host notifications belong to the retargeting graph, not the control channel.
+        # The worker consumes them only when it actually executes that graph.
+        self._retargeter_reset_lock = threading.Lock()
+        self._retargeter_reset_pending = False
+        self._retargeter_reset_frame_id: int | None = None
+        self._retargeter_reset_cutoff_ns = 0
+        self._retargeter_last_submission_ns = 0
 
         # Keep the supplied live sequence so windows initialized later can join the session.
         self._visualizers = visualizers
@@ -543,6 +553,25 @@ class TeleopSessionLifecycle:
             self._message_processor.inject_reset(pause=pause)
         else:
             self._pending_reset = True
+
+    def notify_reset(self) -> None:
+        """Reset main-pipeline retargeters on their next execution without emitting a control event.
+
+        Unlike :meth:`request_reset`, this reports a reset the environment has
+        already performed. It leaves operator commands and execution state intact.
+        The notification survives dropped pipelined submissions; a worker consumes
+        it only while executing the main graph with post-notification external inputs.
+        Multiple pending notifications coalesce.
+        Call from the application thread after resetting the environment. Actions
+        from requests submitted before this notification are withheld until a newer
+        result arrives; operator control events remain available throughout.
+        """
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = True
+            self._retargeter_reset_cutoff_ns = max(time.monotonic_ns(), self._retargeter_last_submission_ns)
+            self._retargeter_reset_frame_id = (
+                self._session.last_step_info.submitted_frame_id if self._session is not None else None
+            )
 
     def request_start(self) -> None:
         """Locally drive the teleop state machine toward RUNNING (headset-free start).
@@ -736,6 +765,11 @@ class TeleopSessionLifecycle:
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = False
+            self._retargeter_reset_frame_id = None
+            self._retargeter_reset_cutoff_ns = 0
+            self._retargeter_last_submission_ns = 0
         self._last_step_result = None
         self._last_left_controller = None
         self._last_control_events = _NO_OP_EVENTS
@@ -780,7 +814,8 @@ class TeleopSessionLifecycle:
             An ``OutputCombiner`` ready for ``TeleopSessionConfig``.
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-        from isaacteleop.retargeting_engine.interface import OutputCombiner
+        from isaacteleop.retargeting_engine.interface import ComputeContext, OutputCombiner, RetargeterIO
+        from isaacteleop.retargeting_engine.interface.retargeter_core_types import ExecutionCache, GraphTime
 
         # Forward every output the user pipeline declares, not just "action", so the
         # device can read the others (e.g. the SpaceMouse buttons) from last_step_result.
@@ -793,7 +828,67 @@ class TeleopSessionLifecycle:
         self._chain_hand_presence_outputs(user_pipeline, pipeline_outputs)
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
-        return OutputCombiner(pipeline_outputs)
+        lifecycle = self
+        completed_caches: weakref.WeakSet[ExecutionCache] = weakref.WeakSet()
+
+        class _HostResetOutputCombiner(OutputCombiner):
+            """Deliver host notifications at Capture's public pipeline execution boundary.
+
+            Passing execution_events to TeleopSession.step would bypass operator
+            controls. Override the root pipeline's public execution methods so
+            the normal and shared-cache sink paths reset retargeters while
+            preserving the control context that Capture returns to the host.
+            """
+
+            def execute_pipeline(
+                self, inputs: dict[str, RetargeterIO], context: ComputeContext | None = None
+            ) -> RetargeterIO:
+                if context is None:
+                    context = ComputeContext()
+                return self.execute_pipeline_with_cache(ExecutionCache(inputs, context))
+
+            def execute_pipeline_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
+                # Reusing this completed frame must not consume a newer notification.
+                # Track our executions without depending on Capture's internal cache keys.
+                if cache in completed_caches:
+                    return super().execute_pipeline_with_cache(cache)
+                # Lab stamps each request before capturing external transforms.
+                # An older queued request must not consume a newer reset and
+                # initialize stateful retargeters in the previous coordinate frame.
+                submission_ns = cache.context.graph_time.real_time_ns
+                with lifecycle._retargeter_reset_lock:
+                    reset = (
+                        lifecycle._retargeter_reset_pending and submission_ns > lifecycle._retargeter_reset_cutoff_ns
+                    )
+                    if reset:
+                        lifecycle._retargeter_reset_pending = False
+                # Preserve Capture's compute-time clock for retargeters and sinks;
+                # the host timestamp is only provenance for the admission check.
+                now_ns = time.monotonic_ns()
+                cache.context.graph_time = GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
+                if not reset:
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
+
+                context = cache.context
+                cache.context = dataclasses.replace(
+                    context, execution_events=dataclasses.replace(context.execution_events, reset=True)
+                )
+                try:
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
+                except BaseException:
+                    with lifecycle._retargeter_reset_lock:
+                        lifecycle._retargeter_reset_pending = True
+                    raise
+                finally:
+                    # Capture publishes the original control context, so a host
+                    # notification cannot echo back as an operator reset command.
+                    cache.context = context
+
+        return _HostResetOutputCombiner(pipeline_outputs)
 
     # ------------------------------------------------------------------
     # Keyboards
@@ -1410,6 +1505,13 @@ class TeleopSessionLifecycle:
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.
+        from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
+
+        with self._retargeter_reset_lock:
+            submission_ns = max(
+                time.monotonic_ns(), self._retargeter_last_submission_ns + 1, self._retargeter_reset_cutoff_ns + 1
+            )
+            self._retargeter_last_submission_ns = submission_ns
         external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
 
         # When no control pipeline is configured, host-initiated resets use
@@ -1429,6 +1531,7 @@ class TeleopSessionLifecycle:
         try:
             result = self._session.step(
                 external_inputs=external_inputs,
+                graph_time=GraphTime(sim_time_ns=submission_ns, real_time_ns=submission_ns),
                 execution_events=execution_events,
             )
         except Exception as e:
@@ -1467,6 +1570,16 @@ class TeleopSessionLifecycle:
         # Store the controller TensorGroups for button polling / debug viz
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
         self._last_left_controller = result.get(self._CONTROLLER_LEFT_KEY)
+
+        # Capture's public step API has one application-thread submitter. A frame
+        # newer than the reset's submission fence must have executed after the
+        # notification, even if intermediate submissions were dropped or reused.
+        with self._retargeter_reset_lock:
+            if self._retargeter_reset_frame_id is not None:
+                returned_frame_id = self._session.last_step_info.returned_frame_id
+                if returned_frame_id is None or returned_frame_id <= self._retargeter_reset_frame_id:
+                    return None
+                self._retargeter_reset_frame_id = None
 
         # Extract the flattened action array (DLPack-compatible) from
         # TensorReorderer and move to the simulation device.
@@ -1523,6 +1636,8 @@ class TeleopSessionLifecycle:
                     raise
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_frame_id = None
         self._session_start_deferred_logged = False
         self._last_step_result = None
         self._last_control_events = _NO_OP_EVENTS

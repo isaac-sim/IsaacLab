@@ -221,7 +221,11 @@ class OvstageBackend:
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
         populate_stage(
-            self.stage, usda, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics,
+            self.stage,
+            usda,
+            ordinal=1,
+            domains=self.cfg.population_domains,
+            physics=self.cfg.populate_physics,
             population_desc=population_desc,
         )
         ovstage_replicate(

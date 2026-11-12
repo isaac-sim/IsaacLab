@@ -81,7 +81,7 @@ class OvxrPresentation:
                 session_mode=args.ovxr_session_mode,
                 cloudxr_env_file=args.cloudxr_env,
                 auto_launch_cloudxr=args.auto_launch_cloudxr,
-                desktop_mirror_enabled=not args.headless,
+                desktop_mirror_enabled=args.ovxr_desktop_mirror,
                 desktop_mirror_max_fps=args.ovxr_desktop_mirror_fps,
                 auxiliary_cameras=auxiliary_cameras,
             ),
@@ -168,3 +168,30 @@ class OvxrPresentation:
                 error.add_note(f"Requesting XR shutdown also failed: {shutdown_error!r}")
             raise error
         self.session.close()
+
+
+def update_idle_presentation(env: Any, presentation: OvxrPresentation | None, *, report_timing: bool = True) -> None:
+    """Service a paused scene through its presentation owner without stepping physics.
+
+    OVXR owns the leased renderer. Independent visualizers can be serviced here
+    when supported, without calling the simulation's competing render path.
+    """
+    if presentation is None:
+        env.sim.render()
+    else:
+        presentation.publish(env, report_timing=report_timing)
+
+
+def admit_reset_publication(env: Any, presentation: OvxrPresentation | None) -> bool:
+    """Allow input only after the current reset epoch has been admitted.
+
+    A false return yields one host iteration, keeping shutdown and replay timeout
+    checks active while a producer slot is unavailable. This is an admission fence,
+    not a wait for the displayed frame.
+    """
+    if presentation is None or not presentation.reset_pending:
+        return True
+    if presentation.publish(env, report_timing=False):
+        return True
+    presentation.session.wait_for_shutdown(env.step_dt)
+    return False

@@ -26,13 +26,12 @@ commands in that guide belong to Kit XR.
 
 Use Python 3.12 and the Isaac Capture wheel selected by the installation
 guide.
-Configure the `ovxr` dependency selection using
+Use the checked-in `ovxr` dependency selection described in
 [Installing kitless XR](kitless_xr_source.md), then install and
 check that selection:
 
 ```bash
 uv sync --python 3.12 --locked --extra ovxr
-uv pip check
 ```
 
 The runtime commands below use this prepared `ovxr` selection.
@@ -98,10 +97,12 @@ this client origin before changing the renderer.
 `--ovxr` and Kit's `--xr` select separate XR runtimes and are mutually exclusive.
 An explicit `ISAAC_LAB_OVRTX_USE_OVSTAGE=0` is incompatible with OVXR.
 
-OVXR live teleoperation and MCAP replay open a desktop mirror by default. Add
-`--headless` to disable the local window, including on hosts without a desktop
-display. Headset rendering still uses the GPU and works with `DISPLAY` unset
-when `--headless` is selected. PiP remains available in headless mode.
+OVXR live teleoperation and MCAP replay run without a local window by default.
+Add `--ovxr_desktop_mirror` to open the mirror on a host with a desktop display;
+`--no-ovxr_desktop_mirror` explicitly disables it. This replaces the proposed
+mirror-only `--headless` option and leaves `--viz` as the general visualizer
+selector. Headset rendering still uses the GPU and works with `DISPLAY` unset
+when the mirror is disabled. PiP is independent of the mirror.
 Renderer startup has a bounded attachment timeout; it does not bound waiting for a
 client to establish its OpenXR session. Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
@@ -170,8 +171,17 @@ removed even with `presets=rgb`, so the application does not request a second
 camera render while OVXR owns rendering. The `presets=rgb` policy-image selection
 applies to Kit workflows.
 
-The default desktop mirror shows completed eye or camera images locally.
-`--headless` disables it. `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+The fixed-base G1 task also supports these feeds in Kit XR independently of the
+policy observation preset. Its head and wrist cameras therefore remain configured
+with the state-only policy, and resets perform three rerenders when RTX sensors
+are present so image consumers receive refreshed frames. For Kit XR without image
+feeds, use `--disable_external_cameras`. OVXR keeps only the explicitly selected
+panel cameras. For a custom state-only application, remove unused camera
+configurations before environment construction; selecting a state-only policy
+alone does not disable sensors used by a viewer or recorder.
+
+The optional desktop mirror shows completed eye or camera images locally.
+`--ovxr_desktop_mirror` enables it; `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
 `desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
 use a GPU-backed desktop session for the mirror. OVUI's default Vulkan backend
 requires no `OMNIUI_BACKEND` setting. Lab and Capture preserve the application's
