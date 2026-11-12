@@ -23,12 +23,12 @@ class SpawnerCfg:
 
     Spawning an asset is done by calling the :attr:`func` function. The function takes in the
     prim path to spawn the asset at, the configuration instance and transformation, and returns the
-    prim path of the spawned asset.
+    spawned prim.
 
-    The function is typically decorated with :func:`isaaclab.sim.spawner.utils.clone` decorator
+    The function is typically decorated with :func:`~isaaclab.sim.utils.prims.clone` decorator
     that checks if input prim path is a regex expression and spawns the asset at all matching prims.
-    For this, the decorator uses the Cloner API from Isaac Sim and handles the :attr:`copy_from_source`
-    parameter.
+    For this, the decorator spawns the asset once and copies its USD spec to the other matching parent
+    prims with ``Sdf.CopySpec``.
     """
 
     func: Callable[..., Usd.Prim] = MISSING
@@ -65,8 +65,8 @@ class SpawnerCfg:
     copy_from_source: bool = True
     """Whether to copy the asset from the source prim or inherit it. Defaults to True.
 
-    This parameter is only used when cloning prims. If False, then the asset will be inherited from
-    the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.
+    This parameter is currently not consumed: :func:`~isaaclab.sim.utils.prims.clone` always copies the
+    source prim spec to the cloned prims.
     """
 
     spawn_path: str | None = None

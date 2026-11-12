@@ -201,8 +201,8 @@ free_thresh: {free_thresh}
             resolution (float): The resolution (meter/px) of the occupancy map.
             origin (tp.Tuple[float, float, float]): The origin of the occupancy map in world coordinates.
             negate (bool, optional): See "negate" in ROS occupancy map documentation. Defaults to False.
-            occupied_thresh (float, optional): The threshold to consider a value occupied.
-                Defaults to ROS_OCCUPIED_THRESH_DEFAULT.
+            occupied_thresh (float, optional): Unused; every pixel that is not free (including unknown)
+                is treated as occupied. Defaults to ROS_OCCUPIED_THRESH_DEFAULT.
             free_thresh (float, optional): The threshold to consider a value free. Defaults to
                 ROS_FREESPACE_THRESH_DEFAULT.
 
@@ -404,10 +404,11 @@ free_thresh: {free_thresh}
     def buffered_meters(self, buffer_distance_meters: float) -> "OccupancyMap":
         """Get a buffered occupancy map by dilating the occupied regions.
 
-        See OccupancyMap.buffer() for more details.
+        See :meth:`buffered` for more details.
 
         Args:
-            buffer_distance_meters (int): The buffer radius / distance in pixels.
+            buffer_distance_meters (float): Buffer radius [m], converted to an integer pixel radius
+                using the map resolution.
 
         Returns:
             OccupancyMap: The buffered (aka: dilated / padded) occupancy map.
@@ -503,8 +504,8 @@ free_thresh: {free_thresh}
         """Check if a pixel coordinate is inside the bounds of the occupancy map.
 
         Args:
-            x (int): The x coordinate.
-            y (int): The y coordinate.
+            x_px (int): The x coordinate.
+            y_px (int): The y coordinate.
 
         Returns:
             bool: True if the coordinate is inside the bounds of the occupancy map.

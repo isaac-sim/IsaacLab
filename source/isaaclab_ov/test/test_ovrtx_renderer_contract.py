@@ -251,15 +251,15 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     OvrtxReplicateContext.prepare(sim, {OvrtxReplicateContext: set()})
     assert tuple(sim._backend_registry) == resources
     if use_ovstage:
-        domains = ovrtx_renderer_module.ovstage.PopulationDomain
-        assert renderer.scene.cfg.population_domains == (domains.ALL if shared_physics else domains.RENDERING)
+        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
+        assert renderer.scene.cfg.populate_physics is shared_physics
     if shared_physics:
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
+            sim.get_or_create_backend(replace(renderer.cfg, log_level="verbose"))
         conflict = next(
             resource
             for cfg, resource in sim._backend_registry
-            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
+            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "verbose"
         )
         sim.close_backend(conflict)
     renderer.close()
@@ -381,7 +381,7 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -641,6 +641,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
         if use_ovstage:
             SimulationContext.instance().close_backend(renderer.scene)
+    # The default log level keeps native cloning quiet; lower levels print a warning per attribute of every cloned
+    # environment, over a million lines at 8192 environments.
+    assert "has no valid data" not in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
@@ -1391,15 +1394,19 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
         ("0.7.0.dev1", "legacy"),
         ("0.6.0", "independent"),
         ("0.7.0", "independent"),
+        ("0.7.0", "independent-physics"),
         ("0.7.0.dev1", "shared"),
         ("0.8.0", "shared"),
+        ("0.7.0", "shared-debug"),
     ],
 )
-def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runtime_version, stage_mode):
-    """Only 0.7 disables camera GPU reads, before consumption, with one owner per stage path."""
+def test_scene_preparation_respects_physics_population_and_camera_transform_mode(
+    monkeypatch, tmp_path, runtime_version, stage_mode
+):
+    """Physics population requires composed geometry; only 0.7 disables camera GPU reads before attachment."""
     from packaging.version import Version
 
-    from pxr import Sdf, Usd, UsdRender
+    from pxr import Sdf, Usd, UsdGeom, UsdRender
 
     attribute_name = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
     settings_path = "/Render/CustomSettings"
@@ -1407,26 +1414,43 @@ def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runti
     settings = UsdRender.Settings.Define(stage, settings_path)
     settings.GetPrim().CreateAttribute(attribute_name, Sdf.ValueTypeNames.Bool).Set(True)
     stage.SetMetadata("renderSettingsPrimPath", settings_path)
-    exported = stage.GetRootLayer().ExportToString()
+    asset_path = tmp_path / "asset.usda"
+    asset = Usd.Stage.CreateNew(str(asset_path))
+    asset.SetDefaultPrim(UsdGeom.Xform.Define(asset, "/Asset").GetPrim())
+    UsdGeom.Mesh.Define(asset, "/Asset/Geometry")
+    asset.GetRootLayer().Save()
+    UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim().GetReferences().AddReference(str(asset_path))
     needs_fallback = runtime_version in ("0.7.0.dev1", "0.7.0")
+    shared = stage_mode.startswith("shared")
+    populate_physics = shared or stage_mode == "independent-physics"
     events = []
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = stage_mode != "legacy"
+    if stage_mode == "shared-debug":
+        renderer.cfg.temp_usd_dir = str(tmp_path / "debug")
     monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_VERSION", Version(runtime_version))
+    # New OVStage builds expose rendering domains only; scene policy must not query physics flags.
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PopulationDomain", types.SimpleNamespace(NONE=0, RENDERING=1))
     monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
     monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
 
+    export_stage = ovrtx_renderer_module.export_stage_to_string
+
     def export(*args, **kwargs):
         events.append("export")
         assert stage_mode != "shared"
-        return exported
+        return export_stage(*args, **kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_string", export)
 
     def load(text):
         layer = Sdf.Layer.CreateAnonymous()
-        layer.ImportFromString(text)
+        assert layer.ImportFromString(text)
+        result = Usd.Stage.Open(layer)
+        assert result.GetPrimAtPath("/World/Asset/Geometry").IsA(UsdGeom.Mesh)
+        assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not populate_physics
+        assert (layer.GetPrimAtPath("/World/Asset/Geometry") is not None) is populate_physics
         value = layer.GetAttributeAtPath(Sdf.Path(settings_path).AppendProperty(attribute_name)).default
         # OVStage population preserves authored input; only the legacy path rewrites USD.
         assert value is not (needs_fallback and stage_mode == "legacy")
@@ -1449,8 +1473,10 @@ def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runti
         clone_copies=[],
         clone_positions=np.zeros((0, 3)),
         population_env_paths=[],
-        ordinal=1 if stage_mode == "shared" else 0,
-        cfg=types.SimpleNamespace(population_domains=ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING),
+        ordinal=1 if shared else 0,
+        cfg=types.SimpleNamespace(
+            scene_key=None if shared else renderer.backend.cfg, populate_physics=populate_physics
+        ),
         populate=load,
         stage=types.SimpleNamespace(write_attribute=write),
         query=lambda paths: contextlib.nullcontext(paths),

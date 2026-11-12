@@ -545,7 +545,7 @@ class NewtonWarpRenderer(BaseRenderer):
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
-        if not use_graph:
+        if not use_graph or backend.device.is_capturing:
             self._launch_render(render_data)
         else:
             pointers = backend.state_pointers()

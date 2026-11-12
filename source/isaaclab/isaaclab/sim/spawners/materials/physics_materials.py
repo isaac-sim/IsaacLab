@@ -204,7 +204,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
     The writer is metadata-driven: it always applies the standard ``UsdPhysics.MaterialAPI`` and
     writes the friction/restitution/density fields, then reads ``_usd_applied_schema``,
-    ``_usd_namespace``, and ``_usd_attr_name_map`` from the cfg to author solver-specific attributes.
+    ``_usd_namespace``, and ``_usd_field_exceptions`` from the cfg to author solver-specific attributes.
     The applied schema (e.g. ``PhysxMaterialAPI``) is added only when at least one solver-specific
     field has a non-``None`` value at the instance level.
 

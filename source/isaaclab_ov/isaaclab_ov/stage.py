@@ -23,7 +23,7 @@ from pxr import Sdf, Usd, UsdRender, UsdUtils
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from .ovstage_compat import OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE
+from .ovstage_compat import OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE, populate_stage
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,9 @@ class OvstageBackendCfg(BackendCfg):
     scene_key: BackendCfg | int | None = None
     """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
     population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
-    """USD domains to populate. Physics consumers require PHYSICS or ALL."""
+    """Native USD domains to populate, independent of the physics population API."""
+    populate_physics: bool = False
+    """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
 
 
 class OvstageBackend:
@@ -216,7 +218,9 @@ class OvstageBackend:
             return
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        populate_stage(
+            self.stage, usda, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
+        )
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )

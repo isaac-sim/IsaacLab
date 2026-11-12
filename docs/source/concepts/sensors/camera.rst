@@ -355,7 +355,7 @@ scene-linear ``rgb_hdr`` output through responsivity, exposure, vignetting, colo
 camera response function into ``rgb`` and ``rgba``. The camera requests ``rgb_hdr`` from the renderer.
 
 :class:`~isaaclab_ppisp.PpispProcessorCfg` accepts :class:`~isaaclab_ppisp.PpispCfg` for explicit
-coefficients or coefficients imported from a USD camera, or :class:`~sensors.CameraISPMode` to
+coefficients or coefficients imported from a USD camera, or :class:`~isaaclab.sensors.camera.CameraISPMode` to
 discover ``ppisp:*`` attributes on a camera prim.
 
 .. code-block:: python

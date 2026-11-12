@@ -258,7 +258,7 @@ class TerminationManager(ManagerBase):
                 If provided, takes precedence over ``env_ids``.
 
         Returns:
-            A dictionary containing the information to log under the "Termination/{term_name}" key.
+            A dictionary containing the information to log under the "Episode_Termination/{term_name}" key.
         """
         # Mask-first path: captured callers must provide env_mask.
         if env_mask is None or not isinstance(env_mask, wp.array):
