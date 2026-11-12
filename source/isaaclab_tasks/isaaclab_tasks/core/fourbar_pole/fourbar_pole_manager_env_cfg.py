@@ -161,7 +161,7 @@ class EventCfg:
         },
     )
 
-    # reset pole around its default (0) with a small perturbation
+    # reset pole uniformly over a full revolution around its default (0)
     reset_pole_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",

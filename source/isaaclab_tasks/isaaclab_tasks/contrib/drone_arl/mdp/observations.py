@@ -122,8 +122,8 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based RL environment instance.
 
         Raises:
-            KeyError: If required params ("sensor_cfg", "data_type") are missing.
-            RuntimeError: If the specified camera sensor is not found in the scene.
+            KeyError: If required params ("sensor_cfg", "data_type") are missing, or if
+                the specified camera sensor is not found in the scene's sensor dictionary.
         """
         super().__init__(cfg, env)
         self.camera_sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[
@@ -169,17 +169,14 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based environment providing scene and device information.
             sensor_cfg: Scene entity config for the camera sensor (unused, already set in __init__).
             data_type: Data type to extract from the sensor (unused, already set in __init__).
-            convert_perspective_to_orthogonal: Whether to convert perspective to orthogonal depth
-                (unused, already set in __init__).
-            normalize: Whether to normalize images (unused, already set in __init__).
 
         Returns:
             torch.Tensor: Latent representations from the VAE model.
                 Shape is determined by the VAE architecture (typically (num_envs, latent_dim)).
 
         Raises:
-            ValueError: If data_type is "distance_to_image_plane" but normalize is False,
-                or if an unsupported data_type is encountered with normalize=True.
+            ValueError: If normalization is enabled for a data type other than
+                "distance_to_image_plane".
             RuntimeError: If the VAE model inference fails or tensors have incompatible shapes.
 
         Notes:

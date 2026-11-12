@@ -264,11 +264,11 @@ class WaypointTrajectory:
 
     def pop_first(self):
         """
-        Removes first waypoint in first waypoint sequence and returns it. If the first waypoint
-        sequence is now empty, it is also removed.
+        Removes first waypoint in first waypoint sequence and returns it wrapped in a single-element
+        :class:`WaypointSequence`. If the first waypoint sequence is now empty, it is also removed.
 
         Returns:
-            waypoint (Waypoint instance)
+            A :class:`WaypointSequence` containing only the removed waypoint.
         """
         first, rest = self.waypoint_sequences[0].split(1)
         if len(rest) == 0:

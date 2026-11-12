@@ -598,7 +598,7 @@ Subtasks, among other configuration settings for Isaac Lab Mimic, are defined in
 
 All Mimic required config parameters are specified in the :class:`~isaaclab.envs.MimicEnvCfg` class.
 
-The config class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg` serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.
+The config class :class:`~isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg` serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.
 
 The ``DataGenConfig`` member contains various parameters that influence how data is generated. It is initially sufficient to just set the ``name`` parameter, and revise the rest later.
 
@@ -636,7 +636,7 @@ Helpers needed for Isaac Lab Mimic are defined in the environment. All tasks tha
 
 * ``get_subtask_term_signals``: Returns a dictionary of binary flags for each subtask in a task. The flag of true is set when the subtask has been completed and false otherwise.
 
-The class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
+The class :class:`~isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
 
 Registering the environment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
