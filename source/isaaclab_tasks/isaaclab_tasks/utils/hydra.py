@@ -361,7 +361,7 @@ def _pick_alternative(
     match_value = None
     for name in selected:
         raw_name = name
-        name = _normalize_preset_name(raw_name, field_names)
+        name = _normalize_preset_name(raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases)
         if name not in fields or name == match_name:
             continue
         val = fields[name]

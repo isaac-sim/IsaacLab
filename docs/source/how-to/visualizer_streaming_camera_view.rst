@@ -205,7 +205,11 @@ spawning assets and cameras, including for a single environment:
        render_settings={"omni:rtx:quality": ("Int", 0)},
    )
    sim_cfg = SimulationCfg(
-       visualizer_cfgs=[NewtonGLBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+       visualizer_cfgs=[
+           VisualizerCfg(
+               cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], backend=NewtonGLBackendCfg()
+           )
+       ]
    )
    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))

@@ -268,7 +268,7 @@ OVERRIDES = {
     "scripts/tutorials/08_mpm/surface_reconstruction.py": ScriptOverride(
         args=("--max_steps", "2"),
         fixed_physics_backend="newton_mpm",
-        visualizers=("newton"),
+        visualizers=("newton",),
     ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(

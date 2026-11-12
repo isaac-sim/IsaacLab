@@ -324,7 +324,7 @@ For a path-traced surface, use the surface-reconstruction tutorial, which starts
 .. code-block:: bash
 
    uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
-     --visualizer newton --fluid_render_mode surface
+     --visualizer newton --initial_renderer rtx --fluid_render_mode surface
 
 Surface rendering is available in the Kit and Newton visualizers, with OpenGL or RTX rendering in the latter.
 

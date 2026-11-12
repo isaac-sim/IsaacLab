@@ -130,7 +130,7 @@ Install the recording and renderer extras for the selected viewer:
 
 ```bash
 uv run --extra ovrtx --extra video isaaclab demo rizon-sharpa-coffee --water --video
-uv run --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer newton
+uv run --extra ovrtx --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer newton
 uv run --extra isaacsim --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer kit
 ```
 
