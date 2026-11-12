@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -847,10 +848,16 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
 
     command_buffer.torch.zero_()
     value = torch.tensor([[3.0, 4.0]], dtype=torch.float32)
-    env_ids = torch.tensor([1], dtype=torch.int64)
-    joint_ids = wp.array([0, 2], dtype=wp.int64, device="cpu")
+    capture_cpu = command_name == "effort"
+    env_ids = torch.tensor([1], dtype=torch.int32 if capture_cpu else torch.int64)
+    joint_ids = (
+        torch.tensor([0, 2], dtype=torch.int32) if capture_cpu else wp.array([0, 2], dtype=wp.int64, device="cpu")
+    )
 
-    setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
+    with wp.ScopedCapture(device="cpu") if capture_cpu else nullcontext() as capture:
+        setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
+    if capture_cpu:
+        wp.capture_launch(capture.graph)
 
     expected = torch.zeros(2, 3)
     expected[1, 0] = 3.0
@@ -872,9 +879,13 @@ def test_write_command_mask_uses_full_sized_value(command_name):
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    getattr(collection.target_command, f"set_{command_name}_mask")(
-        value=value, env_mask=env_mask, joint_mask=joint_mask
-    )
+    capture_cpu = command_name == "effort"
+    with wp.ScopedCapture(device="cpu") if capture_cpu else nullcontext() as capture:
+        getattr(collection.target_command, f"set_{command_name}_mask")(
+            value=value, env_mask=env_mask, joint_mask=joint_mask
+        )
+    if capture_cpu:
+        wp.capture_launch(capture.graph)
 
     expected = torch.zeros(2, 3)
     expected[0, 1:] = value[0, 1:]
