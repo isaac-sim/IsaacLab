@@ -3,6 +3,30 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.1 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_contrib.actuators.Thruster` and :class:`~isaaclab_contrib.assets.Multirotor` resets to
+  take ``env_mask`` and reset the masked environments without synchronizing the device.
+
+
+7.0.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the unused manual MJWarp/VBD solver, its configuration, and the opt-in
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task. Use
+  :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` and ``Isaac-Lift-Soft-Franka`` with
+  ``physics=newton_mjwarp_vbd_proxy`` instead.
+* **Breaking:** Removed ``isaaclab_contrib.coupling``. Import the generic coupler and its configurations from
+  :mod:`isaaclab_newton.physics.coupling` instead.
+
+
 6.0.0 (2026-11-07)
 ~~~~~~~~~~~~~~~~~~
 

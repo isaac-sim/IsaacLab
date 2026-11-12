@@ -139,10 +139,7 @@ def run_rendering_case(
                 robot.actuators.target_command.set_position_index(value=targets)
             render_interval = 2 if case.scene == "mpm" else 4
             runtime.step(render=(step + 1) % render_interval == 0)
-        if case.scene in ("rendering_scene", "kuka_materials") or (
-            case.scene == "gaussian_splats_valiant_1env" and case.renderer == "isaac_rtx"
-        ):
-            # Valiant's PPISP RGB can still be a flat shader warm-up frame while its depth is already populated.
+        if case.scene in ("rendering_scene", "kuka_materials"):
             runtime.stabilize_camera()
         if case.scene == "kuka_materials":
             before = runtime.camera.data.output["rgb"].torch.clone()
@@ -221,6 +218,13 @@ def run_rendering_case(
             if not comparison.passed:
                 failures.append(f"{aov}: {comparison.error}")
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
+
+
+def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
+    """Apply the ``stage_variant`` setting and run one kitless rendering case."""
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
+    run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
 
 
 def validate_segmentation(

@@ -41,6 +41,8 @@ class JointPositionToLimitsAction(ActionTerm):
     The processed actions are then sent as position commands to the articulation's joints.
     """
 
+    is_graphable = True
+
     cfg: actions_cfg.JointPositionToLimitsActionCfg
     """The configuration of the action term."""
     _asset: Articulation
@@ -154,12 +156,10 @@ class JointPositionToLimitsAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # apply affine transformations
-        self._processed_actions = self._raw_actions * self._scale
+        # apply affine transformations in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = self._raw_actions * self._scale
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
         # rescale the position targets if configured
         # this is useful when the input actions are in the range [-1, 1]
         if self.cfg.rescale_to_limits:
@@ -204,6 +204,8 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
 
     On reset, the previous action is initialized to the current joint positions of the articulation's joints.
     """
+
+    is_graphable = True
 
     cfg: actions_cfg.EMAJointPositionToLimitsActionCfg
     """The configuration of the action term."""

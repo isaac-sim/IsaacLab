@@ -106,7 +106,17 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         """Initialize the set robot to grasp pose term.
 
         Args:
-            cfg: Event term configuration
+            cfg: Event term configuration. Its params must provide robot_asset_cfg and
+                the following entries, which are cached for subsequent calls:
+
+                - gear_offsets_grasp: Dictionary with gear_small, gear_medium, and
+                  gear_large keys, each containing a local grasp offset [x, y, z] [m].
+                  Offsets are rotated by the gear orientation composed with grasp_rot_offset.
+                - end_effector_body_name: Robot end-effector body name.
+                - num_arm_joints: Number of arm joints preceding the finger joints.
+                - grasp_rot_offset: Rotation offset as an xyzw quaternion.
+                - gripper_joint_setter_func: Callable that sets gripper joint positions
+                  from joint positions, environment indices, finger joint indices, and width.
             env: Environment instance
         """
         super().__init__(cfg, env)
@@ -230,6 +240,16 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             rot_threshold: Rotation convergence threshold
             max_iterations: Maximum IK iterations
             pos_randomization_range: Optional position randomization range
+            gear_offsets_grasp: Unused call argument, default None. Required in cfg.params
+                at initialization; maps each gear type to its local grasp offset [m].
+            end_effector_body_name: Unused call argument, default None. The required
+                end-effector body name is cached from cfg.params at initialization.
+            num_arm_joints: Unused call argument, default None. The required arm joint
+                count is cached from cfg.params at initialization.
+            grasp_rot_offset: Unused call argument, default None. The required xyzw
+                rotation offset is cached from cfg.params at initialization.
+            gripper_joint_setter_func: Unused call argument, default None. The required
+                gripper joint setter is cached from cfg.params at initialization.
         """
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):

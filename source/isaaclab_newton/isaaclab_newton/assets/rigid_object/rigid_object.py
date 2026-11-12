@@ -51,6 +51,8 @@ class RigidObject(BaseRigidObject):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object."""
 
+    is_graphable = True
+
     def __init__(self, cfg: RigidObjectCfg):
         """Initialize the rigid object.
 
@@ -129,8 +131,8 @@ class RigidObject(BaseRigidObject):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -140,8 +142,8 @@ class RigidObject(BaseRigidObject):
             This ensures that the external wrench is applied at every simulation step.
         """
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -347,8 +349,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -427,7 +429,8 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -440,8 +443,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -475,7 +478,8 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -630,8 +634,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             root_velocity: Root frame velocities in simulation world frame.
-                Shape is (len(env_ids), 6) or (num_instances, 6),
-                or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -1019,8 +1022,10 @@ class RigidObject(BaseRigidObject):
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names

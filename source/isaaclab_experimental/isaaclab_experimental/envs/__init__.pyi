@@ -7,7 +7,6 @@ __all__ = [
     "mdp",
     "DirectRLEnvWarp",
     "InteractiveSceneData",
-    "InteractiveSceneWarp",
     "MDP2Env",
     "MDP2EnvCfg",
     "MDP2RLEnv",
@@ -18,7 +17,6 @@ __all__ = [
 
 from . import mdp
 from .direct_rl_env_warp import DirectRLEnvWarp
-from .interactive_scene_warp import InteractiveSceneWarp
 from .manager_based_env_warp import ManagerBasedEnvWarp
 from .manager_based_rl_env_warp import ManagerBasedRLEnvWarp
 from .mdp2_env import MDP2Env, MDP2RLEnv

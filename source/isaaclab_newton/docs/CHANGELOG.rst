@@ -3,6 +3,54 @@ Changelog
 
 .. towncrier release notes start
 
+17.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``SteelSolverCfg`` and ``SteelSolver`` to select Newton's experimental Steel rigid-body solver through the existing Newton physics composition root, with point friction as the default.
+* Exposed Steel's ``use_parallel_streams`` option so task presets can select its specialized CUDA paths.
+* Added Steel options for parallel tree traversal and fixed-root contact filtering.
+
+Fixed
+^^^^^
+
+* Fixed articulation and rigid-object resets with only ``env_mask`` resetting the actuator state or external
+  wrenches of every environment instead of the masked ones.
+
+
+17.1.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`NewtonManager.handle_actions <isaaclab_newton.physics.NewtonManager.handle_actions>`. When every action
+  term and written asset could be recorded, the environment's actions and asset writes ran as pre-actuator callbacks
+  before every physics step, and one step advanced the whole decimation loop. Hard resets registered them again.
+* Added ``NewtonBackend.handles_actions``. When the step handled actions, every physics step staged the body forces
+  that the asset writes produced, and reordered or ball-jointed articulations republished their state before writing,
+  so the writes read the current physics step.
+* Added :mod:`isaaclab_newton.physics.coupling`, the named-entry coupler over Newton's proxy and ADMM coupled solvers,
+  moved from ``isaaclab_contrib.coupling``.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`NewtonBackend.handles_decimation <isaaclab_newton.physics.NewtonBackend.handles_decimation>` to also
+  run the decimation loop in one step when it handled the environment's actions.
+* Changed Newton articulations, rigid objects and rigid object collections to record their wrench work into a
+  captured step only once a wrench composer was used, which captured the step again.
+
+Fixed
+^^^^^
+
+* Fixed ``pos_w`` and ``quat_w`` of the Newton contact sensor returning never-written zeros of the wrong shape when
+  ``track_pose`` was enabled. Newton does not track the sensor pose, so reading them now raises
+  ``NotImplementedError`` as documented, and the configuration warns about ``track_pose``.
+
+
 17.0.0 (2026-11-07)
 ~~~~~~~~~~~~~~~~~~~
 
