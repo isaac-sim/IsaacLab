@@ -1274,7 +1274,7 @@ def _render_replay_idle(env: gym.Env, presentation: OvxrPresentation | None) -> 
         presentation.session.wait_for_shutdown(env.step_dt)
 
 
-def _run_single_replay(
+def _run_single_replay(  # noqa: C901
     env: gym.Env,
     isaac_teleop_cfg,
     success_term: object | None,
