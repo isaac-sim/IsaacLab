@@ -613,7 +613,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
         render_interval=decimation,
-        # the viewport starts on the first view, framing environment 0; a free view follows it
+        # the viewport starts on the free view; the tracking camera is the next choice in the Camera Source list
         visualizer_cfgs=VisualizerCfg(
             cameras=[TrackingCameraCfg(eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),

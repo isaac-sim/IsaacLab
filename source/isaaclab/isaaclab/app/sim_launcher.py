@@ -320,10 +320,11 @@ def validate_launch(  # noqa: C901
         if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
             continue
         if visualizer.view is not None:
+            if isinstance(visualizer.view.source, TrackingCameraCfg):
+                raise ValueError("A tracking camera cannot be the image source of an RTX viewer.")
             sources = [visualizer.view.source]
         else:
             # Tracking cameras follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out.
-            # RTX-only: remove this filter, and the one in SimulationContext, with the RTX visualizer.
             sources = [camera for camera in visualizer.cameras or [] if not (isinstance(camera, TrackingCameraCfg))]
             if not sources:
                 sources = [

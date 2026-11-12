@@ -435,7 +435,6 @@ class SimulationContext:
                 ])  # fmt: skip
             if visualizer.cfg.backend.visualizer_type == "newton_rtx":
                 # An RTX window shows scene cameras, so tracking cameras have nothing to follow there.
-                # RTX-only: remove this branch, and the filter in sim_launcher, with the RTX visualizer.
                 cameras = [camera for camera in cameras if not (isinstance(camera, TrackingCameraCfg))]
             else:
                 cameras = with_free_view(

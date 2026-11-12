@@ -17,6 +17,8 @@ from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, TrackingC
 from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.visualizer_cfg import with_free_view
 
+pytestmark = pytest.mark.kitless
+
 
 def _quat_z(yaw: float) -> list[float]:
     """Quaternion (x, y, z, w) of a rotation of *yaw* about +Z."""

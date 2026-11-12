@@ -82,6 +82,10 @@ class CameraFollower:
         self._asset, self._body_name, self._body_index = asset, body_name, None
         self._yaw = self._last_position = self._time = None
 
+    def reset(self) -> None:
+        """Forget the heading history, so the next pose is not smoothed against the previous episode."""
+        self._yaw = self._last_position = self._time = None
+
     def asset_names(self) -> list[str]:
         """Return the names of the scene assets the view can follow."""
         scene = self._scene

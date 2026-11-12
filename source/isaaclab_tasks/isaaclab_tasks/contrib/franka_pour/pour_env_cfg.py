@@ -529,7 +529,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5)
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
-        # the viewport starts on the first view, framing environment 0; a free view follows it
+        # the viewport starts on the free view; the tracking camera is the next choice in the Camera Source list
         visualizer_cfgs=VisualizerCfg(
             cameras=[TrackingCameraCfg(eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
         )

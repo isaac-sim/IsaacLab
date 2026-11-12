@@ -520,7 +520,9 @@ class NewtonVisualizerBase(BaseVisualizer):
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             view.render = partial(self._capture_view, view)
             source = view.cfg.source
-            if self._is_tracking_view(view) and scene is not None:
+            if self._is_tracking_view(view):
+                if scene is None:
+                    raise ValueError("A tracking camera needs an interactive scene to follow.")
                 # fail at initialization, not on a frame: a bad env_index or track_path raises here
                 self._followers[view] = follower = CameraFollower(source, scene, self._env_ids)
                 self._tracking_defaults[view] = {
@@ -808,6 +810,12 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         self.current_image_view = view
+        if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
+            source = view.cfg.source
+            camera.pos = PygletVec3(*source.eye)
+            camera.look_at(source.lookat)
+            self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+            camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
         try:
             self._last_render_step = -1
             return self._capture_frame(output)
@@ -856,6 +864,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Invalidate the displayed frame after a simulation reset."""
         super().reset(soft)
         self._last_render_step = -1
+        for follower in self._followers.values():
+            follower.reset()  # the heading filter must not carry the previous episode over
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""

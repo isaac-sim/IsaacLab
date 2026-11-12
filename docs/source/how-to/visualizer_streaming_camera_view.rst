@@ -55,7 +55,7 @@ For Newton RTX, a perspective declaration is expanded into an ordinary scene cam
 
 .. code-block:: python
 
-   from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)))
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
@@ -262,7 +262,7 @@ viewport's markers and shadows.
 
    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
-   self.sim.visualizer_cfgs = VisualizerCfg(
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
        cameras=[
            TrackingCameraCfg(
                eye=(1.8, -3.0, 1.1),

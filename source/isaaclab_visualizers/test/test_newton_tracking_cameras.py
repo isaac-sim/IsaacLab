@@ -19,6 +19,8 @@ from pyglet.math import Vec3
 from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 from isaaclab.visualizers.camera_follower import CameraFollower
 
+pytestmark = pytest.mark.kitless
+
 
 class _Camera:
     """The viewer camera: a position, a look-at target stored as angles, and a field of view."""
