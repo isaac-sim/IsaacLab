@@ -44,12 +44,12 @@ class G1TriHandUpperBodyMotionControllerGripperRetargeter(RetargeterBase):
         """Retarget controller inputs to gripper boolean state and wrist pose.
 
         Args:
-            data: Dictionary with MotionControllerTrackingTarget.LEFT/RIGHT keys
-                 Each value is a 2D array: [pose(7), inputs(7)]
+            data: Dictionary with MotionControllerTrackingTarget.LEFT/RIGHT keys.
+                Each value is a 2D array: [pose(7), inputs(7)].
 
         Returns:
             Tensor: [left_gripper_state(1), right_gripper_state(1), left_wrist(7), right_wrist(7)]
-            Wrist format: [x, y, z, qw, qx, qy, qz]
+            Wrist format: [x, y, z, qx, qy, qz, qw], with position [m] and xyzw orientation.
         """
         # Get controller data
         left_controller_data = data.get(DeviceBase.TrackingTarget.CONTROLLER_LEFT, np.array([]))
@@ -117,7 +117,7 @@ class G1TriHandUpperBodyMotionControllerGripperRetargeter(RetargeterBase):
             default_pose: Default pose to use if no data
 
         Returns:
-            Wrist pose array [x, y, z, w, x, y, z]
+            Wrist pose array [x, y, z, qx, qy, qz, qw], with position [m] and xyzw orientation.
         """
         if len(controller_data) > DeviceBase.MotionControllerDataRowIndex.POSE.value:
             return controller_data[DeviceBase.MotionControllerDataRowIndex.POSE.value]

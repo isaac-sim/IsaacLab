@@ -1233,7 +1233,8 @@ def push_by_setting_velocity(
 
     The function takes a dictionary of velocity ranges for each axis and rotation. The keys of the dictionary
     are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form ``(min, max)``.
-    If the dictionary does not contain a key, the velocity is set to zero for that axis.
+    The sampled values are added to the current root velocity. If the dictionary does not contain a key,
+    the velocity along that axis is left unchanged.
     """
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 

@@ -154,7 +154,7 @@ def spawn_grocery(
         prim_path: Prim path to spawn the asset at.
         cfg: Spawner configuration naming the USD file.
         translation: Translation w.r.t. the parent prim [m].
-        orientation: Orientation w.r.t. the parent prim as ``(w, x, y, z)``.
+        orientation: Orientation w.r.t. the parent prim as ``(x, y, z, w)``.
         **kwargs: Forwarded to :func:`~isaaclab.sim.spawn_from_usd`.
 
     Returns:

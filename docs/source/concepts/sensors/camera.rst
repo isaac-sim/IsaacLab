@@ -315,7 +315,7 @@ The field accepts:
 * ``None`` to disable post-render ISP.
 * :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
   camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+* :class:`~isaaclab.sensors.camera.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
 
 .. code-block:: python
 

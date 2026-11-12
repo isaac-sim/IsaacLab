@@ -64,7 +64,7 @@ class GridPatternCfg(PatternBaseCfg):
 
     For example, the grid pattern points with :math:`X = (0, 1, 2)` and :math:`Y = (3, 4)`:
 
-    * "xy" ordering: :math:`[(0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (2, 4)]`
+    * "xy" ordering: :math:`[(0, 3), (1, 3), (2, 3), (0, 4), (1, 4), (2, 4)]`
     * "yx" ordering: :math:`[(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]`
     """
 

@@ -97,7 +97,12 @@ class GaitReward(ManagerTermBase):
         """Initialize the term.
 
         Args:
-            cfg: The configuration of the reward.
+            cfg: Reward configuration. Its params must contain std (kernel denominator
+                for squared timing errors [s²]), max_err (timing-error cap [s]),
+                velocity_threshold (horizontal base speed threshold [m/s]),
+                synced_feet_pair_names (exactly two pairs of foot names), asset_cfg
+                (robot scene entity), and sensor_cfg (contact sensor scene entity).
+                All six are read once at initialization.
             env: The RL environment instance.
         """
         super().__init__(cfg, env)
@@ -135,6 +140,15 @@ class GaitReward(ManagerTermBase):
 
         Args:
             env: The RL environment instance.
+            std: Unused call argument; the kernel denominator is cached from cfg.params.
+            max_err: Unused call argument; the timing-error cap is cached from cfg.params.
+            velocity_threshold: Unused call argument; the base speed threshold is cached
+                from cfg.params.
+            synced_feet_pair_names: Unused call argument; the two pairs of foot names
+                are resolved from cfg.params at initialization.
+            asset_cfg: Unused call argument; the robot is resolved from cfg.params at initialization.
+            sensor_cfg: Unused call argument; the contact sensor is resolved from cfg.params at initialization.
+
         Returns:
             The reward value.
         """
