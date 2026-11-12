@@ -285,6 +285,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             op.name.split(".", 1)[1]: (
                 self.state.arrays[op.writes[0]].torch,
                 torch.zeros(self.num_envs, device=self.device),
+                slice(None) if op.worlds is None else list(op.worlds),
             )
             for op in self.mdp.ops[mdp2.Phase.QUANTITIES]
             if op.log
@@ -355,7 +356,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
         log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
         # Quantities keep the values of the step that ended the episode until the next step.
-        for name, (value, last) in self._metrics.items():
+        # A quantity that only some worlds compute is averaged over them.
+        for name, (value, last, worlds) in self._metrics.items():
             last.copy_(torch.where(transition.done.torch, value, last))
-            log[f"Metrics/{name}"] = last.mean()
+            log[f"Metrics/{name}"] = last[worlds].mean()
         self.extras["log"] = log
