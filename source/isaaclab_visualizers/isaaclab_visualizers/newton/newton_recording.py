@@ -97,6 +97,10 @@ class NewtonRecordingPanel:
         self._video_shape: tuple[int, int] | None = None
         self.screenshot_path = ""
         """File written by the latest screenshot."""
+        self.video_include_hud = False
+        """Whether recorded video frames include the HUD panels."""
+        self.screenshot_include_hud = False
+        """Whether screenshots include the HUD panels."""
         self._screenshot_pending = False
         self._message = ""
 
@@ -154,6 +158,8 @@ class NewtonRecordingPanel:
                 imgui.end_disabled()
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip("Keep the stopped video in the output folder")
+        _c, self.video_include_hud = imgui.checkbox("Include HUD##video", self.video_include_hud)
+        hover_tooltip(imgui, "Draw the HUD panels into the recorded frames")
         elapsed = f"{self._video_frames / max(self._video_rate, 1):.2f} s ({self._video_frames} frames)"
         if self.recording_video:
             imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {elapsed}")
@@ -166,7 +172,10 @@ class NewtonRecordingPanel:
         imgui.text("Screenshot (.png)")
         if imgui.button("Capture##screenshot"):
             self.request_screenshot()
-        hover_tooltip(imgui, "Save the window image without the panels to the output folder")
+        hover_tooltip(imgui, "Save the window image to the output folder")
+        imgui.same_line()
+        _c, self.screenshot_include_hud = imgui.checkbox("Include HUD##screenshot", self.screenshot_include_hud)
+        hover_tooltip(imgui, "Draw the HUD panels into the screenshot")
         imgui.separator()
 
     def _draw_checkpoint(self, imgui: Any) -> None:
@@ -354,13 +363,13 @@ class NewtonRecordingPanel:
         """Record the frame that was just rendered; call once per window update, outside the frame."""
         owner = self._owner
         if self._video is not None:
-            self._write_video_frame(owner._viewer.get_frame(render_ui=False).numpy())
+            self._write_video_frame(owner._viewer.get_frame(render_ui=self.video_include_hud).numpy())
         if self._screenshot_pending:
             self._screenshot_pending = False
-            self._write_screenshot(owner._viewer.get_frame(render_ui=False).numpy())
+            self._write_screenshot(owner._viewer.get_frame(render_ui=self.screenshot_include_hud).numpy())
 
     def request_screenshot(self) -> None:
-        """Save the next rendered window frame, without the HUD, as a numbered PNG in the output folder."""
+        """Save the next rendered window frame, as a numbered PNG in the output folder."""
         self._screenshot_pending = True
 
     def _write_screenshot(self, frame: np.ndarray) -> None:
