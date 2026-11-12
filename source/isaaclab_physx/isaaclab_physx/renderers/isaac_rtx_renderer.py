@@ -100,7 +100,7 @@ def _write_camera_intrinsics(
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
-    """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
+    """Build the semantics predicate from :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`.
 
     Replicator's semantic/instance segmentation annotators consume this via the synthetic-data pipeline.
     """

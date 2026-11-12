@@ -3,6 +3,39 @@ Changelog
 
 .. towncrier release notes start
 
+46.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``env_mask`` to :meth:`~isaaclab.actuators.ActuatorCollection.reset`,
+  :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.reset`, the stateful tensor processors and
+  :class:`~isaaclab.utils.noise.NoiseModelWithAdditiveBias`. A mask resets only the selected environments and does
+  not synchronize the device.
+* Added boolean-mask support to the ``batch_ids`` of :meth:`~isaaclab.utils.buffers.DelayBuffer.reset`: a Torch
+  boolean tensor resets the selected batches without synchronizing the device.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab.assets.AssetBase.reset`, :meth:`~isaaclab.actuators.ActuatorBase.reset`,
+  :meth:`~isaaclab.utils.tensor_processors.TensorProcessor.reset` and
+  :meth:`~isaaclab.utils.noise.NoiseModel.reset` now take ``env_ids=None, env_mask=None``. Subclasses must accept
+  ``env_mask`` (a ``wp.bool`` array of shape ``(num_envs,)``), let it take precedence over ``env_ids`` and leave
+  the unselected environments unchanged without synchronizing the device.
+* Changed :meth:`~isaaclab.scene.InteractiveScene.reset` to take ``env_mask`` and pass ``env_ids`` and
+  ``env_mask`` to every asset and sensor.
+* Changed ray-caster drift resampling to select environments with the reset mask instead of compacting it into
+  indices on the host.
+
+Fixed
+^^^^^
+
+* Recognized Newton Steel in runtime benchmark metadata so its task results could be compared with MJWarp.
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
 45.1.0 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

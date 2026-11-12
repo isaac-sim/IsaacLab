@@ -139,7 +139,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Args:
             benchmark_name: Name of the benchmark (used in output files).
             config: Benchmark configuration.
-            backend_type: Output backend type ("json", "osmo", "omni_perf").
+            backend_type: Output backend type ("json", "osmo", "omniperf", "summary").
             output_path: Directory to write output files.
             use_recorders: Whether to collect hardware/version info.
             physics_variant: Exact physics backend selector, when applicable.

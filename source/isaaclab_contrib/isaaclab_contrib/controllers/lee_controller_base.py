@@ -61,8 +61,12 @@ class LeeControllerBase:
         # `body_link_pos_w`/`body_link_quat_w` buffers above.
         body_masses = self._to_torch(self.robot.data.body_mass)
         body_inv_mass_local = torch.where(body_masses > 0, 1.0 / body_masses, torch.zeros_like(body_masses))
+        # The aggregation helper expects mass-frame axes; public inertia is expressed in link axes.
+        inertia_link = self._to_torch(self.robot.data.body_inertia).reshape(num_envs, self.robot.num_bodies, 3, 3)
+        rotation_mass_to_link = math_utils.matrix_from_quat(body_com_quat_b)
+        inertia_mass = rotation_mass_to_link.transpose(-1, -2) @ inertia_link @ rotation_mass_to_link
         self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
-            self._to_torch(self.robot.data.body_inertia),
+            inertia_mass.flatten(start_dim=-2),
             body_inv_mass_local,
             body_com_pos_b,
             body_com_quat_b,

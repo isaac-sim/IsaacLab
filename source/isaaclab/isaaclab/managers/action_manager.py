@@ -327,7 +327,7 @@ class ActionManager(ManagerBase):
            IO descriptors will be removed in Isaac Lab 3.2.
 
         Returns:
-            A dictionary with keys as the term names and values as the IO descriptors.
+            A list of dictionaries, one per exported action term, each holding the term's name and IO descriptor.
         """
         _warn_io_descriptors_deprecated(stacklevel=3)
         return self._collect_io_descriptors()
@@ -387,9 +387,6 @@ class ActionManager(ManagerBase):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
-        Returns:
-            Whether the debug visualization was successfully set. False if the action
-            does not support debug visualization.
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)

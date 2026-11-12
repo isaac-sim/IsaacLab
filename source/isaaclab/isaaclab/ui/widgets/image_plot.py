@@ -61,10 +61,7 @@ class ImagePlot(UIWidgetWrapper):
         min_value: float = 0.0,
         max_value: float = 1.0,
     ):
-        """Create an XY plot UI Widget with axis scaling, legends, and support for multiple plots.
-
-        Overlapping data is most accurately plotted when centered in the frame with reasonable axis scaling.
-        Pressing down the mouse gives the x and y values of each function at an x coordinate.
+        """Create an image plot UI widget that displays a live image.
 
         Args:
             image: Image to display
