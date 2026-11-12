@@ -201,7 +201,11 @@ def run_rendering_case(
                 part for part in (case.scene, artifact_namespace, golden_filename.removesuffix(".png")) if part
             )
             golden_path = _GOLDEN_ROOT / case.scene / golden_filename
-            image = camera_output_image(outputs[aov], aov, read_golden_range(golden_path))
+            output = outputs[aov]
+            if not (torch.isfinite(output) & (output != 0)).any().item():
+                failures.append(f"{aov}: Camera output is empty or contains no finite nonzero values.")
+                continue
+            image = camera_output_image(output, aov, read_golden_range(golden_path))
             comparison = compare_to_golden(
                 image,
                 golden_path,

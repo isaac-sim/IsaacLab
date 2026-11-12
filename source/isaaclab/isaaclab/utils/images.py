@@ -503,7 +503,7 @@ def normalize_camera_output_for_display(
         data_type: Camera output type, such as ``rgb``, ``depth`` or ``normals``.
         value_range: Bounds applied after channel conversion. Defaults to None, which scales
             depth/HDR by their maximum and uses (0, 1) for converted colors and vectors.
-            Passing (0, 1) retains depth/HDR values for later normalization.
+            Bounds must be finite and strictly increasing.
 
     Returns:
         The converted float32 tensor. Values outside explicit bounds are not clamped.
@@ -528,10 +528,7 @@ def normalize_camera_output_for_display(
 
     if value_range is not None:
         range_min, range_max = value_range
-        if range_max > range_min:
-            normalized = (normalized - range_min) / (range_max - range_min)
-        else:
-            normalized = (normalized != range_min).float()
+        normalized = (normalized - range_min) / (range_max - range_min)
     elif is_depth_like(data_type) or data_type == "rgb_hdr":
         max_val = normalized.max()
         if max_val > 0:

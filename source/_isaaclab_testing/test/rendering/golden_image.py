@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -53,15 +54,21 @@ class ImageComparison:
 
 
 def read_golden_range(golden_path: str | Path) -> tuple[float, float] | None:
-    """Read PNG normalization bounds, or return None when creating or updating a golden.
+    """Read PNG normalization bounds, or return None when absent, invalid, or updating.
 
     Existing images without range metadata default to (0, 1).
     """
     golden_path = Path(golden_path)
     if not golden_path.exists() or os.environ.get("ISAACLAB_UPDATE_GOLDENS") == "1":
         return None
-    with Image.open(golden_path) as golden:
-        return float(golden.info.get("range_min", 0.0)), float(golden.info.get("range_max", 1.0))
+    try:
+        with Image.open(golden_path) as golden:
+            range_min, range_max = float(golden.info.get("range_min", 0.0)), float(golden.info.get("range_max", 1.0))
+        if isfinite(range_min) and isfinite(range_max) and range_min < range_max:
+            return range_min, range_max
+    except (OSError, TypeError, ValueError):
+        pass
+    return None
 
 
 def camera_output_image(
@@ -69,24 +76,20 @@ def camera_output_image(
 ) -> Image.Image:
     """Normalize a batched camera AOV and compose its views into a PIL image."""
     tensor = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
-    if tensor.numel() == 0 or tensor.abs().max().item() == 0:
-        raise AssertionError(f"Camera output '{data_type}' is empty or contains only zeroes.")
-    # Convert channels while retaining depth/HDR values; measure bounds after adding grid padding.
-    tensor = normalize_camera_output_for_display(tensor, data_type, value_range=(0.0, 1.0))
-    grid = make_camera_output_grid(tensor.float())
     if value_range is None:
         if is_depth_like(data_type) or data_type == "rgb_hdr":
-            value_range = (grid.min().item(), grid.max().item())
+            range_min, range_max = tensor.min().item(), tensor.max().item()
+            if range_min == range_max:
+                # Constant captures use zero as the other endpoint; all-zero captures use the unit range.
+                range_min, range_max = min(0.0, range_min), max(0.0, range_max)
+                if range_min == range_max:
+                    range_max = 1.0
+            value_range = range_min, range_max
         else:
             value_range = (0.0, 1.0)
     range_min, range_max = value_range
-    if not np.isfinite([range_min, range_max]).all() or range_min > range_max:
-        raise ValueError("Invalid min/max range.")
-    if range_max > range_min:
-        grid = (grid - range_min) / (range_max - range_min)
-    else:
-        # A changed constant capture must remain distinguishable from the constant reference.
-        grid = (grid != range_min).float()
+    tensor = normalize_camera_output_for_display(tensor, data_type, value_range=value_range)
+    grid = make_camera_output_grid(tensor)
     array = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
     image = Image.fromarray(array)
     image.info["range_min"] = repr(range_min)
