@@ -45,6 +45,64 @@ Shared-stage attachment order
 
 Shared mode uses early physics attachment without an additional flag:
 
+.. raw:: html
+
+   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 880" role="img"
+        aria-labelledby="shared-stage-flow-title shared-stage-flow-desc"
+        style="display: block; width: 100%; max-width: 36rem; margin: 1.5rem auto;">
+     <title id="shared-stage-flow-title">Shared OVStage attachment order</title>
+     <desc id="shared-stage-flow-desc">
+       Populate originals at ordinal 1, attach physics, complete native clones and warmup,
+       acquire bindings, then clone render prims at ordinal 2 before publishing readiness
+       and attaching OVRTX. The numbered steps below describe the same sequence.
+     </desc>
+     <defs>
+       <marker id="shared-stage-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+               markerWidth="7" markerHeight="7" orient="auto">
+         <path d="M 0 0 L 10 5 L 0 10 Z" fill="currentColor"/>
+       </marker>
+     </defs>
+     <g fill="none" stroke="currentColor" stroke-width="1.5">
+       <rect x="10" y="10" width="580" height="70" rx="8"/>
+       <rect x="10" y="110" width="580" height="70" rx="8"/>
+       <rect x="10" y="210" width="580" height="70" rx="8"/>
+       <rect x="10" y="310" width="580" height="70" rx="8"/>
+       <rect x="10" y="410" width="580" height="70" rx="8"/>
+       <rect x="10" y="510" width="580" height="70" rx="8"/>
+       <rect x="10" y="610" width="580" height="70" rx="8"/>
+       <rect x="10" y="710" width="580" height="70" rx="8"/>
+       <rect x="10" y="810" width="580" height="60" rx="8"/>
+       <g marker-end="url(#shared-stage-flow-arrow)">
+         <path d="M 300 80 V 106"/>
+         <path d="M 300 180 V 206"/>
+         <path d="M 300 280 V 306"/>
+         <path d="M 300 380 V 406"/>
+         <path d="M 300 480 V 506"/>
+         <path d="M 300 580 V 606"/>
+         <path d="M 300 680 V 706"/>
+         <path d="M 300 780 V 806"/>
+       </g>
+     </g>
+     <g fill="currentColor" text-anchor="middle" font-family="sans-serif" font-size="18">
+       <text x="300" y="39">Populate original worlds and required render sources</text>
+       <text x="300" y="63" font-weight="bold">Seal ordinal 1</text>
+       <text x="300" y="139">Attach OVPhysX at ordinal 1</text>
+       <text x="300" y="163">Wait for completion</text>
+       <text x="300" y="239">Execute native physics clones</text>
+       <text x="300" y="263">Wait for completion</text>
+       <text x="300" y="351">Run physics warmup</text>
+       <text x="300" y="439">Initialize asset and contact bindings</text>
+       <text x="300" y="463" font-family="monospace">binding_init_event</text>
+       <text x="300" y="551">Acquire scene-data bindings</text>
+       <text x="300" y="639">Clone remaining render prims and place environments</text>
+       <text x="300" y="663" font-weight="bold">Seal ordinal 2 (rendering-only)</text>
+       <text x="300" y="739" font-family="monospace">Publish PHYSICS_READY</text>
+       <text x="300" y="763">Startup callbacks and camera preparation can proceed</text>
+       <text x="300" y="835">Attach OVRTX during renderer preparation</text>
+       <text x="300" y="859">Continue normal rendering</text>
+     </g>
+   </svg>
+
 #. Populate complete original worlds and required render sources in the shared OVStage, then seal ordinal 1.
 #. Attach OVPhysX to ordinal 1 and wait for attachment to complete.
 #. Execute native physics clones, wait for completion, and run physics warmup.
