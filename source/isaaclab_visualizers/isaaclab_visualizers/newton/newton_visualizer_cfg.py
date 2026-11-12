@@ -22,13 +22,13 @@ if TYPE_CHECKING:
 class NewtonRecordingCfg:
     """Output settings of the Recording section in the Newton GL HUD.
 
-    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video``, ``scene``, or ``checkpoint``.
+    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video``, ``screenshot``, or ``checkpoint``.
     The HUD edits a copy of these values while the window is open.
     """
 
     output_dir: str = "recording"
-    """Root folder of all recordings. Relative paths resolve against the working directory, which is the repository
-    folder when the run starts there."""
+    """Root folder of all recordings. Relative paths resolve against the repository folder when running from a source
+    checkout, and against the working directory otherwise."""
 
     filename_prefix: str = "newton"
     """Start of every recording's file name."""
@@ -37,7 +37,7 @@ class NewtonRecordingCfg:
     """Append a counter (``_0001``, ``_0002``, ...) so a new recording never overwrites an earlier one."""
 
     timestamp: bool = False
-    """Append the start date and time (``YYYYmmdd-HHMMSS``) to the file name."""
+    """Append the date and time (``YYYYmmdd-HHMMSS``) to the file name; a video uses the time its recording started."""
 
     video_fps: int | None = None
     """Frame rate of the encoded video [Hz]. ``None`` uses the window's update rate (:attr:`WindowCfg.fps`)."""

@@ -92,7 +92,9 @@ class NewtonRecordingPanel:
         self._video_temp: Path | None = None
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
-        self._video: subprocess.Popen | None = None
+        self._video: subprocess.Popen | bool | None = None
+        """The encoder, ``True`` while recording has started but the first frame has not arrived, or None."""
+        self._video_started: datetime | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
         self.screenshot_path = ""
@@ -228,13 +230,13 @@ class NewtonRecordingPanel:
                 imgui.text_wrapped(self._message)
                 imgui.pop_style_color()
 
-    def _output_path(self, kind: str, suffix: str) -> Path:
+    def _output_path(self, kind: str, suffix: str, when: datetime | None = None) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""
         folder = resolve_output_dir(self.output_dir) / kind
         folder.mkdir(parents=True, exist_ok=True)
-        name = self.filename_prefix or "newton"
+        name = Path(self.filename_prefix).name or "newton"  # The prefix names a file, never a folder.
         if self.timestamp:
-            name = f"{name}_{datetime.now():%Y%m%d-%H%M%S}"
+            name = f"{name}_{(when or datetime.now()):%Y%m%d-%H%M%S}"
         if not self.auto_increment:
             return folder / f"{name}{suffix}"
         pattern = re.compile(rf"^{re.escape(name)}_(\d+){re.escape(suffix)}$")
@@ -258,7 +260,8 @@ class NewtonRecordingPanel:
         self._discard_unsaved_video()
         folder = resolve_output_dir(self.output_dir) / "video"
         folder.mkdir(parents=True, exist_ok=True)
-        self._video_temp = folder / ".unsaved_video.mp4"
+        self._video_temp = folder / f".unsaved_video_{os.getpid()}_{id(self):x}.mp4"  # One file per panel.
+        self._video_started = datetime.now()
         self._video = True  # Opened on the first frame, once the framebuffer size is known.
         self._message = "Recording video. Stop, then Save to keep it."
 
@@ -268,14 +271,19 @@ class NewtonRecordingPanel:
             path = self._video_temp
             fps = self._video_rate
             self._video_shape = (height, width)
-            self._video = subprocess.Popen(  # noqa: S603
-                [
-                    _ffmpeg_executable(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", f"{width}x{height}", "-r", str(fps), "-i", "-", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
-                ],
-                stdin=subprocess.PIPE,
-            )  # fmt: skip
+            try:
+                self._video = subprocess.Popen(  # noqa: S603
+                    [
+                        _ffmpeg_executable(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                        "-s", f"{width}x{height}", "-r", str(fps), "-i", "-", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+                    ],
+                    stdin=subprocess.PIPE,
+                )  # fmt: skip
+            except OSError as exc:
+                self._video = None
+                self._message = f"Could not start ffmpeg: {exc}"
+                return
         if frame.shape[:2] != self._video_shape:
             return  # The window was resized mid-recording; skip frames the encoder cannot accept.
         video = self._video
@@ -283,16 +291,23 @@ class NewtonRecordingPanel:
             video.stdin.write(np.ascontiguousarray(frame).tobytes())
         except OSError:  # Includes a broken pipe, which means ffmpeg has exited.
             self._video = None
-            with contextlib.suppress(OSError):
-                video.stdin.close()
-            video.wait()
-            self._video_unsaved = self._video_temp if self._video_temp.exists() else None
+            self._finish_encoder(video)
             self._message = "ffmpeg stopped unexpectedly; video recording ended."
             return
         self._video_frames += 1
         if self._video_limit is not None and self._video_frames >= self._video_limit:
             self.stop_video()
             self.save_video()  # A fixed length is meant to need no further clicks.
+
+    def _finish_encoder(self, video: subprocess.Popen) -> bool:
+        """Close the encoder, wait for it, and keep its clip only when it exited cleanly; returns whether it did."""
+        with contextlib.suppress(OSError):  # A pipe the encoder already closed.
+            video.stdin.close()
+        succeeded = video.wait() == 0
+        self._video_unsaved = self._video_temp if succeeded and self._video_temp.exists() else None
+        if not succeeded:
+            self._video_temp.unlink(missing_ok=True)
+        return succeeded
 
     def stop_video(self) -> None:
         """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it."""
@@ -302,9 +317,9 @@ class NewtonRecordingPanel:
         if video is True:
             self._message = "No frame was recorded."
             return
-        video.stdin.close()
-        video.wait()
-        self._video_unsaved = self._video_temp
+        if not self._finish_encoder(video):
+            self._message = "ffmpeg failed; the video was discarded."
+            return
         self._message = f"Stopped after {self._video_frames} frames. Press Save to keep the video."
 
     def save_video(self) -> None:
@@ -312,7 +327,7 @@ class NewtonRecordingPanel:
         temp = self._video_unsaved
         if temp is None:
             return
-        path = self._output_path("video", ".mp4")
+        path = self._output_path("video", ".mp4", self._video_started)
         try:
             os.replace(temp, path)
         except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
@@ -359,10 +374,14 @@ class NewtonRecordingPanel:
     # Per-frame capture
     # ------------------------------------------------------------------
 
-    def capture(self) -> None:
-        """Record the frame that was just rendered; call once per window update, outside the frame."""
+    def capture(self, paused: bool = False) -> None:
+        """Record the frame that was just rendered; call once per window update, outside the frame.
+
+        Args:
+            paused: Whether rendering is paused, when a video gets no new frames but a screenshot is still taken.
+        """
         owner = self._owner
-        if self._video is not None:
+        if self._video is not None and not paused:
             self._write_video_frame(owner._viewer.get_frame(render_ui=self.video_include_hud).numpy())
         if self._screenshot_pending:
             self._screenshot_pending = False

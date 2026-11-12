@@ -2062,8 +2062,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
-        if self._recording is not None and not viewer.is_paused():
-            self._recording.capture()
+        if self._recording is not None:
+            self._recording.capture(paused=viewer.is_paused())
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -2318,11 +2318,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._close_key_event_source()
         try:
-            if self._recording is not None:
-                self._recording.close()
-            if self._picking_enabled:
-                # Captured graphs retain neutral picking inputs until their last replay.
-                self._viewer_picking_binding.deactivate()
+            try:
+                if self._recording is not None:
+                    self._recording.close()
+            finally:
+                if self._picking_enabled:
+                    # Captured graphs retain neutral picking inputs until their last replay.
+                    self._viewer_picking_binding.deactivate()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
