@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 from isaaclab_experimental.image_transfer import ImageTransferProcessor
 
+from .._protocol import MAX_CHUNK_FRAMES
+
 if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
@@ -35,8 +37,8 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         Raises:
             ValueError: If the configured cadence is incompatible with Cosmos Sim-Transfer.
         """
-        if (cfg.initial_frames, cfg.update_frames) != (1, 4):
-            raise ValueError("Cosmos requires initial_frames=1 and update_frames=4.")
+        if (cfg.initial_frames, cfg.update_frames) != (1, MAX_CHUNK_FRAMES):
+            raise ValueError(f"Cosmos requires initial_frames=1 and update_frames={MAX_CHUNK_FRAMES}.")
         super().__init__(cfg, data)
         # A camera sharing a session takes its views there.
         bind = getattr(self._stream, "bind", None)

@@ -33,7 +33,8 @@ CANVAS_ASPECT_RATIOS = {
 }
 """Image sizes ``(height, width)`` the Cosmos service accepts, with their aspect-ratio names."""
 MAX_CHUNK_FRAMES = 4
-"""Most frames one control chunk carries: one initial frame, then four per update."""
+"""Most frames one control chunk carries. The model's video tokenizer encodes the first frame alone and then this
+many frames per latent frame, so a chunk carries one frame initially and four per update."""
 DEFAULT_ENDPOINT = (
     f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock"
     if hasattr(socket, "AF_UNIX") and hasattr(os, "getuid")

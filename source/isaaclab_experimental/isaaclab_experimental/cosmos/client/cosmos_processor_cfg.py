@@ -13,6 +13,8 @@ from isaaclab.utils import configclass
 
 from isaaclab_experimental.image_transfer import ImageTransferProcessorCfg
 
+from .._protocol import MAX_CHUNK_FRAMES
+
 if TYPE_CHECKING:
     from .cosmos_processor import CosmosTransferProcessor
 
@@ -27,7 +29,7 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     initial_frames: int = 1
     """Captures required for the first chunk of an episode."""
 
-    update_frames: int = 4
+    update_frames: int = MAX_CHUNK_FRAMES
     """Captures required for subsequent chunks."""
 
     camera: str = ""
