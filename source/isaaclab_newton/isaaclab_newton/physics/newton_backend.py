@@ -197,7 +197,7 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
+        """Whether state was written inside an outer graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -225,7 +225,7 @@ class NewtonBackend:
         self.decimation = 1
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
-        """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
+        """Records the step as a Warp graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
         self.graphs: dict[str | tuple[str, int], wp.Graph] = {}
         """Captured parts of the step, keyed by part; empty until the first step is captured."""
 
@@ -282,7 +282,7 @@ class NewtonBackend:
             callback()
         ops.eval_fk(state_0, None, None)
         self.capture = None
-        if self.cfg.use_cuda_graph and self.device.is_cuda:
+        if self.cfg.use_cuda_graph:
             if ops.supports_capture():
                 self.capture = lambda fn: capture_graph(
                     self.device, fn, relaxed=relaxed_capture is not None and relaxed_capture()
@@ -361,7 +361,7 @@ class NewtonBackend:
     def notify_model_changes(self) -> None:
         """Notify the solver of the queued model-property changes once, combining their categories.
 
-        Inside an enclosing CUDA graph capture, the refresh is recorded and runs on every replay.
+        Inside an enclosing graph capture, the refresh is recorded and runs on every replay.
         """
         if not self.model_changes:
             return
@@ -605,7 +605,7 @@ class NewtonBackend:
             return
         fn()
         if self.capture is not None:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+            with Timer(name="newton_graph_capture", msg="Graph capture took:"):
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
@@ -699,16 +699,23 @@ class NewtonBackend:
 
 
 def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record ``fn`` into a CUDA graph without running it.
+    """Record ``fn`` into a Warp graph without running it.
+
+    On the CPU, Warp records the kernel launches and memory operations of ``fn`` for native replay; the CPU has no
+    streams, so ``relaxed`` does not apply there.
 
     Args:
-        device: CUDA device.
+        device: CUDA or CPU device.
         fn: Work to record. Perform lazy initialization before capture.
-        relaxed: Allow unrelated work on other threads, as required by Kit rendering.
+        relaxed: Allow unrelated work on other threads, as required by Kit rendering. CUDA only.
 
     Returns:
         The captured graph, replayed with :func:`warp.capture_launch`.
     """
+    if wp.get_device(device).is_cpu:
+        with _paused_gc(), wp.ScopedCapture(device=device) as capture:
+            fn()
+        return capture.graph
     stream = wp.get_stream(device)
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
@@ -752,7 +759,7 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture."""
+    """Keep collection-driven frees out of graph capture."""
     was_enabled = gc.isenabled()
     gc.disable()
     try:

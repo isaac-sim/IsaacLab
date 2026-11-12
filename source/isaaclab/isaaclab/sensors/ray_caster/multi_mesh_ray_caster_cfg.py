@@ -30,8 +30,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         is_shared: bool = False
         """Whether the target prim is assumed to be the same mesh across all environments. Defaults to False.
 
-        If True, only the first mesh is read and then reused for all environments, rather than re-parsed.
-        This provides a startup performance boost when there are many environments that all use the same asset.
+        Currently unused: the multi-mesh ray caster does not read this flag, and setting it has no effect.
 
         .. note::
             If :attr:`MultiMeshRayCasterCfg.reference_meshes` is False, this flag has no effect.
@@ -68,6 +67,5 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     """Whether to reference duplicated meshes instead of loading each one separately into memory.
     Defaults to True.
 
-    When enabled, the raycaster parses all meshes in all environments, but reuses references
-    for duplicates instead of storing multiple copies. This reduces memory footprint.
+    Currently unused: the multi-mesh ray caster does not read this flag, and setting it has no effect.
     """

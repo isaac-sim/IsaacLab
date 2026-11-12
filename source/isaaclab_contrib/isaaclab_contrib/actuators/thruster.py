@@ -127,10 +127,13 @@ class Thruster:
         and integrates with the selected kernel.
 
         Args:
-            control_action: (num_envs, num_thrusters) commanded per-thruster thrust [N].
+            control_action: Action record whose ``thrusts`` member contains the commanded
+                per-thruster thrust [N], with shape (num_envs, num_thrusters).
 
         Returns:
-            (num_envs, num_thrusters) updated thrust state [N].
+            The same ``MultiRotorActions`` record, with ``thrusts``
+            replaced by the applied per-thruster thrust [N], i.e. the updated thrust state clipped to
+            the thruster limits, with shape (num_envs, num_thrusters).
 
         """
         des_thrust = control_action.thrusts
