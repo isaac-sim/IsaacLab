@@ -731,7 +731,7 @@ class AnymalRenderingSceneCfg(RenderingSceneCfg):
 # * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
 
 # Per-pixel L2 limit for Isaac RTX color comparisons, in place of the default (10). Isaac RTX speckles splats
-# with low-amplitude noise from stochastic transparency: its render differs from the golden on 34 % (Valiant) and
+# with low-amplitude noise from stochastic transparency: its RGB render differs from the golden on 34 % (Valiant) and
 # 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30.
 _GAUSSIAN_SPLATS_COLOR_PIXEL_L2_THRESHOLD = 30.0
 

@@ -56,17 +56,19 @@ class ImageComparison:
 def read_golden_range(golden_path: str | Path) -> tuple[float, float] | None:
     """Read PNG normalization bounds, or return None when absent, invalid, or updating.
 
-    Existing images without range metadata default to (0, 1).
+    Existing images without either range key default to (0, 1). Incomplete bounds are invalid.
     """
     golden_path = Path(golden_path)
     if not golden_path.exists() or os.environ.get("ISAACLAB_UPDATE_GOLDENS") == "1":
         return None
     try:
         with Image.open(golden_path) as golden:
-            range_min, range_max = float(golden.info.get("range_min", 0.0)), float(golden.info.get("range_max", 1.0))
+            if "range_min" not in golden.info and "range_max" not in golden.info:
+                return 0.0, 1.0
+            range_min, range_max = float(golden.info["range_min"]), float(golden.info["range_max"])
         if isfinite(range_min) and isfinite(range_max) and range_min < range_max:
             return range_min, range_max
-    except (OSError, TypeError, ValueError):
+    except (KeyError, OSError, TypeError, ValueError):
         pass
     return None
 
@@ -74,7 +76,20 @@ def read_golden_range(golden_path: str | Path) -> tuple[float, float] | None:
 def camera_output_image(
     output: torch.Tensor, data_type: str, value_range: tuple[float, float] | None = None
 ) -> Image.Image:
-    """Normalize a batched camera AOV and compose its views into a PIL image."""
+    """Normalize a batched camera AOV and compose its views into a PIL image.
+
+    Args:
+        output: Camera values with shape (B, H, W, C). Nonfinite values are replaced by zero.
+        data_type: Camera output type, such as ``rgb``, ``depth`` or ``normals``.
+        value_range: Reference bounds applied after channel conversion. Defaults to None,
+            which measures depth/HDR min/max before grid padding and uses (0, 1) for other
+            outputs. Constant depth/HDR captures include zero in their bounds; all-zero
+            captures use (0, 1). Explicit bounds must be finite and strictly increasing.
+
+    Returns:
+        An 8-bit PIL image with the selected bounds in its ``range_min`` and ``range_max``
+        metadata, ready to be retained when saving the golden PNG.
+    """
     tensor = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
     if value_range is None:
         if is_depth_like(data_type) or data_type == "rgb_hdr":
@@ -95,14 +110,6 @@ def camera_output_image(
     image.info["range_min"] = repr(range_min)
     image.info["range_max"] = repr(range_max)
     return image
-
-
-def _save_image(image: Image.Image, path: Path) -> None:
-    """Retain normalization bounds for every AOV, defaulting to the unit range."""
-    pnginfo = PngImagePlugin.PngInfo()
-    for key, default in (("range_min", "0.0"), ("range_max", "1.0")):
-        pnginfo.add_text(key, str(image.info.get(key, default)))
-    image.save(path, pnginfo=pnginfo)
 
 
 def compare_to_golden(
@@ -139,6 +146,17 @@ def compare_to_golden(
     try:
         golden = Image.open(golden_path)
         golden.load()
+        if read_golden_range(golden_path) is None:
+            return ImageComparison(
+                label,
+                False,
+                0.0,
+                0.0,
+                max_diff_pct,
+                min_ssim,
+                f"Invalid normalization bounds in golden image {golden_path}.",
+                golden_path=golden_path,
+            )
     except Exception as exc:
         return ImageComparison(
             label,
@@ -190,6 +208,14 @@ def compare_to_golden(
         actual_path,
         saved_golden_path,
     )
+
+
+def _save_image(image: Image.Image, path: Path) -> None:
+    """Retain normalization bounds for every AOV, defaulting to the unit range."""
+    pnginfo = PngImagePlugin.PngInfo()
+    for key, default in (("range_min", "0.0"), ("range_max", "1.0")):
+        pnginfo.add_text(key, str(image.info.get(key, default)))
+    image.save(path, pnginfo=pnginfo)
 
 
 def _alpha_only(image: Image.Image) -> Image.Image:

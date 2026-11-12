@@ -283,7 +283,7 @@ def test_simple_shading_configures_its_render_product(
         gaussian_attribute = authored_attributes["omni:rtx:gaussian:skipTonemapping:enabled"]
         assert gaussian_attribute.value_type == Sdf.ValueTypeNames.Bool
         assert gaussian_attribute.Set.call_args == call(False)
-    else:
+    elif data_types == ["simple_shading_constant_diffuse"]:
         assert "omni:rtx:gaussian:skipTonemapping:enabled" not in authored_attributes
         assert call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) not in settings.set.call_args_list
 

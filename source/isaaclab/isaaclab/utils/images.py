@@ -20,6 +20,7 @@ Shared camera-image operations:
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from math import isfinite
 from typing import Any
 
 import torch
@@ -502,16 +503,24 @@ def normalize_camera_output_for_display(
         tensor: Camera output tensor.
         data_type: Camera output type, such as ``rgb``, ``depth`` or ``normals``.
         value_range: Bounds applied after channel conversion. Defaults to None, which scales
-            depth/HDR by their maximum and uses (0, 1) for converted colors and vectors.
-            Bounds must be finite and strictly increasing.
+            depth by its maximum and divides HDR by 255. Valid explicit bounds retain HDR
+            values before scaling. Nonfinite, reversed, or equal bounds use the default
+            display behavior. Callers providing explicit bounds must supply finite pixels;
+            default depth display replaces nonfinite pixels with zero.
 
     Returns:
         The converted float32 tensor. Values outside explicit bounds are not clamped.
     """
+    if value_range is not None:
+        range_min, range_max = value_range
+        if not (isfinite(range_min) and isfinite(range_max) and range_min < range_max):
+            value_range = None
     normalized = tensor.float()
+    depth_output = data_type in ("depth", "distance_to_camera", "distance_to_image_plane")
 
-    if is_depth_like(data_type) or data_type == "rgb_hdr":
-        normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
+    if depth_output or (value_range is not None and (is_depth_like(data_type) or data_type == "rgb_hdr")):
+        if value_range is None:
+            normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
     elif data_type == "albedo":
         normalized = normalized[..., :3] / 255.0
     elif data_type == "normals":
@@ -527,9 +536,10 @@ def normalize_camera_output_for_display(
         normalized = normalized / 255.0
 
     if value_range is not None:
-        range_min, range_max = value_range
-        normalized = (normalized - range_min) / (range_max - range_min)
-    elif is_depth_like(data_type) or data_type == "rgb_hdr":
+        if value_range != (0.0, 1.0):
+            range_min, range_max = value_range
+            normalized = (normalized - range_min) / (range_max - range_min)
+    elif depth_output:
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val

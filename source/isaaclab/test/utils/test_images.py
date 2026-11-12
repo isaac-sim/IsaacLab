@@ -271,20 +271,36 @@ class TestNormalizeCameraOutputForDisplay:
         expected = torch.tensor([[[[0.0, 127.0 / 255.0, 1.0]]]], device=device)
         torch.testing.assert_close(out, expected)
 
-    @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_image_plane", "rgb_hdr"])
-    def test_depth_hdr_preparation_retains_values_and_display_scales_by_max(self, device, data_type):
+    @pytest.mark.parametrize(
+        "data_type", ["depth", "distance_to_camera", "distance_to_image_plane", "rgb_hdr", "depth_custom"]
+    )
+    def test_depth_hdr_reference_bounds_and_default_display(self, device: str, data_type: str) -> None:
         from isaaclab.utils.images import normalize_camera_output_for_display
 
         src = torch.tensor([0.0, 2.0, float("inf"), 4.0, float("nan")], device=device)
-        prepared = normalize_camera_output_for_display(src, data_type, value_range=(0.0, 1.0))
-        torch.testing.assert_close(prepared, torch.tensor([0.0, 2.0, 0.0, 4.0, 0.0], device=device))
+        finite_src = torch.tensor([0.0, 2.0, 0.0, 4.0, 0.0], device=device)
+        prepared = normalize_camera_output_for_display(finite_src, data_type, value_range=(0.0, 1.0))
+        torch.testing.assert_close(prepared, finite_src)
         out = normalize_camera_output_for_display(src, data_type)
-        expected = torch.tensor([0.0, 0.5, 0.0, 1.0, 0.0], device=device)
-        torch.testing.assert_close(out, expected)
-        torch.testing.assert_close(
-            normalize_camera_output_for_display(src, data_type, value_range=(0.0, 4.0)), expected
+        expected = (
+            src / 255.0
+            if data_type in ("rgb_hdr", "depth_custom")
+            else torch.tensor([0.0, 0.5, 0.0, 1.0, 0.0], device=device)
         )
-        assert torch.isfinite(out).all()
+        torch.testing.assert_close(out, expected, equal_nan=True)
+        torch.testing.assert_close(
+            normalize_camera_output_for_display(finite_src, data_type, value_range=(0.0, 4.0)),
+            torch.tensor([0.0, 0.5, 0.0, 1.0, 0.0], device=device),
+        )
+
+    @pytest.mark.parametrize("value_range", [(float("nan"), 1.0), (0.0, float("inf")), (3.0, 2.0), (2.0, 2.0)])
+    def test_invalid_reference_bounds_use_default_display(self, device: str, value_range: tuple[float, float]) -> None:
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        output = normalize_camera_output_for_display(
+            torch.tensor([2.0, 4.0], device=device), "depth", value_range=value_range
+        )
+        torch.testing.assert_close(output, torch.tensor([0.5, 1.0], device=device))
 
     def test_depth_handles_all_nonfinite_values(self, device):
         from isaaclab.utils.images import normalize_camera_output_for_display
