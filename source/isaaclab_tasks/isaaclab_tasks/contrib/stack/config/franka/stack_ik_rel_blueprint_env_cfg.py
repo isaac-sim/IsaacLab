@@ -56,6 +56,11 @@ def image(
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
+        save_image_to_file: Whether to write a PNG for every environment on each call.
+            Defaults to False.
+        image_path: Filename prefix, including an optional directory. Each saved filename
+            appends the data type, successful-trial count, environment tile, and step.
+            Defaults to "image".
 
     Returns:
         The images produced at the last time-step

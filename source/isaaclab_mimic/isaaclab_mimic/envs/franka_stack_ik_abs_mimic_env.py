@@ -24,7 +24,7 @@ class FrankaCubeStackIKAbsMimicEnv(ManagerBasedRLMimicEnv):
         # Retrieve end effector pose from the observation buffer
         eef_pos = self.obs_buf["policy"]["eef_pos"][env_ids]
         eef_quat = self.obs_buf["policy"]["eef_quat"][env_ids]
-        # Quaternion format is w,x,y,z
+        # Quaternion format is x,y,z,w
         return PoseUtils.make_pose(eef_pos, PoseUtils.matrix_from_quat(eef_quat))
 
     def target_eef_pose_to_action(

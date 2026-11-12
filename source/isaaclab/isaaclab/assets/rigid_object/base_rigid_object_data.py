@@ -335,10 +335,14 @@ class BaseRigidObjectData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame.
+        """Inertia about each body's center of mass, expressed in the body link frame.
 
         Shape is (num_instances, 1, 9), dtype = wp.float32.
         In torch this resolves to (num_instances, 1, 9).
+
+        All backends express the tensors in the body link frame, so they can be non-diagonal. To express the
+        inertia in world coordinates, reshape each tensor to (3, 3) and compute ``R @ I @ R.transpose(-1, -2)``,
+        where ``R`` is the rotation matrix from :attr:`body_link_quat_w`.
         """
         raise NotImplementedError()
 
