@@ -375,7 +375,8 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
         data_types=["rgb"],
         spawn=None,
         tensor_processors=[] if ppisp_cfg is None else [PpispProcessorCfg(isp_cfg=ppisp_cfg)],
-        # PPISP applies its own exposure to the scene-linear HDR output.
+        # PPISP applies its own exposure to the scene-linear HDR output. Both sensors share the camera prim, so
+        # the PPISP sensor's neutral exposure also applies to the baseline's rendered image.
         exposure=ExposureCfg(mode="neutral" if ppisp_cfg is not None else "default"),
         renderer_cfg=make_renderer_cfg(),
     )
