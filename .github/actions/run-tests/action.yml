@@ -207,6 +207,7 @@ runs:
             classname = tc.get("classname", "")
             tc_name = tc.get("name", "unknown")
             full_name = f"{classname}.{tc_name}" if classname else tc_name
+            full_name = full_name.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
             for tag in ("failure", "error"):
                 el = tc.find(tag)
                 if el is not None:
