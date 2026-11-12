@@ -278,6 +278,20 @@ def test_an_encoder_that_exits_with_an_error_leaves_nothing_to_save(tmp_path):
     assert not panel.unsaved_video and "ffmpeg failed" in panel._message
 
 
+def test_an_unwritable_output_folder_is_reported_instead_of_raised(tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("not a folder")
+    panel = NewtonRecordingPanel(_owner(frames=[np.zeros((4, 6, 3), np.uint8)], output_dir=str(blocker)))
+
+    panel.request_screenshot()
+    panel.capture()
+    assert "Screenshot failed" in panel._message
+
+    panel.set_checkpoint_saver(lambda path: None)
+    panel.save_checkpoint()
+    assert "Checkpoint failed" in panel._message
+
+
 def test_each_panel_encodes_to_its_own_temporary_file_and_a_prefix_cannot_leave_the_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(newton_recording, "_ffmpeg_executable", lambda: "ffmpeg")
     first = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), filename_prefix="../outside"))

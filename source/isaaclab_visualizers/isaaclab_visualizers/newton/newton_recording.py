@@ -259,7 +259,11 @@ class NewtonRecordingPanel:
         self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
         self._discard_unsaved_video()
         folder = resolve_output_dir(self.output_dir) / "video"
-        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._message = f"Could not create the video folder: {exc}"
+            return
         self._video_temp = folder / f".unsaved_video_{os.getpid()}_{id(self):x}.mp4"  # One file per panel.
         self._video_started = datetime.now()
         self._video = True  # Opened on the first frame, once the framebuffer size is known.
@@ -327,8 +331,8 @@ class NewtonRecordingPanel:
         temp = self._video_unsaved
         if temp is None:
             return
-        path = self._output_path("video", ".mp4", self._video_started)
         try:
+            path = self._output_path("video", ".mp4", self._video_started)
             os.replace(temp, path)
         except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
             self._message = f"Could not save the video: {exc}"
@@ -360,8 +364,8 @@ class NewtonRecordingPanel:
         if self._checkpoint_saver is None:
             self._message = "This run has no policy to save."
             return
-        path = self._output_path("checkpoint", ".pt")
         try:
+            path = self._output_path("checkpoint", ".pt")
             self._checkpoint_saver(str(path))
         except Exception as exc:
             logger.exception("[NewtonRecording] Could not save the policy checkpoint.")
@@ -395,8 +399,8 @@ class NewtonRecordingPanel:
         """Write one frame to the next screenshot file."""
         from PIL import Image  # noqa: PLC0415
 
-        path = self._output_path("screenshot", ".png")
         try:
+            path = self._output_path("screenshot", ".png")
             Image.fromarray(np.ascontiguousarray(frame[..., :3], dtype=np.uint8)).save(path)
         except Exception as exc:
             logger.exception("[NewtonRecording] Could not save the screenshot.")
