@@ -381,7 +381,7 @@ class NewtonViewerGL(ViewerGL):
             # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             playback_open = imgui.collapsing_header("Playback")
-            hover_tooltip(imgui, "Pause, resume, or reset the simulation, and set how often the window updates")
+            hover_tooltip(imgui, "Pause, resume, or reset the simulation")
             if playback_open:
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
@@ -507,7 +507,14 @@ class NewtonViewerGL(ViewerGL):
         """Render the visible-environment count slider."""
         owner = self._owner
         imgui.text("Visible Envs")
+        following = owner.tracking_env_only
+        if following:
+            imgui.begin_disabled()
         changed, new_count = imgui.slider_int("##VisibleEnvs", owner.visible_env_count, 1, owner.visible_env_limit)
+        if following:
+            imgui.end_disabled()
+            imgui.text_disabled("Showing only the tracking camera's env")
+            return
         if changed:
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
@@ -532,11 +539,16 @@ class NewtonViewerGL(ViewerGL):
                     imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
                 )
             elif self.image_matches_camera:
+                imgui.text_disabled("Visual overlays are currently supported in OpenGL mode only")
+                hover_tooltip(
+                    imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
+                )
+                imgui.begin_disabled()
                 imgui.set_next_item_open(True, imgui.Cond_.appearing)
                 if imgui.tree_node("Overlay options"):
-                    self._draw_model_overlays(imgui, rtx=True)
+                    self._draw_model_overlays(imgui)
                     imgui.tree_pop()
-                imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
+                imgui.end_disabled()
             else:
                 imgui.set_next_item_open(True, imgui.Cond_.appearing)
                 if imgui.tree_node("Overlay options"):
@@ -886,6 +898,8 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     _overlay_publisher: OverlayMeshPublisher | None = None
     _rtx_arrows_pending = False
+    _track_env_only = False
+    """Whether only the selected Tracking Camera's environment is drawn."""
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -1026,7 +1040,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
                 backface_culling, color, roughness, metallic, dynamic, opacity,
             )  # fmt: skip
-        if renderers:
+        if renderers and self.rtx_rendering:
             # The cached RTX image predates the mesh, which matters while paused or between renders.
             view = self._image_views[self.rtx_view_index]
             view.camera.update(0.0)
@@ -1101,6 +1115,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[position])
         follower = self._followers.get(self._pose_source_view())
+        if follower is None and self._track_env_only:
+            self._track_env_only = False  # Only a Tracking Camera can restrict the visible environments.
+            self._apply_visible_worlds()
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
         elif self.sensor_view_selected:
@@ -1140,7 +1157,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         return self._rtx_appearance
 
     def _draw_appearance(self, imgui) -> None:
-        """Draw the lighting and appearance options of the active renderer, right below the Camera Source selector."""
+        """Draw the lighting and appearance options of the active renderer, below the renderer toggle."""
         if self.rtx_rendering:
             self._draw_rtx_appearance(imgui)
             return
@@ -1397,6 +1414,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         tip("Environment the camera follows")
         if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
             follower.set_env(env)
+            self._sync_tracked_env()
             edited = True
         asset_name, _, body_name = (cfg.track_path or "").partition("/")
         assets = ["None (fixed in environment)", *follower.asset_names()]
@@ -1410,6 +1428,12 @@ class NewtonVisualizerBase(BaseVisualizer):
             tip("Body of the asset the camera follows. Root follows the asset itself")
             if changed:
                 edited |= self._set_tracking_path(follower, f"{asset_name}/{bodies[index]}" if index else asset_name)
+        changed, only = imgui.checkbox("Show Only This Env", self._track_env_only)
+        tip("Draw only the camera's environment, following it when the environment changes")
+        if changed:
+            self._track_env_only = only
+            self._apply_visible_worlds()
+            edited = True
         changed, eye = imgui.input_float3("Eye (m)", list(cfg.eye))
         tip("Camera position, as an offset from the followed asset or the environment origin")
         if changed:
@@ -1460,7 +1484,18 @@ class NewtonVisualizerBase(BaseVisualizer):
         cfg.follow_heading = defaults["follow_heading"]
         cfg.heading_smoothing_time_constant = defaults["heading_smoothing_time_constant"]
         follower.set_env(defaults["env"])
+        self._sync_tracked_env()
         return self._set_tracking_path(follower, defaults["track_path"]) or True
+
+    @property
+    def tracking_env_only(self) -> bool:
+        """Whether only the selected Tracking Camera's environment is drawn."""
+        return self._track_env_only and self._followers.get(self._pose_source_view()) is not None
+
+    def _sync_tracked_env(self) -> None:
+        """Redraw the visible environments after the Tracking Camera changed environment."""
+        if self._track_env_only:
+            self._apply_visible_worlds()
 
     def _view_labels(self, indices: list[int] | None = None) -> list[str]:
         """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
@@ -2033,10 +2068,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if publisher is None or not self.rtx_rendering:
             return False
         renderers = self._rtx_renderers
-        overlays = any(
-            getattr(viewer, flag)
-            for flag in ("show_joints", "show_contacts", "show_springs", "show_com", "show_inertia_boxes")
-        )
+        overlays = False  # The HUD offers the model overlays in OpenGL only; the OVRTX view draws just the arrows.
         dragging = viewer.picking_enabled and viewer.picking is not None and viewer.picking.is_picking()
         if not overlays and not dragging:
             publisher.hide_all(renderers)
@@ -2162,6 +2194,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     @property
     def visible_env_count(self) -> int:
         """Number of environments currently shown."""
+        if self.tracking_env_only:
+            return 1
         if self._visible_env_count is not None:
             return min(self._visible_env_count, self.visible_env_limit)
         return self.visible_env_limit
@@ -2176,7 +2210,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._apply_visible_worlds()
 
     def _select_visible_env_ids(self) -> list[int] | None:
-        """Resolve the environments to show from the cfg and the HUD count."""
+        """Resolve the environments to show from the cfg, the HUD count, and the Tracking Camera."""
+        if self.tracking_env_only:
+            return [self._followers[self._pose_source_view()].env]
         if self._visible_env_count is None:
             return self._cfg_visible_env_ids
         ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)

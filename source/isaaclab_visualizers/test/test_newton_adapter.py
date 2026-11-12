@@ -1455,9 +1455,39 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     visualizer._is_initialized, visualizer._viewer = True, object()
     visualizer._pending_mesh_submissions = {}
     visualizer._image_views, visualizer._sim = [view], SimpleNamespace(get_or_create_backend=lambda cfg: renderer)
+    visualizer.current_image_view = object()
 
-    visualizer.log_mesh("/m", points=None, indices=None)
+    visualizer.log_mesh("/m", points=None, indices=None)  # OpenGL is shown: publish, but do not render RTX
 
     renderer.log_mesh.assert_called_once()
+    camera.update.assert_not_called()
+
+    visualizer.current_image_view = view
+    visualizer.log_mesh("/m", points=None, indices=None)
+
     camera.update.assert_called_once_with(0.0)
     view.invalidate.assert_called_once_with()
+
+
+def test_newton_visualizer_shows_only_the_tracking_camera_env():
+    viewer = _Viewer()
+    viewer.set_visible_worlds = Mock()
+    viewer.set_world_offsets = Mock()
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._cfg_visible_env_ids, visualizer._visible_env_count, visualizer._num_envs = None, None, 8
+    view = object()
+    follower = SimpleNamespace(env=5)
+    visualizer._followers = {view: follower}
+    visualizer._pose_source_view = lambda: view
+    visualizer._track_env_only = True
+
+    visualizer._sync_tracked_env()
+    assert visualizer.tracking_env_only and visualizer.visible_env_count == 1
+    viewer.set_visible_worlds.assert_called_with([5])
+
+    follower.env = 2
+    visualizer._sync_tracked_env()
+    viewer.set_visible_worlds.assert_called_with([2])
+
+    visualizer._followers = {}  # Tracking Camera deselected: the HUD count applies again
+    assert not visualizer.tracking_env_only and visualizer.visible_env_count == 8

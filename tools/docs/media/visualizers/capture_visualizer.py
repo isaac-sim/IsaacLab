@@ -1543,8 +1543,8 @@ def _showcase_dismiss_webgl_banner(page) -> None:
 # Window titles for record_windowed's X11 WM_NAME match.
 _SHOWCASE_WINDOW_TITLES = {
     "kit": "Isaac Lab",
-    "newton": "Newton Viewer",
-    _NEWTON_RTX_VIEW: "Newton Viewer",
+    "newton": "Newton Visualizer",
+    _NEWTON_RTX_VIEW: "Newton Visualizer",
 }
 
 # TODO: Kit's windowed capture (--viz kit) segfaults consistently ~5s into startup on
@@ -2094,7 +2094,7 @@ _STREAMING_NEWTON_GL_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Vis
 _STREAMING_NEWTON_GL_NUM_ENVS = 25
 _STREAMING_NEWTON_GL_STREAMING_ENVS = 12
 _STREAMING_NEWTON_GL_PANEL_KEY = "Streaming View"
-_STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Viewer"
+_STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Visualizer"
 # The Galbot task's config module imports isaaclab_teleop (stack_joint_pos_env_cfg.py); "mimic"
 # is the lightest extra providing it without the heavier full "teleop" extra's deps.
 _STREAMING_NEWTON_GL_UV_EXTRAS = "isaacsim,rerun,viser,rsl-rl,ov,video,mimic"
