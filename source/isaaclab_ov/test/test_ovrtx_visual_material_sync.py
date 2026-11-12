@@ -122,7 +122,7 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.backend = SimpleNamespace(render_products=set())
+    renderer.backend = SimpleNamespace(render_products=set(), unrendered={})
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
     renderer._needs_transform_initialization = False

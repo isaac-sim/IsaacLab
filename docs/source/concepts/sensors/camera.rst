@@ -306,26 +306,39 @@ Render products per sensor
 --------------------------
 
 A camera sensor renders all of its environments into one tiled atlas through one render product.
-Every renderer buffer that scales with the atlas belongs to that product, and the RTX path tracer
-fails the frame when one buffer exceeds 4 GiB. With the Isaac Lab DLSS default, the renderer shades
-at half the atlas resolution per axis, and its largest buffer holds 64 bytes per shaded pixel. One
-product therefore renders ``4 * 2**32 / max(64, 28 * spp)`` atlas pixels at most, where ``spp`` is the
-path tracing sample count per pixel. That is ``2**28`` (about 268 million) atlas pixels at the default
-sample count. For example, 4096 environments of 256x256 pixels form a 64x64 tile grid of ``2**28``
-pixels and fail, while 4032 environments form a 64x63 grid and render.
+Every renderer buffer that scales with the atlas belongs to that product, and one buffer of the RTX
+path tracer cannot exceed 4 GiB. These buffers grow with the atlas resolution and with the path
+tracing sample count per pixel. Above the limit, OVRTX 0.7 and later fail the frame. OVRTX 0.6 renders
+black tiles without an error.
 
 :attr:`~sensors.CameraCfg.max_envs_per_render_product` splits the sensor into
 ``ceil(num_envs / M)`` render products of at most ``M`` environments each. Each product renders its
 own smaller atlas, and the outputs stay one ``(num_envs, height, width, channels)`` buffer per data
-type. The atlas of a product holds ``ceil(sqrt(M)) * ceil(M / ceil(sqrt(M)))`` tiles, which is more
-than ``M`` unless ``ceil(sqrt(M))`` divides ``M``. Keep that tile count times ``width * height`` below
-the pixel limit. Every extra product adds a fixed per-product cost, so use the smallest split that fits:
+type.
+
+With the default ``None``, the OVRTX renderer searches the split. It starts with one render product.
+While the first frame fails, it halves the largest render product and renders the frame again. A
+warning then names the value of ``M`` that renders. The search runs once at startup, and the next
+frame reuses most of the scene work of a failed frame. Set the logged value to skip the search:
 
 .. code-block:: python
 
    from isaaclab.utils import replace
 
-   large_batch_camera = replace(camera_cfg, max_envs_per_render_product=512)
+   large_batch_camera = replace(camera_cfg, max_envs_per_render_product=1280)
+
+The search has these limits:
+
+* It needs OVRTX 0.7 or later, because OVRTX 0.6 does not fail the frame.
+* One frame tries at most four smaller layouts, for all camera sensors together. The renderer error
+  then reaches the caller.
+* It can need more GPU memory than the layout it finds. The renderer can keep the buffers of a failed
+  layout for some time.
+
+The renderer uses an integer as given and does not search. A frame that fails then raises the
+renderer error. To find the integer without the search, start with half of the environment count.
+Halve it again until the frame renders and no tile is black. Every extra product adds a fixed cost
+per frame, so prefer the largest value that renders.
 
 Only the OVRTX renderer supports this field. The Isaac RTX and Newton Warp renderers reject a value
 other than ``None`` at configuration time.

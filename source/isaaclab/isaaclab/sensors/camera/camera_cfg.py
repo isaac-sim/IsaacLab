@@ -107,13 +107,15 @@ class CameraCfg(SensorBaseCfg):
     max_envs_per_render_product: int | None = None
     """Maximum number of environments rendered through one render product. Defaults to None.
 
-    ``None`` renders every environment of this sensor through one render product and one tiled
-    atlas, which is the previous behavior. An integer ``M`` splits the sensor into
-    ``ceil(num_envs / M)`` render products over contiguous environment slices. The outputs stay one
-    ``(num_envs, height, width, channels)`` buffer per data type.
+    ``None`` starts with one render product and one tiled atlas for every environment of this
+    sensor. An integer ``M`` splits the sensor into ``ceil(num_envs / M)`` render products over
+    contiguous environment slices. The outputs stay one ``(num_envs, height, width, channels)``
+    buffer per data type.
 
-    Use this field when one atlas exceeds the renderer's 4 GiB per-buffer limit. The camera sensor
-    documentation (``docs/source/concepts/sensors/camera.rst``) explains the limit and how to size ``M``.
+    One atlas can exceed the renderer's 4 GiB per-buffer limit. With ``None``, the OVRTX renderer
+    (OVRTX 0.7 or later) then halves the largest render product while the first frame fails, and
+    logs the integer that skips this search. The camera sensor documentation
+    (``docs/source/concepts/sensors/camera.rst``) explains the limit and the search.
 
     Only renderers whose configuration sets
     :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept a value other than
