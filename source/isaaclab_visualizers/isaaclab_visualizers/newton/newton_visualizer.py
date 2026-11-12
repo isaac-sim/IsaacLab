@@ -59,7 +59,6 @@ from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
-from .newton_impulse_drag import IMPULSE_GAIN, MAX_IMPULSE_SPEED, ImpulseDrag, impulse_color, make_impulse
 from .newton_key_event_source import NewtonKeyEventSource
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
@@ -160,12 +159,6 @@ def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, ti
 # ---------------------------------------------------------------------------
 
 
-def _rotate(quaternion: np.ndarray, vector: np.ndarray) -> np.ndarray:
-    """Rotate ``vector`` by a unit quaternion given as ``(x, y, z, w)``."""
-    axis, w = quaternion[:3], quaternion[3]
-    return vector + 2.0 * np.cross(axis, np.cross(axis, vector) + w * vector)
-
-
 class NewtonViewerGL(ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
 
@@ -184,12 +177,6 @@ class NewtonViewerGL(ViewerGL):
     """Publisher that also receives the line and arrow overlays, while the OVRTX view draws them."""
     _view_controls = None
 
-    impulse_drag: ImpulseDrag | None = None
-    impulse_substep_dt = 1.0 / 120.0
-    """Duration of one solver substep [s], which impulses are applied over; kept across :meth:`set_model`."""
-    """Impulses aimed while paused; None until a model is set."""
-    _impulse_arrows_shown = False
-
     PICKING_ARROW_SCALE = 4.0
     """Screen-space size of the arrow drawn while dragging a body in the OpenGL view, relative to a contact arrow."""
     PICKING_ARROW_WIDTH = 0.025
@@ -201,106 +188,11 @@ class NewtonViewerGL(ViewerGL):
         Newton draws the drag from the picked point to the cursor target as a thin line; it is drawn as an arrow here.
         """
         if name == "picking_line":
-            if starts is not None:  # The arrow's color grows from green to red with its length, running or paused.
-                length = float(np.linalg.norm(ends.numpy()[0] - starts.numpy()[0]))
-                colors = impulse_color(min(IMPULSE_GAIN * length, MAX_IMPULSE_SPEED) / MAX_IMPULSE_SPEED)
             self.log_arrows("picking_arrow", starts, ends, colors, width=self.PICKING_ARROW_WIDTH, hidden=hidden)
             return
         if self._overlay_capture is not None:
             self._overlay_capture.record(name, starts, ends, colors, width, hidden, arrow=False)
         super().log_lines(name, starts, ends, colors, width=width, hidden=hidden)
-
-    def set_model(self, model, *args, **kwargs):
-        """Set the model, and prepare the Impulse Drag buffers for it."""
-        super().set_model(model, *args, **kwargs)
-        self.impulse_drag = ImpulseDrag(model.device, self.impulse_substep_dt) if model is not None else None
-        self._impulse_arrows_shown = False
-
-    def set_impulse_substep_dt(self, substep_dt: float) -> None:
-        """Set the solver substep that impulses are applied over, now and for every later model."""
-        self.impulse_substep_dt = substep_dt
-        if self.impulse_drag is not None:
-            self.impulse_drag.set_substep_dt(substep_dt)
-
-    def apply_forces(self, state):
-        """Apply picking, wind, and the impulses aimed while paused."""
-        super().apply_forces(state)
-        if self.impulse_drag is not None and self.picking_enabled:
-            self.impulse_drag.apply(state, self.model.body_com)
-
-    def on_key_press(self, symbol, modifiers):
-        """Space pauses the simulation, and Shift + Space pauses rendering; Newton's other keys are kept."""
-        from pyglet.window import key
-
-        if symbol == key.SPACE and self.gui is not None and not self.gui.is_keyboard_capturing():
-            if modifiers & key.MOD_SHIFT:
-                self._paused = not self._paused
-            else:
-                self._paused_training = not self._paused_training
-            return
-        super().on_key_press(symbol, modifiers)
-
-    def on_mouse_release(self, x, y, button, modifiers):
-        """Keep the arrow aimed with a right click while the simulation is paused as an impulse for when it resumes."""
-        from pyglet.window import mouse
-
-        if button == mouse.RIGHT and self._paused_training:
-            self._queue_impulse()
-        super().on_mouse_release(x, y, button, modifiers)
-
-    def _queue_impulse(self) -> None:
-        """Queue the drag that is being released as an impulse on the picked body."""
-        picking, drag, state = self.picking, self.impulse_drag, self._last_state
-        if drag is None or picking is None or state is None or not picking.is_picking():
-            return
-        body = int(picking.pick_body.numpy()[0])
-        if body < 0:
-            return
-        pick = picking.pick_state.numpy()[0]
-        local = np.asarray(pick["picked_point_local"], dtype=np.float64)
-        transform = state.body_q.numpy()[body].astype(np.float64)
-        point = transform[:3] + _rotate(transform[3:7], local)
-        displacement = np.asarray(pick["picking_target_world"], dtype=np.float64) - point
-        mass = float(picking._pick_effective_mass.numpy()[body]) or float(self.model.body_mass.numpy()[body])
-        drag.add(make_impulse(body, local, displacement, mass))
-
-    def _render_picking_line(self, state):
-        """Draw the drag in progress, and the impulses waiting for the simulation to resume."""
-        super()._render_picking_line(state)
-        drag = self.impulse_drag
-        if drag is None:
-            return
-        if not self._paused_training:
-            drag.forget_applied()
-        if not drag.entries:
-            if self._impulse_arrows_shown:
-                self.log_arrows("impulse_arrow", None, None, None)
-                self._impulse_arrows_shown = False
-            return
-        transforms = state.body_q.numpy()
-        offsets = self.world_offsets.numpy() if self.world_offsets is not None and self.world_offsets.shape[0] else None
-        body_world = (
-            self.model.body_world.numpy() if offsets is not None and self.model.body_world is not None else None
-        )
-        starts, ends, colors = [], [], []
-        for entry in drag.entries:
-            transform = transforms[entry.body].astype(np.float64)
-            start = transform[:3] + _rotate(transform[3:7], entry.point.astype(np.float64))
-            if body_world is not None and 0 <= body_world[entry.body] < len(offsets):
-                start = start + offsets[body_world[entry.body]]
-            direction = entry.vector / max(float(np.linalg.norm(entry.vector)), 1e-12)
-            starts.append(start)
-            ends.append(start + direction * entry.fraction * MAX_IMPULSE_SPEED / IMPULSE_GAIN)
-            colors.append(impulse_color(entry.fraction))
-        device = self.device
-        self.log_arrows(
-            "impulse_arrow",
-            wp.array(np.array(starts, dtype=np.float32), dtype=wp.vec3, device=device),
-            wp.array(np.array(ends, dtype=np.float32), dtype=wp.vec3, device=device),
-            wp.array(np.array(colors, dtype=np.float32), dtype=wp.vec3, device=device),
-            width=self.PICKING_ARROW_WIDTH,
-        )
-        self._impulse_arrows_shown = True
 
     def _enlarge_picking_arrow(self) -> None:
         """Draw the picking arrow in a second pass at :attr:`PICKING_ARROW_SCALE`, leaving the contact arrows alone."""
@@ -310,7 +202,7 @@ class NewtonViewerGL(ViewerGL):
             return
 
         def render_arrows(arrows):
-            picking = {key: arrow for key, arrow in arrows.items() if key.endswith(("picking_arrow", "impulse_arrow"))}
+            picking = {key: arrow for key, arrow in arrows.items() if key.endswith("picking_arrow")}
             draw_arrows({key: arrow for key, arrow in arrows.items() if key not in picking})
             if picking:
                 scale = renderer.arrow_scale
@@ -524,13 +416,12 @@ class NewtonViewerGL(ViewerGL):
                     ),
                     (
                         "Objects",
-                        ["Right Click - Pick and drag", "Paused + Right Click - Aim a push"] if picking else [],
+                        ["Right Click - Pick and drag"] if picking else [],
                     ),
                     (
                         "Playback",
                         [
-                            "Space - Pause simulation",
-                            "Shift + Space - Pause rendering",
+                            "Space - Pause / resume rendering",
                             ". - Step a frame (rendering paused)",
                         ],
                     ),
@@ -694,13 +585,13 @@ class NewtonViewerGL(ViewerGL):
             self._paused_training = not self._paused_training
         hover_tooltip(
             imgui,
-            "Stop or resume stepping the simulation (Space). The window keeps updating",
+            "Stop or resume stepping the simulation. The window keeps updating",
         )
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
-        hover_tooltip(imgui, "Freeze or resume the window image (Shift + Space). The simulation keeps running")
+        hover_tooltip(imgui, "Freeze or resume the window image (Space). The simulation keeps running")
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
@@ -1866,7 +1757,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
-        self._viewer.set_impulse_substep_dt(getattr(self.backend, "solver_dt", None) or sim.get_physics_dt())
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -1961,10 +1851,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self.current_image_view.invalidate()
 
     def _log_rtx_overlays(self) -> bool:
-        """Draw the line and arrow overlays the HUD enables, and the drag and impulse arrows, as meshes in OVRTX.
+        """Draw the line and arrow overlays the HUD enables, and the drag arrow, as meshes in OVRTX.
 
         Returns:
-            Whether a drag or impulse arrow is being drawn, which an OVRTX view that is not stepping must render again.
+            Whether the drag arrow is being drawn, which an OVRTX view that is not stepping must render again.
         """
         publisher, viewer = self._overlay_publisher, self._viewer
         if publisher is None or not self.rtx_rendering:
@@ -1974,12 +1864,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             getattr(viewer, flag)
             for flag in ("show_joints", "show_contacts", "show_springs", "show_com", "show_inertia_boxes")
         )
-        drag = viewer.impulse_drag
-        dragging = viewer.picking_enabled and (
-            (viewer.picking is not None and viewer.picking.is_picking())
-            or (drag is not None and bool(drag.entries))
-            or viewer._impulse_arrows_shown  # One more pass clears the arrows that were drawn.
-        )
+        dragging = viewer.picking_enabled and viewer.picking is not None and viewer.picking.is_picking()
         if not overlays and not dragging:
             publisher.hide_all(renderers)
             return False
@@ -2013,7 +1898,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render the OVRTX camera again while the simulation is paused, which does not render it by itself.
 
         Args:
-            arrows_changed: Whether a drag or impulse arrow is being drawn, so the image changes every frame.
+            arrows_changed: Whether the drag arrow is being drawn, so the image changes every frame.
         """
         view = self.current_image_view
         if not self.rtx_rendering or not self.is_training_paused():
