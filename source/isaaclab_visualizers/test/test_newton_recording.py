@@ -181,6 +181,9 @@ class _StrictImgui:
     def button(self, label):
         return label == self.click
 
+    def checkbox(self, _label, value):
+        return False, value
+
     def begin_disabled(self):
         self.disabled_depth += 1
 
@@ -275,3 +278,18 @@ def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, 
     monkeypatch.undo()
     panel.save_video()
     assert not panel.unsaved_video and (tmp_path / "video" / "newton_0001.mp4").exists()
+
+
+def test_hud_is_captured_only_when_the_toggle_asks_for_it(tmp_path):
+    requested = []
+    owner = _owner(frames=[np.zeros((4, 6, 3), np.uint8)] * 2, output_dir=str(tmp_path))
+    owner._viewer.get_frame = lambda render_ui=False: requested.append(render_ui) or _Array(np.zeros((4, 6, 3)))
+    panel = NewtonRecordingPanel(owner)
+
+    panel.request_screenshot()
+    panel.capture()
+    panel.screenshot_include_hud = True
+    panel.request_screenshot()
+    panel.capture()
+
+    assert requested == [False, True]
