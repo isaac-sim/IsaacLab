@@ -228,8 +228,9 @@ class CameraCfg(SensorBaseCfg):
     """Processors that compute camera outputs from render outputs. Defaults to an empty list.
 
     Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
-    capture with the configuration and the named camera buffers. After each capture, processors run in order on the
-    render outputs and earlier processors' outputs, and their outputs are added to :attr:`CameraData.output`. The
+    capture with the configuration and the camera buffers. After each capture, processors run in order on the
+    render outputs and earlier processors' outputs, and their outputs are added to :attr:`CameraData.output`, where
+    they exist from the first capture on; before it, only the render outputs do. The
     renderer produces every input that no earlier processor produces, so a processor can replace an output it reads.
     The render outputs that processors read are published too, :attr:`data_types` adds render outputs that no
     processor reads, and an entry that a processor produces is not rendered. A processor returns exactly the names
@@ -280,6 +281,13 @@ class CameraCfg(SensorBaseCfg):
         selected renderer contract."""
         if any(CAPTURE_ENV_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
             raise ValueError(f"Processor output name {CAPTURE_ENV_MASK_NAME!r} is reserved for the capture mask.")
+        for processor_cfg in self.tensor_processors:
+            # Import strings become callable lazily; any other string fails only at the first capture.
+            if not callable(processor_cfg.func):
+                raise ValueError(
+                    "Camera tensor processor func must be a TensorProcessor class or an import string"
+                    f" 'module:Class', not {processor_cfg.func!r}."
+                )
         if getattr(self.renderer_cfg, "async_rendering", False) and any(
             CAPTURE_ENV_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
         ):
@@ -295,6 +303,17 @@ class CameraCfg(SensorBaseCfg):
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
+        produced: set[str] = set()
+        for processor_cfg in self.tensor_processors:
+            missing = sorted(set(processor_cfg.inputs) - produced - supported - {CAPTURE_ENV_MASK_NAME})
+            if missing:
+                name = getattr(processor_cfg.func, "__name__", str(processor_cfg.func))
+                raise ValueError(
+                    f"Camera tensor processor {name} reads {missing}, which no earlier processor produces and"
+                    f" renderer {type(self.renderer_cfg).__name__} does not render. Order the processors so the"
+                    " producer comes first, or select a renderer that supports the input."
+                )
+            produced.update(processor_cfg.outputs)
         unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
