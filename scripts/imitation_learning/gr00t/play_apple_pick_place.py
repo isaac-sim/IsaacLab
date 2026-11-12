@@ -35,7 +35,13 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 parser = argparse.ArgumentParser(description="Run the GR00T N1.7 apple policy on the apple pick-and-place task.")
-parser.add_argument("--task", type=str, default="IsaacContrib-PickPlace-Apple-G1-Dex3", help="Name of the task.")
+parser.add_argument(
+    "--task",
+    type=str,
+    default="IsaacContrib-PickPlace-Apple-G1-Dex3",
+    choices=["IsaacContrib-PickPlace-Apple-G1-Dex3", "IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos"],
+    help="The apple task, with the rendered head camera image or with the image Cosmos generates from its depth.",
+)
 parser.add_argument("--policy_host", type=str, default="127.0.0.1", help="Host running the GR00T policy server.")
 parser.add_argument("--policy_port", type=int, default=5555, help="Port of the GR00T policy server.")
 parser.add_argument("--num_episodes", type=int, default=4, help="Number of episodes to run.")
