@@ -3,6 +3,22 @@ Changelog
 
 .. towncrier release notes start
 
+13.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.assets.SurfaceGripper.reset` now takes ``env_ids`` and ``env_mask``
+  instead of ``indices``.
+
+Fixed
+^^^^^
+
+* Fixed articulation and rigid-object resets with only ``env_mask`` resetting the actuator state or external
+  wrenches of every environment instead of the masked ones.
+
+
 12.0.0 (2026-11-07)
 ~~~~~~~~~~~~~~~~~~~
 

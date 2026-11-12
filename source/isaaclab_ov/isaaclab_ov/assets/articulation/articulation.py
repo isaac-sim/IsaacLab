@@ -77,7 +77,7 @@ class Articulation(BaseArticulation):
 
     OVPhysX exposes per-tensor-type :class:`ovphysx.TensorBinding` objects rather than a single
     opaque view; binding handles are created eagerly in :meth:`_initialize_impl` and reused across
-    reads and writes. CPU-only bindings (mass, CoM, inertia, joint properties, tendon properties)
+    reads and writes. CPU-only bindings (mass, CoM, inertia, joint properties)
     are routed through pinned-host staging buffers managed by :class:`ArticulationData`.
 
     .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
@@ -221,7 +221,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -1489,8 +1489,8 @@ class Articulation(BaseArticulation):
                 shape (len(env_ids), len(joint_ids)) with dtype wp.vec2f.
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
-            warn_limit_violation: If True, log a warning when the provided limits
-                are inconsistent (lower > upper). Defaults to True.
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits and are clamped. Defaults to True.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -1589,8 +1589,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, all joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, all instances are updated.
                 Shape is (num_instances,).
-            warn_limit_violation: If True, log a warning when the provided limits
-                are inconsistent (lower > upper). Defaults to True.
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits and are clamped. Defaults to True.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -2713,8 +2713,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon stiffness over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2759,8 +2759,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2805,8 +2805,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon damping over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2851,8 +2851,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon damping over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2895,8 +2895,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon limit stiffness over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2945,8 +2945,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon limit stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2991,8 +2991,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon position limits over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3056,8 +3056,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon position limits over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3116,8 +3116,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon rest lengths over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_REST_LENGTH`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_REST_LENGTH`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3164,8 +3164,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon rest lengths over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_REST_LENGTH`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_REST_LENGTH`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3216,7 +3216,7 @@ class Articulation(BaseArticulation):
         The offset that realizes a target length is therefore ``rest_length - target``.
 
         This function does not apply the target to the simulation. It only fills the offset buffer,
-        which :meth:`write_data_to_sim` pushes with the other tendon properties.
+        which :meth:`write_data_to_sim` pushes on its own; the other tendon properties are not written.
 
         .. note::
             This method expects partial data.
@@ -3257,8 +3257,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon offsets over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3346,8 +3346,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon offsets over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3517,8 +3517,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3563,8 +3563,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon damping over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3607,8 +3607,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon damping over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3705,8 +3705,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon limit stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3797,8 +3797,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon offsets over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3846,7 +3846,7 @@ class Articulation(BaseArticulation):
         spatial tendons.  Only the four wheel-supported tensor types are
         written; ``ARTICULATION_SPATIAL_TENDON_LIMIT`` and
         ``ARTICULATION_SPATIAL_TENDON_REST_LENGTH`` are forward-compat
-        stubs (see ``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``).
+        stubs.
 
         Args:
             spatial_tendon_ids: Accepted for PhysX API parity; ignored.
@@ -4545,7 +4545,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_com_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """
@@ -4567,7 +4567,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_com_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root CoM state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root CoM state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """
@@ -4589,7 +4589,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_link_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root link state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root link state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """

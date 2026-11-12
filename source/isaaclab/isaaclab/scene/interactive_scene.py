@@ -411,33 +411,43 @@ class InteractiveScene:
         """
         return self.get_state(is_relative=False)
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
+        writers = (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+        )
+        return all(asset.is_graphable for assets in writers for asset in assets.values())
+
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and resets without synchronizing the device. Defaults to None.
         """
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.reset(env_ids)
-        for cable_object in self._cable_objects.values():
-            cable_object.reset(env_ids)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
-        # -- sensors
-        for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+        for entities in (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+            self._sensors,
+        ):
+            for entity in entities.values():
+                entity.reset(env_ids=env_ids, env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

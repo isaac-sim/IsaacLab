@@ -117,6 +117,21 @@ def test_record(tmp_path):
     manager.close()
 
 
+class DummyPhysicsStepRecorderTerm(RecorderTerm):
+    """Dummy recorder term that records after every physics step."""
+
+    def record_post_physics_decimation_step(self) -> tuple[str | None, torch.Tensor | None]:
+        return "record_post_physics_decimation_step", torch.ones(self._env.num_envs, 1, device=self._env.device)
+
+
+def test_records_physics_steps_only_with_a_physics_step_term(tmp_path):
+    """The environment keeps its decimation loop only for terms that record between physics steps."""
+    cfg = DummyRecorderManagerCfg(dataset_export_dir_path=str(tmp_path), dataset_filename="dataset.hdf5")
+    assert not RecorderManager(cfg, create_dummy_env()).records_physics_steps
+    cfg.record_physics_term = RecorderTermCfg(class_type=DummyPhysicsStepRecorderTerm)
+    assert RecorderManager(cfg, create_dummy_env()).records_physics_steps
+
+
 def test_batched_episode_indices_and_ownership(monkeypatch):
     """Asynchronous resets, field cadence, growth and snapshots must preserve exact samples."""
     cfg = DummyRecorderManagerCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE, buffer_initial_capacity=2)

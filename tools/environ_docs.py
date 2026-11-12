@@ -48,6 +48,7 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "newton_kamino",
         "newton_mjwarp",
         "newton_mjwarp_vbd_proxy",
+        "newton_steel",
         "ovphysx",
         "ovrtx",
         "physx",

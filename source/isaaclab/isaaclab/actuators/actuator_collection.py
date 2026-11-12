@@ -161,6 +161,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         return self._control.device
 
     @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
+        return not self._execution_actuators
+
+    @property
     def has_implicit_actuators(self) -> bool:
         """Whether any configured actuator group is implicit."""
         return self._has_implicit_actuators
@@ -177,18 +182,20 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     # Lifecycle.
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
-        group_env_ids = self._control._normalize_index_sequence(env_ids)
+        group_env_ids = None if env_mask is not None else self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(group_env_ids)
-        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
+                actuator.reset(group_env_ids, env_mask)
+        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.
@@ -810,7 +817,12 @@ class ActuatorTargetCommand:
         wp.launch(
             actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[value, env_ids, joint_ids, full_data],
+            inputs=[
+                wp.from_torch(value) if isinstance(value, torch.Tensor) else value,
+                wp.from_torch(env_ids) if isinstance(env_ids, torch.Tensor) else env_ids,
+                wp.from_torch(joint_ids) if isinstance(joint_ids, torch.Tensor) else joint_ids,
+                full_data,
+            ],
             outputs=[target_buffer],
             device=collection.device,
         )
@@ -832,7 +844,7 @@ class ActuatorTargetCommand:
         wp.launch(
             actuator_kernels.write_2d_float_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[value, env_mask, joint_mask],
+            inputs=[wp.from_torch(value) if isinstance(value, torch.Tensor) else value, env_mask, joint_mask],
             outputs=[target_buffer],
             device=collection.device,
         )

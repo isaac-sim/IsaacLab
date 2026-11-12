@@ -29,6 +29,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -856,6 +857,19 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
     expected[1, 2] = 4.0
     torch.testing.assert_close(command_buffer.torch.cpu(), expected)
 
+    joint_ids = wp.to_torch(joint_ids)
+    with wp.ScopedCapture(device="cpu") as capture:
+        setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
+
+    value.copy_(torch.tensor([[5.0, 6.0]]))
+    env_ids.fill_(0)
+    joint_ids.copy_(torch.tensor([2, 0]))
+    command_buffer.torch.fill_(-1.0)
+    wp.capture_launch(capture.graph)
+
+    expected = torch.tensor([[6.0, -1.0, 5.0], [-1.0, -1.0, -1.0]])
+    torch.testing.assert_close(command_buffer.torch, expected)
+
     collection.compute()
     collection.submit_commands()
 
@@ -867,20 +881,56 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
 def test_write_command_mask_uses_full_sized_value(command_name):
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
+    setter = getattr(collection.target_command, f"set_{command_name}_mask")
+    command_buffer = getattr(collection.target_command, command_name)
     value = torch.arange(6, dtype=torch.float32).reshape(2, 3)
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    getattr(collection.target_command, f"set_{command_name}_mask")(
-        value=value, env_mask=env_mask, joint_mask=joint_mask
-    )
+    setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
 
     expected = torch.zeros(2, 3)
     expected[0, 1:] = value[0, 1:]
-    torch.testing.assert_close(getattr(collection.target_command, command_name).torch.cpu(), expected)
+    torch.testing.assert_close(command_buffer.torch.cpu(), expected)
     assert control.staged_commands == [command_name]
 
+    with wp.ScopedCapture(device="cpu") as capture:
+        setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
+
+    value.add_(10.0)
+    wp.to_torch(env_mask).copy_(torch.tensor([False, True]))
+    wp.to_torch(joint_mask).copy_(torch.tensor([True, False, True]))
+    command_buffer.torch.fill_(-1.0)
+    wp.capture_launch(capture.graph)
+
+    expected = torch.tensor([[-1.0, -1.0, -1.0], [13.0, -1.0, 15.0]])
+    torch.testing.assert_close(command_buffer.torch, expected)
+
     with pytest.raises(TypeError, match="wp.bool"):
-        getattr(collection.target_command, f"set_{command_name}_mask")(
-            value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask
-        )
+        setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_masked_reset_leaves_unselected_envs_untouched(device):
+    """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
+    control = FakeActuatorControl(num_envs=4, device=device)
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=2, max_delay=2)
+    collection = ActuatorCollection({"delayed": cfg}, control)
+    buffers = collection["delayed"]._delay_buffers
+    for delay_buffer in buffers:
+        delay_buffer.set_time_lag(1)
+    for _ in range(3):
+        collection.compute()
+    env_mask = torch.tensor([False, True, False, True], device=device)
+
+    if device.startswith("cuda"):
+        torch.cuda.synchronize(device)
+        torch.cuda.set_sync_debug_mode("error")
+    try:
+        collection.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+    finally:
+        torch.cuda.set_sync_debug_mode("default")
+
+    for delay_buffer in buffers:
+        torch.testing.assert_close(delay_buffer.time_lags, torch.where(env_mask, 2, 1).to(torch.int))
+        torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))
