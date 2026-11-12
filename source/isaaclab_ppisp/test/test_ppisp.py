@@ -289,7 +289,8 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
     prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
 
-    apply_rtx_exposure_overrides(stage, [str(prim.GetPath())])
+    with pytest.warns(FutureWarning, match="apply_rtx_exposure_overrides is deprecated"):
+        apply_rtx_exposure_overrides(stage, [str(prim.GetPath())])
 
     assert prim.GetAttribute("exposure").Get() == 0.0
     assert prim.GetAttribute("exposure:fStop").Get() == 1.0
