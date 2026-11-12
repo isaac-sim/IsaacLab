@@ -109,6 +109,9 @@ def test_camera_isp_is_resolved_during_construction(caplog, monkeypatch):
                 cfg, prim_path="/World/RtxCamera", spawn=_SPAWN, tensor_processors=[],
                 isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}), renderer_cfg=RendererCfg(renderer_type="isaac_rtx"),
             ))  # fmt: skip
+        # isp_cfg next to a PpispProcessorCfg would run PPISP twice, so camera construction rejects it.
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"), pytest.raises(ValueError, match="twice"):
+            instantiate(replace(cfg, isp_cfg=PpispCfg()))
 
         assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
         assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["exposureOffset"] == 2.0

@@ -32,7 +32,6 @@ from ..sensor_base import SensorBase
 from .camera_cfg import CAPTURE_ENV_MASK_NAME, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 from .camera_exposure import ExposureCfg, apply_neutral_exposure
-from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
     from ...utils.tensor_processors import TensorProcessor
@@ -266,16 +265,19 @@ class Camera(SensorBase):
 
             msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
             warnings.warn(msg, FutureWarning, stacklevel=2)
+            if any(isinstance(cfg, PpispProcessorCfg) for cfg in self.cfg.tensor_processors):
+                raise ValueError(
+                    "CameraCfg.isp_cfg and a PpispProcessorCfg in tensor_processors both configure PPISP, which"
+                    " would run twice. Remove isp_cfg."
+                )
             # isp_cfg keeps its behavior: a discovery mode that finds no PPISP attributes changes nothing, and
             # where PPISP applies, the renderers that apply the camera's exposure (Isaac RTX and OVRTX) get neutral
-            # exposure, because PPISP applies its own.
+            # exposure, because PPISP applies its own. The processor receives the resolved coefficients.
             first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
             first_path = str(first_prim.GetPath()) if first_prim else None
-            if (
-                not isinstance(self.cfg.isp_cfg, CameraISPMode)
-                or resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path) is not None
-            ):
-                self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
+            isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path)
+            if isp_cfg is not None:
+                self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=isp_cfg), *self.cfg.tensor_processors]
                 if self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
                     self.cfg.exposure = ExposureCfg(mode="neutral")
             # The processor now owns the value, so a camera built from this cfg does not forward it again.
