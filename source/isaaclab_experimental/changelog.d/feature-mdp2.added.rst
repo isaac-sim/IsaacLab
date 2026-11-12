@@ -89,3 +89,6 @@
   solver.
 * Added a check that the articulations of :class:`~isaaclab_experimental.envs.MDP2Env` have actuators without
   state (implicit, ideal PD, and DC motor), since its masked resets reset the actuator state of every world.
+* Added quantities as action offsets, ``mdp2.DirectAction(target, offset=mdp2.quantities.<name>)``, so that a
+  policy can act relative to a reference that changes every step. Only the quantities that observations and
+  action offsets read are computed again after a reset; the others keep the values of the episode that ended.

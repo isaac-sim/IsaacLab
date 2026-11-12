@@ -1197,6 +1197,52 @@ def test_curriculum_reads_quantity_and_scales_noise():
     assert torch.equal(results["torch"], results["warp"])
 
 
+@wp.func
+def hold_second_joint_warp(world: int, joint_pos: wp.array2d(dtype=float)):
+    joint_pos[world, 1] = 1.0
+
+
+def hold_second_joint_torch(mask, joint_pos):
+    joint_pos[:, 1] = torch.where(mask, 1.0, joint_pos[:, 1])
+
+
+hold_second_joint = mdp2.Term(
+    torch=hold_second_joint_torch, warp=hold_second_joint_warp, state={"spare": mdp2.State(persistent=True)}
+)
+"""Reset event that sets the second joint position to one. Its hooks do not take its state."""
+
+
+def test_action_offset_follows_a_quantity_through_resets():
+    """An action offset by a quantity uses the value of the last step, and of the new episode after a reset, while
+    a quantity that nothing reads between steps keeps what the episode that ended left."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_action("effort", mdp2.DirectAction(robot.joint_effort_target, offset=mdp2.quantities.reference))
+        builder.add_quantity("reference", mdp2.Quantity(joint_pos, inputs={"joint_pos": robot.joint_pos}))
+        builder.add_quantity("reached", mdp2.Quantity(reached, inputs={"joint_pos": robot.joint_pos}))
+        builder.add_event("hold", mdp2.Event(hold_second_joint, outputs={"joint_pos": robot.joint_pos}))
+        builder.add_observation(
+            "policy", "joint_pos", mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})
+        )
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        all_worlds = torch.ones(4, dtype=torch.bool, device=DEVICE)
+        actions = ProxyArray(wp.zeros((4, 2), dtype=wp.float32, device=DEVICE))
+        targets = scene.data("robot", "joint_effort_target").torch
+
+        env_reset(mdp, state, scene, transition.observations, all_worlds)
+        scene.data("robot", "joint_pos").torch[:, 0] = 0.5
+        mdp2.evaluate(mdp, state, transition)
+        mdp2.apply_actions(mdp, state, actions)
+        assert targets.tolist() == [[0.5, 1.0]] * 4
+
+        env_reset(mdp, state, scene, transition.observations, all_worlds)
+        mdp2.apply_actions(mdp, state, actions)
+        assert targets.tolist() == [[0.0, 1.0]] * 4
+        assert state.arrays[mdp2.quantities.reached].torch.tolist() == [1.0] * 4
+
+
 def test_reset_commits_before_events_that_ask_for_it():
     """The scene commits the writes of the earlier reset events before an event that asks for it."""
     for backend in ("torch", "warp"):

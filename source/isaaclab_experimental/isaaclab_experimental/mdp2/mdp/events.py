@@ -328,7 +328,7 @@ def _randomize_actuator_gains(
     joint_ids = ctx.inputs["joint_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
     rows = env_ids[:, None]
-    if not all(actuator.is_implicit_model for _, actuator in asset.actuators.items()):
+    if not all(actuator.is_implicit_model for actuator in asset.actuators.values()):
         raise ValueError("randomize_actuator_gains supports implicit actuators only.")
 
     # Stiffness and damping draw from separate parts of the stream.

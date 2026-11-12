@@ -147,11 +147,10 @@ def _steer_to_heading(
 
 
 def _steer_to_heading_torch(command, heading_target, root_link_pose_w, *, ang_vel_z, heading_control_stiffness):
-    # Made on the device: a host copy cannot be captured in a CUDA graph.
-    x_axis = torch.zeros_like(root_link_pose_w[:, :3])
-    x_axis[:, 0] = 1.0
-    forward = math_utils.quat_apply(root_link_pose_w[:, 3:7], x_axis)
-    error = math_utils.wrap_to_pi(heading_target - torch.atan2(forward[:, 1], forward[:, 0]))
+    # The heading is the direction of the root's x axis in the ground plane.
+    x, y, z, w = root_link_pose_w[:, 3:7].unbind(-1)
+    heading = torch.atan2(2.0 * (x * y + w * z), 1.0 - 2.0 * (y * y + z * z))
+    error = math_utils.wrap_to_pi(heading_target - heading)
     angular = (heading_control_stiffness * error).clip(*ang_vel_z)
     command[:, 2] = torch.where(heading_target.isnan(), command[:, 2], angular)
 

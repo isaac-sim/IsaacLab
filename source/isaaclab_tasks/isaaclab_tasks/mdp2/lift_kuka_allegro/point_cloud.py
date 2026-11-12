@@ -13,9 +13,6 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 
-SHAPE_TYPES = ("Mesh", "Cube", "Sphere", "Cylinder", "Capsule", "Cone")
-"""USD prim types whose surfaces are sampled."""
-
 
 def sample_object_point_cloud(asset, num_points: int) -> torch.Tensor:
     """Return ``num_points`` surface points of the object of each world, ``(num_worlds, num_points, 3)``.
@@ -26,6 +23,12 @@ def sample_object_point_cloud(asset, num_points: int) -> torch.Tensor:
     import trimesh  # noqa: PLC0415
 
     from pxr import UsdGeom  # noqa: PLC0415
+
+    from isaaclab.utils.mesh import (  # noqa: PLC0415
+        PRIMITIVE_MESH_TYPES,
+        create_trimesh_from_geom_mesh,
+        create_trimesh_from_geom_shape,
+    )
 
     points = torch.zeros(asset.num_instances, num_points, 3, device=asset.device)
     stage = sim_utils.get_current_stage()
@@ -40,14 +43,15 @@ def sample_object_point_cloud(asset, num_points: int) -> torch.Tensor:
         root = stage.GetPrimAtPath(source_paths[index])
         root_from_world = xform_cache.GetLocalToWorldTransform(root).GetInverse()
         prims = sim_utils.get_all_matching_child_prims(
-            source_paths[index], predicate=lambda prim: prim.GetTypeName() in SHAPE_TYPES
+            source_paths[index], predicate=lambda prim: prim.GetTypeName() in [*PRIMITIVE_MESH_TYPES, "Mesh"]
         )
 
         # Sample each shape, then thin the samples of all shapes together.
         samples = []
         for prim in prims:
-            mesh = _trimesh(prim, trimesh, UsdGeom)
-            surface, _ = trimesh.sample.sample_surface(mesh, 2 * num_points, face_weight=mesh.area_faces)
+            is_mesh = prim.GetTypeName() == "Mesh"
+            mesh = create_trimesh_from_geom_mesh(prim) if is_mesh else create_trimesh_from_geom_shape(prim)
+            surface, _ = trimesh.sample.sample_surface(mesh, 2 * num_points)
             surface = torch.from_numpy(surface.astype(np.float32))
             surface = surface[_farthest_points(surface, num_points)]
 
@@ -64,40 +68,6 @@ def sample_object_point_cloud(asset, num_points: int) -> torch.Tensor:
             samples = samples * torch.tensor(scale.Get(), dtype=torch.float32)
         points[torch.as_tensor(env_ids, device=asset.device)] = samples.to(asset.device)
     return points
-
-
-def _trimesh(prim, trimesh, UsdGeom):
-    """Return the surface of a mesh or shape prim as a trimesh, in the prim's frame."""
-    match prim.GetTypeName():
-        case "Mesh":
-            mesh = UsdGeom.Mesh(prim)
-            vertices = np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float32)
-            counts = mesh.GetFaceVertexCountsAttr().Get()
-            indices = iter(mesh.GetFaceVertexIndicesAttr().Get())
-            # Triangulate each polygon as a fan around its first vertex.
-            faces = []
-            for count in counts:
-                polygon = [next(indices) for _ in range(count)]
-                faces += [[polygon[0], polygon[k], polygon[k + 1]] for k in range(1, count - 1)]
-            return trimesh.Trimesh(vertices=vertices, faces=np.asarray(faces), process=False)
-        case "Cube":
-            size = UsdGeom.Cube(prim).GetSizeAttr().Get()
-            return trimesh.creation.box(extents=(size, size, size))
-        case "Sphere":
-            return trimesh.creation.icosphere(subdivisions=3, radius=UsdGeom.Sphere(prim).GetRadiusAttr().Get())
-        case "Cylinder":
-            shape = UsdGeom.Cylinder(prim)
-            return trimesh.creation.cylinder(radius=shape.GetRadiusAttr().Get(), height=shape.GetHeightAttr().Get())
-        case "Capsule":
-            shape = UsdGeom.Capsule(prim)
-            return trimesh.creation.capsule(radius=shape.GetRadiusAttr().Get(), height=shape.GetHeightAttr().Get())
-        case "Cone":
-            # Trimesh puts the cone's base at z = 0; USD centers it.
-            shape = UsdGeom.Cone(prim)
-            height = shape.GetHeightAttr().Get()
-            mesh = trimesh.creation.cone(radius=shape.GetRadiusAttr().Get(), height=height)
-            mesh.apply_translation((0.0, 0.0, -height / 2))
-            return mesh
 
 
 def _farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:

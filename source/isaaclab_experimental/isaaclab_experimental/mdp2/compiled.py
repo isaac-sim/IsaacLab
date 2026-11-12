@@ -106,7 +106,7 @@ class MDP:
     action_dim: int
     observation_dims: Mapping[str, int]
     max_episode_length: int | None  # Control steps until truncation, None without a time limit
-    streams: tuple[str, ...]  # Op names of the rows of MDPState.rng
+    streams: tuple[str, ...]  # Use names of the rows of MDPState.rng, with "/noise" for observation noise
     subsets: Mapping[SubsetSelector, tuple[int, ...]]  # Indices of every selected subset
     diagnostics: bool  # Whether evaluate also writes the reward and termination of every term
     world_configs: tuple[WorldConfig, ...]  # One per replicated builder, or one for every world

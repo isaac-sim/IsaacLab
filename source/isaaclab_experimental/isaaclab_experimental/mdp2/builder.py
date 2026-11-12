@@ -108,7 +108,7 @@ class ArrayLayout:
 
 @dataclass
 class CompileContext:
-    """Ops, layouts, random streams, and errors collected while compiling the schedule."""
+    """Ops, layouts, and errors collected while compiling the schedule."""
 
     backend: Backend
     errors: list[str]
@@ -400,6 +400,14 @@ class MDPBuilder:
             else:
                 self._compile_term(entry, context)
 
+        # An offset may be a field of the MDP, such as a quantity, which exists once its use is compiled.
+        for op in context.ops[Phase.ACTIONS]:
+            if not isinstance(op.offset, FieldSelector):
+                continue
+            offset = self._resolve(op.name, "offset", op.offset, context)
+            if offset is not None and offset.shape != self._resolve(op.name, "target", op.target, context).shape:
+                context.errors.append(f"{op.name}: the offset '{op.offset}' must have the shape of '{op.target}'.")
+
         # Restore the schedule order within each phase, with the positions and observation columns it gives.
         position = {str(entry): k for k, entry in enumerate(schedule)}
         for phase, ops in context.ops.items():
@@ -442,11 +450,6 @@ class MDPBuilder:
             written = set(context.subsets[op.subset]) if op.subset is not None else elements
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
-
-        if isinstance(cfg.offset, FieldSelector):
-            offset = self._resolve(entry, "offset", cfg.offset, context)
-            if offset is not None and offset.sizes != target.sizes:
-                context.errors.append(f"{entry}: the offset '{cfg.offset}' must have the shape of '{cfg.target}'.")
 
         columns = slice(context.action_dim, context.action_dim + len(elements))
         context.action_dim = columns.stop
@@ -594,7 +597,7 @@ class MDPBuilder:
         )
 
     def _resolve(
-        self, entry: ScheduleEntry, arg: str, selector: FieldSelector | SubsetSelector, context: CompileContext
+        self, entry: ScheduleEntry | str, arg: str, selector: FieldSelector | SubsetSelector, context: CompileContext
     ) -> ArrayLayout | None:
         """Look up the array that a selector binds to the argument ``arg``, or report an error and return ``None``."""
         if isinstance(selector, FieldSelector) and not selector.scene:

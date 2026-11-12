@@ -128,7 +128,8 @@ class Fusion:
     ) -> None:
         """Record what a statement reads and writes, starting a new kernel first if it would race with ``others``."""
         touched = set(_ARGUMENT.findall("\n".join(lines)))
-        written = {self._arguments[key][0] for key in writes}
+        # A statement may declare writes that it has no argument for, such as state that a hook does not take.
+        written = {self._arguments[key][0] for key in writes if key in self._arguments}
         if any(touched & other.written or written & other.touched for other in others):
             self._cut()
 

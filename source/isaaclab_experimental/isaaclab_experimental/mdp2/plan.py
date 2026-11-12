@@ -149,9 +149,15 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
         if op.reset is not None or any(not spec.persistent for spec in op.state.values())
     ]
 
-    quantities = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.QUANTITIES])
-    quantity_fields = {op.writes[0] for op in ops[Phase.QUANTITIES]}
-    observed = any(selector in quantity_fields for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values())
+    # Observations and action offsets read quantities between steps, also in worlds that were just reset, where
+    # they are computed again, with the quantities that they read. The others keep the values of the last step.
+    read = {selector for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values()}
+    read |= {op.offset for op in ops[Phase.ACTIONS]}
+    observed = []
+    for op in reversed(ops[Phase.QUANTITIES]):
+        if op.writes[0] in read:
+            observed.insert(0, Step(StepKind.COMPUTE, op))
+            read |= set(op.inputs.values())
 
     terminations_and_rewards = []
     for op in ops[Phase.QUANTITIES] + ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
@@ -186,8 +192,7 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
             # State restarts last, from the fields and commands of the new episode.
             *(Step(StepKind.RESET_STATE, op) for op in stateful),
         ),
-        # Quantities keep the values of the last step, so observations that read them get them computed again.
-        observe=(*(quantities if observed else ()), *observations),
+        observe=(*observed, *observations),
     )
 
 

@@ -154,7 +154,8 @@ class Quantity(TermCfg):
 
     Quantities are computed once per step, before the terminations and rewards, so that terms share a calculation
     instead of repeating it. A quantity keeps its value until the next step: reset events read what the episode that
-    ended left, such as whether it succeeded. Observations that read quantities get them recomputed after a reset.
+    ended left, such as whether it succeeded. A quantity that observations or action offsets read is the exception:
+    it is computed again after a reset, with the quantities that it reads.
     """
 
     phase: ClassVar[Phase] = Phase.QUANTITIES

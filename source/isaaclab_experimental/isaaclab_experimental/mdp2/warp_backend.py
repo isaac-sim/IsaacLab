@@ -238,12 +238,7 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
                 lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
                 writes.append("reward_terms")
             code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
-        case Phase.COMMANDS if stepping:
-            writes = [*op.writes, *state]
-            _run(
-                code, mdp, op, op.compute, writes, conditions, lambda call: call.state.arrays["selected", op.name].warp
-            )
-        case Phase.INTERVAL_EVENTS:
+        case Phase.COMMANDS | Phase.INTERVAL_EVENTS if stepping:
             writes = [*op.writes, *state]
             _run(
                 code, mdp, op, op.compute, writes, conditions, lambda call: call.state.arrays["selected", op.name].warp
