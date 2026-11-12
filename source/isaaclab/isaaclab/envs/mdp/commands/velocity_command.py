@@ -32,15 +32,21 @@ class UniformVelocityCommand(CommandTerm):
     The command comprises of a linear velocity in x and y direction and an angular velocity around
     the z-axis. It is given in the robot's base frame.
 
-    If the :attr:`cfg.heading_command` flag is set to True, the angular velocity is computed from the heading
-    error similar to doing a proportional control on the heading error. The target heading is sampled uniformly
-    from the provided range. Otherwise, the angular velocity is sampled uniformly from the provided range.
+    If the :attr:`~isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command` flag is
+    set to True, the angular velocity is computed from the heading error similar to doing a proportional control
+    on the heading error. The target heading is sampled uniformly from the provided range. Otherwise, the angular
+    velocity is sampled uniformly from the provided range.
 
     Mathematically, the angular velocity is computed as follows from the heading command:
 
     .. math::
 
-        \omega_z = \frac{1}{2} \text{wrap_to_pi}(\theta_{\text{target}} - \theta_{\text{current}})
+        \omega_z = \text{clip}\left(k \, \text{wrap_to_pi}(\theta_{\text{target}} - \theta_{\text{current}}),
+            \omega_{z,\min}, \omega_{z,\max}\right)
+
+    where :math:`k` is
+    :attr:`~isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_control_stiffness` and the
+    clip bounds are :attr:`~isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z`.
 
     """
 

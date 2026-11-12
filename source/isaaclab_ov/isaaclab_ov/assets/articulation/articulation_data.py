@@ -587,7 +587,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_STIFFNESS, self._fixed_tendon_stiffness)
         if self._fixed_tendon_stiffness_ta is None:
@@ -600,7 +600,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_DAMPING, self._fixed_tendon_damping)
         if self._fixed_tendon_damping_ta is None:
@@ -613,7 +613,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_LIMIT_STIFFNESS, self._fixed_tendon_limit_stiffness)
         if self._fixed_tendon_limit_stiffness_ta is None:
@@ -626,7 +626,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_REST_LENGTH, self._fixed_tendon_rest_length)
         if self._fixed_tendon_rest_length_ta is None:
@@ -639,7 +639,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_OFFSET, self._fixed_tendon_offset)
         if self._fixed_tendon_offset_ta is None:
@@ -653,10 +653,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.vec2f``.
         In torch this resolves to (num_instances, num_fixed_tendons, 2).
 
-        .. deprecated::
-            Use :attr:`fixed_tendon_limit` (shape ``(N, T, 2)``, dtype
-            ``wp.float32``) instead.  This alias is kept for backwards
-            compatibility and reads the same underlying data.
+        :attr:`fixed_tendon_limit` is a shorthand that returns this same array.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_LIMIT, self._fixed_tendon_pos_limits)
         if self._fixed_tendon_pos_limits_ta is None:
@@ -673,7 +670,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_STIFFNESS, self._spatial_tendon_stiffness)
         if self._spatial_tendon_stiffness_ta is None:
@@ -686,7 +683,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_DAMPING, self._spatial_tendon_damping)
         if self._spatial_tendon_damping_ta is None:
@@ -699,7 +696,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._spatial_tendon_limit_stiffness)
         if self._spatial_tendon_limit_stiffness_ta is None:
@@ -712,7 +709,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_OFFSET, self._spatial_tendon_offset)
         if self._spatial_tendon_offset_ta is None:
@@ -913,7 +910,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Body inertia tensors [kg*m^2].
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = ``wp.float32``; the
         trailing 9 is the row-major 3×3 inertia tensor.
