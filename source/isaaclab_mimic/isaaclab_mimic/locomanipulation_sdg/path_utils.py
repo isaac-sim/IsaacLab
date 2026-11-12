@@ -46,10 +46,12 @@ def nearest_point_on_segment(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor) 
     a2b_mag = torch.sqrt(torch.sum(a2b**2))
     a2b_norm = a2b / (a2b_mag + 1e-6)
     dist = torch.dot(a2c, a2b_norm)
+    # When the projection falls outside the segment, the nearest point is an endpoint,
+    # so the distance along the segment is clamped to that endpoint as well.
     if dist < 0:
-        return a, dist
+        return a, torch.zeros_like(dist)
     elif dist > a2b_mag:
-        return b, dist
+        return b, a2b_mag
     else:
         return a + a2b_norm * dist, dist
 
