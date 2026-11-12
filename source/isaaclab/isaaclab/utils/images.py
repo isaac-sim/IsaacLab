@@ -493,15 +493,25 @@ Display helpers.
 """
 
 
-def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
+def normalize_camera_output_for_display(
+    tensor: torch.Tensor, data_type: str, *, value_range: tuple[float, float] | None = None
+) -> torch.Tensor:
+    """Convert camera channels for display and optionally apply reference normalization bounds.
+
+    Args:
+        tensor: Camera output tensor.
+        data_type: Camera output type, such as ``rgb``, ``depth`` or ``normals``.
+        value_range: Bounds applied after channel conversion. Defaults to None, which scales
+            depth/HDR by their maximum and uses (0, 1) for converted colors and vectors.
+            Passing (0, 1) retains depth/HDR values for later normalization.
+
+    Returns:
+        The converted float32 tensor. Values outside explicit bounds are not clamped.
+    """
     normalized = tensor.float()
 
-    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+    if is_depth_like(data_type) or data_type == "rgb_hdr":
         normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
-        max_val = normalized.max()
-        if max_val > 0:
-            normalized = normalized / max_val
     elif data_type == "albedo":
         normalized = normalized[..., :3] / 255.0
     elif data_type == "normals":
@@ -516,6 +526,16 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
     else:
         normalized = normalized / 255.0
 
+    if value_range is not None:
+        range_min, range_max = value_range
+        if range_max > range_min:
+            normalized = (normalized - range_min) / (range_max - range_min)
+        else:
+            normalized = (normalized != range_min).float()
+    elif is_depth_like(data_type) or data_type == "rgb_hdr":
+        max_val = normalized.max()
+        if max_val > 0:
+            normalized = normalized / max_val
     return normalized
 
 

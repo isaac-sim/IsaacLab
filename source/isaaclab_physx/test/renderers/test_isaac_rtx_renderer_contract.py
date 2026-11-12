@@ -277,6 +277,16 @@ def test_simple_shading_configures_its_render_product(
     assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
     assert authored_attributes["omni:rtx:minimal:mode"].value_type == Sdf.ValueTypeNames.Int
 
+    # Gaussian HDR output needs the same tonemapping policy as the rest of the frame.
+    if "rgb_hdr" in data_types:
+        settings.set.assert_any_call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        gaussian_attribute = authored_attributes["omni:rtx:gaussian:skipTonemapping:enabled"]
+        assert gaussian_attribute.value_type == Sdf.ValueTypeNames.Bool
+        assert gaussian_attribute.Set.call_args == call(False)
+    else:
+        assert "omni:rtx:gaussian:skipTonemapping:enabled" not in authored_attributes
+        assert call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) not in settings.set.call_args_list
+
     # The shading level must not leak into process-wide state, where the last camera would win.
     global_setting_calls = [
         setting_call

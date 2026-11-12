@@ -271,14 +271,19 @@ class TestNormalizeCameraOutputForDisplay:
         expected = torch.tensor([[[[0.0, 127.0 / 255.0, 1.0]]]], device=device)
         torch.testing.assert_close(out, expected)
 
-    @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_image_plane"])
-    def test_depth_scales_by_max_and_ignores_nonfinite_values(self, device, data_type):
+    @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_image_plane", "rgb_hdr"])
+    def test_depth_hdr_preparation_retains_values_and_display_scales_by_max(self, device, data_type):
         from isaaclab.utils.images import normalize_camera_output_for_display
 
         src = torch.tensor([0.0, 2.0, float("inf"), 4.0, float("nan")], device=device)
+        prepared = normalize_camera_output_for_display(src, data_type, value_range=(0.0, 1.0))
+        torch.testing.assert_close(prepared, torch.tensor([0.0, 2.0, 0.0, 4.0, 0.0], device=device))
         out = normalize_camera_output_for_display(src, data_type)
         expected = torch.tensor([0.0, 0.5, 0.0, 1.0, 0.0], device=device)
         torch.testing.assert_close(out, expected)
+        torch.testing.assert_close(
+            normalize_camera_output_for_display(src, data_type, value_range=(0.0, 4.0)), expected
+        )
         assert torch.isfinite(out).all()
 
     def test_depth_handles_all_nonfinite_values(self, device):

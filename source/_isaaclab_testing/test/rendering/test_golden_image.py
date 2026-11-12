@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 import torch
-from golden_image import compare_to_golden
-from PIL import Image
+from golden_image import camera_output_image, compare_to_golden, read_golden_range
+from PIL import Image, PngImagePlugin
 from rendering_runner import validate_motion_vectors, validate_segmentation
 
 from isaaclab.renderers.output_contract import RenderBufferKind
@@ -30,6 +30,69 @@ def _compare(image: Image.Image, golden: Path, artifacts: Path):
         max_diff_pct=0.0,
         min_ssim=1.0,
     )
+
+
+@pytest.mark.parametrize(
+    ("data_type", "output", "expected_pixels"),
+    [
+        ("depth", torch.tensor([[[[2.0], [6.0]]]]), [(0, 0, 0), (255, 255, 255)]),
+        ("rgb_hdr", torch.tensor([[[[0.001, -0.1, 0.0], [0.1, 1.0, 3.0]]]]), [(8, 0, 8), (16, 90, 255)]),
+        ("depth", torch.full((1, 1, 1, 1), 1000.0), [(0, 0, 0)]),
+    ],
+)
+def test_depth_hdr_pngs_use_the_golden_minmax(tmp_path, monkeypatch, data_type, output, expected_pixels) -> None:
+    """Depth/HDR share PNG comparison and retain the reference normalization range."""
+    monkeypatch.delenv("ISAACLAB_UPDATE_GOLDENS", raising=False)
+    golden = tmp_path / "linear.png"
+    assert read_golden_range(golden) is None
+    kwargs = {
+        "label": "linear",
+        "artifact_dir": tmp_path / "artifacts",
+        "max_diff_pct": 0.0,
+        "min_ssim": None,
+    }
+
+    compare_to_golden(camera_output_image(output, data_type), golden, **kwargs)
+    with Image.open(golden) as image:
+        assert [image.getpixel((x, 0)) for x in range(image.width)] == expected_pixels
+    value_range = read_golden_range(golden)
+    assert value_range == (output.min().item(), output.max().item())
+    comparison = compare_to_golden(camera_output_image(output, data_type, value_range), golden, **kwargs)
+    assert comparison.passed and comparison.diff_pct == 0.0
+    # A new exposure must not pass by computing a fresh normalization range.
+    comparison = compare_to_golden(camera_output_image(output * 2.0, data_type, value_range), golden, **kwargs)
+    assert not comparison.passed
+    assert "Pixel difference" in comparison.error
+
+
+@pytest.mark.parametrize("value_range", [(float("nan"), 1.0), (3.0, 2.0)])
+def test_camera_output_image_rejects_invalid_range(value_range) -> None:
+    """Reject nonfinite or reversed normalization bounds."""
+    with pytest.raises(ValueError, match="min/max"):
+        camera_output_image(torch.ones((1, 1, 1, 3)), "rgb_hdr", value_range)
+
+
+@pytest.mark.parametrize("value_range", [None, (0.0, 0.5)])
+def test_rgb_uses_golden_range_or_unit_defaults(tmp_path, value_range) -> None:
+    """RGB keeps its uint8 conversion and honors the same normalization metadata as depth/HDR."""
+    golden = tmp_path / "rgb.png"
+    pnginfo = PngImagePlugin.PngInfo()
+    level = 40
+    if value_range is not None:
+        pnginfo.add_text("range_min", repr(value_range[0]))
+        pnginfo.add_text("range_max", repr(value_range[1]))
+        level = 80
+    Image.new("RGB", (1, 1), (level, level, level)).save(golden, pnginfo=pnginfo)
+
+    value_range = read_golden_range(golden)
+    assert value_range == ((0.0, 1.0) if level == 40 else (0.0, 0.5))
+    image = camera_output_image(torch.full((1, 1, 1, 3), 40, dtype=torch.uint8), "rgb", value_range)
+    comparison = compare_to_golden(
+        image, golden, label="rgb", artifact_dir=tmp_path, max_diff_pct=0.0, min_ssim=None,
+    )
+
+    assert comparison.passed
+    assert comparison.diff_pct == 0.0
 
 
 def test_identical_image_passes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,6 +157,9 @@ def test_missing_baseline_is_bootstrapped_but_fails(tmp_path: Path, monkeypatch:
     assert golden.exists()
     assert not comparison.passed
     assert comparison.error is not None and "missing" in comparison.error.lower()
+    with Image.open(golden) as image:
+        assert float(image.info["range_min"]) == 0.0
+        assert float(image.info["range_max"]) == 1.0
 
 
 def test_update_mode_overwrites_and_passes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,11 +167,15 @@ def test_update_mode_overwrites_and_passes(tmp_path: Path, monkeypatch: pytest.M
     golden = tmp_path / "golden.png"
     _image((255, 0, 0)).save(golden)
     replacement = _image((0, 255, 0))
+    replacement.info.update(range_min="2.0", range_max="6.0")
+    assert read_golden_range(golden) is None
 
     comparison = _compare(replacement, golden, tmp_path / "artifacts")
 
     assert comparison.passed
     assert Image.open(golden).getpixel((0, 0)) == (0, 255, 0)
+    monkeypatch.delenv("ISAACLAB_UPDATE_GOLDENS")
+    assert read_golden_range(golden) == (2.0, 6.0)
 
 
 def test_semantic_segmentation_labels_and_visible_area() -> None:

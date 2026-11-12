@@ -15,9 +15,9 @@ from typing import Any
 
 import numpy as np
 import torch
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, PngImagePlugin
 
-from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
+from isaaclab.utils.images import is_depth_like, make_camera_output_grid, normalize_camera_output_for_display
 
 
 @dataclass(frozen=True)
@@ -52,14 +52,54 @@ class ImageComparison:
             )
 
 
-def camera_output_image(output: torch.Tensor, data_type: str) -> Image.Image:
+def read_golden_range(golden_path: str | Path) -> tuple[float, float] | None:
+    """Read PNG normalization bounds, or return None when creating or updating a golden.
+
+    Existing images without range metadata default to (0, 1).
+    """
+    golden_path = Path(golden_path)
+    if not golden_path.exists() or os.environ.get("ISAACLAB_UPDATE_GOLDENS") == "1":
+        return None
+    with Image.open(golden_path) as golden:
+        return float(golden.info.get("range_min", 0.0)), float(golden.info.get("range_max", 1.0))
+
+
+def camera_output_image(
+    output: torch.Tensor, data_type: str, value_range: tuple[float, float] | None = None
+) -> Image.Image:
     """Normalize a batched camera AOV and compose its views into a PIL image."""
     tensor = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
     if tensor.numel() == 0 or tensor.abs().max().item() == 0:
         raise AssertionError(f"Camera output '{data_type}' is empty or contains only zeroes.")
-    grid = make_camera_output_grid(normalize_camera_output_for_display(tensor, data_type))
+    # Convert channels while retaining depth/HDR values; measure bounds after adding grid padding.
+    tensor = normalize_camera_output_for_display(tensor, data_type, value_range=(0.0, 1.0))
+    grid = make_camera_output_grid(tensor.float())
+    if value_range is None:
+        if is_depth_like(data_type) or data_type == "rgb_hdr":
+            value_range = (grid.min().item(), grid.max().item())
+        else:
+            value_range = (0.0, 1.0)
+    range_min, range_max = value_range
+    if not np.isfinite([range_min, range_max]).all() or range_min > range_max:
+        raise ValueError("Invalid min/max range.")
+    if range_max > range_min:
+        grid = (grid - range_min) / (range_max - range_min)
+    else:
+        # A changed constant capture must remain distinguishable from the constant reference.
+        grid = (grid != range_min).float()
     array = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-    return Image.fromarray(array)
+    image = Image.fromarray(array)
+    image.info["range_min"] = repr(range_min)
+    image.info["range_max"] = repr(range_max)
+    return image
+
+
+def _save_image(image: Image.Image, path: Path) -> None:
+    """Retain normalization bounds for every AOV, defaulting to the unit range."""
+    pnginfo = PngImagePlugin.PngInfo()
+    for key, default in (("range_min", "0.0"), ("range_max", "1.0")):
+        pnginfo.add_text(key, str(image.info.get(key, default)))
+    image.save(path, pnginfo=pnginfo)
 
 
 def compare_to_golden(
@@ -73,15 +113,15 @@ def compare_to_golden(
     pixel_l2_threshold: float = 10.0,
     alpha_only: bool = False,
 ) -> ImageComparison:
-    """Compare an image to a baseline, bootstrapping a missing baseline for review."""
+    """Compare normalized PNG pixels, bootstrapping a missing baseline for review."""
     golden_path = Path(golden_path)
     artifact_dir = Path(artifact_dir)
     golden_path.parent.mkdir(parents=True, exist_ok=True)
     if os.environ.get("ISAACLAB_UPDATE_GOLDENS") == "1":
-        image.save(golden_path)
+        _save_image(image, golden_path)
         return ImageComparison(label, True, 0.0, 1.0, max_diff_pct, min_ssim, golden_path=golden_path)
     if not golden_path.exists():
-        image.save(golden_path)
+        _save_image(image, golden_path)
         return ImageComparison(
             label,
             False,
@@ -131,8 +171,8 @@ def compare_to_golden(
         artifact_dir.mkdir(parents=True, exist_ok=True)
         actual_path = artifact_dir / f"{safe_label}-actual.png"
         saved_golden_path = artifact_dir / f"{safe_label}-golden.png"
-        image.save(actual_path)
-        golden.save(saved_golden_path)
+        _save_image(image, actual_path)
+        _save_image(golden, saved_golden_path)
     else:
         saved_golden_path = None
 

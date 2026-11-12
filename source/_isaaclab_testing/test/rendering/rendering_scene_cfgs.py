@@ -730,10 +730,10 @@ class AnymalRenderingSceneCfg(RenderingSceneCfg):
 #   comparison uses a loose pixel tolerance and no SSIM.
 # * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
 
-# Per-pixel L2 limit for the Isaac RTX ``rgb`` comparison, in place of the default (10). Isaac RTX speckles splats
+# Per-pixel L2 limit for Isaac RTX color comparisons, in place of the default (10). Isaac RTX speckles splats
 # with low-amplitude noise from stochastic transparency: its render differs from the golden on 34 % (Valiant) and
 # 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30.
-_GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD = 30.0
+_GAUSSIAN_SPLATS_COLOR_PIXEL_L2_THRESHOLD = 30.0
 
 
 def _gaussian_splats_asset(asset: str) -> AssetBaseCfg:
@@ -936,12 +936,18 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         ("gaussian_splats_valiant_1env", "isaac_rtx"): (12.0, 0.90),
         ("gaussian_splats_endeavor_4envs", "isaac_rtx"): (20.0, 0.70),
     }
-    overrides = {(renderer, RenderBufferKind.RGB): tol for (name, renderer), tol in tolerances.items() if name == scene}
-    pixel_l2_thresholds = {key: _GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD for key in overrides}
+    overrides = {
+        (renderer, aov): tol
+        for (name, renderer), tol in tolerances.items()
+        if name == scene
+        for aov in (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR)
+    }
+    pixel_l2_thresholds = {key: _GAUSSIAN_SPLATS_COLOR_PIXEL_L2_THRESHOLD for key in overrides}
     if scene == "gaussian_splats_raspberry_4envs":
         # The legacy and ovstage scene readers share one golden and shade the berries slightly differently: 7.06 % of
         # pixels at 0.975 SSIM, above the 3 % cap OVRTX otherwise gets.
-        overrides[("ovrtx", RenderBufferKind.RGB)] = (10.0, 0.95)
+        for aov in (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR):
+            overrides[("ovrtx", aov)] = (10.0, 0.95)
     else:
         overrides[("isaac_rtx", RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)] = (40.0, 0.0)
     animated_xform = config["animated_xform"]
