@@ -386,15 +386,8 @@ free_thresh: {free_thresh}
         """
 
         radius = int(buffer_distance_pixels)
-        if radius <= 0:
-            # cv2.dilate falls back to a 3x3 kernel when given an empty one, so skip the dilation.
-            return OccupancyMap.from_masks(
-                freespace_mask=self.freespace_mask(),
-                occupied_mask=self.occupied_mask(),
-                resolution=self.resolution,
-                origin=self.origin,
-            )
         # Use an odd kernel size so the disk is centered on the kernel anchor and grows every side equally.
+        # A radius of zero gives a 1x1 kernel (no growth) rather than an empty kernel, which cv2 replaces with 3x3.
         diameter = 2 * radius + 1
         kernel = np.zeros((diameter, diameter), np.uint8)
         cv2.circle(kernel, (radius, radius), radius, 255, -1)

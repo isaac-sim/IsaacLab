@@ -10,18 +10,15 @@ import pytest
 
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
 
+pytestmark = pytest.mark.kitless
 
-def _single_obstacle_map(size: int = 15, resolution: float = 0.05) -> OccupancyMap:
-    occupied = np.zeros((size, size), dtype=bool)
-    occupied[size // 2, size // 2] = True
-    return OccupancyMap.from_masks(~occupied, occupied, resolution, (0.0, 0.0, 0.0))
+_MAP_SIZE = 15
 
 
 @pytest.mark.parametrize("radius", [0, 1, 3])
-def test_buffered_grows_obstacles_by_radius_on_every_side(radius):
-    """Dilation by ``radius`` pixels reaches exactly ``radius`` pixels in each direction and is symmetric."""
+def test_buffered_grows_obstacles_by_radius_on_every_side(radius: int) -> None:
     omap = _single_obstacle_map()
-    center = omap.height_pixels() // 2
+    center = _MAP_SIZE // 2
 
     occupied = omap.buffered(radius).occupied_mask()
 
@@ -32,8 +29,13 @@ def test_buffered_grows_obstacles_by_radius_on_every_side(radius):
     np.testing.assert_array_equal(occupied, occupied[:, ::-1])
 
 
-def test_buffered_meters_below_one_pixel_keeps_map():
-    """A buffer distance shorter than one pixel leaves the occupied region unchanged."""
-    omap = _single_obstacle_map(resolution=0.05)
+def test_buffered_meters_below_one_pixel_keeps_map() -> None:
+    omap = _single_obstacle_map()
 
     np.testing.assert_array_equal(omap.buffered_meters(0.02).occupied_mask(), omap.occupied_mask())
+
+
+def _single_obstacle_map() -> OccupancyMap:
+    occupied = np.zeros((_MAP_SIZE, _MAP_SIZE), dtype=bool)
+    occupied[_MAP_SIZE // 2, _MAP_SIZE // 2] = True
+    return OccupancyMap.from_masks(~occupied, occupied, 0.05, (0.0, 0.0, 0.0))
