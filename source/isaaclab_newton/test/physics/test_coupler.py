@@ -499,6 +499,7 @@ def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell
     """A coupled solver must inherit every nested MPM grid's capture capability."""
     mpm_solver = SimpleNamespace(
         enable_timers=False,
+        model=SimpleNamespace(device=SimpleNamespace(is_cuda=True)),
         grid_type=grid_type,
         max_active_cell_count=max_active_cell_count,
         grid_padding=0,
