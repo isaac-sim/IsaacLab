@@ -31,6 +31,8 @@ _COSMOS_MODEL_CFG = CosmosModelCfg(
 # The Cosmos tasks feed the 640 x 640 generated image to the CNN, so the camera already uses a Cosmos canvas.
 _COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640)
 
+# The camera looks down from 1.0 m above the hand, so 1.5 m keeps the hand and cube in the depth range and turns
+# everything farther black.
 SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
 """Camera rendering depth that Cosmos turns into the published ``rgb``; captures every environment step."""
 
