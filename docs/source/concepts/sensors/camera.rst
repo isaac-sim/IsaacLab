@@ -309,7 +309,7 @@ Camera tensor processors
 :class:`~utils.tensor_processors.TensorProcessorCfg` whose ``func`` is a
 :class:`~utils.tensor_processors.TensorProcessor` class with named ``inputs`` and ``outputs``. The camera asks the
 renderer for the inputs no earlier processor produces, constructs each processor at the first capture with
-its configuration and the named camera buffers, and runs the processors in list order on every capture.
+its configuration and the camera buffers, and runs the processors in list order on every capture.
 Their outputs are added to :attr:`~sensors.CameraData.output`; a processor can also replace a render output it
 reads. Camera resets call each processor's ``reset`` with the reset environments, and camera teardown calls its
 ``close``.
@@ -319,9 +319,9 @@ reads. Camera resets call each processor's ``reset`` with the reset environments
    from isaaclab.utils import replace
    from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
+   # ShadeDepth is a TensorProcessor class that shades a depth image into an rgb image.
    depth_camera = replace(
        front_camera,
-       data_types=["rgb"],
        tensor_processors=[
            TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
        ],
@@ -332,7 +332,7 @@ processor's result. The render outputs that processors read, here ``distance_to_
 well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
 produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
 raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
-:attr:`~sensors.CameraData.info` from the first capture on.
+:attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
 capture renders every environment. Stateful processors (frame stacking, temporal filters, video generation) can
