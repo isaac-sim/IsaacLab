@@ -563,6 +563,7 @@ def test_host_reconciles_failed_publication_without_reusing_generation(xr_module
         scene=None,
         _update_transforms=lambda: None,
         _update_geometries=lambda: None,
+        _geometry_publication=None,
         _visual_material_writer_ref=None,
         _publish_visual_materials=contextlib.nullcontext,
     )
@@ -1101,6 +1102,7 @@ def test_poisoned_publication_still_retires_in_capture_order(xr_module, monkeypa
         scene=None,
         _update_transforms=failed_transforms,
         _update_geometries=lambda: None,
+        _geometry_publication=None,
         _visual_material_writer_ref=None,
         _publish_visual_materials=contextlib.nullcontext,
     )

@@ -143,6 +143,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default="ar",
         help="OVXR session mode. Defaults to 'ar'; pass 'vr' for an opaque background.",
     )
+    parser.add_argument(
+        "--ovrtx_active_cuda_gpus",
+        type=_cuda_index_list,
+        default=None,
+        help="Comma-separated CUDA indices for OVRTX rendering, e.g. 0. Does not select physics or camera outputs.",
+    )
+    parser.add_argument(
+        "--geometry_publication_device",
+        type=_cuda_device,
+        default=None,
+        metavar="CUDA_DEVICE",
+        help=(
+            "Destination CUDA device for completed OVStage geometry publication, e.g. cuda:0. "
+            "Adds copy work for geometry on another GPU; unset preserves renderer configuration. "
+            "Requires --ovxr; does not select physics or rendering placement."
+        ),
+    )
     add_ovxr_presentation_args(parser)
 
     add_launcher_args(parser)
@@ -168,6 +185,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--step_hz requires --ovxr")
+    if not args_cli.using_ovxr and (
+        args_cli.geometry_publication_device is not None or args_cli.ovrtx_active_cuda_gpus is not None
+    ):
+        parser.error("--geometry_publication_device and --ovrtx_active_cuda_gpus require --ovxr")
     validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
@@ -266,12 +287,12 @@ def _resolve_env_cfg() -> tuple[
             env_cfg = remove_camera_configs(env_cfg)
     selected_cameras = ()
     if args_cli.using_ovxr:
+        # Reject an inconsistent GPU placement before launch.
+        renderer_cfg = _ovxr_renderer_cfg(env_cfg.sim.device)
         if args_cli.ovxr_pip_camera is not None:
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
             # Resolve the panels before launch preparation removes the other cameras, so that an
             # invalid selection or task layout fails before launch.
-            selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, OVRTXRendererCfg())
+            selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, renderer_cfg)
         env_cfg = prepare_ovxr_launch(
             env_cfg, args_cli.task, args_cli.num_envs, keep=tuple(args_cli.ovxr_pip_camera or ())
         )
@@ -308,6 +329,61 @@ def _pace_ovxr_control_loop(
             time.sleep(remaining_s)
         else:
             wait_for_shutdown(remaining_s)
+
+
+def _cuda_index_list(value: str) -> str:
+    """Validate ``--ovrtx_active_cuda_gpus`` at parse time."""
+    from isaaclab_ov.renderers import parse_active_cuda_gpus
+
+    try:
+        parse_active_cuda_gpus(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+    return value
+
+
+def _cuda_device(value: str) -> str:
+    """Validate ``--geometry_publication_device`` at parse time."""
+    from isaaclab_ov.renderers import parse_cuda_device_index
+
+    try:
+        parse_cuda_device_index(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+    return value
+
+
+def _ovxr_renderer_cfg(sim_device: str):
+    """Build the one OVRTX configuration shared by the OVXR session and its PiP cameras.
+
+    The geometry publication device must be a rendering GPU: one of ``--ovrtx_active_cuda_gpus``,
+    or the simulation GPU when the renderer follows it. Otherwise the copies would land on a GPU
+    that does not render. The configuration rejects a publication GPU outside an explicit set;
+    this resolves the simulation GPU so the launch fails before the app starts in the other cases.
+    Without a simulation GPU, the rendering GPUs must be explicit.
+    """
+    from isaaclab_ov.renderers import OVRTXRendererCfg, parse_cuda_device_index
+
+    publication = args_cli.geometry_publication_device
+    if publication is not None and args_cli.ovrtx_active_cuda_gpus is None:
+        if not sim_device.startswith("cuda"):
+            raise ValueError(
+                f"--geometry_publication_device {publication} requires --ovrtx_active_cuda_gpus when physics runs"
+                f" on {sim_device!r}: there is no simulation GPU for rendering to follow."
+            )
+        # Only this path needs the session module, which loads the OVRTX renderer before launch.
+        from ..ovxr_session import resolve_cuda_device
+
+        rendering = parse_cuda_device_index(resolve_cuda_device(sim_device))
+        if parse_cuda_device_index(publication) != rendering:
+            raise ValueError(
+                f"--geometry_publication_device {publication} is not a rendering GPU {[rendering]}; select the"
+                " simulation GPU or list the rendering GPUs with --ovrtx_active_cuda_gpus."
+            )
+    return OVRTXRendererCfg(
+        active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
+        geometry_publication_device=publication,
+    )
 
 
 def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
@@ -468,6 +544,7 @@ def run_teleoperation(  # noqa: C901
                 args_cli,
                 application_name=f"isaaclab-ovxr-teleop-{args_cli.task}",
                 auxiliary_cameras=selected_cameras,
+                renderer_cfg=_ovxr_renderer_cfg(env_cfg.sim.device),
             )
 
         try:

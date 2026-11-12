@@ -180,3 +180,72 @@ The mirror requires Vulkan; remove conflicting backend settings before OVUI
 initialization. The mirror opens after the first submitted
 XR image; closing it requests application shutdown. Eye images exclude the
 separate OpenXR camera panels; select a camera product to inspect that feed.
+
+## Physics and rendering on separate GPUs
+
+For GPU-intensive physics, select the physics device with `--device` and the
+rendering devices with `--ovrtx_active_cuda_gpus`; `--geometry_publication_device`
+selects where completed geometry copies land and must be one of the rendering GPUs.
+Both options require `--ovxr` in the live teleoperation CLI. The MCAP replay entrypoint does
+not expose these GPU-selection options.
+
+For live teleoperation:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --physics newton_mjwarp --device cuda:1 \
+    --ovrtx_active_cuda_gpus 0 --geometry_publication_device cuda:0
+```
+
+By default, GPU physics and rendering use the same CUDA device; CPU physics
+leaves GPU selection to OVRTX. `--geometry_publication_device cuda:N` copies
+foreign-GPU deforming geometry and rigid transforms to reusable buffers on the selected device and
+waits for completion before publishing it. It does not select the physics or
+rendering device. Omit it to preserve source-buffer placement. CPU data and
+already-local geometry keep their placement; mixed CPU/CUDA geometry batches
+are unsupported by OVStage.
+
+Custom geometry producers must order updates on their current Warp stream and
+avoid concurrent mutation during publication. These controls do not change
+physics fidelity or guarantee a rendering rate.
+
+The compositor/encoder has a separate GPU choice. Align CloudXR's
+`NV_CXR_GPU_INDEX_CUDA` with the rendering GPU and verify effective physical GPU
+identities in the runtime logs. `CUDA_VISIBLE_DEVICES` can remap CUDA ordinals;
+two installed GPUs alone do not enable a split.
+
+Before using PCIe peer transfers, verify synchronized copy **values** in both
+directions with initialized destination buffers:
+
+```bash
+uv run --extra ovxr python -m isaaclab_ov.renderers.check_cuda_peer --devices cuda:0 cuda:1
+```
+
+Run this with the same `CUDA_VISIBLE_DEVICES` selection as the application. It
+prints each device's UUID and PCI identity and checks two patterns in each direction
+through the renderer's own `--geometry_publication_device` copy: default (pooled) allocators,
+a reused target overwritten with a sentinel before each copy, and a transfer stream ordered
+after the producer stream. Nothing in the check's process has enabled peer access at that
+point, so the CUDA driver chooses that copy's route without it. Where direct peer access is
+supported, the check then enables it and checks copies between plain, zero-initialized
+allocations. It exits nonzero on a detected transfer error or a value mismatch.
+
+A PASS covers only those copies on this host. The application can differ: other components
+in its process may enable peer access between the same GPUs, which can change the route the
+driver takes for the publication copy, and producers supply their own source allocations.
+This small transfer check does not qualify rendering, physics or performance.
+Peer-capability flags and CUDA
+completion alone do not establish data integrity. NVIDIA documents a
+[bare-metal Linux IOMMU limitation for PCIe peer copies](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html#host-iommu-hardware-pci-access-control-services-and-vms).
+GPU-only identity/passthrough can bypass translation while leaving IOMMU enabled
+globally. Validate the selected configuration before use. Host preparation belongs to an administrator
+with idle GPUs; application startup must not detach drivers or change IOMMU or
+host services. Keep physics, rendering and compositor on one physical GPU when
+the check fails. Isaac Lab adds no CPU staging of its own; without direct peer access the
+CUDA driver may stage copies itself, which the check's publication-path copies exercise.
+
+Only rigid transforms and geometry points use the completed-copy publication path. Camera
+poses, markers and runtime meshes, and visual materials are small per-publication writes that
+OVStage still reads from the physics GPU. OVStage chooses how it reads them; the check above
+does not cover that route, and these writes have no completed-copy guarantee.

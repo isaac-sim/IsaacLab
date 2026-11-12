@@ -29,6 +29,17 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
 
+GPU selection
+-------------
+
+These helpers apply the validation of :attr:`OVRTXRendererCfg.active_cuda_gpus` and
+:attr:`OVRTXRendererCfg.geometry_publication_device`, for applications that check a selection
+before creating the configuration.
+
+.. autofunction:: parse_active_cuda_gpus
+
+.. autofunction:: parse_cuda_device_index
+
 Renderer leases
 ---------------
 

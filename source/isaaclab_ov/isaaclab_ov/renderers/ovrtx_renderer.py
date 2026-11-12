@@ -16,6 +16,8 @@ How it fits together
 
 - **render_lease.py**: External borrowing, ownership transfer and scene publication ordering.
 
+- **publication_buffers.py**: Producer-buffer retention and native write completion.
+
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
@@ -32,10 +34,9 @@ import sys
 import tempfile
 import weakref
 from builtins import ExceptionGroup
-from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,12 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import (
+    OVRTXBackendCfg,
+    OVRTXRendererCfg,
+    parse_active_cuda_gpus,
+    parse_cuda_device_index,
+)
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
@@ -110,6 +116,7 @@ from isaaclab_ov.stage import (
     xform_tensor_from_warp,
 )
 
+from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
 from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
@@ -271,9 +278,16 @@ class OVRTXBackend:
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
+        # An explicit ``active_cuda_gpus`` selection takes precedence.
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
-            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
+            active_cuda_gpus=(
+                cfg.active_cuda_gpus
+                if cfg.active_cuda_gpus is not None
+                else str(sim_device.ordinal)
+                if sim_device.is_cuda
+                else None
+            ),
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -399,6 +413,7 @@ class OVRTXRenderer(BaseRenderer):
         super().__init__(cfg, sim=sim)
         self._closed = False
         self._render_lease = RenderLeaseController(self)
+        self._geometry_publication: _GeometryPublicationBuffers | None = None
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._camera_render_data: list[OVRTXCameraRenderData] = []
@@ -477,6 +492,11 @@ class OVRTXRenderer(BaseRenderer):
         """Load, clone, and bind the shared scene before any camera products are registered."""
         if not self._render_lease.prepare_stage(num_envs):
             return
+        if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
+            if not self._use_ovstage:
+                raise ValueError("geometry_publication_device requires OVStage")
+            self._validate_geometry_publication_device()
+            self._geometry_publication = _GeometryPublicationBuffers(self.cfg.geometry_publication_device)
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
@@ -555,6 +575,48 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = True
         self._needs_transform_initialization = not self._use_ovstage and self.backend.cfg.read_gpu_transforms
         self._render_lease.bind_stage()
+
+    def _validate_geometry_publication_device(self) -> None:
+        """Require the geometry publication device to be one of the GPUs that render.
+
+        The rendering GPUs are the explicit ``active_cuda_gpus`` selection, or the simulation GPU that
+        the renderer follows otherwise. Copies to any other GPU add work and memory without reaching
+        the renderer.
+
+        Raises:
+            ValueError: If the device is not a rendering GPU, or there is neither an explicit
+                selection nor a simulation GPU.
+        """
+        publication = self.cfg.geometry_publication_device
+        if self.cfg.active_cuda_gpus is not None:
+            rendering = parse_active_cuda_gpus(self.cfg.active_cuda_gpus)
+        elif self._warp_device.is_cuda:
+            rendering = (self._warp_device.ordinal,)
+        else:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} requires active_cuda_gpus when the simulation runs"
+                f" on {self._device!r}: there is no simulation GPU for rendering to follow"
+            )
+        if parse_cuda_device_index(publication) not in rendering:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} is not a rendering GPU {list(rendering)}; select one"
+                " of active_cuda_gpus, or the simulation GPU when that is unset"
+            )
+
+    def _render_product_device_id(self) -> int | None:
+        """CUDA index that render products request, or ``None`` for OVRTX's automatic assignment.
+
+        Products request the simulation GPU so render vars map there. When an explicit
+        ``active_cuda_gpus`` excludes that GPU, OVRTX would skip the request on every frame and
+        assign a device automatically; request automatic assignment directly. Render vars then map
+        on a rendering GPU and are copied to the simulation GPU before extraction.
+        """
+        if not self._warp_device.is_cuda:
+            return None
+        active = self.cfg.active_cuda_gpus
+        if active is not None and self._warp_device.ordinal not in parse_active_cuda_gpus(active):
+            return None
+        return self._warp_device.ordinal
 
     def acquire_ov_libraries_render_lease(self) -> OvLibrariesRenderLease:
         """Reserve the native renderer/scene pair before stage preparation."""
@@ -707,7 +769,7 @@ class OVRTXRenderer(BaseRenderer):
         usd = build_render_product_as_string(
             spec,
             render_data,
-            device_id=self._warp_device.ordinal if self._warp_device.is_cuda else None,
+            device_id=self._render_product_device_id(),
             enable_shadows=self.cfg.enable_shadows,
         )
         try:
@@ -904,6 +966,19 @@ class OVRTXRenderer(BaseRenderer):
         finally:
             mapping.unmap(stream=stream)
 
+    def _on_simulation_device(self, tiled_buffer: wp.array) -> wp.array:
+        """Return ``tiled_buffer`` on the simulation device, copying it when OVRTX mapped it elsewhere.
+
+        OVRTX maps a render var on the GPU that rendered it, which differs from the simulation GPU when
+        :attr:`OVRTXRendererCfg.active_cuda_gpus` excludes that GPU. Copying keeps the extraction kernels
+        on device-local memory, so readback does not depend on CUDA peer access between the two GPUs.
+        Warp runs the copy on the simulation device's current stream, the stream that waited for the
+        render and on which the mapping is released.
+        """
+        if str(tiled_buffer.device) == self._device:
+            return tiled_buffer
+        return wp.clone(tiled_buffer, device=self._device)
+
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
     ) -> None:
@@ -932,6 +1007,7 @@ class OVRTXRenderer(BaseRenderer):
                 if tiled_data.dtype != wp.uint32:
                     continue
                 if colorize:
+                    tiled_data = self._on_simulation_device(tiled_data)
                     color_buffer = self._output_id_color_buffers.get(key)
                     if color_buffer is None or color_buffer.shape != tiled_data.shape:
                         color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
@@ -993,6 +1069,7 @@ class OVRTXRenderer(BaseRenderer):
                 " extract_all_tiles_kernel would read out of bounds."
             )
 
+        tiled_buffer = self._on_simulation_device(tiled_buffer)
         wp.launch(
             kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
@@ -1056,10 +1133,6 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
-                output_device = str(output_buffers["rgb_hdr"].device)
-                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
-                    tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
                 self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])
@@ -1150,7 +1223,9 @@ class OVRTXRenderer(BaseRenderer):
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = output.matrices
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write_transforms(self.scene.stage, binding, matrices, self.scene.ordinal)
+        elif self._use_ovstage:
             # The write waits for consumption; the producing CUDA stream orders access to the
             # borrowed buffer.
             self.scene.stage.write_attribute(
@@ -1214,7 +1289,11 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write(
+                self.scene.stage, binding, self._geometry_paths, points, self.scene.ordinal
+            )
+        elif self._use_ovstage:
             self.scene.stage.write_attribute(
                 binding,
                 "points",
@@ -1406,6 +1485,9 @@ class OVRTXRenderer(BaseRenderer):
             RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
         """
         self._render_lease.reject_ordinary_operation("close the renderer", retiring=True)
+        # A failed drain must preserve publication storage and its scene bindings for retry.
+        if self._geometry_publication is not None:
+            self._geometry_publication.close()
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
@@ -1423,6 +1505,7 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
+            self._geometry_publication = None
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
@@ -1763,45 +1846,3 @@ class OVRTXMarkers:
                 raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
         self._transforms = self._selection = self._stage = None
         self._local_transforms = None
-
-
-_BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)
-
-
-class _AsyncWriteBuffers(Generic[_BufferT]):
-    """Retain buffers until native writes finish; reuse them in submission order."""
-
-    def __init__(self, buffers: Iterable[_BufferT] = ()):
-        self._writes: deque[tuple[_BufferT, Operation[bool] | None, wp.Stream | None]] = deque(
-            (buffer, None, None) for buffer in buffers
-        )
-
-    def acquire(self, stream: wp.Stream | None) -> _BufferT:
-        """Wait until the next buffer is writable on the given stream."""
-        buffer, operation, producer = self._writes[0]
-        if operation is not None:
-            operation.wait()
-            if stream is not None and producer is not None and producer != stream:
-                stream.wait_stream(producer)
-        return buffer
-
-    def submit(
-        self, binding: AttributeBinding, values: wp.array | list[wp.array], stream: wp.Stream | None
-    ) -> Operation[bool]:
-        """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
-        operation = binding.write_async(
-            values, data_access=DataAccess.ASYNC, cuda_stream=(stream.cuda_stream or 1) if stream is not None else None
-        )
-        self._writes[0] = (self._writes[0][0], operation, stream)
-        self._writes.rotate(-1)
-        return operation
-
-    def close(self) -> None:
-        """Complete every pending write before releasing storage, including on failure."""
-        with contextlib.ExitStack() as writes:
-            writes.callback(self._writes.clear)
-            for _, operation, producer in self._writes:
-                if operation is not None:
-                    if producer is not None:
-                        writes.callback(wp.synchronize_stream, producer)
-                    writes.callback(operation.wait)
