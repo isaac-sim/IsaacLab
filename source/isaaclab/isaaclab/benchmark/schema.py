@@ -9,8 +9,7 @@ Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
 Producers populate a :class:`TrainingBundle` or :class:`StartupBundle` and call
 :func:`~isaaclab.benchmark.serialize.write_bundle_file` to emit
-schema-compliant JSON. Consumers (dashboards, regression-comparison tools,
-the in-tree Odin evaluation harness under ``tools/odin/``) read the same file
+schema-compliant JSON. Consumers (dashboards, regression-comparison tools) read the same file
 and reconstruct the dataclasses.
 
 Each bundle is self-contained: every top-level bundle carries its own

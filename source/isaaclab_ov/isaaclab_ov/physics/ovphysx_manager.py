@@ -555,7 +555,7 @@ class OvPhysxManager(PhysicsManager):
         - Prepares the current USD stage as a layer
         - Creates the ovphysx.PhysX instance
         - Exports a binary USD file, populates an OVStage, and attaches it
-        - Warms up GPU buffers (if on CUDA)
+        - Runs the runtime warmup entry point (on CPU and CUDA)
         - Dispatches PHYSICS_READY
 
         A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
@@ -737,9 +737,6 @@ class OvPhysxManager(PhysicsManager):
 
         ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
 
-        scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and self._clone_recipes:
-            scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
         if shared_scene is not None:

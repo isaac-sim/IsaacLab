@@ -620,10 +620,7 @@ class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     Each variant attribute is an instance of an existing per-shape cfg class
     declared above. The hydra resolver picks one based on the
     ``presets=<name>`` CLI token; the default is ``box_box`` (matching the
-    canonical cartpole shape). The retired per-shape task IDs are registered
-    in the sibling ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg
-    so ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
-    one of them is loaded.
+    canonical cartpole shape).
     """
 
     box_box = BoxBoxEnvCfg()
