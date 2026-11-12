@@ -203,9 +203,9 @@ class NewtonCfg(PhysicsCfg):
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
 
     .. note::
-        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
-        the field is ignored because Kamino's internal detector handles contacts.
+        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True``, or while a Kamino solver
+        config has ``use_collision_detector=True``, raises :class:`ValueError` because the solver's
+        internal detector handles contacts.
     """
 
     default_shape_cfg: NewtonShapeCfg = NewtonShapeCfg()

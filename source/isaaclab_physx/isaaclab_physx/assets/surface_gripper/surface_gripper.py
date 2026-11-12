@@ -119,7 +119,7 @@ class SurfaceGripper(AssetBase):
     def state(self) -> wp.array:
         """Returns the gripper state buffer.
 
-        The gripper state is a list of integers:
+        The gripper state is a float32 array with values:
         - -1 --> Open
         - 0 --> Closing
         - 1 --> Closed
@@ -434,7 +434,7 @@ class SurfaceGripper(AssetBase):
         """Initializes the gripper-related handles and internal buffers.
 
         Raises:
-            ValueError: If the simulation backend is not CPU.
+            Exception: If the simulation backend is not CPU.
             RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
         .. note::
