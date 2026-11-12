@@ -47,9 +47,9 @@ from .sensors import MicroDuckToFCameraCfg, ToFRandomizationCfg
 
 SIMREADY_ASSET_ROOT = os.environ.get(
     "MICRODUCK_NAVIGATION_PROPS",
-    "https://huggingface.co/datasets/nvidia/simready-assets/resolve/9d4556bfe80868c1d27a7a7ba1c2774e63e8cedd",
+    str(Path(ISAACLAB_ROOT) / "assets" / "simready"),
 ).rstrip("/")
-"""Pinned public SimReady packages; optionally override with a downloaded snapshot directory."""
+"""Downloaded SimReady packages; MICRODUCK_NAVIGATION_PROPS overrides the local directory."""
 
 MICRODUCK_HEAD_BODY_PATH = "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft"
 """Prim path of the head body carrying the camera and time-of-flight sensor."""
@@ -367,8 +367,8 @@ class MicroDuckNavigationCurriculumCfg:
 class MicroDuckObstacleAvoidanceEnvCfg(MicroDuckVelocityFlatEnvCfg):
     """SimReady obstacle navigation above a frozen walking actor.
 
-    Robot and cone assets use Isaac Lab public URLs; SimReady packages are revision-pinned.
-    MICRODUCK_NAVIGATION_PROPS optionally selects a downloaded SimReady snapshot.
+    Robot and cone assets use Isaac Lab public URLs; download SimReady packages to assets/simready.
+    MICRODUCK_NAVIGATION_PROPS optionally selects a different package directory.
     """
 
     obstacle_footprints: dict[str, navigation.ObstacleFootprintCfg] = OBSTACLE_FOOTPRINTS

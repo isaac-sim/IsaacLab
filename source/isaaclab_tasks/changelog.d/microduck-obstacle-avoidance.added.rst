@@ -20,7 +20,8 @@
   cone assets alongside a low block and walls, with separate layout sampling and simulator
   writes, shared passage geometry, and explicit bypass/goal stages.
 * Referenced the upstream MicroDuck and scaled Isaac Sim cone, with revision-pinned Hugging Face
-  SimReady packages. Scene-layer spawning consolidates and centers fixed props without modified
-  source files, a preparation tool or a local asset manifest.
+  SimReady packages downloaded to ``assets/simready`` before training. Scene-layer spawning
+  consolidates and centers fixed props without modified source files, a preparation tool
+  or a local asset manifest.
 * Added laptop-based ONNX gamepad navigation tools in ``scripts/deploy/microduck_tof_nav``,
   with dry-run logging, command limits, stale-input stopping and offline regression tests.
