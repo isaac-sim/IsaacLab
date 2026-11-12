@@ -128,6 +128,9 @@ class RewardManager(ManagerBase):
         This function calls each reward term managed by the class and adds them to compute the net
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
+        A term value that is not finite, for instance after the simulation of an environment diverged, counts as
+        zero for that step so that it reaches neither the learner nor the episodic sums.
+
         Args:
             dt: The time-step interval of the environment.
 
@@ -147,6 +150,8 @@ class RewardManager(ManagerBase):
             else:
                 # broadcast scalar values
                 step_reward[:] = value * term_cfg.weight
+        # drop non-finite term values
+        self._step_reward.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
         # update total reward and episodic sums with the time-step scaling
         torch.sum(self._step_reward, dim=1, out=self._reward_buf).mul_(dt)
         self._episode_sum_buf.add_(self._step_reward, alpha=dt)
