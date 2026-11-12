@@ -365,7 +365,7 @@ def test_host_smooths_committed_anchor_on_xr_clock_and_reseeds_reset(xr_module, 
     bootstrap.get_world_transform = lambda _path: reference.copy()
     env = SimpleNamespace(sim=SimpleNamespace(get_rendering_dt=lambda: 0.25))
     host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap, env, xr_module.OvLibrariesXrConfig(), (), external_anchor_state=manager
+        bootstrap, env, xr_module.OvLibrariesXrCfg(), external_anchor_state=manager
     )
     host._scene_publisher = bootstrap.publisher
     host._ordinal_ledger = _FakeOrdinalLedger(None)
