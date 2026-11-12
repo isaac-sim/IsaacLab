@@ -1,0 +1,70 @@
+{
+  "_comment": "Joint angles in DEGREES. A waypoint lists only the joints it changes; the rest are inherited from the previous waypoint (the first inherits the home pose). 'show' picks the waypoint held in live mode. Speeds stay <= 19 deg/s: the smoothstep peaks at 1.5x, under the 28.6 deg/s motor cap.",
+  "_home": {
+    "revolute_1": 6.3,
+    "revolute_2": 53.9,
+    "revolute_3": -124.3,
+    "revolute_4": 40.7,
+    "revolute_5": -5.2,
+    "revolute_6": -21.2,
+    "revolute_7": 34.4
+  },
+  "show": "grasp_closed",
+  "sequence": ["pregrasp", "grasp", "grasp_closed", "lift", "ee_up", "return_home"],
+  "speed_deg_per_s": {
+    "pregrasp": {"default": 19},
+    "grasp": {"default": 19},
+    "grasp_closed": {"default": 19},
+    "lift": {"default": 12},
+    "ee_up": {"default": 12},
+    "return_home": {"default": 15}
+  },
+  "pregrasp": {
+    "revolute_1": 6.3,
+    "revolute_2": 53.9,
+    "revolute_3": -124.3,
+    "revolute_4": 40.7,
+    "revolute_5": -5.2,
+    "revolute_6": -21.2,
+    "revolute_7": 34.4
+  },
+  "grasp": {
+    "revolute_1": -10.3,
+    "revolute_2": 142.9,
+    "revolute_3": -112.3,
+    "revolute_4": 39.7,
+    "revolute_5": -0.2,
+    "revolute_6": -128.2,
+    "revolute_7": -0.4
+  },
+  "grasp_closed": {
+    "revolute_1": -10.3,
+    "revolute_2": 138.9,
+    "revolute_3": -100.3,
+    "revolute_4": -5.7,
+    "revolute_5": -0.2,
+    "revolute_6": -138.2,
+    "revolute_7": -30.4
+  },
+  "lift": {
+    "revolute_1": -10.3,
+    "revolute_2": 118.9,
+    "revolute_3": -70.3,
+    "revolute_4": -70.7,
+    "revolute_5": -0.2,
+    "revolute_6": -138.2,
+    "revolute_7": -30.4
+  },
+  "ee_up": {
+    "revolute_4": -120.7
+  },
+  "return_home": {
+    "revolute_1": -10.3,
+    "revolute_2": 10.9,
+    "revolute_3": -0.3,
+    "revolute_4": -120.7,
+    "revolute_5": -5.2,
+    "revolute_6": -138.2,
+    "revolute_7": -30.4
+  }
+}
