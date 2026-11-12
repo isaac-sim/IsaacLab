@@ -89,6 +89,23 @@ holds the lease, ordinary camera rendering, scene writes and renderer destructio
 are rejected to prevent concurrent access to the borrowed resources. The same
 generic borrowing interface is available to applications outside teleoperation.
 
+## Optional presentation
+
+After resolving the selected camera render products, the Lab adapter supplies
+Capture with configured `CameraPanelConsumer` and `OwnedDesktopMirror` instances
+in `OvxrSessionBinding.frame_consumers`. Each panel configuration pairs its product
+path with its placement and image bound. The mirror receives its camera choices
+separately, so it can run without headset panels.
+
+Capture runs both consumers through the same frame lifecycle. It shares CPU
+snapshots within a frame and keeps native layers alive through submission; Lab
+continues to own sensor production and scene publication. These interfaces are
+application-neutral and do not require Lab-specific scene types.
+
+The mirror uses OVUI's default Vulkan backend. Neither Lab nor Capture modifies
+`OMNIUI_BACKEND`; the mirror rejects an active non-Vulkan backend. Neither optional
+consumer is created when disabled.
+
 ## Native validation
 
 The adapter and lease unit tests double the native OVRTX and OVStage endpoints.

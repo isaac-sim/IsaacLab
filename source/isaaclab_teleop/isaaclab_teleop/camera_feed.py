@@ -12,6 +12,7 @@ import logging
 import math
 import time
 from collections import Counter
+from collections.abc import Sequence
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
@@ -25,11 +26,83 @@ from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SE
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import Camera
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    from isaaclab.sensors import Camera, CameraCfg
+
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
 logger = logging.getLogger(__name__)
 
 _DLSS_EXEC_MODES = frozenset({"performance", "balanced", "quality", "auto", "rtxaa", "manual"})
+
+
+def select_ovxr_camera_feeds(
+    env_cfg: Any, names: Sequence[str], renderer_cfg: OVRTXRendererCfg
+) -> list[tuple[str, CameraCfg, XrCameraFeedCfg]]:
+    """Validate selected PiP cameras and assign their shared renderer before launch.
+
+    Selection order is retained. Each name must identify a scene camera and exactly
+    one enabled feed. Validation completes before any camera configuration changes.
+    """
+    from isaaclab.sensors import CameraCfg
+
+    if len(names) > 3 or len(names) != len(set(names)):
+        raise ValueError("Select up to three unique OVXR PiP cameras")
+    selected = []
+    for name in names:
+        camera = getattr(env_cfg.scene, name, None)
+        if not isinstance(camera, CameraCfg):
+            raise ValueError(f"OVXR PiP camera {name!r} is not a configured CameraCfg")
+        feeds = [feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name]
+        if len(feeds) != 1:
+            raise ValueError(f"OVXR PiP camera {name!r} must have exactly one enabled XrCameraFeedCfg")
+        selected.append((name, camera, feeds[0]))
+    for _name, camera, _feed in selected:
+        camera.renderer_cfg = renderer_cfg
+    return selected
+
+
+def resolve_ovxr_camera_configs(
+    selected: Sequence[tuple[str, CameraCfg, XrCameraFeedCfg]],
+    layout: XrCameraFeedLayoutCfg,
+    *,
+    max_fps: float,
+    position_override: tuple[float, float, float] | None = None,
+) -> tuple[OvLibrariesXrCameraCfg, ...]:
+    """Resolve selected feeds into OVXR panels without creating native resources.
+
+    A feed's positive update cap limits the caller's rate; zero leaves that rate
+    unchanged. A position override applies only to a single selected panel.
+    """
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
+
+    _validate_layout_cfg(layout)
+    if selected and layout.placement != "head_locked":
+        raise ValueError("Kitless XR camera quads require head_locked placement")
+    if position_override is not None and len(selected) > 1:
+        raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
+    for _name, _camera, feed in selected:
+        _XrCameraFeedManager._validate_cfg(feed, layout.placement)
+    feeds = _layout_feed_cfgs(
+        [feed for _name, _camera, feed in selected],
+        [(camera.width, camera.height) for _name, camera, _feed in selected],
+        layout,
+    )
+    cameras = []
+    for (name, camera, _feed), feed in zip(selected, feeds, strict=True):
+        cameras.append(
+            OvLibrariesXrCameraCfg(
+                name=name,
+                camera_cfg=camera,
+                max_fps=min(max_fps, feed.max_update_hz) if feed.max_update_hz > 0.0 else max_fps,
+                panel_width_m=feed.panel_width_m,
+                position=(float(feed.offset_m[0]), float(feed.offset_m[1]), -float(feed.distance_m))
+                if position_override is None
+                else tuple(position_override),
+            )
+        )
+    return tuple(cameras)
 
 
 @lru_cache(maxsize=1)

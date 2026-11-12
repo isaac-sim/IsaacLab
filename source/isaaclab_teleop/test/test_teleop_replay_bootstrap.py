@@ -12,8 +12,84 @@ and Kit detection are production code. These tests do not qualify MCAP motion.
 import builtins
 import sys
 from types import ModuleType, SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+
+
+@pytest.mark.parametrize("layout_mode", ["horizontal", "manual", None])
+def test_ovxr_presentation_preserves_camera_layout(monkeypatch, layout_mode):
+    """The forced head-locked placement keeps task packing, and the viewer receives the CLI rates."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    import isaaclab_teleop
+    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
+
+    from isaaclab.sensors import CameraCfg
+
+    names = ["left", "right"]
+    config = SimpleNamespace(
+        scene=SimpleNamespace(**{name: CameraCfg(prim_path=f"/World/{name}", width=640, height=480) for name in names}),
+        sim=object(),
+        isaac_teleop=IsaacTeleopCfg(
+            xr_camera_feeds=[XrCameraFeedCfg(camera_name=name, panel_width_m=0.4) for name in names],
+            xr_camera_feed_layout=(
+                XrCameraFeedLayoutCfg(
+                    mode=layout_mode,
+                    placement="viewer_start",
+                    center_offset_m=(0.1, -0.2),
+                    panel_gap_m=0.1,
+                    distance_m=1.2,
+                )
+                if layout_mode is not None
+                else None
+            ),
+        ),
+    )
+    original_layout = config.isaac_teleop.xr_camera_feed_layout
+    original_layout_fields = original_layout.to_dict() if original_layout is not None else None
+    original_feeds = [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds]
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_teleop.entrypoints._ovxr_launch import resolve_ovxr_pip_cameras
+
+    args = SimpleNamespace(
+        ovxr_pip_camera=names,
+        ovxr_pip_head_locked=True,
+        ovxr_pip_fps=15.0,
+        ovxr_pip_view_position=None,
+        task="Test",
+        ovxr_session_mode="ar",
+        cloudxr_env="none",
+        auto_launch_cloudxr=False,
+        headless=False,
+        ovxr_desktop_mirror_fps=20.0,
+    )
+    # Environment preparation resolves the panels that the presentation receives.
+    cameras = resolve_ovxr_pip_cameras(config, args, OVRTXRendererCfg())
+    prepare = Mock()
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+    presentation = OvxrPresentation.prepare(config, args, application_name="replay", auxiliary_cameras=cameras)
+    assert presentation.session is prepare.return_value
+    session_config = prepare.call_args.args[1]
+    assert session_config.desktop_mirror_enabled is True
+    assert session_config.desktop_mirror_max_fps == 20.0
+    assert [camera.max_fps for camera in session_config.auxiliary_cameras] == [15.0, 15.0]
+    # Panels copy the sensor configuration; an equal renderer configuration shares one renderer.
+    assert prepare.call_args.kwargs["renderer_cfg"] == config.scene.left.renderer_cfg
+    expected = (
+        [(-0.15, -0.2, -1.2), (0.35, -0.2, -1.2)]
+        if layout_mode == "horizontal"
+        else [(0.0, 0.0, -0.8), (0.0, 0.0, -0.8)]
+    )
+    for camera, position in zip(session_config.auxiliary_cameras, expected, strict=True):
+        assert camera.position == pytest.approx(position)
+    assert config.isaac_teleop.xr_camera_feed_layout is original_layout
+    if original_layout is not None:
+        assert original_layout.to_dict() == original_layout_fields
+    assert [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds] == original_feeds
 
 
 @pytest.mark.parametrize(
@@ -78,6 +154,7 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
             reset=lambda: calls.append("sim-reset"),
             is_running=lambda: False,
             get_physics_step_count=lambda: 0,
+            get_physics_dt=lambda: 0.005,
         ),
         reset=lambda: calls.append("env-reset"),
     )
@@ -116,6 +193,7 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
         session = SimpleNamespace(
             start_render_worker=lambda *_args, **_kwargs: calls.append("viewer-start") or True,
             request_render=lambda identity, *, force: calls.append(("publish", identity, force)) or 1,
+            report_host_timing=lambda *_args: None,
         )
         presentation = OvxrPresentation(session)
     replay._run_single_replay(env, cfg, None, run_index, 2, presentation)
@@ -167,8 +245,9 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
 
     class Presentation:
         @classmethod
-        def prepare(cls, cfg, args, *, application_name):
+        def prepare(cls, cfg, args, *, application_name, auxiliary_cameras):
             assert application_name == "isaaclab-ovxr-replay-task"
+            assert auxiliary_cameras == ()
             return cls()
 
         def __init__(self):
@@ -221,15 +300,15 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
         monkeypatch.setattr(replay_agent, name, value, raising=False)
     if stop_at.startswith("startup"):
         with pytest.raises(KeyboardInterrupt):
-            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert calls == ["presentation-close"]
     elif stop_at.startswith("construction"):
         with pytest.raises(RuntimeError, match="environment construction failed"):
-            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert calls == ["presentation-close"] + (["context-clear"] if stop_at == "construction-new" else [])
         assert context_state["current"] is (None if stop_at == "construction-new" else previous)
     else:
-        result = replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+        result = replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert result == (0 if requested == 1 else 1)
         assert reports[0]["num_replays"] == 1
         assert reports[0]["requested_num_replays"] == requested
@@ -348,3 +427,39 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
     assert conditioning_frames == ([0, 1, 2, 3, 4, 0, 1, 2] if start_on_replay else [0, 1, 0, 1])
     assert stats.active_iterations == len(applied)
     assert stats.outcome == "incomplete"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (["--ovxr_pip_head_locked"], "OVXR presentation options require --ovxr"),
+        (["--ovxr", "--ovxr_pip_fps", "0"], "--ovxr_pip_fps must be finite and positive"),
+        (
+            [
+                "--ovxr",
+                "--ovxr_pip_camera",
+                "a",
+                "b",
+                "--ovxr_pip_head_locked",
+                "--ovxr_pip_view_position",
+                "0",
+                "0",
+                "-1",
+            ],
+            "A PiP position override requires one camera",
+        ),
+    ],
+)
+def test_replay_and_live_share_ovxr_presentation_validation(monkeypatch, capsys, arguments, message):
+    """Replay accepts the live OVXR presentation options and rejects the same invalid selections."""
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    for module, required in (
+        (teleop_replay_agent, ["--task", "Test", "--replay_file", "recording.mcap"]),
+        (teleop_se3_agent, ["--task", "Test"]),
+    ):
+        monkeypatch.setattr(sys, "argv", ["agent.py", *required, *arguments])
+        monkeypatch.setattr(module, "args_cli", None, raising=False)
+        with pytest.raises(SystemExit):
+            module._parse_args()
+        assert message in capsys.readouterr().err

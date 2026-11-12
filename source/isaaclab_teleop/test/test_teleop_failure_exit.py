@@ -97,12 +97,12 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
         cfg = SimpleNamespace()  # Native inputs must not read Capture-only action policy.
     if stage == "haptics":
         with pytest.raises(RuntimeError) as caught:
-            entry_namespace["run_teleoperation"](cfg, False, use_capture)
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
         assert caught.value is failure
     else:
         # Environment, device and loop failures keep the upstream log-and-return exit.
         with caplog.at_level(logging.ERROR):
-            entry_namespace["run_teleoperation"](cfg, False, use_capture)
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
         assert f"{stage} failed" in caplog.text
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")

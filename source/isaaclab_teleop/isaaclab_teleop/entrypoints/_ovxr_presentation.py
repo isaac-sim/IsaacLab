@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     from ..ov_libraries_xr import OvLibrariesXrSession
+    from ..ovxr_cfg import OvLibrariesXrCameraCfg
 
 
 class OvxrPresentation:
@@ -25,9 +26,10 @@ class OvxrPresentation:
     after that device drained.
     """
 
-    def __init__(self, session: OvLibrariesXrSession) -> None:
+    def __init__(self, session: OvLibrariesXrSession, *, excluded_visual_meshes: Iterable[str] = ()) -> None:
         self.session = session
         """Prepared OVXR session."""
+        self._excluded_visual_meshes = excluded_visual_meshes
         self.input_device: Any = None
         """Input device that borrows the session, or ``None`` before it is created."""
         self.started = False
@@ -43,15 +45,22 @@ class OvxrPresentation:
         args: argparse.Namespace,
         *,
         application_name: str,
+        auxiliary_cameras: tuple[OvLibrariesXrCameraCfg, ...] = (),
         renderer_cfg: OVRTXRendererCfg | None = None,
     ) -> OvxrPresentation:
         """Prepare the OVXR session before the environment is constructed.
 
         Args:
-            env_cfg: Resolved environment configuration.
-            args: Parsed namespace with ``ovxr_session_mode``, ``cloudxr_env`` and ``auto_launch_cloudxr``.
+            env_cfg: Resolved environment configuration. Its ``isaac_teleop.xr_cfg`` selects the visual
+                meshes excluded from the XR view.
+            args: Parsed namespace with ``ovxr_session_mode``, ``cloudxr_env``, ``auto_launch_cloudxr``
+                and the shared OVXR presentation options (see
+                :func:`~isaaclab_teleop.entrypoints._ovxr_launch.add_ovxr_presentation_args`).
             application_name: OpenXR application name.
-            renderer_cfg: OVRTX configuration. Defaults to :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+            auxiliary_cameras: Resolved PiP camera panels. The session renders with their shared OVRTX
+                configuration.
+            renderer_cfg: OVRTX configuration without camera panels. Defaults to
+                :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
 
         Returns:
             The prepared presentation.
@@ -60,6 +69,11 @@ class OvxrPresentation:
 
         from .. import OvLibrariesXrCfg, OvLibrariesXrSession
 
+        if auxiliary_cameras:
+            # Camera selection assigned one OVRTX configuration to every panel; the session shares it.
+            renderer_cfg = auxiliary_cameras[0].camera_cfg.renderer_cfg
+        elif renderer_cfg is None:
+            renderer_cfg = OVRTXRendererCfg()
         session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
             OvLibrariesXrCfg(
@@ -67,10 +81,13 @@ class OvxrPresentation:
                 session_mode=args.ovxr_session_mode,
                 cloudxr_env_file=args.cloudxr_env,
                 auto_launch_cloudxr=args.auto_launch_cloudxr,
+                desktop_mirror_enabled=not args.headless,
+                desktop_mirror_max_fps=args.ovxr_desktop_mirror_fps,
+                auxiliary_cameras=auxiliary_cameras,
             ),
-            renderer_cfg=OVRTXRendererCfg() if renderer_cfg is None else renderer_cfg,
+            renderer_cfg=renderer_cfg,
         )
-        return cls(session)
+        return cls(session, excluded_visual_meshes=env_cfg.isaac_teleop.xr_cfg.excluded_visual_meshes)
 
     def start(self, env: Any, *, timeout_s: float, required_openxr_extensions: Iterable[str] = ()) -> bool:
         """Start the render worker for :attr:`input_device`, or adopt its anchor once started.
@@ -91,6 +108,7 @@ class OvxrPresentation:
             env,
             tracking_anchor_path=device.xr_render_anchor_path,
             required_openxr_extensions=required_openxr_extensions,
+            excluded_visual_meshes=self._excluded_visual_meshes,
             external_anchor_state=device.external_anchor_state,
             timeout_s=timeout_s,
         )
@@ -113,13 +131,15 @@ class OvxrPresentation:
             self._force = True
         self._pending = (self._reset_generation, env.sim.get_physics_step_count())
 
-    def publish(self, env: Any, *, changed: bool = False, reset: bool = False) -> bool:
+    def publish(self, env: Any, *, changed: bool = False, reset: bool = False, report_timing: bool = True) -> bool:
         """Offer the latest unadmitted scene to the render worker.
 
         Args:
             env: Environment whose physics step identifies the publication.
             changed: Whether the scene changed since the last call.
             reset: Whether the change is a reset (see :meth:`mark_changed`).
+            report_timing: Whether this call completes a host frame, whose physics rate the
+                desktop mirror reports.
 
         Returns:
             Whether no publication remains pending.
@@ -129,6 +149,8 @@ class OvxrPresentation:
         if self._pending is not None and self.session.request_render(self._pending, force=self._force) is not None:
             self._pending = None
             self._force = False
+        if report_timing:
+            self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
         return self._pending is None
 
     def close(self) -> None:

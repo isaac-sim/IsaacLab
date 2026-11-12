@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import threading
 import time
+from collections import deque
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -19,7 +21,9 @@ import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
-from .ovxr_cfg import OvLibrariesXrCfg
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
+from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
@@ -28,7 +32,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sim import SimulationCfg
 
-__all__ = ["OvLibrariesXrCfg", "OvLibrariesXrSession"]
+__all__ = ["OvLibrariesXrCameraCfg", "OvLibrariesXrCfg", "OvLibrariesXrSession"]
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,28 @@ _DEFAULT_OVXR_RENDER_VAR_PATHS = (
     "/Render/Vars/XRDepth",
 )
 _DEFAULT_OVXR_RENDER_SETTINGS_PATH = "/Render/OmniverseGlobalRenderSettings"
+_ENVIRONMENT_ROOT_PATH = DEFAULT_ENV_TEMPLATE.format(0)
+
+
+class _CounterRate:
+    """Measure a cumulative application counter over a recent wall-clock window."""
+
+    def __init__(self, window_s: float = 1.0) -> None:
+        self._window_ns = int(window_s * 1_000_000_000)
+        self._samples: deque[tuple[int, int]] = deque()
+
+    def sample(self, count: int, now_ns: int | None = None) -> float:
+        now_ns = time.perf_counter_ns() if now_ns is None else now_ns
+        if self._samples and count < self._samples[-1][1]:
+            self._samples.clear()
+        self._samples.append((now_ns, count))
+        while len(self._samples) > 2 and self._samples[1][0] <= now_ns - self._window_ns:
+            self._samples.popleft()
+        if len(self._samples) < 2:
+            return 0.0
+        elapsed_s = (self._samples[-1][0] - self._samples[0][0]) / 1_000_000_000
+        count_delta = self._samples[-1][1] - self._samples[0][1]
+        return 0.0 if elapsed_s <= 0.0 else max(0, count_delta) / elapsed_s
 
 
 def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrCfg) -> None:
@@ -178,17 +204,21 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         bootstrap: OvxrSessionBootstrap,
         env: Any,
         cfg: OvLibrariesXrCfg,
+        excluded_visual_meshes: Iterable[str] = (),
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> None:
         self._bootstrap = bootstrap
         self._env = env
         self._cfg = cfg
+        self._excluded_visual_meshes = tuple(excluded_visual_meshes)
         self._publication_lock = threading.Lock()
         self._scene_publisher = None
         self._lease = None
         self._ordinal_ledger = None
         self._last_published_ordinal: int | None = None
         self._publication_closed = False
+        self._auxiliary_cameras = cfg.auxiliary_cameras
+        self.desktop_mirror = None
         self._external_anchor = external_anchor_state
         self._anchor_snapshot: tuple[int, np.ndarray] | None = None
         self._last_anchor_frame_time: float | None = None
@@ -205,9 +235,24 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
 
         self._bootstrap.claim_render_owner_transfer(capability)
+        unwrapped = self._env.unwrapped
+        if self._auxiliary_cameras:
+            # Fail before native Stage binding and partition export.
+            sensors = unwrapped.scene.sensors
+            for camera in self._auxiliary_cameras:
+                if sensors.get(camera.name) is None:
+                    raise RuntimeError(f"Configured auxiliary camera {camera.name!r} is not present in the environment")
         _declare_ovxr_runtime_prims(self._env, self._cfg)
-        self._lease = self._bootstrap.bind_environment(self._env)
+        from .xr_scene_partition import partition_visual_meshes
+
+        stage = unwrapped.scene.stage
+        with partition_visual_meshes(stage, self._excluded_visual_meshes):
+            self._lease = self._bootstrap.bind_environment(self._env)
+        auxiliary_paths = ()
+        if self._auxiliary_cameras:
+            auxiliary_paths = self._lease.auxiliary_render_product_paths
         with self._lease.ovstage_owner_lane():
+            self._lease.configure_external_camera_scene_partitions(_ENVIRONMENT_ROOT_PATH, self._cfg.camera_paths)
             self._ordinal_ledger = _StageOrdinalLedger(self._lease.ovstage)
             if self._external_anchor is not None:
                 import ovstage
@@ -228,10 +273,39 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                         self._anchor_retirement_failed = True
                         setup_error.add_note(f"Anchor query cleanup also failed: {cleanup_error!r}")
                     raise
+        from isaaccapture.ovxr_session_manager.camera_panels import CameraPanelConfig, CameraPanelConsumer
+
+        panels = tuple(
+            CameraPanelConfig(
+                render_product_path=path,
+                label=camera.name,
+                max_image_bytes=int(camera.camera_cfg.width) * int(camera.camera_cfg.height) * 4,
+                panel_width_m=camera.panel_width_m,
+                position=camera.position,
+                orientation_xyzw=camera.orientation_xyzw,
+                space=camera.space,
+            )
+            for path, camera in zip(auxiliary_paths, self._auxiliary_cameras, strict=True)
+        )
+        consumers = [CameraPanelConsumer(panels)] if panels else []
+        if self._cfg.desktop_mirror_enabled:
+            # Headless sessions never import the optional mirror modules.
+            from isaaccapture.ovxr_session_manager.desktop_mirror import DesktopMirrorConfig
+            from isaaccapture.ovxr_session_manager.owned_mirror import MirrorProduct, OwnedDesktopMirror
+
+            self.desktop_mirror = OwnedDesktopMirror(
+                DesktopMirrorConfig(
+                    max_fps=self._cfg.desktop_mirror_max_fps,
+                    initial_status_text="Waiting for headset",
+                ),
+                camera_products=tuple(MirrorProduct(panel.render_product_path, panel.label) for panel in panels),
+            )
+            consumers.append(self.desktop_mirror)
         return OvxrSessionBinding(
             renderer=self._lease.ovrtx_renderer,
             stage=self._lease.ovstage,
             ordinal_ledger=self._ordinal_ledger,
+            frame_consumers=tuple(consumers),
             prepare_frame_scene=self.prepare_frame_scene if self._external_anchor is not None else None,
         )
 
@@ -255,6 +329,12 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
             if self._last_published_ordinal is None:
                 raise RuntimeError("OVStage publication deduplicated before a sealed ordinal exists")
             return self._last_published_ordinal
+        if self._auxiliary_cameras:
+            sensors = self._env.unwrapped.scene.sensors
+            for camera in self._auxiliary_cameras:
+                # OVXR presentation bypasses Camera's image-update path. Refresh only poses
+                # after simulation/reset kinematics, before publishing the matching scene.
+                sensors[camera.name].refresh_world_poses()
         snapshot = None
         seed = False
         if self._external_anchor is not None:
@@ -368,7 +448,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         if self._lease is None:
             raise RuntimeError("OVRTX/OVStage lease is not attached")
         with self._lease.ovstage_owner_lane():
-            self._lease.validate_live()
+            self._lease.validate_external_scene_partitions(ordinal)
 
     def get_target_frame_T_world(self, prim_path: str) -> np.ndarray:
         return self._bootstrap.get_target_frame_T_world(prim_path)
@@ -465,8 +545,10 @@ class OvLibrariesXrSession:
         self._bootstrap = bootstrap
         self._cfg = cfg
         self._owner = None
+        self._desktop_mirror = None
         self._host = None
         self._closed = False
+        self._physics_rate = _CounterRate()
 
     @classmethod
     def prepare(
@@ -481,7 +563,7 @@ class OvLibrariesXrSession:
         use one configured session per process. No supported readback exists
         here to restore a previous renderer's settings on close.
         """
-        cfg = replace(cfg)
+        cfg = replace(cfg, auxiliary_cameras=tuple(cfg.auxiliary_cameras))
         validate_ovxr_session_preparation()
         import ovxr
 
@@ -489,6 +571,8 @@ class OvLibrariesXrSession:
         ovxr.apply_renderer_settings(cfg.renderer_settings.strip())
         bootstrap = OvxrSessionBootstrap(sim_cfg, renderer_cfg)
         try:
+            for camera in cfg.auxiliary_cameras:
+                bootstrap.configure_auxiliary_camera(camera.camera_cfg, max_fps=camera.max_fps)
             return cls(bootstrap, cfg)
         except BaseException as preparation_error:
             try:
@@ -504,6 +588,7 @@ class OvLibrariesXrSession:
         *,
         tracking_anchor_path: str | None = None,
         required_openxr_extensions: Iterable[str] = (),
+        excluded_visual_meshes: Iterable[str] = (),
         max_blank_frames: int = 1,
         timeout_s: float = 30.0,
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
@@ -514,6 +599,7 @@ class OvLibrariesXrSession:
             env: Constructed environment sharing the prepared simulation context.
             tracking_anchor_path: Override the configured USD tracking-anchor path.
             required_openxr_extensions: Extensions required by the input pipeline.
+            excluded_visual_meshes: Mesh patterns excluded from the XR eye partition.
             max_blank_frames: Nonnegative integer bootstrap-frame count; zero skips bootstrap frames.
             timeout_s: Maximum worker startup wait [s].
             external_anchor_state: Dynamic anchor policy seeded from committed scene publications.
@@ -541,7 +627,9 @@ class OvLibrariesXrSession:
         from .session_lifecycle import cloudxr_eula_accepted
 
         anchor_path = self._cfg.tracking_anchor_path if tracking_anchor_path is None else tracking_anchor_path
-        host = _IsaacLabOvxrApplicationInterface(self._bootstrap, env, self._cfg, external_anchor_state)
+        host = _IsaacLabOvxrApplicationInterface(
+            self._bootstrap, env, self._cfg, excluded_visual_meshes, external_anchor_state
+        )
         self._host = host
         self._owner = OvxrSession(
             host,
@@ -565,7 +653,10 @@ class OvLibrariesXrSession:
             required_openxr_extensions=required_openxr_extensions,
             max_blank_frames=max_blank_frames,
         )
-        return self._owner.start(timeout_s=timeout_s)
+        try:
+            return self._owner.start(timeout_s=timeout_s)
+        finally:
+            self._desktop_mirror = host.desktop_mirror
 
     def external_oxr_handles(self) -> OpenXRSessionHandles | None:
         """Return Isaac Capture's typed external handles once its owner is ready."""
@@ -581,6 +672,25 @@ class OvLibrariesXrSession:
         """
         self._require_started()
         return self._owner.request_render(physics_step_id, force=force)
+
+    def report_host_timing(self, physics_step_count: int, physics_dt_s: float | None = None) -> None:
+        """Publish physics counter and optional simulation timestep [s] to the mirror."""
+        self._require_started()
+        if self._desktop_mirror is None:
+            return
+        self._desktop_mirror.record_host_frame()
+        physics_hz = self._physics_rate.sample(physics_step_count)
+        if physics_dt_s is not None and math.isfinite(physics_dt_s) and physics_dt_s > 0.0:
+            target_hz = 1.0 / physics_dt_s
+            physics_text = f"Physics {physics_hz:5.1f}/{target_hz:.0f} Hz ({physics_hz / target_hz:.2f}× RT)"
+        else:
+            physics_text = f"Physics {physics_hz:5.1f} Hz"
+        mirror_status = self._desktop_mirror.status
+        if mirror_status is not None:
+            self._desktop_mirror.set_status_text(
+                f"Main {mirror_status.main_thread_fps:5.1f} FPS   "
+                f"{physics_text}   Render {mirror_status.render_thread_fps:5.1f} FPS"
+            )
 
     def get_target_frame_T_world(self, prim_path: str) -> np.ndarray:
         """Read world-to-target transform [4, 4], float32, with translation in scene units."""

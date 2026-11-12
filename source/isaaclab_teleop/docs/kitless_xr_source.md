@@ -1,7 +1,7 @@
 # Installing kitless XR
 
 Use Python 3.12 on Linux x86-64. The Isaac Capture wheel includes the
-OVXR session integration.
+OVXR session integration, native camera-panel helper and desktop mirror modules.
 
 Complete the [CloudXR, client, network and license prerequisites](kitless_xr.md#prerequisites)
 before starting a session.
@@ -11,7 +11,7 @@ extra. Lab already configures NVIDIA's public Python index and allows prerelease
 
 ```bash
 uv add --optional ovxr --frozen \
-    "isaaccapture[ovxr,retargeters,ui,cloudxr]==1.7.93a1 ; platform_system == 'Linux' and platform_machine == 'x86_64'"
+    "isaaccapture[ovxr,retargeters,ui,cloudxr,desktop-mirror]==1.7.93a1 ; platform_system == 'Linux' and platform_machine == 'x86_64'"
 uv add --optional ovxr --frozen \
     "isaaclab-dev[ov] ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
     "isaaclab-teleop ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
@@ -39,7 +39,10 @@ The `teleop` extra selects Capture packages for Kit and non-Kit input
 workflows. Use the separate `ovxr` selection for the XR commands here.
 Isaac Sim and Viser require older WebSocket versions than this Capture
 release, so these selections cannot be combined. The `all` extra
-includes Viser.
+includes Viser. The wheel requirement includes the optional `desktop-mirror` extra;
+omit that extra only when running with `--headless`. OVXR live and MCAP replay
+open the mirror by default. The mirror requires Python 3.12 or newer and a
+usable GPU-backed desktop display.
 
 Resolve the selected environment and check its dependencies:
 

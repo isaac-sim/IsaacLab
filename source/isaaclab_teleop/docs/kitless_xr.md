@@ -92,12 +92,16 @@ For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
 head and controllers relative to the floor. Between trials, end the previous XR
 session and reload the client page before reconnecting; recheck both settings.
+A blank or below-scene main view with a working camera panel warrants checking
+this client origin before changing the renderer.
 
 `--ovxr` and Kit's `--xr` select separate XR runtimes and are mutually exclusive.
 An explicit `ISAAC_LAB_OVRTX_USE_OVSTAGE=0` is incompatible with OVXR.
 
-No local window opens by default. Headset rendering still uses the GPU and works
-with `DISPLAY` unset. The teleoperation CLI does not need a `--headless` flag.
+OVXR live teleoperation and MCAP replay open a desktop mirror by default. Add
+`--headless` to disable the local window, including on hosts without a desktop
+display. Headset rendering still uses the GPU and works with `DISPLAY` unset
+when `--headless` is selected. PiP remains available in headless mode.
 Renderer startup has a bounded attachment timeout; it does not bound waiting for a
 client to establish its OpenXR session. Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
@@ -133,3 +137,46 @@ between steps. Application render-call timing statistics are unavailable when
 OVXR owns rendering independently.
 
 HDF5 demonstration recording and replay continue to use the Kit/Isaac Sim path.
+
+## Camera panels and desktop mirror
+
+Select up to three task cameras and a head-locked layout:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+    --num_envs 1 --device cpu --physics ovphysx \
+    --ovxr_pip_camera robot_pov_cam left_wrist_cam right_wrist_cam \
+    --ovxr_pip_head_locked
+```
+
+`--ovxr_pip_fps` limits panel updates. `--ovxr_pip_view_position X Y Z` overrides
+one panel's position; multiple panels use the task layout. Panel cameras must be
+enabled in the task's `xr_camera_feeds`. World and viewer-start layouts are not
+supported by the OVXR presenter: `--ovxr_pip_head_locked` places such a layout's
+panels in the OpenXR VIEW space, and without it the command fails before launch.
+The session snapshots its camera selection at
+preparation; create a new session to change it. Panels use the same renderer as
+the headset and do not require a desktop display. OVXR panels show no label; a
+feed's `label` applies to Kit panels only, and the desktop mirror lists each camera
+by its sensor name.
+
+GR1T2 and G1 locomanipulation provide `robot_pov_cam`; fixed-base G1 also provides
+`left_wrist_cam` and `right_wrist_cam`. SO101 does not declare a PiP camera in
+its scene. Use the desktop mirror without `--ovxr_pip_camera` for that task.
+
+Selected OVXR cameras feed the panels only. Their policy image observations are
+removed even with `presets=rgb`, so the application does not request a second
+camera render while OVXR owns rendering. The `presets=rgb` policy-image selection
+applies to Kit workflows.
+
+The default desktop mirror shows completed eye or camera images locally.
+`--headless` disables it. `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+`desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
+use a GPU-backed desktop session for the mirror. OVUI's default Vulkan backend
+requires no `OMNIUI_BACKEND` setting. Lab and Capture preserve the application's
+backend choice; an already initialized OVUI backend cannot be reconfigured.
+The mirror requires Vulkan; remove conflicting backend settings before OVUI
+initialization. The mirror opens after the first submitted
+XR image; closing it requests application shutdown. Eye images exclude the
+separate OpenXR camera panels; select a camera product to inspect that feed.

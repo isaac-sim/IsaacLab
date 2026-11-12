@@ -26,15 +26,21 @@ class _FakeLease:
     def __init__(self):
         self.ovrtx_renderer = object()
         self.ovstage = object()
+        self.partition_calls = []
+        self.validated_ordinals = []
         self.owner_lane_entries = 0
+        self.auxiliary_render_product_paths = ()
 
     @contextmanager
     def ovstage_owner_lane(self):
         self.owner_lane_entries += 1
         yield
 
-    def validate_live(self):
-        pass
+    def configure_external_camera_scene_partitions(self, environment_root_path, camera_paths):
+        self.partition_calls.append((environment_root_path, camera_paths))
+
+    def validate_external_scene_partitions(self, ordinal):
+        self.validated_ordinals.append(ordinal)
 
 
 class _FakePublisher:
@@ -91,6 +97,7 @@ class _FakeBootstrap:
         self.events = []
         self.closed = False
         self.aborted = False
+        self.auxiliary_camera_cfgs = []
 
     def capture_scene_publisher(self):
         self.events.append("capture")
@@ -106,6 +113,9 @@ class _FakeBootstrap:
     def bind_environment(self, env):
         self.events.append(("bind", env))
         return self.lease
+
+    def configure_auxiliary_camera(self, camera_cfg, *, max_fps=30.0):
+        self.auxiliary_camera_cfgs.append(camera_cfg)
 
     def validate_environment(self, env):
         pass
@@ -307,6 +317,7 @@ def _make_host(xr_module, monkeypatch):
     monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda _env, _cfg: bootstrap.events.append("declare"))
+    env.unwrapped = env
     host = xr_module._IsaacLabOvxrApplicationInterface(bootstrap, env, xr_module.OvLibrariesXrCfg())
     return host, bootstrap, env
 
@@ -326,6 +337,7 @@ def test_host_lends_exact_pair_and_keeps_application_publication(xr_module, monk
     assert ordinal == 11
     assert bootstrap.publisher.calls[0][:2] == (11, "step-1")
     host.validate_first_published_scene(ordinal)
+    assert bootstrap.lease.validated_ordinals == [11]
     with host.owner_lane():
         pass
     assert bootstrap.lease.owner_lane_entries == 3
@@ -405,6 +417,115 @@ def test_host_smooths_committed_anchor_on_xr_clock_and_reseeds_reset(xr_module, 
     host.publish_complete_scene("after-reset")
     host.prepare_frame_scene()
     assert committed_yaw() == pytest.approx(math.pi / 2 * (1.0 - math.exp(-0.01 / 0.1)))
+
+
+def test_host_lends_the_selected_auxiliary_product_without_rendering_it(xr_module, monkeypatch):
+    bootstrap = _FakeBootstrap()
+    bootstrap.lease.auxiliary_render_product_paths = ("/IsaacLabAuxiliaryRender/RenderProduct_robot_pov_cam",)
+    camera = object()
+    env = SimpleNamespace(
+        unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": camera}))
+    )
+    monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
+    monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)
+    host = xr_module._IsaacLabOvxrApplicationInterface(
+        bootstrap,
+        env,
+        xr_module.OvLibrariesXrCfg(
+            auxiliary_cameras=(
+                xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", SimpleNamespace(width=720, height=450)),
+            ),
+        ),
+    )
+
+    binding = host.attach_on_render_thread(host.offer_render_owner_transfer())
+
+    assert binding.frame_consumers[0].render_product_paths == bootstrap.lease.auxiliary_render_product_paths
+
+
+def test_host_rejects_a_missing_selected_auxiliary_camera(xr_module, monkeypatch):
+    bootstrap = _FakeBootstrap()
+    env = SimpleNamespace(unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={})))
+    monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)
+    host = xr_module._IsaacLabOvxrApplicationInterface(
+        bootstrap,
+        env,
+        xr_module.OvLibrariesXrCfg(
+            auxiliary_cameras=(
+                xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", SimpleNamespace(width=720, height=450)),
+            ),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="not present"):
+        host.attach_on_render_thread(host.offer_render_owner_transfer())
+    # The selection fails before native Stage binding and partition export.
+    assert not any(isinstance(event, tuple) and event[0] == "bind" for event in bootstrap.events)
+
+
+def test_headless_attach_does_not_import_the_desktop_mirror(xr_module, monkeypatch):
+    """``--headless`` must work without the optional desktop-mirror modules."""
+    host, _bootstrap, _env = _make_host(xr_module, monkeypatch)
+    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager.owned_mirror", None)
+    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager.desktop_mirror", None)
+    assert not host._cfg.desktop_mirror_enabled
+    binding = host.attach_on_render_thread(host.offer_render_owner_transfer())
+    assert binding.frame_consumers == ()
+
+
+def test_selected_camera_poses_follow_motion_and_reset_before_publication(xr_module, monkeypatch):
+    host, bootstrap, env = _make_host(xr_module, monkeypatch)
+    names = ("head", "left_wrist", "right_wrist")
+    events = []
+
+    class PoseOnlyCamera:
+        live = 0
+        cached = -1
+        fail = False
+
+        def refresh_world_poses(self):
+            if self.fail:
+                raise RuntimeError("pose unavailable")
+            self.cached = self.live
+            events.append(self)
+
+        @property
+        def data(self):
+            pytest.fail("Publication must not fetch/render camera images")
+
+    cameras = {name: PoseOnlyCamera() for name in (*names, "unselected")}
+    env.scene = SimpleNamespace(stage=None, sensors=cameras)
+    host._auxiliary_cameras = tuple(
+        xr_module.OvLibrariesXrCameraCfg(name, SimpleNamespace(width=720, height=450)) for name in names
+    )
+    bootstrap.lease.auxiliary_render_product_paths = tuple(f"/Render/{name}" for name in names)
+    binding = host.attach_on_render_thread(host.offer_render_owner_transfer())
+    published = []
+    bootstrap.publisher.write_complete_scene = lambda *_args: published.append(
+        tuple(cameras[name].cached for name in names)
+    )
+
+    for identity, positions in ((1, (0, 2, 3)), (("reset", 1, 1), (0, -2, -3)), (2, (0, 4, 5))):
+        for name, value in zip(names, positions, strict=True):
+            cameras[name].live = value
+        with host.publication_guard():
+            host.publish_complete_scene(identity)
+        assert published[-1] == positions
+    assert events == [cameras[name] for name in names] * 3
+    assert cameras["unselected"].cached == -1
+
+    bootstrap.publisher.required = False
+    with host.publication_guard():
+        host.publish_complete_scene(2)
+    assert len(events) == 9  # Reused scene/cadence gaps do not resample poses.
+
+    bootstrap.publisher.required = True
+    cameras["left_wrist"].fail = True
+    reserved = list(binding.ordinal_ledger.reserved)
+    with host.publication_guard(), pytest.raises(RuntimeError, match="pose unavailable"):
+        host.publish_complete_scene(3)
+    assert binding.ordinal_ledger.reserved == reserved
+    assert len(published) == 3
 
 
 def test_host_abandons_failed_write_and_failed_publish(xr_module, monkeypatch):
@@ -564,7 +685,8 @@ def test_publication_retains_primary_cause_when_abandon_fails(xr_module, monkeyp
     assert any("abandon failed" in note for note in caught.value.__notes__)
 
 
-def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch):
+@pytest.mark.parametrize("camera_enabled", [False, True])
+def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch, camera_enabled):
     calls = []
 
     class FakeOwner:
@@ -573,9 +695,11 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
 
         def __init__(self, host, config, **kwargs):
             calls.append(("init", host, config, kwargs))
+            self.host = host
 
         def start(self, timeout_s):
             calls.append(("start", timeout_s))
+            self.binding = self.host.attach_on_render_thread(self.host.offer_render_owner_transfer())
             return True
 
         def external_oxr_handles(self):
@@ -595,28 +719,75 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
         def close(self):
             calls.append(("close",))
 
+    class FakeMirror:
+        status = SimpleNamespace(main_thread_fps=30.0, render_thread_fps=40.0)
+
+        def __init__(self, config, *, camera_products=()):
+            self.config = config
+
+        def record_host_frame(self):
+            calls.append(("timing",))
+
+        def set_status_text(self, text):
+            calls.append(("status", text))
+
+    mirror_module = importlib.import_module("isaaccapture.ovxr_session_manager.owned_mirror")
+    monkeypatch.setattr(mirror_module, "OwnedDesktopMirror", FakeMirror)
     external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
     monkeypatch.setattr(external, "OvxrSession", FakeOwner)
     bootstrap = _FakeBootstrap()
     assert xr_module.OvLibrariesXrCfg().extra_openxr_extensions == ()
     session = xr_module.OvLibrariesXrSession(
-        bootstrap, xr_module.OvLibrariesXrCfg(extra_openxr_extensions=("XR_EXT_debug_utils",))
+        bootstrap,
+        xr_module.OvLibrariesXrCfg(
+            extra_openxr_extensions=("XR_EXT_debug_utils",),
+            desktop_mirror_enabled=True,
+            desktop_mirror_max_fps=20.0,
+            auxiliary_cameras=(
+                xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", SimpleNamespace(width=720, height=450)),
+            )
+            if camera_enabled
+            else (),
+        ),
     )
-    env = SimpleNamespace()
+    env = SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": object()}))
+    env.unwrapped = env
+    bootstrap.lease.auxiliary_render_product_paths = ("/Render/robot_pov_cam",)
+    monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
+    monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)
+
     assert session.start_render_worker(
-        env, required_openxr_extensions=("XR_EXT_hand_tracking",), max_blank_frames=0, timeout_s=4.0
+        env,
+        required_openxr_extensions=("XR_EXT_hand_tracking",),
+        max_blank_frames=0 if camera_enabled else 1,
+        timeout_s=4.0,
     )
+
     assert calls[0][0] == "init"
     assert calls[0][2].session_mode == "ar"
     assert calls[0][3]["required_openxr_extensions"] == ("XR_EXT_hand_tracking",)
-    assert calls[0][3]["max_blank_frames"] == 0
+    assert calls[0][3]["max_blank_frames"] == (0 if camera_enabled else 1)
     assert calls[0][2].extra_openxr_extensions == ("XR_EXT_debug_utils",)
     assert calls[0][2].host_wait_render_output is True
+    consumers = session._owner.binding.frame_consumers
+    consumer = consumers[-1]
+    assert consumer.config.max_fps == 20.0
+    assert consumer.config.initial_status_text == "Waiting for headset"
+    if camera_enabled:
+        assert consumers[0].panels[0].label == "robot_pov_cam"
+    else:
+        assert len(consumers) == 1
     assert calls[1] == ("start", 4.0)
     assert session.external_oxr_handles() == "handles"
     assert session.request_render("step") == 17
     assert session.request_render("reset", force=True) == 17
     assert calls[-2:] == [("request", "step", False), ("request", "reset", True)]
+    monkeypatch.setattr(session._physics_rate, "sample", lambda _count: 114.7)
+    session.report_host_timing(42, 1.0 / 120.0)
+    assert calls[-2:] == [
+        ("timing",),
+        ("status", "Main  30.0 FPS   Physics 114.7/120 Hz (0.96× RT)   Render  40.0 FPS"),
+    ]
     assert session.get_target_frame_T_world("/target") == ("target", "/target")
     assert session.async_worker_owns_environment
     assert not session.shutdown_requested
@@ -705,6 +876,36 @@ def test_bootstrap_construction_failure_restores_terminal_mode(bootstrap_context
         assert any("context cleanup failed" in note for note in error.__notes__)
 
 
+def test_desktop_mirror_rate_must_be_positive_and_finite(xr_module):
+    with pytest.raises(ValueError, match="desktop_mirror_max_fps"):
+        xr_module.OvLibrariesXrCfg(desktop_mirror_max_fps=0.0)
+    with pytest.raises(ValueError, match="desktop_mirror_max_fps"):
+        xr_module.OvLibrariesXrCfg(desktop_mirror_max_fps=float("nan"))
+
+
+def test_auxiliary_camera_config_is_preconfigured(xr_module, monkeypatch):
+    with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg()
+    with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg(name="robot_pov_cam")
+    with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg("", object())
+    with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", None)
+    with pytest.raises(ValueError, match="max_fps"):
+        xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", object(), max_fps=0.0)
+    with pytest.raises(ValueError, match="head_locked"):
+        xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", object(), space="world")
+
+    bootstrap = _FakeBootstrap()
+    camera_cfg = SimpleNamespace(width=720, height=450)
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_args: bootstrap)
+    camera = xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", camera_cfg)
+    session = xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg(auxiliary_cameras=(camera,)))
+    assert isinstance(session, xr_module.OvLibrariesXrSession)
+    assert bootstrap.auxiliary_camera_cfgs == [camera_cfg]
+
+
 def test_caller_renderer_settings_precede_renderer_creation(xr_module, monkeypatch):
     settings = "  --/rtx/rendermode=MinimalRendering  "
     events = []
@@ -747,6 +948,24 @@ def test_prepare_rejects_extension_mode_before_global_settings(xr_module, monkey
         xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
 
 
+def test_counter_rate_uses_application_counter_and_resets_cleanly(xr_module):
+    rate = xr_module._CounterRate()
+    assert rate.sample(10, now_ns=0) == 0.0
+    assert rate.sample(15, now_ns=500_000_000) == pytest.approx(10.0)
+    assert rate.sample(20, now_ns=1_000_000_000) == pytest.approx(10.0)
+    assert rate.sample(0, now_ns=1_100_000_000) == 0.0
+
+
+def test_disabled_desktop_mirror_does_not_collect_or_format_status(xr_module):
+    session = xr_module.OvLibrariesXrSession(
+        _FakeBootstrap(),
+        xr_module.OvLibrariesXrCfg(desktop_mirror_enabled=False),
+    )
+    session._owner = SimpleNamespace(report_host_timing=lambda: pytest.fail("unexpected mirror work"))
+
+    session.report_host_timing(42, 1.0 / 120.0)
+
+
 def test_config_rejects_unknown_session_mode():
     with pytest.raises(ValueError, match="session_mode must be 'ar' or 'vr'"):
         OvLibrariesXrCfg(session_mode="automatic")
@@ -786,8 +1005,38 @@ def test_start_rejects_invalid_bootstrap_count_before_owner_creation(xr_module, 
     assert bootstrap.events == []
 
 
+def test_three_auxiliary_camera_configs_prepare_the_same_bootstrap(xr_module, monkeypatch):
+    bootstrap = _FakeBootstrap()
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: bootstrap)
+    cameras = tuple(
+        xr_module.OvLibrariesXrCameraCfg(
+            name=name, camera_cfg=SimpleNamespace(width=640, height=480), max_fps=hz, space="head_locked"
+        )
+        for name, hz in zip(("robot_pov_cam", "left_wrist_cam", "right_wrist_cam"), (20, 10, 10), strict=True)
+    )
+    session = xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg(auxiliary_cameras=cameras))
+    assert bootstrap.auxiliary_camera_cfgs == [camera.camera_cfg for camera in cameras]
+    assert session is not None
+    extra = xr_module.OvLibrariesXrCameraCfg("overview", SimpleNamespace(width=640, height=480))
+    with pytest.raises(ValueError, match="at most three"):
+        xr_module.OvLibrariesXrCfg(auxiliary_cameras=(*cameras, extra))
+
+
+def test_prepare_snapshots_camera_selection_without_mutating_caller(xr_module, monkeypatch):
+    bootstrap = _FakeBootstrap()
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: bootstrap)
+    camera_cfg = SimpleNamespace(width=640, height=480)
+    camera = xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", camera_cfg)
+    cfg = xr_module.OvLibrariesXrCfg(auxiliary_cameras=(camera,))
+    session = xr_module.OvLibrariesXrSession.prepare(object(), cfg)
+    cfg.auxiliary_cameras = ()
+    assert session._cfg.auxiliary_cameras == (camera,)
+    assert session._cfg.auxiliary_cameras[0].camera_cfg is bootstrap.auxiliary_camera_cfgs[0]
+
+
+@pytest.mark.parametrize("fail_during", ["camera", "session"])
 @pytest.mark.parametrize("abort_fails", [False, True])
-def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, monkeypatch, abort_fails):
+def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, monkeypatch, fail_during, abort_fails):
     bootstrap = _FakeBootstrap()
     first_error = RuntimeError("preparation failed")
     original_cause = ValueError("invalid session input")
@@ -805,10 +1054,16 @@ def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, m
             raise abort_error
 
     monkeypatch.setattr(bootstrap, "abort", abort)
-    monkeypatch.setattr(xr_module.OvLibrariesXrSession, "__init__", fail)
+    if fail_during == "camera":
+        monkeypatch.setattr(bootstrap, "configure_auxiliary_camera", fail)
+    else:
+        monkeypatch.setattr(xr_module.OvLibrariesXrSession, "__init__", fail)
 
+    cfg = xr_module.OvLibrariesXrCfg(
+        auxiliary_cameras=(xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", SimpleNamespace(width=640, height=480)),),
+    )
     with pytest.raises(RuntimeError) as caught:
-        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+        xr_module.OvLibrariesXrSession.prepare(object(), cfg)
 
     assert bootstrap.aborted
     assert caught.value is first_error
@@ -822,6 +1077,7 @@ def test_public_xr_exports_resolve_to_implemented_types(xr_module):
     import isaaclab_teleop
 
     assert isaaclab_teleop.OvLibrariesXrCfg is xr_module.OvLibrariesXrCfg
+    assert isaaclab_teleop.OvLibrariesXrCameraCfg is xr_module.OvLibrariesXrCameraCfg
     assert isaaclab_teleop.OvLibrariesXrSession is xr_module.OvLibrariesXrSession
 
 
@@ -860,6 +1116,8 @@ def test_poisoned_publication_still_retires_in_capture_order(xr_module, monkeypa
     controller._generation = 1
     lease._bind(native, stage, 1)
     bootstrap.lease = lease
+    # Attach proves the eye-camera scene partitions; this fake Stage has no partition tokens.
+    monkeypatch.setattr(controller, "configure_camera_partitions", lambda *_args: "env_0")
 
     def close_bootstrap():
         lease.release()

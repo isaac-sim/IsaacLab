@@ -509,6 +509,21 @@ class Camera(SensorBase):
         )
         return positions.torch, orientations
 
+    def refresh_world_poses(self, env_ids: Sequence[int] | None = None) -> None:
+        """Re-read camera poses into the data buffers and pass them to the renderer, without rendering.
+
+        Use this when an external presenter renders the camera outside :meth:`update`, so that the
+        rendered view follows the latest simulation or reset kinematics. Frame counters and image
+        outputs are left unchanged, regardless of :attr:`CameraCfg.update_latest_camera_pose`.
+
+        Args:
+            env_ids: Sensor indices to refresh. None selects all sensors.
+
+        Raises:
+            RuntimeError: If the camera is not initialized.
+        """
+        self._update_poses(env_ids=env_ids)
+
     def set_world_poses(
         self,
         positions: torch.Tensor | None = None,

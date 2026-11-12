@@ -24,7 +24,8 @@ OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OV
 
 
 def populate_stage(
-    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
+    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False,
+    population_desc: "ovstage.population.Desc | None" = None,
 ) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
@@ -37,6 +38,7 @@ def populate_stage(
         ordinal: Population write ordinal, sealed by the caller after cloning.
         domains: Native population domains, normally rendering.
         physics: Whether an OVPhysX consumer also needs physics data.
+        population_desc: Additional properties required by the rendering consumer.
     """
     import ovstage
 
@@ -45,11 +47,18 @@ def populate_stage(
         if physics_domain is None:
             ovstage.population.open_usd_from_string_with_desc(
                 stage, usda, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME,
-                descs=(ovstage.population.Desc(domains=domains), _physics_population_desc()),
+                descs=(ovstage.population.Desc(domains=domains), _physics_population_desc(),
+                       *((population_desc,) if population_desc is not None else ())),
             )  # fmt: skip
             return
         domains |= physics_domain
-    ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
+    if population_desc is not None:
+        ovstage.population.open_usd_from_string_with_desc(
+            stage, usda, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME,
+            descs=(ovstage.population.Desc(domains=domains), population_desc),
+        )
+    else:
+        ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
 
 
 @cache

@@ -68,9 +68,13 @@ def test_g1_wheel_remains_supported_on_ovphysx_cpu(cfg_type, task, prepare) -> N
     env_cfg.sim.device = "cpu"
     env_cfg.sim.physics = OvPhysxCfg()
     env_cfg.scene.robot_pov_cam = None
-    if isinstance(env_cfg, LocomanipulationG1EnvCfg):
+    if isinstance(env_cfg, FixedBaseUpperBodyIKG1EnvCfg):
+        # The default policy observations are state-only, so only the scene cameras are removed.
+        env_cfg.scene.left_wrist_cam = None
+        env_cfg.scene.right_wrist_cam = None
+    else:
         env_cfg.observations.policy.robot_pov_cam = None
-        env_cfg.image_obs_list = []
+    env_cfg.image_obs_list = []
     prepare(env_cfg)
 
     env = None
