@@ -810,18 +810,19 @@ class ActuatorTargetCommand:
         collection = self._collection
         env_ids = collection._control.resolve_env_ids(env_ids)
         joint_ids = collection._control.resolve_joint_ids(joint_ids)
-        # CPU graph capture requires Warp arrays even though eager launches accept Torch tensors.
-        env_ids = wp.from_torch(env_ids) if isinstance(env_ids, torch.Tensor) else env_ids
-        joint_ids = wp.from_torch(joint_ids) if isinstance(joint_ids, torch.Tensor) else joint_ids
         expected_shape = (
             (collection.num_instances, collection.num_joints) if full_data else (env_ids.shape[0], joint_ids.shape[0])
         )
         collection._control.assert_shape_and_dtype(value, expected_shape, wp.float32, "target")
-        value = wp.from_torch(value) if isinstance(value, torch.Tensor) else value
         wp.launch(
             actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[value, env_ids, joint_ids, full_data],
+            inputs=[
+                wp.from_torch(value) if isinstance(value, torch.Tensor) else value,
+                wp.from_torch(env_ids) if isinstance(env_ids, torch.Tensor) else env_ids,
+                wp.from_torch(joint_ids) if isinstance(joint_ids, torch.Tensor) else joint_ids,
+                full_data,
+            ],
             outputs=[target_buffer],
             device=collection.device,
         )
@@ -840,11 +841,10 @@ class ActuatorTargetCommand:
         env_mask = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
         joint_mask = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
         collection._control.assert_shape_and_dtype_mask(value, (env_mask, joint_mask), wp.float32, "target")
-        value = wp.from_torch(value) if isinstance(value, torch.Tensor) else value
         wp.launch(
             actuator_kernels.write_2d_float_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[value, env_mask, joint_mask],
+            inputs=[wp.from_torch(value) if isinstance(value, torch.Tensor) else value, env_mask, joint_mask],
             outputs=[target_buffer],
             device=collection.device,
         )
