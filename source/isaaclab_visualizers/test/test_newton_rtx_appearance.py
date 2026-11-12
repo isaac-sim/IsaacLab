@@ -17,6 +17,8 @@ pytest.importorskip("ovrtx")
 from isaaclab_visualizers.newton import newton_rtx_appearance as module
 from isaaclab_visualizers.newton.newton_rtx_appearance import RtxAppearance, find_scene_lights, sun_matrix
 
+pytestmark = pytest.mark.ov
+
 
 class _Attr:
     def __init__(self, value):
@@ -204,6 +206,33 @@ def test_a_sky_texture_is_loaded_in_the_background_and_adds_the_dome_light_again
     assert "@/cache/lakeside.hdr@" in native.added[-1][0]
     assert appearance.dome_color == (1.0, 1.0, 1.0)  # A texture is not tinted blue.
     assert appearance.texture_status == ""
+
+
+def test_a_sky_download_superseded_by_another_choice_is_not_applied(monkeypatch):
+    import threading
+
+    first_started, release_first = threading.Event(), threading.Event()
+
+    def retrieve(source):
+        if source.endswith("first.hdr"):
+            first_started.set()
+            release_first.wait(5)
+        return f"/cache/{source.rsplit('/', 1)[-1]}"
+
+    monkeypatch.setattr(module, "retrieve_file_path", retrieve)
+    appearance, _ = _appearance()
+    appearance.use_sky("https://assets/first.hdr")
+    assert first_started.wait(5)
+    appearance.use_sky("https://assets/second.hdr")
+    deadline = time.time() + 5
+    while not appearance.poll():
+        assert time.time() < deadline
+        time.sleep(0.01)
+    release_first.set()
+    time.sleep(0.1)
+
+    assert appearance._dome_texture_file == "/cache/second.hdr"
+    assert appearance.poll() is False  # The first download finished late and was dropped.
 
 
 def test_removing_the_sky_texture_restores_the_sky_blue_dome_without_a_download():

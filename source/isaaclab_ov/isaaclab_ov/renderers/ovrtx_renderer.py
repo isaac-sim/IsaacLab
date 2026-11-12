@@ -397,6 +397,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales: wp.array | None = None
         self._geometry_paths: list[str] = []
         self._visible_envs: np.ndarray | None = None
+        self._hidden_marker_rows: torch.Tensor | None = None
         self._hidden_envs: wp.array | None = None
         self._body_envs: wp.array | None = None
         self._hidden_matrices: dict[int, wp.array] = {}
@@ -1059,6 +1060,7 @@ class OVRTXRenderer(BaseRenderer):
         if len(visible) != num_envs:
             raise ValueError(f"Expected {num_envs} visibility flags, got {len(visible)}.")
         self._visible_envs = np.asarray(visible, dtype=bool)
+        self._hidden_marker_rows = None
         hidden = np.zeros(num_envs + 1, dtype=np.uint8)  # The last entry stands for bodies outside any environment.
         hidden[:num_envs] = ~self._visible_envs
         self._hidden_envs = wp.array(hidden, dtype=wp.uint8, device=self._device) if hidden.any() else None
@@ -1075,7 +1077,9 @@ class OVRTXRenderer(BaseRenderer):
         mask, num_envs, count = self._visible_envs, len(self._env_paths), len(marker.translations)
         if mask is None or mask.all() or num_envs == 0 or count % num_envs:
             return tensors
-        hidden = torch.as_tensor(~mask, device=marker.translations.device)
+        hidden = self._hidden_marker_rows
+        if hidden is None or hidden.device != marker.translations.device:
+            hidden = self._hidden_marker_rows = torch.as_tensor(~mask, device=marker.translations.device)
         translations = marker.translations.reshape(num_envs, count // num_envs, -1).clone()
         translations[hidden, :, 2] -= float(_HIDDEN_DROP)
         return (translations.reshape(marker.translations.shape), *tensors[1:])
