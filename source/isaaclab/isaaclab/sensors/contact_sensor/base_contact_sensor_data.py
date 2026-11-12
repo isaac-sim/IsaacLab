@@ -11,12 +11,13 @@ import warnings
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
-    POSE7_COMPONENT_AXIS,
-    QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
     Axis,
     AxisKind,
     Kind,
+    body_pose_axes_resolver,
+    body_quat_axes_resolver,
+    body_xyz_axes_resolver,
     leapp_tensor_semantics,
 )
 from ...utils.warp import ProxyArray
@@ -39,9 +40,11 @@ class BaseContactSensorData(ABC):
     provides filtered friction, so it returns :attr:`friction_force_matrix_w` and warns.
     """
 
+    _body_names: list[str] | None = None
+
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes_resolver=body_pose_axes_resolver)
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
@@ -51,10 +54,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(
-        kind=Kind.FRAME_POSITION,
-        axes_resolver=lambda _data, ref: [None] * (ref.ndim - 1) + [XYZ_COMPONENT_AXIS],
-    )
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
@@ -67,10 +67,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(
-        kind=Kind.FRAME_ORIENTATION,
-        axes_resolver=lambda _data, ref: [None] * (ref.ndim - 1) + [QUAT_XYZW_COMPONENT_AXIS],
-    )
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes_resolver=body_quat_axes_resolver)
     def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
