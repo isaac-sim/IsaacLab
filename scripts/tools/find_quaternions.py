@@ -10,7 +10,7 @@ This script searches for 4-element tuples/lists in Python files and flags those
 that haven't been modified compared to the main branch.
 
 Usage:
-    python tools/find_quaternions.py [--path PATH] [--show-all] [--check-identity]
+    python scripts/tools/find_quaternions.py [--path PATH] [--show-all] [--check-identity]
 """
 
 import argparse

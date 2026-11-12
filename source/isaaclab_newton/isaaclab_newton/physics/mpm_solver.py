@@ -248,7 +248,12 @@ class MPMSolver(NewtonSolver):
         return False
 
     def supports_capture(self) -> bool:
-        return mpm_supports_graph_capture(self.native)
+        """Whether the solver can be captured: on CUDA only, and only for grids with static topology.
+
+        On the CPU, the solver reads its rheology residual on the host and rebuilds sparse grids through
+        :meth:`warp.Volume.rebuild`, neither of which Warp's CPU graph capture replays.
+        """
+        return self.native.model.device.is_cuda and mpm_supports_graph_capture(self.native)
 
     def uses_collision_pipeline(self) -> bool:
         return False

@@ -268,7 +268,7 @@ class _State:
 
 
 def _recording_backend(
-    events, *, single_state=True, num_substeps=1, device="cpu", captures=True, ignored_model_changes=None, **cfg
+    events, *, single_state=True, num_substeps=1, device="cpu", captures=False, ignored_model_changes=None, **cfg
 ):
     """A backend whose solver hooks and states record every operation of a step."""
 
@@ -773,12 +773,21 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    ("device", "execution"),
+    [
+        (device, execution)
+        for device in test_devices()
+        for execution in ("eager", "backend_capture", "outer_capture")
+        # The capture cases already step their CPU reference backends eagerly.
+        if execution != "eager" or device != "cpu"
+    ],
+)
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 
-    An outer capture records each backend's step without running it or capturing a graph of its own.
+    An outer capture records each backend's step without running it or capturing a graph of its own. On the CPU,
+    both captures use Warp's CPU graph capture.
     """
     captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
