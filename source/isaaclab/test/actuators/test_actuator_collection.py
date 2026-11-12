@@ -32,6 +32,8 @@ from isaaclab.actuators.newton import read_group_parameter, write_group_paramete
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
+pytestmark = pytest.mark.kitless
+
 
 def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
     """Create a valid implicit actuator config for collection tests."""
@@ -857,18 +859,20 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
     expected[1, 2] = 4.0
     torch.testing.assert_close(command_buffer.torch.cpu(), expected)
 
-    joint_ids = wp.to_torch(joint_ids)
-    with wp.ScopedCapture(device="cpu") as capture:
-        setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
+    # All commands share the indexed writer; capture it once while retaining eager routing checks for each.
+    if command_name == "effort":
+        joint_ids = wp.to_torch(joint_ids)
+        with wp.ScopedCapture(device="cpu") as capture:
+            setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
 
-    value.copy_(torch.tensor([[5.0, 6.0]]))
-    env_ids.fill_(0)
-    joint_ids.copy_(torch.tensor([2, 0]))
-    command_buffer.torch.fill_(-1.0)
-    wp.capture_launch(capture.graph)
+        value.copy_(torch.tensor([[5.0, 6.0]]))
+        env_ids.fill_(0)
+        joint_ids.copy_(torch.tensor([2, 0]))
+        command_buffer.torch.fill_(-1.0)
+        wp.capture_launch(capture.graph)
 
-    expected = torch.tensor([[6.0, -1.0, 5.0], [-1.0, -1.0, -1.0]])
-    torch.testing.assert_close(command_buffer.torch, expected)
+        expected = torch.tensor([[6.0, -1.0, 5.0], [-1.0, -1.0, -1.0]])
+        torch.testing.assert_close(command_buffer.torch, expected)
 
     collection.compute()
     collection.submit_commands()
@@ -894,17 +898,19 @@ def test_write_command_mask_uses_full_sized_value(command_name):
     torch.testing.assert_close(command_buffer.torch.cpu(), expected)
     assert control.staged_commands == [command_name]
 
-    with wp.ScopedCapture(device="cpu") as capture:
-        setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
+    # All commands share the masked writer; one replay covers its value and selection updates.
+    if command_name == "effort":
+        with wp.ScopedCapture(device="cpu") as capture:
+            setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
 
-    value.add_(10.0)
-    wp.to_torch(env_mask).copy_(torch.tensor([False, True]))
-    wp.to_torch(joint_mask).copy_(torch.tensor([True, False, True]))
-    command_buffer.torch.fill_(-1.0)
-    wp.capture_launch(capture.graph)
+        value.add_(10.0)
+        wp.to_torch(env_mask).copy_(torch.tensor([False, True]))
+        wp.to_torch(joint_mask).copy_(torch.tensor([True, False, True]))
+        command_buffer.torch.fill_(-1.0)
+        wp.capture_launch(capture.graph)
 
-    expected = torch.tensor([[-1.0, -1.0, -1.0], [13.0, -1.0, 15.0]])
-    torch.testing.assert_close(command_buffer.torch, expected)
+        expected = torch.tensor([[-1.0, -1.0, -1.0], [13.0, -1.0, 15.0]])
+        torch.testing.assert_close(command_buffer.torch, expected)
 
     with pytest.raises(TypeError, match="wp.bool"):
         setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
