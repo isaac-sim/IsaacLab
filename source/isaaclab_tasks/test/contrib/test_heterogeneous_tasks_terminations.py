@@ -197,3 +197,15 @@ def test_upright(env: ManagerBasedRLEnv):
     for func, params in ((mdp.object_on_top, {"reference": box}), (mdp.object_in_container, {"container": box})):
         assert _term(env, func, objects=bar, **params)() == [True, True]
         assert _term(env, func, objects=bar, **params, require_upright=True)() == [True, False]
+
+
+def test_diverged_simulation_takes_nothing_out(env: ManagerBasedRLEnv):
+    """A ball at a non-finite position, as of a diverged simulation, is not outside of the box.
+
+    This test is the last one: its second environment stays diverged, as no event resets the scene.
+    """
+    ball, box = [SceneEntityCfg("ball")], SceneEntityCfg("box")
+    place(env, "ball", [(0.5, 0.0, 0.05), (float("nan"),) * 3])
+    place(env, "ball_b", [(1.0, 0.0, 0.05), (1.0, 0.0, 0.05)])
+    _settle(env, steps=2)
+    assert _term(env, mdp.object_outside_of, objects=ball, container=box)() == [True, False]

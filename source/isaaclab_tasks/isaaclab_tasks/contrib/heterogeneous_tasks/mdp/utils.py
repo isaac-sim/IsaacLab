@@ -85,6 +85,8 @@ class Scene:
         """Read the poses, candidates and contact forces of the objects in this step."""
         pose = torch.stack([asset.data.root_link_pose_w.torch for asset in self._assets], dim=1)  # (N, M, 7)
         self.pos, self.quat = pose[..., :3], pose[..., 3:]
+        # Whether the poses of each environment are finite (N,); they are not once its simulation diverged.
+        self.finite = pose.isfinite().all(dim=2).all(dim=1)
         zeros = torch.zeros(self.env.num_envs, dtype=torch.long, device=self.env.device)
         candidates = [
             self.env.task_manager.candidate_ids(name) if switchable else zeros
@@ -207,8 +209,11 @@ class InContainer(Predicate):
 class OutsideOf(Predicate):
     def evaluate(self, p):
         scene, objects = self.scene, p["objects"]
-        result = ~scene.contains(p["container"], scene.take(scene.hull_center, objects)) & scene.requirements(
-            objects, p
+        # A non-finite position lies in no container, but a diverged simulation takes nothing out of one.
+        result = (
+            ~scene.contains(p["container"], scene.take(scene.hull_center, objects))
+            & scene.finite[:, None]
+            & scene.requirements(objects, p)
         )
         return _combine(result, p["objects_mask"], p["logical"], p["count"])
 
