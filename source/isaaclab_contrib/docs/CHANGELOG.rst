@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.1 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_contrib.actuators.Thruster` and :class:`~isaaclab_contrib.assets.Multirotor` resets to
+  take ``env_mask`` and reset the masked environments without synchronizing the device.
+
+
 7.0.0 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~
 

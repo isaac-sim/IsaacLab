@@ -50,6 +50,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import instantiate
 
 # ----- Configuration and lifecycle -------------------------------------------------------
 
@@ -78,6 +79,37 @@ def test_newton_shape_cfg_defaults_match_newton():
 def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     """The default must not override Newton's estimate, which grows with the world count."""
     assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
+def test_explicit_collision_capacity_reaches_the_solver_before_construction():
+    """A configured pipeline capacity must also size solver scratch allocated at construction."""
+
+    class CapacitySeen(Exception):
+        pass
+
+    class RecordingSolver(NewtonSolver):
+        def build(self, model, mode, env_template):
+            assert model.rigid_contact_max == 48
+            raise CapacitySeen
+
+    cfg = NewtonCfg(
+        solver_cfg=NewtonSolverCfg(class_type=RecordingSolver),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=48),
+    )
+    backend = backend_stub(
+        cfg=cfg, model=SimpleNamespace(rigid_contact_max=None), deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED
+    )
+
+    with pytest.raises(CapacitySeen):
+        backend.init_solver()
+
+
+def test_kamino_rejects_conflicting_contact_capacities():
+    cfg = KaminoPADMMSolverCfg(max_contacts_per_world=32, use_fk_solver=False)
+    model = SimpleNamespace(rigid_contact_max=128, world_count=2)
+
+    with pytest.raises(ValueError, match="one consistent contact capacity"):
+        instantiate(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
 
 
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
@@ -237,7 +269,7 @@ class _State:
 
 
 def _recording_backend(
-    events, *, single_state=True, num_substeps=1, device="cpu", captures=True, ignored_model_changes=None, **cfg
+    events, *, single_state=True, num_substeps=1, device="cpu", captures=False, ignored_model_changes=None, **cfg
 ):
     """A backend whose solver hooks and states record every operation of a step."""
 
@@ -798,12 +830,21 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    ("device", "execution"),
+    [
+        (device, execution)
+        for device in test_devices()
+        for execution in ("eager", "backend_capture", "outer_capture")
+        # The capture cases already step their CPU reference backends eagerly.
+        if execution != "eager" or device != "cpu"
+    ],
+)
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 
-    An outer capture records each backend's step without running it or capturing a graph of its own.
+    An outer capture records each backend's step without running it or capturing a graph of its own. On the CPU,
+    both captures use Warp's CPU graph capture.
     """
     captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]

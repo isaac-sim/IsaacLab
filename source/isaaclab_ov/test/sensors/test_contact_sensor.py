@@ -21,13 +21,14 @@ once per device.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import MISSING
 from enum import Enum
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
-from flaky import flaky
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -155,7 +156,7 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.6, 0.4)),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -1.0, 1.0)),
-    contact_pose=torch.tensor([0, -1.0, 0, 1, 0, 0, 0]),
+    contact_pose=torch.tensor([0, -1.0, 0.25, 1, 0, 0, 0]),
     non_contact_pose=torch.tensor([0, -1.0, 1.0, 1, 0, 0, 0]),
 )
 """Configuration of the cube prim."""
@@ -174,7 +175,7 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.4, 0.6)),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0, 1.0, 1.0)),
-    contact_pose=torch.tensor([0, 1.0, 0.0, 1, 0, 0, 0]),
+    contact_pose=torch.tensor([0, 1.0, 0.25, 1, 0, 0, 0]),
     non_contact_pose=torch.tensor([0, 1.0, 1.0, 1, 0, 0, 0]),
 )
 """Configuration of the sphere prim."""
@@ -281,16 +282,26 @@ _TERRAINS = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
 ##
 
 
+@pytest.fixture
+def timing_terrain_seed() -> Iterator[None]:
+    """Make the rough mesh reproducible without changing other tests' random state."""
+    # Height-field sampling uses the global RNG, independently of TerrainGeneratorCfg.seed.
+    state = np.random.get_state()
+    np.random.seed(5)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@flaky(max_runs=5, min_passes=1)
-def test_cube_contact_time(device):
+def test_cube_contact_time(device, timing_terrain_seed):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     _run_contact_sensor_test(CUBE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@flaky(max_runs=5, min_passes=1)
-def test_sphere_contact_time(device):
+def test_sphere_contact_time(device, timing_terrain_seed):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     _run_contact_sensor_test(SPHERE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
 
@@ -1102,12 +1113,17 @@ def _test_sensor_contact(
     else:
         raise ValueError("Received incompatible contact sensor test mode")
 
+    test_pose = test_pose.to(device=shape.device).unsqueeze(0)
+    reset_pose = reset_pose.to(device=shape.device).unsqueeze(0)
+    zero_velocity = torch.zeros((1, 6), device=shape.device)
+
     for idx in range(len(durations)):
         current_test_time = 0
         duration = durations[idx]
         while current_test_time < duration:
-            # set object states to contact the ground plane
-            shape.write_root_pose_to_sim_index(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
+            # Reset both pose and velocity so earlier contact impulses cannot change the intended state.
+            shape.write_root_pose_to_sim_index(root_pose=test_pose)
+            shape.write_root_velocity_to_sim_index(root_velocity=zero_velocity)
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -1135,7 +1151,8 @@ def _test_sensor_contact(
             )
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim_index(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
+        shape.write_root_pose_to_sim_index(root_pose=reset_pose)
+        shape.write_root_velocity_to_sim_index(root_velocity=zero_velocity)
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
