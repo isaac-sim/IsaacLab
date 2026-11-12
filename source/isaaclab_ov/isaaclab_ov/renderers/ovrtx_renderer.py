@@ -1065,19 +1065,20 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms_timestamp = -1  # Publish the poses again even when the simulation has not stepped.
 
     def _visible_marker_rows(self, marker: Any) -> tuple:
-        """Return the marker's translations, orientations, scales, and indices for the visible environments only.
+        """Return the marker's translations, orientations, scales, and indices with hidden markers moved away.
 
         A batch whose size divides by the environment count is laid out environment-major; other batches are global.
+        The batch keeps its size, so the marker instances are never rebuilt when the visible environments change;
+        hidden environments' markers are moved far below the scene, as their bodies are.
         """
         tensors = (marker.translations, marker.orientations, marker.scales, marker.marker_indices)
         mask, num_envs, count = self._visible_envs, len(self._env_paths), len(marker.translations)
         if mask is None or mask.all() or num_envs == 0 or count % num_envs:
             return tensors
-        keep = torch.as_tensor(mask, device=marker.translations.device)
-        per_env = count // num_envs
-        return tuple(
-            None if t is None else t.reshape(num_envs, per_env, *t.shape[1:])[keep].flatten(0, 1) for t in tensors
-        )
+        hidden = torch.as_tensor(~mask, device=marker.translations.device)
+        translations = marker.translations.reshape(num_envs, count // num_envs, -1).clone()
+        translations[hidden, :, 2] -= float(_HIDDEN_DROP)
+        return (translations.reshape(marker.translations.shape), *tensors[1:])
 
     def _body_environment_ids(self) -> wp.array:
         """Return each published body's environment index, or ``num_envs`` for a body outside any environment."""
