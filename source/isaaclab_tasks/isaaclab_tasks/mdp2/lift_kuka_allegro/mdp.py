@@ -326,11 +326,14 @@ def _out_of_bound(
 
 def _out_of_bound_torch(object_pose_w, object_vel_w, env_origins, progress, *, in_bound_range, final_in_bound_range):
     position = object_pose_w[:, :3] - env_origins
-    initial, final = position.new_tensor(in_bound_range), position.new_tensor(final_in_bound_range)
-    bounds = initial + (final - initial) * progress[:, None, None]
-    outside = ((position < bounds[..., 0]) | (position > bounds[..., 1])).any(-1)
-    finite = object_pose_w.isfinite().all(-1) & object_vel_w.isfinite().all(-1)
-    return outside | ~finite
+    outside = ~(object_pose_w.isfinite().all(-1) & object_vel_w.isfinite().all(-1))
+
+    # Bounds from host floats: a host copy cannot be captured in a CUDA graph.
+    for axis, (initial, final) in enumerate(zip(in_bound_range, final_in_bound_range)):
+        low = initial[0] + (final[0] - initial[0]) * progress
+        high = initial[1] + (final[1] - initial[1]) * progress
+        outside |= (position[:, axis] < low) | (position[:, axis] > high)
+    return outside
 
 
 out_of_bound = Term(torch=_out_of_bound_torch, warp=_out_of_bound)
@@ -471,9 +474,10 @@ def _curriculum_gravity(
 
 
 def _curriculum_gravity_torch(mask, gravity_w, progress, *, initial_gravity, final_gravity):
-    initial, final = gravity_w.new_tensor(initial_gravity), gravity_w.new_tensor(final_gravity)
-    value = initial + (final - initial) * progress[:, None]
-    gravity_w.copy_(torch.where(mask[:, None], value, gravity_w))
+    # Per axis from host floats: a host copy cannot be captured in a CUDA graph.
+    for axis, (initial, final) in enumerate(zip(initial_gravity, final_gravity)):
+        value = initial + (final - initial) * progress
+        gravity_w[:, axis] = torch.where(mask, value, gravity_w[:, axis])
 
 
 curriculum_gravity = Term(torch=_curriculum_gravity_torch, warp=_curriculum_gravity)

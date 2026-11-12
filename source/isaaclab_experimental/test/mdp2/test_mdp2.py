@@ -5,6 +5,7 @@
 
 """Tests for building and running MDP2 tasks on an analytic point-mass scene."""
 
+import dataclasses
 import math
 
 import pytest
@@ -299,9 +300,11 @@ def make_task(
     episode_length_s: float = 1.0,
     random: bool = False,
     eager: bool = False,
+    torch_hooks: bool = False,
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
     """Finalize the task of :func:`make_builder` and create its state."""
-    mdp = make_builder(scene.schema, episode_length_s, random, eager).finalize(device=DEVICE, backend=backend)
+    builder = make_builder(scene.schema, episode_length_s, random, eager, torch_hooks=torch_hooks)
+    mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
 
 
@@ -311,18 +314,24 @@ def make_builder(
     random: bool = False,
     eager: bool = False,
     joint_pos_weight: float = -10.0,
+    torch_hooks: bool = False,
 ) -> mdp2.MDPBuilder:
     """Return a point-mass task. With ``random``, it also has a command, noisy observations, and events.
 
-    With ``eager``, the joint position penalty and the reset event are eager terms.
+    With ``eager``, the joint position penalty and the reset event are eager terms. With ``torch_hooks``, terms with
+    state, random draws, or masks have Torch hooks only, which a Warp MDP runs between its kernels.
     """
+
+    def torch_only(term: mdp2.Term) -> mdp2.Term:
+        return dataclasses.replace(term, warp=None) if torch_hooks else term
+
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, scale=2.0)},
         observations={
             "policy": mdp2.ObservationGroup(
                 joint_pos=mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}),
                 joint_vel=mdp2.Observation(joint_vel, inputs={"joint_vel": robot.joint_vel}),
-                joint_pos_delta=mdp2.Observation(delta, inputs={"value": robot.joint_pos}),
+                joint_pos_delta=mdp2.Observation(torch_only(delta), inputs={"value": robot.joint_pos}),
                 joint_vel_delta=mdp2.Observation(delta, inputs={"value": robot.joint_vel}),
             )
         },
@@ -349,14 +358,16 @@ def make_builder(
     if not random:
         return builder
 
-    builder.add_command("target", mdp2.Command(uniform_command, resampling_time_range=(0.02, 0.06)))
+    builder.add_command("target", mdp2.Command(torch_only(uniform_command), resampling_time_range=(0.02, 0.06)))
     builder.add_reward("target", mdp2.Reward(generated_commands, inputs={"command": mdp2.commands.target}))
 
     # Its state must advance before the push event writes the velocity.
-    builder.add_reward("joint_vel_delta", mdp2.Reward(joint_vel_delta, inputs={"joint_vel": robot.joint_vel}))
+    builder.add_reward(
+        "joint_vel_delta", mdp2.Reward(torch_only(joint_vel_delta), inputs={"joint_vel": robot.joint_vel})
+    )
 
     for name in ("joint_pos", "joint_pos_again"):
-        observation = mdp2.Observation(noisy_joint_pos, inputs={"joint_pos": robot.joint_pos})
+        observation = mdp2.Observation(torch_only(noisy_joint_pos), inputs={"joint_pos": robot.joint_pos})
         builder.add_observation("noisy", name, observation)
     modified_joint_vel = mdp2.Observation(
         joint_vel,
@@ -379,7 +390,7 @@ def make_builder(
     for name, observation in mdp_observations.items():
         builder.add_observation("policy", name, observation)
 
-    reset_term = eager_reset_joints_by_offset if eager else reset_joints_by_offset
+    reset_term = eager_reset_joints_by_offset if eager else torch_only(reset_joints_by_offset)
     builder.add_event("push_robot", push_robot)
     builder.add_event("reset_robot_joints", mdp2.Event(reset_term, outputs={"joint_pos": robot.joint_pos}))
     return builder
@@ -744,9 +755,10 @@ def test_warp_fuses_functions_into_few_kernels():
 def test_warp_matches_torch():
     """The Warp and Torch backends agree over episodes with resets, and draw bitwise the same random numbers."""
     runs = {}
-    for backend in ("torch", "warp"):
+    for backend, torch_hooks in (("torch", False), ("warp", False), ("warp", True)):
         scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
-        mdp, state = make_task(scene, backend=backend, episode_length_s=0.2, random=True)
+        mdp, state = make_task(scene, backend=backend, episode_length_s=0.2, random=True, torch_hooks=torch_hooks)
+        assert any(op.torch_hooks for op in mdp.term_ops) == torch_hooks
         transition = mdp.transition()
         env_reset(mdp, state, scene, transition.observations, torch.ones(64, dtype=torch.bool, device=DEVICE))
 
@@ -762,17 +774,18 @@ def test_warp_matches_torch():
             results += [transition.observations["policy"].torch.clone(), bootstrap["policy"]]
             draws = [state.rng.torch.clone(), transition.observations["noisy"].torch.clone()]
             history.append((results, draws))
-        runs[backend] = history
+        runs[backend, torch_hooks] = history
 
-    for (torch_results, torch_draws), (warp_results, warp_draws) in zip(runs["torch"], runs["warp"]):
-        for expected, actual in zip(torch_results, warp_results):
-            torch.testing.assert_close(actual, expected)
-        for expected, actual in zip(torch_draws, warp_draws):
-            assert torch.equal(actual, expected)
+    for mixed in (False, True):
+        for (torch_results, torch_draws), (warp_results, warp_draws) in zip(runs["torch", False], runs["warp", mixed]):
+            for expected, actual in zip(torch_results, warp_results):
+                torch.testing.assert_close(actual, expected)
+            for expected, actual in zip(torch_draws, warp_draws):
+                assert torch.equal(actual, expected)
 
     # Both ways an episode ends happened.
-    assert any(results[1].any() for results, _ in runs["torch"])
-    assert any(results[2].any() for results, _ in runs["torch"])
+    assert any(results[1].any() for results, _ in runs["torch", False])
+    assert any(results[2].any() for results, _ in runs["torch", False])
 
 
 def test_eager_terms_split_segments():
@@ -824,12 +837,15 @@ def test_eager_terms_match_compiled_terms():
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
 def test_captured_mdp_replays_like_eager_calls():
-    """Graph replay, with eager terms between the graphs, gives bitwise the same results as eager calls."""
-    for backend in ("torch", "warp"):
+    """Graph replay, with eager terms between the graphs, gives bitwise the same results as eager calls, also with
+    Torch hooks inside the graphs of a Warp MDP."""
+    for backend, torch_hooks in (("torch", False), ("warp", False), ("warp", True)):
         runs = []
         for capture in (False, True):
             scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
-            mdp, state = make_task(scene, backend=backend, episode_length_s=0.2, random=True, eager=True)
+            mdp, state = make_task(
+                scene, backend=backend, episode_length_s=0.2, random=True, eager=True, torch_hooks=torch_hooks
+            )
             transition = mdp.transition()
             actions = ProxyArray(wp.zeros((64, mdp.action_dim), dtype=wp.float32, device=DEVICE))
             captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None

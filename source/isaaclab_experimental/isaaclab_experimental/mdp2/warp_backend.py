@@ -8,7 +8,8 @@
 One thread per world runs a function's per-world steps in order: terminations, rewards, timers, commands, events,
 state updates, and resets. Observations run one thread per output element, in the same kernel when their inputs
 allow it. ``wp.func`` hooks are called from these threads. Hooks that launch their own kernels run separately and
-write into scratch buffers, which the next kernel reads like a func's result.
+write into scratch buffers, which the next kernel reads like a func's result. Terms without Warp hooks run their
+Torch hooks the same way.
 """
 
 from __future__ import annotations
@@ -316,34 +317,43 @@ def _run(
     """Run a hook that has no output.
 
     A func runs in the world thread under ``conditions``, and ``writes`` are the keys of the arguments it writes.
-    A function that launches its own kernels, or an eager term, runs on its own, and gets ``mask(call)`` as ``mask``
-    if it takes it.
+    A function that launches its own kernels, a Torch hook, or an eager term, runs on its own, and gets ``mask(call)``
+    as ``mask`` if it takes it.
     """
     if isinstance(hook, wp.Function):
         code.world(*_under(conditions, _call(code, op, hook)), writes=writes)
     elif op.eager:
         code.call(lambda call: call_eager(mdp, op, call.state, wp.to_torch(mask(call))), False, *_accesses(op))
     else:
-        code.call(
-            lambda call: hook(
-                **hook_arguments(hook, {**call.state.arguments[op.name], "mask": None if mask is None else mask(call)})
-            ),
-            op.capturable,
-            *_accesses(op),
-        )
+
+        def run(call: Call) -> None:
+            selected = None if mask is None else mask(call)
+            if op.torch_hooks and selected is not None:
+                selected = wp.to_torch(selected)
+            hook(**hook_arguments(hook, {**call.state.arguments[op.name], "mask": selected}))
+
+        code.call(run, op.capturable, *_accesses(op))
 
 
 def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
     """Return source for an op's output at the thread's world and element.
 
-    A compute hook that launches its own kernels, or an eager term, runs first, and the source reads its scratch
-    buffer.
+    A compute hook that launches its own kernels, a Torch hook, or an eager term, runs first, and the source reads its
+    scratch buffer.
     """
     if isinstance(op.compute, wp.Function):
         return _call(code, op, op.compute, op.shape)
 
     if op.eager:
         code.call(lambda call: call_eager(mdp, op, call.state), False, *_accesses(op))
+    elif op.torch_hooks:
+        code.call(
+            lambda call: call.state.arrays["scratch", op.name].torch.copy_(
+                op.compute(**hook_arguments(op.compute, call.state.arguments[op.name]))
+            ),
+            op.capturable,
+            *_accesses(op),
+        )
     else:
         code.call(
             lambda call: op.compute(

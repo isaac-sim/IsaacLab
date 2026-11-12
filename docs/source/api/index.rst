@@ -221,6 +221,7 @@ The following modules are available in the ``isaaclab_experimental`` extension:
 
    envs
    managers
+   mdp2
    utils
 
 

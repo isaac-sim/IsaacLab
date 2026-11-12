@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import functools
+import itertools
 import math
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -25,6 +27,8 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental import mdp2
+from isaaclab_experimental.mdp2.capture import torch_in_warp_capture
+from isaaclab_experimental.mdp2.plan import Call
 
 from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg
 from .mdp2_scene_data import InteractiveSceneData
@@ -34,8 +38,9 @@ class MDP2Env:
     """An interactive scene driven by an MDP2 task, like a :class:`~isaaclab.envs.ManagerBasedEnv` without managers.
 
     A control step applies the actions, steps the physics ``decimation`` times, evaluates the MDP, resets the
-    worlds whose episodes ended, and observes them. Resets are masks over the worlds, so with the Warp backend and
-    a fully capturable MDP, every step after the first replays as one CUDA graph, physics included. Newton only.
+    worlds whose episodes ended, and observes them. Resets are masks over the worlds, so every step after the first
+    replays as CUDA graphs, physics included: one graph for a fully capturable MDP, and otherwise one per run of
+    capturable work, with the eager launches of the MDP run between them. Newton only.
     """
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
@@ -94,13 +99,10 @@ class MDP2Env:
         self.common_step_counter = 0
         self.extras: dict[str, Any] = {}
 
-        self._capturable = (
-            cfg.capture
-            and self.mdp.backend is mdp2.Backend.WARP
-            and self.mdp.is_fully_capturable
-            and wp.get_device(self.device).is_cuda
-        )
-        self._graph = None
+        self._capturable = cfg.capture and wp.get_device(self.device).is_cuda
+        self._runs: list[Callable[[], None]] | None = None  # The captured step: graph replays and eager launches
+        self.num_graphs = 0  # CUDA graphs that one captured step replays
+        self._pool = torch.cuda.MemPool() if self._capturable else None  # Torch memory that the graphs use
         self._stepped = False
 
     @property
@@ -121,8 +123,8 @@ class MDP2Env:
 
     @property
     def is_captured(self) -> bool:
-        """Whether steps replay as one CUDA graph."""
-        return self._graph is not None
+        """Whether steps replay as CUDA graphs."""
+        return self._runs is not None
 
     @property
     def observations(self) -> VecEnvObs:
@@ -149,21 +151,64 @@ class MDP2Env:
             self._is_closed = True
 
     def _step_or_replay(self, action: torch.Tensor) -> None:
-        """Run a control step: eagerly the first time, then as a CUDA graph if the MDP allows it."""
+        """Run a control step: eagerly the first time, then as CUDA graphs."""
         self.actions.torch.copy_(action)
 
-        if self._graph is None and self._capturable and self._stepped:
+        if self._runs is None and self._capturable and self._stepped:
             # The first step loaded every kernel module, so the capture records launches only.
-            self._graph = capture_graph(self.device, self._step)
-        if self._graph is not None:
-            wp.capture_launch(self._graph)
+            self._runs = self._capture_step()
+        if self._runs is not None:
+            for run in self._runs:
+                run()
         else:
-            self._step()
+            self._simulate()
+            mdp2.evaluate(self.mdp, self.state, self.transition)
+            self._reset(self.transition.done)
 
         self._stepped = True
         self.common_step_counter += 1
 
-    def _step(self) -> None:
+    def _capture_step(self) -> list[Callable[[], None]]:
+        """Capture each run of capturable work of a step as one graph, and bind the eager launches between them.
+
+        The work is that of an eager step, in its order: physics, then the launches of ``evaluate``, ``reset``, and
+        ``observe``, with the scene's resets and commits.
+        """
+        state, transition, mask = self.state, self.transition, self.transition.done
+        launches = self.mdp.launches
+        commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
+        evaluate = Call(state, transition=transition, observations=transition.observations)
+        reset = Call(state, mask=mask, commit=commit)
+        observe = Call(state, mask=mask, observations=transition.observations)
+
+        work = [(True, self._simulate)]
+        work += [(launch.capturable, functools.partial(launch, evaluate)) for launch in launches.evaluate]
+        work += [(True, functools.partial(self._reset_scene, mask))]
+        work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
+        work += [(True, commit)]
+        work += [(launch.capturable, functools.partial(launch, observe)) for launch in launches.observe]
+
+        runs = []
+        for capturable, group in itertools.groupby(work, lambda item: item[0]):
+            steps = [step for _, step in group]
+            if not capturable:
+                runs += steps
+                continue
+
+            def run_all(steps=steps):
+                for step in steps:
+                    step()
+
+            # Torch launches, of either backend, join the Warp capture.
+            with torch_in_warp_capture(self.device, self._pool):
+                graph = capture_graph(self.device, run_all)
+            runs.append(functools.partial(wp.capture_launch, graph))
+            self.num_graphs += 1
+
+        return runs
+
+    def _simulate(self) -> None:
+        """Apply the actions and step the physics ``decimation`` times."""
         # Actions apply before every physics step, as in MDP1, so targets relative to the joint state follow it.
         for _ in range(self.cfg.decimation // self._substeps):
             mdp2.apply_actions(self.mdp, self.state, self.actions)
@@ -171,17 +216,9 @@ class MDP2Env:
             self.sim.step(render=False)
             self.scene.update(dt=self.physics_dt * self._substeps)
 
-        mdp2.evaluate(self.mdp, self.state, self.transition)
-        self._reset(self.transition.done)
-
     def _reset(self, mask: ProxyArray) -> None:
         """Reset the masked worlds, commit their new state to the solver, and observe them."""
-        assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
-        for asset in assets:
-            asset.reset(env_mask=mask.warp)
-        # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.
-        for sensor in self.scene.sensors.values():
-            sensor.reset(env_mask=mask.warp)
+        self._reset_scene(mask)
 
         # Reset events write scene fields in place, which the scene commits to the solver.
         commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
@@ -189,6 +226,15 @@ class MDP2Env:
         commit()
 
         mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
+
+    def _reset_scene(self, mask: ProxyArray) -> None:
+        """Reset the assets and sensors of the masked worlds, before the MDP's reset events."""
+        assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
+        for asset in assets:
+            asset.reset(env_mask=mask.warp)
+        # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.
+        for sensor in self.scene.sensors.values():
+            sensor.reset(env_mask=mask.warp)
 
 
 class MDP2RLEnv(MDP2Env, gym.Env):

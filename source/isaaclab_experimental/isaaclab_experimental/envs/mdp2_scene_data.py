@@ -13,12 +13,16 @@ from typing import Any
 import warp as wp
 from newton import ModelFlags
 
+from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import BaseContactSensor
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
+
+STATELESS_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
+"""Actuator configs whose actuators keep no state between steps. Subclasses, such as delayed actuators, may."""
 
 
 class InteractiveSceneData:
@@ -41,8 +45,8 @@ class InteractiveSceneData:
     Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) per world, body, and filter.
 
     The joint state and the root state of floating bases alias the solver state, so events may write them in place;
-    :meth:`commit` makes the solver see the writes. Root writes to fixed bases do not reach the solver. ``gravity_w``
-    is the gravity of the physics model, which events may also write.
+    :meth:`commit` makes the solver see the writes. The root pose of a fixed base, and ``gravity_w``, alias the
+    physics model, which events may also write.
     """
 
     def __init__(self, scene: InteractiveScene, step_dt: float):
@@ -73,6 +77,16 @@ class InteractiveSceneData:
             if name in scene.articulations:
                 if asset.cfg.joint_ordering is not None:
                     raise ValueError(f"MDP2 needs the solver's joint order, but '{name}' sets a joint ordering.")
+                # Resets with a mask reset the actuator state of every world, which only actuators without state allow.
+                stateful = sorted(
+                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in STATELESS_ACTUATORS
+                )
+                if stateful:
+                    raise ValueError(
+                        f"MDP2 resets worlds with masks, which reset the actuator state of every world, so it supports"
+                        f" {', '.join(cfg.__name__ for cfg in STATELESS_ACTUATORS)} only, but '{name}' has the"
+                        f" actuator groups {stateful}."
+                    )
                 views |= {
                     "joint_pos": data.joint_pos,
                     "joint_vel": data.joint_vel,
@@ -166,10 +180,14 @@ class InteractiveSceneData:
 
     def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
         """Recompute the body poses of the masked worlds from their joint and root state, and pass a written gravity
-        to the solver. Safe to capture in a CUDA graph."""
+        or fixed-base root pose to the solver. Safe to capture in a CUDA graph."""
         manager = SimulationContext.instance().backend_manager
         if FieldSelector("scene", "gravity_w") in fields:
             manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        # The root pose of a fixed base is the frame of the joint that fixes it, a joint property of the model.
+        for name, asset in self.scene.articulations.items():
+            if not asset.root_view.is_floating_base and FieldSelector(name, "root_link_pose_w") in fields:
+                manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
 
         for asset in (*self.scene.articulations.values(), *self.scene.rigid_objects.values()):
             manager.invalidate_fk(env_mask=mask, articulation_ids=asset.root_view.articulation_ids)

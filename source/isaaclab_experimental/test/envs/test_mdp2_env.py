@@ -17,7 +17,7 @@ from isaaclab_experimental.mdp2 import mdp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -48,8 +48,19 @@ def reset_joints(subset: mdp2.SubsetSelector, position_range: tuple, velocity_ra
     )
 
 
-def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
-    """The Cartpole task of ``Isaac-Cartpole``, on the fixed Cartpole of the Newton tests, with a 1 s episode."""
+def eager_joint_vel_l1(ctx: mdp2.TermContext):
+    joint_vel = ctx.inputs["joint_vel"][:, ctx.inputs["joint_ids"].long()]
+
+    # Reading a value on the host fails inside a CUDA graph, which eager terms never run in.
+    if joint_vel.isfinite().all().item():
+        ctx.out.copy_(joint_vel.abs().sum(dim=-1))
+
+
+def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = False) -> MDP2RLEnvCfg:
+    """The Cartpole task of ``Isaac-Cartpole``, on the fixed Cartpole of the Newton tests, with a 1 s episode.
+
+    With ``eager``, the cart velocity penalty is an eager term.
+    """
     scene = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=4.0)
     scene.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -97,7 +108,9 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
                 weight=-1.0,
             ),
             "cart_vel": mdp2.Reward(
-                mdp.joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": cart}, weight=-0.01
+                mdp2.Term(eager=eager_joint_vel_l1) if eager else mdp.joint_vel_l1,
+                inputs={"joint_vel": robot.joint_vel, "joint_ids": cart},
+                weight=-0.01,
             ),
             "pole_vel": mdp2.Reward(
                 mdp.joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": pole}, weight=-0.005
@@ -130,8 +143,8 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
     )
 
 
-def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[bool, list[dict[str, torch.Tensor]]]:
-    """Reset, step random actions, and close; return whether the steps were captured and the step results."""
+def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[int, list[dict[str, torch.Tensor]]]:
+    """Reset, step random actions, and close; return the graphs that a captured step replays and the step results."""
     env = MDP2RLEnv(cfg)
     try:
         generator = torch.Generator(device=env.device).manual_seed(0)
@@ -153,14 +166,29 @@ def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[bool, list[dict[str, tor
                 }
             )
 
-        is_captured = env.is_captured
+        num_graphs = env.num_graphs
     finally:
         env.close()
-    return is_captured, history
+    return num_graphs, history
+
+
+def shift_root_torch(mask, root_link_pose_w, default_root_pose, env_origins, *, offset):
+    pose = default_root_pose.clone()
+    pose[:, :3] += env_origins
+    pose[:, 0] += offset
+    root_link_pose_w.copy_(torch.where(mask[:, None], pose, root_link_pose_w))
 
 
 def test_env_follows_the_gym_interface_and_commits_resets():
-    env = MDP2RLEnv(cartpole_cfg())
+    """Steps follow the Gym interface, and the solver sees the reset joint state and the moved fixed base."""
+    cfg = cartpole_cfg()
+    cfg.task.events["shift_root"] = mdp2.Event(
+        mdp2.Term(torch=shift_root_torch),
+        inputs={"default_root_pose": robot.default_root_pose, "env_origins": mdp2.Entity("scene").env_origins},
+        outputs={"root_link_pose_w": robot.root_link_pose_w},
+        params={"offset": 0.5},
+    )
+    env = MDP2RLEnv(cfg)
     try:
         robot_data = env.scene["robot"].data
         assert env.single_observation_space["policy"].shape == (4,)
@@ -184,23 +212,45 @@ def test_env_follows_the_gym_interface_and_commits_resets():
             torch.testing.assert_close(cart_x, robot_data.joint_pos.torch[:, 0], atol=1e-5, rtol=0.0)
 
         assert env.is_captured and ended.all()
+        # The fixed base stays where the reset moved it, through the solver's steps.
+        base_x = env.scene.env_origins[:, 0] + robot_data.default_root_pose.torch[:, 0] + 0.5
+        torch.testing.assert_close(robot_data.body_pos_w.torch[:, 0, 0], base_x, atol=1e-5, rtol=0.0)
         assert torch.equal(observations["policy"][:, :2], robot_data.joint_pos.torch)
     finally:
         env.close()
 
 
-def test_captured_steps_match_eager_steps_and_the_torch_backend():
-    num_steps = 80  # Past the time-out of every world.
-    captured, captured_run = rollout(cartpole_cfg(), num_steps)
-    eager, eager_run = rollout(cartpole_cfg(capture=False), num_steps)
-    _, torch_run = rollout(cartpole_cfg(backend="torch"), num_steps)
+def test_env_rejects_actuators_with_state():
+    """Masked resets reset every world's actuators, so actuators that keep state, like delayed ones, are refused."""
+    cfg = cartpole_cfg()
+    cfg.scene.robot.actuators["cart"] = DelayedPDActuatorCfg(
+        joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0, max_delay=2
+    )
 
-    assert captured and not eager
+    with pytest.raises(ValueError, match=r"'robot' has the actuator groups \['cart'\]"):
+        MDP2RLEnv(cfg)
+
+
+def test_captured_steps_match_eager_steps_and_the_torch_backend():
+    """A captured step replays one graph, or graphs around the eager terms, and gives bitwise the eager results."""
+    num_steps = 80  # Past the time-out of every world.
+    num_graphs, captured_run = rollout(cartpole_cfg(), num_steps)
+    eager_graphs, eager_run = rollout(cartpole_cfg(capture=False), num_steps)
+    assert num_graphs == 1 and eager_graphs == 0
     assert any(step["terminated"].any() for step in captured_run[1:])
-    for captured_step, eager_step, torch_step in zip(captured_run, eager_run, torch_run):
-        for key, value in captured_step.items():
-            assert torch.equal(value, eager_step[key])
-            torch.testing.assert_close(torch_step[key], value, atol=1e-4, rtol=1e-4)
+
+    for backend in ("warp", "torch"):
+        backend_graphs, backend_run = rollout(cartpole_cfg(backend=backend, eager=True), num_steps)
+        _, backend_eager_run = rollout(cartpole_cfg(backend=backend, capture=False, eager=True), num_steps)
+        # The eager reward splits evaluate: physics and the terms before it, then the rest of the step.
+        assert backend_graphs == 2
+        for captured_step, eager_step, backend_step in zip(captured_run, eager_run, backend_run):
+            for key, value in captured_step.items():
+                assert torch.equal(value, eager_step[key])
+                torch.testing.assert_close(backend_step[key], value, atol=1e-4, rtol=1e-4)
+        for captured_step, eager_step in zip(backend_run, backend_eager_run):
+            for key, value in captured_step.items():
+                assert torch.equal(value, eager_step[key])
 
 
 def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run():

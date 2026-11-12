@@ -526,7 +526,7 @@ class MDPBuilder:
         elif isinstance(cfg, (Command, Event)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
         else:
-            extra = "out" if context.backend is Backend.WARP else None
+            extra = "out" if implementation is term.warp else None
             _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)
         # A function update hook may also take the worlds where its op runs, as ``mask``.
         update_arguments = arguments if isinstance(implementation.update, wp.Function) else {**arguments, "mask": None}
@@ -586,6 +586,7 @@ class MDPBuilder:
                 random=term.random,
                 capturable=term.capturable and term.eager is None,
                 eager=term.eager is not None,
+                torch_hooks=context.backend is Backend.WARP and implementation is term.torch,
                 init=term.init,
                 commit=isinstance(cfg, Event) and cfg.commit,
                 log=isinstance(cfg, Quantity) and cfg.log,
@@ -629,14 +630,17 @@ class MDPBuilder:
 
 
 def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -> Implementation | None:
-    """Return the implementation of a term use for a backend, or record why it has none."""
+    """Return the implementation of a term use for a backend, or record why it has none.
+
+    A Warp MDP runs the Torch hooks of a term without Warp ones, between its generated kernels.
+    """
     term = entry.cfg.term
     if term.eager is not None:
         if term.torch is not None or term.warp is not None:
             errors.append(f"{entry}: an eager term cannot also have Torch or Warp implementations.")
         return Implementation(compute=term.eager)
 
-    implementation = term.torch if backend is Backend.TORCH else term.warp
+    implementation = term.torch if backend is Backend.TORCH else term.warp or term.torch
     if implementation is None:
         errors.append(f"{entry}: the term has no '{backend.value}' implementation.")
     elif not term.capturable and any(isinstance(hook, wp.Function) for hook in vars(implementation).values()):

@@ -78,6 +78,7 @@ class TermOp:
     random: bool = False  # Whether the term draws from its stream
     capturable: bool = True  # Whether its hooks may run inside a CUDA graph
     eager: bool = False  # Whether ``compute`` is an eager term's ``fn(ctx, **params)``, see :mod:`.eager`
+    torch_hooks: bool = False  # Whether a Warp MDP runs the term's Torch hooks, for a term without Warp ones
     init: Callable | None = None  # Eager ``fn(ctx, **params)`` that fills the state once, before the startup events
     commit: bool = False  # Reset events: whether the scene commits the earlier events' writes before it runs
     log: bool = False  # Quantities: whether the environment logs it as a metric

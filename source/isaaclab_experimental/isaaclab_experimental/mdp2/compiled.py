@@ -49,7 +49,7 @@ class MDPState:
     """
 
     arrays: dict[Hashable, ProxyArray]
-    arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the MDP's backend
+    arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the backend of its hooks
     scene_data: SceneData  # The scene the state is bound to, for eager terms
     caches: dict[str, dict] = field(default_factory=dict)  # Host objects that eager terms keep, by op name
 
@@ -179,6 +179,7 @@ class MDP:
                     details += [f"every {op.timer[0]}-{op.timer[1]} s"] if op.timer is not None else []
                     details += [f"state {', '.join(op.state)}"] if op.state else []
                     details += [f"stream {op.stream}"] if op.stream is not None else []
+                    details += ["torch hooks"] if op.torch_hooks else []
                 if op.worlds is not None:
                     first, last = op.worlds[0], op.worlds[-1]
                     contiguous = op.worlds == tuple(range(first, last + 1))
@@ -251,16 +252,18 @@ class MDP:
                     active = np.isin(np.arange(self.num_worlds), op.worlds)
                     arrays["active", op.name] = ProxyArray(wp.array(active, dtype=wp.bool, device=self.device))
 
-        # The hook arguments view the fields and the state.
-        arguments = {
-            op.name: {
-                **{arg: self._view(arrays[selector]) for arg, selector in op.inputs.items()},
-                **{name: self._view(arrays[term_state(op.name, name)]) for name in op.state},
-                **({"rng": self._view(arrays["rng"])[op.stream]} if op.random else {}),
+        # The hook arguments view the fields and the state; Torch hooks get Torch views, also in a Warp MDP.
+        torch_views = {key: array.torch for key, array in arrays.items()}
+        warp_views = {key: array.warp for key, array in arrays.items()}
+        arguments = {}
+        for op in self.term_ops:
+            views = torch_views if self.backend is Backend.TORCH or op.torch_hooks else warp_views
+            arguments[op.name] = {
+                **{arg: views[selector] for arg, selector in op.inputs.items()},
+                **{name: views[term_state(op.name, name)] for name in op.state},
+                **({"rng": views["rng"][op.stream]} if op.random else {}),
                 **op.params,
             }
-            for op in self.term_ops
-        }
 
         return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data)
 
@@ -287,6 +290,3 @@ class MDP:
 
     def _zeros(self, *shape: int, dtype: type = wp.float32) -> ProxyArray:
         return ProxyArray(wp.zeros(shape, dtype=dtype, device=self.device))
-
-    def _view(self, array: ProxyArray) -> Any:
-        return array.torch if self.backend is Backend.TORCH else array.warp

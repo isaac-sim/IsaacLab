@@ -79,3 +79,13 @@
   the fields that reset events wrote, and ``Event(commit=True)``, a reset event before which the scene commits the
   writes of the earlier ones, so that it reads the body poses they gave. The ``gravity_w`` field of the scene data of
   :class:`~isaaclab_experimental.envs.MDP2Env` is the gravity of the physics model, which events may write.
+* Added backend mixing: a Warp MDP runs the Torch hooks of terms that have no Warp ones between its generated
+  kernels, also inside its CUDA graphs. Torch work in a graph runs on Warp's stream and allocates from a private
+  memory pool.
+* Added capture of every step of :class:`~isaaclab_experimental.envs.MDP2Env` after the first, physics included,
+  for both backends and for MDPs with eager terms: each run of capturable work is one CUDA graph, and the eager
+  launches run between the graphs.
+* Added fixed-base root poses to the fields that reset events may write: the scene's commit passes them to the
+  solver.
+* Added a check that the articulations of :class:`~isaaclab_experimental.envs.MDP2Env` have actuators without
+  state (implicit, ideal PD, and DC motor), since its masked resets reset the actuator state of every world.
