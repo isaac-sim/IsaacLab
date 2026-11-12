@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return int(args.func(args))
     except metrics_mod.PerfSmokeError as exc:
-        # Exit 2: parse error; exit 1: measured regression or empty results.
+        # Exit 2: parse error; exit 1: measured regression.
         print(f"::error::perf-smoke: {exc}", file=sys.stderr)
         return 2
 

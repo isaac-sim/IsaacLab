@@ -32,7 +32,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
 ``isaaclab/scripts/tutorials/03_envs`` directory. The script is similar to the
-``cartpole_base_env.py`` script in the previous tutorial, except that it uses the
+``create_cartpole_base_env.py`` script in the previous tutorial, except that it uses the
 :class:`envs.ManagerBasedRLEnv` instead of the :class:`envs.ManagerBasedEnv`.
 
 .. dropdown:: Code for run_cartpole_rl_env.py
@@ -87,14 +87,15 @@ or unsafe state, we want to terminate the episode. On the other hand, if the age
 for a long time, we want to terminate the episode and start a new one so that the agent can learn to balance the
 pole from a different starting configuration.
 
-The :class:`managers.TerminationsCfg` configures what constitutes for an episode to terminate. In this example,
-we want the task to terminate when either of the following conditions is met:
+The example's ``TerminationsCfg`` groups the :class:`managers.TerminationTermCfg` terms that determine when an
+episode ends. In this example, we want the task to terminate when either of the following conditions is met:
 
 * **Episode Length** The episode length is greater than the defined max_episode_length
 * **Cart out of bounds** The cart goes outside of the bounds [-3, 3]
 
-The flag :attr:`managers.TerminationsCfg.time_out` specifies whether the term is a time-out (truncation) term
-or terminated term. These are used to indicate the two types of terminations as described in `Gymnasium's documentation
+The Boolean flag :attr:`~isaaclab.managers.TerminationTermCfg.time_out` specifies whether a term represents a
+time limit (truncation) rather than a terminal condition. The example sets this flag to ``True`` on the term
+named ``time_out``. These distinguish the two types of episode endings described in `Gymnasium's documentation
 <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_.
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py

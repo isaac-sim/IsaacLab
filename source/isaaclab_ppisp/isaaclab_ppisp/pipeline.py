@@ -33,11 +33,12 @@ class PpispPipeline:
     normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
     render tick via :meth:`apply`.
 
-    One pipeline instance applies to the whole Camera sensor batch. The PPISP
-    Warp kernel takes scalar coefficients, so every cloned view in a tiled
-    batch shares the same ISP configuration — there is no per-view ISP today.
-    Per-view support would require packing the cfg into GPU arrays and indexing
-    by ``camera_id`` inside the kernel.
+    One pipeline instance applies to the whole Camera sensor batch. Static ISP
+    parameters and controller weights are shared by every view in the batch.
+    When controller weights are configured, the controller predicts exposure
+    and color parameters separately from each camera's current HDR image on
+    every call to :meth:`apply`. The PPISP kernel uses the corresponding row
+    of the per-camera parameter array for each view.
 
     Today only :class:`PpispCfg` is accepted; future ISP implementations can
     either subclass or be selected by cfg type without changes to the backend

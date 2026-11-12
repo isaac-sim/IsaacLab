@@ -253,8 +253,9 @@ class RewardsCfg:
     Each stage gives 1.0 reward on completion -> Total reward for full task = 4.0
     This ensures clear reward signal for each stage transition.
 
-    ``update_stage`` runs first (weight=0) to advance the task stage before any
-    reward term reads it, removing implicit ordering dependencies.
+    ``update_stage`` is meant to advance the task stage before any reward term reads it,
+    but :class:`~isaaclab.managers.RewardManager` skips terms whose weight is 0.0, so with
+    ``weight=0.0`` it is never called and the task stage does not advance.
     """
 
     # Stage machine — weight=0, runs before all reward terms to update task stage
@@ -437,8 +438,8 @@ class EventCfgFixTrayRotation(EventCfg):
 class G1AssembleTrocarEvalEnvCfg(G1AssembleTrocarEnvCfg):
     """Eval-friendly env cfg.
 
-    This is currently an alias of `G1AssembleTrocarEnvCfg`, but registered under a
-    separate Gym id for compatibility with RLinf configs.
+    This is `G1AssembleTrocarEnvCfg` with a deterministic per-env tray yaw on reset,
+    registered under a separate Gym id for compatibility with RLinf configs.
     """
 
     # Override events to enforce deterministic per-env tray yaw on every reset.
