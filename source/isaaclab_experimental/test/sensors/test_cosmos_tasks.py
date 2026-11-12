@@ -136,7 +136,7 @@ def test_the_shadow_hand_task_options_are_set_with_overrides():
     assert chain[1].backend.max_episode_frames == 601
     assert env_cfg.cosmos is chain[1].backend
     assert camera.update_period == 0.0
-    assert env_cfg.feature_extractor.image_update_frames == 4
+    assert env_cfg.feature_extractor.hold_image_targets is True
 
 
 def test_the_shadow_hand_task_batches_several_environments_at_its_camera_rate():
@@ -213,7 +213,7 @@ def test_manager_cosmos_task_feeds_generated_rgb_to_the_camera_observation_term(
     processors = camera.tensor_processors
     assert processors[0].inputs == ["distance_to_image_plane"] and processors[-1].outputs == ["rgb"]
     assert env_cfg.observations.policy.camera_features.params["feature_extractor_cfg"] == env_cfg.feature_extractor
-    assert env_cfg.feature_extractor.image_update_frames == 4
+    assert env_cfg.feature_extractor.hold_image_targets is True
     assert env_cfg.feature_extractor.pretrained_checkpoint is None
 
 
@@ -232,7 +232,6 @@ def test_cosmos_tasks_accept_several_environments(task):
         (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
         (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
         (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
-        (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
         # Staggered captures would pair a generated image with a later step's pose.
         (("env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0.1"), "capture every step"),
     ],

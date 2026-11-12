@@ -64,7 +64,11 @@ class CosmosModel:
                 raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
         elif cfg.prompt is not None and not isinstance(cfg.prompt, str):
             raise ValueError("Cosmos prompt must be a string, a list of strings, or None.")
-        if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames < 1 or (cfg.max_episode_frames - 1) % 4:
+        if (
+            type(cfg.max_episode_frames) is not int
+            or cfg.max_episode_frames < 1
+            or (cfg.max_episode_frames - 1) % MAX_CHUNK_FRAMES
+        ):
             raise ValueError(
                 "Set CosmosModelCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k), "
                 "for example episode_frame_budget(env_cfg, camera.update_period)[2]."

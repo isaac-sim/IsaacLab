@@ -345,6 +345,12 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
     with pytest.raises(ValueError, match="reserved"):
         validate(make_cfg("rgb_hdr", processor("rgb_hdr", CAPTURE_ENV_MASK_NAME)))
+    # A processor input that no earlier processor produces is reported with the processor's name.
+    with pytest.raises(ValueError, match=r"_ScaleProcessor reads \['half'\]"):
+        validate(make_cfg("rgb_hdr", processor("half", "quarter"), processor("rgb_hdr", "half")))
+    # A bare name is neither a class nor an import string, so it would fail only at the first capture.
+    with pytest.raises(ValueError, match="import string"):
+        validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
     # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
     async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
     async_cfg.renderer_cfg.async_rendering = True

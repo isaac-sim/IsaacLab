@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .._protocol import CANVAS_ASPECT_RATIOS
+from .._protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
     import torch
@@ -153,7 +153,7 @@ class CosmosInferenceModel:
         self.capabilities: dict[str, Any] = {
             "max_concurrent_streams": 1,
             "initial_frames": 1,
-            "update_frames": 4,
+            "update_frames": MAX_CHUNK_FRAMES,
             "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
             "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.

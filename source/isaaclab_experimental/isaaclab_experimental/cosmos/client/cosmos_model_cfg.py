@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from .._protocol import DEFAULT_ENDPOINT
+from .._protocol import DEFAULT_ENDPOINT, MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
@@ -38,7 +38,7 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
     episode_steps = math.ceil(env_cfg.episode_length_s / step_dt)
     steps_per_capture = max(1, math.ceil((update_period - 1e-6) / step_dt))
     captures = math.ceil(episode_steps / steps_per_capture) + 1
-    return steps_per_capture, captures, 1 + 4 * math.ceil((captures - 1) / 4)
+    return steps_per_capture, captures, 1 + MAX_CHUNK_FRAMES * math.ceil((captures - 1) / MAX_CHUNK_FRAMES)
 
 
 @configclass

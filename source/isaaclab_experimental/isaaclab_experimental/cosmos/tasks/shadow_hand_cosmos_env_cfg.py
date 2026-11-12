@@ -31,6 +31,8 @@ _COSMOS_MODEL_CFG = CosmosModelCfg(
 # The Cosmos tasks feed the 640 x 640 generated image to the CNN, so the camera already uses a Cosmos canvas.
 _COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640)
 
+# The camera looks down from 1.0 m above the hand, so 1.5 m keeps the hand and cube in the depth range and turns
+# everything farther black.
 SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
 """Camera rendering depth that Cosmos turns into the published ``rgb``; captures every environment step."""
 
@@ -93,11 +95,6 @@ def validate_shadow_hand_cosmos_task(env_cfg) -> None:
             "scene.tiled_camera.update_period=0 (env.scene.tiled_camera.update_period=0 on the command line)."
         )
     transfer = _cosmos_transfer(env_cfg)
-    if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
-        raise ValueError(
-            "The Shadow Hand Cosmos task requires feature_extractor.image_update_frames "
-            f"to match the Cosmos update_frames ({transfer.update_frames})."
-        )
     _, episode_frames, budget = episode_frame_budget(env_cfg, camera.update_period)
     if transfer.backend.max_episode_frames is None:
         transfer.backend.max_episode_frames = budget
@@ -121,7 +118,8 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
     """
 
     scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG)
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+    # Cosmos holds each generated image over four captures, so the pose target follows the image, not the capture.
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, hold_image_targets=True)
 
     @property
     def cosmos(self) -> CosmosModelCfg:
@@ -161,7 +159,7 @@ class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
     scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg(
         num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG
     )
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, hold_image_targets=True)
 
     @property
     def cosmos(self) -> CosmosModelCfg:
