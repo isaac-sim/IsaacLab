@@ -116,3 +116,6 @@ Limitations
 - Asset resets with a mask reset the actuator state of every world, so the environments support implicit, ideal PD,
   and DC motor actuators only, which keep no state, and refuse delayed, actuator-network, and BAM actuators.
 - Joint orderings (``ArticulationCfg.joint_ordering``) are not supported: terms see the solver's joint order.
+- Asset data that is derived on demand, such as ``root_lin_vel_b``, is not refreshed by a captured step. Terms read
+  the fields of the scene data, which alias the solver state; code outside the MDP that reads asset data between
+  steps should use those too, for example ``root_com_vel_w`` rotated by ``root_link_pose_w``.
