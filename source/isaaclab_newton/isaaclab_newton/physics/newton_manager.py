@@ -42,7 +42,9 @@ from .newton_scene_data import NewtonSceneDataBackend
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
+    from isaaclab.managers import ActionManager
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene import InteractiveScene
 
 
 logger = logging.getLogger(__name__)
@@ -183,7 +185,7 @@ class NewtonManager(PhysicsManager):
         self._flag_outer_capture()
 
     def _flag_outer_capture(self) -> None:
-        """Flag writes recorded into an outer CUDA graph capture."""
+        """Flag writes recorded into an outer graph capture."""
         if self.backend.device.is_capturing:
             self.backend.transforms_may_change_on_graph_replay = True
 
@@ -231,6 +233,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
+        self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
@@ -490,6 +493,8 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+        if self._handled_actions is not None:
+            self._handle_actions()
         self._mark_transforms_changed()
 
     def _relaxed_capture(self) -> bool:
@@ -530,14 +535,15 @@ class NewtonManager(PhysicsManager):
         self.backend.activate_actuators()
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
-        """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
+        """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
         self.backend.solver_init_callbacks.append(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked before the Newton actuators of every physics step.
 
-        Each callback is recorded into the captured step, so it must be graph-safe. Hard resets discard these hooks;
-        register them again when the new model is ready.
+        Each callback is recorded into the captured step, so it must be graph-safe; see
+        :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`. Hard resets discard these hooks; register them
+        again when the new model is ready.
         """
         self.backend.pre_actuator_callbacks.append(callback)
         self.backend.invalidate_graph()
@@ -546,9 +552,9 @@ class NewtonManager(PhysicsManager):
         """Append a hook invoked after the Newton actuators of every physics step.
 
         Each callback is recorded into the captured step right after the Newton actuators and before the solver
-        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration.
-        Callbacks fire in registration order. Hard resets discard these hooks; register them again when the new model
-        is ready.
+        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration, and it
+        must be graph-safe; see :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`. Callbacks fire in
+        registration order. Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_actuator_callbacks.append(callback)
         self.backend.invalidate_graph()
@@ -556,7 +562,8 @@ class NewtonManager(PhysicsManager):
     def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Hard resets discard these hooks; register them again when the new model is ready.
+        See :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph` for what graph-safe requires. Hard resets
+        discard these hooks; register them again when the new model is ready.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
@@ -568,8 +575,8 @@ class NewtonManager(PhysicsManager):
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
 
-        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
-        shapes, no host branching on device data) because they are recorded into the captured step.
+        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe because
+        they are recorded into the captured step; see :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`.
         Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_step_callbacks.append(callback)
@@ -584,7 +591,7 @@ class NewtonManager(PhysicsManager):
     def set_decimation(self, decimation: int) -> None:
         """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
-        Once Newton actuators run in the step, one :meth:`step` advances the whole decimation loop.
+        :meth:`handles_decimation` tells whether one :meth:`step` advances the whole decimation loop.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
@@ -593,6 +600,32 @@ class NewtonManager(PhysicsManager):
     def handles_decimation(self) -> bool:
         """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
         return self.backend.handles_decimation()
+
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+        """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
+
+        Only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard resets
+        register them again on the new backend.
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets write to the simulation.
+
+        Returns:
+            Whether the step now applies the actions and writes the assets.
+        """
+        self._handled_actions = (actions, scene)
+        self._handle_actions()
+        return self.backend.handles_actions
+
+    def _handle_actions(self) -> None:
+        """Register the handled actions and asset writes on the current backend, in the environment's order."""
+        actions, scene = self._handled_actions
+        if not (actions.is_graphable and scene.is_graphable):
+            return
+        self.register_pre_actuator_callback(actions.apply_action)
+        self.register_pre_actuator_callback(scene.write_data_to_sim)
+        self.backend.handles_actions = True
 
     def add_contact_sensor(
         self,

@@ -48,7 +48,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacCapture/client/release-1.3.x/>`__; see :ref:`connection guide <connect-quest-pico>`
+     - `CloudXR client <https://nvidia.github.io/IsaacCapture/client/release-1.7.x/>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -99,7 +99,7 @@ starting point, then see the detailed pipeline examples below.
      - ``fixed_base_upper_body_ik_g1_env_cfg.py``
    * - Complex dex hand (e.g. GR1T2, G1 Inspire)
      - Hand tracking / Manus gloves / Haptikos exoskeletons
-     - Bimanual ``Se3AbsRetargeter`` + ``DexBiManualRetargeter``
+     - Bimanual ``Se3AbsRetargeter`` + ``DexHandRetargeter`` (one per hand)
      - 36+
      - ``pickplace_gr1t2_env_cfg.py``
 
@@ -215,8 +215,9 @@ Use :func:`~isaaclab_teleop.poll_control_events` to read the latest control stat
 
 :class:`~isaaclab_teleop.ControlEvents` has two fields:
 
-* ``is_active`` -- ``True`` after a "start" command, ``False`` after "stop", ``None`` when no
-  command has been received yet (callers should leave their own flag unchanged).
+* ``is_active`` -- ``True`` while the teleop state machine is running (after a "start" command),
+  ``False`` while it is paused or stopped, ``None`` when no control channel is configured or the
+  session is not yet available (callers should leave their own flag unchanged).
 * ``should_reset`` -- ``True`` for exactly one frame after a "reset" command.
 
 Disabling the control channel

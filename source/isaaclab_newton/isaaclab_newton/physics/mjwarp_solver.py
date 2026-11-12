@@ -81,7 +81,7 @@ class MJWarpSolver(NewtonSolver):
         return not self.cfg.use_mujoco_contacts
 
     def create_contacts(self) -> Contacts:
-        """Allocate contacts sized to MuJoCo's contact buffer; ``update_contacts`` fills them for sensors."""
+        """Allocate contacts sized to MuJoCo's contact buffer for sensor contact indexing."""
         solver = self.native
         model = solver.model
         return Contacts(

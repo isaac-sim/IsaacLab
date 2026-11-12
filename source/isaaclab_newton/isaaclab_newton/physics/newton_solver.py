@@ -58,7 +58,7 @@ class NewtonSolver:
     """Whether the solver can honor a Warp determinism guarantee."""
 
     contact_sensors: ClassVar[bool] = True
-    """Whether Newton contact sensors can read the solver's contacts."""
+    """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
 
     ignored_model_changes: ClassVar[Mapping[ModelFlags, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
@@ -121,7 +121,13 @@ class NewtonSolver:
         return True
 
     def supports_capture(self) -> bool:
-        """Whether the solver can be recorded into a CUDA graph."""
+        """Whether the solver's step can be recorded into a graph and replayed on the solver's device.
+
+        On the CPU, Warp's graph capture records only Warp kernel launches and memory operations. Other work in the
+        step, such as :meth:`warp.Mesh.refit`, a nested :func:`warp.capture_launch`, torch operations, or host
+        reads, runs once at capture time and never on replay, so a solver whose step does such work on the CPU must
+        return False there.
+        """
         return True
 
     # ----- Contacts -----
@@ -148,9 +154,21 @@ class NewtonSolver:
     def pre_step(self, state: State) -> None:
         """Refresh solver structures once per physics step, before collision."""
 
-    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
+    def step(
+        self,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
+    ) -> None:
         """Advance one substep of ``dt`` [s]."""
-        self.native.step(state_in, state_out, control, contacts, dt)
+        if observables is None:
+            self.native.step(state_in, state_out, control, contacts, dt)
+        else:
+            self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
 
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""

@@ -895,7 +895,7 @@ def write_2d_user_to_backend_with_indices(
     Launch wrapper over the module-private generic kernel: adapts torch inputs
     to :paramref:`dtype` and derives the launch dim from the selectors, so call
     sites need no dtype-suffixed overload names. Argument contract matches
-    :func:`_write_2d_user_to_backend_with_indices`.
+    :func:`_make_write_2d_user_to_backend_with_indices`.
 
     Args:
         input_data: Values in caller-defined units, torch tensor or Warp array.
@@ -979,7 +979,7 @@ def write_2d_user_to_backend_with_mask(
 ) -> None:
     """Write masked structured values to public- and backend-order buffers.
 
-    Launch wrapper over :func:`_write_2d_user_to_backend_with_mask`; see
+    Launch wrapper over :func:`_make_write_2d_user_to_backend_with_mask`; see
     :func:`write_2d_user_to_backend_with_indices` for the adaptation contract.
     The launch dim is the full [num_envs, num_items] mask domain.
     """
@@ -1049,7 +1049,7 @@ def write_3d_user_to_backend_with_mask(
 ) -> None:
     """Write masked component values to public- and backend-order buffers.
 
-    Launch wrapper over :func:`_write_3d_user_to_backend_with_mask`.
+    Launch wrapper over :func:`_make_write_3d_user_to_backend_with_mask`.
     """
     user_array = _as_warp_array(user_data, dtype)
     wp.launch(

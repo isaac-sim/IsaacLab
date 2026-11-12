@@ -28,7 +28,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
@@ -44,6 +44,10 @@ _MIN_OBJECT_DEPTH = 0.05
 _MAX_OBJECT_DEPTH = 10.0
 _MIN_OBJECT_PIXELS = 50
 _MIN_CENTROID_SHIFT = 10.0
+# Focal-length ratio of the co-located second camera; the shifted objects stay inside its narrower view.
+_SECOND_CAMERA_FOCAL_RATIO = 1.5
+_SECOND_CAMERA_PIXEL_TOLERANCE = 3.0
+_SECOND_CAMERA_RETREAT = 1.0
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class RigidObjectRenderingBackend:
     simulation_context_factory: Callable[[], AbstractContextManager[SimulationContext]]
     renderer_cfg: RendererCfg
     with_articulation: bool = False
+    with_second_camera: bool = False
     cleanup: Callable[[], None] | None = None
 
 
@@ -85,6 +90,12 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
                 clipping_range=(_MIN_OBJECT_DEPTH, 100.0),
             ),
         )
+        if backend.with_second_camera:
+            second_camera: CameraCfg = replace(
+                camera,
+                prim_path="{ENV_REGEX_NS}/SecondCamera",
+                spawn=replace(camera.spawn, focal_length=camera.spawn.focal_length * _SECOND_CAMERA_FOCAL_RATIO),
+            )
         if backend.with_articulation:
             articulation: ArticulationCfg = ArticulationCfg(
                 prim_path="{ENV_REGEX_NS}/Articulation",
@@ -106,12 +117,23 @@ def _require(condition: torch.Tensor | bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def _object_mask(depth: torch.Tensor) -> torch.Tensor:
+    """Return the pixels that hit the object for every camera."""
+    depth_image = depth[..., 0]
+    return torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+
+
+def _nearest_object_depth(depth: torch.Tensor) -> torch.Tensor:
+    """Return the nearest object depth [m] for every camera."""
+    return torch.where(_object_mask(depth), depth[..., 0], torch.inf).amin(dim=(1, 2))
+
+
 def _measure_depth_mask(
     depth: torch.Tensor, backend_name: str, camera: Camera
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return silhouette height, width, and horizontal centroid for every camera."""
     depth_image = depth[..., 0]
-    valid = torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+    valid = _object_mask(depth)
     pixel_counts = valid.sum(dim=(1, 2))
     finite = torch.where(torch.isfinite(depth_image), depth_image, torch.zeros_like(depth_image))
     diagnostics = (
@@ -132,6 +154,29 @@ def _measure_depth_mask(
     return silhouette_heights, silhouette_widths, centroids_x
 
 
+def _require_second_camera_magnification(
+    backend_name: str, heights: torch.Tensor, centroids: torch.Tensor, second_camera: Camera | None
+) -> None:
+    """Assert that the second camera, if any, sees the same frame magnified by :data:`_SECOND_CAMERA_FOCAL_RATIO`."""
+    if second_camera is None:
+        return
+    second_depth = second_camera.data.output["depth"].torch
+    second_heights, _, second_centroids = _measure_depth_mask(second_depth, backend_name, second_camera)
+    expected_heights = heights * _SECOND_CAMERA_FOCAL_RATIO
+    image_center_x = (_CAMERA_WIDTH - 1) / 2
+    expected_centroids = image_center_x + (centroids - image_center_x) * _SECOND_CAMERA_FOCAL_RATIO
+    _require(
+        torch.all(torch.abs(second_heights - expected_heights) <= _SECOND_CAMERA_PIXEL_TOLERANCE),
+        f"[{backend_name}] Expected second-camera silhouette heights near {expected_heights.tolist()}, "
+        f"got {second_heights.tolist()}.",
+    )
+    _require(
+        torch.all(torch.abs(second_centroids - expected_centroids) <= _SECOND_CAMERA_PIXEL_TOLERANCE),
+        f"[{backend_name}] Expected second-camera silhouette centroids near {expected_centroids.tolist()}, "
+        f"got {second_centroids.tolist()}.",
+    )
+
+
 def _write_pose_and_render(
     sim: SimulationContext,
     scene: InteractiveScene,
@@ -149,13 +194,14 @@ def _write_pose_and_render(
 
 
 def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation and pose/calibration changes in rendered pixels."""
+    """Assert root-scale preservation, pose/calibration changes, and the optional second-camera agreement."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_make_scene_cfg(backend))
         sim.register_interactive_scene(scene)
         rigid_object = scene["rigid_object"]
         camera = scene["camera"]
+        second_camera = scene["second_camera"] if backend.with_second_camera else None
 
         try:
             sim.reset()
@@ -167,6 +213,13 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             camera_eyes = scene.env_origins.clone()
             camera_eyes[:, 1] -= _CAMERA_DISTANCE
             camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
+            if second_camera is not None:
+                _require(
+                    second_camera._renderer is camera._renderer,  # noqa: SLF001
+                    f"[{backend.name}] Expected the two cameras, which use equal renderer configs, "
+                    "to share one renderer instance.",
+                )
+                second_camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
 
             center_poses = torch.zeros((_NUM_ENVS, 7), device=rigid_object.device)
             center_poses[:, :3] = scene.env_origins
@@ -188,6 +241,7 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 torch.all(torch.abs(center_centroids - (_CAMERA_WIDTH - 1) / 2) < 8.0),
                 f"[{backend.name}] Expected centered silhouettes, got centroids={center_centroids.tolist()}.",
             )
+            _require_second_camera_magnification(backend.name, center_heights, center_centroids, second_camera)
 
             intrinsics = camera.data.intrinsic_matrices.torch.clone()
             pointer = camera.data.intrinsic_matrices.warp.ptr
@@ -221,7 +275,8 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             negative_poses = center_poses.clone()
             negative_poses[:, 0] -= _OBJECT_SHIFT
             negative_depth = _write_pose_and_render(sim, scene, rigid_object, camera, negative_poses)
-            _, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
+            negative_heights, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
+            _require_second_camera_magnification(backend.name, negative_heights, negative_centroids, second_camera)
 
             positive_poses = center_poses.clone()
             positive_poses[:, 0] += _OBJECT_SHIFT
@@ -243,11 +298,27 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 f"[{backend.name}] Opposite translations must move silhouettes in opposite directions, got "
                 f"deltas {negative_delta.tolist()} and {positive_delta.tolist()}.",
             )
+
+            if second_camera is not None:
+                second_eyes = camera_eyes.clone()
+                second_eyes[:, 1] -= _SECOND_CAMERA_RETREAT
+                second_camera.set_world_poses_from_view(second_eyes, scene.env_origins)
+                depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                torch.testing.assert_close(depth, center_depth)
+                expected_second_depth = _nearest_object_depth(center_depth) + _SECOND_CAMERA_RETREAT
+                second_depth = _nearest_object_depth(second_camera.data.output["depth"].torch)
+                _require(
+                    torch.all(torch.abs(second_depth - expected_second_depth) < 1.0e-3),
+                    f"[{backend.name}] Expected the retreated second camera's nearest depth near "
+                    f"{expected_second_depth.tolist()}, got {second_depth.tolist()}.",
+                )
         finally:
             sim.register_interactive_scene(None)
             # Release camera-owned render products before another parametrized case creates a stage.
             camera._invalidate_initialize_callback(None)  # noqa: SLF001
-            del camera, rigid_object, scene
+            if second_camera is not None:
+                second_camera._invalidate_initialize_callback(None)  # noqa: SLF001
+            del camera, second_camera, rigid_object, scene
             gc.collect()
             if backend.cleanup is not None:
                 backend.cleanup()

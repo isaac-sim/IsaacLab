@@ -140,7 +140,7 @@ class StateFile:
         """Load the configuration file into memory.
 
         This function reads the contents of the configuration file into memory.
-        If the file does not exist, it creates an empty file.
+        If the file does not exist, the loaded configuration is empty; the file is created on the next :meth:`save`.
         """
         self.loaded_cfg = ConfigParser()
         self.loaded_cfg.read(self.path)

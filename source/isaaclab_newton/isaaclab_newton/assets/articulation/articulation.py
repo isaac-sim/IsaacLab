@@ -362,6 +362,11 @@ class Articulation(BaseArticulation):
         """
         return self._permanent_wrench_composer
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
+        return self.actuators.is_graphable and self._fixed_tendon_control is None
+
     """
     Operations.
     """
@@ -381,7 +386,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -396,9 +401,12 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
+        if self._post_step_callback is not None and self._backend_manager.backend.handles_actions:
+            # handled writes run between physics steps, before the post-step callbacks republish the reordered state
+            self._post_step_callback()
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -438,7 +446,7 @@ class Articulation(BaseArticulation):
                         self._ALL_BODY_MASK,
                     ],
                 )
-        if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending:
             self._instantaneous_wrench_composer.reset()
 
         # Compute processed actuator commands (native path is a no-op here) and
@@ -763,7 +771,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -811,7 +820,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -1399,7 +1409,7 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
@@ -2328,10 +2338,10 @@ class Articulation(BaseArticulation):
             aligned with the body frame.
 
         Args:
-            coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3). In warp
-                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
-                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
-                orientation is ignored.
+            coms: Center of mass positions in the body link frame [m]. Torch shape is
+                (len(env_ids), len(body_ids), 3), or (len(env_ids), len(body_ids), 7) for poses.
+                Warp shape is (len(env_ids), len(body_ids)), with dtype wp.vec3f or wp.transformf.
+                Pose quaternions use (x, y, z, w) order and are ignored.
             body_ids: Body indices. If None, then all bodies are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
@@ -2425,8 +2435,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9). In warp
-                the expected shape is (num_instances, num_bodies, 9), with dtype wp.float32.
+            inertias: Inertias of the selected bodies. Shape is (len(env_ids), len(body_ids), 9)
+                for both Torch and Warp arrays, with dtype wp.float32 for Warp arrays.
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
@@ -2523,18 +2533,16 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
         env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
@@ -2596,15 +2604,15 @@ class Articulation(BaseArticulation):
         function.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            damping: Fixed tendon damping. A float is broadcast to all selected tendons; arrays have shape
+                (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
@@ -3298,8 +3306,10 @@ class Articulation(BaseArticulation):
         self._num_shapes_per_body_backend: list[int] | None = None
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # asset named data
         self._resolve_and_install_ordering_maps()

@@ -34,12 +34,7 @@ class Se3AbsRetargeter(RetargeterBase):
         """Initialize the retargeter.
 
         Args:
-            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
-            zero_out_xy_rotation: If True, zero out rotation around x and y axes
-            use_wrist_rotation: If True, use wrist rotation instead of finger average
-            use_wrist_position: If True, use wrist position instead of pinch position
-            enable_visualization: If True, visualize the target pose in the scene
-            device: The device to place the returned tensor on ('cpu' or 'cuda')
+            cfg: The retargeter configuration.
         """
         super().__init__(cfg)
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
@@ -162,8 +157,20 @@ class Se3AbsRetargeterCfg(RetargeterCfg):
     """Configuration for absolute position retargeter."""
 
     zero_out_xy_rotation: bool = True
+    """Whether to retain only yaw before applying a fixed 180-degree rotation about the tool X axis.
+    Defaults to True.
+    """
+
     use_wrist_rotation: bool = False
+    """If True, use the wrist rotation instead of the finger average. Defaults to False."""
+
     use_wrist_position: bool = True
+    """If True, use the wrist position instead of the pinch position. Defaults to True."""
+
     enable_visualization: bool = False
+    """If True, visualize the target pose in the scene. Defaults to False."""
+
     bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    """The hand to track (``HAND_LEFT`` or ``HAND_RIGHT``). Defaults to ``HAND_RIGHT``."""
+
     retargeter_type: type[RetargeterBase] = Se3AbsRetargeter
