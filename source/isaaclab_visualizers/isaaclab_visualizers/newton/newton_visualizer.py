@@ -1013,12 +1013,13 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(True)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "OVRTX path-traced rendering of the scene; slower, without visual overlays"
+                    "OVRTX path-traced rendering of the scene; slower than OpenGL"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
             if sensor:
                 imgui.end_disabled()
+        self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
@@ -1044,7 +1045,6 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._choose_camera_source(indices[chosen])
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[position])
-        self._draw_appearance(imgui)
         follower = self._followers.get(self._pose_source_view())
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
@@ -1096,7 +1096,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             imgui.tree_pop()
 
     def _draw_rtx_appearance(self, imgui) -> None:
-        """Draw the Appearance options the OVRTX view supports: its background and its lights, one group per type."""
+        """Draw the Appearance options the OVRTX view supports: its lights, one group per type."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         if not imgui.tree_node("Lighting & Appearance###rtx_appearance"):
             return
@@ -1151,21 +1151,6 @@ class NewtonVisualizerBase(BaseVisualizer):
                 appearance.dome_color = tuple(float(c) for c in color)
             edited |= light_changed(changed)
             edited |= self._draw_sky_texture(imgui, appearance)
-            imgui.unindent()
-
-        solid = appearance.background == 1
-        changed, solid = imgui.checkbox("Solid Background", solid)
-        tip("Show one color behind the scene instead of the sky. The lighting does not change")
-        if changed:
-            appearance.background = 1 if solid else 0
-            edited |= appearance.apply_background()
-        if solid:
-            imgui.indent()
-            changed, color = imgui.color_edit3("Color##background", list(appearance.background_color))
-            tip("Background color")
-            if changed:
-                appearance.background_color = tuple(float(c) for c in color)
-                edited |= appearance.apply_background()
             imgui.unindent()
 
         changed, appearance.sun_enabled = imgui.checkbox("Distant Light", appearance.sun_enabled)
@@ -1893,21 +1878,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
 
-        scene = self._sim.get_scene_data_provider().get_interactive_scene()
-        for view in self._image_views:
-            if scene is not None and self._is_task_view(view):
-                # Fail at initialization, not on a frame: a bad env_index or track_path raises here.
-                self._followers[view] = follower = CameraFollower(view.cfg.source, scene)
-                cfg = view.cfg.source
-                self._tracking_defaults[view] = {
-                    "eye": cfg.eye,
-                    "lookat": cfg.lookat,
-                    "focal_length": cfg.focal_length,
-                    "track_path": cfg.track_path,
-                    "follow_heading": cfg.follow_heading,
-                    "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
-                    "env": follower.env,
-                }
         for view in self._image_views:
             camera = view.camera
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
