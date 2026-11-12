@@ -41,6 +41,8 @@ WRIST_QUATERNION_NORM_BOUNDS = (0.25, 2.0)
 HAND_TARGET_MAX_MAGNITUDE_RAD = 6.5
 """Reject hand joint targets outside the task's accepted angular input range [rad]."""
 
+_WRIST_RAMP_KEYS = ("left_pos", "left_quat", "right_pos", "right_quat")
+
 ACTUATOR_PROFILE = {
     "waist": {"stiffness": 500.0, "damping": 50.0, "armature": 0.10, "joint_effort_limit": 250.0},
     "arms": {"stiffness": 1200.0, "damping": 60.0, "armature": 0.30, "joint_effort_limit": 800.0},
@@ -209,9 +211,6 @@ def _step_quaternion_towards(current: torch.Tensor, target: torch.Tensor, max_st
     ) / denominator
     # Coincident quaternions need no interpolation and avoid a zero denominator.
     return torch.nn.functional.normalize(torch.where(angle < 1.0e-6, target, interpolated), dim=0)
-
-
-_WRIST_RAMP_KEYS = ("left_pos", "left_quat", "right_pos", "right_quat")
 
 
 def condition_kitless_newton_g1_action(

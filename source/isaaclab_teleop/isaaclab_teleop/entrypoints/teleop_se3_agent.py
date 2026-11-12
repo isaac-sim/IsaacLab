@@ -53,7 +53,7 @@ from .. import (
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
-from ._ovxr_presentation import OvxrPresentation
+from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -290,25 +290,27 @@ def _pace_ovxr_control_loop(
             wait_for_shutdown(remaining_s)
 
 
-def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
+def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> tuple[bool, bool]:
     """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
 
     ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    Returns whether an action was applied and whether the environment auto-reset.
     """
     if issue is not None:
         if render:
             env.sim.render()
         if haptic_driver is not None:
             haptic_driver.stop()
-        return False
+        return False, False
     # process actions
     actions = action.repeat(env.num_envs, 1)
     # apply actions
-    env.step(actions)
+    _, _, terminated, truncated, _ = env.step(actions)
+    auto_reset = bool(torch.any(terminated) or torch.any(truncated))
     # render controller haptics from post-step contact forces
     if haptic_driver is not None:
         haptic_driver.update()
-    return True
+    return True, auto_reset
 
 
 def _install_ovxr_shutdown_handlers(presentation: OvxrPresentation | None) -> dict:
@@ -593,8 +595,7 @@ def run_teleoperation(  # noqa: C901
                     with torch.inference_mode():
                         # Reset invalidates the tracking anchor. Publish the new epoch
                         # before reading input, retaining force across deferred admissions.
-                        if presentation is not None and presentation.reset_pending and not presentation.publish(env):
-                            presentation.session.wait_for_shutdown(env.step_dt)
+                        if not admit_reset_publication(env, presentation):
                             continue
                         # get device command
                         target_frame_prim_path = (
@@ -618,11 +619,11 @@ def run_teleoperation(  # noqa: C901
                         if not teleoperation_active:
                             action_state.clear()
 
+                        auto_reset = False
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
-                            if presentation is None:
-                                env.sim.render()
+                            update_idle_presentation(env, presentation)
                             if haptic_driver is not None:
                                 haptic_driver.stop()
                             action_applied = False
@@ -636,7 +637,7 @@ def run_teleoperation(  # noqa: C901
                                 action, issue = prepare_teleop_action(
                                     env, action, action_conditioner, action_validator, action_state
                                 )
-                            action_applied = _apply_teleop_frame(
+                            action_applied, auto_reset = _apply_teleop_frame(
                                 env, action, issue, haptic_driver, render=presentation is None
                             )
                             if issue is not None:
@@ -648,10 +649,17 @@ def run_teleoperation(  # noqa: C901
                                         skipped_tracking_frames,
                                     )
 
-                        reset_applied = should_reset_recording_instance
-                        if should_reset_recording_instance:
-                            env.reset()
-                            teleop_interface.reset()
+                        reset_applied = should_reset_recording_instance or auto_reset
+                        if reset_applied:
+                            if should_reset_recording_instance:
+                                env.reset()
+                                teleop_interface.reset()
+                            elif use_isaac_teleop:
+                                # env.step already reset the robot. Notify the input graph
+                                # without echoing another operator/environment reset.
+                                teleop_interface.notify_reset()
+                            else:
+                                teleop_interface.reset()
                             initialized_hand_tracking.clear()
                             action_state.clear()
                             camera_feed_session.refresh()

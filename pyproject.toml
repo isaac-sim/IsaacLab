@@ -34,7 +34,7 @@ dependencies = [
     "isaaclab-tasks-experimental",
     "isaaclab-visualizers",
     # ----- generic -----
-    "numpy>=2",
+    "numpy>=2,<2.5",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "onnx>=1.18.0",
@@ -202,6 +202,15 @@ teleop = [
     "isaaclab-mimic",
     "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+]
+# Standalone OVXR uses Capture's borrowed-renderer owner instead of the Kit runtime.
+ovxr = [
+    "isaaclab-dev[ov] ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "isaaclab-teleop ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "isaaclab-mimic ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "isaaccapture[ovxr,retargeters,ui,cloudxr,desktop-mirror]==1.7.93a1 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "ipywidgets>=8.1.5 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "dex-retargeting==0.5.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [
     "ray[default]>=2.47.0",
@@ -399,6 +408,12 @@ explicit = true
 # unsafe-best-match resolves NVIDIA deps with versions mismatched across
 # pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
 [tool.uv]
+conflicts = [
+    [{ extra = "ovxr" }, { extra = "teleop" }],
+    [{ extra = "ovxr" }, { extra = "isaacsim" }],
+    [{ extra = "ovxr" }, { extra = "viser" }],
+    [{ extra = "ovxr" }, { extra = "all" }],
+]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/isaaclab/installation.rst and the
@@ -415,7 +430,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
-    "numpy>=2",
+    # Numba 0.64 rejects NumPy 2.5 at import; preserve its upper bound despite overrides.
+    "numpy>=2,<2.5",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@7f0c13af6e4dd75253709c31dc65c0edcaf22b44",
