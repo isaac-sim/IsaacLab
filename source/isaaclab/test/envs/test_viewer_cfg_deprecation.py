@@ -10,6 +10,7 @@ No simulation context or Kit app required — pure Python.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from types import SimpleNamespace
 
@@ -34,6 +35,29 @@ def test_viewer_cfg_custom_eye_warns(field_value):
     """ViewerCfg with a non-default field value must emit DeprecationWarning."""
     with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
         ViewerCfg(**field_value)
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("forward_viewer_fields", [False, True], ids=["camera_only", "camera_and_eye"])
+def test_viewer_cfg_cam_prim_path_warns_without_changing_forwarding(caplog, forward_viewer_fields):
+    """An unsupported camera path warns while only supported viewer changes are forwarded."""
+    viewer = ViewerCfg()
+    viewer.cam_prim_path = "/World/CustomCamera"
+    if forward_viewer_fields:
+        viewer.eye = (1.0, 2.0, 3.0)
+    view = VisualizerCfg(backend=KitBackendCfg(origin_type="asset", origin_track_path="robot/base", origin_env_index=7))
+    original_view = view.copy()
+    env_cfg = SimpleNamespace(viewer=viewer, sim=SimpleNamespace(visualizer_cfgs=view))
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.common"):
+        _apply_deprecated_viewer_cfg(env_cfg)
+
+    assert "cam_prim_path='/World/CustomCamera' cannot be automatically forwarded" in caplog.text
+    if forward_viewer_fields:
+        assert (view.eye, view.lookat, view.window.size) == (viewer.eye, viewer.lookat, viewer.resolution)
+        assert (view.backend.origin_type, view.backend.origin_env_index) == ("world", 0)
+    else:
+        assert view == original_view
 
 
 @pytest.mark.parametrize(
