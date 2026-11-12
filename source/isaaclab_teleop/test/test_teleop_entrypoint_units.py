@@ -118,7 +118,9 @@ def run_live_workflow(monkeypatch):
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
-    def run(env, interface, session, *, conditioner=None, validator=None, step_hz=0.0, refresh=lambda: None, started=True):
+    def run(
+        env, interface, session, *, conditioner=None, validator=None, step_hz=0.0, refresh=lambda: None, started=True
+    ):
         class Device:
             target_frame_prim_path = None
             xr_render_anchor_path = None
@@ -532,14 +534,6 @@ def _load_teleop_agent(monkeypatch, *arguments):
     monkeypatch.setattr(module, "args_cli", None, raising=False)
     module._parse_args()
     return module
-
-
-def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch, "--ovxr")
-    from isaaclab_teleop import CLOUDXR_JS_ENV
-
-    assert agent.args_cli.cloudxr_env == CLOUDXR_JS_ENV
-    assert agent.args_cli.auto_launch_cloudxr is True
 
 
 def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch):

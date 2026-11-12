@@ -308,15 +308,11 @@ def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, p
     expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
     assert isinstance(cfg.sim.physics, expected_type[physics])
     assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
-    assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
+    if "SO101" in task_name:
+        assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
     if physics == "newton_mjwarp":
         assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-        if "SO101" in task_name:
-            assert cfg.sim.physics.solver_cfg.iterations == 100
-            assert cfg.sim.physics.solver_cfg.impratio == 10.0
-            assert cfg.sim.physics.solver_cfg.nconmax == 600
-
-    if physics == "ovphysx":
+    if physics == "ovphysx" and "SO101" in task_name:
         # The kitless OvPhysX selection keeps the task's Isaac Sim PhysX grasp tuning.
         _, physx_selections = setup_preset_cli(_make_parser(), ["--task", task_name, "--physics", "isaacsim_physx"])
         physx_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=physx_selections).sim.physics

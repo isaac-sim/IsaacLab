@@ -637,7 +637,7 @@ def run_teleoperation(  # noqa: C901
                                     env, action, action_conditioner, action_validator, action_state
                                 )
                             action_applied = _apply_teleop_frame(
-                                env, action, issue, haptic_driver, render=ov_libraries_xr_session is None
+                                env, action, issue, haptic_driver, render=presentation is None
                             )
                             if issue is not None:
                                 skipped_tracking_frames += 1
