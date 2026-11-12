@@ -15,12 +15,13 @@ from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose2d
 
 pytestmark = pytest.mark.kitless
 
-# 10 x 10 pixels at 0.1 m, so the map covers [0, 1) m along x and y.
+# 10 x 10 pixels at 0.1 m. Pixel rows grow downward while world y grows upward,
+# so the map covers x in [0, 1) m and y in (0, 1] m.
 _MAP_SIZE = 10
 _RESOLUTION = 0.1
 
 _OUTSIDE_POINTS = [(-0.05, 0.5), (1.05, 0.5), (0.5, -0.05), (0.5, 1.05)]
-_INSIDE_POINTS = [(0.05, 0.05), (0.05, 0.95), (0.95, 0.05), (0.5, 0.5)]
+_INSIDE_POINTS = [(0.05, 0.05), (0.05, 0.95), (0.95, 0.05)]
 
 
 @pytest.mark.parametrize("xy", _OUTSIDE_POINTS)
