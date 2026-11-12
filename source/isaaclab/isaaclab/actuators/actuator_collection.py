@@ -30,6 +30,14 @@ from .actuator_pd import IdealPDActuator, ImplicitActuator
 logger = logging.getLogger(__name__)
 
 
+def _as_warp(value):
+    """Return ``value`` as a Warp array, wrapping torch tensors without copying when contiguous.
+
+    Warp's graph-capture launch path reads ``.ptr`` from every array input, which torch tensors lack.
+    """
+    return wp.from_torch(value.contiguous()) if isinstance(value, torch.Tensor) else value
+
+
 class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     """Read-only runtime collection of actuator groups for one articulation.
 
@@ -817,7 +825,7 @@ class ActuatorTargetCommand:
         wp.launch(
             actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[value, env_ids, joint_ids, full_data],
+            inputs=[_as_warp(value), _as_warp(env_ids), _as_warp(joint_ids), full_data],
             outputs=[target_buffer],
             device=collection.device,
         )
@@ -839,7 +847,7 @@ class ActuatorTargetCommand:
         wp.launch(
             actuator_kernels.write_2d_float_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[value, env_mask, joint_mask],
+            inputs=[_as_warp(value), env_mask, joint_mask],
             outputs=[target_buffer],
             device=collection.device,
         )

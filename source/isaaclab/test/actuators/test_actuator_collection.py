@@ -864,6 +864,33 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
     assert control.submitted
 
 
+def test_write_command_launches_receive_warp_arrays_only(monkeypatch):
+    """Warp graph capture reads ``.ptr`` from launch inputs, so torch tensors must be wrapped first."""
+    collection = ActuatorCollection({"all": _implicit_cfg()}, FakeActuatorControl())
+    launched = []
+    real_launch = wp.launch
+
+    def recording_launch(*args, **kwargs):
+        launched.append(kwargs["inputs"])
+        return real_launch(*args, **kwargs)
+
+    monkeypatch.setattr("isaaclab.actuators.actuator_collection.wp.launch", recording_launch)
+
+    collection.target_command.set_effort_index(
+        value=torch.tensor([[1.0, 2.0]], dtype=torch.float32),
+        env_ids=torch.tensor([1], dtype=torch.int64),
+        joint_ids=torch.tensor([0, 2], dtype=torch.int64),
+    )
+    collection.target_command.set_effort_mask(
+        value=torch.zeros(2, 3),
+        env_mask=wp.array([True, False], dtype=wp.bool, device="cpu"),
+        joint_mask=wp.array([False, True, True], dtype=wp.bool, device="cpu"),
+    )
+
+    assert len(launched) == 2
+    assert not any(isinstance(arg, torch.Tensor) for inputs in launched for arg in inputs)
+
+
 @pytest.mark.parametrize("command_name", ["position", "velocity", "effort"])
 def test_write_command_mask_uses_full_sized_value(command_name):
     control = FakeActuatorControl()
