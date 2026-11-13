@@ -1410,7 +1410,10 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     visualizer.current_image_view = tracking
     visualizer._rtx_pose_view = None
 
+    pose_view_when_selecting = []
+
     def select(index, keep_pose=False):
+        pose_view_when_selecting.append(visualizer._rtx_pose_view)
         visualizer.current_image_view = visualizer._image_views[index]
         if index != visualizer.rtx_view_index:
             visualizer._rtx_pose_view = None
@@ -1424,6 +1427,8 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     visualizer.set_rtx_rendering(False)
 
     assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None
+    # Selecting away saves the outgoing pose first, which must still see the Tracking Camera driving the viewer.
+    assert pose_view_when_selecting[-1] is tracking
 
 
 def test_sensor_labels_name_the_outputs_of_the_sensor():
