@@ -33,7 +33,7 @@ from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.asimov_1 import (
     ASIMOV_1_ACTION_SCALE,
-    ASIMOV_1_DELAYED_CFG,
+    ASIMOV_1_CFG,
     ASIMOV_1_JOINT_NAMES,
 )
 
@@ -162,7 +162,7 @@ class Asimov1SceneCfg(MySceneCfg):
         ),
         debug_vis=False,
     )
-    robot: ArticulationCfg = ASIMOV_1_DELAYED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = ASIMOV_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # the policy is blind
     height_scanner = None
     self_collision = ContactSensorCfg(

@@ -16,7 +16,7 @@ The robot is loaded from the SimReady Asimov-1 USD.
 
 One articulation profile is provided:
 
-* :obj:`ASIMOV_1_DELAYED_CFG`: explicit delayed PD actuators
+* :obj:`ASIMOV_1_CFG`: explicit delayed PD actuators
   (:class:`~isaaclab.actuators.DelayedPDActuator`) with a randomized 0-5
   physics-step command delay that models the actuation round-trip latency.
 """
@@ -223,7 +223,7 @@ ASIMOV_1_STANDING_INIT_STATE = ArticulationCfg.InitialStateCfg(
 ##
 
 
-ASIMOV_1_DELAYED_CFG = ArticulationCfg(
+ASIMOV_1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/OEMs/Menlo/Asimov_1/asimov_1.usd",
         activate_contact_sensors=True,
