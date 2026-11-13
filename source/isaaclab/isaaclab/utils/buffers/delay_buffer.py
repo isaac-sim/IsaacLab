@@ -165,18 +165,25 @@ class DelayBuffer:
         else:
             index_fill_(self._time_lags, batch_ids, time_lag)
 
-    def reset(self, batch_ids: Sequence[int] | None = None):
+    def reset(self, batch_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Reset the data in the delay buffer at the specified batch indices.
 
         Automatically sampled lags are redrawn for those batches regardless of ``hold_prob``.
         Externally selected lags are preserved.
 
         Args:
-            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
+            batch_ids: Elements to reset in the batch dimension, as indices or a boolean mask. Default is None,
+                which resets all the batch indices.
         """
         indices = slice(None) if batch_ids is None else batch_ids
         index_fill_(self._num_pushes, indices, 0)
-        if self._hold_prob is not None:
+        if self._hold_prob is None:
+            return
+        if isinstance(indices, torch.Tensor) and indices.dtype == torch.bool:
+            # redraw every lag and keep the selected ones, so the mask is never compacted on the host
+            lags = torch.randint_like(self._time_lags, self._min_lag, self.history_length + 1)
+            torch.where(indices, lags, self._time_lags, out=self._time_lags)
+        else:
             self._time_lags[indices] = torch.randint(
                 self._min_lag,
                 self.history_length + 1,

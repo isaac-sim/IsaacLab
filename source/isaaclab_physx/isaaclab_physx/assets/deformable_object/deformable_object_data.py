@@ -31,8 +31,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     2. **Collision mesh**: This mesh only needs to match the surface of the simulation mesh and is used for
        collision detection.
 
-    The APIs exposed provides the data for both the simulation and collision meshes. These are specified
-    by the `sim` and `collision` prefixes in the property names.
+    The APIs exposed provide the nodal data of the simulation mesh only; collision mesh data is not exposed.
 
     The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
     when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer

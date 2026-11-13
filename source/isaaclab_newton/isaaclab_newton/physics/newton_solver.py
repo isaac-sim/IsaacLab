@@ -42,10 +42,10 @@ def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dic
 class NewtonSolver:
     """How Isaac Lab builds and drives a Newton solver.
 
-    The class is never instantiated and holds no state: every method is a classmethod that takes the solver
-    configuration and, once built, Newton's solver. The generic methods below follow Newton's
-    :class:`~newton.solvers.SolverBase` API; a subclass overrides only where its solver differs. A solver configuration
-    selects the subclass through :attr:`~NewtonSolverCfg.class_type`.
+    A solver configuration selects the subclass through :attr:`~NewtonSolverCfg.class_type`, which builds Newton's
+    solver on construction and drives it afterwards. Classmethods run before the model exists and take only the
+    configuration. The generic methods below follow Newton's :class:`~newton.solvers.SolverBase` API; a subclass
+    overrides only where its solver differs.
     """
 
     solver_class: ClassVar[type[SolverBase] | None] = None
@@ -58,7 +58,7 @@ class NewtonSolver:
     """Whether the solver can honor a Warp determinism guarantee."""
 
     contact_sensors: ClassVar[bool] = True
-    """Whether Newton contact sensors can read the solver's contacts."""
+    """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
 
     ignored_model_changes: ClassVar[Mapping[ModelFlags, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
@@ -91,11 +91,8 @@ class NewtonSolver:
 
     # ----- Construction -----
 
-    @classmethod
-    def build(
-        cls, cfg: NewtonSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverBase:
-        """Construct Newton's solver from the configuration fields matching its constructor.
+    def __init__(self, cfg: NewtonSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None):
+        """Build Newton's solver.
 
         Args:
             cfg: Solver configuration.
@@ -103,94 +100,88 @@ class NewtonSolver:
             mode: Warp determinism mode.
             env_template: Environment path template of the clone plan, e.g. ``"/World/envs/env_{}"``.
         """
-        if cls.solver_class is None:
-            raise NotImplementedError(f"{cls.__name__} describes geometry only and builds no solver.")
-        return cls.solver_class(model, **solver_kwargs(cls.solver_class, cfg, mode))
+        self.cfg = cfg
+        """Solver configuration."""
+        self.native: SolverBase = self.build(model, mode, env_template)
+        """Newton's solver."""
 
-    @classmethod
-    def init_state(cls, cfg: NewtonSolverCfg, solver: SolverBase, state: State) -> None:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverBase:
+        """Construct Newton's solver from the configuration fields matching its constructor."""
+        if self.solver_class is None:
+            raise NotImplementedError(f"{type(self).__name__} describes geometry only and builds no solver.")
+        return self.solver_class(model, **solver_kwargs(self.solver_class, self.cfg, mode))
+
+    def init_state(self, state: State) -> None:
         """Initialize solver-owned buffers of a double-buffered solver's output state."""
 
     # ----- Capabilities -----
 
-    @classmethod
-    def applies_body_forces(cls, cfg: NewtonSolverCfg, solver: SolverBase) -> bool:
+    def applies_body_forces(self) -> bool:
         """Whether the solver consumes applied rigid-body forces from :attr:`newton.State.body_f`."""
         return True
 
-    @classmethod
-    def supports_capture(cls, cfg: NewtonSolverCfg, solver: SolverBase) -> bool:
-        """Whether the solver can be recorded into a CUDA graph."""
+    def supports_capture(self) -> bool:
+        """Whether the solver's step can be recorded into a graph and replayed on the solver's device.
+
+        On the CPU, Warp's graph capture records only Warp kernel launches and memory operations. Other work in the
+        step, such as :meth:`warp.Mesh.refit`, a nested :func:`warp.capture_launch`, torch operations, or host
+        reads, runs once at capture time and never on replay, so a solver whose step does such work on the CPU must
+        return False there.
+        """
         return True
 
     # ----- Contacts -----
 
-    @classmethod
-    def uses_collision_pipeline(cls, cfg: NewtonSolverCfg, solver: SolverBase) -> bool:
+    def uses_collision_pipeline(self) -> bool:
         """Whether contacts come from Newton's :class:`~newton.CollisionPipeline` instead of the solver."""
         return True
 
-    @classmethod
-    def create_collision_pipeline(cls, cfg: NewtonSolverCfg, solver: SolverBase, **kwargs) -> CollisionPipeline:
+    def create_collision_pipeline(self, **kwargs) -> CollisionPipeline:
         """Construct the collision pipeline over the solver's model; ``kwargs`` are the pipeline arguments."""
-        return CollisionPipeline(solver.model, **kwargs)
+        return CollisionPipeline(self.native.model, **kwargs)
 
-    @classmethod
-    def create_contacts(cls, cfg: NewtonSolverCfg, solver: SolverBase) -> Contacts | None:
+    def create_contacts(self) -> Contacts | None:
         """Allocate the contacts a solver reports itself when it does not use the collision pipeline."""
         return None
 
-    @classmethod
-    def prepare_contacts(
-        cls, cfg: NewtonSolverCfg, solver: SolverBase, contacts: Contacts, pipeline: CollisionPipeline | None
-    ) -> None:
+    def prepare_contacts(self, contacts: Contacts, pipeline: CollisionPipeline | None) -> None:
         """Bind newly allocated contacts to solver-owned buffers before CUDA graph capture."""
-        if hasattr(solver, "prepare_contacts"):
-            solver.prepare_contacts(contacts)
+        if hasattr(self.native, "prepare_contacts"):
+            self.native.prepare_contacts(contacts)
 
     # ----- Stepping and resets -----
 
-    @classmethod
-    def pre_step(cls, cfg: NewtonSolverCfg, solver: SolverBase, state: State) -> None:
+    def pre_step(self, state: State) -> None:
         """Refresh solver structures once per physics step, before collision."""
 
-    @classmethod
     def step(
-        cls,
-        cfg: NewtonSolverCfg,
-        solver: SolverBase,
+        self,
         state_in: State,
         state_out: State,
         control: Control,
         contacts: Contacts | None,
         dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
     ) -> None:
         """Advance one substep of ``dt`` [s]."""
-        solver.step(state_in, state_out, control, contacts, dt)
+        if observables is None:
+            self.native.step(state_in, state_out, control, contacts, dt)
+        else:
+            self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
 
-    @classmethod
-    def post_step(cls, cfg: NewtonSolverCfg, solver: SolverBase, state: State) -> None:
+    def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""
 
-    @classmethod
-    def reset(cls, cfg: NewtonSolverCfg, solver: SolverBase, state: State, world_mask: wp.array) -> None:
+    def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver-owned history for the worlds of a ``(world_count + 1,)`` mask, keeping authored joint state."""
-        solver.reset(state, world_mask=world_mask, flags=0)
+        self.native.reset(state, world_mask=world_mask, flags=0)
 
-    @classmethod
-    def eval_fk(
-        cls,
-        cfg: NewtonSolverCfg,
-        solver: SolverBase,
-        state: State,
-        world_mask: wp.array | None,
-        fk_mask: wp.array | None,
-    ) -> None:
+    def eval_fk(self, state: State, world_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body state from the joint coordinates of the masked articulations; ``None`` selects everything."""
-        eval_fk(solver.model, state.joint_q, state.joint_qd, state, fk_mask)
+        eval_fk(self.native.model, state.joint_q, state.joint_qd, state, fk_mask)
 
-    @classmethod
-    def check_step(cls, cfg: NewtonSolverCfg, solver: SolverBase, captured: bool, debug: bool) -> None:
+    def check_step(self, captured: bool, debug: bool) -> None:
         """Raise asynchronous solver failures after a step launch (``captured``: a CUDA graph replay), and log
         diagnostics when ``debug`` is set."""
 

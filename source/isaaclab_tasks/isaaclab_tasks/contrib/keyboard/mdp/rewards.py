@@ -48,8 +48,8 @@ def letter_typing_progress(env: ManagerBasedRLEnv, command_name: str) -> torch.T
     * ``-1`` on any step that sets a new episode minimum prefix length (destroying correct progress),
     * ``0`` otherwise - staying put, or re-reaching a prefix length already seen this episode.
 
-    Since one control step registers at most one keystroke, ``prefix_len`` moves by at most one, so each
-    integer level is crossed cleanly. Rewarding only *new* maxima means the total positive reward per
+    A step that sets a new record earns ``+1`` even if ``prefix_len`` jumps several levels (every key pressed
+    in one step registers). Rewarding only *new* maxima means the total positive reward per
     episode is bounded by ``target_len - prefix_0`` and the total penalty by ``prefix_0`` (with
     ``prefix_0`` the correct prefix of the reset buffer); consequently ``type-wrong -> backspace`` and
     ``backspace -> retype`` loops cannot farm reward - a re-reached level is neither a new max nor a new
@@ -97,7 +97,9 @@ class reach_key(ManagerTermBase):
     encouraging the policy to push down rather than just hover on the cap. Body indices, tip offsets, and
     the press offset are resolved once at construction so each step only does the gather and kernel.
 
-    Args (from ``cfg.params``):
+    The following arguments are supplied through ``cfg.params``.
+
+    Args:
         command_name: Name of the :class:`LetterTypingCommand` term providing the next target key.
         moving_jaw_body: Body name of the moving jaw link.
         moving_jaw_offset: Tip offset [m] in the moving jaw link frame.

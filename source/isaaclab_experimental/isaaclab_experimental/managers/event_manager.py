@@ -15,8 +15,8 @@ Key differences from the stable manager:
 Event term signature for Warp-first interval/reset modes:
     ``func(env, env_mask_wp, **params) -> None``
 
-Other modes (e.g. ``prestartup``, ``startup``) are called using the stable convention:
-    ``func(env, env_ids, **params) -> None``
+Other modes (e.g. ``prestartup``, ``startup``) also receive a Warp env mask:
+    ``func(env, env_mask_wp, **params) -> None``
 """
 
 from __future__ import annotations

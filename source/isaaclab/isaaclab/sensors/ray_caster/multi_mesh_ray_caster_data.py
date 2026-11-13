@@ -16,6 +16,7 @@ class MultiMeshRayCasterData(RayCasterData):
     ray_mesh_ids: ProxyArray = None
     """The mesh ids of the ray hits.
 
-    Shape is (N, B, 1), where N is the number of sensors, B is the number of rays
-    in the scan pattern per sensor.
+    Shape is (N, B), dtype is ``wp.int16``, where N is the number of sensors and B is the number of rays
+    in the scan pattern per sensor. In Torch this resolves to shape (N, B) with dtype ``torch.int16``.
+    This field is None when :attr:`~isaaclab.sensors.MultiMeshRayCasterCfg.update_mesh_ids` is disabled.
     """

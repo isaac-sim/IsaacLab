@@ -25,8 +25,8 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `visual_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `visual_material` is None.
     """
     visual_material: materials.VisualMaterialCfg | None = None
     """Visual material properties.
@@ -38,8 +38,8 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     physics_material_path: str = "material"
     """Path to the physics material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `physics_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `physics_material` is None.
     """
     physics_material: (
         materials.RigidBodyMaterialBaseCfg

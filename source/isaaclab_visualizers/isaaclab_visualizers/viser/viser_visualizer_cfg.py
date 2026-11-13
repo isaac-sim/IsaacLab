@@ -46,7 +46,8 @@ class ViserBackendCfg(VisualizerBackendCfg):
     open_browser: bool = False
     """Whether to attempt opening the viser web viewer URL in a browser.
 
-    The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
+    The viewer URL is logged during initialization when :attr:`verbose` is ``True``. Set this to ``True`` to
+    auto-launch it.
     """
 
     verbose: bool = True

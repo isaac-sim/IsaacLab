@@ -13,7 +13,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cache
+from functools import cache, partial
 from typing import TYPE_CHECKING
 
 import torch
@@ -23,6 +23,7 @@ from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import instantiate
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .newton_backend_cfg import NewtonBackendCfg
+    from .newton_solver import NewtonSolver
 
 logger = logging.getLogger(__name__)
 
@@ -52,23 +54,30 @@ def _make_flag_worlds_and_articulations(num_articulations: int, masked: bool) ->
     def flag_worlds_and_articulations(
         env_mask: wp.array(dtype=wp.bool),
         articulation_ids: wp.array2d(dtype=wp.int32),
+        articulation_world: wp.array(dtype=wp.int32),
         articulation_mask: wp.array(dtype=wp.bool),
         consume_mask: bool,
         world_mask: wp.array(dtype=wp.bool),
         fk_mask: wp.array(dtype=wp.bool),
     ):
-        """Flag reset and FK work for the masked worlds and articulations; optionally consume the env mask."""
-        world = wp.tid()
-        if not env_mask[world]:
+        """Flag the masked envs' articulations for FK and their worlds for a solver reset.
+
+        Global articulations (world ``-1``) get FK without resetting the global world. Optionally consumes the env mask.
+        """
+        env = wp.tid()
+        if not env_mask[env]:
             return
-        for articulation in range(wp.static(num_articulations)):
+        for view_articulation in range(wp.static(num_articulations)):
             if wp.static(masked):
-                if not articulation_mask[articulation]:
+                if not articulation_mask[view_articulation]:
                     continue
-            world_mask[world] = True
-            fk_mask[articulation_ids[world, articulation]] = True
+            articulation = articulation_ids[env, view_articulation]
+            fk_mask[articulation] = True
+            world = articulation_world[articulation]
+            if world >= 0:
+                world_mask[world] = True
         if consume_mask:
-            env_mask[world] = False
+            env_mask[env] = False
 
     return flag_worlds_and_articulations
 
@@ -121,6 +130,8 @@ class NewtonBackend:
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
+        self.state_version = 0
+        """Advanced whenever the step or FK changes the state; asset data recomputes derived values cached before it."""
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         """``(start, count)`` particle range per replicated deformable prim path."""
         self.deformable_ranges = {
@@ -169,10 +180,14 @@ class NewtonBackend:
         """Joint targets and applied forces read by the solver."""
         self.solver: SolverBase | None = None
         """Newton solver, built by :meth:`init_solver`."""
+        self.solver_ops: NewtonSolver | None = None
+        """Isaac Lab driver of :attr:`solver`, built from :attr:`NewtonCfg.solver_cfg` by :meth:`init_solver`."""
         self.collision_pipeline: CollisionPipeline | None = None
         """Collision pipeline, or ``None`` when the solver collides internally."""
         self.contacts: Contacts | None = None
         """Contacts produced by the collision pipeline or the solver."""
+        self.contact_observables: SolverBase.Observables | None = None
+        """Solver-owned contact forces when registered sensors require them."""
         self.staged_body_f: wp.array | None = None
         """Body forces [N, N·m] written before the step, re-applied before every substep."""
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
@@ -182,7 +197,7 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
+        """Whether state was written inside an outer graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -195,10 +210,12 @@ class NewtonBackend:
         """Newton actuators run inside the step, or ``None``."""
         self.actuators_active = False
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
+        self.handles_actions = False
+        """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
-        """Run before the actuators of every physics step."""
+        """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
-        """Run after the actuators of every physics step."""
+        """Run after the Newton actuators of every physics step, before its solver substeps."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
         self.post_step_callbacks: list[Callable[[], None]] = []
@@ -208,9 +225,9 @@ class NewtonBackend:
         self.decimation = 1
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
-        """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
-        self.graph: wp.Graph | None = None
-        """Captured step, or ``None`` until the next step is captured."""
+        """Records the step as a Warp graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
+        self.graphs: dict[str | tuple[str, int], wp.Graph] = {}
+        """Captured parts of the step, keyed by part; empty until the first step is captured."""
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -222,8 +239,10 @@ class NewtonBackend:
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
-            self.solver = self.collision_pipeline = self.contacts = self.actuators = None
-            self.staged_body_f = self.capture = self.graph = None
+            self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
+            self.actuators = None
+            self.staged_body_f = self.capture = None
+            self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
@@ -240,25 +259,31 @@ class NewtonBackend:
                 :func:`capture_graph`. Defaults to strict capture.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
-        solver_cls = solver_cfg.class_type
-        if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cls.deterministic:
+        if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.class_type.deterministic:
             raise ValueError(
                 f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
                 " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
-        solver = self.solver = solver_cls.build(solver_cfg, self.model, mode, env_template)
-        if not solver_cls.single_state:
-            solver_cls.init_state(solver_cfg, solver, self.state_1)
+        if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
+            # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
+            self.model.rigid_contact_max = contact_max
+        ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
+        solver = self.solver = ops.native
+        if not ops.single_state:
+            ops.init_state(self.state_1)
         self._allocate_contacts()
+        self.contact_observables = None
+        if self.contact_sensors:
+            self.contact_observables = solver.observables(SensorContact.solver_observable_kinds, contacts=self.contacts)
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
         for callback in callbacks:
             callback()
-        solver_cls.eval_fk(solver_cfg, solver, state_0, None, None)
+        ops.eval_fk(state_0, None, None)
         self.capture = None
-        if self.cfg.use_cuda_graph and self.device.is_cuda:
-            if solver_cls.supports_capture(solver_cfg, solver):
+        if self.cfg.use_cuda_graph:
+            if ops.supports_capture():
                 self.capture = lambda fn: capture_graph(
                     self.device, fn, relaxed=relaxed_capture is not None and relaxed_capture()
                 )
@@ -279,9 +304,10 @@ class NewtonBackend:
         """Schedule solver reset and FK for the masked worlds and articulations.
 
         Args:
-            env_mask: Environments to flag, shaped (world_count,).
-            articulation_ids: Global articulation IDs for each (world, view-local articulation).
-                With env_mask None, every world and articulation is flagged, as for native state writes.
+            env_mask: Mask over envs, which map to worlds through the model's articulation-to-world table.
+            articulation_ids: Model articulation index of each ``(env, view-local articulation)``, from
+                ``ArticulationView.articulation_ids``. With either argument None, every world and articulation is
+                flagged, as for native state writes.
             articulation_mask: View-local articulations to flag. None selects every articulation of the view.
             consume_mask: Clear the flagged env_mask entries after reading them. Caller masks are otherwise unchanged.
         """
@@ -293,7 +319,7 @@ class NewtonBackend:
         wp.launch(
             _make_flag_worlds_and_articulations(articulation_ids.shape[1], articulation_mask is not None),
             dim=articulation_ids.shape[0],
-            inputs=[env_mask, articulation_ids, articulation_mask, consume_mask],
+            inputs=[env_mask, articulation_ids, self.model.articulation_world, articulation_mask, consume_mask],
             outputs=[self.world_mask, self.fk_mask],
             device=self.device,
         )
@@ -319,16 +345,36 @@ class NewtonBackend:
 
     def forward(self) -> None:
         """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags."""
+        self.notify_model_changes()
         if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
-        if self.solver is None:
+        ops, state = self.solver_ops, self.state_0
+        if ops is None:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
-        solver_cfg, solver, state = self.cfg.solver_cfg, self.solver, self.state_0
-        solver_cfg.class_type.reset(solver_cfg, solver, state, self.world_mask)
-        solver_cfg.class_type.eval_fk(solver_cfg, solver, state, self.world_mask, self.fk_mask)
+        ops.reset(state, self.world_mask)
+        ops.eval_fk(state, self.world_mask, self.fk_mask)
         self.fk_mask.zero_()
         self.world_mask.zero_()
         self.kinematics_dirty = False
+        self.state_version += 1
+
+    def notify_model_changes(self) -> None:
+        """Notify the solver of the queued model-property changes once, combining their categories.
+
+        Inside an enclosing graph capture, the refresh is recorded and runs on every replay.
+        """
+        if not self.model_changes:
+            return
+        ignored = self.solver_ops.ignored_model_changes
+        flags = 0
+        for change in self.model_changes:
+            if change in ignored and change not in self.warned_model_changes:
+                logger.warning(ignored[change])
+                self.warned_model_changes.add(change)
+            flags |= change
+        with wp.ScopedDevice(self.device):
+            self.solver.notify_model_changed(flags)
+        self.model_changes.clear()
 
     def activate_actuators(self) -> None:
         """Run the model's Newton actuators inside the step. Idempotent."""
@@ -347,6 +393,7 @@ class NewtonBackend:
             device=str(self.device),
         )
         self.actuators.finalize(self.control)
+        self.invalidate_graph()
 
     def add_contact_sensor(
         self,
@@ -371,8 +418,8 @@ class NewtonBackend:
         solver_cfg = self.cfg.solver_cfg
         if not solver_cfg.class_type.contact_sensors:
             raise NotImplementedError(
-                f"Newton contact sensors are not yet supported by {type(solver_cfg).__name__}:"
-                " contact forces live in per-entry buffers."
+                f"Newton contact sensors require CONTACT_F observables, which {type(solver_cfg).__name__}"
+                " does not support."
             )
         if (body_names_expr is None) == (shape_names_expr is None):
             raise ValueError("Exactly one of body_names_expr or shape_names_expr must be provided.")
@@ -392,11 +439,17 @@ class NewtonBackend:
                 counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
                 measure_total=True,
                 verbose=verbose,
+                request_contact_attributes=False,
             )
         self.contact_sensors[key] = sensor
-        # Contacts allocated before the sensor requested the force attribute must be reallocated.
-        if self.solver is not None and self.contacts is not None and self.contacts.force is None:
-            self._allocate_contacts()
+        if self.solver is not None:
+            if self.contacts is None:
+                self._allocate_contacts()
+            if self.contact_observables is None:
+                self.contact_observables = self.solver.observables(
+                    SensorContact.solver_observable_kinds, contacts=self.contacts
+                )
+            self.invalidate_graph()
         return sensor
 
     def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
@@ -413,52 +466,54 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: Newton actuators are active and all graph-safe."""
-        return self.actuators_active and (self.actuators is None or self.actuators.is_all_graphable)
+        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
+        return self.handles_actions or self.actuators_active
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
         self.decimation = max(1, decimation)
-        if self.handles_decimation():
-            self.invalidate_graph()
 
     def invalidate_graph(self) -> None:
         """Drop the captured step; with capture enabled, the next step runs eagerly and is captured again."""
-        self.graph = None
+        self.graphs = {}
 
     def step(self) -> bool:
         """Advance one physics step, or the whole decimation loop when :meth:`handles_decimation`.
 
-        Without the decimation loop, Newton actuators and their callbacks run eagerly before the step. The first step
-        after :meth:`invalidate_graph` runs eagerly and is then captured for later steps. The solver then checks the
-        step for asynchronous failures (:meth:`NewtonSolver.check_step`).
+        Each physics step runs :meth:`_before_actuators`, the Newton actuators, then :meth:`_after_actuators`, and
+        the step ends with :meth:`_finish_step`. With capture-safe actuators the whole loop replays from one CUDA
+        graph; otherwise the actuators run eagerly between the captured :meth:`_before_actuators` and
+        :meth:`_after_actuators` graphs. Each part runs eagerly the first time and is then captured. Inside an
+        enclosing capture the step records into it instead. The solver then checks the step for asynchronous failures
+        (:meth:`NewtonSolver.check_step`).
 
         Returns:
-            Whether the step has a captured graph.
+            Whether the step replays captured graphs.
         """
-        self._notify_model_changes()
-        self.forward()
-        if self.handles_decimation():
-            simulate = self._simulate_full
-        else:
-            for callback in self.pre_actuator_callbacks:
-                callback()
-            if self.actuators is not None:
-                self.actuators.step(self.state_0, self.control, self.dt)
-            for callback in self.post_actuator_callbacks:
-                callback()
-            simulate = self._simulate_physics_only
-        if self.graph is not None:
-            wp.capture_launch(self.graph)
-        else:
-            with wp.ScopedDevice(self.device):
-                simulate()
-            if self.capture is not None:
-                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                    self.graph = self.capture(simulate)
-        captured = self.graph is not None
-        solver_cfg = self.cfg.solver_cfg
-        solver_cfg.class_type.check_step(solver_cfg, self.solver, captured, self.cfg.debug_mode)
+        steps = self.decimation if self.handles_decimation() else 1
+        actuators = self.actuators
+        with wp.ScopedDevice(self.device):
+            self.forward()
+            if actuators is None or actuators.is_all_graphable:
+                self._launch(("simulate", steps), partial(self._simulate, steps))
+            else:
+                if self.device.is_capturing:
+                    raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
+                self._stage_body_forces()
+                for i in range(steps):
+                    self._launch("before_actuators", self._before_actuators)
+                    actuators.step(self.state_0, self.control, self.dt)
+                    # Only the final physics step supplies forces read by the sensors.
+                    observables = self.contact_observables if i == steps - 1 else None
+                    self._launch(
+                        ("after_actuators", observables is not None), partial(self._after_actuators, observables)
+                    )
+                self._launch("finish_step", self._finish_step)
+        # Graph replays skip the per-substep increments.
+        self.state_version += 1
+        captured = bool(self.graphs)
+        if not self.device.is_capturing:
+            self.solver_ops.check_step(captured, self.cfg.debug_mode)
         return captured
 
     def state_pointers(self) -> tuple[int, int]:
@@ -477,43 +532,57 @@ class NewtonBackend:
             use_cuda_graph: Whether to replay the refit from a CUDA graph on CUDA devices.
         """
         cache = self.bvh_refit
+        if self.device.is_capturing:
+            # Outer graph replays cannot consult the host timestamp, so each replay must refit.
+            self._refit_bvh()
+            cache.timestamp = -1
+            return
         if cache.timestamp == timestamp:
             return
-        cache.timestamp = timestamp
         if not (use_cuda_graph and self.device.is_cuda):
             self._refit_bvh()
+            cache.timestamp = timestamp
             return
         pointers = self.state_pointers()
         if cache.data is None or cache.data[0] != pointers:
             cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
         wp.capture_launch(cache.data[1])
+        cache.timestamp = timestamp
 
     def _allocate_contacts(self) -> None:
-        """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
-        model, solver, solver_cfg = self.model, self.solver, self.cfg.solver_cfg
-        solver_cls = solver_cfg.class_type
+        """Allocate contact storage; solver observables belong to initialization or sensor registration."""
+        self.invalidate_graph()
+        model, solver, ops = self.model, self.solver, self.solver_ops
         collision_cfg = self.cfg.collision_cfg
-        if not solver_cls.uses_collision_pipeline(solver_cfg, solver):
+        if not ops.uses_collision_pipeline():
             if collision_cfg is not None:
                 raise ValueError(
                     f"NewtonCfg.collision_cfg cannot be set while {type(solver).__name__} does not use Newton's"
                     " collision pipeline. Remove collision_cfg, or configure the solver to use the pipeline (e.g."
                     " use_mujoco_contacts=False)."
                 )
-            self.contacts = solver_cls.create_contacts(solver_cfg, solver)
+            self.contacts = ops.create_contacts()
+            if self.contact_sensors and self.contacts is None:
+                # Native detectors need output storage when a sensor requests contact forces.
+                self.contacts = Contacts(
+                    rigid_contact_max=model.rigid_contact_max or 0,
+                    soft_contact_max=0,
+                    device=self.device,
+                    requested_attributes=model.get_requested_contact_attributes(),
+                )
         else:
             args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
             args["deterministic"] = self.deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
             required = getattr(solver, "get_max_contact_count", lambda: 0)()
             if self.collision_pipeline is None:
-                self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
+                self.collision_pipeline = ops.create_collision_pipeline(**args)
             self.contacts = self.collision_pipeline.contacts()
             # MuJoCo Warp can require more contacts than the pipeline estimates.
             if required > self.contacts.rigid_contact_max:
                 if args["deterministic"]:
                     # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
                     args["rigid_contact_max"] = required
-                    self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
+                    self.collision_pipeline = ops.create_collision_pipeline(**args)
                     self.contacts = self.collision_pipeline.contacts()
                 else:
                     self.contacts = Contacts(
@@ -523,71 +592,70 @@ class NewtonBackend:
                         requested_attributes=model.get_requested_contact_attributes(),
                     )
         if self.contacts is not None:
-            solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
+            ops.prepare_contacts(self.contacts, self.collision_pipeline)
 
-    def _notify_model_changes(self) -> None:
-        """Notify the solver of the queued model-property changes once, combining their categories."""
-        if not self.model_changes:
+    def _launch(self, key: str | tuple[str, int], fn: Callable[[], None]) -> None:
+        """Replay ``fn`` from its captured graph, or run it and capture it; inside an enclosing capture, record it."""
+        if self.device.is_capturing:
+            fn()
             return
-        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
-        flags = 0
-        for change in self.model_changes:
-            if change in ignored and change not in self.warned_model_changes:
-                logger.warning(ignored[change])
-                self.warned_model_changes.add(change)
-            flags |= change
-        with wp.ScopedDevice(self.device):
-            self.solver.notify_model_changed(flags)
-        self.model_changes.clear()
+        graph = self.graphs.get(key)
+        if graph is not None:
+            wp.capture_launch(graph)
+            return
+        fn()
+        if self.capture is not None:
+            with Timer(name="newton_graph_capture", msg="Graph capture took:"):
+                self.graphs[key] = self.capture(fn)
 
-    def _simulate_full(self) -> None:
-        """Run ``decimation x (collide, actuators, substeps)``, then post-step callbacks and sensors."""
-        solver_cfg, pipeline, actuators = self.cfg.solver_cfg, self.collision_pipeline, self.actuators
-        contacts = self.contacts if pipeline is not None else None
-        decimation = self.decimation
+    def _simulate(self, steps: int) -> None:
+        """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
+        actuators = self.actuators
         self._stage_body_forces()
-        for i in range(decimation):
-            solver_cfg.class_type.pre_step(solver_cfg, self.solver, self.state_0)
-            if pipeline is not None:
-                pipeline.collide(self.state_0, contacts)
-            for callback in self.pre_actuator_callbacks:
-                callback()
+        for i in range(steps):
+            self._before_actuators()
             if actuators is not None:
-                # An odd decimation copies the last actuator output back, keeping buffer addresses stable.
-                swap_state = decimation % 2 == 0 or i < decimation - 1
+                # An odd step count copies the last actuator output back, keeping buffer addresses stable.
+                swap_state = steps % 2 == 0 or i < steps - 1
                 actuators.step(self.state_0, self.control, self.dt, swap_state=swap_state)
-            for callback in self.post_actuator_callbacks:
-                callback()
-            self._run_solver_substeps(contacts)
-        for callback in self.post_step_callbacks:
-            callback()
-        self._update_sensors(contacts)
+            self._after_actuators(self.contact_observables if i == steps - 1 else None)
+        self._finish_step()
 
-    def _simulate_physics_only(self) -> None:
-        """Run collision, solver substeps, post-step callbacks and sensors, without actuators."""
-        solver_cfg, pipeline = self.cfg.solver_cfg, self.collision_pipeline
-        contacts = self.contacts if pipeline is not None else None
-        self._stage_body_forces()
-        solver_cfg.class_type.pre_step(solver_cfg, self.solver, self.state_0)
-        if pipeline is not None:
-            pipeline.collide(self.state_0, contacts)
-        self._run_solver_substeps(contacts)
+    def _before_actuators(self) -> None:
+        """Prepare the solver, collide, and run the pre-actuator callbacks of one physics step."""
+        self.solver_ops.pre_step(self.state_0)
+        if self.collision_pipeline is not None:
+            self.collision_pipeline.collide(self.state_0, self.contacts)
+        for callback in self.pre_actuator_callbacks:
+            callback()
+        if self.handles_actions:
+            # the asset writes replace the body forces staged before the step
+            self._stage_body_forces()
+
+    def _after_actuators(self, observables: SolverBase.Observables | None) -> None:
+        """Run the post-actuator callbacks and the solver substeps of one physics step."""
+        for callback in self.post_actuator_callbacks:
+            callback()
+        contacts = self.contacts if self.collision_pipeline is not None or observables is not None else None
+        self._run_solver_substeps(contacts, observables=observables)
+
+    def _finish_step(self) -> None:
+        """Run the post-step callbacks and update the sensors once after the last physics step."""
         for callback in self.post_step_callbacks:
             callback()
-        self._update_sensors(contacts)
+        self._update_sensors()
 
     def _stage_body_forces(self) -> None:
         """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
         if self.staged_body_f is not None:
             wp.copy(self.staged_body_f, self.state_0.body_f)
 
-    def _run_solver_substeps(self, contacts: Contacts | None) -> None:
+    def _run_solver_substeps(self, contacts: Contacts | None, *, observables: SolverBase.Observables | None) -> None:
         """Run the solver substeps of one physics step, ending in :attr:`state_0`.
 
         Each substep restores the staged body forces, then state-force callbacks add to them.
         """
-        solver_cfg, solver = self.cfg.solver_cfg, self.solver
-        solver_cls = solver_cfg.class_type
+        ops = self.solver_ops
         num_substeps, control, dt = self.num_substeps, self.control, self.solver_dt
         collide_every = self.cfg.collision_decimation
         # The last substep is skipped: its contacts would only feed the next physics step's collision.
@@ -598,28 +666,29 @@ class NewtonBackend:
                 wp.copy(state.body_f, self.staged_body_f)
             for callback in self.state_force_callbacks:
                 callback(state)
-            if solver_cls.single_state:
-                solver_cls.step(solver_cfg, solver, state, state, control, contacts, dt)
-            else:
-                solver_cls.step(solver_cfg, solver, state, self.state_1, control, contacts, dt)
+            state_out = state if ops.single_state else self.state_1
+            # Only final-substep contact forces are read by sensors.
+            step_observables = observables if i == num_substeps - 1 else None
+            ops.step(state, state_out, control, contacts, dt, observables=step_observables)
+            if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)
                 else:
                     self.state_0, self.state_1 = self.state_1, self.state_0
             self.state_0.clear_forces()
+            # Derived data read by the next substep's state-force callbacks must see this substep's state.
+            self.state_version += 1
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                 self.collision_pipeline.collide(self.state_0, contacts)
-        solver_cls.post_step(solver_cfg, solver, self.state_0)
+        ops.post_step(self.state_0)
 
-    def _update_sensors(self, contacts: Contacts | None) -> None:
+    def _update_sensors(self) -> None:
         """Push the current state to IMU and contact sensors."""
         for sensor in self.imu_sensors:
             sensor.update(self.state_0)
         if self.contact_sensors:
-            eval_contacts = contacts if contacts is not None else self.contacts
-            self.solver.update_contacts(eval_contacts, self.state_0)
             for sensor in self.contact_sensors.values():
-                sensor.update(self.state_0, eval_contacts)
+                sensor.update(self.state_0, self.contacts, observables=self.contact_observables)
 
     def _refit_bvh(self) -> None:
         model, state = self.model, self.state_0
@@ -630,16 +699,23 @@ class NewtonBackend:
 
 
 def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record ``fn`` into a CUDA graph without running it.
+    """Record ``fn`` into a Warp graph without running it.
+
+    On the CPU, Warp records the kernel launches and memory operations of ``fn`` for native replay; the CPU has no
+    streams, so ``relaxed`` does not apply there.
 
     Args:
-        device: CUDA device.
+        device: CUDA or CPU device.
         fn: Work to record. Perform lazy initialization before capture.
-        relaxed: Allow unrelated work on other threads, as required by Kit rendering.
+        relaxed: Allow unrelated work on other threads, as required by Kit rendering. CUDA only.
 
     Returns:
         The captured graph, replayed with :func:`warp.capture_launch`.
     """
+    if wp.get_device(device).is_cpu:
+        with _paused_gc(), wp.ScopedCapture(device=device) as capture:
+            fn()
+        return capture.graph
     stream = wp.get_stream(device)
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
@@ -683,7 +759,7 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture."""
+    """Keep collection-driven frees out of graph capture."""
     was_enabled = gc.isenabled()
     gc.disable()
     try:

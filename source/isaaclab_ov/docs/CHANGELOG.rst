@@ -3,6 +3,48 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.3 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera tasks stalling when their output is read slowly, for example by a benchmark harness. The
+  default :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_level` is now ``"error"``: lower levels print an
+  OVRTX warning for each attribute of every cloned environment (over a million lines at 8192 environments).
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
+9.0.2 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reduced OVPhysX training throughput with cloned environments and shared ground by no longer forcing
+  ``physxScene:envIdInBoundsBitCount`` during scene initialization.
+
+
+9.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Authored ``omni:rtx:gaussian:skipTonemapping:enabled = false`` on the OVRTX render product when a camera sets
+  an ISP, so Gaussian splats are tonemapped with the rest of the frame.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX stage population and shared OVRTX stage setup for OVStage 0.4 builds that replaced
+  physics population domains with selectors, while retaining support for older domain-based builds.
+* Fixed OVRTX stage export to compose collider geometry whenever physics population was enabled,
+  including isolated stages.
+* Fixed Newton with OVRTX and OVStage failing during camera initialization with OVStage builds that
+  removed physics population flags, while preserving composed USD export for shared OVPhysX stages.
+
+
 9.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~
 

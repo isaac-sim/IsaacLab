@@ -1,9 +1,9 @@
-isaaclab_contrib.coupling
-=========================
+isaaclab_newton.physics.coupling
+================================
 
-.. automodule:: isaaclab_contrib.coupling
+.. automodule:: isaaclab_newton.physics.coupling
 
-.. currentmodule:: isaaclab_contrib.coupling
+.. currentmodule:: isaaclab_newton.physics.coupling
 
 .. rubric:: Classes
 

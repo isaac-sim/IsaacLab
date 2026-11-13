@@ -151,7 +151,7 @@ def _build_isaaclab_wheel(repo_root: Path, debug: bool = False) -> Path:
 
     Used by ``--build-wheel`` so callers (CI or local dev) don't have to pre-build the
     wheel out-of-band before invoking the install_ci runner. Tests consume the wheel
-    via the existing ``ISAACLAB_WHEEL`` env var / ``wheel_path`` session fixture.
+    via the existing ``ISAACLAB_WHEEL`` env var / ``wheel`` session fixture.
 
     Output is captured and discarded by default to avoid spamming CI logs with thousands of
     setuptools / pip lines. Pass ``debug=True`` (via the runner's ``--debug`` flag) to stream
@@ -437,7 +437,7 @@ native options:
   --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 pytest arguments:
-  Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
+  Pass pytest options after '--'. Without '--', defaults to '--tb=short'.
 
   examples:
     %(prog)s docker                                          # run all tests in Docker
