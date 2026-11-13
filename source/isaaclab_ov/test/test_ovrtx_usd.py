@@ -275,6 +275,17 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
     )
 
 
+@pytest.mark.parametrize("data_type", ["rgb", "rgb_hdr"])
+def test_ovrtx_hdr_output_tonemaps_gaussian_splats(camera_spec, render_data, data_type):
+    """An ``rgb_hdr`` request, which PPISP makes, tonemaps Gaussian splats with the rest of the frame."""
+    camera_spec.cfg.data_types = [data_type]
+    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=False)
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(usd)
+    attribute = layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled")
+    assert (attribute.default is False) if data_type == "rgb_hdr" else attribute is None
+
+
 def test_ovrtx_duplicate_simple_shading_data_types_collapse():
     """Repeated identical simple-shading requests share one LdrColor render var."""
     assert get_render_var_configs(
@@ -304,22 +315,6 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
     assert device_ids is not None
     assert device_ids.typeName == Sdf.ValueTypeNames.UIntArray
     assert list(device_ids.default) == [1]
-
-
-@pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
-def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
-    """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
-    camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object()
-    render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
-    layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert layer.ImportFromString(render_product)
-    ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
-    expected_vars = ("LdrColor", "HdrColor") if data_types else ("HdrColor",)
-    assert list(ordered_vars.targetPathList.explicitItems) == [
-        Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
-    ]
-    assert camera_spec.cfg.data_types == data_types
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data):

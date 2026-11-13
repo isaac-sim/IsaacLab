@@ -18,6 +18,7 @@
     Camera
     CameraData
     CameraCfg
+    ExposureCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -94,6 +95,10 @@ USD Camera
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type, OffsetCfg
+
+.. autoclass:: ExposureCfg
+    :members:
+    :exclude-members: __init__
 
 
 Contact Sensor

@@ -105,14 +105,14 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     import numpy as np
     import ovrtx
     import torch
-    from isaaclab_ppisp import PpispCfg
+    from isaaclab_ppisp import PpispProcessorCfg
 
     from pxr import UsdPhysics
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sensors import CameraCfg
+    from isaaclab.sensors import CameraCfg, ExposureCfg
     from isaaclab.utils import configclass, instantiate, replace
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
@@ -155,7 +155,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             prim_path="{ENV_REGEX_NS}/OtherCamera",
             offset=replace(camera.offset, pos=(0.0, 0.0, 7.0)),
             data_types=["depth", "rgb", "rgb_hdr"],
-            isp_cfg=PpispCfg(),
+            tensor_processors=[PpispProcessorCfg()],
+            exposure=ExposureCfg(mode="neutral"),
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
 

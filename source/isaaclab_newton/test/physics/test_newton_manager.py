@@ -856,7 +856,7 @@ def test_queries_share_one_bvh_refit_per_publication(monkeypatch, cloth, device)
         observed.append(backend.state_0.body_q.numpy().copy())
 
     monkeypatch.setattr(renderer, "_launch_render", read)
-    render_data = SimpleNamespace(graph=None, ppisp_pipeline=None)
+    render_data = SimpleNamespace(graph=None)
     renderer.render(render_data)
     renderer.render(render_data)
     assert render_data.graph is None

@@ -23,6 +23,7 @@ from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import Camera, SensorBase
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
@@ -301,8 +302,15 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0):
-        self.cfg = SimpleNamespace(update_period=update_period, update_latest_camera_pose=True)
+    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=()):
+        self.cfg = SimpleNamespace(
+            update_period=update_period,
+            update_latest_camera_pose=True,
+            tensor_processors=[
+                SimpleNamespace(func=Mock(return_value=processor), inputs=[CAPTURE_ENV_MASK_NAME], outputs=outputs)
+                for processor in processors
+            ],
+        )
         self._sim = renderer._sim
         self._device = "cpu"
         self._num_envs = 2
@@ -311,9 +319,10 @@ class _CpuCamera(Camera):
         self._is_visualizing = False
         self._renderer = renderer
         self._render_data = SimpleNamespace(name=name, pose=None)
-        self._data = CameraData()
+        self._tensor_processors = []
+        self._data = CameraData.allocate([], 1, 1, 2, "cpu", {})
         self._data.create_buffers(2, "cpu")
-        self._data.info = {}
+        self._render_outputs = {}
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
@@ -586,8 +595,9 @@ def test_camera_updates_preserve_custom_buffer_hooks(camera_batch_context, monke
 def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batch_context):
     """A fresh peer stays cached while due or reset cameras capture their current poses."""
     _, renderer, batches = camera_batch_context
+    processor = Mock(return_value={})
     fast = _CpuCamera(renderer, "fast")
-    slow = _CpuCamera(renderer, "slow", update_period=1.0)
+    slow = _CpuCamera(renderer, "slow", update_period=1.0, processors=[processor])
     scene = _camera_scene([fast, slow])
 
     InteractiveScene.update(scene, 0.1)
@@ -602,6 +612,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     renderer.reset.assert_called_once_with(slow._render_data, None)
+    np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])  # only the masked rows
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0
@@ -613,6 +624,78 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [2, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [1.3, 0.1])
     renderer.render.assert_not_called()
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy):
+    """Processors run once per capture with the mask of the environments due for it."""
+    _, renderer, _ = camera_batch_context
+    masks = []
+    processor = Mock(
+        side_effect=lambda buffers: masks.append(buffers[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist()) or {}
+    )
+    camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor])
+    scene = _camera_scene([camera], lazy=lazy)
+
+    InteractiveScene.update(scene, 0.1)
+    assert camera.data.info["pose"] == 0.0  # lazy scenes capture on read
+    camera.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    InteractiveScene.update(scene, 0.1)
+    assert camera.data.info["pose"] == 0.0
+
+    # Only the reset environment is due for the second capture.
+    assert masks == [[True, True], [False, True]]
+
+
+def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
+    """A processor output published for the first time has the capture metadata of the render outputs it used."""
+    _, renderer, _ = camera_batch_context
+
+    def read_output(rd, data):
+        # Like OVRTX with delayed captures: fill the metadata of every existing info key.
+        for name in data.info:
+            data.info[name] = {"capture": {"frame": rd.pose}}
+
+    renderer.read_output.side_effect = read_output
+    camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})], outputs=["rgb"])
+    camera._data.info["depth"] = None
+
+    InteractiveScene.update(_camera_scene([camera]), 0.01)
+
+    assert camera.data.info["rgb"] == camera.data.info["depth"] == {"capture": {"frame": 0.0}}
+
+
+def test_processors_read_and_return_only_what_their_configuration_lists(camera_batch_context):
+    """The capture mask reaches only processors that list it, and returning unlisted output names is an error."""
+    _, renderer, _ = camera_batch_context
+    received = []
+    processor = Mock(side_effect=lambda buffers: received.append(set(buffers)) or {"rgba": object()})
+    camera = _CpuCamera(renderer, "camera", processors=[processor], outputs=["rgb"])
+    camera.cfg.tensor_processors[0].inputs = []
+
+    with pytest.raises(ValueError, match=r"lists the outputs \['rgb'\]"):
+        InteractiveScene.update(_camera_scene([camera]), 0.01)
+
+    assert received == [set()]
+
+
+def test_failed_processor_close_still_releases_the_camera(camera_batch_context):
+    """A processor that fails to close leaves neither the other processors nor the render data open."""
+    _, renderer, _ = camera_batch_context
+    failing, closing = Mock(), Mock()
+    failing.close.side_effect = RuntimeError("close failed")
+    camera = _CpuCamera(renderer, "camera")
+    camera._tensor_processors = [failing, closing]
+    camera._view = None
+    camera._clear_debug_vis_handle = Mock()  # this test scene has no debug visualization
+    render_data = camera._render_data
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        camera._invalidate_initialize_callback(None)
+
+    closing.close.assert_called_once()
+    renderer.cleanup.assert_called_once_with(render_data)
+    assert camera._tensor_processors == [] and camera._render_data is None and not camera.is_initialized
 
 
 @pytest.mark.parametrize("failure", ["render_batch", "read_output"])

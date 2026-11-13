@@ -3,20 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-render PPISP pipeline composed into renderer backends.
-
-:class:`PpispPipeline` runs *after* a renderer fills its HDR scene-linear AOV,
-converting HDR → LDR via a single Warp kernel. Renderer backends instantiate
-this class when their cfg/spec carries a :class:`PpispCfg` and dispatch
-:meth:`apply` once per render tick. The HDR scratch buffer is owned by the
-renderer backend, not by this class.
-"""
+"""Post-render PPISP pipeline and the camera tensor processor that applies it."""
 
 from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING
+
 import warp as wp
 
-from .cfg import PpispCfg, normalize_ppisp_cfg
+from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
+from isaaclab.utils import replace
+from isaaclab.utils.tensor_processors import TensorProcessor
+from isaaclab.utils.warp import ProxyArray
+
+from .cfg import PpispCfg, normalize_ppisp_cfg, resolve_and_normalize
 from .kernels import (
     PPISP_CONTROLLER_FEATURE_LEN,
     PPISP_CONTROLLER_PARAM_COUNT,
@@ -25,13 +26,20 @@ from .kernels import (
     compute_ppisp_controller_params,
 )
 
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.renderers import RendererCfg
+
+    from .cfg import PpispProcessorCfg
+
+logger = logging.getLogger(__name__)
+
 
 class PpispPipeline:
     """Post-render PPISP kernel applier.
 
-    Constructed by renderer backends when ``spec.cfg.isp_cfg`` is set. Owns the
-    normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
-    render tick via :meth:`apply`.
+    Owns the normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel via :meth:`apply`.
 
     One pipeline instance applies to the whole Camera sensor batch. Static ISP
     parameters and controller weights are shared by every view in the batch.
@@ -39,10 +47,6 @@ class PpispPipeline:
     and color parameters separately from each camera's current HDR image on
     every call to :meth:`apply`. The PPISP kernel uses the corresponding row
     of the per-camera parameter array for each view.
-
-    Today only :class:`PpispCfg` is accepted; future ISP implementations can
-    either subclass or be selected by cfg type without changes to the backend
-    renderers.
     """
 
     def __init__(self, cfg: PpispCfg):
@@ -50,9 +54,6 @@ class PpispPipeline:
 
         Normalises ``cfg`` on construction (validates input keys, fills
         defaults).
-        :class:`~isaaclab.sensors.camera.Camera` already normalises ``isp_cfg``
-        before passing the :class:`~isaaclab.renderers.CameraRenderSpec` to
-        the backend, so renderer backends pass a concrete, resolved config here.
 
         Args:
             cfg: The PPISP configuration.
@@ -86,3 +87,51 @@ class PpispPipeline:
             self.cfg.controller_prior_exposure, self.cfg.controller_responsivity,
         )  # fmt: skip
         apply_ppisp_to_rgba_with_controller_params(hdr, rgba, self.cfg, controller_params)
+
+
+class PpispProcessor(TensorProcessor):
+    """Camera processor that converts scene-linear HDR to ``rgba`` and its ``rgb`` view with PPISP."""
+
+    def __init__(self, cfg: PpispProcessorCfg, data: dict[str, ProxyArray]) -> None:
+        super().__init__(cfg)
+        self._pipeline = PpispPipeline(cfg.isp_cfg)
+        hdr = data[cfg.inputs[0]].warp
+        rgba = wp.zeros((*hdr.shape[:3], 4), dtype=wp.uint8, device=hdr.device)
+        rgb = wp.array(ptr=rgba.ptr, shape=(*hdr.shape[:3], 3), strides=rgba.strides, dtype=wp.uint8, device=hdr.device)
+        self._outputs = {"rgb": ProxyArray(rgb), "rgba": ProxyArray(rgba)}
+
+    def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
+        self._pipeline.apply(data[self._cfg.inputs[0]].warp, self._outputs["rgba"].warp)
+        return dict(self._outputs)
+
+    @classmethod
+    def prepare_camera(
+        cls, cfg: PpispProcessorCfg, stage: Usd.Stage, camera_prim_paths: list[str], renderer_cfg: RendererCfg
+    ) -> PpispProcessorCfg | None:
+        """Resolve the camera's PPISP coefficients and check that the camera's exposure is neutral.
+
+        PPISP applies its own exposure to scene-linear HDR. Isaac RTX and OVRTX apply the camera prim's exposure
+        to their HDR output, so on them the camera needs ``CameraCfg.exposure = ExposureCfg(mode="neutral")``.
+        Returns None, with a logged warning, when discovery finds no PPISP camera attributes.
+
+        Raises:
+            ValueError: If the renderer is Isaac RTX or OVRTX and a camera prim's exposure is not neutral.
+        """
+        isp_cfg = resolve_and_normalize(cfg.isp_cfg, stage, camera_prim_paths[0])
+        if isp_cfg is None:
+            logger.warning(
+                "PPISP found no camera attributes for %s (isp_cfg=%s), so the camera runs without PPISP and keeps"
+                " the renderer's color output. The camera's exposure setting still applies.",
+                camera_prim_paths[0],
+                cfg.isp_cfg,
+            )
+            return None
+        if renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx") and not all(
+            has_neutral_exposure(stage.GetPrimAtPath(path)) for path in camera_prim_paths
+        ):
+            # Changing the exposure here would also change every other color output of the camera without notice.
+            raise ValueError(
+                "PPISP applies its own exposure, so on Isaac RTX and OVRTX the camera's exposure must be neutral. "
+                'Set CameraCfg.exposure = ExposureCfg(mode="neutral"); it applies to every color output of the camera.'
+            )
+        return replace(cfg, isp_cfg=isp_cfg)
