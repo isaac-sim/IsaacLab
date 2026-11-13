@@ -25,6 +25,7 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from isaaclab.utils import instantiate
 from isaaclab.utils.string import resolve_matching_names
 
+from ..mpm_solver import check_mpm_reset_status
 from ..mpm_solver_cfg import MPMSolverCfg
 from ..newton_collision_cfg import NewtonCollisionPipelineCfg
 from ..newton_manager_cfg import NewtonSolverCfg
@@ -365,8 +366,10 @@ class CouplerSolver(NewtonSolver):
             if not selected.any():
                 return
             if selected[0] and not selected[-1]:
+                check_mpm_reset_status(solver)
                 solver.reset(state, world_mask=None, flags=0)
                 return
+        check_mpm_reset_status(solver)
         solver.reset(state, world_mask=world_mask, flags=0)
 
     def check_step(self, captured: bool, debug: bool) -> None:

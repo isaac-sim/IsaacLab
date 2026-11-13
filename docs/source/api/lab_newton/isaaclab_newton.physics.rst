@@ -41,6 +41,8 @@
     KaminoPADMMCfg
     KaminoPADMMSolverCfg
     MPMSolverCfg
+    MPMSleepingCfg
+    MPMWorkingSetCfg
     HydroelasticSDFCfg
 
 .. currentmodule:: isaaclab_newton.physics
@@ -225,3 +227,18 @@ MPM Solver State
 ----------------
 
 .. autofunction:: reset_mpm_solver_state
+
+Adaptive MPM Runtime
+--------------------
+
+.. autoclass:: MPMSleepingCfg
+  :members:
+
+.. autoclass:: MPMWorkingSetCfg
+  :members:
+
+.. autofunction:: configure_mpm_sleeping
+
+.. autofunction:: configure_mpm_working_set
+
+.. autofunction:: defer_mpm_status_checks

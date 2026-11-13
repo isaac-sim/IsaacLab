@@ -281,6 +281,139 @@ capture-stable storage:
 
 Dense grids and unbounded grids run without capture.
 
+.. _newton-mpm-sleeping:
+
+Sleeping and bounded working sets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Particle sleeping omits quiet material from the simulation grid while keeping
+its particle state and constitutive history on the GPU. Moving particles,
+applied forces, and approaching colliders wake nearby material; a stationary
+support halo surrounds the awake region. Thresholds approximate quiescence,
+so sleeping can suppress slow creep and does not guarantee full-MPM force
+equivalence. Validate thresholds against the interactions your task needs. Try the
+moving-sphere example with compact evaluation or optional pages:
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab example mpm-sleeping
+   uv run --no-sync isaaclab example mpm-sleeping --paging
+   uv run --no-sync isaaclab example mpm-sleeping --no-sleeping
+
+Use :class:`~isaaclab_newton.physics.MPMSleepingCfg` and
+:class:`~isaaclab_newton.physics.MPMWorkingSetCfg` to hold the runtime settings:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import (
+       MPMSleepingCfg,
+       MPMSolverCfg,
+       MPMWorkingSetCfg,
+       configure_mpm_sleeping,
+       configure_mpm_working_set,
+   )
+
+   mpm_cfg = MPMSolverCfg(
+       grid_type="sparse",
+       max_active_cell_count=65_536,
+       reuse_grid_topology=True,
+       sleeping=MPMSleepingCfg(velocity_threshold=0.01, sleep_time=0.5),
+       working_set=MPMWorkingSetCfg(particle_capacity=32_768, page_size=32, max_active_cell_count=8192),
+   )
+
+These fields are optional and are not automatically applied when the backend
+builds. The caller owns settling and classification: settle the full bed,
+enable sleeping, then advance the current controller long enough to classify
+quiet material before configuring a smaller pool. Neither helper advances
+physics or resets state. For a standalone MPM backend, after settling:
+
+.. code-block:: python
+
+   manager = sim.backend_manager
+   configure_mpm_sleeping(manager, mpm_cfg.sleeping)
+   for _ in range(classification_steps):
+       sim.step(render=False)
+       scene.update(sim.get_physics_dt())
+   configure_mpm_working_set(manager, mpm_cfg.working_set)
+   sim.step(render=False)
+   scene.update(sim.get_physics_dt())
+
+Both helpers invalidate the existing step graph before replacing runtime
+resources. With capture enabled, the final ``sim.step()`` performs the
+manager's uncaptured warmup and captures the new layout for subsequent replay.
+Set ``reuse_grid_topology=True`` to select the guarded sparse runtime required
+by sleeping and working sets. Unchanged grid structure is reused where supported;
+point bases retain device guards and rebuild structure.
+Choose capacities for the largest anticipated awake region and support halo,
+not just the initial classification. Sleeping requires a CUDA sparse grid;
+bounded working sets additionally require standard PIC and a rebuildable grid.
+This opt-in feature requires the companion Newton runtime and Warp conditional
+allocation changes; the default dependency pins do not provide these APIs yet.
+Use their source checkouts through ``PYTHONPATH`` and keep ``--no-sync`` when
+launching with manually installed feature builds. Topology reuse caches only
+structure; material values and contacts still update on every step.
+
+For a coupled backend, explicitly select the particle solver and its current
+entry input state. The helpers cannot substitute the coupled parent state:
+
+.. code-block:: python
+
+   coupled = manager.backend.solver
+   sand = coupled.solver("sand")
+   configure_mpm_sleeping(manager, mpm_cfg.sleeping, solver=sand)
+   # Advance the coupled controller to classify quiet material here.
+   configure_mpm_working_set(
+       manager,
+       mpm_cfg.working_set,
+       solver=sand,
+       state=coupled.entry_state("sand", phase="input"),
+   )
+
+The evaluation pool stores original particle IDs, so material properties and
+history retain their canonical identity. ``page_size=0`` compacts individual
+eligible particles. A positive size groups consecutive original IDs into pages
+and requires ``particle_capacity`` to be divisible by that size. Individual
+lanes still sleep and wake while a page is resident. Pages can reduce scan
+work, but inactive lanes consume pool capacity; benchmark them independently.
+Neither mode removes the complete particle backing state from VRAM or provides
+out-of-core storage. Surface rendering is independent of both options.
+
+Validating captured windows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Per-step capacity checking remains enabled by default, and debug replay
+retains it inside a deferred scope. To avoid a host status read after every
+replay, use
+:func:`~isaaclab_newton.physics.defer_mpm_status_checks` around a bounded
+collection window. It requires native guarded layouts with persistent device
+fault status. By default it covers all implicit MPM solvers in the backend;
+``solvers=(sand,)`` selects an entry explicitly.
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import defer_mpm_status_checks
+
+   with defer_mpm_status_checks(manager):
+       rollout = collect_rollout()
+   train(rollout)
+
+The context checks status on entry and accumulated status on successful exit.
+A capacity fault suppresses the affected MPM update and invalidates the entire
+collected window, including coupled robot state. Consume or train on results
+only after the context exits successfully. Discard a failed window and rebuild
+or explicitly reset the solver before reconfiguration. The helpers reject an
+outstanding fault rather than erasing it while resizing. Increase the relevant
+capacity and recapture before retrying; a truncated or partially frozen
+rollout is not a valid fallback. Resetting or disabling sleeping can wake the
+full particle population, which must fit the new pool or be classified again.
+This moves the check to a validation boundary, rather than eliminating it.
+Prepare the scene before entering the scope. Use Isaac Lab's reset interfaces
+inside collection: they check pending faults before native reset can clear
+them. Reset forwarding can therefore synchronize, including when captured
+pose writes set reset masks. Direct native solver resets are unsupported
+inside the window. Closing or replacing the backend also rejects the window.
+Status validation does not replace task-specific finite-state or physical checks.
+
 Resets
 ^^^^^^
 

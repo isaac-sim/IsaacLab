@@ -369,12 +369,21 @@ _MPM_PARTICLE_ATTRIBUTES = {
 }
 
 
+@pytest.mark.kitless
 def test_mpm_cfg_forwards_every_solver_field_and_not_isaac_lab_metadata():
     """Every tunable MPM field reaches ``SolverImplicitMPM.Config``; Isaac Lab-only fields do not."""
     newton_cfg = _make_solver_config(MPMSolverCfg(**dict(_MPM_FIELD_VALUES)))
 
     _assert_forwarded(newton_cfg, _MPM_FIELD_VALUES)
-    assert not any(hasattr(newton_cfg, name) for name in ("class_type", "solver_type", "project_outside_colliders"))
+    assert not any(
+        hasattr(newton_cfg, name)
+        for name in ("class_type", "solver_type", "project_outside_colliders", "sleeping", "working_set")
+    )
+    if hasattr(SolverImplicitMPM.Config, "reuse_grid_topology"):
+        assert _make_solver_config(MPMSolverCfg(reuse_grid_topology=True)).reuse_grid_topology
+    else:
+        with pytest.raises(RuntimeError, match="compatible Newton build providing reuse_grid_topology"):
+            _make_solver_config(MPMSolverCfg(reuse_grid_topology=True))
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -18,13 +22,19 @@ from warp.fem import TemporaryStore
 
 from isaaclab.sim import SimulationContext
 
-from .mpm_solver_cfg import MPMSolverCfg
+from .mpm_solver_cfg import MPMSleepingCfg, MPMSolverCfg, MPMWorkingSetCfg
 from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from pxr import Usd
 
     from .newton_backend import NewtonBackend
+    from .newton_manager import NewtonManager
+
+
+_deferred_status_checks: ContextVar[tuple[SolverImplicitMPM, ...]] = ContextVar(
+    "mpm_deferred_status_checks", default=()
+)
 
 
 def _canonical_collider_velocity_mode(solver_cfg: MPMSolverCfg) -> str:
@@ -70,6 +80,10 @@ def _make_solver_config(solver_cfg: MPMSolverCfg, scene_prim: Usd.Prim | None = 
         "strain_basis": solver_cfg.strain_basis,
         "velocity_basis": solver_cfg.velocity_basis,
     }
+    if "reuse_grid_topology" in {field.name for field in fields(SolverImplicitMPM.Config)}:
+        values["reuse_grid_topology"] = solver_cfg.reuse_grid_topology
+    elif solver_cfg.reuse_grid_topology:
+        raise RuntimeError("Grid topology reuse requires a compatible Newton build providing reuse_grid_topology.")
     if scene_prim is None:
         return SolverImplicitMPM.Config(**values)
 
@@ -170,6 +184,147 @@ def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, 
         for name in solver.entry_names()
         if isinstance((entry_solver := solver.solver(name)), SolverImplicitMPM)
     )
+
+
+def check_mpm_reset_status(solver: SolverBase) -> None:
+    """Validate a deferred window before a Lab reset can clear its native fault status.
+
+    Outside deferred collection this is a no-op. Reset boundaries can synchronize; ordinary replay does not call it.
+    """
+    deferred = _deferred_status_checks.get()
+    if deferred:
+        for selected in implicit_mpm_solvers(solver):
+            if selected in deferred:
+                selected.check_sparse_grid_rebuild_status()
+
+
+def _runtime_mpm_solver(manager: NewtonManager, solver: SolverImplicitMPM | None) -> SolverImplicitMPM:
+    """Select an owned solver without guessing a coupled entry or particle ordering."""
+    if manager.backend is None:
+        raise RuntimeError("Initialize the Newton backend before configuring MPM runtime settings.")
+    selected = manager.backend.solver if solver is None else solver
+    if selected not in implicit_mpm_solvers(manager.backend.solver):
+        raise ValueError(
+            "Select an initialized implicit MPM solver owned by this manager; specify coupled entries explicitly."
+        )
+    if selected.model.device.is_capturing:
+        raise RuntimeError("Configure MPM runtime settings outside CUDA graph capture.")
+    return selected
+
+
+def configure_mpm_sleeping(
+    manager: NewtonManager, cfg: MPMSleepingCfg | None, *, solver: SolverImplicitMPM | None = None
+) -> None:
+    """Apply native activity settings without advancing or resetting the scene.
+
+    Settle the scene first, then step its controller to classify activity before installing a bounded working set.
+    ``None`` does nothing. Existing status is checked and the step graph invalidated before configuration.
+    Native Newton validates supported devices, grids, and thresholds. These are setup operations, not per-step work.
+
+    Args:
+        manager: Manager owning the active Newton backend.
+        cfg: Activity settings, or None to leave the solver unchanged.
+        solver: Native implicit MPM solver. Omit for a standalone MPM backend; select coupled entries explicitly.
+
+    Raises:
+        RuntimeError: The native feature is missing, capture is active, or the previous step failed.
+        ValueError: The solver is not owned by this manager or Newton rejects the configuration.
+    """
+    if cfg is None:
+        return
+    selected = _runtime_mpm_solver(manager, solver)
+    if not hasattr(selected, "set_particle_sleeping"):
+        raise RuntimeError("Particle sleeping requires a compatible Newton build providing set_particle_sleeping().")
+    cfg.validate()
+    selected.check_sparse_grid_rebuild_status()
+    manager.backend.invalidate_graph()
+    selected.set_particle_sleeping(**cfg.to_dict())
+
+
+def configure_mpm_working_set(
+    manager: NewtonManager,
+    cfg: MPMWorkingSetCfg | None,
+    *,
+    solver: SolverImplicitMPM | None = None,
+    state: State | None = None,
+) -> None:
+    """Install bounded native evaluation buffers after settling and activity classification.
+
+    ``None`` does nothing. Existing status is checked and the step graph invalidated before changing buffer layout.
+    The next manager step warms and captures the new layout. All backing particle states stay on GPU. Initial settling
+    and resets can wake more particles than the pool holds; choose a compatible preparation and reset policy.
+
+    Args:
+        manager: Manager owning the active Newton backend.
+        cfg: Buffer capacities and optional page size, or None to leave the solver unchanged.
+        solver: Native implicit MPM solver. Omit for a standalone MPM backend.
+        state: Current solver input state. Required for a coupled entry; a standalone backend uses its state_0.
+
+    Raises:
+        RuntimeError: The feature or current state is missing, capture is active, or the previous step failed.
+        ValueError: A coupled input state is omitted, the solver is not owned, or Newton rejects the configuration.
+    """
+    if cfg is None:
+        return
+    selected = _runtime_mpm_solver(manager, solver)
+    if not hasattr(selected, "set_particle_working_set"):
+        raise RuntimeError(
+            "Bounded MPM evaluation requires a compatible Newton build providing set_particle_working_set()."
+        )
+    if state is None:
+        if selected is not manager.backend.solver:
+            raise ValueError("Provide the coupled MPM entry's current input state explicitly.")
+        state = manager.backend.state_0
+    if state is None:
+        raise RuntimeError("The current MPM input state is not initialized.")
+    cfg.validate()
+    selected.check_sparse_grid_rebuild_status()
+    manager.backend.invalidate_graph()
+    selected.set_particle_working_set(state, **cfg.to_dict())
+
+
+@contextmanager
+def defer_mpm_status_checks(manager: NewtonManager, *, solvers: Sequence[SolverImplicitMPM] | None = None):
+    """Collect a guarded MPM rollout without a per-step status readback, then validate it.
+
+    The default per-step fail-fast policy is unchanged outside this scope. Debug replay still checks every step.
+    Each successful scope exit checks all selected solvers; an overflow raises and invalidates the entire window.
+    Consume collected transitions or update a policy only after successful exit. A body exception also rejects the
+    window and restores ordinary checking. Nested scopes validate independently.
+
+    Use Lab's reset interfaces inside the scope; direct native resets are unsupported because they clear fault status.
+    Lab resets check before clearing status and can synchronize even inside the scope. Prepare the scene before entry.
+    Status validation does not replace task-specific finite-state or physical checks.
+    This requires native guarded CUDA MPM with a persistent ``step_status``. The device guard protects particle
+    buffers, but coupled rigid bodies may continue after an MPM fault. This scope does not provide GPU validity masks
+    for a learner or make an unbounded reset compatible with a compact pool.
+
+    Args:
+        manager: Manager owning the active Newton backend.
+        solvers: Owned implicit MPM solvers to validate. None selects every MPM entry.
+
+    Raises:
+        RuntimeError: No guarded MPM solver is available, capture is active, or final validation fails.
+        ValueError: A selected solver is not owned by this manager.
+    """
+    root_solver = getattr(manager.backend, "solver", None)
+    selected = implicit_mpm_solvers(root_solver) if solvers is None else tuple(dict.fromkeys(solvers))
+    if not selected:
+        raise RuntimeError("Deferred validation requires an initialized guarded MPM solver.")
+    for solver in selected:
+        _runtime_mpm_solver(manager, solver)
+        if getattr(solver, "step_status", None) is None:
+            raise RuntimeError("Deferred validation requires native guarded CUDA MPM with persistent step_status.")
+        solver.check_sparse_grid_rebuild_status()
+    token = _deferred_status_checks.set(_deferred_status_checks.get() + selected)
+    try:
+        yield
+        if getattr(manager.backend, "solver", None) is not root_solver:
+            raise RuntimeError("The Newton backend changed during deferred collection; discard the rollout.")
+        for solver in selected:
+            solver.check_sparse_grid_rebuild_status()
+    finally:
+        _deferred_status_checks.reset(token)
 
 
 def mpm_supports_graph_capture(solver: SolverImplicitMPM) -> bool:
@@ -282,7 +437,9 @@ class MPMSolver(NewtonSolver):
 
     def check_step(self, captured: bool, debug: bool) -> None:
         """Raise asynchronous sparse-grid rebuild failures after a graph replay."""
-        if captured:
+        if (debug or self.native not in _deferred_status_checks.get()) and (
+            captured or getattr(self.native, "step_status", None) is not None
+        ):
             self.native.check_sparse_grid_rebuild_status()
 
 
@@ -330,5 +487,6 @@ def reset_mpm_solver_state(
     states = list({id(candidate): candidate for candidate in candidates if candidate is not None}.values())
     if not states:
         raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
+    check_mpm_reset_status(solver)
     for candidate in states:
         solver.reset(candidate, world_mask=reset_mask, flags=flags)
