@@ -16,7 +16,6 @@ __all__ = [
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
     "OvLibrariesXrCfg",
-    "OvLibrariesXrSession",
     "SupportsControlEvents",
     "SystemCheckItem",
     "SystemCheckResult",

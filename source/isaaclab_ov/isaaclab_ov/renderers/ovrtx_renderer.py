@@ -540,7 +540,7 @@ class OVRTXRenderer(BaseRenderer):
                     tensors=cpu_cameras, is_array=False,
                 ).wait()  # fmt: skip
         if self._use_ovstage:
-            self.scene.commit()
+            self.scene._commit()
             if not self.backend.attached:
                 self.backend.renderer.attach_ovstage(self.scene.stage)
                 self.backend.attached = True
