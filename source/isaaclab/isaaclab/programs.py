@@ -169,7 +169,7 @@ EXAMPLES = (
     ProgramSpec(
         "rizon-sharpa-teapot",
         "examples/rizon_sharpa_teapot.py",
-        "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
+        "Explore physical Rizon--Sharpa grasping with two-way MPM proxy coupling.",
         required_modules=("isaaclab_contrib",),
     ),
     ProgramSpec(
