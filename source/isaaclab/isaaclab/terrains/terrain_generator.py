@@ -67,7 +67,7 @@ class TerrainGenerator:
 
         \text{difficulty} \sim \mathcal{U}(\text{lower}, \text{upper})
 
-    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are
+    If the :attr:`~SubTerrainBaseCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are
     sampled on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
     in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the
     value is a tensor containing the flat patches for each sub-terrain.

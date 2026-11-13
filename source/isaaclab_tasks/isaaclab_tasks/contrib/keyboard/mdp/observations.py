@@ -72,15 +72,18 @@ class key_positions_b(ManagerTermBase):
     * ``single`` -> one instance per env; key body ``key_{slot:03d}``.
     * ``fixed_dof`` -> ``parts/part_*`` instances per env; key body ``key_{local:03d}``.
 
-    Args (from ``cfg.params``):
+    The following arguments are supplied through ``cfg.params``.
+
+    Args:
         command_name: Name of the typing command that owns the canonical key-slot map. Defaults to ``typing``.
         base_asset_cfg: Scene entity providing the reference root frame. Defaults to ``SceneEntityCfg("robot")``.
         active_slots: Global key-slot ids that hold a real key; all other slots are zero-padded. ``None``
             keeps every slot that mapped to a key body.
 
-    Returns (from :meth:`__call__`):
-        Tensor of shape ``(num_envs, num_slots * 3)`` with per-slot key positions [m] in the base frame,
-        flattened in global slot order and with inactive slots zeroed.
+    Returns:
+        :meth:`__call__` returns a tensor of shape ``(num_envs, num_slots * 3)`` with
+        per-slot key positions [m] in the base frame, flattened in global slot order
+        and with inactive slots zeroed.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):

@@ -104,13 +104,13 @@ def make_box(
     Args:
         length: The length (along x) of the box (in m).
         width: The width (along y) of the box (in m).
-        height: The height of the cylinder (in m).
-        center: The center of the cylinder (in m).
+        height: The height of the box (in m).
+        center: The center of the box (in m).
         max_yx_angle: The maximum angle along the y and x axis. Defaults to 0.
         degrees: Whether the angle is in degrees. Defaults to True.
 
     Returns:
-        A trimesh.Trimesh object for the cylinder.
+        A trimesh.Trimesh object for the box.
     """
     # create a pose for the cylinder
     transform = np.eye(4)

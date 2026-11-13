@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.3 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera tasks stalling when their output is read slowly, for example by a benchmark harness. The
+  default :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_level` is now ``"error"``: lower levels print an
+  OVRTX warning for each attribute of every cloned environment (over a million lines at 8192 environments).
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
+9.0.2 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reduced OVPhysX training throughput with cloned environments and shared ground by no longer forcing
+  ``physxScene:envIdInBoundsBitCount`` during scene initialization.
+
+
 9.0.1 (2026-11-06)
 ~~~~~~~~~~~~~~~~~~
 

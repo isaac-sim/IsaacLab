@@ -134,11 +134,20 @@ class NewtonCfg(PhysicsCfg):
     """Whether to enable debug mode for the solver."""
 
     use_cuda_graph: bool = True
-    """Whether to use CUDA graphing when simulating.
+    """Whether to replay the physics step from a captured Warp graph.
 
     Graphs are captured immediately after the first eager physics step, after reset and decimation
     setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
     capture mode; kitless simulation uses Warp's standard capture mode.
+
+    On the CPU, Warp's CPU graph capture records the step and removes Python launch overhead. A solver
+    whose :meth:`~isaaclab_newton.physics.NewtonSolver.supports_capture` returns False steps eagerly.
+
+    Step callbacks registered on the manager are recorded into the captured step, so they must be
+    graph-safe: fixed array shapes and no host branching on device data. On the CPU they must also
+    issue only Warp work on contiguous arrays: Warp's CPU capture does not record torch operations,
+    host reads or :meth:`warp.Mesh.refit`, which then run once at capture time instead of on every
+    step. Set this to False to step such callbacks eagerly.
 
     If set to False, the simulation performance will be severely degraded.
     """
@@ -157,7 +166,7 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU (built with its sensor stage disabled), XPBD, and
+    MJWarp on the GPU (built with its sensor stage disabled), XPBD, Steel, and
     Featherstone support this setting. Newton raises an error during solver
     initialization for unsupported solvers rather than silently running them
     without the requested guarantee.
@@ -183,6 +192,7 @@ class NewtonCfg(PhysicsCfg):
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`VBDSolverCfg` (always),
+    - :class:`SteelSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -193,9 +203,9 @@ class NewtonCfg(PhysicsCfg):
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
 
     .. note::
-        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
-        the field is ignored because Kamino's internal detector handles contacts.
+        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True``, or while a Kamino solver
+        config has ``use_collision_detector=True``, raises :class:`ValueError` because the solver's
+        internal detector handles contacts.
     """
 
     default_shape_cfg: NewtonShapeCfg = NewtonShapeCfg()
