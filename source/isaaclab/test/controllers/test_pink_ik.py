@@ -70,6 +70,10 @@ def create_test_env(env_name, num_envs):
         del env_cfg.scene.packing_table
         del env_cfg.terminations.object_dropping
         del env_cfg.terminations.time_out
+        if env_name == "IsaacContrib-PickPlace-GR1T2-Abs":
+            # A three-cycle exposes hand-target permutations that identical targets hide.
+            hand_names = env_cfg.actions.upper_body_ik.hand_joint_names
+            hand_names[:3] = [hand_names[2], hand_names[0], hand_names[1]]
         return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
     except Exception as e:
         print(f"Failed to create environment: {str(e)}")
@@ -196,16 +200,28 @@ def test_movement_types(test_setup, test_name):
         pytest.skip(f"Test {test_name} requires waist bending but waist is not enabled")
         return
 
-    run_movement_test(test_setup, test_config, test_cfg)
+    hand_targets = None
+    if test_name == "stay_still" and env_cfg.__class__.__name__ == "PickPlaceGR1T2EnvCfg":
+        hand_targets = {
+            "L_index_proximal_joint": 0.1,
+            "L_middle_proximal_joint": 0.2,
+            "L_pinky_proximal_joint": 0.3,
+        }
+    run_movement_test(test_setup, test_config, test_cfg, hand_targets=hand_targets)
 
 
-def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
+def run_movement_test(test_setup, test_config, test_cfg, aux_function=None, hand_targets=None):
     """Run a movement test with the given configuration."""
     env = test_setup["env"]
     num_joints_in_robot_hands = test_setup["num_joints_in_robot_hands"]
 
     left_hand_poses = np.array(test_config["left_hand_pose"], dtype=np.float32)
     right_hand_poses = np.array(test_config["right_hand_pose"], dtype=np.float32)
+    hand_positions = np.zeros(num_joints_in_robot_hands)
+    if hand_targets is not None:
+        hand_positions = np.array(
+            [hand_targets.get(name, 0.0) for name in test_setup["env_cfg"].actions.upper_body_ik.hand_joint_names]
+        )
 
     curr_pose_idx = 0
     test_counter = 0
@@ -229,7 +245,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 
             # Create actions from hand poses and joint positions
             setpoint_poses = np.concatenate([left_hand_poses[curr_pose_idx], right_hand_poses[curr_pose_idx]])
-            actions = np.concatenate([setpoint_poses, np.zeros(num_joints_in_robot_hands)])
+            actions = np.concatenate([setpoint_poses, hand_positions])
             actions = torch.tensor(actions, device=env.device, dtype=torch.float32)
             # Append base command for Locomanipulation environments with fixed height
             if test_setup["env_cfg"].__class__.__name__ == "LocomanipulationG1EnvCfg":
@@ -242,6 +258,18 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 
             # Step environment
             obs, _, _, _, _ = env.step(actions)
+
+            if hand_targets is not None and num_runs == 1:
+                # Read native drive targets, independently keyed by physical joint names.
+                view = test_setup["articulation"].root_view
+                native_targets = view.get_dof_position_targets().numpy()
+                native_names = view.shared_metatype.dof_names
+                np.testing.assert_allclose(
+                    [native_targets[0, native_names.index(name)] for name in hand_targets],
+                    list(hand_targets.values()),
+                    rtol=0.0,
+                    atol=1e-6,
+                )
 
             # Determine the step interval for error checking
             if phase == "initial":
