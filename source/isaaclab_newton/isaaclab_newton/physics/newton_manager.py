@@ -507,6 +507,18 @@ class NewtonManager(PhysicsManager):
         if self.backend.solver_ops.applies_body_forces():
             self._sim._prepare_newton_visualizer_for_capture()
 
+    def set_voxel_size(self, voxel_size: float, *, entry_name: str | None = None) -> None:
+        """Rebuild an MPM grid at spacing ``voxel_size`` [m]; see :meth:`NewtonBackend.set_voxel_size`."""
+        if self.backend is None:
+            raise RuntimeError("Newton physics must be initialized before changing MPM settings.")
+        self.backend.set_voxel_size(voxel_size, entry_name=entry_name)
+
+    def set_particle_radius(self, radius: float, *, entry_name: str | None = None) -> None:
+        """Change the MPM support radius [m]; see :meth:`NewtonBackend.set_particle_radius`."""
+        if self.backend is None:
+            raise RuntimeError("Newton physics must be initialized before changing MPM settings.")
+        self.backend.set_particle_radius(radius, entry_name=entry_name)
+
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
         return self.backend.create_visual_material_writer(batches)

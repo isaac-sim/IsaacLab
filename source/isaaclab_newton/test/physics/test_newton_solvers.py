@@ -35,15 +35,17 @@ from isaaclab_newton.physics import (
     VBDSolverCfg,
     XPBDSolverCfg,
 )
-from isaaclab_newton.physics.mpm_solver import _make_solver_config, implicit_mpm_solvers, mpm_supports_graph_capture
+from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers, mpm_solver_config
 from isaaclab_newton.physics.newton_builder import register_builder_attributes
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from isaaclab_newton.test.fixtures.mock_newton import solver_driver
 from newton import ModelBuilder
 from newton.solvers import SolverImplicitMPM, SolverMuJoCo, SolverXPBD
 
-from isaaclab.sim import SimulationContext
-from isaaclab.test.utils import test_devices
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
+
+pytestmark = pytest.mark.kitless
 
 
 def _model_stub(state_attributes=()) -> SimpleNamespace:
@@ -371,7 +373,7 @@ _MPM_PARTICLE_ATTRIBUTES = {
 
 def test_mpm_cfg_forwards_every_solver_field_and_not_isaac_lab_metadata():
     """Every tunable MPM field reaches ``SolverImplicitMPM.Config``; Isaac Lab-only fields do not."""
-    newton_cfg = _make_solver_config(MPMSolverCfg(**dict(_MPM_FIELD_VALUES)))
+    newton_cfg = MPMSolverCfg(**dict(_MPM_FIELD_VALUES)).to_solver_config()
 
     _assert_forwarded(newton_cfg, _MPM_FIELD_VALUES)
     assert not any(hasattr(newton_cfg, name) for name in ("class_type", "solver_type", "project_outside_colliders"))
@@ -383,31 +385,61 @@ def test_mpm_cfg_forwards_every_solver_field_and_not_isaac_lab_metadata():
 )
 def test_mpm_cfg_translates_deprecated_collider_velocity_modes(mode, expected, deprecated, recwarn):
     """Deprecated collider velocity modes warn and map to Newton's values; canonical modes pass through silently."""
-    newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=mode))
+    newton_cfg = MPMSolverCfg(collider_velocity_mode=mode).to_solver_config()
 
     assert newton_cfg.collider_velocity_mode == expected
     deprecations = [str(w.message) for w in recwarn if issubclass(w.category, DeprecationWarning)]
     assert any(f"use {expected!r}" in message for message in deprecations) is deprecated
 
 
-def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
-    """Kinematic bodies become massless so MPM treats them as kinematic colliders; dynamic bodies keep their mass."""
-    builder = ModelBuilder()
-    kinematic = builder.add_body(mass=0.35, inertia=wp.mat33(1.0), is_kinematic=True)
-    dynamic = builder.add_body(mass=1.2, inertia=wp.mat33(2.0))
+def test_mpm_kinematic_colliders_preserve_mass_for_other_solvers():
+    """MPM uses zero effective collider mass without breaking a shared rigid model."""
+    import newton
+
+    builder = newton.ModelBuilder()
+    register_builder_attributes(builder, MPMSolverCfg())
+    kinematic_body = builder.add_body(
+        mass=0.35,
+        inertia=wp.mat33(0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01),
+        is_kinematic=True,
+        label="kinematic_collider",
+    )
+    dynamic_body = builder.add_body(
+        mass=1.2,
+        inertia=wp.mat33(0.02, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0, 0.02),
+        is_kinematic=False,
+        label="dynamic_body",
+    )
+    mesh = newton.Mesh(
+        vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.0, 0.1)],
+        indices=[0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3],
+    )
+    builder.add_shape_mesh(kinematic_body, mesh=mesh, cfg=newton.ModelBuilder.ShapeConfig(density=0.0))
+    builder.add_particle(pos=(0.2, 0.2, 0.2), vel=(0.0, 0.0, 0.0), mass=0.01, radius=0.02)
 
     MPMSolver.prepare_builder(MPMSolverCfg(), builder)
+    model = builder.finalize(device="cpu")
+    # Explicit zero physical mass makes MuJoCo reject this free body. Kinematic
+    # collider treatment must instead remain local to the MPM solver.
+    rigid_solver = SolverMuJoCo(model, use_mujoco_cpu=True)
+    mpm_solver = MPMSolver(
+        MPMSolverCfg(voxel_size=0.1, grid_type="dense", grid_padding=1),
+        model,
+        wp.DeterministicMode.NOT_GUARANTEED,
+    ).native
 
-    assert builder.body_mass[kinematic] == builder.body_inv_mass[kinematic] == 0.0
-    assert np.allclose(np.array(builder.body_inertia[kinematic]), 0.0)
-    assert np.allclose(np.array(builder.body_inv_inertia[kinematic]), 0.0)
-    assert builder.body_mass[dynamic] == pytest.approx(1.2)
-    assert np.allclose(np.array(builder.body_inertia[dynamic]), 2.0)
+    assert rigid_solver.mj_model.nbody == 3
+    assert model.body_mass.numpy()[kinematic_body] == pytest.approx(0.35)
+    assert model.body_mass.numpy()[dynamic_body] == pytest.approx(1.2)
+    np.testing.assert_allclose(model.body_inertia.numpy()[kinematic_body], np.eye(3) * 0.01)
+    effective_mass = mpm_solver._mpm_model.collider_body_mass.numpy()
+    assert effective_mass[kinematic_body] == 0.0
+    assert effective_mass[dynamic_body] == pytest.approx(1.2)
 
 
-@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_mpm_prepare_builder_converts_convex_meshes_before_solver_construction():
-    """Convex meshes become triangle meshes before implicit MPM consumes the model."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mpm_mesh_colliders_support_b3_capture_and_replay(device):
+    """Imported mesh colliders and bounded B3 grids step through the native captured solver."""
     builder = ModelBuilder()
     register_builder_attributes(builder, MPMSolverCfg())
     mesh = newton.Mesh(vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)], indices=[0, 1, 2])
@@ -422,11 +454,50 @@ def test_mpm_prepare_builder_converts_convex_meshes_before_solver_construction()
     )
 
     MPMSolver.prepare_builder(MPMSolverCfg(), builder)
-    solver_cfg = MPMSolverCfg(max_iterations=2, voxel_size=0.05)
-    solver = MPMSolver(solver_cfg, builder.finalize(device="cuda:0"), wp.DeterministicMode.NOT_GUARANTEED).native
-
+    solver_cfg = MPMSolverCfg(
+        max_iterations=2,
+        voxel_size=0.05,
+        max_active_cell_count=256,
+        velocity_basis="B3",
+        solver="jacobi",
+        warmstart_mode="none",
+    )
+    model = builder.finalize(device=device)
+    driver = MPMSolver(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+    state = model.state()
     assert builder.shape_type[shape] == newton.GeoType.MESH
-    assert isinstance(solver, SolverImplicitMPM)
+    assert driver.supports_capture()
+    driver.step(state, state, None, None, 0.001)
+    before = state.particle_q.numpy().copy()
+    with wp.ScopedCapture(device=device) as capture:
+        driver.step(state, state, None, None, 0.001)
+    wp.capture_launch(capture.graph)
+    driver.check_step(captured=True, debug=False)
+    after = state.particle_q.numpy()
+    assert np.isfinite(after).all()
+    assert not np.array_equal(before, after)
+
+
+def test_mpm_solver_build_preserves_python_precision_and_active_usd():
+    """Native construction must not mutate the scene or round grid values through USD floats."""
+    cfg = MPMSolverCfg(voxel_size=0.051234567890123, grid_type="fixed", grid_padding=1, max_iterations=1)
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=NewtonCfg(solver_cfg=cfg))) as sim:
+        builder = ModelBuilder()
+        register_builder_attributes(builder, cfg)
+        builder.add_particle(pos=(0.0, 0.0, 0.1), vel=(0.0, 0.0, 0.0), mass=0.01, radius=0.02)
+        model = builder.finalize(device="cpu")
+        original_layer = sim.stage.GetRootLayer().ExportToString()
+
+        solver = MPMSolver(cfg, model, wp.DeterministicMode.NOT_GUARANTEED).native
+
+        assert solver.voxel_size == cfg.voxel_size
+        assert sim.stage.GetRootLayer().ExportToString() == original_layer
+        with pytest.deprecated_call(match="mpm_solver_config"):
+            legacy = mpm_solver_config(cfg)
+        assert legacy.voxel_size == cfg.voxel_size
+        assert sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path).GetAttribute(
+            "newton:mpm:voxelSize"
+        ).Get() == pytest.approx(cfg.voxel_size)
 
 
 @pytest.mark.parametrize("project_outside", [True, False])
@@ -450,34 +521,6 @@ def test_mpm_keeps_solver_history_on_automatic_resets():
         raise AssertionError("automatic resets must not clear implicit-MPM history")
 
     solver_driver(MPMSolver, MPMSolverCfg(), SimpleNamespace(reset=reject_reset)).reset(None, None)
-
-
-@pytest.mark.parametrize(
-    ("overrides", "expected"),
-    [
-        pytest.param({"grid_type": "fixed"}, True, id="bounded_fixed"),
-        pytest.param({"grid_type": "fixed", "max_active_cell_count": -1}, False, id="unbounded_fixed"),
-        pytest.param({}, True, id="bounded_sparse"),
-        pytest.param({"max_active_cell_count": -1}, False, id="unbounded_sparse"),
-        pytest.param({"grid_type": "dense"}, False, id="dense"),
-        pytest.param({"grid_padding": 1}, False, id="padded_sparse"),
-        pytest.param({"velocity_basis": "P0"}, False, id="velocity_basis"),
-        pytest.param({"strain_basis": "GIMP"}, False, id="strain_basis"),
-        pytest.param({"collider_basis": "GIMP"}, False, id="collider_basis"),
-    ],
-)
-def test_mpm_capture_supports_only_static_topology(overrides, expected):
-    """Only fixed and capacity-bounded rebuildable sparse grids support CUDA graph capture."""
-    values = {
-        "grid_type": "sparse",
-        "max_active_cell_count": 1024,
-        "grid_padding": 0,
-        "velocity_basis": "Q1",
-        "strain_basis": "P0",
-        "collider_basis": "S2",
-    }
-
-    assert mpm_supports_graph_capture(SimpleNamespace(**(values | overrides))) is expected
 
 
 def test_mpm_checks_sparse_grid_status_only_after_a_graph_replay():

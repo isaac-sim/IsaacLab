@@ -51,6 +51,7 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
 pytestmark = pytest.mark.kitless
 
+
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 
@@ -497,6 +498,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
     """A coupled solver must inherit every nested MPM grid's capture capability."""
     mpm_solver = SimpleNamespace(
+        enable_timers=False,
         model=SimpleNamespace(device=SimpleNamespace(is_cuda=True)),
         grid_type=grid_type,
         max_active_cell_count=max_active_cell_count,
@@ -730,7 +732,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     monkeypatch.setattr(
         coupler,
         "_build_admm_coupled_solver",
-        lambda model, entries, cfg, mode: SimpleNamespace(kind="admm"),
+        lambda model, entries, cfg, mode: SimpleNamespace(kind="admm", solver=lambda name: None),
     )
     driver = CouplerSolver(cfg, model, _NG, _CELL_TEMPLATE)
 
