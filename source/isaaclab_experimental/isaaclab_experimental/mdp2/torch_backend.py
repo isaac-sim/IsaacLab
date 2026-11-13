@@ -11,7 +11,7 @@ import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import FieldSelector, Phase, term_state, terminated
+from .config import FieldSelector, Phase, last_action, term_state, terminated
 from .eager import call_eager
 from .plan import Call, Launch, Launches, Step, StepKind, TermOp
 from .terms import hook_arguments
@@ -23,7 +23,7 @@ def compile_launches(mdp: MDP) -> Launches:
         startup=_launches(mdp, mdp.plan.startup),
         apply_actions=(Launch(lambda call: _apply_actions(mdp, call)),),
         evaluate=(Launch(lambda call: _begin_evaluate(mdp, call)), *_launches(mdp, mdp.plan.evaluate, stepping=True)),
-        reset=(Launch(_begin_reset), *_launches(mdp, mdp.plan.reset)),
+        reset=(Launch(lambda call: _begin_reset(mdp, call)), *_launches(mdp, mdp.plan.reset)),
         observe=_launches(mdp, mdp.plan.observe),
     )
 
@@ -37,6 +37,8 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
     """Store the actions as the last actions, and write each action's scaled columns to its target field."""
     actions = call.actions.torch
     call.state.actions.torch.copy_(actions)
+    for action_dim in mdp.narrow_action_dims:
+        call.state.arrays[last_action, action_dim].torch.copy_(actions[:, :action_dim])
 
     for step in mdp.plan.apply_actions:
         op = step.op
@@ -68,12 +70,14 @@ def _begin_evaluate(mdp: MDP, call: Call) -> None:
     transition.rewards.torch.zero_()
 
 
-def _begin_reset(call: Call) -> None:
+def _begin_reset(mdp: MDP, call: Call) -> None:
     """Advance the random streams of the masked worlds, and clear their episode lengths and last actions."""
     mask = call.mask.torch
     rng.advance(call.state.rng.torch, mask)
     call.state.episode_length.torch.masked_fill_(mask, 0)
     call.state.actions.torch.masked_fill_(mask[:, None], 0.0)
+    for action_dim in mdp.narrow_action_dims:
+        call.state.arrays[last_action, action_dim].torch.masked_fill_(mask[:, None], 0.0)
 
 
 def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:

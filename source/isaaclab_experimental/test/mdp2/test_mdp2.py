@@ -945,6 +945,45 @@ def test_world_configs_match_single_config_runs():
             assert (mixed_step["policy"][split:, width:] == 0.0).all() and (mixed_step["noisy"][split:] == 0.0).all()
 
 
+def test_world_configs_with_fewer_actions_read_their_own_actions():
+    """The action terms of a world config see its actions only, not the columns that pad them for a wider config."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        configs = []
+        for subset in (None, robot.joints("x")):
+            config = mdp2.MDPBuilder(scene.schema)
+            config.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target, subset=subset))
+            actions = {"actions": mdp2.last_action}
+            config.add_observation("policy", "last_action", mdp2.Observation(mdp2.mdp.last_action, inputs=actions))
+            config.add_observation("policy", "action_l2", mdp2.Observation(mdp2.mdp.action_l2, inputs=actions))
+            rate = mdp2.Observation(mdp2.mdp.action_rate_l2, inputs=actions)
+            config.add_observation("policy", "narrow_rate" if subset else "action_rate_l2", rate)
+            configs.append(config)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.replicate(configs[0], 2)
+        builder.replicate(configs[1], 2)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+
+        steps = [
+            torch.tensor([[1.0, 2.0], [0.5, 0.0], [3.0, 7.0], [-1.0, 9.0]], device=DEVICE),
+            torch.tensor([[0.0, 2.0], [0.5, 1.0], [1.0, -4.0], [2.0, 5.0]], device=DEVICE),
+        ]
+        for step_actions in steps:
+            mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(step_actions)))
+            scene.step()
+            mdp2.evaluate(mdp, state, transition)
+
+        policy = transition.observations["policy"].torch
+        torch.testing.assert_close(policy[:2, :2], steps[1][:2])
+        torch.testing.assert_close(policy[:2, 2], steps[1][:2].square().sum(-1))
+        torch.testing.assert_close(policy[:2, 3], (steps[1][:2] - steps[0][:2]).square().sum(-1))
+        # The second column of the actions pads the narrow config: its terms ignore it.
+        torch.testing.assert_close(policy[2:, 0], steps[1][2:, 0])
+        torch.testing.assert_close(policy[2:, 1], steps[1][2:, 0].square())
+        torch.testing.assert_close(policy[2:, 2], (steps[1][2:, 0] - steps[0][2:, 0]).square())
+
+
 def test_library_action_and_termination_terms():
     """The library's action and termination terms, which read MDP fields rather than the scene."""
     for backend in ("torch", "warp"):

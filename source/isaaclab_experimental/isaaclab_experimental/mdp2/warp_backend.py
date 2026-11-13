@@ -91,6 +91,10 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code.elements(
         (mdp.action_dim,), f"{last_actions}[world, element] = {actions}[world, element]", writes=[last_action]
     )
+    for action_dim in mdp.narrow_action_dims:
+        key = last_action, action_dim
+        narrow = _array(code, key, wp.array2d(dtype=wp.float32))
+        code.elements((action_dim,), f"{narrow}[world, element] = {actions}[world, element]", writes=[key])
 
     # Fields with more dimensions per world are flattened; joint fields are views of the solver state that may be
     # strided, so they are passed as they are.
@@ -145,12 +149,13 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 def _reset(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("reset", mdp.num_worlds, mdp.device, _mask)
     length = _array(code, episode_length, wp.array(dtype=wp.int32))
-    last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
+    keys = [last_action, *((last_action, action_dim) for action_dim in mdp.narrow_action_dims)]
+    fills = [f"{code.function(_fill)}(world, {_array(code, key, wp.array2d(dtype=wp.float32))}, 0.0)" for key in keys]
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = 0",
-        f"{code.function(_fill)}(world, {last_actions}, 0.0)",
-        writes=["rng", episode_length, last_action],
+        *fills,
+        writes=["rng", episode_length, *keys],
     )
 
     _emit(code, mdp, mdp.plan.reset)
@@ -376,7 +381,7 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
         if name in op.params:
             values.append(code.constant(annotation, op.params[name]))
         elif name in op.inputs or name in op.state:
-            key = op.inputs.get(name, term_state(op.use, name))
+            key = op.array_key(name) if name in op.inputs else term_state(op.use, name)
             values.append(_array(code, key, annotation))
         else:
             values.append(f"{_rng(code)}[{op.stream}, world]")
@@ -420,7 +425,7 @@ def _timer(code: Fusion, op: TermOp) -> str:
 def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
     """Return the keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
     state = {term_state(op.use, name) for name in op.state}
-    reads = {*op.inputs.values(), *state, ("selected", op.name), *(["rng"] if op.random else [])}
+    reads = {*map(op.array_key, op.inputs), *state, ("selected", op.name), *(["rng"] if op.random else [])}
     return reads, {*op.writes, *state, ("scratch", op.name)}
 
 

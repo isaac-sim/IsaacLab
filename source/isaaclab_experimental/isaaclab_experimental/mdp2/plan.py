@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import enum
 import itertools
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .config import FieldSelector, Phase, SubsetSelector, UniformNoise
+from .config import FieldSelector, Phase, SubsetSelector, UniformNoise, last_action
 from .terms import State
 
 if TYPE_CHECKING:
@@ -83,6 +83,15 @@ class TermOp:
     commit: bool = False  # Reset events: whether the scene commits the earlier events' writes before it runs
     log: bool = False  # Quantities: whether the environment logs it as a metric
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
+    # Actions of its world config, if it reads the last actions and other world configs have more
+    action_dim: int | None = None
+
+    def array_key(self, arg: str) -> Hashable:
+        """Return the key in :attr:`MDPState.arrays` of the array that the input ``arg`` reads."""
+        selector = self.inputs[arg]
+        if selector == last_action and self.action_dim is not None:
+            return last_action, self.action_dim
+        return selector
 
 
 class StepKind(enum.Enum):

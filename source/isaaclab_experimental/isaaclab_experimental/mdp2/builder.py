@@ -311,6 +311,15 @@ class MDPBuilder:
 
         if len(time_limits) > 1:
             errors.append(f"The world configs must share one time limit, found {sorted(map(str, time_limits))} s.")
+        # The last actions are padded to the widest world config: the others read a copy with their own columns.
+        action_dim = max(context.action_dim for context in contexts)
+        for context in contexts:
+            for phase, ops in context.ops.items():
+                if phase is Phase.ACTIONS or context.action_dim == action_dim:
+                    continue
+                for k, op in enumerate(ops):
+                    if last_action in op.inputs.values():
+                        ops[k] = replace(op, action_dim=context.action_dim)
         field_shapes = {}
         for context in contexts:
             for op in context.ops[Phase.COMMANDS] + context.ops[Phase.QUANTITIES]:
@@ -363,7 +372,7 @@ class MDPBuilder:
             backend=backend,
             ops=ops,
             plan=build_plan(ops),
-            action_dim=max(context.action_dim for context in contexts),
+            action_dim=action_dim,
             observation_dims=MappingProxyType(observation_dims),
             max_episode_length=None if time_limit is None else math.ceil(time_limit / self.schema.step_dt),
             streams=tuple(streams),

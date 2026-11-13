@@ -39,6 +39,8 @@ class MDPState:
 
     - a field or subset selector: the selected fields of the scene, the fields of the MDP (``mdp2.last_action``,
       ``mdp2.commands.<name>``, ...), and the state of every term use, ``mdp2.term_state(use, name)``;
+    - ``(mdp2.last_action, action_dim)``: the first columns of the last actions, which the terms of a world config
+      with ``action_dim`` actions read if other world configs have more;
     - ``"rng"``: the random streams, ``(num_streams, num_worlds)``, see :mod:`.rng`;
     - ``"reward_weights"``: ``(num_worlds, num_rewards)``, which may change while the MDP runs, also in a CUDA graph;
     - ``("timer", op)``: seconds left per world, for a timed op;
@@ -115,6 +117,11 @@ class MDP:
     @property
     def num_worlds(self) -> int:
         return self.schema.num_worlds
+
+    @property
+    def narrow_action_dims(self) -> tuple[int, ...]:
+        """Action counts of the world configs with fewer actions than the widest."""
+        return tuple(sorted({config.action_dim for config in self.world_configs} - {self.action_dim}))
 
     @property
     def step_dt(self) -> float:
@@ -207,6 +214,8 @@ class MDP:
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
         }
+        for action_dim in self.narrow_action_dims:
+            arrays[last_action, action_dim] = self._zeros(self.num_worlds, action_dim)
         for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
         for subset, indices in self.subsets.items():
@@ -261,7 +270,7 @@ class MDP:
         for op in self.term_ops:
             views = torch_views if self.backend is Backend.TORCH or op.torch_hooks else warp_views
             arguments[op.name] = {
-                **{arg: views[selector] for arg, selector in op.inputs.items()},
+                **{arg: views[op.array_key(arg)] for arg in op.inputs},
                 **{name: views[term_state(op.use, name)] for name in op.state},
                 **({"rng": views["rng"][op.stream]} if op.random else {}),
                 **op.params,
