@@ -302,6 +302,47 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
+Render products per sensor
+--------------------------
+
+A camera sensor renders all of its environments into one tiled atlas through one render product.
+Every renderer buffer that scales with the atlas belongs to that product, and one buffer of the RTX
+path tracer cannot exceed 4 GiB. These buffers grow with the atlas resolution and with the path
+tracing sample count per pixel. Above the limit, OVRTX 0.7 and later fail the frame. OVRTX 0.6 renders
+black tiles without an error.
+
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits the sensor into
+``ceil(num_envs / M)`` render products of at most ``M`` environments each. Each product renders its
+own smaller atlas, and the outputs stay one ``(num_envs, height, width, channels)`` buffer per data
+type.
+
+With the default ``None``, the OVRTX renderer searches the split. It starts with one render product.
+While the first frame fails, it halves the largest render product and renders the frame again. A
+warning then names the value of ``M`` that renders. The search runs once at startup, and the next
+frame reuses most of the scene work of a failed frame. Set the logged value to skip the search:
+
+.. code-block:: python
+
+   from isaaclab.utils import replace
+
+   large_batch_camera = replace(camera_cfg, max_envs_per_render_product=1280)
+
+The search has these limits:
+
+* It needs OVRTX 0.7 or later, because OVRTX 0.6 does not fail the frame.
+* One frame tries at most four smaller layouts, for all camera sensors together. The renderer error
+  then reaches the caller.
+* It can need more GPU memory than the layout it finds. The renderer can keep the buffers of a failed
+  layout for some time.
+
+The renderer uses an integer as given and does not search. A frame that fails then raises the
+renderer error. To find the integer without the search, start with half of the environment count.
+Halve it again until the frame renders and no tile is black. Every extra product adds a fixed cost
+per frame, so prefer the largest value that renders.
+
+Only the OVRTX renderer supports this field. The Isaac RTX and Newton Warp renderers reject a value
+other than ``None`` at configuration time.
+
 Post-render image signal processing
 -----------------------------------
 

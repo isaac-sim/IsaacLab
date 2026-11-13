@@ -245,7 +245,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                     assert torch.isfinite(camera.data.output["depth"].torch[:, 16, 16]).all()
             expected = torch.tensor([[0.0, 0.0, 1.5], [0.0, 0.0, 2.5]], device="cuda:0")
             torch.testing.assert_close(scene["body"].data.root_link_pos_w.torch, expected, atol=0.02, rtol=0.0)
-            products = {sensor._render_data.render_product_path for sensor in (camera, other)}
+            products = {path for sensor in (camera, other) for path in sensor._render_data.render_product_paths}
             assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
