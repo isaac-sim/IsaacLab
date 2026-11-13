@@ -49,7 +49,10 @@ from isaaclab.test.utils import test_devices
 def _model_stub(state_attributes=()) -> SimpleNamespace:
     """Model stand-in carrying what solver construction reads before the Newton solver exists."""
     return SimpleNamespace(
-        get_requested_state_attributes=lambda: list(state_attributes), articulation_start=None, articulation_end=None
+        get_requested_state_attributes=lambda: list(state_attributes),
+        articulation_start=None,
+        articulation_end=None,
+        _has_body_variants=False,
     )
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import gc
 import logging
 from functools import partial as P
+from pathlib import Path
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
@@ -52,6 +53,27 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 
 # ----- Configuration and lifecycle -------------------------------------------------------
+
+
+def test_native_body_variants_have_one_geometry_owner():
+    """Native variants must use Newton's model without an Isaac Lab geometry bank."""
+    package = Path(__file__).resolve().parents[2] / "isaaclab_newton"
+    cloner = package / "cloner/replicate.py"
+    asset = package / "assets/rigid_object/rigid_object.py"
+    physics = package / "physics"
+    assert not (physics / "mesh_variants.py").exists()
+    assert not (physics / "mjwarp_manager.py").exists()
+    assert "add_body_variants(" in cloner.read_text()
+    assert "select_body_variants(" in asset.read_text()
+    assert "resolve_matching_prims_from_source" not in asset.read_text()
+    assert "spawn.func(" not in cloner.read_text()
+    assert all(
+        symbol not in cloner.read_text()
+        for symbol in ("plan.asset_catalogs", "catalog_rows", "target_owners", "while catalogs")
+    )
+    forbidden = ("MeshVariants", "_SELECT_MESH_VARIANTS", "mesh_variant_definitions")
+    for path in (cloner, asset, physics / "newton_backend.py", physics / "newton_manager.py"):
+        assert all(symbol not in path.read_text() for symbol in forbidden)
 
 
 @pytest.mark.parametrize(

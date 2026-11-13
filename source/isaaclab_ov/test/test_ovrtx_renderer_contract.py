@@ -110,6 +110,7 @@ def _simulation_registry(monkeypatch):
     registry = []
     sim = types.SimpleNamespace(
         device="cpu",
+        cfg=types.SimpleNamespace(physics=types.SimpleNamespace(mesh_variant_source_root=None)),
         _backend_registry=registry,
         _render_context=RenderContext(registry),
         backend_manager=types.SimpleNamespace(clone_context_type=None, backend=None, _clone_recipes=[]),

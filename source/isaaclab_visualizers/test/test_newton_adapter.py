@@ -34,6 +34,7 @@ from isaaclab_visualizers.newton_adapter import (
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
 )
+from newton import ModelFlags
 
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -655,7 +656,9 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         state_0=state,
         geometry_offsets={},
         contacts=None,
+        geometry_change_version=0,
     )
+    visualizer._geometry_change_version = 0
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
     visualizer._transform_mapping = None
@@ -712,7 +715,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
-    backend = SimpleNamespace(model=new_model, state_0=new_state)
+    backend = SimpleNamespace(model=new_model, state_0=new_state, geometry_change_version=3)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
@@ -739,6 +742,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
+    assert visualizer._geometry_change_version == 3
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),
@@ -756,6 +760,19 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     else:
         sim.backend_manager.register_state_force_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
+
+
+def test_newton_visualizer_notifies_native_viewer_once_per_geometry_change():
+    viewer = _Viewer()
+    viewer.notify_model_changed = lambda flags: viewer.events.append(("notify", flags))
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer.backend.geometry_change_version = 1
+
+    visualizer.step(0.1)
+    visualizer.step(0.1)
+
+    assert viewer.events.count(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) == 1
+    assert viewer.events.index(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) < viewer.events.index("log_state")
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
