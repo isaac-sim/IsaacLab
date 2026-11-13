@@ -837,6 +837,43 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
             np.testing.assert_allclose(sampled_heading.numpy(), yaw, atol=1e-5)
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_handled_writes_read_the_reordered_state_of_the_current_physics_step(device: str) -> None:
+    """A handled asset write runs between the physics steps of one step and reads the current reordered body poses."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=local_usd("floating_two_leg.usda"),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=_LEG_PUBLIC_JOINT_NAMES,
+        body_ordering=_LEG_PUBLIC_BODY_NAMES,
+    )
+    sim_cfg = newton_sim_cfg(device, use_newton_actuators=False, use_cuda_graph=True)
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        articulation = spawn_assets({"robot": articulation_cfg})["robot"]
+        sim.reset()
+        data = articulation.data
+        body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
+        read, backend = wp.clone(data._body_link_pose_w_user), wp.clone(data._sim_bind_body_link_pose_w)
+
+        def write_data_to_sim():
+            articulation.write_data_to_sim()
+            wp.copy(read, data._body_link_pose_w_user)
+            wp.copy(backend, data._sim_bind_body_link_pose_w)
+
+        manager = sim.backend_manager
+        manager.set_decimation(3)
+        actions = SimpleNamespace(is_graphable=True, apply_action=lambda: None)
+        assert manager.handle_actions(actions, SimpleNamespace(is_graphable=True, write_data_to_sim=write_data_to_sim))
+        # a spinning robot moves during the step, so a pose from before the step cannot pass for the current one
+        spin = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 5.0]], device=device).repeat(articulation.num_instances, 1)
+        articulation.write_root_velocity_to_sim_index(root_velocity=spin)
+        for _ in range(3):
+            sim.step(render=False)
+        assert not np.allclose(backend.numpy()[:, body_u2b], data._body_link_pose_w_user.numpy())
+        np.testing.assert_allclose(read.numpy(), backend.numpy()[:, body_u2b])
+
+
 ##
 # Composite scene.
 ##
@@ -1384,9 +1421,9 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids: torch.Tensor | None = None) -> None:
+    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
+        actuator_reset(env_ids, env_mask)
 
     monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()

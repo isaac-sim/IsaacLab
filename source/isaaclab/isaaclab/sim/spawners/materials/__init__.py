@@ -38,7 +38,7 @@ Usage:
         visual_material_cfg.func("/World/Looks/glassMaterial", visual_material_cfg)
 
         # create a mesh prim
-        cube_cfg = sim_utils.CubeCfg(size=[1.0, 1.0, 1.0])
+        cube_cfg = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
         cube_cfg.func("/World/Primitives/Cube", cube_cfg)
 
         # bind the cube to the visual material

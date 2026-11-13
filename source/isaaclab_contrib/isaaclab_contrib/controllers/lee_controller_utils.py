@@ -21,7 +21,7 @@ def compute_desired_orientation(
         rotation_matrix_buffer: (num_envs, 3, 3) pre-allocated buffer for rotation matrix.
 
     Returns:
-        (num_envs, 4) desired orientation quaternion (wxyz).
+        (num_envs, 4) desired orientation quaternion (xyzw).
     """
     # Desired z-axis (thrust direction)
     b3_c = forces_w / (torch.norm(forces_w, dim=1, keepdim=True) + 1e-12)
@@ -60,9 +60,9 @@ def compute_body_torque(
     """PD attitude control in body frame with feedforward Coriolis term.
 
     Args:
-        setpoint_orientation: (num_envs, 4) desired orientation quaternion (wxyz) in world frame.
+        setpoint_orientation: (num_envs, 4) desired orientation quaternion (xyzw) in world frame.
         setpoint_angvel_b: (num_envs, 3) desired angular velocity in body frame [rad/s].
-        current_quat: (num_envs, 4) current orientation quaternion (wxyz).
+        current_quat: (num_envs, 4) current orientation quaternion (xyzw).
         current_angvel_b: (num_envs, 3) current angular velocity in body frame [rad/s].
         robot_inertia: (num_envs, 3, 3) robot inertia matrix.
         K_rot: (num_envs, 3) rotation gain.

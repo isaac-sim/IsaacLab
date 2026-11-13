@@ -510,7 +510,7 @@ class EventCfg:
 
 @configclass
 class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the GR1T2 environment."""
+    """Configuration for the Unitree G1 Inspire Hand pick-place environment."""
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5)
