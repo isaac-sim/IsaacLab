@@ -85,6 +85,10 @@ class PhysxUsdExporter(BaseUsdExporter):
     values of rigid bodies, which the asset data does not hold.
     """
 
+    """
+    Operations.
+    """
+
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         """Return the edits writing every engine value that differs from what the engine loaded from the stage.
 
@@ -183,6 +187,40 @@ class PhysxUsdExporter(BaseUsdExporter):
         edits += self._deformable_edits(stage)
         return edits + self._gravity_edits(stage, self.scene.sim.backend_manager.get_gravity())
 
+    def read_engine_base(self) -> dict[str, list[dict[str, np.ndarray]]]:
+        """Read what the engine loaded for each scene asset, in every environment.
+
+        Returns:
+            Per asset name, the engine values of :meth:`_read_engine` with the limits and friction split as in
+            :data:`Readings` and ``com`` the COM position; a rigid object collection holds one entry per object.
+        """
+        base = {name: [self._read_object(a.cfg.prim_path, a.cfg)] for name, a in self.scene.articulations.items()}
+        base |= {name: [self._read_object(obj.cfg.prim_path)] for name, obj in self.scene.rigid_objects.items()}
+        for name, collection in self.scene.rigid_object_collections.items():
+            base[name] = [self._read_object(cfg.prim_path) for cfg in collection.cfg.rigid_objects.values()]
+        return base
+
+    @abstractmethod
+    def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
+        """Read the engine values of the objects matching a prim path expression, one row per environment.
+
+        Args:
+            path_expr: Prim path expression of the articulation roots or rigid bodies, as an asset resolves it.
+            articulation: Whether the objects are articulations.
+
+        Returns:
+            Raw values: of an articulation, per DOF ``stiffness``, ``damping``, ``max_force``, ``armature``,
+            ``max_velocity``, ``limits`` (lower, upper) and ``friction`` (static, dynamic, viscous); per body
+            ``mass``, ``com_pose`` and row-major ``inertia``. Of a rigid body, the same body values and per shape
+            the ``material`` (static friction, dynamic friction, restitution), ``contact_offset`` and
+            ``rest_offset``.
+        """
+        raise NotImplementedError
+
+    """
+    Edits.
+    """
+
     def _deformable_edits(self, stage: Usd.Stage) -> list[UsdEdit]:
         """Write the nodal state Isaac Lab resets each volume deformable to on its simulation mesh.
 
@@ -236,36 +274,6 @@ class PhysxUsdExporter(BaseUsdExporter):
         """
         driven = prim.HasAPI(UsdPhysics.DriveAPI, axis)
         return {name for name, (attribute, _, _) in table.items() if driven or not attribute.startswith("drive:")}
-
-    def read_engine_base(self) -> dict[str, list[dict[str, np.ndarray]]]:
-        """Read what the engine loaded for each scene asset, in every environment.
-
-        Returns:
-            Per asset name, the engine values of :meth:`_read_engine` with the limits and friction split as in
-            :data:`Readings` and ``com`` the COM position; a rigid object collection holds one entry per object.
-        """
-        base = {name: [self._read_object(a.cfg.prim_path, a.cfg)] for name, a in self.scene.articulations.items()}
-        base |= {name: [self._read_object(obj.cfg.prim_path)] for name, obj in self.scene.rigid_objects.items()}
-        for name, collection in self.scene.rigid_object_collections.items():
-            base[name] = [self._read_object(cfg.prim_path) for cfg in collection.cfg.rigid_objects.values()]
-        return base
-
-    @abstractmethod
-    def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
-        """Read the engine values of the objects matching a prim path expression, one row per environment.
-
-        Args:
-            path_expr: Prim path expression of the articulation roots or rigid bodies, as an asset resolves it.
-            articulation: Whether the objects are articulations.
-
-        Returns:
-            Raw values: of an articulation, per DOF ``stiffness``, ``damping``, ``max_force``, ``armature``,
-            ``max_velocity``, ``limits`` (lower, upper) and ``friction`` (static, dynamic, viscous); per body
-            ``mass``, ``com_pose`` and row-major ``inertia``. Of a rigid body, the same body values and per shape
-            the ``material`` (static friction, dynamic friction, restitution), ``contact_offset`` and
-            ``rest_offset``.
-        """
-        raise NotImplementedError
 
     """
     Engine values.

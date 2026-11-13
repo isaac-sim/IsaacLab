@@ -341,22 +341,61 @@ def test_bodies_and_colliders_a_builder_hook_adds_or_switches_are_refused(tmp_pa
 def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
     """Changes Isaac Lab makes while building the model, which Newton's import alone does not make, are written.
 
-    A world builder hook sets a link's contact stiffness before finalization, and Isaac Lab's shape defaults reach
-    colliders with and without a physics material; a collider without one gets a new material that states them.
+    A world builder hook sets a link's contact stiffness and rolling friction before finalization, and Isaac Lab's
+    shape defaults reach colliders with and without a physics material; a collider without one, or bound only to a
+    render material, gets a new material that states them. Writing them keeps what an import reads elsewhere: the
+    base's material, which its spawner adds to the stage, references the link's, and the base's bumper is an asset
+    instance whose layer authors a size beneath it, which the instance ignores.
     """
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonShapeCfg, XPBDSolverCfg
     from isaaclab_newton.sim.usd_export.usd_exporter import MATERIAL_ATTRIBUTES
 
+    from pxr import UsdGeom
+
     link_collider = "/World/envs/env_0/Robot/Link/Collision"
+
+    def instance_bumper(robot):
+        robot.CreateClassPrim("/BumperProto")
+        shape = UsdGeom.Cube.Define(robot, "/BumperProto/Shape")
+        shape.CreateSizeAttr().Set(0.1)
+        UsdPhysics.CollisionAPI.Apply(shape.GetPrim())
+        bumper = robot.DefinePrim("/Robot/Base/Bumper", "Xform")
+        bumper.GetReferences().AddInternalReference("/BumperProto")
+        UsdShade.MaterialBindingAPI.Apply(bumper).Bind(UsdShade.Material.Define(robot, "/Robot/Looks/Render"))
+        robot.GetPrimAtPath("/Robot/Base/Bumper/Shape").GetAttribute("size").Set(0.3)
+        bumper.SetInstanceable(True)
+
+    def override_base_material(cfg):
+        spawn = cfg.robot.spawn.func
+
+        def spawn_with_override(prim_path, spawn_cfg, *args, **kwargs):
+            root = spawn(prim_path, spawn_cfg, *args, **kwargs)
+            override = UsdShade.Material.Define(root.GetStage(), f"{root.GetPath()}/Materials/BaseOverride")
+            override.GetPrim().GetReferences().AddInternalReference(f"{root.GetPath()}/Materials/Link")
+            UsdPhysics.MaterialAPI.Apply(override.GetPrim()).CreateDynamicFrictionAttr().Set(0.3)
+            collider = root.GetStage().GetPrimAtPath(f"{root.GetPath()}/Base/Collision")
+            UsdShade.MaterialBindingAPI(collider).Bind(override, materialPurpose="physics")
+            return root
+
+        cfg.robot.spawn.func = spawn_with_override
 
     def stiffer_link(builder, world, position, orientation):
         for shape, label in enumerate(builder.shape_label):
             if label.endswith("/Robot/Link/Collision"):
                 builder.shape_material_ke[shape] = 7.0e3
+                builder.shape_material_mu_rolling[shape] = 0.02
 
     solver_cfg = MJWarpSolverCfg() if solver == "mujoco" else XPBDSolverCfg()
     shape_cfg = NewtonShapeCfg(gap=0.02, ke=5.0e3, kd=200.0, mu=0.8)
-    output, live, _, _ = _export(tmp_path, solver_cfg, "cpu", default_shape_cfg=shape_cfg, world_hook=stiffer_link)
+    output, live, _, _ = _export(
+        tmp_path,
+        solver_cfg,
+        "cpu",
+        edit_robot=instance_bumper,
+        edit_cfg=override_base_material,
+        default_shape_cfg=shape_cfg,
+        world_hook=stiffer_link,
+    )
 
     assert live["shape_material_ke", link_collider] == pytest.approx(7.0e3)
     table, ground = "/World/envs/env_0/Table/geometry/mesh", "/World/Ground/geometry/mesh"
@@ -373,8 +412,10 @@ def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
     }
     model = _newton_import(output, solver, "cpu")
     loaded = _capture(model, model.body_q)
-    for collider in (table, link_collider):
-        for name in (*MATERIAL_ATTRIBUTES, "shape_gap"):
+    bumper, base_collider = "/World/envs/env_0/Robot/Base/Bumper/Shape", "/World/envs/env_0/Robot/Base/Collision"
+    assert live["shape_scale", bumper] == pytest.approx((0.05, 0.05, 0.05))
+    for collider in (table, link_collider, base_collider, bumper):
+        for name in (*MATERIAL_ATTRIBUTES, "shape_gap", "shape_scale"):
             np.testing.assert_allclose(
                 loaded[name, collider], live[name, collider], rtol=1e-5, err_msg=f"{collider} {name}"
             )
@@ -526,25 +567,6 @@ def test_merged_joint_dofs_map_to_their_usd_joints():
         UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
 
 
-def test_raised_effort_limit_widens_the_mujoco_force_range():
-    """Newton keeps the tighter of the drive force limit and MuJoCo's joint force range, so the range is widened."""
-    from isaaclab_newton.sim.usd_export import UsdExporter
-
-    from isaaclab.sim.usd_export import UsdEdit
-
-    stage = Usd.Stage.CreateInMemory()
-    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Hinge").GetPrim()
-    joint.CreateAttribute("mjc:actuatorfrcrange:min", Sdf.ValueTypeNames.Double).Set(-4.0)
-    joint.CreateAttribute("mjc:actuatorfrcrange:max", Sdf.ValueTypeNames.Double).Set(4.0)
-
-    edits = UsdExporter._force_range_edits(stage, [UsdEdit("/Hinge", "drive:angular:physics:maxForce", 12.0)])
-    assert {(edit.attribute, edit.value) for edit in edits} == {
-        ("mjc:actuatorfrcrange:min", -12.0),
-        ("mjc:actuatorfrcrange:max", 12.0),
-    }
-    assert not UsdExporter._force_range_edits(stage, [UsdEdit("/Hinge", "drive:angular:physics:maxForce", 3.0)])
-
-
 def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
     """Newton reads a joint-wide limit gain ahead of per-axis ones, so a joint stating it is written there."""
     from isaaclab_newton.sim.usd_export import UsdExporter
@@ -558,13 +580,17 @@ def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
     assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
 
 
-def test_changed_limits_are_written_with_the_mujoco_reference(tmp_path):
-    """Newton's import subtracts a joint's MuJoCo reference from its USD limits, so a changed limit imports as live."""
+def test_changed_limits_are_written_with_the_mujoco_reference_and_force_range(tmp_path):
+    """Newton's import subtracts a joint's MuJoCo reference from its USD limits and keeps the tighter of the drive
+    force limit and the joint's MuJoCo force range, so changed limits import as live."""
     import torch
     from isaaclab_newton.physics import MJWarpSolverCfg
 
     def add_reference(stage):
-        stage.GetPrimAtPath("/Robot/Hinge").CreateAttribute("mjc:ref", Sdf.ValueTypeNames.Double).Set(10.0)
+        hinge = stage.GetPrimAtPath("/Robot/Hinge")
+        hinge.CreateAttribute("mjc:ref", Sdf.ValueTypeNames.Double).Set(10.0)
+        hinge.CreateAttribute("mjc:actuatorfrcrange:min", Sdf.ValueTypeNames.Double).Set(-4.0)
+        hinge.CreateAttribute("mjc:actuatorfrcrange:max", Sdf.ValueTypeNames.Double).Set(4.0)
 
     def change_limits(scene):
         scene["robot"].write_joint_position_limit_to_sim_index(limits=torch.tensor([[[-0.6, 0.9]]], device="cuda:0"))
@@ -576,6 +602,7 @@ def test_changed_limits_are_written_with_the_mujoco_reference(tmp_path):
     dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
     assert model.joint_limit_lower.numpy()[dof] == pytest.approx(-0.6, abs=1e-5)
     assert model.joint_limit_upper.numpy()[dof] == pytest.approx(0.9, abs=1e-5)
+    assert model.joint_effort_limit.numpy()[dof] == pytest.approx(19.0)  # the actuator's, above the USD range
 
 
 def test_kamino_constraint_gains_are_stated_on_the_scene():

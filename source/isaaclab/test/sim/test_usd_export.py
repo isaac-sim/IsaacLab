@@ -405,7 +405,8 @@ def test_collider_values_its_shapes_disagree_on_are_written_only_if_unchanged():
 
 def test_a_collider_without_a_material_gets_one_stating_its_values():
     """Material values of a collider without a physics material go on a new material bound to it, at an unused path;
-    colliders with other values get another new material.
+    colliders with other values get another new material. A collider bound only to a render material, which an
+    importer does not read for physics, has none.
 
     A body without colliders, which reports empty per-shape arrays, gets no collider values.
     """
@@ -417,7 +418,9 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Box").GetPrim())
     UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Box/Collider").GetPrim())
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Other").GetPrim())
-    UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Other/Collider").GetPrim())
+    other_collider = UsdGeom.Cube.Define(stage, "/Other/Collider").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(other_collider)
+    UsdShade.MaterialBindingAPI.Apply(other_collider).Bind(UsdShade.Material.Define(stage, "/Looks/Render"))
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Bare").GetPrim())
     data = SimpleNamespace(
         body_mass=SimpleNamespace(torch=torch.full((1, 1), 1.0)),
@@ -660,6 +663,16 @@ def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
     edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
     com = next(edit.value for edit in edits if edit.attribute == "physics:centerOfMass")
     np.testing.assert_allclose(np.asarray(com), [0.02, -0.02, 0.03], rtol=1e-6)
+
+
+def test_a_zero_mass_usd_cannot_state_is_reported_not_written(caplog):
+    """USD states an unset mass as zero, from which an import derives one, so a zero engine mass is reported."""
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
+    UsdPhysics.MassAPI.Apply(body).CreateMassAttr().Set(2.0)
+
+    assert PhysxUsdExporter._mass_edits(body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"mass", "inertia"}) == []
+    assert "cannot state the zero mass of '/Body'" in caplog.text
 
 
 @pytest.mark.parametrize("stated", [False, True], ids=["inertia derived", "inertia stated"])

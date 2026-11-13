@@ -47,6 +47,7 @@ from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
+from ..sim.usd_export import UsdExporter
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import instantiate, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -174,8 +175,6 @@ class InteractiveScene:
 
     def _read_usd_export_base(self):
         """Read the USD export's base; a failure is kept for :meth:`export_to_usd` rather than stopping the run."""
-        from ..sim.usd_export import UsdExporter
-
         if self._usd_export_base is not None:
             return  # Isaac Sim dispatches the event again after the assets have initialized, before any stop
         try:
@@ -462,8 +461,6 @@ class InteractiveScene:
         Returns:
             The destination path.
         """
-        from ..sim.usd_export import UsdExporter
-
         return UsdExporter(self, env_id).export(path)
 
     def reset(self, env_ids: Sequence[int] | None = None):

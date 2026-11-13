@@ -15,7 +15,7 @@ import newton
 import numpy as np
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
+from pxr import Sdf, Tf, Usd, UsdPhysics
 
 from isaaclab.sim.usd_export.base_usd_exporter import (
     JOINT_STATE_ATTRIBUTES,
@@ -113,6 +113,10 @@ class UsdExporter(BaseUsdExporter):
     # Newton's import builds cables from their USD curves, as Isaac Lab does.
     exports_cables = True
 
+    """
+    Operations.
+    """
+
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         """Return the live model values that differ from Newton's import of ``stage``.
 
@@ -167,22 +171,9 @@ class UsdExporter(BaseUsdExporter):
             )
         return edits
 
-    @staticmethod
-    def _import_base(stage: Usd.Stage, model: newton.Model, solver_cfg) -> _AlignedBase:
-        """Newton's import of ``stage`` without Isaac Lab, its arrays indexed like ``model``'s entities.
-
-        The import registers the solver's custom attributes and uses Newton's schema resolvers, as a consumer of
-        the file does, and is finalized, so what Newton derives on import, such as corrected inertia, is part of
-        the base and never written.
-        """
-        builder = newton.ModelBuilder()
-        register_builder_attributes(builder, solver_cfg)
-        # The stage's own actuator networks, which Isaac Lab loaded when it built the scene.
-        builder.add_usd(stage, schema_resolvers=usd_schema_resolvers(solver_cfg), allow_unsafe_torch_checkpoints=True)
-        return _AlignedBase(model, builder.finalize(device="cpu"))
-
-    def _selected(self, worlds) -> np.ndarray:
-        return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
+    """
+    Joint edits.
+    """
 
     def _joint_edits(
         self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder
@@ -338,6 +329,45 @@ class UsdExporter(BaseUsdExporter):
             raise NotImplementedError(f"Joint '{path}' has a different '{attribute}' per axis; USD states one.")
         return UsdEdit(path, attribute, live[0] * (1.0 if axes[0][1] == "linear" else angular_scale))
 
+    @staticmethod
+    def _limit_reference(model: newton.Model) -> np.ndarray:
+        """Per DOF, MuJoCo's joint reference, which Newton's import subtracts from the USD limits."""
+        mujoco = getattr(model, "mujoco", None)
+        if mujoco is not None and hasattr(mujoco, "dof_ref"):
+            return mujoco.dof_ref.numpy().astype(float)
+        return np.zeros(model.joint_dof_count)
+
+    @classmethod
+    def _limit_gain_attribute(cls, prim: Usd.Prim, name: str, attribute: str) -> str:
+        """The attribute a limit gain is written to: the joint-wide one when stated, which Newton reads first."""
+        joint_wide = JOINT_WIDE_LIMIT_GAINS.get(name)
+        if "{axis}" in attribute and joint_wide and cls._stated(prim, joint_wide) is not None:
+            return joint_wide
+        return attribute
+
+    @classmethod
+    def _force_range_edits(cls, stage: Usd.Stage, edits: list[UsdEdit]) -> list[UsdEdit]:
+        """Edits widening a MuJoCo joint force range that would clamp an exported drive force limit.
+
+        Newton's import keeps the tighter of a drive's max force and the joint's ``mjc:actuatorfrcrange``.
+        """
+        widened = []
+        for edit in edits:
+            if not edit.attribute.endswith("physics:maxForce"):
+                continue
+            prim = stage.GetPrimAtPath(edit.path)
+            bounds = [cls._stated(prim, f"mjc:actuatorfrcrange:{end}") for end in ("min", "max")]
+            if any(bound is not None for bound in bounds) and max(abs(b or 0.0) for b in bounds) < edit.value:
+                widened += [
+                    UsdEdit(edit.path, "mjc:actuatorfrcrange:min", -float(edit.value)),
+                    UsdEdit(edit.path, "mjc:actuatorfrcrange:max", float(edit.value)),
+                ]
+        return widened
+
+    """
+    Body and shape edits.
+    """
+
     def _body_edits(self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder) -> list[UsdEdit]:
         values = self._arrays(model, ("body_mass", "body_com", "body_inertia"))
         changed = self._changed(values, builder)
@@ -367,7 +397,9 @@ class UsdExporter(BaseUsdExporter):
         values, material = self._arrays(model, SHAPE_ATTRIBUTES), self._arrays(model, MATERIAL_ATTRIBUTES)
         changed = self._changed(values, builder) | self._changed(material, builder)
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
-        edits, materials, complete, bound, generated = [], {}, {}, {}, []
+        edits, materials, complete, generated = [], {}, {}, []
+        physics = self._physics_materials(stage)
+        bound = {}
         for shape in self._selected(model.shape_world):
             # Sensor sites and visual shapes do not collide.
             if not int(flags[shape]) & collide:
@@ -384,7 +416,7 @@ class UsdExporter(BaseUsdExporter):
                 if changed[name][shape]
             ]
             path = str(prim.GetPath())
-            bound[path] = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")[0]
+            bound[path] = physics.get(path)
             complete[path] = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
             updated = {a: complete[path][a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
             if updated:
@@ -394,13 +426,11 @@ class UsdExporter(BaseUsdExporter):
         affected: dict[str, set[str]] = {}
         for path, updated in materials.items():
             if bound[path]:
-                affected.setdefault(str(bound[path].GetPath()), set()).update(updated)
+                affected.setdefault(bound[path], set()).update(updated)
         materials |= {
-            path: {
-                name: value for name, value in complete[path].items() if name in affected[str(bound[path].GetPath())]
-            }
+            path: {name: value for name, value in complete[path].items() if name in affected[bound[path]]}
             for path in complete
-            if bound[path] and str(bound[path].GetPath()) in affected
+            if bound[path] in affected
         }
         # A collider without a material gets a new one, which states every value an import reads from it.
         materials |= {path: complete[path] for path in materials if not bound[path]}
@@ -416,7 +446,11 @@ class UsdExporter(BaseUsdExporter):
             attribute: getattr(upstream, array.removeprefix("shape_material_"))
             for array, attribute in MATERIAL_ATTRIBUTES.items()
         }
-        return edits + self._material_edits(stage, materials, fallbacks)
+        return edits + self._material_edits(stage, materials, fallbacks, physics)
+
+    """
+    Actuators.
+    """
 
     @classmethod
     def _mjc_actuator_edits(
@@ -468,6 +502,67 @@ class UsdExporter(BaseUsdExporter):
         if deactivated:
             logger.info(f"MuJoCo actuators replaced by the exported zero-gain joint drives: {deactivated}.")
         return edits
+
+    def _target_mode_actuators(
+        self, stage: Usd.Stage, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
+    ):
+        """Make Newton's USD import reproduce each joint's target mode, and warn where it cannot.
+
+        Workaround until USD states a target mode: Newton's import infers the mode from the drive gains, so a joint
+        with both gains runs in position mode, while Isaac Lab runs it in position-velocity mode. A MuJoCo velocity
+        actuator targeting a single-axis joint makes the import use position-velocity mode (gain: the damping).
+        """
+        position_velocity = int(newton.JointTargetMode.POSITION_VELOCITY)
+        solver_cfg = self.scene.sim.cfg.physics.solver_cfg
+        mujoco = self._runs(solver_cfg, newton.solvers.SolverMuJoCo)
+        converted = self._converted_velocity_dofs(model) if mujoco else set()
+        axes = Counter(dofs.values())
+        root = self.scene.env_prim_paths[self.env_id]
+        differ = set()
+        for dof, path in dofs.items():
+            inferred = newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True)
+            if modes[dof] == int(newton.JointTargetMode.NONE) or modes[dof] == int(inferred) or dof in converted:
+                continue
+            if not (mujoco and modes[dof] == position_velocity and axes[path] == 1):
+                differ.add(path)
+                continue
+            damping = float(target_kd[dof])
+            name = Tf.MakeValidIdentifier(path.removeprefix(root + "/"))
+            actuator = stage.DefinePrim(f"{root}/VelocityActuators/{name}", "MjcActuator")
+            actuator.CreateRelationship("mjc:target", custom=False).SetTargets([path])
+            values = {
+                "mjc:biasType": (Sdf.ValueTypeNames.Token, "affine"),
+                "mjc:gainPrm": (Sdf.ValueTypeNames.DoubleArray, [damping] + [0.0] * 9),
+                "mjc:biasPrm": (Sdf.ValueTypeNames.DoubleArray, [0.0, 0.0, -damping] + [0.0] * 7),
+            }
+            # As the MjcActuator schema defines them, whether or not this process registered it.
+            for attribute, (type_name, value) in values.items():
+                actuator.CreateAttribute(attribute, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(
+                    value
+                )
+        # Of Newton's solvers, only MuJoCo and Kamino apply a target mode.
+        if differ and (mujoco or self._runs(solver_cfg, newton.solvers.SolverKamino)):
+            logger.warning(
+                f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
+            )
+
+    @staticmethod
+    def _converted_velocity_dofs(model: newton.Model) -> set[int]:
+        """DOFs driven by a MuJoCo velocity actuator that Newton's import converted to a joint target."""
+        mujoco = getattr(model, "mujoco", None)
+        if mujoco is None or not hasattr(mujoco, "ctrl_type"):
+            return set()
+        solver = newton.solvers.SolverMuJoCo
+        rows = zip(mujoco.ctrl_source.numpy(), mujoco.ctrl_type.numpy(), mujoco.actuator_trnid.numpy())
+        return {
+            int(target[0])
+            for source, kind, target in rows
+            if source == int(solver.CtrlSource.JOINT_TARGET) and kind == int(solver.CtrlType.VELOCITY)
+        }
+
+    """
+    Solver settings.
+    """
 
     def _scene_edits(self, solver_cfg) -> list[UsdEdit]:
         """Edits stating the solver step rate and the solver options Newton's importer reads from the physics scene.
@@ -538,41 +633,6 @@ class UsdExporter(BaseUsdExporter):
         return options
 
     @staticmethod
-    def _limit_reference(model: newton.Model) -> np.ndarray:
-        """Per DOF, MuJoCo's joint reference, which Newton's import subtracts from the USD limits."""
-        mujoco = getattr(model, "mujoco", None)
-        if mujoco is not None and hasattr(mujoco, "dof_ref"):
-            return mujoco.dof_ref.numpy().astype(float)
-        return np.zeros(model.joint_dof_count)
-
-    @classmethod
-    def _limit_gain_attribute(cls, prim: Usd.Prim, name: str, attribute: str) -> str:
-        """The attribute a limit gain is written to: the joint-wide one when stated, which Newton reads first."""
-        joint_wide = JOINT_WIDE_LIMIT_GAINS.get(name)
-        if "{axis}" in attribute and joint_wide and cls._stated(prim, joint_wide) is not None:
-            return joint_wide
-        return attribute
-
-    @classmethod
-    def _force_range_edits(cls, stage: Usd.Stage, edits: list[UsdEdit]) -> list[UsdEdit]:
-        """Edits widening a MuJoCo joint force range that would clamp an exported drive force limit.
-
-        Newton's import keeps the tighter of a drive's max force and the joint's ``mjc:actuatorfrcrange``.
-        """
-        widened = []
-        for edit in edits:
-            if not edit.attribute.endswith("physics:maxForce"):
-                continue
-            prim = stage.GetPrimAtPath(edit.path)
-            bounds = [cls._stated(prim, f"mjc:actuatorfrcrange:{end}") for end in ("min", "max")]
-            if any(bound is not None for bound in bounds) and max(abs(b or 0.0) for b in bounds) < edit.value:
-                widened += [
-                    UsdEdit(edit.path, "mjc:actuatorfrcrange:min", -float(edit.value)),
-                    UsdEdit(edit.path, "mjc:actuatorfrcrange:max", float(edit.value)),
-                ]
-        return widened
-
-    @staticmethod
     def _solver(solver_cfg: NewtonSolverCfg) -> type[NewtonSolver]:
         solver = solver_cfg.class_type
         solver = string_to_callable(solver) if isinstance(solver, str) else solver
@@ -588,62 +648,26 @@ class UsdExporter(BaseUsdExporter):
             return False
         return any(issubclass(c, solver_class) for c in cls._solver(solver_cfg).solver_classes(solver_cfg))
 
-    def _target_mode_actuators(
-        self, stage: Usd.Stage, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
-    ):
-        """Make Newton's USD import reproduce each joint's target mode, and warn where it cannot.
-
-        Workaround until USD states a target mode: Newton's import infers the mode from the drive gains, so a joint
-        with both gains runs in position mode, while Isaac Lab runs it in position-velocity mode. A MuJoCo velocity
-        actuator targeting a single-axis joint makes the import use position-velocity mode (gain: the damping).
-        """
-        position_velocity = int(newton.JointTargetMode.POSITION_VELOCITY)
-        solver_cfg = self.scene.sim.cfg.physics.solver_cfg
-        mujoco = self._runs(solver_cfg, newton.solvers.SolverMuJoCo)
-        converted = self._converted_velocity_dofs(model) if mujoco else set()
-        axes = Counter(dofs.values())
-        root = self.scene.env_prim_paths[self.env_id]
-        differ = set()
-        for dof, path in dofs.items():
-            inferred = newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True)
-            if modes[dof] == int(newton.JointTargetMode.NONE) or modes[dof] == int(inferred) or dof in converted:
-                continue
-            if not (mujoco and modes[dof] == position_velocity and axes[path] == 1):
-                differ.add(path)
-                continue
-            damping = float(target_kd[dof])
-            name = Tf.MakeValidIdentifier(path.removeprefix(root + "/"))
-            actuator = stage.DefinePrim(f"{root}/VelocityActuators/{name}", "MjcActuator")
-            actuator.CreateRelationship("mjc:target", custom=False).SetTargets([path])
-            values = {
-                "mjc:biasType": (Sdf.ValueTypeNames.Token, "affine"),
-                "mjc:gainPrm": (Sdf.ValueTypeNames.DoubleArray, [damping] + [0.0] * 9),
-                "mjc:biasPrm": (Sdf.ValueTypeNames.DoubleArray, [0.0, 0.0, -damping] + [0.0] * 7),
-            }
-            # As the MjcActuator schema defines them, whether or not this process registered it.
-            for attribute, (type_name, value) in values.items():
-                actuator.CreateAttribute(attribute, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(
-                    value
-                )
-        # Of Newton's solvers, only MuJoCo and Kamino apply a target mode.
-        if differ and (mujoco or self._runs(solver_cfg, newton.solvers.SolverKamino)):
-            logger.warning(
-                f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
-            )
+    """
+    Model values.
+    """
 
     @staticmethod
-    def _converted_velocity_dofs(model: newton.Model) -> set[int]:
-        """DOFs driven by a MuJoCo velocity actuator that Newton's import converted to a joint target."""
-        mujoco = getattr(model, "mujoco", None)
-        if mujoco is None or not hasattr(mujoco, "ctrl_type"):
-            return set()
-        solver = newton.solvers.SolverMuJoCo
-        rows = zip(mujoco.ctrl_source.numpy(), mujoco.ctrl_type.numpy(), mujoco.actuator_trnid.numpy())
-        return {
-            int(target[0])
-            for source, kind, target in rows
-            if source == int(solver.CtrlSource.JOINT_TARGET) and kind == int(solver.CtrlType.VELOCITY)
-        }
+    def _import_base(stage: Usd.Stage, model: newton.Model, solver_cfg) -> _AlignedBase:
+        """Newton's import of ``stage`` without Isaac Lab, its arrays indexed like ``model``'s entities.
+
+        The import registers the solver's custom attributes and uses Newton's schema resolvers, as a consumer of
+        the file does, and is finalized, so what Newton derives on import, such as corrected inertia, is part of
+        the base and never written.
+        """
+        builder = newton.ModelBuilder()
+        register_builder_attributes(builder, solver_cfg)
+        # The stage's own actuator networks, which Isaac Lab loaded when it built the scene.
+        builder.add_usd(stage, schema_resolvers=usd_schema_resolvers(solver_cfg), allow_unsafe_torch_checkpoints=True)
+        return _AlignedBase(model, builder.finalize(device="cpu"))
+
+    def _selected(self, worlds) -> np.ndarray:
+        return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
 
     @staticmethod
     def _arrays(model, names) -> dict[str, np.ndarray]:

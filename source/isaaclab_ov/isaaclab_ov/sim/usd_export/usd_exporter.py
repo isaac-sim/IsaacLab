@@ -18,6 +18,7 @@ from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 from isaaclab.sim.utils.queries import path_expr_to_glob
 
 from isaaclab_ov import tensor_types as TT
+from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 ARTICULATION_TENSORS = {
@@ -72,7 +73,7 @@ class UsdExporter(PhysxUsdExporter):
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         edits = super().compute_diff(stage)
-        if not self._uses_tasks():
+        if not ovphysx_compat.OVPHYSX_USES_TASKS:
             return edits
         # OVPhysX 0.7 applies a per-axis joint value only when it is positive and otherwise keeps an authored Newton
         # value, so a Newton value the live engine no longer holds is restated.
@@ -89,7 +90,7 @@ class UsdExporter(PhysxUsdExporter):
         return edits
 
     def _not_imported(self, prim, axis):
-        if not self._uses_tasks():
+        if not ovphysx_compat.OVPHYSX_USES_TASKS:
             return set()
         # OVPhysX 0.7 ignores PhysxJointAPI; Isaac Lab migrated its values into the stage the engine loaded.
         table = self._joint_table(axis)
@@ -100,12 +101,6 @@ class UsdExporter(PhysxUsdExporter):
             and not prim.GetAttribute(newton).HasAuthoredValue()
             and not prim.GetAttribute(table[name].name.format(axis=axis)).HasAuthoredValue()
         }
-
-    @staticmethod
-    def _uses_tasks() -> bool:
-        from isaaclab_ov.physics import ovphysx_compat
-
-        return ovphysx_compat.OVPHYSX_USES_TASKS
 
     def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
         # Bound as the assets bind them: OVPhysX matches globs, one path per environment in environment order.

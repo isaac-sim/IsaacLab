@@ -110,15 +110,7 @@ class UsdEdit(NamedTuple):
 
     def apply(self, stage: Usd.Stage):
         """Author the edit on ``stage``, un-instancing the asset instance that contains the prim."""
-        prim = stage.GetPrimAtPath(self.path)
-        if not prim:
-            raise RuntimeError(f"Exported stage has no prim at '{self.path}'.")
-        while prim.IsInstanceProxy():
-            instance = prim.GetParent()
-            while instance.IsInstanceProxy():
-                instance = instance.GetParent()
-            instance.SetInstanceable(False)
-            prim = stage.GetPrimAtPath(self.path)
+        prim = _editable_prim(stage, self.path)
         if self.attribute == _PHYSICS_MATERIAL:
             material = UsdShade.Material.Define(stage, self.value)
             UsdPhysics.MaterialAPI.Apply(material.GetPrim())
@@ -142,6 +134,75 @@ class UsdEdit(NamedTuple):
             # Schema attributes, whether or not this process registered the schema that defines them.
             attribute = prim.CreateAttribute(self.attribute, Sdf.ValueTypeNames.Find(self.type_name), custom=False)
         attribute.Set(self.value)
+
+
+def _editable_prim(stage: Usd.Stage, path: str) -> Usd.Prim:
+    """The prim at ``path``, after un-instancing the asset instances that contain it.
+
+    Opinions an instance's own layers author beneath it are ignored while it is instanced, so un-instancing would
+    apply them; what the instance composed is authored back over them, keeping what an import reads.
+    """
+    prim = stage.GetPrimAtPath(path)
+    if not prim:
+        raise RuntimeError(f"Exported stage has no prim at '{path}'.")
+    while prim.IsInstanceProxy():
+        instance = prim.GetParent()
+        while instance.IsInstanceProxy():
+            instance = instance.GetParent()
+        root, composed = instance.GetPath(), _composed(instance)
+        instance.SetInstanceable(False)
+        for prim_path, (active, type_name, schemas, values) in _composed(stage.GetPrimAtPath(root)).items():
+            changed = stage.GetPrimAtPath(prim_path)
+            if prim_path not in composed:
+                changed.SetActive(False)  # defined only by the ignored opinions
+                continue
+            was_active, was_type, was_schemas, was_values = composed[prim_path]
+            if active != was_active:
+                changed.SetActive(was_active)
+            if type_name != was_type:
+                changed.SetTypeName(was_type)
+            for schema in set(schemas) - set(was_schemas):
+                changed.RemoveAppliedSchema(schema)
+            for schema in set(was_schemas) - set(schemas):
+                changed.AddAppliedSchema(schema)
+            for name, value in values.items():
+                previous = was_values.get(name, () if isinstance(value, tuple) else None)
+                if value != previous:
+                    _author(changed, name, previous)
+        prim = stage.GetPrimAtPath(path)
+    return prim
+
+
+def _composed(root: Usd.Prim) -> dict[str, tuple[bool, str, list[str], dict[str, Any]]]:
+    """Activation, type, applied schemas, and authored attribute values and relationship targets of each prim in
+    ``root``'s subtree, through instance proxies; ``None`` for an attribute without an authored value."""
+    composed = {}
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)):
+        values = {a.GetName(): a.Get() if a.HasAuthoredValue() else None for a in prim.GetAttributes()}
+        values |= {r.GetName(): tuple(r.GetTargets()) for r in prim.GetRelationships()}
+        composed[str(prim.GetPath())] = (prim.IsActive(), prim.GetTypeName(), prim.GetAppliedSchemas(), values)
+    return composed
+
+
+def _authored(stage: Usd.Stage, names: Collection[str]) -> dict[tuple[str, str], Any]:
+    """Authored values of the attributes ``names`` on every prim, through instance proxies."""
+    values = {}
+    for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
+        for name in names:
+            attribute = prim.GetAttribute(name)
+            if attribute and attribute.HasAuthoredValue():
+                values[str(prim.GetPath()), name] = attribute.Get()
+    return values
+
+
+def _author(prim: Usd.Prim, name: str, value: Any):
+    """Author ``value`` on the property ``name``; ``None`` blocks the attribute's weaker opinions."""
+    if isinstance(value, tuple):
+        prim.GetRelationship(name).SetTargets(list(value))
+    elif value is None:
+        prim.GetAttribute(name).Block()
+    else:
+        prim.GetAttribute(name).Set(value)
 
 
 class BaseUsdExporter(ABC):
@@ -172,6 +233,10 @@ class BaseUsdExporter(ABC):
         self.scene = scene
         self.env_id = env_id
 
+    """
+    Operations.
+    """
+
     def export(self, path: str) -> str:
         """Write the environment to a USD file.
 
@@ -197,8 +262,17 @@ class BaseUsdExporter(ABC):
             )
         stage = Usd.Stage.Open(layer)
         self._select_environment(stage)
-        for edit in self.compute_diff(stage):
+        edits = self.compute_diff(stage)
+        # An edited value also reaches the prims composing the edited one, such as a material referencing another;
+        # theirs are kept as the import read them.
+        names = {edit.attribute for edit in edits} - {_WORLD_POSE, _PHYSICS_MATERIAL}
+        before = _authored(stage, names)
+        for edit in edits:
             edit.apply(stage)
+        edited = {(edit.path, edit.attribute) for edit in edits}
+        for key, value in _authored(stage, names).items():
+            if key not in edited and value != before.get(key):
+                _author(_editable_prim(stage, key[0]), key[1], before.get(key))
         self._write_pd_actuators_as_drives(stage)
         # The file names remote assets where the stage composed their cached copies; no stage composes this copy.
         exported = Sdf.Layer.CreateAnonymous(".usda")
@@ -433,6 +507,10 @@ class BaseUsdExporter(ABC):
         a changed mass then also writes the inertia. ``com`` is the engine's, which
         includes the body's scale; importers scale the USD center of mass by it.
         """
+        if "mass" in changed and mass <= 0.0:
+            # USD states an unset mass as zero, and an import derives it from the geometry.
+            logger.warning(f"USD cannot state the zero mass of '{prim.GetPath()}'; an import derives one.")
+            return []
         if "mass" in changed and cls._stated(prim, "physics:diagonalInertia") is None:
             changed = {*changed, "inertia"}
         scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
@@ -495,11 +573,30 @@ class BaseUsdExporter(ABC):
             UsdEdit(scene_path, "physics:gravityMagnitude", norm / meters_per_unit),
         ]
 
+    @staticmethod
+    def _physics_materials(stage: Usd.Stage) -> dict[str, str]:
+        """Each collider's physics material, as UsdPhysics' parser, which the importers use, resolves it.
+
+        A bound material without the physics material API, such as a render material, is none; colliders without
+        a physics material are left out.
+        """
+        parsed = UsdPhysics.LoadUsdPhysicsFromRange(stage, ["/"])
+        return {
+            str(path): str(desc.materials[0])
+            for paths, descs in parsed.values()
+            for path, desc in zip(paths, descs)
+            if getattr(desc, "materials", None)
+        }
+
     @classmethod
     def _material_edits(
-        cls, stage: Usd.Stage, values: dict[str, dict[str, float]], fallbacks: dict[str, float] | None = None
+        cls,
+        stage: Usd.Stage,
+        values: dict[str, dict[str, float]],
+        fallbacks: dict[str, float] | None = None,
+        bound: dict[str, str] | None = None,
     ) -> list[UsdEdit]:
-        """Edits writing collider material values that the colliders' bound physics materials do not state.
+        """Edits writing collider material values that the colliders' physics materials do not state.
 
         Colliders sharing a material must have equal values, and a material also used by colliders missing
         from ``values`` is never changed. Colliders without a physics material get a new one, shared by those
@@ -511,18 +608,17 @@ class BaseUsdExporter(ABC):
                 of the material for a collider without one.
             fallbacks: What the importer reads for a material attribute left unset, where the attribute's schema
                 defines no default. Defaults to None (only schema defaults).
+            bound: :meth:`_physics_materials` of ``stage``. Defaults to None (parsed here).
 
         Returns:
             The edits.
         """
+        bound = cls._physics_materials(stage) if bound is None else bound
         users, groups, created, edits = {}, {}, {}, []
-        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-            if prim.HasAPI(UsdPhysics.CollisionAPI):
-                material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-                if material:
-                    users.setdefault(str(material.GetPath()), []).append(str(prim.GetPath()))
+        for collider, material in bound.items():
+            users.setdefault(material, []).append(collider)
         for collider, engine in values.items():
-            material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(collider)).ComputeBoundMaterial("physics")
+            material = bound.get(collider)
             if not material:
                 stated = tuple(sorted(cls._unless_fallback(engine, fallbacks or {}).items()))
                 if stated not in created:
@@ -536,7 +632,7 @@ class BaseUsdExporter(ABC):
                     created[stated] = path
                 edits.append(UsdEdit(collider, _PHYSICS_MATERIAL, created[stated]))
                 continue
-            path = str(material.GetPath())
+            path = material
             if path in groups and (
                 groups[path].keys() != engine.keys()
                 or not all(cls._close(groups[path][name], value) for name, value in engine.items())
@@ -610,6 +706,10 @@ class BaseUsdExporter(ABC):
                     value = attribute.default if BaseUsdExporter._finite(attribute.default) else None
                     defaults[attribute.name] = value if defaults.get(attribute.name, value) == value else None
         return defaults
+
+    """
+    Math.
+    """
 
     @staticmethod
     def _principal_inertia(inertia: np.ndarray) -> tuple[Gf.Vec3f, Gf.Quatf]:
