@@ -60,6 +60,10 @@ class XrCfg:
     :func:`~isaaclab_teleop.create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when
     given an ``env_prim_path``; direct device construction requires a concrete path.
 
+    Kit sessions use XRCore to follow the reference. Application-owned OVXR presentation
+    uses committed physics references for the same rotation and height policies. Input cannot
+    consume an unseeded or failed publication epoch; no static pose is substituted.
+
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
 

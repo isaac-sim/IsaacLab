@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 from functools import partial as P
 from types import SimpleNamespace
 
@@ -17,6 +18,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import newton
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
@@ -600,6 +602,52 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
     assert len(replays) == int(supported)
     assert events.count(("step", "state_0", "state_0")) == 2
     assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_allows_concurrent_legacy_stream_copy(device: str) -> None:
+    """A render/UI copy must not invalidate physics capture on the same GPU."""
+    source = wp.full(4, 7.0, device=device)
+    result = wp.zeros(4, device=device)
+    image = torch.full((4,), 23.0, device=device)
+    copied = torch.zeros_like(image)
+    # Setup is complete before capture. No allocations or implicit dependency
+    # on captured physics work are needed by the independent image consumer.
+    wp.synchronize_device(device)
+    torch.cuda.synchronize(device)
+    entered = threading.Event()
+    finished = threading.Event()
+    errors = []
+
+    def copy_image() -> None:
+        try:
+            assert entered.wait(5), "capture did not start"
+            with torch.cuda.device(device), torch.cuda.stream(torch.cuda.default_stream(device)):
+                copied.copy_(image)
+                torch.cuda.default_stream(device).synchronize()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    def record_physics() -> None:
+        wp.copy(result, source)
+        entered.set()
+        assert finished.wait(5), "concurrent image copy did not complete"
+
+    worker = threading.Thread(target=copy_image)
+    worker.start()
+    try:
+        graph = newton_backend.capture_graph(device, record_physics)
+    finally:
+        entered.set()
+        worker.join(5)
+        assert not errors, errors
+    assert not worker.is_alive()
+    np.testing.assert_array_equal(result.numpy(), [0.0] * 4)  # Recording did not advance physics.
+    wp.capture_launch(graph)
+    np.testing.assert_array_equal(result.numpy(), [7.0] * 4)
+    np.testing.assert_array_equal(copied.cpu().numpy(), [23.0] * 4)
 
 
 # ----- Reset masks -------------------------------------------------------------------------
