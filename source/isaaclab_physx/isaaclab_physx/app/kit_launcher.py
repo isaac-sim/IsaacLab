@@ -344,7 +344,7 @@ class KitLauncher(SimulationLauncher):
             default="cpu" if sys.platform == "darwin" else "cuda:0",
             help=(
                 'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
-                ' Defaults to "cuda:0", or "cpu" on macOS.'
+                ' Defaults to "cuda:0", or "cpu" on macOS. With --xr and no --device, physics runs on the CPU.'
             ),
         )
         arg_group.add_argument(
@@ -542,7 +542,17 @@ class KitLauncher(SimulationLauncher):
         device = launcher_args.get("device", "cuda:0")
         distributed = launcher_args.get("distributed", False)
         if self._xr and not launcher_args.get("device_explicit", False) and not distributed:
-            # If no device is specified, default to the CPU device if we are running in XR
+            # If no device is specified, default to the CPU device if we are running in XR. This overrides
+            # the usual default and is otherwise silent, so say so and how to opt out: whether CPU physics
+            # is the faster choice depends on the scene.
+            if device != "cpu":
+                logger.warning(
+                    "XR mode is enabled and no device was specified explicitly: running physics on the CPU."
+                    " Outside XR the default is '%s'. CPU physics can reduce latency for single-environment"
+                    " teleoperation, but is typically slower for larger or contact-rich scenes. Pass --device"
+                    " explicitly (for example '--device cuda:0') to override this fallback.",
+                    device,
+                )
             device = launcher_args["device"] = "cpu"
 
         if "cuda" not in device and "cpu" not in device:

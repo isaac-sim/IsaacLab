@@ -258,6 +258,32 @@ For fixed-base G1 upper-body manipulation, select
 robot-camera PiP panel by default in XR. See :ref:`isaac-teleop-xr-camera-feedback` for a fixed-base
 launch example, camera-recording differences, and scene-partition isolation behavior.
 
+.. note::
+
+   **In XR mode, physics runs on the CPU unless you pass** ``--device`` **explicitly.** Passing
+   ``--xr`` without ``--device`` overrides the usual ``cuda:0`` default and selects ``cpu``
+   instead. Isaac Lab warns when this happens:
+
+   .. code-block:: text
+
+      XR mode is enabled and no device was specified explicitly: running physics on the CPU.
+
+   CPU physics can reduce latency when only a single environment is present, which is why it is
+   the default for teleoperation. It is typically slower for larger or contact-rich scenes, where
+   the GPU pipeline wins instead. Which one is faster is scene-dependent, so measure both. To
+   force GPU physics, pass the device explicitly:
+
+   .. code-block:: bash
+
+      uv run --extra teleop,isaacsim isaaclab teleop run \
+          --task <task> \
+          --visualizer kit \
+          --xr \
+          --device cuda:0
+
+   Confirm the selection in the startup banner, which prints
+   ``Environment device    : cuda:0`` (or ``cpu``).
+
 .. attention::
 
    **First run — EULA acceptance required.**
