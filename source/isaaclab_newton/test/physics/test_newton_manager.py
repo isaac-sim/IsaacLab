@@ -893,6 +893,30 @@ def test_bvh_refit_captures_a_model_without_rigid_bodies(device):
     assert backend.bvh_refit.data[0] == backend.state_pointers()
 
 
+def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_global_world():
+    """A NaN translation, rotation or velocity flags its body's world; a body of the global world flags nothing."""
+    nan = float("nan")
+    identity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    poses = np.array(
+        [identity, [nan] + identity[1:], identity[:3] + [nan] + identity[4:], identity, [nan] * 7], dtype=np.float32
+    )
+    velocities = np.zeros((5, 6), dtype=np.float32)
+    velocities[3, 0] = nan
+    velocities[4] = nan
+    backend = backend_stub(
+        device=wp.get_device("cpu"),
+        model=SimpleNamespace(
+            world_count=4, body_count=5, body_world=wp.array([0, 1, 2, 3, -1], dtype=wp.int32, device="cpu")
+        ),
+        state_0=SimpleNamespace(
+            body_q=wp.array(poses, dtype=wp.transformf, device="cpu"),
+            body_qd=wp.array(velocities, dtype=wp.spatial_vectorf, device="cpu"),
+        ),
+    )
+
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
+
+
 # ----- Captured steps in a simulation ------------------------------------------------------
 
 
