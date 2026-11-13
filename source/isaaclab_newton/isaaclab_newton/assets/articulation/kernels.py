@@ -499,6 +499,36 @@ def write_joint_friction_param_to_buffer_kernel(
 
 
 @wp.kernel
+def copy_fixed_tendon_properties_with_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    tendon_mask: wp.array(dtype=wp.bool),
+    stiffness: wp.array2d(dtype=wp.float32),
+    damping: wp.array2d(dtype=wp.float32),
+    pos_limits: wp.array2d(dtype=wp.vec2f),
+    sim_stiffness: wp.array2d(dtype=wp.float32),
+    sim_damping: wp.array2d(dtype=wp.float32),
+    sim_pos_limits: wp.array2d(dtype=wp.vec2f),
+):
+    """Copy the staged fixed-tendon stiffness, damping and position limits to the simulation where both masks are true.
+
+    Args:
+        env_mask: Environment mask. Shape is (num_instances,).
+        tendon_mask: Fixed-tendon mask. Shape is (num_fixed_tendons,).
+        stiffness: Staged stiffness. Shape is (num_instances, num_fixed_tendons).
+        damping: Staged damping. Shape is (num_instances, num_fixed_tendons).
+        pos_limits: Staged position limits. Shape is (num_instances, num_fixed_tendons).
+        sim_stiffness: Simulation stiffness. Shape is (num_instances, num_fixed_tendons).
+        sim_damping: Simulation damping. Shape is (num_instances, num_fixed_tendons).
+        sim_pos_limits: Simulation position limits. Shape is (num_instances, num_fixed_tendons).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and tendon_mask[j]:
+        sim_stiffness[i, j] = stiffness[i, j]
+        sim_damping[i, j] = damping[i, j]
+        sim_pos_limits[i, j] = pos_limits[i, j]
+
+
+@wp.kernel
 def update_default_joint_values(
     source: wp.array(dtype=wp.float32),
     ids: wp.array(dtype=wp.int32),

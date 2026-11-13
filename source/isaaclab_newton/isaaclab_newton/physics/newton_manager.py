@@ -348,8 +348,20 @@ class NewtonManager(PhysicsManager):
         self.builder.request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
-        """Register a model change to notify the solver at the next step."""
-        self.backend.model_changes.add(change)
+        """Register a model change to notify the solver at the next step.
+
+        Inside a graph capture, the refresh of this change alone is recorded instead, so every replay applies it;
+        changes queued before the capture stay queued for the next step.
+        """
+        backend = self.backend
+        if wp.get_device(backend.device).is_capturing:
+            queued, backend.model_changes = backend.model_changes, {change}
+            try:
+                backend.notify_model_changes()
+            finally:
+                backend.model_changes = queued
+        else:
+            backend.model_changes.add(change)
 
     def invalidate_fk(
         self,
