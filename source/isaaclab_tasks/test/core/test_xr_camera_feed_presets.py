@@ -48,18 +48,33 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.distance_m == 0.8
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
-    assert feed_cfg.max_update_hz == 0.0
+    assert feed_cfg.max_update_hz == (20.0 if env_cfg_type is FixedBaseUpperBodyIKG1EnvCfg else 0.0)
     assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
     assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
-def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
-    """PiP adds a sensor without changing the fixed-base policy observation schema."""
-    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+@pytest.mark.parametrize("selection", [[], ["presets=rgb"]])
+def test_fixed_base_g1_pip_keeps_state_policy_unless_rgb_selected_and_fixed_root(selection):
+    """Three cameras feed XR panels; their policy image terms are opt-in through ``presets=rgb``."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import parse_env_cfg
 
-    assert hasattr(cfg.scene, "robot_pov_cam")
-    assert not hasattr(cfg.observations.policy, "robot_pov_cam")
+    cfg = parse_env_cfg(
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", device="cpu", num_envs=1, overrides=selection
+    )
+
+    assert cfg.image_obs_list == ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
+    for name in ("robot_pov_cam", "left_wrist_cam", "right_wrist_cam"):
+        assert hasattr(cfg.scene, name)
+        assert hasattr(cfg.observations.policy, name) is bool(selection)
     assert cfg.scene.robot.spawn.fix_root_link is True
+    assert [feed.camera_name for feed in cfg.isaac_teleop.xr_camera_feeds] == [
+        "robot_pov_cam",
+        "left_wrist_cam",
+        "right_wrist_cam",
+    ]
+    assert [feed.max_update_hz for feed in cfg.isaac_teleop.xr_camera_feeds] == [20.0, 10.0, 10.0]
+    assert cfg.xr.excluded_visual_meshes
 
 
 def test_locomanipulation_g1_retains_recorded_camera():
@@ -85,3 +100,16 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends():
     assert default == expected_rtx
     assert isaacsim_rtx == expected_rtx
     assert isinstance(ovrtx, OVRTXRendererCfg)
+
+
+def test_fixed_base_g1_direct_construction_prepares_the_state_policy_default():
+    """Registered construction without task resolution uses the state-only policy preset default."""
+    from isaaclab.managers import ObservationGroupCfg
+
+    from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
+
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    prepare_humanoid_teleop_environment(cfg)
+    assert isinstance(cfg.observations.policy, ObservationGroupCfg)
+    assert not hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert hasattr(cfg.observations.policy, "robot_joint_pos")

@@ -808,8 +808,8 @@ class OvPhysxManager(PhysicsManager):
         """Apply the OVPhysX scene configuration to the simulation's physics scene prim.
 
         The schema, dynamics device and broadphase (see :func:`_set_scene_dynamics_device`),
-        scene-query-support, and solver-determinism/accuracy attributes are applied regardless of
-        device. The GPU buffer-capacity attributes are applied only to GPU scenes.
+        scene-query-support, solver-determinism/accuracy and selected contact attributes are applied
+        regardless of device. The GPU buffer-capacity attributes are applied only to GPU scenes.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -835,6 +835,13 @@ class OvPhysxManager(PhysicsManager):
             scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
                 cfg.enable_external_forces_every_iteration
             )
+            for attr, value_type, value in (
+                ("bounceThreshold", Sdf.ValueTypeNames.Float, cfg.bounce_threshold_velocity),
+                ("frictionCorrelationDistance", Sdf.ValueTypeNames.Float, cfg.friction_correlation_distance),
+                ("solveArticulationContactLast", Sdf.ValueTypeNames.Bool, cfg.solve_articulation_contact_last),
+            ):
+                if value is not None:
+                    scene_prim.CreateAttribute(f"physxScene:{attr}", value_type).Set(value)
 
         if device == "gpu" and cfg is not None:
             for attr, val in [

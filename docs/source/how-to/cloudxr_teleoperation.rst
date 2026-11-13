@@ -150,6 +150,10 @@ to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next
    bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
    the OV runtimes separately when you need them.
 
+For XR teleoperation without Isaac Sim, follow the :ref:`kitless XR guide <kitless-xr>`. It
+explains how to select a public Isaac Capture wheel and its optional OVXR dependencies. The Kit
+setup below uses the published ``teleop`` extra.
+
 Complete these steps first:
 
 #. Install the system libraries required by the CloudXR runtime:
@@ -192,7 +196,7 @@ Complete these steps first:
 #. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
    required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
    package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
-   For building from source or plugin development, see the `Isaac Capture GitHub
+   For Capture APIs and plugin development, see the `Isaac Capture GitHub
    <https://github.com/NVIDIA/IsaacCapture>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the

@@ -262,3 +262,70 @@ def test_teleop_configs_resolve_and_validate_without_teleop():
     assert result.returncode == 0, (
         f"Subprocess failed:\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
     )
+
+
+def test_humanoid_standalone_preparation_without_teleop():
+    """Registered humanoid tasks must prepare standalone physics without the Isaac Teleop package."""
+    script = textwrap.dedent("""\
+        import builtins
+        import importlib.util
+
+        original_import = builtins.__import__
+        original_find_spec = importlib.util.find_spec
+
+        def block_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                raise ModuleNotFoundError("No module named 'isaaclab_teleop'", name="isaaclab_teleop")
+            return original_import(name, *args, **kwargs)
+
+        def hide_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                return None
+            return original_find_spec(name, *args, **kwargs)
+
+        builtins.__import__ = block_teleop
+        importlib.util.find_spec = hide_teleop
+
+        import gymnasium
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab.envs import ManagerBasedRLEnv
+        from isaaclab.utils import validate
+        from isaaclab_tasks.utils import resolve_task_config
+
+        class ConstructionReached(Exception):
+            pass
+
+        def stop_before_simulation(self, cfg, *args, **kwargs):
+            self._is_closed = True
+            raise ConstructionReached
+
+        ManagerBasedRLEnv.__init__ = stop_before_simulation
+
+        standalone_tasks = (
+            ("IsaacContrib-PickPlace-GR1T2-Abs", "ovphysx"),
+            ("IsaacContrib-PickPlace-GR1T2-Abs", "newton_mjwarp"),
+            ("IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "ovphysx"),
+            ("IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "newton_mjwarp"),
+            ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
+        )
+        for task_name, physics in standalone_tasks:
+            cfg, _ = resolve_task_config(task_name, "", overrides=[f"physics={physics}"])
+            try:
+                gymnasium.make(task_name, cfg=cfg)
+            except ConstructionReached:
+                pass
+            else:
+                raise AssertionError("Registered constructor did not reach the simulation boundary")
+            validate(cfg)
+            assert cfg.isaac_teleop is None
+            assert cfg._prepared_kitless_backend == physics
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Subprocess failed:\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
