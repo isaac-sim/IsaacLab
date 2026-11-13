@@ -14,4 +14,6 @@ except importlib.metadata.PackageNotFoundError:
 
 from isaaclab.utils.module import lazy_export
 
-lazy_export()
+__getattr__, __dir__, __all__ = lazy_export()
+# The Kit teleop selection does not install Capture's standalone OVXR runtime.
+__all__.remove("OvLibrariesXrSession")

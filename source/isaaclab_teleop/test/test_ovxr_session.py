@@ -10,6 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.ov
+
 from isaaclab.sim import SimulationCfg
 
 pytest.importorskip("ovrtx")
@@ -117,6 +119,14 @@ def test_environment_validation_resolves_devices_and_requires_one_environment(bo
     env = _environment(bootstrap, num_envs=num_envs, device=device, dt=dt)
     if error is None:
         bootstrap.validate_environment(env)
+        env.cfg.sim = bootstrap.simulation_context.cfg
+        original_dt = env.cfg.sim.dt
+        env.cfg.sim.dt = original_dt * 2
+        try:
+            with pytest.raises(RuntimeError, match=r"sim\.dt"):
+                bootstrap.validate_environment(env)
+        finally:
+            env.cfg.sim.dt = original_dt
     else:
         with pytest.raises(RuntimeError, match=error):
             bootstrap.validate_environment(env)

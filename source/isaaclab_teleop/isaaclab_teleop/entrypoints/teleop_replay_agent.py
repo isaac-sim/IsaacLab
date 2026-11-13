@@ -7,7 +7,7 @@
 
 This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
 a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
-configured in :class:`isacteleop.teleop_session_manager.SessionMode.REPLAY`,
+configured in :class:`isaacteleop.teleop_session_manager.SessionMode.REPLAY`,
 and pumps the simulation loop until the recorded operator presses STOP (or
 ``--max_replay_duration_s`` elapses, or the simulator is closed). The user-journey
 teleop script remains ``teleop_se3_agent.py``.
@@ -25,7 +25,7 @@ Inputs:
     messages (head / hands / controllers) plus the ``_teleop_control``
     ``MessageChannelTracker`` that captured the operator's START / STOP /
     RESET gestures. TeleopCore's
-    :class:`~isacteleop.deviceio_session.ReplaySession` re-emits all of
+    :class:`~isaacteleop.deviceio_session.ReplaySession` re-emits all of
     them on the same monotonic-time cadence they were recorded on, so
     :func:`~isaaclab_teleop.poll_control_events` returns the same edges
     here that ``record_demos.py``'s loop saw at recording time.
@@ -1280,11 +1280,12 @@ def _run_single_replay(  # noqa: C901
     success_term: object | None,
     run_index: int,
     total_runs: int,
+    teleop_interface: IsaacTeleopDevice,
     presentation: OvxrPresentation | None = None,
 ) -> _RunStats:
     """Run a single replay pass against ``env`` and return the per-run stats.
 
-    Builds a fresh :class:`IsaacTeleopDevice` so each call re-opens the MCAP
+    Uses a fresh :class:`IsaacTeleopDevice` so each call re-opens the MCAP
     reader at frame 0 -- exiting and re-entering the device's context manager
     tears down the previous ``TeleopSession`` and constructs a new one. The
     USD stage is left untouched; the caller (``main``) is responsible for
@@ -1307,6 +1308,7 @@ def _run_single_replay(  # noqa: C901
             only runs on ``run_index == 0``).
         total_runs: Total number of runs in the batch; used only for log
             framing ("Replay 1/5: ...").
+        teleop_interface: Fresh input device retained by the batch cleanup owner.
     """
     stats = _RunStats()
 
@@ -1322,23 +1324,6 @@ def _run_single_replay(  # noqa: C901
     if run_index == 0 and not getattr(gpu_stats_provider, "_available", False):
         print(f"[GPU stats] disabled: {getattr(gpu_stats_provider, '_reason', 'unknown reason')}")
 
-    # CloudXR is owned by the agent (see ``_maybe_launch_cloudxr`` in
-    # ``main``), so the per-run lifecycle must not try to launch -- or
-    # stop -- it. ``cloudxr_env_file=None`` + ``auto_launch_cloudxr=False``
-    # short-circuits ``TeleopSessionLifecycle._ensure_cloudxr_runtime`` so
-    # the runtime survives across replays and the OpenXR session keeps
-    # its IPC connection.
-    teleop_interface = create_isaac_teleop_device(
-        isaac_teleop_cfg,
-        env_prim_path=env.scene.env_prim_paths[0],
-        sim_device=args_cli.device,
-        callbacks={},
-        cloudxr_env_file=None,
-        auto_launch_cloudxr=False,
-        mcap_replay_path=args_cli.replay_file,
-        enable_debug_visualization=args_cli.enable_debug_visualization,
-        ovxr_session=presentation is not None,
-    )
     if presentation is not None:
         presentation.input_device = teleop_interface
     if run_index == 0:
@@ -1667,14 +1652,11 @@ def main() -> int:
         persisted to disk; a one-line-per-run stdout summary is always
         printed. See the module docstring for the full JSON schema.
 
-    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
-    always runs, even when device construction or any subsequent setup
-    raises -- otherwise the USD stage would leak across CI runs.
-    With ``--ovxr``, cleanup first drains replay input and the OVXR viewer,
-    which may own the environment. A failed input drain retains the borrowed
-    environment and raises rather than releasing a stage that a worker may
-    still use. Repeated shutdown signals request owner shutdown without
-    interrupting its drain.
+    Cleanup first drains replay input and, with ``--ovxr``, the viewer that
+    may own the environment. A failed input drain retains the borrowed
+    environment and runtime rather than releasing resources a worker may
+    still use. Other failures still service independent cleanup owners.
+    Repeated shutdown signals request owner shutdown without interrupting its drain.
 
     Returns:
         The host process exit code, mapped from the worst-of-N outcome
@@ -1700,7 +1682,7 @@ def main() -> int:
             "MCAP replay requires env_cfg.isaac_teleop to be set."
         )
 
-    with launch_simulation(env_cfg, args_cli, cleanup_context=not args_cli.ovxr):
+    with launch_simulation(env_cfg, args_cli, cleanup_context=False):
         exit_code = _run_replay_batch(env_cfg, success_term)
     return exit_code
 
@@ -1716,6 +1698,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
     previous_context = SimulationContext.instance()
     env: gym.Env | None = None
     cloudxr_launcher = None
+    teleop_interface = None
     presentation = None
     previous_handlers = {}
     shutting_down = False
@@ -1756,12 +1739,26 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
         for run_idx in range(args_cli.num_replays):
+            # Keep the input owner visible to batch cleanup even when its drain fails.
+            # CloudXR stays batch-owned so its IPC survives between replay devices.
+            teleop_interface = create_isaac_teleop_device(
+                env_cfg.isaac_teleop,
+                env_prim_path=env.scene.env_prim_paths[0],
+                sim_device=args_cli.device,
+                callbacks={},
+                cloudxr_env_file=None,
+                auto_launch_cloudxr=False,
+                mcap_replay_path=args_cli.replay_file,
+                enable_debug_visualization=args_cli.enable_debug_visualization,
+                ovxr_session=presentation is not None,
+            )
             run_stats = _run_single_replay(
                 env=env,
                 isaac_teleop_cfg=env_cfg.isaac_teleop,
                 success_term=success_term,
                 run_index=run_idx,
                 total_runs=args_cli.num_replays,
+                teleop_interface=teleop_interface,
                 presentation=presentation,
             )
             all_runs.append(run_stats)
@@ -1773,9 +1770,24 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
                 break
     finally:
         shutting_down = True
+        primary_error = sys.exception()
+        cleanup_failure = None
+        input_drain_failed = getattr(teleop_interface, "session_cleanup_failed", False) is True
+
+        def record_cleanup_error(error: BaseException) -> None:
+            nonlocal cleanup_failure
+            if primary_error is not None:
+                primary_error.add_note(f"Replay cleanup also failed: {error!r}")
+            elif cleanup_failure is None:
+                cleanup_failure = error
+            else:
+                cleanup_failure.add_note(f"Replay cleanup also failed: {error!r}")
+
         try:
             if presentation is not None:
                 presentation.close()
+            if input_drain_failed:
+                raise RuntimeError("Isaac Capture input drain failed; retaining the environment and runtime")
             if env is not None:
                 if presentation is None or not presentation.session.async_worker_owns_environment:
                     env.close()
@@ -1786,15 +1798,22 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
                 context = SimulationContext.instance()
                 if context is not None and context is not previous_context:
                     SimulationContext.clear_instance()
+        except BaseException as cleanup_error:
+            record_cleanup_error(cleanup_error)
         finally:
             for sig, handler in previous_handlers.items():
-                signal.signal(sig, handler)
-        if cloudxr_launcher is not None:
+                try:
+                    signal.signal(sig, handler)
+                except BaseException as cleanup_error:
+                    record_cleanup_error(cleanup_error)
+        if cloudxr_launcher is not None and not input_drain_failed:
             try:
                 cloudxr_launcher.stop()
                 logger.info("CloudXR runtime stopped (end of batch)")
-            except Exception:
-                logger.exception("Failed to stop CloudXR launcher cleanly")
+            except BaseException as cleanup_error:
+                record_cleanup_error(cleanup_error)
+        if cleanup_failure is not None:
+            raise cleanup_failure
 
     report = _build_report(args_cli, env_cfg, all_runs)
     _print_stdout_summary(report)

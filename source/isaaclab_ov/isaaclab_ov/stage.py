@@ -226,7 +226,7 @@ class OvstageBackend:
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )
         self.ordinal = 1
-        self.commit()
+        self._commit()
 
     @contextlib.contextmanager
     def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
@@ -247,6 +247,12 @@ class OvstageBackend:
 
     def commit(self) -> int:
         """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
+        if self._render_lease_owner is not None:
+            raise RuntimeError("Cannot commit a stage with an active render lease")
+        return self._commit()
+
+    def _commit(self) -> int:
+        """Seal stage initialization or an ordinary, authorized publication."""
         ordinal = self.ordinal
         self.stage.advance_write_floor(ordinal=ordinal).wait()
         self.ordinal += 1

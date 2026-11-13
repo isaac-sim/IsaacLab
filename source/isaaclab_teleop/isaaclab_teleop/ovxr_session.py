@@ -101,6 +101,8 @@ class OvxrSessionBootstrap:
             raise
 
         self._sim = sim
+        self._prepared_device = sim.cfg.device
+        self._prepared_dt = sim.cfg.dt
         self._lease = lease
 
     @property
@@ -144,20 +146,16 @@ class OvxrSessionBootstrap:
                 f"The OVXR render lease requires exactly one environment; got num_envs={unwrapped.num_envs!r}"
             )
         env_sim_cfg = unwrapped.cfg.sim
-        prepared_cfg = self._sim.cfg
-        if env_sim_cfg is not prepared_cfg:
-            # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
-            env_device = resolve_cuda_device(env_sim_cfg.device)
-            for field, env_value, prepared_value in (
-                ("device", env_device, prepared_cfg.device),
-                ("dt", env_sim_cfg.dt, prepared_cfg.dt),
-            ):
-                if env_value != prepared_value:
-                    raise RuntimeError(
-                        f"Environment sim.{field}={getattr(env_sim_cfg, field)!r} differs from the OVXR"
-                        f" prepared simulation context ({prepared_value!r}); prepare the"
-                        " session with the environment's sim configuration"
-                    )
+        for field, env_value, prepared_value in (
+            ("device", resolve_cuda_device(env_sim_cfg.device), self._prepared_device),
+            ("dt", env_sim_cfg.dt, self._prepared_dt),
+        ):
+            if env_value != prepared_value:
+                raise RuntimeError(
+                    f"Environment sim.{field}={getattr(env_sim_cfg, field)!r} differs from the OVXR"
+                    f" prepared simulation context ({prepared_value!r}); prepare the"
+                    " session with the environment's sim configuration"
+                )
 
     def bind_environment(self, env: Any) -> OvLibrariesRenderLease:
         """Prepare and bind the completed environment Stage to the reserved pair.
@@ -275,8 +273,6 @@ class OvxrSessionBootstrap:
 
     def abort(self) -> None:
         """Release a failed construction; retain its context if lease retirement fails."""
-        if self._closed:
-            return
         self.close()
         if not self._bound and self._sim is not None and SimulationContext.instance() is self._sim:
             self._sim.clear_instance()

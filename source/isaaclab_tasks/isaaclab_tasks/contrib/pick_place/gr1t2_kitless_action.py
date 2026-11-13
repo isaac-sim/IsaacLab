@@ -161,24 +161,21 @@ class GR1T2KitlessPinkInverseKinematicsAction(PinkInverseKinematicsAction):
         self._hand_lower = torch.tensor(lower, dtype=self._raw_actions.dtype, device=self.device)
         self._hand_upper = torch.tensor(upper, dtype=self._raw_actions.dtype, device=self.device)
         self._hand_target_slew = _HandTargetSlewState(
-            torch.zeros(
-                (self.num_envs, len(self._hand_joint_names)),
-                dtype=self._raw_actions.dtype,
-                device=self.device,
-            ),
+            self._raw_actions[:, -len(self._hand_joint_names) :],
             cfg.max_hand_target_step_rad,
         )
 
     def process_actions(self, actions: torch.Tensor) -> None:
         """Process input without mutating the action-manager input during coupling."""
         super().process_actions(actions)
+        targets = torch.clamp(self._target_hand_joint_positions, self._hand_lower, self._hand_upper)
         constrained = constrain_hand_joint_targets(
-            self._target_hand_joint_positions,
+            self._hand_target_slew.condition(targets),
             self._mimic_pairs,
             self._hand_lower,
             self._hand_upper,
         )
-        self._target_hand_joint_positions = self._hand_target_slew.condition(constrained)
+        self._target_hand_joint_positions = constrained
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear commanded-target history when the owning session/environment resets."""

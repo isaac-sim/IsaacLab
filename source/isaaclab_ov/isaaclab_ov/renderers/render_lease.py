@@ -256,7 +256,7 @@ class OvLibrariesScenePublisher:
                 raise RuntimeError("OVStage scene publisher is closed")
             return self._controller.producer_publication_required(self._lease, physics_step_id)
 
-    def write_complete_scene(self, ordinal: int, physics_step_id: Hashable) -> None:
+    def write_complete_scene(self, ordinal: int, physics_step_id: Hashable, *, force: bool = False) -> None:
         """Write, but do not publish, one complete batch at ``ordinal``.
 
         Writes the current transforms, geometries and pending visual materials at ``ordinal`` and
@@ -265,6 +265,7 @@ class OvLibrariesScenePublisher:
         Args:
             ordinal: Nonzero Stage ordinal reserved by the caller for this batch.
             physics_step_id: The identity passed to the preceding :meth:`publication_required` call.
+            force: Publish an independently changed anchor even when physics is unchanged.
 
         Raises:
             ValueError: If ``ordinal`` is not positive.
@@ -276,7 +277,14 @@ class OvLibrariesScenePublisher:
         with self._lock:
             if self._closed:
                 raise RuntimeError("OVStage scene publisher is closed")
-            self._controller.write_producer_scene(self._lease, ordinal, physics_step_id)
+            self._controller.write_producer_scene(self._lease, ordinal, physics_step_id, force=force)
+
+    def invalidate(self) -> None:
+        """Reject further use of a pair after a borrower write or seal failed."""
+        with self._lock:
+            self._closed = True
+            if self._controller.active is self._lease:
+                self._controller._poisoned = True
 
     def close(self) -> None:
         """Stop scene publication after any in-flight batch finishes. Safe to call repeatedly."""
@@ -493,13 +501,20 @@ class RenderLeaseController:
             raise TypeError("physics_step_id must be hashable") from exc
         writer_ref = self._renderer._visual_material_writer_ref
         writer = writer_ref() if writer_ref is not None else None
-        return self._last_step_id != physics_step_id or (writer is not None and writer.has_pending_updates)
+        return (
+            self._last_step_id != physics_step_id
+            or bool(self._renderer.marker_groups)
+            or bool(self._renderer.markers)
+            or (writer is not None and writer.has_pending_updates)
+        )
 
-    def write_producer_scene(self, lease: OvLibrariesRenderLease, ordinal: int, physics_step_id: Hashable) -> None:
+    def write_producer_scene(
+        self, lease: OvLibrariesRenderLease, ordinal: int, physics_step_id: Hashable, *, force: bool = False
+    ) -> None:
         """Write a complete scene batch without advancing its reserved ordinal."""
         if ordinal <= 0:
             raise ValueError("OVStage publication ordinal must be nonzero")
-        if not self.producer_publication_required(lease, physics_step_id):
+        if not self.producer_publication_required(lease, physics_step_id) and not force:
             raise RuntimeError("OVStage scene publication is not required for this complete state")
         self._renderer.scene.ordinal = ordinal
         try:
