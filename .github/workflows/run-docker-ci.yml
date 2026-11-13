@@ -25,7 +25,7 @@ jobs:
     name: Request Docker CI
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.body == 'run-ci'
+      contains(fromJSON('["run-ci", "run-ci\n", "run-ci\r\n"]'), github.event.comment.body)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
