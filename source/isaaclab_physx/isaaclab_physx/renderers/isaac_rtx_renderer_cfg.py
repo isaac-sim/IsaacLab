@@ -13,6 +13,13 @@ from typing import TYPE_CHECKING, Any, Literal
 import warp as wp
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers._rtx_renderer_cfg import _SIMPLE_SHADING_MODES as SIMPLE_SHADING_MODES
+from isaaclab.renderers._rtx_renderer_cfg import (
+    _apply_minimal_shading_mode,
+    _apply_render_mode,
+    _RtxMinimalShadingMode,
+    _RtxRenderMode,
+)
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
@@ -21,12 +28,15 @@ if TYPE_CHECKING:
     from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
-SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 1,
-    "simple_shading_diffuse_mdl": 2,
-    "simple_shading_full_mdl": 3,
-}
-"""RTX Minimal shading levels keyed by their public camera output names."""
+apply_render_mode = _apply_render_mode
+apply_minimal_shading_mode = _apply_minimal_shading_mode
+
+
+RtxRenderMode = _RtxRenderMode
+"""Execution modes for Isaac RTX render products."""
+
+RtxMinimalShadingMode = _RtxMinimalShadingMode
+"""Material evaluation modes for Isaac RTX Minimal rendering."""
 
 
 @configclass

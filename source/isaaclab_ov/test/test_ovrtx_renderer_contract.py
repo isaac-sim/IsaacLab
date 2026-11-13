@@ -884,9 +884,10 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
     monkeypatch.setattr(OVRTXRenderer, "_map_render_var_to_dlpack", fake_map)
     outputs = {
-        "rgba": ("LdrColor", 4, wp.uint8),
-        "albedo": ("DiffuseAlbedoSD", 4, wp.uint8),
-        "depth": ("DistanceToImagePlaneSD", 1, wp.float32),
+        "rgba": ("LdrColor", 4, wp.uint8, 1),
+        "simple_shading_full_mdl": ("LdrColor", 3, wp.uint8, 1),
+        "albedo": ("DiffuseAlbedoSD", 4, wp.uint8, 2),
+        "depth": ("DistanceToImagePlaneSD", 1, wp.float32, 3),
     }
     for camera_id in range(2):
         cfg = _make_camera_cfg(list(outputs))
@@ -907,9 +908,11 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         }
         frame = types.SimpleNamespace(end_time=1.0, render_vars={})
         buffers = {}
-        for index, (output, (source, channels, dtype)) in enumerate(outputs.items(), start=1):
-            value = 10 * camera_id + index
-            frame.render_vars[keys[source]] = wp.full((8, 32, channels), value, dtype=dtype, device="cpu")
+        for output, (source, channels, dtype, value) in outputs.items():
+            if keys[source] not in frame.render_vars:
+                frame.render_vars[keys[source]] = wp.full(
+                    (8, 32, channels), 10 * camera_id + value, dtype=dtype, device="cpu"
+                )
             buffers[output] = wp.zeros((2, 8, 16, channels), dtype=dtype, device="cpu")
         frames = [frame]
         if camera_id == 1:
@@ -922,8 +925,8 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         renderer._process_render_products(
             (render_data,), {render_data.render_product_path: types.SimpleNamespace(frames=frames)}
         )
-        for index, output in enumerate(outputs, start=1):
-            np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + index)
+        for output, (_, _, _, value) in outputs.items():
+            np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + value)
         render_data.cleanup()
 
 

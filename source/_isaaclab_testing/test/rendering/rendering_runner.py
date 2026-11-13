@@ -17,7 +17,7 @@ import warp as wp
 from golden_image import camera_output_image, compare_to_golden
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg, RtxMinimalShadingMode, RtxRenderMode, apply_render_mode, apply_minimal_shading_mode
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from newton import StateFlags
 from rendering_cases import RenderCase
@@ -69,6 +69,8 @@ def run_rendering_case(
         # Explicit colors and shadows belong to this synthetic fixture, not every scene.
         if case.renderer == "ovrtx":
             scene.cfg.camera.renderer_cfg.enable_shadows = True
+            # OVRTX references use this explicit color; Isaac RTX references use Kit's defaults.
+            scene.cfg.camera.render_settings["omni:rtx:minimal:constantColor"] = ("Color3f", (0.5, 0.5, 0.5))
         else:
             scene.cfg.camera.renderer_cfg.semantic_filter = ["class"]
             scene.cfg.camera.renderer_cfg.semantic_segmentation_mapping = {
@@ -79,6 +81,19 @@ def run_rendering_case(
                 "class:cylinder": (239, 62, 54, 255),
                 "class:sphere": (65, 201, 87, 255),
             }
+    check_mode_isolation = case.scene == "rendering_scene" and case.aovs == (RenderBufferKind.SIMPLE_SHADING_FULL_MDL,)
+    if check_mode_isolation:
+        # Reuse the golden scene: one full-MDL camera, one constant Minimal RGB camera,
+        # and one path-traced RGB camera must render concurrently without changing one another.
+        scene.cfg.minimal_probe = scene.cfg.camera.copy()
+        scene.cfg.minimal_probe.prim_path = "{ENV_REGEX_NS}/MinimalProbe"
+        scene.cfg.minimal_probe.data_types = ["rgb"]
+        apply_render_mode(scene.cfg.minimal_probe, RtxRenderMode.MINIMAL)
+        apply_minimal_shading_mode(scene.cfg.minimal_probe, RtxMinimalShadingMode.CONSTANT_DIFFUSE)
+        scene.cfg.color_probe = scene.cfg.camera.copy()
+        scene.cfg.color_probe.prim_path = "{ENV_REGEX_NS}/ColorProbe"
+        scene.cfg.color_probe.data_types = ["rgb"]
+        apply_render_mode(scene.cfg.color_probe, RtxRenderMode.REAL_TIME_PATH_TRACING)
     with build_rendering_scene(
         scene.cfg,
         case.physics,
@@ -167,6 +182,16 @@ def run_rendering_case(
                 break
             runtime.render_camera()
             outputs, info = runtime.camera_outputs()
+        if check_mode_isolation:
+            assert runtime.scene.sensors["minimal_probe"]._renderer is runtime.camera._renderer
+            assert runtime.scene.sensors["color_probe"]._renderer is runtime.camera._renderer
+            constant = runtime.scene.sensors["minimal_probe"].data.output["rgb"].torch
+            color = runtime.scene.sensors["color_probe"].data.output["rgb"].torch
+            full_mdl = outputs["simple_shading_full_mdl"]
+            assert constant.count_nonzero() and color.count_nonzero() and full_mdl.count_nonzero()
+            assert (constant != full_mdl).float().mean() > 0.01, "Cameras lost distinct Minimal shading levels"
+            assert (constant != color).float().mean() > 0.01, "Minimal camera changed path-traced color output"
+            assert (color != full_mdl).float().mean() > 0.01, "Path-traced camera lost its distinct execution mode"
         if case.scene == "mpm":
             rgb = outputs["rgb"].to(torch.int16)
             tan = (rgb[..., 0] - rgb[..., 2] > 50) & (rgb[..., 1] - rgb[..., 2] > 20)

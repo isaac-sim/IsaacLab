@@ -98,10 +98,11 @@ class CameraCfg(SensorBaseCfg):
     """Height of the image in pixels."""
 
     render_settings: dict[str, tuple[str, Any]] = dict()
-    """Per-camera OVRTX render-product attributes, as ``{name: (USD type name, value)}``.
+    """Per-camera settings consumed by the renderer engine, as ``{name: (type_name, value)}``.
 
-    For example, ``{"omni:rtx:quality": ("Int", 0)}`` disables the path tracer convergence loop
-    for an interactive camera. These settings do not change the shared renderer configuration.
+    The selected renderer defines the supported setting names, type names, and values.
+    These settings apply to this camera without changing the shared renderer configuration.
+    See the renderer's documentation for supported settings and configuration helpers.
     """
 
     update_latest_camera_pose: bool = False

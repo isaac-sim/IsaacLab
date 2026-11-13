@@ -36,12 +36,24 @@ def test_newton_renderer_rejects_simple_shading(cfg_cls):
         validate(cfg)
 
 
-@pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
-@pytest.mark.parametrize("renderer_preset", ["isaacsim_rtx", "ovrtx"])
-def test_rtx_renderers_accept_simple_shading(cfg_cls, renderer_preset):
-    """The RTX backends render every data type and must stay unaffected by the guard."""
-    cfg = resolve_presets(cfg_cls(), {renderer_preset, "simple_shading_full_mdl"})
-    validate(cfg)  # must not raise
+@pytest.mark.parametrize(
+    ("cfg_cls", "renderer_preset", "data_type"),
+    [
+        (
+            CartpoleDirectCameraEnvCfg,
+            "isaacsim_rtx",
+            "simple_shading_constant_diffuse",
+        ),
+        (CartpoleDirectCameraEnvCfg, "ovrtx", "simple_shading_diffuse_mdl"),
+        (CartpoleManagerCameraEnvCfg, "isaacsim_rtx", "simple_shading_full_mdl"),
+        (CartpoleManagerCameraEnvCfg, "ovrtx", "simple_shading_full_mdl"),
+    ],
+)
+def test_rtx_renderers_accept_simple_shading(cfg_cls, renderer_preset, data_type):
+    """Simple-shading selectors retain their requested outputs with either RTX backend."""
+    cfg = resolve_presets(cfg_cls(), {renderer_preset, data_type})
+    validate(cfg)
+    assert cfg.scene.tiled_camera.data_types == [data_type]
 
 
 @pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
