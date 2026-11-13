@@ -1345,18 +1345,39 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False)
 
-    # Inertia and armature each affect only the generalized mass matrix.
+    # Inertia affects only the generalized mass matrix.
     inertias = data.body_inertia.torch.clone()
     inertias[:, -1, [0, 4, 8]] *= 1.1
     articulation.set_inertias_index(inertias=inertias)
     assert data._mass_matrix.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False, gravity=False)
 
-    armature = data.joint_armature.torch.clone()
-    armature[:, -1] += 0.01
-    articulation.write_joint_armature_to_sim_index(armature=armature)
-    assert data._mass_matrix.timestamp < data._sim_timestamp
-    assert_dynamics_match(jacobian=False, gravity=False)
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+def test_joint_armature_updates_mass_matrix_without_accumulating(scene: _ArticulationScene) -> None:
+    """Armature adds joint inertia in public order without changing the leading floating-base inertia."""
+    for articulation in (scene.islands["dynamics"], scene.islands["floating"]):
+        data = articulation.data
+        original_armature = data.joint_armature.torch.clone()
+        before = data.mass_matrix.torch.clone()
+        increment = 0.125 * torch.arange(
+            1, original_armature.numel() + 1, device=scene.device, dtype=original_armature.dtype
+        ).reshape_as(original_armature)
+        expected_change = torch.zeros_like(before)
+        joint_dofs = articulation.num_base_dofs + torch.arange(articulation.num_joints, device=scene.device)
+        expected_change[:, joint_dofs, joint_dofs] = increment
+        try:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature + increment)
+            after = data.mass_matrix.torch.clone()
+            torch.testing.assert_close(after - before, expected_change, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+
+            # Advancing the cache timestamp without stepping preserves the pose and must not add armature again.
+            articulation.update(scene.sim.cfg.dt)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+        finally:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

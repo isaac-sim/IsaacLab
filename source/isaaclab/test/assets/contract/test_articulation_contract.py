@@ -1139,8 +1139,11 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
     jacobian = jacobian.reshape(num_instances, num_jacobi_bodies, 6, num_dofs)
     mass_matrix = np.arange(num_instances * num_dofs**2, dtype=np.float32).reshape(num_instances, num_dofs, num_dofs)
     gravity = np.arange(num_instances * num_dofs, dtype=np.float32).reshape(num_instances, num_dofs)
+    # The PhysX backend adds joint armature to the mass-matrix diagonal; the mocks draw it at random, so share one.
+    armature = torch.arange(1, num_instances * num_joints + 1, dtype=torch.float32).reshape(num_instances, num_joints)
     for art, raw_backend in ((identity_art, identity_raw), (ordered_art, ordered_raw)):
         _set_body_state(backend, art, raw_backend, _make_body_state(num_instances, num_bodies))
+        art.write_joint_armature_to_sim_index(armature=armature)
         if backend == "physx":
             raw_backend.set_mock_jacobians(wp.array(jacobian, dtype=wp.float32, device="cpu"))
             raw_backend.set_mock_generalized_mass_matrices(wp.array(mass_matrix, dtype=wp.float32, device="cpu"))
