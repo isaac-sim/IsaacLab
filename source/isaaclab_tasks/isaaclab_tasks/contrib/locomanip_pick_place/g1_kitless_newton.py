@@ -251,7 +251,7 @@ def condition_kitless_newton_g1_action(
             state.pop(key, None)
     state["_episode_start"] = episode_start
 
-    conditioned = action.clone()
+    conditioned = action.clone(memory_format=torch.contiguous_format)
     conditioned_flat = conditioned.flatten()
     if "left_pos" not in state:
         current_wrist_poses = _wrist_poses(env, state)

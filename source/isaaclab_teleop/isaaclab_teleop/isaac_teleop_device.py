@@ -295,14 +295,14 @@ class IsaacTeleopDevice:
         error = exc_val
         try:
             self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
-        except Exception as cleanup_error:
+        except BaseException as cleanup_error:
             if error is None:
                 error = cleanup_error
             else:
                 error.add_note(f"Isaac Capture cleanup failed: {cleanup_error!r}")
         try:
             self._anchor_manager.cleanup()
-        except Exception as cleanup_error:
+        except BaseException as cleanup_error:
             if error is None:
                 error = cleanup_error
             else:

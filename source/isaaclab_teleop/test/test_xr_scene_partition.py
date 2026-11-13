@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import pytest
+
+pytestmark = pytest.mark.ov
 from isaaclab_ov.stage import export_stage_to_string
 from isaaclab_teleop.xr_scene_partition import partition_visual_meshes
 
@@ -36,7 +38,7 @@ def test_partition_export_preserves_source_visibility_physics_and_camera(setting
     original = stage.GetRootLayer().ExportToString()
     session = stage.GetSessionLayer().ExportToString()
     head = f"{root}/Robot/visuals/head/mesh"
-    with partition_visual_meshes(stage, [head], environment_root_path=root):
+    with partition_visual_meshes(stage, ["{ENV_REGEX_NS}/Robot/visuals/head/mesh"], environment_root_path=root):
         prim = stage.GetPrimAtPath(head)
         assert UsdGeom.PrimvarsAPI(prim).FindPrimvarWithInheritance("omni:scenePartition").Get() == "xr_excluded"
         assert UsdGeom.Imageable(prim).ComputeVisibility() == "inherited"

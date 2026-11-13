@@ -248,38 +248,6 @@ class IsaacTeleopCfg:
     ``"START"`` command is received from xr_core via the message bus.
     """
 
-    require_initial_bimanual_hand_tracking: bool = False
-    """Wait for both hands to be present before the first environment step.
-
-    An environment or device reset clears the initialization latch. Later
-    tracking loss follows the configured retargeting pipeline's behavior.
-    """
-
-    prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
-    """Optional task-owned preparation of the resolved environment configuration.
-
-    Live and replay launchers call this before creating any simulation resources,
-    including the OVXR bootstrap. Preparation must tolerate repeated calls from
-    the task constructor. Keep this callable's imports safe before simulator startup.
-    It runs after launcher validation, so it must not change the runtime selections,
-    such as the physics or renderer backend.
-    """
-
-    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
-    """Optional task-owned pre-step action conditioner.
-
-    The callable receives ``(env, action, state)``. The launcher retains the
-    state dictionary across active frames and clears it on pause or reset.
-    State updates from a frame that fails validation after conditioning are discarded.
-    """
-
-    action_validator: Callable[[Any], str | None] | None = None
-    """Optional task-owned fail-closed action validator.
-
-    Return ``None`` for a valid action or a concise reason to render without a
-    physics step. Validation runs both before and after conditioning.
-    """
-
     retargeters_to_tune: Callable[[], list[BaseRetargeter]] | None = None
     """Optional callable returning retargeters to expose in the tuning UI.
 
@@ -340,3 +308,32 @@ class IsaacTeleopCfg:
 
     app_name: str = "IsaacLabTeleop"
     """Application name for the Isaac Capture session."""
+
+    require_initial_bimanual_hand_tracking: bool = False
+    """Wait for both hands to be present before the first environment step.
+
+    An environment or device reset clears the initialization latch. Later
+    tracking loss follows the configured retargeting pipeline's behavior.
+    """
+    prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
+    """Optional task-owned preparation of the resolved environment configuration.
+
+    Live and replay launchers call this before creating any simulation resources,
+    including the OVXR bootstrap. Preparation must tolerate repeated calls from
+    the task constructor. Keep this callable's imports safe before simulator startup.
+    It runs after launcher validation, so it must not change the runtime selections,
+    such as the physics or renderer backend.
+    """
+    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
+    """Optional task-owned pre-step action conditioner.
+
+    The callable receives ``(env, action, state)``. The launcher retains the
+    state dictionary across active frames and clears it on pause or reset.
+    State updates from a frame that fails validation after conditioning are discarded.
+    """
+    action_validator: Callable[[Any], str | None] | None = None
+    """Optional task-owned fail-closed action validator.
+
+    Return ``None`` for a valid action or a concise reason to render without a
+    physics step. Validation runs both before and after conditioning.
+    """

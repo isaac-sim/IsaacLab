@@ -138,6 +138,7 @@ def run_live_workflow(monkeypatch):
             external_anchor_state = None
 
             def __enter__(self):
+                getattr(interface, "enter", lambda: None)()
                 return self
 
             def __exit__(self, *_args):
@@ -162,7 +163,7 @@ def run_live_workflow(monkeypatch):
 
         camera = SimpleNamespace(bind=lambda _env: contextlib.nullcontext(), refresh=refresh, close=lambda: None)
         session.external_oxr_handles = None
-        session.start_render_worker = lambda *_args, **_kwargs: started
+        vars(session).setdefault("start_render_worker", lambda *_args, **_kwargs: started)
         vars(session).setdefault("close", lambda: None)
         session.async_worker_owns_environment = False
         vars(env).setdefault("close", lambda: None)
@@ -188,7 +189,6 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(agent.gym, "make", lambda *_args, **_kwargs: SimpleNamespace(unwrapped=env))
         monkeypatch.setattr(agent, "create_teleop_device", lambda *_args, **_kwargs: Device())
         monkeypatch.setattr(isaaclab_teleop, "create_haptic_feedback_driver", lambda *_args: None)
-        monkeypatch.setattr(agent, "_install_ovxr_shutdown_handlers", lambda *_args: {})
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_args, **_kwargs: session)
         agent.run_teleoperation(cfg, cfg.isaac_teleop, True, ())
@@ -232,6 +232,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     clock = 0.0
     advances = 0
     resets = []
+    reset_notifications = []
     refreshes = []
     publications = []
     applied = []
@@ -285,6 +286,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
         SimpleNamespace(
             advance=advance,
             reset=lambda: None,
+            notify_reset=lambda: reset_notifications.append(len(resets)),
             control_events=lambda: SimpleNamespace(
                 is_active=advances not in (2, 4) if sequence else active,
                 should_reset=advances == (5 if sequence else 3),
@@ -308,9 +310,10 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     )  # Work time is credited, rather than adding a full-period sleep.
     assert len(applied) == (3 if sequence else advances if active else 0)
     assert len(resets) == 2  # Initial reset plus the public control event.
+    assert reset_notifications == [2]  # Notify Capture after the environment reset.
     assert len(refreshes) == 1
-    assert len(publications) == (4 if sequence else advances + 1 if active else 2)
-    assert publications[-1][1] == {"force": True}
+    assert sum(kwargs["force"] for _identity, kwargs in publications) == 2
+    assert any(kwargs["force"] for _identity, kwargs in publications)
 
     if sequence:
         # Both STOP branches clear an established ramp before the next accepted action.
@@ -380,18 +383,71 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
     assert sleeps == [(0.02, 3)]  # Pacing follows the retried publication.
 
 
-def test_live_render_worker_startup_failure_skips_input_and_drains(run_live_workflow):
-    """A session that shuts down during worker startup runs no input and still closes before the environment."""
+@pytest.mark.parametrize("failure_at", ["startup", "publication"])
+def test_live_render_worker_failure_drains_without_hiding_loop_errors(run_live_workflow, failure_at):
+    """Startup shutdown skips input; an in-loop publication error escapes after orderly cleanup."""
     events = []
+    failure = RuntimeError("publication failed")
+    publications = 0
+
+    def publish(*_args, **_kwargs):
+        nonlocal publications
+        publications += 1
+        if publications > 1:
+            raise failure
+        return publications
+
     env = SimpleNamespace(
-        sim=SimpleNamespace(is_running=lambda: True),
+        sim=SimpleNamespace(is_running=lambda: True, get_physics_step_count=lambda: 0, get_physics_dt=lambda: 0.005),
+        step_dt=0.02,
         reset=lambda: events.append("env-reset"),
         close=lambda: events.append("env-close"),
     )
-    interface = SimpleNamespace(advance=lambda: events.append("advance"), reset=lambda: None)
-    session = SimpleNamespace(shutdown_requested=False, close=lambda: events.append("xr-close"))
-    run_live_workflow(env, interface, session, started=False)
-    assert events == ["xr-close", "env-close"]
+    interface = SimpleNamespace(
+        advance=lambda: events.append("advance"),
+        reset=lambda: None,
+        control_events=lambda: SimpleNamespace(is_active=False, should_reset=False),
+    )
+    session = SimpleNamespace(
+        shutdown_requested=False,
+        close=lambda: events.append("xr-close"),
+        request_render=publish,
+        report_host_timing=lambda *_args: None,
+    )
+    if failure_at == "startup":
+        run_live_workflow(env, interface, session, started=False)
+        assert events == ["xr-close", "env-close"]
+    else:
+        with pytest.raises(RuntimeError) as caught:
+            run_live_workflow(env, interface, session)
+        assert caught.value is failure
+        assert publications == 2
+        assert events == ["env-reset", "advance", "xr-close", "env-close"]
+
+
+def test_live_prestart_signal_cancels_input_and_preserves_cleanup(run_live_workflow):
+    """Cancellation during input entry prevents worker start; a second signal cannot interrupt drain."""
+    from unittest.mock import Mock
+
+    events = []
+
+    def close():
+        events.append("xr-close")
+        signal.raise_signal(signal.SIGINT)
+
+    env = SimpleNamespace(sim=SimpleNamespace(), close=lambda: events.append("env-close"))
+    session = SimpleNamespace(
+        shutdown_requested=False,
+        start_render_worker=Mock(side_effect=AssertionError("worker started after cancelled input")),
+        request_shutdown=lambda: events.append("shutdown"),
+        close=close,
+    )
+    original = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    with pytest.raises(KeyboardInterrupt):
+        run_live_workflow(env, SimpleNamespace(enter=lambda: signal.raise_signal(signal.SIGTERM)), session)
+    session.start_render_worker.assert_not_called()
+    assert events == ["xr-close", "shutdown", "env-close"]
+    assert {sig: signal.getsignal(sig) for sig in original} == original
 
 
 @pytest.mark.parametrize("selector", [["--physics", "ovphysx"], ["physics=ovphysx"]])
@@ -538,9 +594,8 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
         ),
         raising=False,
     )
-    monkeypatch.setattr(replay, "create_isaac_teleop_device", lambda *_args, **_kwargs: Device())
     monkeypatch.setattr(replay, "NvmlGpuStatsProvider", lambda: SimpleNamespace(summary=lambda: {}))
-    replay._run_single_replay(env, SimpleNamespace(), None, 1, 2, presentation)
+    replay._run_single_replay(env, SimpleNamespace(), None, 1, 2, Device(), presentation)
     initial = ["sim-reset"] if hard_reset else []
     initial += ["env-reset", "device-reset", "start"]
     if viewer:
@@ -631,32 +686,6 @@ def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
     action, issue = agent.prepare_teleop_action("env", 5, condition, validate, state)
     assert (action, issue, state) == (6, "rejected", {"last": 1})
     assert [call[0] for call in calls] == ["validate", "condition", "validate"]
-
-
-def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch)
-    requests = []
-    installed = {}
-
-    class Session:
-        def request_shutdown(self):
-            requests.append("shutdown")
-
-    def install(signum, handler):
-        installed[signum] = handler
-        return f"previous-{signum}"
-
-    monkeypatch.setattr(agent.signal, "signal", install)
-    previous = agent._install_ovxr_shutdown_handlers(agent.OvxrPresentation(Session()))
-
-    assert set(installed) == {signal.SIGINT, signal.SIGTERM}
-    installed[signal.SIGINT](signal.SIGINT, None)
-    assert requests == ["shutdown"]
-
-    restored = {}
-    monkeypatch.setattr(agent.signal, "signal", lambda signum, handler: restored.update({signum: handler}))
-    agent._restore_ovxr_shutdown_handlers(previous)
-    assert restored == previous
 
 
 def test_ovxr_presentation_starts_once_and_adopts_later_input_anchors():
@@ -1352,9 +1381,8 @@ def test_replay_waits_for_initial_and_recorded_reset_publication(monkeypatch, cl
         ),
         raising=False,
     )
-    monkeypatch.setattr(replay, "create_isaac_teleop_device", lambda *_args, **_kwargs: Device())
     monkeypatch.setattr(replay, "NvmlGpuStatsProvider", lambda: SimpleNamespace(summary=lambda: {}))
-    stats = replay._run_single_replay(env, IsaacTeleopCfg(), None, 1, 2, OvxrPresentation(session))
+    stats = replay._run_single_replay(env, IsaacTeleopCfg(), None, 1, 2, Device(), OvxrPresentation(session))
     if close_while_pending:
         assert frames == []
         assert resets == ["env"]

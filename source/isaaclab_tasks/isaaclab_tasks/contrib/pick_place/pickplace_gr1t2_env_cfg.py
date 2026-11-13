@@ -17,7 +17,6 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -706,7 +705,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
                 # The shared anchor places the default eye inside the robot head.
                 # Exclude visual meshes from the eye partition, not source visibility.
-                excluded_visual_meshes=[f"{DEFAULT_ENV_TEMPLATE.format(0)}/Robot/head_.*_link/visuals/.*"],
+                excluded_visual_meshes=["{ENV_REGEX_NS}/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 prepare_environment=prepare_humanoid_teleop_environment,

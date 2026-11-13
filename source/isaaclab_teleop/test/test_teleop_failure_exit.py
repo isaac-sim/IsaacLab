@@ -26,7 +26,6 @@ def entry_namespace(monkeypatch):
         "_resolve_cloudxr_env",
         "has_kit",
         "create_teleop_device",
-        "_install_ovxr_shutdown_handlers",
         "_restore_ovxr_shutdown_handlers",
         "torch",
     ):
@@ -81,7 +80,6 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
             "_resolve_cloudxr_env": lambda *_args: None,
             "has_kit": lambda: False,
             "create_teleop_device": Mock(side_effect=failure if stage == "device" else None, return_value=interface),
-            "_install_ovxr_shutdown_handlers": Mock(return_value={}),
             "torch": SimpleNamespace(inference_mode=contextlib.nullcontext),
         }
     )
@@ -109,20 +107,46 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
 
 
 @pytest.mark.parametrize("ovxr", [True, False])
-def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace, ovxr):
+def test_input_cleanup_failure_prevents_borrowed_owner_release(monkeypatch, entry_namespace, ovxr):
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    from isaaclab.app import launch_simulation
+    from isaaclab.physics import PhysicsCfg
+    from isaaclab.sim import SimulationContext
+
     env, camera, xr = Mock(), Mock(), Mock()
     interface = SimpleNamespace(session_cleanup_failed=True)
     presentation = None
     if ovxr:
         presentation = entry_namespace["OvxrPresentation"](xr)
         presentation.input_device = interface
-    with pytest.raises(RuntimeError, match="drain"):
+    previous, current = object(), object()
+    state = {"context": previous}
+    clear = Mock()
+    monkeypatch.setattr(SimulationContext, "instance", lambda: state["context"])
+    monkeypatch.setattr(SimulationContext, "clear_instance", clear)
+
+    def run(*_args):
+        state["context"] = current
         entry_namespace["_close_teleop_resources"](env, camera, presentation, {}, interface)
+
+    monkeypatch.setattr(agent, "_resolve_env_cfg", lambda: (None, None, True, ()))
+    monkeypatch.setattr(agent, "args_cli", SimpleNamespace(using_ovxr=ovxr), raising=False)
+    monkeypatch.setattr(agent, "run_teleoperation", run)
+    monkeypatch.setattr(
+        agent,
+        "launch_simulation",
+        lambda _cfg, _args, *, cleanup_context: launch_simulation(PhysicsCfg(), cleanup_context=cleanup_context),
+    )
+    with pytest.raises(RuntimeError, match="drain"):
+        agent.main()
     if ovxr:
         xr.request_shutdown.assert_called_once_with()
         xr.close.assert_not_called()
     camera.close.assert_not_called()
     env.close.assert_not_called()
+    clear.assert_not_called()
+    assert state["context"] is current
 
 
 @pytest.mark.parametrize(

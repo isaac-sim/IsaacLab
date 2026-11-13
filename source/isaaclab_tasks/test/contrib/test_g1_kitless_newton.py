@@ -130,7 +130,9 @@ def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> 
 
 def test_recorded_first_action_is_ramped_and_finite() -> None:
     env, left, right = _fake_env()
-    conditioned = condition_kitless_newton_g1_action(env, RECORDED_FIRST_ACTION, {})
+    action = RECORDED_FIRST_ACTION.reshape(7, 4).t().contiguous().t()
+    assert not action.is_contiguous()
+    conditioned = condition_kitless_newton_g1_action(env, action, {}).flatten()
 
     assert teleop_action_target_issue(conditioned) is None
     assert torch.isfinite(conditioned).all()

@@ -62,7 +62,7 @@ def test_ovxr_presentation_preserves_camera_layout(monkeypatch, layout_mode):
         ovxr_session_mode="ar",
         cloudxr_env="none",
         auto_launch_cloudxr=False,
-        headless=False,
+        ovxr_desktop_mirror=True,
         ovxr_desktop_mirror_fps=20.0,
     )
     # Environment preparation resolves the panels that the presentation receives.
@@ -162,14 +162,6 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
     from isaacteleop.teleop_session_manager import RetargetingExecutionConfig
 
     cfg = SimpleNamespace(retargeting_execution=RetargetingExecutionConfig(mode="pipelined"))
-    constructed_modes = []
-
-    def create_device(selected, **kwargs):
-        assert kwargs["env_prim_path"] == "/Lab/Cells/Cell0"
-        constructed_modes.append(selected.retargeting_execution.mode)
-        assert selected.retargeting_execution.mode == "pipelined"
-        return Device()
-
     namespace = {
         "args_cli": SimpleNamespace(
             device="cpu",
@@ -181,7 +173,6 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
             max_replay_duration_s=1,
         ),
         "NvmlGpuStatsProvider": lambda: SimpleNamespace(_available=True, summary=lambda: {}),
-        "create_isaac_teleop_device": create_device,
         "_RENDERER_SETTLE_FRAMES": 30,
     }
     for name, value in namespace.items():
@@ -196,7 +187,7 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
             report_host_timing=lambda *_args: None,
         )
         presentation = OvxrPresentation(session)
-    replay._run_single_replay(env, cfg, None, run_index, 2, presentation)
+    replay._run_single_replay(env, cfg, None, run_index, 2, Device(), presentation)
     expected = ["device-enter"]
     if hard_reset:
         expected.append("sim-reset")
@@ -207,7 +198,6 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
         expected.append("kit-wait")
     assert calls == [*expected, "device-exit"]
     assert env.sim.render is render
-    assert constructed_modes == ["pipelined"]
 
 
 @pytest.mark.parametrize(
@@ -277,12 +267,17 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
         session.shutdown_requested = True
         return SimpleNamespace(outcome="success", to_dict=lambda index: {"outcome": "success"})
 
-    env = SimpleNamespace(sim=SimpleNamespace(is_running=lambda: True))
+    env = SimpleNamespace(
+        sim=SimpleNamespace(is_running=lambda: True),
+        scene=SimpleNamespace(env_prim_paths=["/Lab/Cells/Cell0"]),
+    )
     from isaaclab_teleop.entrypoints import teleop_replay_agent as replay_agent
 
     namespace = {
         "args_cli": SimpleNamespace(
             ovxr=True,
+            device="cpu",
+            enable_debug_visualization=False,
             require_kit=False,
             task="task",
             replay_file="fixture.mcap",
@@ -293,6 +288,7 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
         "signal": SimpleNamespace(SIGINT=1, SIGTERM=2, signal=install_signal),
         "gym": SimpleNamespace(make=make_env),
         "_run_single_replay": replay,
+        "create_isaac_teleop_device": lambda *_args, **_kwargs: SimpleNamespace(session_cleanup_failed=False),
         "_extract_env_perf_cfg": lambda cfg: None,
         "_print_stdout_summary": reports.append,
     }
@@ -315,6 +311,92 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
         assert reports[0]["batch_complete"] is (requested == 1)
         assert calls == ["replay", "presentation-close"]
     assert handlers == {1: None, 2: None}
+
+
+@pytest.mark.parametrize("primary,drain_failed", [(False, False), (True, False), (True, True)])
+def test_native_replay_cleanup_preserves_cause_and_borrowed_owners(monkeypatch, primary, drain_failed):
+    """The public replay entry retains failed input owners and still stops independent CloudXR."""
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+    from isaacteleop.teleop_session_manager import RetargetingExecutionConfig
+
+    from isaaclab.app import launch_simulation
+    from isaaclab.physics import PhysicsCfg
+    from isaaclab.sim import SimulationContext
+
+    original = RuntimeError("replay failed")
+    cleanup = RuntimeError("environment close failed")
+    previous, current = object(), object()
+    state = {"context": previous}
+    clear = Mock()
+    runtime = SimpleNamespace(stop=Mock())
+    device = SimpleNamespace(session_cleanup_failed=False)
+    env = SimpleNamespace(
+        scene=SimpleNamespace(env_prim_paths=["/Lab/Cells/Cell0"]),
+        sim=SimpleNamespace(is_running=lambda: True),
+        close=Mock(side_effect=cleanup),
+    )
+    cfg = SimpleNamespace(
+        isaac_teleop=SimpleNamespace(retargeting_execution=RetargetingExecutionConfig(mode="pipelined"))
+    )
+
+    def make_env(*_args, **_kwargs):
+        state["context"] = current
+        return SimpleNamespace(unwrapped=env)
+
+    def create_device(selected, **kwargs):
+        assert selected.retargeting_execution.mode == "pipelined"
+        assert kwargs["env_prim_path"] == "/Lab/Cells/Cell0"
+        assert kwargs["cloudxr_env_file"] is None and not kwargs["auto_launch_cloudxr"]
+        return device
+
+    def run(**kwargs):
+        assert kwargs["teleop_interface"] is device
+        device.session_cleanup_failed = drain_failed
+        if primary:
+            raise original
+        return SimpleNamespace(outcome="success")
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: state["context"])
+    monkeypatch.setattr(SimulationContext, "clear_instance", clear)
+    monkeypatch.setattr(replay, "_prepare_env_cfg", lambda *_args, **_kwargs: (cfg, None, ()))
+    monkeypatch.setattr(replay, "hydra_overrides", [], raising=False)
+    monkeypatch.setattr(
+        replay,
+        "args_cli",
+        SimpleNamespace(
+            num_replays=1,
+            task="task",
+            num_envs=1,
+            device="cpu",
+            ovxr=False,
+            require_kit=False,
+            cloudxr_env="standalone",
+            auto_launch_cloudxr=True,
+            replay_file="fixture.mcap",
+            enable_debug_visualization=False,
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        replay,
+        "launch_simulation",
+        lambda _cfg, _args, *, cleanup_context: launch_simulation(PhysicsCfg(), cleanup_context=cleanup_context),
+    )
+    monkeypatch.setattr(replay.gym, "make", make_env)
+    monkeypatch.setattr(replay, "_maybe_launch_cloudxr", lambda *_args: runtime)
+    monkeypatch.setattr(replay, "create_isaac_teleop_device", create_device)
+    monkeypatch.setattr(replay, "_run_single_replay", run)
+    with pytest.raises(RuntimeError) as caught:
+        replay.main()
+    assert caught.value is (original if primary else cleanup)
+    assert env.close.call_count == int(not drain_failed)
+    assert runtime.stop.call_count == int(not drain_failed)
+    clear.assert_not_called()
+    assert state["context"] is current
+    if primary:
+        assert any(
+            ("drain failed" if drain_failed else "environment close failed") in note for note in original.__notes__
+        )
 
 
 @pytest.mark.parametrize("start_on_replay", [False, True])
@@ -391,7 +473,6 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         return None, None, torch.tensor([False]), torch.tensor([False]), {}
 
     env.step = step
-    monkeypatch.setattr(replay, "create_isaac_teleop_device", lambda *_args, **_kwargs: RecordedDevice())
     monkeypatch.setattr(
         replay,
         "NvmlGpuStatsProvider",
@@ -419,7 +500,7 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         return action
 
     cfg = IsaacTeleopCfg(action_conditioner=condition)
-    stats = replay._run_single_replay(env, cfg, None, run_index=1, total_runs=2)
+    stats = replay._run_single_replay(env, cfg, None, run_index=1, total_runs=2, teleop_interface=RecordedDevice())
     assert applied == ([2, 3, 4, 5, 6, 9, 10, 11] if start_on_replay else [5, 6, 10, 11])
     assert resets == [-1, 0, 7]
     assert recorder_resets == [0, 7]

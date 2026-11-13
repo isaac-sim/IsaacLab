@@ -57,7 +57,9 @@ def partition_visual_meshes(
     environment = stage.GetPrimAtPath(root_path)
     if not environment:
         raise ValueError(f"XR environment root is absent from the Stage: {environment_root_path!r}")
-    expressions = [re.compile(pattern) for pattern in patterns]
+    expressions = [
+        re.compile(pattern.replace("{ENV_REGEX_NS}", re.escape(environment_root_path))) for pattern in patterns
+    ]
     matches = [[] for _ in expressions]
     for prim in Usd.PrimRange(environment, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh):
