@@ -1469,6 +1469,39 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     view.invalidate.assert_called_once_with()
 
 
+def test_a_window_with_an_explicit_view_still_gets_the_launch_declared_viewer_camera():
+    visualizer = _make_newton_visualizer(_Viewer())
+    visualizer.cfg.window.size = (960, 540)
+    sensor = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx"))
+    other = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera"))
+    provider = SimpleNamespace(get_camera_sensors=lambda: {s.cfg.prim_path: s for s in (other, sensor)})
+    created = []
+
+    def get_or_create_backend(cfg, camera=None):
+        created.append(cfg)
+        return SimpleNamespace(camera=camera, aspect=None)
+
+    sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_or_create_backend=get_or_create_backend)
+    visualizer._image_views = [SimpleNamespace(camera=None)]
+
+    visualizer._add_viewer_camera(sim)
+
+    assert [cfg.source for cfg in created] == ["/World/viewer_camera_0_rtx"]
+    assert visualizer.rtx_view_index == 1 and visualizer._image_views[1].aspect == pytest.approx(960 / 540)
+
+
+def test_switching_camera_source_refreshes_the_visible_environment():
+    visualizer = _make_newton_visualizer(_Viewer())
+    visualizer._image_views = [SimpleNamespace(camera=None)]
+    visualizer._select_camera = Mock()
+    visualizer._sync_tracked_env = Mock()
+
+    visualizer._choose_camera_source(0)
+
+    visualizer._select_camera.assert_called_once_with(0)
+    visualizer._sync_tracked_env.assert_called_once_with()
+
+
 def test_newton_visualizer_shows_only_the_tracking_camera_env():
     viewer = _Viewer()
     viewer.set_visible_worlds = Mock()

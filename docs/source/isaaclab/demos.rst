@@ -86,6 +86,7 @@ No source checkout is required.
                data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
                data-demo-visualizers="newton"
+               data-demo-extras="ovrtx"
                data-demo-description="Assemble ten randomized NIST parts using an automatically downloaded TorchScript policy.">
          <img src="../../_static/demos/nist.jpg" alt="Franka robot assembling parts on a NIST task board" loading="lazy">
          <span>NIST</span>

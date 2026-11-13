@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import ImageViewCfg, VisualizerCfg
 
 # Pyglet must choose EGL before Newton imports its window class.
 if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
@@ -1564,8 +1564,10 @@ class NewtonVisualizerBase(BaseVisualizer):
             else:
                 self._restore_perspective_pose(view)
             self.current_image_view.invalidate()
+            self._sync_tracked_env()
             return
         self._select_camera(index)
+        self._sync_tracked_env()
 
     def _free_view_in_use(self):
         """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
@@ -1935,6 +1937,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
 
         super().initialize(sim, cameras=cameras)
+        if self.cfg.view is not None and self.rtx_view_index is None:
+            self._add_viewer_camera(sim)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
@@ -2230,6 +2234,22 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         prefix = self._viewer._qualify("/model/shapes/")
         for key in [k for k in objects if k.startswith(prefix) and hasattr(objects[k], "num_instances")]:
             del objects[key]
+
+    def _add_viewer_camera(self, sim: SimulationContext) -> None:
+        """Add the OVRTX viewer camera that launch declared to a window showing an explicit view, so RTX can start."""
+        sensors = sim.get_scene_data_provider().get_camera_sensors()
+        camera = next(
+            (sensor for sensor in sensors.values() if sensor.cfg.prim_path.startswith("/World/viewer_camera_")), None
+        )
+        if camera is None:
+            return
+        view_cfg = ImageViewCfg(
+            source=camera.cfg.prim_path, envs=(0,), channels=tuple(self.cfg.streaming_gt_types),
+            depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
+        )  # fmt: skip
+        view = sim.get_or_create_backend(view_cfg, camera=camera)
+        view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
+        self._image_views.append(view)
 
     def _apply_visible_worlds(self) -> None:
         """Apply the visible environments."""
