@@ -112,7 +112,7 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
     """Compare states from dataset and runtime.
 
     Args:
-        state_from_dataset: State from dataset.
+        state_from_dataset: Single-sample batched state returned by :meth:`EpisodeData.get_state`.
         runtime_state: State from runtime.
         runtime_env_index: Index of the environment in the runtime states to be compared.
 
@@ -126,7 +126,7 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
         for asset_name in runtime_state[asset_type].keys():
             for state_name in runtime_state[asset_type][asset_name].keys():
                 runtime_asset_state = runtime_state[asset_type][asset_name][state_name][runtime_env_index]
-                dataset_asset_state = state_from_dataset[asset_type][asset_name][state_name]
+                dataset_asset_state = state_from_dataset[asset_type][asset_name][state_name][0]
                 if len(dataset_asset_state) != len(runtime_asset_state):
                     raise ValueError(f"State shape of {state_name} for asset {asset_name} don't match")
                 for i in range(len(dataset_asset_state)):
