@@ -115,6 +115,14 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``True`` (same as Newton's default).
     """
 
+    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Frame-to-frame rigid-contact matching mode.
+
+    ``"latest"`` matches contacts with the previous frame; ``"sticky"`` also retains
+    friction anchors. Enable either mode for standalone :attr:`VBDSolverCfg.rigid_contact_history`.
+    Matching adds contact sorting and history storage. Defaults to ``"disabled"`` (Newton's default).
+    """
+
     rigid_contact_max: int | None = None
     """Maximum number of rigid contacts to allocate.
 

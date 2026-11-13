@@ -29,6 +29,7 @@ from ..mpm_solver_cfg import MPMSolverCfg
 from ..newton_collision_cfg import NewtonCollisionPipelineCfg
 from ..newton_manager_cfg import NewtonSolverCfg
 from ..newton_solver import NewtonSolver, solver_kwargs
+from ..vbd_solver_cfg import VBDSolverCfg
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -386,6 +387,17 @@ def _coupled_entry(
     solver_cfg = entry_cfg.solver_cfg
 
     def build(view: Model) -> SolverBase:
+        if (
+            isinstance(solver_cfg, VBDSolverCfg)
+            and solver_cfg.rigid_contact_history
+            and view.body_count > 0
+            and not solver_cfg.integrate_with_external_rigid_solver
+        ):
+            raise NotImplementedError(
+                f"CouplerEntryCfg {entry_cfg.name!r} enables VBDSolverCfg.rigid_contact_history, whose "
+                "matching and history allocation are not yet supported for coupled entry contacts. "
+                "Set rigid_contact_history=False or use standalone VBD."
+            )
         driver = drivers[entry_cfg.name] = instantiate(solver_cfg, view, mode, env_template)
         return driver.native
 
