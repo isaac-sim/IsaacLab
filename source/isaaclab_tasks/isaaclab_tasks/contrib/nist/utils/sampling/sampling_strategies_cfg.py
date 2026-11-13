@@ -3,66 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration classes for sampling strategies."""
+"""Compatibility imports; use :mod:`isaaclab_tasks.utils.sampling`."""
 
-from __future__ import annotations
-
-from isaaclab.utils import configclass
-
-from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import (
-    BetaSamplingStrategy,
-    UniformSamplingStrategy,
+from isaaclab_tasks.utils.sampling.sampling_strategies_cfg import BetaSamplingStrategyCfg as BetaSamplingStrategyCfg
+from isaaclab_tasks.utils.sampling.sampling_strategies_cfg import SamplingStrategyCfg as SamplingStrategyCfg
+from isaaclab_tasks.utils.sampling.sampling_strategies_cfg import (
+    UniformSamplingStrategyCfg as UniformSamplingStrategyCfg,
 )
-
-
-@configclass
-class BetaSamplingStrategyCfg:
-    """Blueprint for a :class:`BetaSamplingStrategy`.
-
-    Score shape:
-
-    .. code-block:: text
-
-        score
-          ^
-          |             /\\
-          |            /  \\
-          |___________/    \\___________
-          +----------------------------> success_rate
-          0          target             1
-    """
-
-    class_type: type[BetaSamplingStrategy] | str = "{DIR}.sampling_strategies:BetaSamplingStrategy"
-    """Runtime strategy class."""
-    weight: float = 1.0
-    """Multiplier on this strategy's score before sampler normalization."""
-    target: float = 0.66
-    """Success rate where the Beta score peaks."""
-    kappa: float = 1.0
-    """Peak sharpness around :attr:`target`; larger values concentrate more mass near the target."""
-
-
-@configclass
-class UniformSamplingStrategyCfg:
-    """Blueprint for a :class:`UniformSamplingStrategy`.
-
-    Score shape:
-
-    .. code-block:: text
-
-        score
-          ^
-          |-----------------------------
-          |
-          |
-          +----------------------------> item index
-    """
-
-    class_type: type[UniformSamplingStrategy] | str = "{DIR}.sampling_strategies:UniformSamplingStrategy"
-    """Runtime strategy class."""
-    weight: float = 1.0
-    """Multiplier on this strategy's constant score before sampler normalization."""
-
-
-SamplingStrategyCfg = BetaSamplingStrategyCfg | UniformSamplingStrategyCfg
-"""Discriminated union of sampling-strategy cfg types."""

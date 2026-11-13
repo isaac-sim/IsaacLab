@@ -206,6 +206,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Building validated reset-state buffers </source/how-to/reset_state_buffers>`
+
+         Collect valid starting states and sample useful practice for sparse-reward tasks.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.
