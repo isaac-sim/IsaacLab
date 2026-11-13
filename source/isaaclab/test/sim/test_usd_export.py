@@ -5,6 +5,7 @@
 
 """Kit-less tests of how the USD export maps engine values and actuators to prims."""
 
+import contextlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +15,7 @@ import torch
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+from isaaclab.sim.usd_export.base_usd_exporter import JOINT_DATA_FIELDS
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 from isaaclab.utils import assets as assets_utils
 
@@ -23,11 +25,16 @@ class _Exporter(PhysxUsdExporter):
 
     colliders: dict[str, dict[str, np.ndarray]] = {}
 
-    def _read_engine(self, path_expr, articulation):
-        raise NotImplementedError
+    @staticmethod
+    def _resolve_engine_path(prim_path, articulation_cfg=None):
+        return prim_path
 
-    def _read_object(self, prim_path, articulation_cfg=None):
-        return {name: np.asarray(value)[None] for name, value in self.colliders[prim_path].items()}
+    @contextlib.contextmanager
+    def _open_engine_view(self, path_expr, articulation):
+        yield path_expr
+
+    def _read_collider_values(self, view):
+        return {name: np.asarray(value)[None] for name, value in self.colliders[view].items()}
 
 
 def _engine(**values):
@@ -39,16 +46,15 @@ def _articulation_engine(articulation):
     """What the engine loaded for an articulation: zeros, so every nonzero live value is Isaac Lab's."""
     data = articulation.data
     dofs = data.joint_stiffness.torch.shape[1]
-    zeros = {name: np.zeros(dofs) for name in ("stiffness", "damping", "max_force", "armature", "max_velocity")}
-    zeros |= {name: np.zeros(dofs) for name in ("static_friction", "dynamic_friction", "viscous_friction")}
+    zeros = {name: np.zeros(dofs) for name in JOINT_DATA_FIELDS}
     bodies = data.body_mass.torch.shape[1]
     return _engine(
         **zeros,
-        lower_limit=np.zeros(dofs),
-        upper_limit=np.zeros(dofs),
-        mass=np.zeros(bodies),
-        com=np.zeros((bodies, 3)),
-        inertia=np.zeros((bodies, 9)),
+        joint_pos_limits_lower=np.zeros(dofs),
+        joint_pos_limits_upper=np.zeros(dofs),
+        body_mass=np.zeros(bodies),
+        body_com_pos_b=np.zeros((bodies, 3)),
+        body_inertia=np.zeros((bodies, 9)),
     )
 
 
@@ -174,7 +180,7 @@ def test_reordered_joints_compare_with_their_own_engine_values():
     robot.backend_joint_names = ["B", "A"]
     robot.data.joint_stiffness.torch[0] = torch.tensor([5.0, 7.0])  # A as loaded, B changed
     base = _articulation_engine(robot)
-    base[0]["stiffness"][0] = [0.0, 5.0]  # engine order: B, A
+    base[0]["joint_stiffness"][0] = [0.0, 5.0]  # engine order: B, A
     scene = _scene({"robot": base}, articulations={"robot": robot})
     scene.physics_scene_path = "/physicsScene"
     scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
@@ -342,8 +348,13 @@ def test_only_values_that_differ_from_what_the_engine_loaded_are_written():
         return SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
 
     live = {"material": np.array([[0.5, 0.5, 0.0]]), "contact_offset": [0.02], "rest_offset": [0.001]}
-    loaded = {"mass": [3.0], "com": [[0.1, 0.0, 0.0]], "inertia": [(2.0 * np.eye(3)).ravel()], **live}
-    base = {"unchanged": _engine(**loaded), "changed": _engine(**loaded | {"mass": [1.0], "rest_offset": [0.0]})}
+    loaded = {
+        "body_mass": [3.0],
+        "body_com_pos_b": [[0.1, 0.0, 0.0]],
+        "body_inertia": [(2.0 * np.eye(3)).ravel()],
+        **live,
+    }
+    base = {"unchanged": _engine(**loaded), "changed": _engine(**loaded | {"body_mass": [1.0], "rest_offset": [0.0]})}
     scene = _scene(base, rigid_objects={"unchanged": rigid_object("/Unchanged"), "changed": rigid_object("/Changed")})
     scene.physics_scene_path = "/physicsScene"
     scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
@@ -389,7 +400,7 @@ def test_collider_values_its_shapes_disagree_on_are_written_only_if_unchanged():
     material = np.full((3, 3), 0.5)
     live = {"material": material, "contact_offset": [0.002, 0.016, 0.016], "rest_offset": np.full(3, 0.001)}
     loaded = {"material": material, "contact_offset": [0.002, 0.016, 0.016], "rest_offset": np.zeros(3)}
-    base = {"table": _engine(mass=[1.0], com=[np.zeros(3)], inertia=[np.eye(3).ravel()], **loaded)}
+    base = {"table": _engine(body_mass=[1.0], body_com_pos_b=[np.zeros(3)], body_inertia=[np.eye(3).ravel()], **loaded)}
     scene = _scene(base, rigid_objects={"table": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Table"), data=data)})
     scene.physics_scene_path = "/physicsScene"
     scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
@@ -432,12 +443,12 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
         body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
     )
     live = {"material": np.array([[0.8, 0.6, 0.1]]), "contact_offset": [0.02], "rest_offset": [0.0]}
-    loaded = {"mass": [1.0], "com": [np.zeros(3)], "inertia": [np.eye(3).ravel()], **live}
+    loaded = {"body_mass": [1.0], "body_com_pos_b": [np.zeros(3)], "body_inertia": [np.eye(3).ravel()], **live}
     bare = {"material": np.zeros((0, 3)), "contact_offset": np.zeros(0), "rest_offset": np.zeros(0)}
     base = {
         "box": _engine(**loaded | {"material": np.array([[0.5, 0.5, 0.0]])}),
         "other": _engine(**loaded | {"material": np.array([[0.5, 0.5, 0.0]])}),
-        "bare": _engine(**loaded | bare | {"mass": [2.0]}),
+        "bare": _engine(**loaded | bare | {"body_mass": [2.0]}),
     }
     rigid_objects = {
         name: SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
@@ -535,7 +546,13 @@ def test_a_collision_schema_the_export_applies_states_the_other_offsets():
         body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
     )
     live = {"material": np.array([[0.5, 0.5, 0.0]]), "contact_offset": [0.02], "rest_offset": [0.004]}
-    loaded = {"mass": [1.0], "com": [np.zeros(3)], "inertia": [np.eye(3).ravel()], **live, "rest_offset": [0.0]}
+    loaded = {
+        "body_mass": [1.0],
+        "body_com_pos_b": [np.zeros(3)],
+        "body_inertia": [np.eye(3).ravel()],
+        **live,
+        "rest_offset": [0.0],
+    }
     scene = _scene(
         {"box": _engine(**loaded)},
         rigid_objects={"box": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Box"), data=data)},
@@ -567,7 +584,7 @@ def test_an_asset_outside_the_environments_is_read_from_its_one_row():
         body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
     )
     live = {"material": np.zeros((0, 3)), "contact_offset": np.zeros(0), "rest_offset": np.zeros(0)}
-    loaded = {"mass": [1.0], "com": [np.zeros(3)], "inertia": [np.eye(3).ravel()], **live}
+    loaded = {"body_mass": [1.0], "body_com_pos_b": [np.zeros(3)], "body_inertia": [np.eye(3).ravel()], **live}
     scene = _scene(
         {"shared": _engine(**loaded)},
         rigid_objects={"shared": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Shared"), data=data)},
@@ -676,7 +693,9 @@ def test_a_zero_mass_usd_cannot_state_is_reported_not_written(caplog):
     UsdPhysics.MassAPI.Apply(body).CreateMassAttr().Set(2.0)
 
     assert (
-        PhysxUsdExporter._compute_mass_edits(body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"mass", "inertia"})
+        PhysxUsdExporter._compute_mass_edits(
+            body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"body_mass", "body_inertia"}
+        )
         == []
     )
     assert "cannot state the zero mass of '/Body'" in caplog.text
@@ -694,7 +713,7 @@ def test_a_changed_mass_writes_an_inertia_the_import_would_derive_from_it(stated
     if stated:
         mass.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
-    edits = PhysxUsdExporter._compute_mass_edits(body, 4.0, np.zeros(3), np.eye(3), changed={"mass"})
+    edits = PhysxUsdExporter._compute_mass_edits(body, 4.0, np.zeros(3), np.eye(3), changed={"body_mass"})
 
     written = {edit.attribute for edit in edits}
     assert "physics:mass" in written

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 
 import numpy as np
@@ -21,46 +22,28 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
-ARTICULATION_TENSORS = {
-    "stiffness": TT.DOF_STIFFNESS,
-    "damping": TT.DOF_DAMPING,
-    "max_force": TT.DOF_MAX_FORCE,
-    "limits": TT.DOF_LIMIT,
-    "armature": TT.DOF_ARMATURE,
-    "max_velocity": TT.DOF_MAX_VELOCITY,
-    "friction": TT.DOF_FRICTION_PROPERTIES,
-    "mass": TT.BODY_MASS,
-    "com_pose": TT.BODY_COM_POSE,
-    "inertia": TT.BODY_INERTIA,
-}
-"""Articulation reading -> OVPhysX binding."""
-
-RIGID_BODY_TENSORS = {
-    "mass": TT.RIGID_BODY_MASS,
-    "com_pose": TT.RIGID_BODY_COM_POSE,
-    "inertia": TT.RIGID_BODY_INERTIA,
+COLLIDER_TENSORS = {
     "material": TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
     "contact_offset": TT.RIGID_BODY_CONTACT_OFFSET,
     "rest_offset": TT.RIGID_BODY_REST_OFFSET,
 }
-"""Rigid body reading -> OVPhysX binding."""
-
+"""Collider value -> OVPhysX binding."""
 
 LEGACY_JOINT_ATTRIBUTES = {
-    "armature": ("physxJoint:armature", "newton:armature"),
-    "max_velocity": ("physxJoint:maxJointVelocity", "newton:velocityLimit"),
-    "static_friction": ("physxJoint:jointFriction", "newton:friction"),
-    "dynamic_friction": ("physxJoint:jointFriction", "newton:friction"),
-    "viscous_friction": ("physxJoint:jointFriction", "newton:damping"),
+    "joint_armature": ("physxJoint:armature", "newton:armature"),
+    "joint_vel_limits": ("physxJoint:maxJointVelocity", "newton:velocityLimit"),
+    "joint_friction_coeff": ("physxJoint:jointFriction", "newton:friction"),
+    "joint_dynamic_friction_coeff": ("physxJoint:jointFriction", "newton:friction"),
+    "joint_viscous_friction_coeff": ("physxJoint:jointFriction", "newton:damping"),
 }
 """Joint property -> the ``PhysxJointAPI`` attribute Isaac Lab migrates before OVPhysX 0.7 loads the stage, and the
 Newton attribute the migration keeps instead."""
 
 NEWTON_JOINT_ATTRIBUTES = {
-    "armature": "newton:armature",
-    "max_velocity": "newton:velocityLimit",
-    "static_friction": "newton:friction",
-    "viscous_friction": "newton:damping",
+    "joint_armature": "newton:armature",
+    "joint_vel_limits": "newton:velocityLimit",
+    "joint_friction_coeff": "newton:friction",
+    "joint_viscous_friction_coeff": "newton:damping",
 }
 """Joint property -> the Newton attribute OVPhysX 0.7 keeps when the per-axis value is not positive."""
 
@@ -103,14 +86,19 @@ class UsdExporter(PhysxUsdExporter):
             and not prim.GetAttribute(table[name].name.format(axis=axis)).HasAuthoredValue()
         }
 
-    def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
+    @contextlib.contextmanager
+    def _open_engine_view(self, path_expr: str, articulation: bool):
         # Bound as the assets bind them: OVPhysX matches globs, one path per environment in environment order.
         pattern = path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", path_expr))
         paths = _expand_env_pattern(pattern, self.scene.sim.get_clone_plan())
         physx = self.scene.sim.backend_manager.get_physx_instance()
         view = OvPhysxView(physx, prim_paths=paths, device=self.scene.sim.device)
         try:
-            tensors = ARTICULATION_TENSORS if articulation else RIGID_BODY_TENSORS
-            return {name: view.get_attribute(tensor).numpy().copy() for name, tensor in tensors.items()}
+            # The view reads its counts from a binding, which the asset data needs before it reads any.
+            view.try_binding_for(TT.ROOT_POSE if articulation else TT.RIGID_BODY_POSE)
+            yield view
         finally:
             view.close()
+
+    def _read_collider_values(self, view) -> dict[str, np.ndarray]:
+        return {name: view.get_attribute(tensor).numpy().copy() for name, tensor in COLLIDER_TENSORS.items()}

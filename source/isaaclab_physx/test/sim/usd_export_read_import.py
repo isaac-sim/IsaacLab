@@ -104,6 +104,33 @@ def simulate_deformables(source: str, output: str, bodies: dict, dt: float, step
 
 _DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 
+ARTICULATION_GETTERS = {
+    "stiffness": "get_dof_stiffnesses",
+    "damping": "get_dof_dampings",
+    "max_force": "get_dof_max_forces",
+    "limits": "get_dof_limits",
+    "armature": "get_dof_armatures",
+    "max_velocity": "get_dof_max_velocities",
+    "friction": "get_dof_friction_properties",
+    "mass": "get_masses",
+    "com_pose": "get_coms",
+    "inertia": "get_inertias",
+    # the joint state, which the round trip also compares
+    "position": "get_dof_positions",
+    "velocity": "get_dof_velocities",
+}
+"""Reading -> PhysX articulation view getter, read natively as the reference the round trip compares against."""
+
+RIGID_BODY_GETTERS = {
+    "mass": "get_masses",
+    "com_pose": "get_coms",
+    "inertia": "get_inertias",
+    "material": "get_material_properties",
+    "contact_offset": "get_contact_offsets",
+    "rest_offset": "get_rest_offsets",
+}
+"""Reading -> PhysX rigid body view getter."""
+
 
 def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
     """Copy the engine values of each object through PhysX tensor views.
@@ -116,15 +143,10 @@ def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
     Returns:
         Raw values keyed by object path, as consumed by :func:`readings`.
     """
-    # The exporter's getters; imported here because this file also runs before Isaac Sim starts.
-    from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
-
-    # The joint state, which the round trip also compares.
-    getters = {**ARTICULATION_GETTERS, "position": "get_dof_positions", "velocity": "get_dof_velocities"}
     raw = {}
     for root in articulations:
         view = simulation_view.create_articulation_view(root)
-        data = {name: _get(getattr(view, getter)()) for name, getter in getters.items()}
+        data = {name: _get(getattr(view, getter)()) for name, getter in ARTICULATION_GETTERS.items()}
         dofs = {name: data.pop(name) for name in _DOF_READINGS}
         limits, friction = data.pop("limits"), data.pop("friction")
         dofs.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])

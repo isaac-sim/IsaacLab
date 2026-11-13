@@ -173,7 +173,7 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
 def test_read_getters_cover_physx_views(tmp_path):
     """Every getter of the PhysX articulation and rigid-body views is compared by the round trip or excluded."""
     from isaaclab_physx.physics import PhysxCfg
-    from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
+    from usd_export_read_import import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -181,9 +181,6 @@ def test_read_getters_cover_physx_views(tmp_path):
 
     read = {*ARTICULATION_GETTERS.values(), *RIGID_BODY_GETTERS.values()}
     excluded = {
-        # the initial joint state comes from the asset configuration, which the engine holds only after a reset
-        "get_dof_positions",
-        "get_dof_velocities",
         # body state, targets and forces are not part of the export
         "get_root_transforms",
         "get_root_velocities",

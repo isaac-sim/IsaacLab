@@ -45,11 +45,11 @@ _SHAPE = SchemaResolverNewton.mapping[PrimType.SHAPE]
 _MATERIAL = SchemaResolverNewton.mapping[PrimType.MATERIAL]
 
 DOF_ATTRIBUTES = {
-    "joint_target_ke": USD_PHYSICS_JOINT_ATTRIBUTES["stiffness"],
-    "joint_target_kd": USD_PHYSICS_JOINT_ATTRIBUTES["damping"],
-    "joint_effort_limit": USD_PHYSICS_JOINT_ATTRIBUTES["max_force"],
-    "joint_limit_lower": USD_PHYSICS_JOINT_ATTRIBUTES["lower_limit"],
-    "joint_limit_upper": USD_PHYSICS_JOINT_ATTRIBUTES["upper_limit"],
+    "joint_target_ke": USD_PHYSICS_JOINT_ATTRIBUTES["joint_stiffness"],
+    "joint_target_kd": USD_PHYSICS_JOINT_ATTRIBUTES["joint_damping"],
+    "joint_effort_limit": USD_PHYSICS_JOINT_ATTRIBUTES["joint_effort_limits"],
+    "joint_limit_lower": USD_PHYSICS_JOINT_ATTRIBUTES["joint_pos_limits_lower"],
+    "joint_limit_upper": USD_PHYSICS_JOINT_ATTRIBUTES["joint_pos_limits_upper"],
     "joint_armature": JointAttribute(_JOINT["armature"].name, None, 1.0),
     "joint_friction": JointAttribute(_JOINT["friction"].name, None, 1.0),
     "joint_damping": JointAttribute(_JOINT["damping"].name, None, math.radians(1.0)),
@@ -61,12 +61,18 @@ DOF_ATTRIBUTES = {
 
 D6_DOF_ATTRIBUTES = {
     **DOF_ATTRIBUTES,
-    "joint_limit_lower": USD_PHYSICS_D6_LIMIT_ATTRIBUTES["lower_limit"],
-    "joint_limit_upper": USD_PHYSICS_D6_LIMIT_ATTRIBUTES["upper_limit"],
+    "joint_limit_lower": USD_PHYSICS_D6_LIMIT_ATTRIBUTES["joint_pos_limits_lower"],
+    "joint_limit_upper": USD_PHYSICS_D6_LIMIT_ATTRIBUTES["joint_pos_limits_upper"],
     "joint_limit_ke": JointAttribute(_JOINT["limit_rotX_ke"].name.replace("rotX", "{axis}"), None, math.radians(1.0)),
     "joint_limit_kd": JointAttribute(_JOINT["limit_rotX_kd"].name.replace("rotX", "{axis}"), None, math.radians(1.0)),
 }
 """:data:`DOF_ATTRIBUTES` of a rotational D6 joint, whose axes are ``rotX``, ``rotY`` and ``rotZ``."""
+
+BODY_MASS_ARRAYS = {"body_mass": "body_mass", "body_com": "body_com_pos_b", "body_inertia": "body_inertia"}
+"""Model body array -> the asset data name of the mass property it holds."""
+
+JOINT_STATE_KEYS = {"position": "default_joint_pos", "velocity": "default_joint_vel"}
+"""Newton joint state key (as in its ``angular_position`` attribute) -> the asset data name of that initial state."""
 
 JOINT_WIDE_LIMIT_GAINS = {"joint_limit_ke": _JOINT["limit_ke"].name, "joint_limit_kd": _JOINT["limit_kd"].name}
 """Joint-wide limit gain attributes, which Newton reads ahead of a D6 joint's per-axis ones."""
@@ -376,7 +382,7 @@ class UsdExporter(BaseUsdExporter):
     @classmethod
     def _compute_joint_state_edit(cls, prim: Usd.Prim, axis: str, name: str, value: float) -> UsdEdit:
         """Edit stating a joint axis's initial position or velocity, on the attribute Newton's import reads first."""
-        attribute, schema, angular_scale = JOINT_STATE_ATTRIBUTES[name]
+        attribute, schema, angular_scale = JOINT_STATE_ATTRIBUTES[JOINT_STATE_KEYS[name]]
         value = float(value) * (1.0 if axis == "linear" else angular_scale)
         path, own = str(prim.GetPath()), _JOINT[f"{axis}_{name}"].name
         if cls._get_authored_value(prim, own) is not None:
@@ -523,13 +529,13 @@ class UsdExporter(BaseUsdExporter):
     def _compute_body_edits(self, stage: Usd.Stage, model: newton.Model, base: _AlignedBase) -> list[UsdEdit]:
         """Edits of body mass properties, root-body poses and the world-side anchors of root joints."""
         # 1. Mass, COM and inertia that differ from the import.
-        values = self._read_model_arrays(model, ("body_mass", "body_com", "body_inertia"))
+        values = self._read_model_arrays(model, tuple(BODY_MASS_ARRAYS))
         changed = self._compute_changed_masks(values, base)
         mass, com, inertia = values["body_mass"], values["body_com"], values["body_inertia"]
         edits = []
         for body in self._select_env_entities(model.body_world):
             prim = stage.GetPrimAtPath(model.body_label[body])
-            properties = {name.removeprefix("body_") for name, rows in changed.items() if rows[body]}
+            properties = {BODY_MASS_ARRAYS[name] for name, rows in changed.items() if rows[body]}
             if prim and properties:
                 edits += self._compute_mass_edits(prim, float(mass[body]), com[body], inertia[body], properties)
         # 2. Root bodies and world anchors where initialization placed them; the joint states place the other bodies.

@@ -10,7 +10,6 @@ Run :func:`read_import` in a separate process: a process has one attached OVPhys
 
 import numpy as np
 from isaaclab_ov import tensor_types as TT
-from isaaclab_ov.sim.usd_export import usd_exporter
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from pxr import Usd, UsdPhysics
@@ -108,14 +107,34 @@ DEFORMABLE_TENSORS = {
 
 _DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 
-# The exporter's bindings, and gravity and the joint state, which the round trip also compares.
 ARTICULATION_TENSORS = {
-    **usd_exporter.ARTICULATION_TENSORS,
+    "stiffness": TT.DOF_STIFFNESS,
+    "damping": TT.DOF_DAMPING,
+    "max_force": TT.DOF_MAX_FORCE,
+    "limits": TT.DOF_LIMIT,
+    "armature": TT.DOF_ARMATURE,
+    "max_velocity": TT.DOF_MAX_VELOCITY,
+    "friction": TT.DOF_FRICTION_PROPERTIES,
+    "mass": TT.BODY_MASS,
+    "com_pose": TT.BODY_COM_POSE,
+    "inertia": TT.BODY_INERTIA,
+    # gravity and the joint state, which the round trip also compares
     "disable_gravity": TT.BODY_DISABLE_GRAVITY,
     "position": TT.DOF_POSITION,
     "velocity": TT.DOF_VELOCITY,
 }
-RIGID_BODY_TENSORS = {**usd_exporter.RIGID_BODY_TENSORS, "disable_gravity": TT.RIGID_BODY_DISABLE_GRAVITY}
+"""Reading -> OVPhysX articulation binding, read natively as the reference the round trip compares against."""
+
+RIGID_BODY_TENSORS = {
+    "mass": TT.RIGID_BODY_MASS,
+    "com_pose": TT.RIGID_BODY_COM_POSE,
+    "inertia": TT.RIGID_BODY_INERTIA,
+    "material": TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+    "contact_offset": TT.RIGID_BODY_CONTACT_OFFSET,
+    "rest_offset": TT.RIGID_BODY_REST_OFFSET,
+    "disable_gravity": TT.RIGID_BODY_DISABLE_GRAVITY,
+}
+"""Reading -> OVPhysX rigid body binding."""
 
 
 def read(physx, articulations: list[str], bodies: list[str], device: str) -> dict:

@@ -48,8 +48,8 @@ UNLIMITED = 1e10
 Newton's ``MAXVAL`` sentinel is 1e10; PhysX uses the float maximum.
 """
 
-_MASS_PROPERTIES = {"physics:mass": "mass", "physics:centerOfMass": "com"}
-"""Mass attribute -> the body property it states; the other mass attributes state the inertia."""
+_MASS_PROPERTIES = {"physics:mass": "body_mass", "physics:centerOfMass": "body_com_pos_b"}
+"""Mass attribute -> the body property it states; the other mass attributes state ``body_inertia``."""
 
 _PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
 """API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
@@ -66,24 +66,40 @@ class JointAttribute(NamedTuple):
     """Scale from the engine's units to USD units for an angular DOF."""
 
 
+JOINT_DATA_FIELDS = (
+    "joint_stiffness",
+    "joint_damping",
+    "joint_effort_limits",
+    "joint_armature",
+    "joint_vel_limits",
+    "joint_friction_coeff",
+    "joint_dynamic_friction_coeff",
+    "joint_viscous_friction_coeff",
+)
+"""Asset data DOF properties the export compares, besides the position limits, which it compares by their ends."""
+
 USD_PHYSICS_JOINT_ATTRIBUTES = {
-    "stiffness": JointAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
-    "damping": JointAttribute("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
-    "max_force": JointAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
-    "lower_limit": JointAttribute("physics:lowerLimit", None, math.degrees(1.0)),
-    "upper_limit": JointAttribute("physics:upperLimit", None, math.degrees(1.0)),
+    "joint_stiffness": JointAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "joint_damping": JointAttribute("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "joint_effort_limits": JointAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
+    "joint_pos_limits_lower": JointAttribute("physics:lowerLimit", None, math.degrees(1.0)),
+    "joint_pos_limits_upper": JointAttribute("physics:upperLimit", None, math.degrees(1.0)),
 }
-"""UsdPhysics joint property -> USD attribute; every backend's importer reads these attributes."""
+"""Joint property, named as the asset data names it, -> UsdPhysics attribute; every backend's importer reads these."""
 
 USD_PHYSICS_D6_LIMIT_ATTRIBUTES = {
-    "lower_limit": JointAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
-    "upper_limit": JointAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "joint_pos_limits_lower": JointAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "joint_pos_limits_upper": JointAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
 }
 """UsdPhysics limits of one axis of a D6 joint (``rotX``, ``rotY``, ``rotZ``), which replace a single-axis joint's."""
 
 JOINT_STATE_ATTRIBUTES = {
-    "position": JointAttribute("state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)),
-    "velocity": JointAttribute("state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)),
+    "default_joint_pos": JointAttribute(
+        "state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)
+    ),
+    "default_joint_vel": JointAttribute(
+        "state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)
+    ),
 }
 """Initial joint state of one axis, which Isaac Sim, OVPhysX and Newton's import read; unset means zero."""
 
@@ -542,21 +558,21 @@ class BaseUsdExporter(ABC):
         mass: float,
         com: np.ndarray,
         inertia: np.ndarray,
-        changed: Collection[str] = ("mass", "com", "inertia"),
+        changed: Collection[str] = ("body_mass", "body_com_pos_b", "body_inertia"),
     ) -> list[UsdEdit]:
         """Edits writing a body's mass [kg], COM [m] and body-axes inertia [kg*m^2, 3x3 or 9] the USD does not state.
 
-        Only the properties in ``changed`` (``mass``, ``com``, ``inertia``) are written, so one an import derives by
-        itself is not restated when another changed. An inertia the USD leaves unset is derived from the mass, so
-        a changed mass then also writes the inertia. ``com`` is the engine's, which
-        includes the body's scale; importers scale the USD center of mass by it.
+        Only the properties in ``changed`` (``body_mass``, ``body_com_pos_b``, ``body_inertia``) are written, so one
+        an import derives by itself is not restated when another changed. An inertia the USD leaves unset is derived
+        from the mass, so a changed mass then also writes the inertia. ``com`` is the engine's, which includes the
+        body's scale; importers scale the USD center of mass by it.
         """
-        if "mass" in changed and mass <= 0.0:
+        if "body_mass" in changed and mass <= 0.0:
             # USD states an unset mass as zero, and an import derives it from the geometry.
             logger.warning(f"USD cannot state the zero mass of '{prim.GetPath()}'; an import derives one.")
             return []
-        if "mass" in changed and cls._get_authored_value(prim, "physics:diagonalInertia") is None:
-            changed = {*changed, "inertia"}
+        if "body_mass" in changed and cls._get_authored_value(prim, "physics:diagonalInertia") is None:
+            changed = {*changed, "body_inertia"}
         scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
         com = np.asarray(com, dtype=float) / scale
         edits = [
@@ -580,7 +596,9 @@ class BaseUsdExporter(ABC):
             edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
             edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
         return [
-            edit for edit in edits if edit is not None and _MASS_PROPERTIES.get(edit.attribute, "inertia") in changed
+            edit
+            for edit in edits
+            if edit is not None and _MASS_PROPERTIES.get(edit.attribute, "body_inertia") in changed
         ]
 
     @classmethod

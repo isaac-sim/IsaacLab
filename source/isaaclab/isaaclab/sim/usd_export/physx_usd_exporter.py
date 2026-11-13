@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 from abc import abstractmethod
@@ -17,8 +18,11 @@ import numpy as np
 
 from pxr import Usd, UsdGeom, UsdPhysics, Vt
 
+from ...assets.articulation.articulation_data import ArticulationData
+from ...assets.rigid_object.rigid_object_data import RigidObjectData
 from ..utils.queries import find_matching_prim_paths, resolve_matching_prims_from_source
 from .base_usd_exporter import (
+    JOINT_DATA_FIELDS,
     JOINT_STATE_ATTRIBUTES,
     USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
     USD_PHYSICS_JOINT_ATTRIBUTES,
@@ -33,8 +37,9 @@ logger = logging.getLogger(__name__)
 Readings = dict[tuple[str, str | None], dict[str, np.ndarray]]
 """Engine values in SI units and radians, keyed by USD prim path and joint axis (None for bodies).
 
-Joint entries hold the properties of :data:`JOINT_ATTRIBUTES`. Body entries hold ``mass``, ``com`` [m]
-and ``inertia`` [kg*m^2, row-major 3x3 about the COM in body axes]; rigid bodies outside articulations
+Joint entries hold the properties of :data:`JOINT_ATTRIBUTES`, named as the asset data names them. Body entries hold
+``body_mass``, ``body_com_pos_b`` [m] and ``body_inertia`` [kg*m^2, row-major 3x3 about the COM in body axes];
+rigid bodies outside articulations
 also hold the per-shape ``contact_offset`` and ``rest_offset`` [m] and ``material`` (static friction,
 dynamic friction, restitution).
 """
@@ -42,18 +47,22 @@ dynamic friction, restitution).
 JOINT_ATTRIBUTES = {
     **USD_PHYSICS_JOINT_ATTRIBUTES,
     # Per axis: OVPhysX 0.7's PhysX schema has no PhysxJointAPI, and an axis value overrides it in Isaac Sim.
-    "armature": JointAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", 1.0),
-    "max_velocity": JointAttribute(
+    "joint_armature": JointAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", 1.0),
+    "joint_vel_limits": JointAttribute(
         "physxJointAxis:{axis}:maxJointVelocity", "PhysxJointAxisAPI:{axis}", math.degrees(1.0)
     ),
-    "static_friction": JointAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
-    "dynamic_friction": JointAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
-    "viscous_friction": JointAttribute(
+    "joint_friction_coeff": JointAttribute(
+        "physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0
+    ),
+    "joint_dynamic_friction_coeff": JointAttribute(
+        "physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0
+    ),
+    "joint_viscous_friction_coeff": JointAttribute(
         "physxJointAxis:{axis}:viscousFrictionCoefficient", "PhysxJointAxisAPI:{axis}", math.radians(1.0)
     ),
     **JOINT_STATE_ATTRIBUTES,
 }
-"""Joint property -> USD attribute."""
+"""Joint property, named as the asset data names it, -> USD attribute."""
 
 D6_JOINT_ATTRIBUTES = {
     **JOINT_ATTRIBUTES,
@@ -81,8 +90,9 @@ class PhysxUsdExporter(BaseUsdExporter):
     writes its configuration; a PhysX import of the stage loads the same. A value is written where the live
     engine differs from it, so Isaac Lab's configuration is stated, and nothing the engine derives by itself is.
 
-    Live joint and body values come from the scene assets' data. A backend reads the base and the collider
-    values of rigid bodies, which the asset data does not hold.
+    Live joint and body values come from the scene assets' data, the base from the same asset data bound to a new
+    view of the engine. A backend opens that view and reads the collider values of rigid bodies, which the asset
+    data does not hold.
     """
 
     """
@@ -156,7 +166,7 @@ class PhysxUsdExporter(BaseUsdExporter):
                         edits.append(value_edit(prim, attribute.format(axis=axis), float(values[name]) * scale, schema))
                 continue
             edits += self._compute_mass_edits(
-                prim, float(values["mass"]), values["com"], values["inertia"], export_names
+                prim, float(values["body_mass"]), values["body_com_pos_b"], values["body_inertia"], export_names
             )
             colliders = self._find_owned_colliders(stage, path)
             # The engine reports shapes per body, without their prim identities.
@@ -210,30 +220,33 @@ class PhysxUsdExporter(BaseUsdExporter):
         """Read what the engine loaded for each scene asset, in every environment.
 
         Returns:
-            Per asset name, the engine values of :meth:`_read_engine` with the limits and friction split as in
-            :data:`Readings` and ``com`` the COM position; a rigid object collection holds one entry per object.
+            Per asset name, the values of :meth:`_read_engine_values` in every environment; a rigid object
+            collection holds one entry per object.
         """
-        base = {name: [self._read_object(a.cfg.prim_path, a.cfg)] for name, a in self.scene.articulations.items()}
-        base |= {name: [self._read_object(obj.cfg.prim_path)] for name, obj in self.scene.rigid_objects.items()}
+        base = {
+            name: [self._read_engine_values(a.cfg.prim_path, a.cfg)] for name, a in self.scene.articulations.items()
+        }
+        base |= {name: [self._read_engine_values(obj.cfg.prim_path)] for name, obj in self.scene.rigid_objects.items()}
         for name, collection in self.scene.rigid_object_collections.items():
-            base[name] = [self._read_object(cfg.prim_path) for cfg in collection.cfg.rigid_objects.values()]
+            base[name] = [self._read_engine_values(cfg.prim_path) for cfg in collection.cfg.rigid_objects.values()]
         return base
 
     @abstractmethod
-    def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
-        """Read the engine values of the objects matching a prim path expression, one row per environment.
+    def _open_engine_view(self, path_expr: str, articulation: bool) -> contextlib.AbstractContextManager:
+        """Open the backend's view of the objects matching a prim path expression, one per environment.
+
+        The view is the one the backend's asset data reads, and stays open for the ``with`` block.
 
         Args:
             path_expr: Prim path expression of the articulation roots or rigid bodies, as an asset resolves it.
             articulation: Whether the objects are articulations.
-
-        Returns:
-            Raw values: of an articulation, per DOF ``stiffness``, ``damping``, ``max_force``, ``armature``,
-            ``max_velocity``, ``limits`` (lower, upper) and ``friction`` (static, dynamic, viscous); per body
-            ``mass``, ``com_pose`` and row-major ``inertia``. Of a rigid body, the same body values and per shape
-            the ``material`` (static friction, dynamic friction, restitution), ``contact_offset`` and
-            ``rest_offset``.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def _read_collider_values(self, view) -> dict[str, np.ndarray]:
+        """Read per environment and shape the ``material`` (static friction, dynamic friction, restitution),
+        ``contact_offset`` and ``rest_offset`` of a rigid body view, which no asset data holds."""
         raise NotImplementedError
 
     """
@@ -254,11 +267,12 @@ class PhysxUsdExporter(BaseUsdExporter):
                 objects.append((cfg, collection.data, index, base[name][index]))
         for cfg, data, index, engine in objects:
             key = self._find_rigid_body_path(stage, cfg.prim_path), None
-            live = self._read_object(cfg.prim_path)
+            with self._open_engine_view(self._resolve_engine_path(cfg.prim_path), False) as view:
+                live = self._read_collider_values(view)
             colliders = {name: self._select_env_row(live[name]) for name in COLLIDER_READINGS}
-            readings[key] = {**self._read_live_mass_properties(data, index), **colliders}
+            readings[key] = {**self._select_mass_properties(self._read_body_data(data), index), **colliders}
             bases[key] = {
-                **self._read_base_mass_properties(engine, 0),
+                **self._select_mass_properties(engine, 0),
                 **{name: self._select_env_row(engine[name]) for name in COLLIDER_READINGS},
             }
         exported = {path for path, _ in readings}
@@ -279,23 +293,12 @@ class PhysxUsdExporter(BaseUsdExporter):
         joints = self._index_prims_by_name(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
         links = self._index_prims_by_name(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
         data = articulation.data
-        limits = self._select_data_env_row(data.joint_pos_limits)
-        dofs = {
-            "stiffness": self._select_data_env_row(data.joint_stiffness),
-            "damping": self._select_data_env_row(data.joint_damping),
-            "max_force": self._select_data_env_row(data.joint_effort_limits),
-            "lower_limit": limits[..., 0],
-            "upper_limit": limits[..., 1],
-            "armature": self._select_data_env_row(data.joint_armature),
-            "max_velocity": self._select_data_env_row(data.joint_vel_limits),
-            "static_friction": self._select_data_env_row(data.joint_friction_coeff),
-            "dynamic_friction": self._select_data_env_row(data.joint_dynamic_friction_coeff),
-            "viscous_friction": self._select_data_env_row(data.joint_viscous_friction_coeff),
-        }
+        dofs = {name: self._select_env_row(rows) for name, rows in self._read_joint_data(data).items()}
+        bodies = self._read_body_data(data)
         # The joint state Isaac Lab resets the articulation to; the engine holds it only from the first reset on.
         initial = {
-            "position": self._select_data_env_row(data.default_joint_pos),
-            "velocity": self._select_data_env_row(data.default_joint_vel),
+            "default_joint_pos": self._select_data_env_row(data.default_joint_pos),
+            "default_joint_vel": self._select_data_env_row(data.default_joint_vel),
         }
         # 2. Per joint DOF: its USD prim and axis, the engine base and the USD initial state.
         # The engine orders DOFs and bodies as the backend does; the asset data may reorder them.
@@ -326,10 +329,7 @@ class PhysxUsdExporter(BaseUsdExporter):
             key = self._get_unique_prim_path(links, name, scope), None
             yield (
                 key,
-                (
-                    self._read_live_mass_properties(data, index),
-                    self._read_base_mass_properties(engine, engine_body[name]),
-                ),
+                (self._select_mass_properties(bodies, index), self._select_mass_properties(engine, engine_body[name])),
             )
 
     def _select_data_env_row(self, values) -> np.ndarray:
@@ -355,40 +355,61 @@ class PhysxUsdExporter(BaseUsdExporter):
             state[name] = float(value) * scale if value is not None and schema.format(axis=axis) in applied else 0.0
         return state
 
-    def _read_live_mass_properties(self, data, index: int) -> dict[str, np.ndarray]:
-        """Mass properties of one body of an asset in the selected environment."""
+    def _select_mass_properties(self, bodies: dict[str, np.ndarray], index: int) -> dict[str, np.ndarray]:
+        """Mass properties of one body in the selected environment, from :meth:`_read_body_data` of every one."""
         return {
-            "mass": float(self._select_data_env_row(data.body_mass)[index]),
-            "com": self._select_data_env_row(data.body_com_pose_b)[index, :3],
-            "inertia": self._select_data_env_row(data.body_inertia)[index],
+            "body_mass": float(np.ravel(self._select_env_row(bodies["body_mass"]))[index]),
+            "body_com_pos_b": np.reshape(self._select_env_row(bodies["body_com_pos_b"]), (-1, 3))[index],
+            "body_inertia": np.reshape(self._select_env_row(bodies["body_inertia"]), (-1, 9))[index],
         }
 
-    def _read_base_mass_properties(self, engine: dict[str, np.ndarray], index: int) -> dict[str, np.ndarray]:
-        """Mass properties of one body as the engine loaded them, in the selected environment."""
-        return {
-            "mass": float(np.ravel(self._select_env_row(engine["mass"]))[index]),
-            "com": np.reshape(self._select_env_row(engine["com"]), (-1, 3))[index],
-            "inertia": np.reshape(self._select_env_row(engine["inertia"]), (-1, 9))[index],
-        }
+    def _read_engine_values(self, prim_path: str, articulation_cfg=None) -> dict[str, np.ndarray]:
+        """Read an asset's engine values in every environment through asset data bound to a new view.
 
-    def _read_object(self, prim_path: str, articulation_cfg=None) -> dict[str, np.ndarray]:
-        """Engine values of an asset's articulation or rigid body, resolved as the asset resolves it."""
-        if getattr(articulation_cfg, "articulation_root_prim_path", None) is not None:
-            path_expr = prim_path + articulation_cfg.articulation_root_prim_path
-        else:
-            api = UsdPhysics.ArticulationRootAPI if articulation_cfg is not None else UsdPhysics.RigidBodyAPI
-            matches = resolve_matching_prims_from_source(
-                prim_path, predicate=lambda prim: prim.HasAPI(api), expected_num_matches=1
-            )
-            path_expr = matches[0][1]
-        values = self._read_engine(path_expr, articulation_cfg is not None)
-        values["com"] = values.pop("com_pose")[..., :3]
-        if articulation_cfg is not None:
-            limits, friction = values.pop("limits"), values.pop("friction")
-            values.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])
-            values.update(static_friction=friction[..., 0], dynamic_friction=friction[..., 1])
-            values.update(viscous_friction=friction[..., 2])
+        Args:
+            prim_path: The asset's prim path expression.
+            articulation_cfg: The asset's articulation configuration, or None for a rigid body.
+
+        Returns:
+            Body mass properties, and an articulation's DOF properties or a rigid body's collider values.
+        """
+        articulation = articulation_cfg is not None
+        with self._open_engine_view(self._resolve_engine_path(prim_path, articulation_cfg), articulation) as view:
+            data_type = ArticulationData if articulation else RigidObjectData
+            # The data only reads the view; the view outlives it.
+            data = data_type(view, self.scene.sim.device, backend_manager=self.scene.sim.backend_manager)
+            values = self._read_body_data(data)
+            values |= self._read_joint_data(data) if articulation else self._read_collider_values(view)
         return values
+
+    @staticmethod
+    def _resolve_engine_path(prim_path: str, articulation_cfg=None) -> str:
+        """The prim path expression of an asset's articulation root or rigid body, as the asset resolves it."""
+        if getattr(articulation_cfg, "articulation_root_prim_path", None) is not None:
+            return prim_path + articulation_cfg.articulation_root_prim_path
+        api = UsdPhysics.ArticulationRootAPI if articulation_cfg is not None else UsdPhysics.RigidBodyAPI
+        matches = resolve_matching_prims_from_source(
+            prim_path, predicate=lambda prim: prim.HasAPI(api), expected_num_matches=1
+        )
+        return matches[0][1]
+
+    @staticmethod
+    def _read_body_data(data) -> dict[str, np.ndarray]:
+        """Read the mass properties of every body of asset data, in every environment."""
+        values = {
+            "body_mass": data.body_mass.torch,
+            "body_com_pos_b": data.body_com_pose_b.torch[..., :3],  # reads faster than body_com_pos_b
+            "body_inertia": data.body_inertia.torch,
+        }
+        return {name: value.detach().cpu().numpy().copy() for name, value in values.items()}
+
+    @staticmethod
+    def _read_joint_data(data) -> dict[str, np.ndarray]:
+        """Read the DOF properties of :data:`JOINT_ATTRIBUTES` from articulation data, in every environment."""
+        values = {name: getattr(data, name).torch for name in JOINT_DATA_FIELDS}
+        limits = data.joint_pos_limits.torch
+        values |= {"joint_pos_limits_lower": limits[..., 0], "joint_pos_limits_upper": limits[..., 1]}
+        return {name: value.detach().cpu().numpy().copy() for name, value in values.items()}
 
     """
     Edits.
