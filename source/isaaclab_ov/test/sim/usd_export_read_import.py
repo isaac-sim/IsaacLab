@@ -162,8 +162,8 @@ def readings(stage, raw: dict) -> dict:
                 result[root, None][name] = data[name]
             continue
         scope = articulation_scope(stage, root)
-        joints = _named(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
-        links = _named(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
+        joints = _index_prims_by_name(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
+        links = _index_prims_by_name(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
         for index, name in enumerate(data["dof_names"]):
             path = joints.get(name)
             prim = stage.GetPrimAtPath(path) if path else None
@@ -188,7 +188,7 @@ def _get(view: OvPhysxView, tensor) -> np.ndarray:
     return view.get_attribute(tensor).numpy()[0].copy()
 
 
-def _named(scope: Usd.Prim, predicate) -> dict[str, str]:
+def _index_prims_by_name(scope: Usd.Prim, predicate) -> dict[str, str]:
     return {
         prim.GetName(): str(prim.GetPath())
         for prim in Usd.PrimRange(scope, Usd.TraverseInstanceProxies())

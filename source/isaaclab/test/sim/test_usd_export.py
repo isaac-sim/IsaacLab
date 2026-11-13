@@ -309,7 +309,7 @@ def test_gravity_is_written_only_where_the_scene_resolves_to_another(meters_per_
     scene = _scene()
     scene.physics_scene_path = "/physicsScene"
 
-    edits = _Exporter(scene)._gravity_edits(stage, live)
+    edits = _Exporter(scene)._compute_gravity_edits(stage, live)
 
     assert bool(edits) == written
 
@@ -476,7 +476,7 @@ def test_remote_asset_references_are_reported(caplog):
     stage = Usd.Stage.Open(layer)
     stage.DefinePrim("/Robot").GetReferences().AddReference("https://example.com/robot.usda")
 
-    _Exporter(_scene())._localize_asset_paths(layer, "exported.usda")
+    _Exporter(_scene())._make_asset_paths_portable(layer, "exported.usda")
 
     assert "https://example.com/robot.usda" in caplog.text
 
@@ -490,7 +490,7 @@ def test_relative_references_of_a_scene_opened_from_a_file_resolve_in_another_di
     stage = Usd.Stage.CreateNew(str(tmp_path / "scene" / "scene.usda"))
     stage.DefinePrim("/World/Robot").GetReferences().AddReference("./robot.usda")
     exporter = _Exporter(_scene(stage=stage, cable_objects={}))
-    exporter._select_environment = lambda stage: None
+    exporter._reduce_stage_to_environment = lambda stage: None
     exporter.compute_diff = lambda stage: []
 
     exported = Usd.Stage.Open(exporter.export(str(tmp_path / "export.usda")))
@@ -509,7 +509,7 @@ def test_a_cached_remote_asset_is_referenced_by_its_url_without_opening_it(tmp_p
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World/Robot").GetReferences().AddReference(str(cached))
     exporter = _Exporter(_scene(stage=stage, cable_objects={}))
-    exporter._select_environment = lambda stage: None
+    exporter._reduce_stage_to_environment = lambda stage: None
     held = []  # an engine import may keep the stage it read alive past the diff
     exporter.compute_diff = lambda stage: held.append(stage) or []
 
@@ -597,7 +597,7 @@ def test_an_environment_cloned_in_physics_only_is_exported_from_its_prototype():
     scene.env_prim_paths = ["/World/envs/env_0", "/World/envs/env_1"]
     scene.clone_plan = make_clone_plan([box], [[0]], 2, positions=np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]]))
 
-    _Exporter(scene, env_id=1)._select_environment(stage)
+    _Exporter(scene, env_id=1)._reduce_stage_to_environment(stage)
 
     exported = stage.GetPrimAtPath("/World/envs/env_1/Box")
     assert exported.IsDefined() and exported.GetTypeName() == "Cube"
@@ -632,8 +632,8 @@ def test_converted_usd_in_the_temporary_directory_is_refused(tmp_path, monkeypat
 
     for layer in (converted, rewritten):
         with pytest.raises(ValueError, match="temporary directory"):
-            BaseUsdExporter._keep_temporary_file(str(layer), export)
-    assert BaseUsdExporter._keep_temporary_file(str(authored), export) == str(authored)
+            BaseUsdExporter._copy_temporary_file(str(layer), export)
+    assert BaseUsdExporter._copy_temporary_file(str(authored), export) == str(authored)
 
 
 def test_material_shared_with_a_collider_not_exported_is_not_changed():
@@ -649,7 +649,7 @@ def test_material_shared_with_a_collider_not_exported_is_not_changed():
         UsdShade.MaterialBindingAPI.Apply(prim).Bind(material, materialPurpose="physics")
 
     with pytest.raises(NotImplementedError, match="shared with colliders not exported"):
-        PhysxUsdExporter._material_edits(stage, {"/Exported": {"physics:dynamicFriction": 0.7}})
+        PhysxUsdExporter._compute_material_edits(stage, {"/Exported": {"physics:dynamicFriction": 0.7}})
 
 
 def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
@@ -662,9 +662,9 @@ def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
     mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
     mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.01, -0.02, 0.03))
 
-    edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.02, -0.04, 0.06]), np.eye(3))
+    edits = PhysxUsdExporter._compute_mass_edits(body.GetPrim(), 1.0, np.array([0.02, -0.04, 0.06]), np.eye(3))
     assert "physics:centerOfMass" not in {edit.attribute for edit in edits}
-    edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
+    edits = PhysxUsdExporter._compute_mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
     com = next(edit.value for edit in edits if edit.attribute == "physics:centerOfMass")
     np.testing.assert_allclose(np.asarray(com), [0.02, -0.02, 0.03], rtol=1e-6)
 
@@ -675,7 +675,10 @@ def test_a_zero_mass_usd_cannot_state_is_reported_not_written(caplog):
     body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
     UsdPhysics.MassAPI.Apply(body).CreateMassAttr().Set(2.0)
 
-    assert PhysxUsdExporter._mass_edits(body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"mass", "inertia"}) == []
+    assert (
+        PhysxUsdExporter._compute_mass_edits(body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"mass", "inertia"})
+        == []
+    )
     assert "cannot state the zero mass of '/Body'" in caplog.text
 
 
@@ -691,7 +694,7 @@ def test_a_changed_mass_writes_an_inertia_the_import_would_derive_from_it(stated
     if stated:
         mass.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
-    edits = PhysxUsdExporter._mass_edits(body, 4.0, np.zeros(3), np.eye(3), changed={"mass"})
+    edits = PhysxUsdExporter._compute_mass_edits(body, 4.0, np.zeros(3), np.eye(3), changed={"mass"})
 
     written = {edit.attribute for edit in edits}
     assert "physics:mass" in written
@@ -706,6 +709,6 @@ def test_newton_compact_inertia_is_updated_with_the_inertia():
     body.AddAppliedSchema("NewtonMassAPI")
     body.CreateAttribute("newton:inertia", Sdf.ValueTypeNames.DoubleArray).Set([1.0, 2.0, 2.0, 0.0, 0.0, 0.0])
 
-    edits = PhysxUsdExporter._mass_edits(body, 1.0, np.zeros(3), np.diag([2.0, 3.0, 3.0]))
+    edits = PhysxUsdExporter._compute_mass_edits(body, 1.0, np.zeros(3), np.diag([2.0, 3.0, 3.0]))
     compact = next(edit.value for edit in edits if edit.attribute == "newton:inertia")
     np.testing.assert_allclose(compact, [2.0, 3.0, 3.0, 0.0, 0.0, 0.0])

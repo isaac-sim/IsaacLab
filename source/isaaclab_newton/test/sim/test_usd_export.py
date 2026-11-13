@@ -544,7 +544,7 @@ def test_model_without_joint_dofs_has_no_changed_values():
 
     from isaaclab_newton.sim.usd_export import UsdExporter
 
-    changed = UsdExporter._changed({"joint_armature": np.zeros(0)}, SimpleNamespace(joint_armature=[]))
+    changed = UsdExporter._compute_changed_masks({"joint_armature": np.zeros(0)}, SimpleNamespace(joint_armature=[]))
     assert changed["joint_armature"].shape == (0,)
 
 
@@ -584,7 +584,7 @@ def test_merged_joint_dofs_map_to_their_usd_joints():
         joint_dof_dim=array([[1, 2]]),
         mujoco=SimpleNamespace(joint_dof_label=["/Slide", "/HingeX", "/HingeY"]),
     )
-    units = UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
+    units = UsdExporter._map_joint_dofs_to_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
     assert [(str(prim.GetPath()), axes) for prim, axes, _ in units] == [
         ("/Slide", [(0, "linear")]),
         ("/HingeX", [(1, "angular")]),
@@ -592,7 +592,7 @@ def test_merged_joint_dofs_map_to_their_usd_joints():
     ]
     del model.mujoco
     with pytest.raises(NotImplementedError, match="merges USD joints"):
-        UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
+        UsdExporter._map_joint_dofs_to_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
 
 
 def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
@@ -603,9 +603,9 @@ def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
     stage = Usd.Stage.CreateInMemory()
     joint = UsdPhysics.Joint.Define(stage, "/Ball").GetPrim()
     per_axis = D6_DOF_ATTRIBUTES["joint_limit_ke"][0]
-    assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == per_axis
+    assert UsdExporter._select_limit_gain_attribute(joint, "joint_limit_ke", per_axis) == per_axis
     joint.CreateAttribute("newton:limitStiffness", Sdf.ValueTypeNames.Float).Set(100.0)
-    assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
+    assert UsdExporter._select_limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
 
 
 def test_changed_limits_are_written_with_the_mujoco_reference_and_force_range(tmp_path):
@@ -648,7 +648,7 @@ def test_kamino_constraint_gains_are_stated_on_the_scene():
         sim=SimpleNamespace(cfg=SimpleNamespace(physics=physics), get_physics_dt=lambda: 0.01),
     )
     cfg = KaminoPADMMSolverCfg(constraints=KaminoConstraintsCfg(alpha=0.1, beta=0.2, gamma=0.01))
-    edits = {edit.attribute: edit.value for edit in exporter._scene_edits(cfg)}
+    edits = {edit.attribute: edit.value for edit in exporter._compute_scene_edits(cfg)}
     assert edits["newton:kamino:constraints:beta"] == pytest.approx(0.2)
     assert "newton:kamino:constraints:gamma" not in edits  # Newton's default
 

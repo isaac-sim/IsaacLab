@@ -72,6 +72,7 @@ class UsdExporter(PhysxUsdExporter):
     exports_deformables = True
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """The PhysX edits, plus the authored Newton joint values OVPhysX 0.7 would keep over the written ones."""
         edits = super().compute_diff(stage)
         if not ovphysx_compat.OVPHYSX_USES_TASKS:
             return edits
@@ -81,19 +82,19 @@ class UsdExporter(PhysxUsdExporter):
         for (path, axis), values in readings.items():
             if axis is None:
                 continue
-            prim, table = stage.GetPrimAtPath(path), self._joint_table(axis)
+            prim, table = stage.GetPrimAtPath(path), self._get_joint_attribute_table(axis)
             for name, attribute in NEWTON_JOINT_ATTRIBUTES.items():
                 live = float(values[name]) * (1.0 if axis == "linear" else table[name].angular_scale)
-                stated = self._stated(prim, attribute)
-                if stated is not None and not self._close(stated, live):
+                stated = self._get_authored_value(prim, attribute)
+                if stated is not None and not self._is_close(stated, live):
                     edits.append(UsdEdit(path, attribute, live))
         return edits
 
-    def _not_imported(self, prim, axis):
+    def _get_properties_to_restate(self, prim, axis):
         if not ovphysx_compat.OVPHYSX_USES_TASKS:
             return set()
         # OVPhysX 0.7 ignores PhysxJointAPI; Isaac Lab migrated its values into the stage the engine loaded.
-        table = self._joint_table(axis)
+        table = self._get_joint_attribute_table(axis)
         return {
             name
             for name, (legacy, newton) in LEGACY_JOINT_ATTRIBUTES.items()
