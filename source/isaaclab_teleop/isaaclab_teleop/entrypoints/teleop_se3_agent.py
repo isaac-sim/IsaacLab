@@ -223,7 +223,7 @@ def main() -> None:  # noqa: C901
         None
     """
     env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras = _resolve_env_cfg()
-    with launch_simulation(env_cfg, args_cli, cleanup_context=not args_cli.using_ovxr):
+    with launch_simulation(env_cfg, args_cli, cleanup_context=not use_isaac_teleop):
         run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras)
 
 
@@ -409,17 +409,6 @@ def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render
     return True, auto_reset
 
 
-def _install_ovxr_shutdown_handlers(presentation: OvxrPresentation | None) -> dict:
-    """Make owner-script signals request the same orderly shutdown as OVUI."""
-    if presentation is None:
-        return {}
-
-    def request_shutdown(_signum, _frame) -> None:
-        presentation.session.request_shutdown()
-
-    return {signum: signal.signal(signum, request_shutdown) for signum in (signal.SIGINT, signal.SIGTERM)}
-
-
 def _restore_ovxr_shutdown_handlers(previous_handlers: dict) -> None:
     for signum, handler in previous_handlers.items():
         signal.signal(signum, handler)
@@ -523,6 +512,7 @@ def run_teleoperation(  # noqa: C901
     teleop_interface = None
     presentation = None
     previous_shutdown_handlers = {}
+    shutting_down = False
     try:
         # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
         # external cameras, or XR).
@@ -755,6 +745,8 @@ def run_teleoperation(  # noqa: C901
                             if should_reset_recording_instance:
                                 env.reset()
                                 teleop_interface.reset()
+                                if use_isaac_teleop:
+                                    teleop_interface.notify_reset()
                             elif use_isaac_teleop:
                                 # env.step already reset the robot. Notify the input graph
                                 # without echoing another operator/environment reset.
@@ -782,11 +774,24 @@ def run_teleoperation(  # noqa: C901
                         )
                 except Exception as e:
                     logger.error(f"Error during simulation step: {e}")
+                    if presentation is not None:
+                        raise
                     break
 
         # Install after environment/device initialization because embedded native
         # libraries may replace inherited signal dispositions during startup.
-        previous_shutdown_handlers = _install_ovxr_shutdown_handlers(presentation)
+        if presentation is not None:
+
+            def request_shutdown(_signum, _frame) -> None:
+                nonlocal shutting_down
+                if not presentation.started and not shutting_down:
+                    shutting_down = True
+                    raise KeyboardInterrupt
+                presentation.session.request_shutdown()
+
+            previous_shutdown_handlers = {
+                sig: signal.signal(sig, request_shutdown) for sig in (signal.SIGINT, signal.SIGTERM)
+            }
         # Run the teleoperation loop
         # Isaac Capture requires a context manager, native devices don't
         if use_isaac_teleop:
@@ -807,6 +812,7 @@ def run_teleoperation(  # noqa: C901
             with camera_feed_session.bind(env):
                 run_loop()
     finally:
+        shutting_down = True
         _close_teleop_resources(
             env,
             camera_feed_session,

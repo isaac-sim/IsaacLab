@@ -17,6 +17,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+from isaaclab.envs.mdp.actions.pink_task_space_actions import PinkInverseKinematicsAction
 
 from isaaclab_tasks.contrib.pick_place import pickplace_gr1t2_env_cfg as gr1t2_env_cfg
 from isaaclab_tasks.contrib.pick_place.gr1t2_kitless_action import (
@@ -38,6 +39,28 @@ from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import PickPlaceGR1T2WaistEnabledEnvCfg
 from isaaclab_tasks.contrib.steering_wheel import SteeringWheelUsdFileCfg
 from isaaclab_tasks.utils import parse_env_cfg
+
+
+def test_hand_slew_preserves_mimic_gearing(monkeypatch):
+    """Bound the driver command before deriving its coupled finger target."""
+    action = GR1T2KitlessPinkInverseKinematicsAction.__new__(GR1T2KitlessPinkInverseKinematicsAction)
+    monkeypatch.setattr(
+        PinkInverseKinematicsAction,
+        "process_actions",
+        lambda self, inputs: setattr(self, "_target_hand_joint_positions", inputs),
+    )
+    action._mimic_pairs = [(1, 0, 2.0, 0.0)]
+    action._hand_lower = torch.tensor([-1.0, -2.0])
+    action._hand_upper = torch.tensor([1.0, 2.0])
+    action._hand_target_slew = _HandTargetSlewState(torch.zeros(1, 2), 0.1)
+    action.process_actions(torch.zeros(1, 2))
+    action.process_actions(torch.ones(1, 2))
+    torch.testing.assert_close(action._target_hand_joint_positions, torch.tensor([[0.1, 0.2]]))
+    action._hand_target_slew.reset()
+    action.process_actions(torch.full((1, 2), 10.0))
+    action.process_actions(torch.zeros(1, 2))
+    torch.testing.assert_close(action._target_hand_joint_positions, torch.tensor([[0.9, 1.8]]))
+
 
 _PREPARE_GR1T2 = {
     "ovphysx": prepare_gr1t2_for_kitless_ovphysx,

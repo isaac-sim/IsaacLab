@@ -2062,7 +2062,8 @@ Optimize XR Performance
 
       The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
       (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
-      Kitless ``--ovxr`` accepts ``--headless`` to disable its default desktop mirror.
+      The kitless ``--ovxr`` desktop mirror defaults off. Enable it with
+      ``--ovxr_desktop_mirror`` or disable it explicitly with ``--no-ovxr_desktop_mirror``.
 
 .. dropdown:: Configure retargeting execution
    :open:

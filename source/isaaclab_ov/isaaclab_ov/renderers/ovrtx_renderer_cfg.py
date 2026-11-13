@@ -33,8 +33,6 @@ class OVRTXBackendCfg(BackendCfg):
     """None shares the simulation scene; standalone renderers retain their own scene policy."""
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Native renderer log destination."""
-    active_cuda_gpus: str | None = None
-    """Explicit rendering devices, or None to follow the simulation/native default."""
     # FIXME: revert once OVRTX stops warning on every cloned attribute without data.
     log_level: str = "error"
     """Native renderer log level."""
@@ -44,6 +42,9 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+
+    active_cuda_gpus: str | None = None
+    """Explicit rendering devices, or None to follow the simulation/native default."""
 
 
 def parse_active_cuda_gpus(value: str) -> tuple[int, ...]:
@@ -117,33 +118,6 @@ class OVRTXRendererCfg(RendererCfg):
     The ovstage path does not support pipelining and renders synchronously.
     """
 
-    active_cuda_gpus: str | None = None
-    """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
-
-    Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
-    The first OVRTX renderer in a process fixes the set for that process. This does not change
-    physics or the geometry publication destination. Camera outputs are still returned on the
-    simulation device. When the set excludes the simulation GPU, render products use automatic
-    device assignment and their outputs are copied from the rendering GPU to the simulation GPU
-    before extraction, which costs one device-to-device copy per output and frame.
-    """
-
-    geometry_publication_device: str | None = None
-    """Optional ``"cuda:N"`` destination for completed OVStage geometry snapshots.
-
-    Defaults to None (source placement). Set to the rendering GPU to copy foreign-GPU points
-    and rigid transforms before publication returns; this does not select the rendering GPU or change physics.
-    CPU-only and already-local CUDA inputs keep their placement. Mixed CPU/CUDA batches,
-    implicit ``"cuda"`` devices and custom CUDA-context aliases are unsupported. Requires OVStage.
-    The device must be a rendering GPU: one of :attr:`active_cuda_gpus`, or the simulation GPU when
-    that is unset. Other devices are rejected, at configuration or Stage preparation.
-
-    Producers must serialize updates on their current Warp streams and retain inputs until
-    publication returns. Unrelated streams and concurrent mutation are not synchronized.
-    Reusable buffers for foreign geometry and rigid transforms are retained through Stage copy-in; enabling this
-    option adds copy work and device memory, without adding a frame queue.
-    """
-
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
@@ -198,6 +172,32 @@ class OVRTXRendererCfg(RendererCfg):
 
     OVRTX does not support ``instance_id_segmentation_fast``. Use
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
+    """
+
+    active_cuda_gpus: str | None = None
+    """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
+
+    Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
+    The first OVRTX renderer in a process fixes the set for that process. This does not change
+    physics or the geometry publication destination. Camera outputs are still returned on the
+    simulation device. When the set excludes the simulation GPU, render products use automatic
+    device assignment and their outputs are copied from the rendering GPU to the simulation GPU
+    before extraction, which costs one device-to-device copy per output and frame.
+    """
+    geometry_publication_device: str | None = None
+    """Optional ``"cuda:N"`` destination for completed OVStage geometry snapshots.
+
+    Defaults to None (source placement). Set to the rendering GPU to copy foreign-GPU points
+    and rigid transforms before publication returns; this does not select the rendering GPU or change physics.
+    CPU-only and already-local CUDA inputs keep their placement. Mixed CPU/CUDA batches,
+    implicit ``"cuda"`` devices and custom CUDA-context aliases are unsupported. Requires OVStage.
+    The device must be a rendering GPU: one of :attr:`active_cuda_gpus`, or the simulation GPU when
+    that is unset. Other devices are rejected, at configuration or Stage preparation.
+
+    Producers must serialize updates on their current Warp streams and retain inputs until
+    publication returns. Unrelated streams and concurrent mutation are not synchronized.
+    Reusable buffers for foreign geometry and rigid transforms are retained through Stage copy-in; enabling this
+    option adds copy work and device memory, without adding a frame queue.
     """
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:

@@ -865,7 +865,9 @@ class TeleopSessionLifecycle:
                 # Preserve Capture's compute-time clock for retargeters and sinks;
                 # the host timestamp is only provenance for the admission check.
                 now_ns = time.monotonic_ns()
-                cache.context.graph_time = GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
+                cache.context.graph_time = GraphTime(
+                    sim_time_ns=cache.context.graph_time.sim_time_ns, real_time_ns=now_ns
+                )
                 if not reset:
                     result = super().execute_pipeline_with_cache(cache)
                     completed_caches.add(cache)

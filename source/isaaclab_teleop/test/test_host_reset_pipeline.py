@@ -82,8 +82,12 @@ def test_host_notification_preserves_operator_events_and_shared_cache(reset_pipe
     """Both normal and sink/shared-cache execution preserve the original control context."""
     lifecycle, pipeline, probe, inputs = reset_pipeline
     lifecycle.notify_reset()
-    context = ComputeContext(execution_events=ExecutionEvents(execution_state=ExecutionState.RUNNING))
+    context = ComputeContext(
+        graph_time=GraphTime(sim_time_ns=123, real_time_ns=time.monotonic_ns()),
+        execution_events=ExecutionEvents(execution_state=ExecutionState.RUNNING),
+    )
     pipeline.execute_pipeline(inputs, context)
+    assert context.graph_time.sim_time_ns == 123
     assert probe.events == [(True, ExecutionState.RUNNING)]
     assert not context.execution_events.reset
 

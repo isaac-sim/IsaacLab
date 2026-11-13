@@ -572,7 +572,7 @@ class OVRTXRenderer(BaseRenderer):
                     tensors=cpu_cameras, is_array=False,
                 ).wait()  # fmt: skip
         if self._use_ovstage:
-            self.scene.commit()
+            self.scene._commit()
             if not self.backend.attached:
                 self.backend.renderer.attach_ovstage(self.scene.stage)
                 self.backend.attached = True
@@ -737,11 +737,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Register an ordinary camera, or reserve an authorized external camera until handoff."""
+        if str(wp.get_device(spec.device)) != self._device:
+            raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
         auxiliary = self._render_lease.accept_camera_spec(spec)
         if not auxiliary:
             self._render_lease.reject_ordinary_operation("create ordinary camera render data")
-        if str(wp.get_device(spec.device)) != self._device:
-            raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
         camera = self._render_lease.camera_for_spec(spec) if auxiliary else None
         if camera is not None and camera.render_data is not None:
             raise RuntimeError("Auxiliary camera render data already exists")
