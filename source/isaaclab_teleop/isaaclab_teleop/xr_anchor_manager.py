@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .xr_anchor_utils import XrAnchorSynchronizer
+from .xr_anchor_utils import XrAnchorSynchronizer, _XrAnchorPosePolicy
 from .xr_cfg import XrCfg
 
 # Import Kit components with fallback for sessions without Kit
@@ -27,9 +28,29 @@ with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType
 
 from isaaclab.sim.utils.prims import create_prim as _create_prim
+from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim.utils.transforms import convert_world_pose_to_local, standardize_xform_ops
 from isaaclab.utils.version import has_kit
 
 logger = logging.getLogger(__name__)
+
+
+def _create_or_update_xr_anchor(
+    prim_path: str, position: tuple[float, float, float], orientation: tuple[float, float, float, float]
+) -> None:
+    """Apply the configured world pose to a stage-scoped XR anchor."""
+    if not _xr_anchor_prim_exists(prim_path):
+        _create_prim(
+            prim_path,
+            prim_type="Xform",
+            position=np.asarray(position, dtype=np.float64),
+            orientation=np.asarray(orientation, dtype=np.float64),
+        )
+        return
+    prim = get_current_stage().GetPrimAtPath(prim_path)
+    translation, rotation = convert_world_pose_to_local(tuple(position), tuple(orientation), prim.GetParent())
+    if not standardize_xform_ops(prim, translation, rotation):
+        raise ValueError(f"XR anchor {prim_path!r} is not transformable")
 
 
 def _xr_anchor_prim_exists(prim_path: str) -> bool:
@@ -39,16 +60,11 @@ def _xr_anchor_prim_exists(prim_path: str) -> bool:
     :class:`XrAnchorManager` construction in multi-replay batches (the
     replay agent rebuilds the device per run, but the prim is
     stage-scoped). Best-effort: returns ``False`` if the stage cannot
-    be inspected (e.g. unit tests without omni.usd) so the caller falls
+    be inspected (e.g. before stage creation) so the caller falls
     through to the create-and-warn path used historically.
     """
     try:
-        import omni.usd
-
-        context = omni.usd.get_context()
-        if context is None:
-            return False
-        stage = context.get_stage()
+        stage = get_current_stage()
         if stage is None:
             return False
         return stage.GetPrimAtPath(prim_path).IsValid()
@@ -80,19 +96,35 @@ class XrAnchorManager:
         dtype=np.float64,
     )
 
-    def __init__(self, xr_cfg: XrCfg):
+    def __init__(self, xr_cfg: XrCfg, *, ovxr_session: bool = False):
         """Initialize the XR anchor manager.
 
-        Creates the anchor prim, configures carb XR settings, and sets up
-        the optional anchor synchronizer for dynamic anchoring.
+        Creates or refreshes the stage-scoped anchor's configured world pose,
+        configures carb XR settings, and sets up the optional anchor
+        synchronizer for dynamic anchoring. Reusing the Stage across sessions
+        does not retain a previous session's anchor configuration.
 
         Args:
             xr_cfg: XR configuration specifying anchor position, rotation,
                 and optional dynamic anchoring prim path.
+            ovxr_session: An application-owned renderer/Stage supplies XR.
+                This path must not configure or synchronize Kit XRCore.
+
+        Raises:
+            ValueError: An existing anchor prim is not transformable. Other anchor
+                authoring errors also propagate for OVXR presentation, so
+                rendering cannot continue with a pose that differs from tracking.
         """
         self._xr_cfg = xr_cfg
-        self._xr_core = XRCore.get_singleton() if XRCore is not None else None
+        self._xr_core = XRCore.get_singleton() if XRCore is not None and not ovxr_session else None
         self._xr_pre_sync_update_subscription = None
+        self._external_lock = threading.RLock()
+        self._external_policy = (
+            _XrAnchorPosePolicy(xr_cfg) if ovxr_session and xr_cfg.anchor_prim_path is not None else None
+        )
+        self._external_epoch = 0
+        self._external_world_matrix = None
+        self._external_error = None
 
         # Resolve the headset anchor path
         if self._xr_cfg.anchor_prim_path is not None:
@@ -103,28 +135,19 @@ class XrAnchorManager:
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        # Create the XR anchor prim in USD if it does not already exist.
-        # The check matters for multi-replay batches (the replay agent
-        # rebuilds ``IsaacTeleopDevice`` -- and therefore this manager --
-        # for each run, but the prim is stage-scoped and survives
-        # per-run device teardown). XrCfg.anchor_rot is xyzw; create_prim
-        # orientation expects xyzw.
-        if not _xr_anchor_prim_exists(self._xr_anchor_headset_path):
-            x, y, z, w = self._xr_cfg.anchor_rot
-            try:
-                pos = np.asarray(self._xr_cfg.anchor_pos, dtype=np.float64)
-                quat_xyzw = np.asarray([x, y, z, w], dtype=np.float64)
-                _create_prim(self._xr_anchor_headset_path, prim_type="Xform", position=pos, orientation=quat_xyzw)
-            except Exception as e:
-                logger.warning(f"Failed to create XR anchor prim: {e}")
+        # Anchors survive per-run device teardown. Reuse their paths while
+        # applying this run's configuration, rather than retaining a stale pose.
+        try:
+            _create_or_update_xr_anchor(self._xr_anchor_headset_path, self._xr_cfg.anchor_pos, self._xr_cfg.anchor_rot)
+        except Exception as e:
+            if ovxr_session:
+                raise
+            logger.warning(f"Failed to create or update XR anchor prim: {e}")
 
         # Configure carb settings for XR rendering; carb can import while Kit is not running
         if carb is not None and has_kit():
             settings = carb.settings.get_settings()
             settings.set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
-            # The ar/vr profile-specific settings default to 0.15 and take precedence
-            # over the generic path above, so profile-based sessions (e.g. CloudXR)
-            # would keep culling geometry closer than 15 cm unless they are written too.
             settings.set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_float("/persistent/xr/profile/vr/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_string("/persistent/xr/anchorMode", "custom anchor")
@@ -186,19 +209,32 @@ class XrAnchorManager:
               core via ``set_world_transform_matrix`` during the most recent
               ``pre_sync_update``.  This works for both dynamic anchoring
               (``anchor_prim_path`` set) and static anchoring.
-            * Falls back to raw ``anchor_pos`` / ``anchor_rot`` config values
-              only when the XR core is unavailable (e.g. unit tests).
+            * External dynamic sessions read the cached pose sealed by their
+              frame owner, using application-published physics references.
+              Unseeded or failed reset epochs raise instead of returning a static pose.
+            * Static and standalone sessions without Kit retain configured poses.
 
         Returns:
             A (4, 4) float32 numpy array.
         """
+        if self._external_policy is not None:
+            with self._external_lock:
+                if self._external_error is not None:
+                    raise RuntimeError(
+                        "Dynamic XR anchor publication failed; recreate the session"
+                    ) from self._external_error
+                if self._external_world_matrix is None:
+                    raise RuntimeError("Dynamic XR anchor requires a committed post-reset scene pose")
+                matrix = self._external_world_matrix.copy()
+                matrix[:3, :3] = matrix[:3, :3] @ self._OXR_TO_USD_ROTATION
+                return matrix.astype(np.float32)
         if self._anchor_sync is not None:
             xform = self._anchor_sync.get_world_transform()
             if xform is not None:
                 pos, quat_xyzw = xform
                 return self._build_matrix(pos, quat_xyzw)
 
-        # Fallback when XR core is unavailable (e.g. unit tests).
+        # Static and standalone sessions retain their configured-pose fallback.
         return self._build_matrix(self._xr_cfg.anchor_pos, self._xr_cfg.anchor_rot)
 
     def _build_matrix(self, pos, quat_xyzw) -> np.ndarray:
@@ -228,13 +264,65 @@ class XrAnchorManager:
 
     def reset(self) -> None:
         """Reset the anchor synchronizer state."""
+        if self._external_policy is not None:
+            with self._external_lock:
+                self._external_epoch += 1
+                self._external_policy.reset()
+                self._external_world_matrix = None
         if self._anchor_sync is not None:
             self._anchor_sync.reset()
 
     def toggle_anchor_rotation(self) -> None:
         """Toggle anchor rotation following on the synchronizer."""
+        if self._external_policy is not None:
+            with self._external_lock:
+                self._external_policy.toggle_anchor_rotation()
         if self._anchor_sync is not None:
             self._anchor_sync.toggle_anchor_rotation()
+
+    @property
+    def external_reference_path(self) -> str | None:
+        """The exact physics reference path, when external dynamic anchoring is active."""
+        return self._xr_cfg.anchor_prim_path if self._external_policy is not None else None
+
+    @property
+    def external_epoch(self) -> tuple[int, bool]:
+        """Return reset identity and whether the current epoch needs its first publication."""
+        with self._external_lock:
+            if self._external_error is not None:
+                raise RuntimeError(
+                    "Dynamic XR anchor publication failed; recreate the session"
+                ) from self._external_error
+            return self._external_epoch, self._external_world_matrix is None
+
+    @property
+    def external_anchor_paths(self) -> tuple[str, ...]:
+        """Native Xforms written together by the OVXR presentation host."""
+        return (self._xr_anchor_headset_path,)
+
+    def commit_external_pose(self, reference, rendering_dt: float, epoch: int, commit) -> bool:
+        """Advance the shared policy once and expose its input pose only after native seal.
+
+        The host serializes this operation with scene publication. Old committed
+        references cannot reseed a new reset epoch. A failed write invalidates the
+        cached input pose and propagates; it never falls back to configured static data.
+        """
+        with self._external_lock:
+            if self._external_error is not None:
+                raise RuntimeError(
+                    "Dynamic XR anchor publication failed; recreate the session"
+                ) from self._external_error
+            if epoch != self._external_epoch:
+                return False
+            try:
+                matrix = np.asarray(self._external_policy.update(reference, rendering_dt)).T.copy()
+                commit(matrix[np.newaxis])
+            except BaseException as exc:
+                self._external_world_matrix = None
+                self._external_error = exc
+                raise
+            self._external_world_matrix = matrix
+            return True
 
     def cleanup(self) -> None:
         """Release event subscriptions."""

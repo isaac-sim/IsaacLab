@@ -1345,6 +1345,26 @@ through this variable -- later runs no longer prompt. The variable applies to ev
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
 
+Replay MCAP with a Kitless OVXR Viewer
+--------------------------------------
+
+The MCAP replay entrypoint can present recorded input through an independent
+OVXR viewer. Follow the :ref:`kitless XR guide <kitless-xr>` to install Isaac
+Capture with its OVXR extra and select the compatible rendering dependencies.
+
+.. code-block:: bash
+
+   uv run --extra ovxr python \
+       scripts/environments/teleoperation/teleop_replay_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-Abs --physics ovphysx \
+       --device cpu --num_envs 1 --ovxr \
+       --replay_file /absolute/path/to/session.mcap
+
+Use ``--physics newton_mjwarp`` for Newton. MCAP supplies tracker and control
+input; the connected client supplies the view. A recorded STOP, task success
+or failure, or the replay duration limit ends the run. The separate
+``isaaclab teleop replay`` command replays HDF5 demonstrations through Kit.
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor

@@ -96,6 +96,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         clone_positions=None,
         render_products=set(),
         cfg=SimpleNamespace(read_gpu_transforms=False),
+        _render_lease_owner=None,
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
@@ -600,3 +601,57 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
         assert all(
             vars(backend) == {"cfg": configs[index]} for index, backend in enumerate(backends) if index != selected
         )
+
+
+@pytest.mark.parametrize("initialized, explicit_stage", [(False, None), (True, None), (False, "1")])
+def test_lease_selects_only_its_renderer_stage_and_preserves_both_clone_routes(
+    monkeypatch, initialized, explicit_stage
+):
+    """An ordinary renderer retains its chosen scene when another renderer borrows a private Stage."""
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    if explicit_stage is not None:
+        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", explicit_stage)
+    ordinary = SimpleNamespace(cfg=OVRTXRendererCfg(), backend=None, _render_lease=SimpleNamespace(active=None))
+    borrower = SimpleNamespace(
+        cfg=OVRTXRendererCfg(log_file_path="borrower.log"),
+        backend=None,
+        _render_lease=SimpleNamespace(active=object(), reserve_pair=Mock()),
+    )
+    native = SimpleNamespace(cfg=OVRTXBackendCfg(scene_key=ordinary.cfg, use_ovstage=False))
+    if initialized:
+        ordinary.backend = native
+        ordinary.scene = native
+        ordinary._use_ovstage = False
+    registry = []
+
+    def create_backend(cfg):
+        backend = SimpleNamespace(cfg=cfg)
+        registry.append(backend)
+        return backend
+
+    sim = SimpleNamespace(
+        device="cpu",
+        backend_manager=SimpleNamespace(clone_context_type=object, backend=None),
+        clone_contexts={OvrtxReplicateContext: object()},
+        get_or_create_backend=create_backend,
+        get_backends=lambda cfg: [ordinary, borrower]
+        if cfg is OVRTXRendererCfg
+        else [backend for backend in registry if isinstance(backend.cfg, cfg)],
+    )
+    routing = {OvrtxReplicateContext: {0, 2}}
+    OvrtxReplicateContext.prepare(sim, routing)
+    assert borrower._use_ovstage
+    assert isinstance(borrower.scene.cfg, OvstageBackendCfg)
+    assert borrower.scene.cfg.scene_key is not None
+    assert ordinary._use_ovstage is (explicit_stage == "1")
+    assert routing[OvstageReplicateContext] == {0, 2}
+    if explicit_stage is None:
+        assert routing[OvrtxReplicateContext] == {0, 2}
+        assert ordinary.scene is ordinary.backend
+    else:
+        assert OvrtxReplicateContext not in routing
+    borrower._render_lease.reserve_pair.assert_called_once_with()
