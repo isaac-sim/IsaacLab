@@ -12,7 +12,7 @@ import inspect
 import subprocess
 import sys
 import textwrap
-from contextlib import nullcontext
+from contextlib import closing, nullcontext
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -631,6 +631,57 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
         manager_module._prepare_default_cache_dir(str(target))
 
 
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.parametrize("device", _CPU_DEVICES)
+def test_shared_cpu_stage_materializes_clone_worlds(monkeypatch, device):
+    """A shared CPU stage imports every world with its placement instead of using native clones."""
+    import numpy as np
+    import ovphysx
+    import warp as wp
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.sim.views import OvPhysxView
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    def reject_native_clone(*args, **kwargs):
+        pytest.fail("CPU worlds must be imported through USD, not native-cloned")
+
+    monkeypatch.setattr(ovphysx.PhysX, "clone", reject_native_clone)
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        source = "/World/envs/env_0/Cube"
+        cube = UsdGeom.Cube.Define(sim.stage, source)
+        cube.AddTranslateOp().Set((0.0, 0.0, 1.0))
+        UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Cube"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+            positions=np.array([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]]),
+        )
+        shared = sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        shared.clone_copies = [(source, [source, "/World/envs/env_1/Cube"])]
+        sim.reset()
+
+        with closing(
+            OvPhysxView(
+                sim.backend_manager.get_physx_instance(), prim_paths=[source, "/World/envs/env_1/Cube"], device=device
+            )
+        ) as view:
+            binding = view.binding_for("rigid_body_pose")
+            poses = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
+            binding.read(poses)
+            np.testing.assert_allclose(poses.numpy()[:, :3], [[0.0, 0.0, 1.0], [5.0, 0.0, 1.0]], atol=1e-6)
+
+
 @pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")
 def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     """A CPU scene must not prevent a later CUDA scene in the same process, or the reverse."""
@@ -639,6 +690,121 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
 
     assert completed.returncode == 0, output[-8000:]
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CUDA_DEVICES, reason="Requires a selected CUDA test device")
+def test_shared_stage_rejects_joint_only_native_recipe():
+    """A joint-only recipe must fail before attachment instead of silently losing its destination."""
+    import numpy as np
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CUDA_DEVICES[0])
+    with build_simulation_context(sim_cfg=cfg, auto_add_lighting=False) as sim:
+        source = "/World/envs/env_0/Constraints"
+        UsdGeom.Xform.Define(sim.stage, source)
+        body_path = "/World/envs/env_0/Body"
+        body = UsdGeom.Cube.Define(sim.stage, body_path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.CollisionAPI.Apply(body)
+        joint = UsdPhysics.FixedJoint.Define(sim.stage, source + "/Joint")
+        joint.CreateBody1Rel().SetTargets([body_path])
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Constraints"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+        )
+        sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+
+        with pytest.raises(ValueError, match=source + ".*USD replication"):
+            sim.reset()
+        assert sim.backend_manager.get_physx_instance() is None
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+@pytest.mark.parametrize("shared", [False, True])
+def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, shared):
+    """Binding callbacks preserve priority and initialize late consumers without replaying construction."""
+    from isaaclab_ov.assets import RigidObject
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.physics import PhysicsEvent
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    # A flag without a shared renderer must not change headless callback ordering.
+    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CPU_DEVICES[0], gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        consumers = [
+            RigidObject(
+                RigidObjectCfg(
+                    prim_path="/World/Cube",
+                    spawn=sim_utils.CuboidCfg(
+                        size=(0.5, 0.5, 0.5),
+                        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+                    ),
+                )
+            )
+        ]
+        events = []
+        manager = sim.backend_manager
+        for name, event, order in [
+            ("model_init", PhysicsEvent.MODEL_INIT, -100),
+            ("ready_first", PhysicsEvent.PHYSICS_READY, 0),
+            ("bindings", manager.binding_init_event, 11),
+            ("ready_last", PhysicsEvent.PHYSICS_READY, 20),
+        ]:
+            manager.register_callback(
+                lambda _, name=name: events.append((name, tuple(asset.is_initialized for asset in consumers))),
+                event,
+                order=order,
+            )
+        # Stage sharing is selected after assets and listeners have already registered.
+        if shared:
+            sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        sim.reset()
+        assert events == [("model_init", (False,))] + (
+            [("bindings", (True,)), ("ready_first", (True,)), ("ready_last", (True,))]
+            if shared
+            else [("ready_first", (False,)), ("bindings", (True,)), ("ready_last", (True,))]
+        )
+
+        # An isolated rendering stage must not change physics ownership or readiness ordering.
+        sim.get_or_create_backend(OvstageBackendCfg(scene_key=1))
+        consumers.append(RigidObject(RigidObjectCfg(prim_path="/World/Cube", spawn=None)))
+        for rebuild in (False, True):
+            events.clear()
+            if rebuild:
+                manager._warmup_done = False
+            sim.reset()
+            construction = [("model_init", (False, False))] if rebuild else []
+            assert events == construction + (
+                [("bindings", (True, True)), ("ready_first", (True, True)), ("ready_last", (True, True))]
+                if shared
+                else [
+                    ("ready_first", (not rebuild, False)),
+                    ("bindings", (True, True)),
+                    ("ready_last", (True, True)),
+                ]
+            )
+        events.clear()
+        sim.reset(soft=True)
+        assert events == []
 
 
 @pytest.mark.parametrize("warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), ("warmup", True)])
@@ -674,7 +840,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, load=lambda usda: None)
+    backend = SimpleNamespace(physx=FakePhysX(), stage=None, owns_scene=True, load=lambda usda: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
