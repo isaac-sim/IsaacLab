@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -869,6 +870,9 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_INERTIA, self._cpu_body_inertia.reshape((self._num_instances, 9)), indices=cpu_env_ids
         )
+        # OVPhysX recomputes the principal-axis rotation when setting inertia, so the cached COM pose is stale.
+        reset_timestamps([self.data._body_com_pose_b])
+        self.data._reset_body_com_pose_b_dependents()
 
     def set_inertias_mask(
         self,
@@ -908,6 +912,9 @@ class RigidObject(BaseRigidObject):
             self._cpu_body_inertia.reshape((self._num_instances, 9)),
             mask=self._get_cpu_env_mask(env_mask_wp),
         )
+        # OVPhysX recomputes the principal-axis rotation when setting inertia, so the cached COM pose is stale.
+        reset_timestamps([self.data._body_com_pose_b])
+        self.data._reset_body_com_pose_b_dependents()
 
     """
     Internal helper.

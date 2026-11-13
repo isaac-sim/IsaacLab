@@ -1062,7 +1062,7 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
 def test_com_orientation_write_invalidates_static_inertia_cache_with_body_ordering(scene: _ArticulationScene) -> None:
-    """Partial COM writes and COM rotations follow non-identity body order.
+    """Partial COM writes, COM rotations, and inertia-driven principal axes follow non-identity body order.
 
     COM pose is a CPU-resident OVPhysX binding, and the raw ``root_view.set_attribute`` restore
     below forbids cross-device staging, so the raw COM tensors stay on the host.
@@ -1128,6 +1128,20 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     torch.testing.assert_close(
         articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1],
         expected_rotated_inertia,
+    )
+
+    # A product of inertia makes OVPhysX re-derive the principal axes; the COM caches follow without a step.
+    articulation.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
+    inertia = principal_inertia.clone()
+    inertia[..., [1, 3]] = 0.5
+    articulation.set_inertias_index(inertias=inertia, body_ids=[public_body_id])
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_b.torch[:, public_body_id],
+        _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)[:, backend_body_id, 3:7],
+    )
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_w.torch,
+        math_utils.quat_mul(articulation.data.body_link_quat_w.torch, articulation.data.body_com_quat_b.torch),
     )
 
 

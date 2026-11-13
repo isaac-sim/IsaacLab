@@ -46,7 +46,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.sim import SimulationContext, build_simulation_context
-from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply, quat_mul
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _NUM_ENVS = 2
@@ -691,6 +691,8 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     inertias = articulation.data.body_inertia.torch[env_ids][:, body_ids].clone()
     inertias[0, 0, 0] *= 1.2
     inertias[0, 1, 4] *= 1.3
+    # A product of inertia makes PhysX re-derive the principal axes, so the COM orientation changes on write.
+    inertias[0, 1, [1, 3]] = 0.25 * inertias[0, 1, 0]
     expected_masses = articulation.data.body_mass.torch.clone()
     expected_masses[env_ids[:, None], body_ids] = masses
     articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
@@ -701,6 +703,7 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     torch.testing.assert_close(articulation.data.body_com_pose_b.torch, expected_coms)
     expected_inertias = articulation.data.body_inertia.torch.clone()
     expected_inertias[env_ids[:, None], body_ids] = inertias
+    articulation.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
     articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
     torch.testing.assert_close(articulation.data.body_inertia.torch, expected_inertias)
     for public, raw in (
@@ -709,6 +712,10 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         (articulation.data.body_inertia.torch, articulation.root_view.get_inertias()),
     ):
         torch.testing.assert_close(wp.to_torch(raw).to(device), public[:, body_backend_to_user])
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_w.torch,
+        quat_mul(articulation.data.body_link_quat_w.torch, articulation.data.body_com_quat_b.torch),
+    )
 
     # Restore the initial properties for the tests that drive this island.
     articulation.set_masses_index(masses=initial_properties["masses"], full_data=True)
