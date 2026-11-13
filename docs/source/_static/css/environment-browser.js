@@ -121,6 +121,9 @@
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
+            ["IsaacContrib-Stack-Cube-Franka-RL", "rsl_rl", "", "", "", "environment-previews/franka_stack.jpg"],
+            ["IsaacContrib-Stack-Cube-Franka-RL-Camera", "rsl_rl", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_renderer|", "|ovrtx|"]],
+            ["IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation", "rsl_rl", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_renderer|", "|ovrtx|"]],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow", "", "isaacsim_physx", "", "", "environment-previews/galbot_stack_cube.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer", "", "environment-previews/galbot_stack_cube.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_renderer|", "isaacsim_physx||", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|newton_renderer|"]],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer", "", "environment-previews/galbot_stack_cube.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_renderer|", "isaacsim_physx||", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|newton_renderer|"]],
@@ -128,6 +131,7 @@
             ["IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow", "", "isaacsim_physx", "", "", "environment-previews/galbot_right_suction_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka", "", "", "", "", "environment-previews/franka_instance_randomize_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_instance_randomize_stack.jpg"],
+            ["IsaacContrib-Stack-Cube-KukaAllegro-RL", "rsl_rl", "", "", ""],
             ["IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "", "isaacsim_physx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
@@ -376,6 +380,12 @@
             : new URL(`../../_static/${imagePath}`, window.location.href).href;
     };
 
+    // Each preview video shares its image's file name, so tasks without an uploaded clip fall back to the image.
+    const stackPreviewBaseUrl = "https://media.githubusercontent.com/media/maxkra15/IsaacLab/226ead1683a31094e263116d6cb82d8225c4ddf5/docs/source/_static/tasks/previews/";
+    const stackPreviewVideos = {
+        "IsaacContrib-Stack-Cube-Franka-RL": "stack-franka-newton-mjwarp-rsl-rl.mp4",
+        "IsaacContrib-Stack-Cube-KukaAllegro-RL": "stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
+    };
     // Preview clips live next to the remote task images, one folder per category, and share the image's file name.
     // Tasks without an uploaded clip fall back to the image.
     const previewClipNames = {
@@ -388,6 +398,9 @@
     );
 
     const previewVideoUrl = (task) => {
+        if (stackPreviewVideos[task.task]) {
+            return new URL(stackPreviewVideos[task.task], stackPreviewBaseUrl).href;
+        }
         const name = previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, "");
         const folder = previewClipFolders[name];
         return folder ? new URL(`environments/previews/${folder}/${name}.mp4`, previewBaseUrl).href : null;
