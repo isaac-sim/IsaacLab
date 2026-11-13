@@ -26,6 +26,7 @@ launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -37,11 +38,14 @@ from isaaclab_newton.physics import VBDSolverCfg
 from newton import ModelFlags
 from newton_test_utils import env_origins, local_usd, newton_sim_cfg, spawn_assets, world_gravity
 
+from pxr import Usd, UsdGeom, UsdPhysics
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
@@ -288,6 +292,43 @@ def test_collection_single_instance_initialization(device: str) -> None:
             object_collection.update(sim.cfg.dt)
             pose[..., 0] += 0.5 * sim.cfg.dt
             torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, pose)
+
+
+def _nested_body_usd(directory: Path, name: str, mass: float) -> str:
+    """Write a file whose rigid body sits at a file-specific path below its default prim."""
+    path = str(directory / f"{name}.usda")
+    stage = Usd.Stage.CreateNew(path)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Root").GetPrim())
+    UsdGeom.Scope.Define(stage, "/Root/Geometry")
+    body = UsdGeom.Xform.Define(stage, f"/Root/Geometry/{name}").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(body)
+    UsdPhysics.MassAPI.Apply(body).CreateMassAttr(mass)
+    collider = UsdGeom.Cube.Define(stage, f"/Root/Geometry/{name}/collider")
+    collider.CreateSizeAttr(0.1)
+    UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+    stage.Save()
+    return path
+
+
+def test_files_with_differently_nested_bodies_share_one_view(tmp_path: Path) -> None:
+    """Files whose bodies sit at different nested paths form one view once each body moves onto the spawned prim."""
+    masses = [0.3, 0.7]
+    spawn_cfg = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            sim_utils.UsdFileCfg(usd_path=_nested_body_usd(tmp_path, f"body_{i}", mass), move_rigid_body_to_root=True)
+            for i, mass in enumerate(masses)
+        ]
+    )
+    scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=1.0)
+    scene_cfg.object = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=spawn_cfg)
+    with build_simulation_context(sim_cfg=newton_sim_cfg("cpu")) as sim:
+        rigid_object = InteractiveScene(scene_cfg)["object"]
+        sim.reset()
+        assert rigid_object.num_instances == 2
+        assert rigid_object.body_names == ["Object"]
+        # sequential cloning gives environment i the i-th file, so each row carries its own file's body
+        assert rigid_object.data.body_mass.torch.flatten().tolist() == pytest.approx(masses)
 
 
 ##

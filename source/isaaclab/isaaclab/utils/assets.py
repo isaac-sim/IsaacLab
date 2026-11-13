@@ -28,7 +28,7 @@ import tempfile
 import threading
 import uuid
 import warnings
-from collections.abc import Coroutine, Iterator
+from collections.abc import Coroutine, Iterator, Sequence
 from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
@@ -282,6 +282,9 @@ _MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
 
 _REMOTE_FINGERPRINTS: dict[str, dict] = {}
 """Successful remote metadata queries, refreshed by forced retrieval."""
+
+SIMREADY_SEARCH_SERVICE_ENDPOINT = "https://search.simready.omniverse.nvidia.com/"
+"""Default SimReady USD-Search service endpoint."""
 
 _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 """Cache directories already announced, so the banner is logged once per directory."""
@@ -631,6 +634,65 @@ def read_file(path: str) -> io.BytesIO:
         return io.BytesIO(data)
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
+
+
+def search_simready_usd_paths(
+    query: str | None = None,
+    size_range: tuple[float, float] | None = None,
+    mass_range: tuple[float, float] | None = None,
+    features: Sequence[str] = (),
+    exclude_features: Sequence[str] = (),
+    limit: int = 100,
+    service_endpoint: str = SIMREADY_SEARCH_SERVICE_ENDPOINT,
+    **params,
+) -> list[str]:
+    """Search the SimReady USD-Search service and return the matching USD asset paths in service order.
+
+    The arguments are mapped onto the service's ``/search_hybrid`` request; any other request field of the
+    service can be passed through :paramref:`params`. SimReady feature tags certify PhysX readiness only;
+    validate assets under other physics backends before training on them.
+
+    Args:
+        query: Short description of the assets, matched on text and image embeddings. Defaults to None.
+        size_range: Minimum and maximum extent [m] of the asset's bounding box along every axis.
+        mass_range: Minimum and maximum mass [kg] authored in the asset's SimReady metadata.
+        features: SimReady feature names that every match must have passed (e.g. ``FET003_BASE_PHYSX``).
+        exclude_features: SimReady feature names that no match may have passed.
+        limit: Maximum number of paths to return. Defaults to 100.
+        service_endpoint: Base URL of the service.
+        params: Further ``/search_hybrid`` request fields, sent as given.
+
+    Returns:
+        Asset paths under :data:`ISAAC_NUCLEUS_DIR`, at most :paramref:`limit` entries.
+
+    Raises:
+        requests.HTTPError: If the service rejects the request.
+    """
+    import requests  # noqa: PLC0415
+
+    feature = "*validation__validated_features__*__{}__passed=~True"
+    request = {"file_extension_include": "usd*", "limit": limit, **params}
+    if query:
+        request["hybrid_text_query"] = query
+        request["vector_queries"] = [
+            {"field_name": "siglip2-embedding.embedding", "query_type": "text", "query": query}
+        ]
+    if size_range:
+        for axis in "xyz":
+            request[f"min_bbox_{axis}"], request[f"max_bbox_{axis}"] = size_range
+    if mass_range:
+        request["filter_by_properties_numeric"] = "simready_metadata_mass>={},simready_metadata_mass<={}".format(
+            *mass_range
+        )
+    if features:
+        request["filter_by_properties"] = ",".join(feature.format(name) for name in features)
+    if exclude_features:
+        request["exclude_filter_by_properties"] = ",".join(feature.format(name) for name in exclude_features)
+    response = requests.post(f"{service_endpoint.rstrip('/')}/search_hybrid", json=request, timeout=60)
+    response.raise_for_status()
+    # the service indexes the public Isaac asset bucket; keep the part under SimReady/ and use the configured root
+    relative = [hit["source"]["path"].partition("/Isaac/SimReady/")[2] for hit in response.json()["hits"]]
+    return [f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}" for path in relative if path]
 
 
 def _resolve_reference_url(base_url: str, ref: str) -> str:

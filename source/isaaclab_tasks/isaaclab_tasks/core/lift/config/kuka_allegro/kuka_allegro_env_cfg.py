@@ -5,12 +5,17 @@
 
 """Configuration for the Kuka-Allegro lift and reorient environments."""
 
+import json
+import pathlib
+
+import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_FRICTION_REPLACEMENTS
 
@@ -23,6 +28,29 @@ THUMB_SENSOR = "thumb_link_3_object_s"
 
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
 """Contact sensors of the remaining fingers."""
+
+SIMREADY_OBJECTS = json.loads((pathlib.Path(__file__).parent / "simready_objects.json").read_text())["usd_paths"]
+"""SimReady props of the ``simready`` object preset, relative to the SimReady asset folder.
+
+The 100 single-body PhysX props of 2 to 15 cm and 5 g to 3 kg that the SimReady search service returns first,
+recorded by ``scripts/tools/find_simready_props.py``.
+"""
+
+
+@configclass
+class KukaAllegroObjectCfg(lift.ObjectCfg):
+    """Graspable objects for the Kuka-Allegro hand, with SimReady props as an alternative to the shapes."""
+
+    # the props keep their authored mass and inertia; their instanced colliders take the shapes' collision overrides
+    simready = lift.ObjectCfg().shapes.replace(
+        assets_cfg=[
+            sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}", make_uninstanceable=True, move_rigid_body_to_root=True
+            )
+            for path in SIMREADY_OBJECTS
+        ],
+        mass_props=None,
+    )
 
 
 ##
@@ -44,6 +72,7 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,
