@@ -1,0 +1,1 @@
+Provision the pinned standalone OVXR dependencies and fail CI if adapter coverage is skipped.
