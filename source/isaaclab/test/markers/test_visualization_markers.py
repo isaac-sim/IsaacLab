@@ -56,7 +56,7 @@ def sim():
 
 class _FakeMarkerVisualizer:
     def __init__(self, *, enable_markers: bool = True, pumps_app_update: bool = False):
-        self.cfg = type("Cfg", (), {"enable_markers": enable_markers})()
+        self.cfg = VisualizerCfg(enable_markers=enable_markers, backend=NewtonGLBackendCfg())
         self._pumps_app_update = pumps_app_update
 
     def supports_markers(self):
@@ -81,6 +81,38 @@ class _FakeMarkerVisualizer:
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
         (False, False, False, False, [KitVisualizer(VisualizerCfg(backend=KitBackendCfg()))], ["kit"]),
+        (False, False, False, False, [KitVisualizer(VisualizerCfg(headless=True, backend=KitBackendCfg()))], ["kit"]),
+        (False, False, False, True, [KitVisualizer(VisualizerCfg(headless=True, backend=KitBackendCfg()))], ["kit"]),
+        (
+            False,
+            False,
+            False,
+            False,
+            [KitVisualizer(VisualizerCfg(headless=True, enable_markers=False, backend=KitBackendCfg()))],
+            [],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [
+                KitVisualizer(VisualizerCfg(headless=True, enable_markers=False, backend=KitBackendCfg())),
+                newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg())),
+            ],
+            ["newton"],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [
+                KitVisualizer(VisualizerCfg(headless=True, backend=KitBackendCfg())),
+                newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg())),
+            ],
+            ["kit", "newton"],
+        ),
         (
             False,
             False,
