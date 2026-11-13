@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
+import math
 import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ParamSpec, overload
@@ -274,6 +275,10 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
     and so does a mass schema authored on the body itself. Colliders and their mass properties stay
     where they are.
 
+    When the body is offset from the prim, the prim's frame becomes the body frame: the geometry keeps its
+    place, the body pose is read at the prim, and a center of mass or principal axes authored on the moved
+    mass schema are re-expressed in the prim's frame.
+
     The function does nothing if the prim already is the rigid body.
 
     Args:
@@ -282,8 +287,7 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
-        ValueError: If the prim does not hold exactly one rigid body, if the body is inside an instance,
-            or if the body is offset from the prim, in which case moving it would change its frame.
+        ValueError: If the prim does not hold exactly one rigid body, or if the body is inside an instance.
     """
     from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
@@ -304,11 +308,13 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
     body = bodies[0]
     if body.IsInstanceProxy():
         raise ValueError(f"Rigid body '{body.GetPath()}' is inside an instance. Make the prim uninstanceable first.")
+    # the prim's frame becomes the body frame; values authored in the old body frame are re-expressed in it
     offset, _ = UsdGeom.XformCache().ComputeRelativeTransform(body, prim)
-    if not Gf.IsClose(offset, Gf.Matrix4d(1.0), 1e-6):
-        raise ValueError(
-            f"Rigid body '{body.GetPath()}' is offset from '{prim_path}'; moving it would change its frame."
-        )
+    rotation = Gf.Quatf(Gf.Transform(offset).GetRotation().GetQuat())
+    to_prim_frame = {
+        "physics:centerOfMass": lambda com: Gf.Vec3f(offset.Transform(Gf.Vec3d(com))) if math.isfinite(com[0]) else com,
+        "physics:principalAxes": lambda axes: rotation * axes,
+    }
 
     applied = body.GetAppliedSchemas()
     moved = [schema for schema in ("PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI") if schema in applied]
@@ -325,7 +331,8 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
         if isinstance(prop, Usd.Relationship):
             prim.CreateRelationship(name).SetTargets(prop.GetTargets())
         else:
-            prim.CreateAttribute(name, prop.GetTypeName()).Set(prop.Get())
+            value = prop.Get()
+            prim.CreateAttribute(name, prop.GetTypeName()).Set(to_prim_frame.get(name, lambda v: v)(value))
     for schema in moved:
         prim.AddAppliedSchema(schema)
         body.RemoveAppliedSchema(schema)

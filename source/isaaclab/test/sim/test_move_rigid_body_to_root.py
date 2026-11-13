@@ -12,7 +12,9 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 
 
-def _write_asset(path, *, body_offset=(0.0, 0.0, 0.0), second_body=False, instanced_body=False) -> str:
+def _write_asset(
+    path, *, body_offset=(0.0, 0.0, 0.0), center_of_mass=None, second_body=False, instanced_body=False
+) -> str:
     """Write an asset whose rigid body sits at ``/Root/Geometry/body`` above a collider with its own mass.
 
     ``/Root/Geometry`` references its content from ``/Prototype`` so that it can be made an instance.
@@ -24,7 +26,10 @@ def _write_asset(path, *, body_offset=(0.0, 0.0, 0.0), second_body=False, instan
     if body_offset != (0.0, 0.0, 0.0):
         body.AddTranslateOp().Set(Gf.Vec3d(*body_offset))
     UsdPhysics.RigidBodyAPI.Apply(body.GetPrim()).CreateKinematicEnabledAttr(True)
-    UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(0.3)
+    body_mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
+    body_mass.CreateMassAttr(0.3)
+    if center_of_mass is not None:
+        body_mass.CreateCenterOfMassAttr(Gf.Vec3f(*center_of_mass))
     collider = UsdGeom.Cube.Define(stage, "/Prototype/body/collider").GetPrim()
     UsdPhysics.CollisionAPI.Apply(collider)
     UsdPhysics.MassAPI.Apply(collider).CreateMassAttr(0.1)
@@ -70,14 +75,22 @@ def test_moves_body_schemas_and_values_onto_prim(stage, tmp_path):
     ("asset_kwargs", "match"),
     [
         ({"second_body": True}, "Expected one rigid body"),
-        ({"body_offset": (0.0, 0.0, 0.1)}, "would change its frame"),
         ({"instanced_body": True}, "inside an instance"),
     ],
-    ids=["two-bodies", "offset-body", "instanced-body"],
+    ids=["two-bodies", "instanced-body"],
 )
 def test_refuses_moves_that_change_physics(stage, tmp_path, asset_kwargs, match):
-    """A move that would merge bodies, shift the body frame, or edit an instance proxy is refused."""
+    """A move that would merge bodies or edit an instance proxy is refused."""
     _reference(stage, _write_asset(tmp_path / "asset.usda", **asset_kwargs))
 
     with pytest.raises(ValueError, match=match):
         sim_utils.move_rigid_body_to_root("/World/Object", stage=stage)
+
+
+def test_moves_offset_body_and_keeps_its_center_of_mass(stage, tmp_path):
+    """An offset body moves onto the prim, and its center of mass keeps its place in the prim frame."""
+    asset = _write_asset(tmp_path / "asset.usda", body_offset=(0.0, 0.0, 0.1), center_of_mass=(0.01, 0.0, 0.0))
+    prim = _reference(stage, asset)
+    sim_utils.move_rigid_body_to_root("/World/Object", stage=stage)
+    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert UsdPhysics.MassAPI(prim).GetCenterOfMassAttr().Get() == pytest.approx((0.01, 0.0, 0.1))
