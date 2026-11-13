@@ -15,6 +15,8 @@ from ...utils.leapp import (
     POSE7_COMPONENT_AXIS,
     QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     ExpressionFrame,
     Kind,
     leapp_tensor_semantics,
@@ -35,7 +37,7 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame [m, unitless].
 
@@ -46,7 +48,7 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m].
 
@@ -56,7 +58,7 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in world frame.
 
@@ -67,7 +69,7 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def projected_gravity_b(self) -> ProxyArray:
         """Gravity direction unit vector projected on the PVA frame.
 
@@ -78,7 +80,9 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def lin_vel_b(self) -> ProxyArray:
         """PVA frame linear velocity relative to the world expressed in PVA frame [m/s].
@@ -91,7 +95,7 @@ class BasePvaData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(
         kind=Kind.FRAME_ANGULAR_VELOCITY,
-        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
         expressed_in=ExpressionFrame.SELF,
     )
     def ang_vel_b(self) -> ProxyArray:
@@ -104,7 +108,9 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_ACCELERATION, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_ACCELERATION,
+        axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (coordinate) in the PVA frame [m/s^2].
@@ -118,7 +124,9 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_ACCELERATION, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_ACCELERATION,
+        axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def ang_acc_b(self) -> ProxyArray:
         """PVA frame angular acceleration relative to the world expressed in PVA frame [rad/s^2].

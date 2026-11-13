@@ -13,6 +13,8 @@ from ...utils.leapp import (
     POSE7_COMPONENT_AXIS,
     QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     Kind,
     leapp_tensor_semantics,
     target_frame_pose_axes_resolver,
@@ -106,7 +108,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def source_pose_w(self) -> ProxyArray | None:
         """Pose of the source frame after offset in world frame.
 
@@ -117,7 +119,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def source_pos_w(self) -> ProxyArray:
         """Position of the source frame after offset in world frame.
 
@@ -127,7 +129,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def source_quat_w(self) -> ProxyArray:
         """Orientation of the source frame after offset in world frame.
 

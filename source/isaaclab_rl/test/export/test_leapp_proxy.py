@@ -107,7 +107,10 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
     assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_projected_gravity_b"
     assert semantics.kind == Kind.VECTOR3D
-    assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert semantics.axes == [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"]),
+    ]
     assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
 
 
@@ -166,7 +169,7 @@ def test_root_velocity_components_follow_leapp_conventions(monkeypatch, property
     torch.testing.assert_close(getattr(proxy, property_name).torch, values)
     assert len(captured) == 1
     semantics = captured[0][1]
-    assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=components)]
+    assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), leapp.Axis(leapp.AxisKind.COMPONENT, names=components)]
 
 
 def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPatch):
@@ -183,8 +186,14 @@ def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPat
     position, orientation = [semantics for _, semantics in annotated_inputs]
     assert position.kind == Kind.FRAME_POSITION
     assert orientation.kind == Kind.FRAME_ORIENTATION
-    assert position.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
-    assert orientation.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
+    assert position.axes == [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"]),
+    ]
+    assert orientation.axes == [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"]),
+    ]
     assert position.extra == {"isaaclab_connection": "state:ray_caster:pos_w"}
     assert orientation.extra == {"isaaclab_connection": "state:ray_caster:quat_w"}
 
@@ -248,7 +257,9 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         assert annotated_inputs[-1][1].axes == pose_axes + [
             leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
         ]
-    assert friction.axes == [None] * len(friction_shape) + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert friction.axes == [leapp.Axis(leapp.AxisKind.SYSTEM)] + [None] * (len(friction_shape) - 1) + [
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])
+    ]
 
 
 def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytest.MonkeyPatch):
@@ -278,6 +289,9 @@ def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytes
         "state:camera:output.depth",
     }
 
+    for _, semantics in annotated_inputs:
+        assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), None, None, None]
+
     rgb_semantics = next(semantics for _, semantics in annotated_inputs if semantics.name == "camera_output_rgb")
     _, entity_name, property_name = rgb_semantics.extra["isaaclab_connection"].split(":", 2)
     env = object.__new__(LeappDeploymentEnv)
@@ -286,6 +300,31 @@ def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytes
         "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
     }
     assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
+
+    camera_data._intrinsic_matrices = ProxyArray(wp.zeros(1, dtype=wp.mat33f, device="cpu"))
+    assert proxy.intrinsic_matrices.torch.shape == (1, 3, 3)
+    assert annotated_inputs[-1][1].axes == [leapp.Axis(leapp.AxisKind.SYSTEM), None, None]
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_unlabelled_policy_ports_keep_system_axis(monkeypatch: pytest.MonkeyPatch, direction):
+    """A known environment dimension remains a system without feature or physical labels."""
+    values = torch.arange(24, dtype=torch.float32).reshape(2, 3, 4)
+    patcher = ExportPatcher("onnx")
+    patcher.task_name = "features"
+    if direction == "input":
+        captured = _capture_leapp_inputs(monkeypatch)
+        command_cfg = SimpleNamespace(cmd_kind=None, axes=None)
+        env = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda name: SimpleNamespace(cfg=command_cfg)))
+        term_cfg = SimpleNamespace(params={"command_name": "features"})
+        patcher._wrap_generated_commands(lambda env, command_name: values, term_cfg)(env, "features")
+        semantics = captured[0][1]
+    else:
+        manager = SimpleNamespace(_terms={"features": SimpleNamespace(processed_actions=values)})
+        (semantics,) = patcher._collect_processed_action_fallbacks(manager)
+    assert semantics.kind is None
+    assert semantics.ref.shape == (2, 3, 4)
+    assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), None, None]
 
 
 def test_camera_pixels_drive_joint_target_through_export_and_deployment(tmp_path: Path):
@@ -656,7 +695,11 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert task_name == "Isaac-Lift-Soft-Franka"
     assert semantics.name == "deformable_nodal_pos_w"
     assert semantics.kind == Kind.FRAME_POSITION
-    assert semantics.axes == [None, None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert semantics.axes == [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        None,
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"]),
+    ]
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
 
 

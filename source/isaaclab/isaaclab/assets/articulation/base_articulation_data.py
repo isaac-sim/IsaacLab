@@ -19,6 +19,8 @@ from ...utils.leapp import (
     QUAT_XYZW_COMPONENT_AXIS,
     TWIST_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     ExpressionFrame,
     Kind,
     body_angular_velocity_axes_resolver,
@@ -683,7 +685,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
 
@@ -696,7 +698,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -709,7 +711,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -722,7 +724,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -1031,7 +1033,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -1056,7 +1058,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
@@ -1072,7 +1076,7 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(
         kind=Kind.FRAME_ANGULAR_VELOCITY,
-        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
         expressed_in=ExpressionFrame.SELF,
     )
     def root_link_ang_vel_b(self) -> ProxyArray:
@@ -1088,7 +1092,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
@@ -1104,7 +1110,7 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(
         kind=Kind.FRAME_ANGULAR_VELOCITY,
-        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
         expressed_in=ExpressionFrame.SELF,
     )
     def root_com_ang_vel_b(self) -> ProxyArray:
@@ -1123,7 +1129,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
 
@@ -1135,7 +1141,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
@@ -1147,7 +1153,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
@@ -1159,7 +1167,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
@@ -1171,7 +1181,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
 
@@ -1183,7 +1193,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
@@ -1195,7 +1205,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
@@ -1207,7 +1219,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
@@ -1400,44 +1414,50 @@ class BaseArticulationData(ABC):
     """
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, POSE7_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
@@ -1446,7 +1466,7 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(
         kind=Kind.FRAME_ANGULAR_VELOCITY,
-        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
         expressed_in=ExpressionFrame.SELF,
     )
     def root_ang_vel_b(self) -> ProxyArray:

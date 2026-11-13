@@ -122,12 +122,17 @@ def leapp_tensor_semantics(
 
 
 def resolve_semantics_axes(semantics: LeappTensorSemantics, data_self, ref) -> list[Axis | None] | None:
-    """Resolve explicitly declared axes, including runtime joint or body labels."""
-    if semantics.axes is not None:
-        return semantics.axes
-    if semantics.axes_resolver is not None:
-        return semantics.axes_resolver(data_self, ref)
-    return None
+    """Resolve axes for environment-batched data and actuator tensors.
+
+    Without a declared layout, only the environment/system dimension is known.
+    Explicit axes retain the caller's layout, including unspecified dimensions.
+    """
+    axes = semantics.axes
+    if axes is None and semantics.axes_resolver is not None:
+        axes = semantics.axes_resolver(data_self, ref)
+    if axes is None and ref.ndim:
+        axes = [Axis(AxisKind.SYSTEM)] + [None] * (ref.ndim - 1)
+    return axes
 
 
 # ── Predefined axis resolvers ─────────────────────────────────────

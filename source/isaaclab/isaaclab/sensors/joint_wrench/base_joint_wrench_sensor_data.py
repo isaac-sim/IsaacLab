@@ -18,7 +18,9 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/force", axes=[None, Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind="state/joint/force", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS]
+    )
     def force(self) -> ProxyArray | None:
         """Linear component of the joint reaction wrench [N].
 
@@ -32,7 +34,9 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/torque", axes=[None, Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind="state/joint/torque", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS]
+    )
     def torque(self) -> ProxyArray | None:
         """Angular component of the joint reaction wrench [N·m].
 
