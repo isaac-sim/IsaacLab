@@ -112,8 +112,8 @@ Shared mode uses early physics attachment without an additional flag:
 #. Publish ``PHYSICS_READY``, allowing startup gravity callbacks and camera preparation to use the completed stage.
 #. Attach OVRTX to the shared stage during renderer preparation and continue normal rendering.
 
-Sensors select their initialization phase through the read-only
-:attr:`~isaaclab.sensors.SensorBase.initialize_event` property. Ordinary sensors use ``PHYSICS_READY``;
+Sensors select their initialization phase through the
+:attr:`~isaaclab.sensors.SensorBase.initialize_event` attribute. Ordinary sensors use ``PHYSICS_READY``;
 OVPhysX contact sensors use the manager's earlier binding event.
 
 Later physics edits consume their exact update ordinals and exclude the render-copy ordinal 2.

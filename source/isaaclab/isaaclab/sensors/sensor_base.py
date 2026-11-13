@@ -56,6 +56,14 @@ class SensorBase(ABC):
     they must not repeat reset-readiness checks or introduce class-level reset policies.
     """
 
+    initialize_event: Enum = PhysicsEvent.PHYSICS_READY
+    """Lifecycle event on which this sensor acquires its native resources.
+
+    Backend sensor implementations may select an earlier event when their native resources are
+    valid. Physics-binding consumers can use :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`
+    from their backend manager. The event is selected when initialization callbacks are registered.
+    """
+
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
 
@@ -94,17 +102,6 @@ class SensorBase(ABC):
     """
     Properties
     """
-
-    @property
-    def initialize_event(self) -> Enum:
-        """Lifecycle event on which this sensor acquires its native resources.
-
-        Defaults to :attr:`PhysicsEvent.PHYSICS_READY`. Backend sensor implementations may override
-        this read-only property to select an earlier event when their native resources are valid.
-        Physics-binding consumers can use :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`
-        from their backend manager. The event is selected when initialization callbacks are registered.
-        """
-        return PhysicsEvent.PHYSICS_READY
 
     @property
     def is_initialized(self) -> bool:

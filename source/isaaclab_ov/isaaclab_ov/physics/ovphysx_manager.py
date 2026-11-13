@@ -407,6 +407,12 @@ class OvPhysxBackend:
                 self.stage = None
 
 
+class _OvPhysxEvent(Enum):
+    """Internal initialization phase after native cloning and before render expansion."""
+
+    BINDINGS_READY = "ovphysx_bindings_ready"
+
+
 class OvPhysxManager(PhysicsManager):
     """Manages an ovphysx-backed physics simulation lifecycle.
 
@@ -437,10 +443,8 @@ class OvPhysxManager(PhysicsManager):
     backend_name = "ovphysx"
     clone_context_type = OvPhysxReplicateContext
 
-    @property
-    def binding_init_event(self) -> Enum:
-        """Binding phase after native cloning and warmup, before render cloning and public readiness."""
-        return _OvPhysxEvent.BINDINGS_READY
+    binding_init_event = _OvPhysxEvent.BINDINGS_READY
+    """Binding phase after native cloning and warmup, before render cloning and public readiness."""
 
     def get_dt(self) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
@@ -864,9 +868,3 @@ class OvPhysxManager(PhysicsManager):
                 ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
             ]:
                 scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
-
-
-class _OvPhysxEvent(Enum):
-    """Internal initialization phase after native cloning and before render expansion."""
-
-    BINDINGS_READY = "ovphysx_bindings_ready"

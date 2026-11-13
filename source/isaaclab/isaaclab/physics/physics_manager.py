@@ -149,6 +149,14 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     backend_name: ClassVar[str]
     """Backend implementation key used by asset and sensor factories."""
 
+    binding_init_event: Enum = PhysicsEvent.PHYSICS_READY
+    """Lifecycle event on which assets and contact sensors acquire native physics bindings.
+
+    Backends may select an earlier event, dispatched after native handles are valid and before
+    public readiness. The manager dispatches the selected event on non-soft resets; consumers use
+    it to register initialization callbacks without depending on backend-specific event names.
+    """
+
     def __init__(self, cfg: PhysicsCfg):
         """Store the physics configuration this manager runs.
 
@@ -163,17 +171,6 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         self._callback_id: int = 0
         self.views: dict[str, Any] = {}
         """Backend views by prim path expression, shared by the consumers of this manager."""
-
-    @property
-    def binding_init_event(self) -> Enum:
-        """Lifecycle event on which assets and contact sensors acquire native physics bindings.
-
-        Defaults to :attr:`PhysicsEvent.PHYSICS_READY`. Backends may override this read-only property
-        to select an earlier event, dispatched after native handles are valid and before public
-        readiness. The manager dispatches the selected event on non-soft resets; consumers use it
-        to register initialization callbacks without depending on backend-specific event names.
-        """
-        return PhysicsEvent.PHYSICS_READY
 
     @classmethod
     def _deprecated_active(cls, owner: str) -> PhysicsManager:
