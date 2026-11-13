@@ -155,6 +155,49 @@ def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) ->
             assert torch.count_nonzero(cube_object.data.root_com_vel_w.torch) == 0
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_heading_tracks_a_spin_between_substeps_and_across_outer_graph_replays(device: str) -> None:
+    """Derived data read by a state-force callback or after an outer graph replay follows the integrated state."""
+    num_substeps, yaw_rate = 3, 0.5
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, num_substeps=num_substeps)) as sim:
+        cube = spawn_assets({"cube": _cube_cfg()}, num_envs=1)["cube"]
+        sim.reset()
+        velocity = torch.zeros_like(cube.data.default_root_vel.torch)
+        velocity[:, 5] = yaw_rate
+        cube.write_root_velocity_to_sim_index(root_velocity=velocity)
+        substep_headings = [wp.zeros(1, dtype=wp.float32, device=device) for _ in range(num_substeps)]
+        substep = iter(())
+
+        def record_heading(state) -> None:
+            wp.copy(next(substep), cube.data.heading_w.warp)
+
+        sim.backend_manager.register_state_force_callback(record_heading)
+        backend = sim.backend_manager.backend
+        dt = sim.cfg.dt
+
+        def substep_increments() -> np.ndarray:
+            return np.diff([heading.numpy()[0] for heading in substep_headings])
+
+        # Eager step: each substep's callback sees the previous substep's state.
+        substep = iter(substep_headings)
+        sim.step()
+        cube.update(dt)
+        np.testing.assert_allclose(substep_increments(), yaw_rate * dt / num_substeps, atol=1e-5)
+
+        # A caller-owned capture of the step records the same substep reads.
+        substep = iter(substep_headings)
+        with wp.ScopedCapture(device=device) as capture:
+            backend.step()
+        cube.update(dt)
+        heading = cube.data.heading_w.torch[0].item()
+        for _ in range(3):
+            wp.capture_launch(capture.graph)
+            cube.update(dt)
+            np.testing.assert_allclose(substep_increments(), yaw_rate * dt / num_substeps, atol=1e-5)
+            assert cube.data.heading_w.torch[0].item() == pytest.approx(heading + yaw_rate * dt, abs=1e-5)
+            heading = cube.data.heading_w.torch[0].item()
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("api", ["none", "articulation"])
 def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:

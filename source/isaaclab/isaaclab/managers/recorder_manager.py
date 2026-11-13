@@ -88,7 +88,7 @@ class RecorderTerm(ManagerTermBase):
         Returns:
             A tuple of key and value to be recorded.
             The key can contain nested keys separated by '/'. For example, "obs/joint_pos" would add the given
-            value under ['obs']['policy'] in the underlying dictionary in the recorded episode data.
+            value under ['obs']['joint_pos'] in the underlying dictionary in the recorded episode data.
             The value can be a tensor or a nested dictionary of tensors. The shape of a tensor in the value
             is (env_ids, ...).
         """
@@ -217,6 +217,12 @@ class RecorderManager(ManagerBase):
     def active_terms(self) -> list[str]:
         """Name of active recorder terms."""
         return self._term_names
+
+    @property
+    def records_physics_steps(self) -> bool:
+        """Whether a term records after every physics step of the decimation loop."""
+        hook = RecorderTerm.record_post_physics_decimation_step
+        return any(type(term).record_post_physics_decimation_step is not hook for term in self._terms.values())
 
     @property
     def exported_successful_episode_count(self) -> int:
@@ -366,6 +372,10 @@ class RecorderManager(ManagerBase):
 
         Args:
             env_ids: The environment ids in which a reset is triggered.
+            force_export_or_skip: Whether to export the episodes at the end of this call. If True, the episodes
+                are exported; if False, the export is skipped. If None, the export follows the
+                ``export_in_record_pre_reset`` flag of :class:`~isaaclab.managers.RecorderManagerBaseCfg`.
+                Defaults to None.
         """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:

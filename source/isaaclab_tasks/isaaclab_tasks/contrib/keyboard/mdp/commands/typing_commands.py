@@ -125,10 +125,11 @@ def _resample_reset_kernel(
 class LetterTypingCommand(CommandTerm):
     """Letter-typing command for the procedural SO101 keyboard.
 
-    Each episode samples a fixed-length target sequence of key slots. The agent "types" by fully
-    pressing then releasing a key joint: a keystroke is registered once on each press edge, so
-    holding a key down counts as a single key. Every key pressed on a given step registers (a
-    real-keyboard model), so mashing several keys at once types them all - the extras land as mistakes.
+    Each episode samples a fixed-length target sequence of key slots. The agent "types" by pressing a
+    key joint past its actuation point (``actuation_fraction`` of its travel) then releasing it: a
+    keystroke is registered once on each press edge, so holding a key down counts as a single key.
+    Every key pressed on a given step registers (a real-keyboard model), so mashing several keys at
+    once types them all - the extras land as mistakes.
     Pressing the backspace key deletes the last typed key. The typed buffer cannot grow past its width
     (``max_len``), so once it is full the agent must backspace before it can type again.
 

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -32,6 +32,7 @@ class WrenchComposer:
         asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection,
         *,
         supports_world_at_com: bool = False,
+        on_first_use: Callable[[], None] | None = None,
     ) -> None:
         """Wrench composer with dual-buffer architecture.
 
@@ -60,6 +61,8 @@ class WrenchComposer:
             supports_world_at_com: Whether the consumer can apply a world-frame wrench at the body's
                 center of mass. When False, :meth:`get_forces_and_torques` always returns a body-frame
                 wrench. Defaults to False.
+            on_first_use: Called at the first write of forces or torques, e.g. to capture the step again with the
+                wrench work. Defaults to None.
         """
         self.num_envs = asset.num_instances
         self.num_bodies = asset.num_bodies
@@ -67,6 +70,8 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._used = False
+        self._on_first_use = on_first_use
         self._supports_world_at_com = supports_world_at_com
         # Conservative until a full reset; partial resets do not scan the remaining buffers.
         self._has_local_wrench = False
@@ -114,6 +119,19 @@ class WrenchComposer:
         compared to scanning the buffers every frame.
         """
         return self._active
+
+    @property
+    def pending(self) -> bool:
+        """Whether a writer must apply the wrench now: :attr:`active`, or always while recording after first use.
+
+        Recorded wrench work does not depend on host flags; every replay adds, composes and clears the buffers.
+        """
+        return self._recording or self._active
+
+    @property
+    def _recording(self) -> bool:
+        """Whether a CUDA graph is recording this composer's work after its first write."""
+        return self._used and wp.get_device(self.device).is_capturing
 
     @property
     def global_force_w(self) -> wp.array:
@@ -456,7 +474,7 @@ class WrenchComposer:
         Args:
             other: Another WrenchComposer whose input buffers will be added into this one.
         """
-        if not other._active:
+        if not other._active and not self._recording:
             return
         if __debug__:
             if other.num_envs != self.num_envs or other.num_bodies != self.num_bodies:
@@ -465,8 +483,7 @@ class WrenchComposer:
                     f"into composer with shape ({self.num_envs}, {self.num_bodies})."
                 )
 
-        self._active = True
-        self._dirty = True
+        self._mark_active()
         self._has_local_wrench = self._has_local_wrench or other._has_local_wrench
         self._has_global_wrench = self._has_global_wrench or other._has_global_wrench
         self._has_global_positions = self._has_global_positions or other._has_global_positions
@@ -534,6 +551,9 @@ class WrenchComposer:
             ``(num_envs, num_bodies)`` with dtype ``wp.vec3f``. The arrays are owned by the composer
             and stay valid until the next mutating call.
         """
+        if self._recording:
+            self.compose_to_body_frame()
+            return self._out_force_b, self._out_torque_b, False
         if not self._has_global_wrench:
             return self._local_force_b, self._local_torque_b, False
         if self._supports_world_at_com and not self._has_local_wrench and not self._has_global_positions:
@@ -559,7 +579,7 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
-        if not self._active:
+        if not self._active and not self._recording:
             return
         full_reset = env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)))
         if full_reset:
@@ -652,8 +672,7 @@ class WrenchComposer:
         Frame and argument presence are launch-time choices, fixed during graph capture.
         Selection contents and force/torque values remain device inputs on every replay.
         """
-        self._active = True
-        self._dirty = True
+        self._mark_active()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -661,6 +680,15 @@ class WrenchComposer:
             return force, self._global_torque_w
         self._has_local_wrench = True
         return self._local_force_b, self._local_torque_b
+
+    def _mark_active(self) -> None:
+        """Mark pending contributions, calling :attr:`_on_first_use` at the first one."""
+        self._active = True
+        self._dirty = True
+        if not self._used:
+            self._used = True
+            if self._on_first_use is not None:
+                self._on_first_use()
 
     def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array | torch.Tensor:
         """Resolve environment IDs.

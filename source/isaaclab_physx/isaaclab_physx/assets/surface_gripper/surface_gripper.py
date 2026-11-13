@@ -119,7 +119,7 @@ class SurfaceGripper(AssetBase):
     def state(self) -> wp.array:
         """Returns the gripper state buffer.
 
-        The gripper state is a list of integers:
+        The gripper state is a float32 array with values:
         - -1 --> Open
         - 0 --> Closing
         - 1 --> Closed
@@ -413,17 +413,18 @@ class SurfaceGripper(AssetBase):
             env_ids = self._ALL_INDICES
         self.reset_index(env_ids)
 
-    def reset(self, indices: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the gripper command buffer.
 
-        .. deprecated:: v2.0.0
-            Use :meth:`reset_index` instead.
-
         Args:
-            indices: A tensor of integers representing the indices of the grippers to reset. Defaults to None.
+            env_ids: Indices of the grippers to reset. Defaults to None (all grippers).
+            env_mask: Boolean mask of the grippers to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
-        env_ids = self._resolve_env_ids(indices)
-        self.reset_index(env_ids)
+        if env_mask is not None:
+            self.reset_mask(wp.to_torch(env_mask))
+        else:
+            self.reset_index(self._resolve_env_ids(env_ids))
 
     """
     Initialization.
@@ -433,7 +434,7 @@ class SurfaceGripper(AssetBase):
         """Initializes the gripper-related handles and internal buffers.
 
         Raises:
-            ValueError: If the simulation backend is not CPU.
+            Exception: If the simulation backend is not CPU.
             RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
         .. note::

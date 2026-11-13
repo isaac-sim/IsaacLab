@@ -241,8 +241,8 @@ force limits apply; otherwise it goes through the passive-force channel.
    )
 
 ``gravcomp=1.0`` provides full compensation. The joint fragment also enables full
-compensation on its child body if that body's value is unset or zero; an existing
-nonzero value is kept. To disable compensation, turn off ``actuatorgravcomp`` as
+compensation on its child body if that body's value is unset; an explicitly
+authored value, including zero, is kept. To disable compensation, turn off ``actuatorgravcomp`` as
 well as setting the body's ``gravcomp`` to zero.
 
 The older ``MujocoJointDrivePropertiesCfg`` also auto-enables body compensation
@@ -713,7 +713,7 @@ not need these details for the examples above.
     ``max_joint_velocity`` and ``max_effort`` as an alias for ``max_force``. Prefer the
     new names: the aliases are scheduled for removal in 4.0. Using an old name emits a
     deprecation warning and copies its value if the new field is unset. If both are
-    provided, the new field wins without a warning. The old dataclass fields are then
+    provided, the new field wins; the deprecation warning is still emitted. The old dataclass fields are then
     reset to ``None``.
 
 .. raw:: html

@@ -13,14 +13,15 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsActionCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from .cabinet_env_cfg import (
     CABINET_CFG,
+    CABINET_SIM_CFG,
     LIGHT_CFG,
     PLANE_CFG,
     CabinetDecimationCfg,
-    CabinetSimCfg,
     EventCfg,
 )
 
@@ -45,7 +46,7 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     action_space = 8
     observation_space = 31
     state_space = 0
-    sim: CabinetSimCfg = CabinetSimCfg()
+    sim: SimulationCfg = CABINET_SIM_CFG
     scene: CabinetDirectSceneCfg = CabinetDirectSceneCfg(num_envs=4096, env_spacing=2.0)
     events: EventCfg = EventCfg()
 

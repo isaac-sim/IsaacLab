@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.utils import launch_test_simulation
-
-launch_test_simulation()
-
 import types
 
 import pytest
@@ -29,6 +25,8 @@ from isaaclab_contrib.controllers.lee_acceleration_control_cfg import LeeAccCont
 from isaaclab_contrib.controllers.lee_attitude_control_cfg import LeeAttControllerCfg
 from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
+
+pytestmark = pytest.mark.kitless
 
 
 class _DummyRobot:
@@ -128,6 +126,34 @@ def _create_att_cfg() -> LeeAttControllerCfg:
     cfg.K_angvel_range = ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09))
     cfg.max_yaw_rate = 1.0471975511965976
     return cfg
+
+
+def test_lee_controller_inertia_uses_link_frame(monkeypatch: pytest.MonkeyPatch):
+    """Mass-frame orientation must not change inertia supplied in link axes."""
+    _patch_sim_context(monkeypatch, base_mod)
+    robot = _DummyRobot(2, 2, torch.device("cpu"))
+    half_sqrt_two = 2**-0.5
+    root_quat = torch.tensor([0.0, 0.0, half_sqrt_two, half_sqrt_two])
+    robot.data.root_link_quat_w[:] = root_quat
+    robot.data.root_quat_w[:] = root_quat
+    robot.data.body_link_quat_w[:, 0] = root_quat
+    robot.data.body_link_quat_w[:, 1] = torch.tensor([0.5, 0.5, 0.5, 0.5])
+    robot.data.body_link_pos_w[:, 1] = torch.tensor([0.0, 2.0, 0.0])
+    robot.data.body_mass[:] = torch.tensor([1.0, 3.0])
+    robot.data.body_inertia[:] = torch.tensor(
+        [[2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 3.0], [4.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 6.0]]
+    )
+    # Identical physical inertias: identity mass axes in env 0, rotated principal axes in env 1.
+    robot.data.body_com_quat_b[1, 0] = root_quat
+    robot.data.body_com_quat_b[1, 1] = torch.tensor([half_sqrt_two, 0.0, 0.0, half_sqrt_two])
+
+    controller = att_mod.LeeAttController(_create_att_cfg(), robot, num_envs=2, device="cpu")
+
+    # In base axes the link tensors sum to diag(6, 7, 8). The COM is at x=1.5 m,
+    # giving a parallel-axis contribution of 1*1.5**2 + 3*0.5**2 = 3 to Iyy and Izz.
+    expected_inertia = torch.diag(torch.tensor([6.0, 10.0, 11.0])).expand(2, -1, -1)
+    torch.testing.assert_close(controller.robot_inertia, expected_inertia)
+    torch.testing.assert_close(controller.mass, torch.tensor([4.0, 4.0]))
 
 
 # Controllers are pure torch with inertia aggregation patched out: device, env and body counts select no branch.

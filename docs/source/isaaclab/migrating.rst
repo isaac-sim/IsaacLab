@@ -1080,20 +1080,22 @@ removed in a future release.
 
 .. rubric:: Actuator effort and joint-limit names
 
-Actuator configurations now use joint-qualified names for solver limits. Update active
-configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` and will be removed in 3.1.
+Actuator configurations use joint-qualified names for solver limits. The aliases deprecated
+in 3.0 were removed in 3.1. Update configurations to the canonical fields below.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
    :widths: 38 38 24
 
-   * - Deprecated configuration field
+   * - Removed configuration field
      - Canonical configuration field
      - Runtime owner
    * - ``effort_limit``
      - ``actuator_effort_limit``
      - Actuator model (rated limit)
+   * - ``velocity_limit``
+     - ``actuator_velocity_limit``
+     - Actuator model (rated speed)
    * - ``effort_limit_sim``
      - ``joint_effort_limit``
      - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
@@ -1103,13 +1105,16 @@ configurations to the canonical fields below. The former names remain accepted w
 
 ``actuator_effort_limit`` clips explicit actuator-model output. ``joint_effort_limit`` and
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
-group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
-``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted until 3.1. ``effort_limit``
-resolves to the rated ``actuator_effort_limit`` for every actuator type. For an implicit group
-without a separately configured solver clamp, the rated value also populates
-``joint_effort_limit`` for backward compatibility; configure both fields to author distinct
-rated and solver limits. The runtime ``effort_limit`` and ``velocity_limit`` group properties
-follow the same mapping and are also deprecated.
+group's joint expression. Replace the runtime ``effort_limit`` and ``velocity_limit`` group
+properties with ``actuator_effort_limit`` and ``actuator_velocity_limit`` as well.
+For an implicit group that previously set only ``effort_limit``, set both
+``actuator_effort_limit`` and ``joint_effort_limit`` to preserve the rated and solver limits.
+If it previously set only ``velocity_limit_sim``, set both ``joint_velocity_limit`` and
+``actuator_velocity_limit`` to preserve the solver clamp and soft velocity limit.
+
+Direct actuator constructors also require the canonical argument names. Replace ``effort_limit``
+with ``actuator_effort_limit`` for explicit actuators or ``joint_effort_limit`` for implicit
+actuators, and replace ``velocity_limit`` with ``actuator_velocity_limit``.
 ``actuator_velocity_limit`` describes rated speed or an implicit soft-limit snapshot.
 ``joint_velocity_limit`` only requests solver enforcement, which is backend-dependent. See
 :ref:`actuators-joint-property-ownership` for the full ownership model.
@@ -1171,7 +1176,7 @@ same resolution semantics as a standalone function:
            self.my_gain = resolve_joint_parameter(cfg.my_gain, 0.0, joint_names, num_envs, device)
 
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
-``write_actuator_damping_to_sim`` are deprecated. Use
+``write_actuator_damping_to_sim`` were removed in 3.1. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
 updates actuator-owned gains, implicit solver drives, or native drive parameters as
 appropriate. For direct writes to a Newton-executed group's drive, use
@@ -1179,9 +1184,8 @@ appropriate. For direct writes to a Newton-executed group's drive, use
 from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
 warns and will be removed in 3.2.
 
-Named regular-expression groups retain their configuration behavior. If both a deprecated name and
-its canonical replacement are present in the same group, use only the canonical name; equivalent
-values warn and select the canonical value, whereas conflicting values raise :class:`ValueError`.
+Named regular-expression groups retain their configuration behavior; use the canonical field
+names in each group.
 
 
 .. rubric:: Actuator API Moves to ``ActuatorCollection``
@@ -2500,7 +2504,7 @@ The same pattern applies to the play workflow:
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
-``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
+``sb3``, ``rlinf``, and ``torchrl``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
 unified commands instead.
 
 For distributed launchers that execute a Python script directly, use the unified
@@ -2691,8 +2695,8 @@ renderer and ``--viz newton_gl`` through pyglet's EGL backend.
      - Extra requirement
    * - ``kit``
      - Replicator offscreen renderer (no display)
-     - Must also pass ``--enable_cameras``; without it, ``render_rgb_array()`` returns
-       black frames. ``--video`` sets this automatically.
+     - ``--enable_cameras`` is removed; the launcher enables the Kit camera rendering that
+       ``render_rgb_array()`` needs itself, for example for ``--video viz:kit``.
    * - ``newton_gl``
      - pyglet EGL backend (no display)
      - None — ``NewtonGLVisualizer`` auto-detects a missing ``$DISPLAY`` and selects EGL.
