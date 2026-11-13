@@ -46,6 +46,13 @@ class SelectorRecordingActuator(ImplicitActuator):
         return super().compute(control_action, joint_pos, joint_vel)
 
 
+class ResetRecordingActuator(ImplicitActuator):
+    """Custom actuator that records the selection supplied to :meth:`reset`."""
+
+    def reset(self, env_ids=None, env_mask=None):
+        self.reset_selection = (env_ids, env_mask)
+
+
 def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
     return IdealPDActuatorCfg(
         joint_names_expr=joints,
@@ -908,6 +915,19 @@ def test_write_command_mask_uses_full_sized_value(command_name):
 
     with pytest.raises(TypeError, match="wp.bool"):
         setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
+
+
+def test_index_and_mask_resets_pass_both_selections_to_models():
+    cfg = _implicit_cfg()
+    cfg.class_type = ResetRecordingActuator
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.reset([1])
+    assert collection["all"].reset_selection == ([1], None)
+
+    collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    env_ids, env_mask = collection["all"].reset_selection
+    assert env_ids is None and env_mask.numpy().tolist() == [False, True]
 
 
 @pytest.mark.parametrize("device", test_devices())
