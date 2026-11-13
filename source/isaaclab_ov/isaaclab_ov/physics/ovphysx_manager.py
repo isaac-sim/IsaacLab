@@ -444,7 +444,22 @@ class OvPhysxManager(PhysicsManager):
     clone_context_type = OvPhysxReplicateContext
 
     binding_init_event = _OvPhysxEvent.BINDINGS_READY
-    """Binding phase after native cloning and warmup, before render cloning and public readiness."""
+    """Binding phase before render cloning and public readiness when a shared stage is borrowed.
+
+    Otherwise, its subscribers run with PHYSICS_READY subscribers in callback priority order.
+    """
+
+    def dispatch_event(self, event: PhysicsEvent, payload: Any = None) -> None:
+        """Resolve binding readiness using the stage ownership selected after callback registration.
+
+        Args:
+            event: Lifecycle event to dispatch.
+            payload: Optional data to pass to callbacks.
+        """
+        if event == PhysicsEvent.PHYSICS_READY and (self.backend is None or self.backend.owns_scene):
+            self._dispatch_events((self.binding_init_event, event), payload)
+        else:
+            super().dispatch_event(event, payload)
 
     def get_dt(self) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
@@ -557,7 +572,7 @@ class OvPhysxManager(PhysicsManager):
                 if self.backend is not None and self.backend.stage is not None:
                     self.dispatch_event(PhysicsEvent.STOP, payload={})
                 self._warmup_and_load()
-            else:
+            elif not self.backend.owns_scene:
                 # Consumers added since the previous reset still need their binding callback.
                 self.dispatch_event(self.binding_init_event, payload={})
             self.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
@@ -787,7 +802,8 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend._defer_setup(self.backend, self._device, entries)
 
         self.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
-        self.dispatch_event(self.binding_init_event, payload={})
+        if not self.backend.owns_scene:
+            self.dispatch_event(self.binding_init_event, payload={})
         if shared_scene is not None and shared_scene.render_copies_pending:
             # Acquire publication bindings while the stage still contains only originals.
             # Complete the reserved ordinal before public callbacks can author gravity or cameras.

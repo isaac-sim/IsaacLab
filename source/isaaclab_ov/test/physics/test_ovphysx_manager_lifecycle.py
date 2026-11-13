@@ -692,6 +692,81 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]
 
 
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+@pytest.mark.parametrize("shared", [False, True])
+def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, shared):
+    """Only shared stages bind before public readiness, including consumers added after warmup."""
+    from isaaclab_ov.assets import RigidObject
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.physics import PhysicsEvent
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    # A flag without a shared renderer must not change headless callback ordering.
+    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CPU_DEVICES[0], gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        consumers = [
+            RigidObject(
+                RigidObjectCfg(
+                    prim_path="/World/Cube",
+                    spawn=sim_utils.CuboidCfg(
+                        size=(0.5, 0.5, 0.5),
+                        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+                    ),
+                )
+            )
+        ]
+        events = []
+        manager = sim.backend_manager
+        for name, event, order in [
+            ("ready_first", PhysicsEvent.PHYSICS_READY, 0),
+            ("bindings", manager.binding_init_event, 11),
+            ("ready_last", PhysicsEvent.PHYSICS_READY, 20),
+        ]:
+            manager.register_callback(
+                lambda _, name=name: events.append((name, tuple(asset.is_initialized for asset in consumers))),
+                event,
+                order=order,
+            )
+        # Stage sharing is selected after assets and listeners have already registered.
+        if shared:
+            sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        sim.reset()
+        assert events == (
+            [("bindings", (True,)), ("ready_first", (True,)), ("ready_last", (True,))]
+            if shared
+            else [("ready_first", (False,)), ("bindings", (True,)), ("ready_last", (True,))]
+        )
+
+        # An isolated rendering stage must not change physics ownership or readiness ordering.
+        sim.get_or_create_backend(OvstageBackendCfg(scene_key=1))
+        consumers.append(RigidObject(RigidObjectCfg(prim_path="/World/Cube", spawn=None)))
+        for rebuild in (False, True):
+            events.clear()
+            if rebuild:
+                manager._warmup_done = False
+            sim.reset()
+            assert events == (
+                [("bindings", (True, True)), ("ready_first", (True, True)), ("ready_last", (True, True))]
+                if shared
+                else [
+                    ("ready_first", (not rebuild, False)),
+                    ("bindings", (True, True)),
+                    ("ready_last", (True, True)),
+                ]
+            )
+        events.clear()
+        sim.reset(soft=True)
+        assert events == []
+
+
 @pytest.mark.parametrize("warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), ("warmup", True)])
 def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, manager, warmup, clone_fails):
     """Accepted clone failures prevent warmup and model-ready publication."""
@@ -725,7 +800,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, load=lambda usda: None)
+    backend = SimpleNamespace(physx=FakePhysX(), stage=None, owns_scene=True, load=lambda usda: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -750,6 +825,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         manager._warmup_and_load()
 
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT, manager.binding_init_event]
+        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)

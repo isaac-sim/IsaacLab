@@ -118,6 +118,9 @@ Deferred render copies still populate any missing render-only prims at ordinal 2
 Sensors select their initialization phase through the
 :attr:`~isaaclab.sensors.SensorBase.initialize_event` attribute. Ordinary sensors use ``PHYSICS_READY``;
 OVPhysX contact sensors use the manager's earlier binding event.
+The earlier phase runs only when OVPhysX borrows a shared stage. Without a shared stage, asset and
+contact initialization callbacks run together with ``PHYSICS_READY`` callbacks in priority order,
+including on resets and forced reinitialization.
 
 Later physics edits consume their exact update ordinals and exclude the render-copy ordinal 2.
 A failed render copy requires a stage rebuild before retry. A forced reset releases bindings before

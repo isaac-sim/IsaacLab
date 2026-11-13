@@ -155,6 +155,8 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     Backends may select an earlier event, dispatched after native handles are valid and before
     public readiness. The manager dispatches the selected event on non-soft resets; consumers use
     it to register initialization callbacks without depending on backend-specific event names.
+    When early binding is unnecessary, backends may combine this phase with
+    :attr:`PhysicsEvent.PHYSICS_READY` in callback priority order.
     """
 
     def __init__(self, cfg: PhysicsCfg):
@@ -412,7 +414,16 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in self._callbacks.items() if ev == event]
+        self._dispatch_events((event,), payload)
+
+    def _dispatch_events(self, events: tuple[Enum, ...], payload: Any = None) -> None:
+        """Dispatch subscribers to the selected events together in callback priority order.
+
+        Args:
+            events: Lifecycle phases whose subscribers should run in one ordered pass.
+            payload: Optional data to pass to callbacks.
+        """
+        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in self._callbacks.items() if ev in events]
         matching.sort(key=lambda x: x[2])
 
         for _, callback, _ in matching:
