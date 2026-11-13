@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descriptor_warp
-from isaaclab_experimental.managers import SceneEntityCfg
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import rotate_vec_to_body_frame, yaw_from_quat
 
 if TYPE_CHECKING:
