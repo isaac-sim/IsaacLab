@@ -10,7 +10,7 @@ the SimReady asset folder, with the search that produced them. The task reads th
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tools/find_simready_props.py
+    uv run python scripts/tools/find_simready_props.py
 """
 
 import json
