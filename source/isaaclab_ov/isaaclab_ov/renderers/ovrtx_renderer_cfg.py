@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, ClassVar
@@ -41,6 +42,47 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+
+    active_cuda_gpus: str | None = None
+    """Explicit rendering devices, or None to follow the simulation/native default."""
+
+
+def parse_active_cuda_gpus(value: str) -> tuple[int, ...]:
+    """Parse an ``active_cuda_gpus`` selection such as ``"0"`` or ``"0,1"``.
+
+    Args:
+        value: Comma-separated CUDA device indices.
+
+    Returns:
+        The CUDA device indices in the given order.
+
+    Raises:
+        ValueError: If the value is not a comma-separated list of unique non-negative CUDA indices.
+    """
+    if re.fullmatch(r"(0|[1-9][0-9]*)(,(0|[1-9][0-9]*))*", value) is None:
+        raise ValueError(f"active_cuda_gpus must list CUDA indices such as '0' or '0,1'; got {value!r}")
+    indices = tuple(int(index) for index in value.split(","))
+    if len(set(indices)) != len(indices):
+        raise ValueError(f"active_cuda_gpus lists a CUDA index more than once: {value!r}")
+    return indices
+
+
+def parse_cuda_device_index(value: str) -> int:
+    """Return ``N`` for an explicit ``"cuda:N"`` device.
+
+    Args:
+        value: Device name, such as a ``geometry_publication_device`` value.
+
+    Returns:
+        The CUDA device index.
+
+    Raises:
+        ValueError: If the value is not an explicit ``"cuda:N"`` device.
+    """
+    match = re.fullmatch(r"cuda:(0|[1-9][0-9]*)", value)
+    if match is None:
+        raise ValueError(f"Expected an explicit CUDA device such as 'cuda:0'; got {value!r}")
+    return int(match.group(1))
 
 
 @configclass
@@ -132,6 +174,35 @@ class OVRTXRendererCfg(RendererCfg):
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
 
+    active_cuda_gpus: str | None = None
+    """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
+
+    Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
+    The first native initialization attempt fixes this selection for the process, even after
+    renderer teardown or failed startup. Later renderers must request the same selection;
+    conflicting requests raise :class:`ValueError`. Start a new process to change rendering GPUs.
+    Native selection for CPU simulation must not be mixed with an explicit selection in one process.
+    This does not change physics or the geometry publication destination. Camera outputs are still returned on the
+    simulation device. When the set excludes the simulation GPU, render products use automatic
+    device assignment and their outputs are copied from the rendering GPU to the simulation GPU
+    before extraction, which costs one device-to-device copy per output and frame.
+    """
+    geometry_publication_device: str | None = None
+    """Optional ``"cuda:N"`` destination for completed OVStage geometry snapshots.
+
+    Defaults to None (source placement). Set to the rendering GPU to copy foreign-GPU points
+    and rigid transforms before publication returns; this does not select the rendering GPU or change physics.
+    CPU-only and already-local CUDA inputs keep their placement. Mixed CPU/CUDA batches,
+    implicit ``"cuda"`` devices and custom CUDA-context aliases are unsupported. Requires OVStage.
+    The device must be a rendering GPU: one of :attr:`active_cuda_gpus`, or the simulation GPU when
+    that is unset. Other devices are rejected, at configuration or Stage preparation.
+
+    Producers must serialize updates on their current Warp streams and retain inputs until
+    publication returns. Unrelated streams and concurrent mutation are not synchronized.
+    Reusable buffers for foreign geometry and rigid transforms are retained through Stage copy-in; enabling this
+    option adds copy work and device memory, without adding a frame queue.
+    """
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the per-output layouts supported by the OVRTX renderer."""
 
@@ -154,3 +225,15 @@ class OVRTXRendererCfg(RendererCfg):
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
+
+    def __post_init__(self) -> None:
+        # Reject malformed GPU selections before any environment or native resource exists.
+        rendering = None if self.active_cuda_gpus is None else parse_active_cuda_gpus(self.active_cuda_gpus)
+        if self.geometry_publication_device is not None:
+            publication = parse_cuda_device_index(self.geometry_publication_device)
+            # Copies to a GPU that does not render add work and memory without reaching the renderer.
+            if rendering is not None and publication not in rendering:
+                raise ValueError(
+                    f"geometry_publication_device {self.geometry_publication_device!r} is not a rendering GPU"
+                    f" {list(rendering)}; select one of active_cuda_gpus"
+                )

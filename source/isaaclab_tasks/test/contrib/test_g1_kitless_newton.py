@@ -1,0 +1,308 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Sim-free tests for the G1 kitless Newton task boundary."""
+
+import math
+from types import SimpleNamespace
+
+import pytest
+import torch
+from isaaclab_newton.physics import NewtonCfg
+
+from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+    FixedBaseUpperBodyIKG1EnvCfg,
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp,
+)
+from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
+    ACTUATOR_PROFILE,
+    JOINT_LIMIT_MARGIN_RAD,
+    JOINT_TARGET_MAX_STEP_RAD,
+    POSITION_MAX_STEP_M,
+    ROTATION_MAX_STEP_RAD,
+    G1NewtonBoundedPinkInverseKinematicsAction,
+    bound_pink_joint_targets,
+    condition_kitless_newton_g1_action,
+    teleop_action_target_issue,
+)
+from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
+from isaaclab_tasks.contrib.steering_wheel import SteeringWheelUsdFileCfg
+
+RECORDED_FIRST_ACTION = torch.tensor(
+    [
+        -0.11201994,
+        0.43588385,
+        0.89166349,
+        -0.12487421,
+        -0.11215594,
+        0.69946498,
+        0.69467705,
+        0.14433567,
+        0.41181007,
+        0.91755670,
+        0.00914924,
+        -0.05320583,
+        0.65801126,
+        0.75107032,
+        *([0.0] * 14),
+    ],
+    dtype=torch.float32,
+)
+
+
+def _quat_angle(a: torch.Tensor, b: torch.Tensor) -> float:
+    a = torch.nn.functional.normalize(a, dim=0)
+    b = torch.nn.functional.normalize(b, dim=0)
+    return float(2.0 * torch.acos(torch.clamp(torch.abs(torch.sum(a * b)), 0.0, 1.0)))
+
+
+def _fake_env():
+    left = torch.tensor([0.23491086, 0.21602505, 0.63518274, -0.13474128, 0.79248637, -0.02669795, -0.59422028])
+    right = torch.tensor([-0.30430639, 0.52459145, 0.78784978, 0.19782960, 0.52823287, 0.41972736, 0.71109974])
+    poses = torch.stack((left, right)).unsqueeze(0)
+    robot = SimpleNamespace(
+        body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
+        data=SimpleNamespace(body_link_pose_w=SimpleNamespace(torch=poses)),
+    )
+    cfg = SimpleNamespace(
+        actions=SimpleNamespace(
+            upper_body_ik=SimpleNamespace(
+                target_eef_link_names={
+                    "left_wrist": "left_wrist_yaw_link",
+                    "right_wrist": "right_wrist_yaw_link",
+                }
+            )
+        )
+    )
+    env = SimpleNamespace(
+        scene={"robot": robot}, cfg=cfg, common_step_counter=0, episode_length_buf=torch.zeros(1, dtype=torch.long)
+    )
+    return env, left, right
+
+
+def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
+    default_cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    newton_cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    newton_cfg.sim.physics = NewtonCfg()
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp(newton_cfg)
+
+    assert newton_cfg.sim.physics.solver_cfg.nconmax == 4096
+    assert newton_cfg.sim.physics.solver_cfg.njmax == 1536
+    for name, selected in ACTUATOR_PROFILE.items():
+        actuator = newton_cfg.scene.robot.actuators[name]
+        assert {key: getattr(actuator, key) for key in selected} == selected
+    assert newton_cfg.actions.upper_body_ik.class_type is G1NewtonBoundedPinkInverseKinematicsAction
+    assert newton_cfg.isaac_teleop.action_conditioner is condition_kitless_newton_g1_action
+    assert newton_cfg.isaac_teleop.action_validator is teleop_action_target_issue
+    assert isinstance(newton_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg)
+    assert isinstance(newton_cfg.scene.object.spawn, SteeringWheelUsdFileCfg)
+
+    assert default_cfg.isaac_teleop.action_conditioner is None
+    assert default_cfg.isaac_teleop.action_validator is None
+    assert not isinstance(default_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg)
+    assert not isinstance(default_cfg.scene.object.spawn, SteeringWheelUsdFileCfg)
+
+
+def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> None:
+    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
+        LocomanipulationG1EnvCfg,
+        prepare_locomanipulation_g1_for_kitless_newton_mjwarp,
+    )
+
+    cfg = LocomanipulationG1EnvCfg()
+    controller = cfg.actions.lower_body_joint_pos.copy()
+    upper_body_class = cfg.actions.upper_body_ik.class_type
+    cfg.sim.physics = NewtonCfg()
+    prepare_locomanipulation_g1_for_kitless_newton_mjwarp(cfg)
+
+    assert cfg.scene.robot.joint_ordering == "physx"
+    assert cfg.actions.lower_body_joint_pos == controller
+    assert cfg.actions.upper_body_ik.class_type == upper_body_class
+    assert cfg.isaac_teleop.action_conditioner is None
+    assert cfg.sim.physics.solver_cfg.integrator == "implicitfast"
+    assert cfg.sim.physics.num_substeps == 2
+    # Same robot and props as fixed-base G1, plus foot contacts: keep at least its MJWarp budget.
+    assert cfg.sim.physics.solver_cfg.nconmax >= 4096
+    assert cfg.sim.physics.solver_cfg.njmax >= 1536
+
+
+def test_recorded_first_action_is_ramped_and_finite() -> None:
+    env, left, right = _fake_env()
+    action = RECORDED_FIRST_ACTION.reshape(7, 4).t().contiguous().t()
+    assert not action.is_contiguous()
+    conditioned = condition_kitless_newton_g1_action(env, action, {}).flatten()
+
+    assert teleop_action_target_issue(conditioned) is None
+    assert torch.isfinite(conditioned).all()
+    assert float(torch.linalg.norm(conditioned[:3] - left[:3])) <= POSITION_MAX_STEP_M + 1.0e-6
+    assert float(torch.linalg.norm(conditioned[7:10] - right[:3])) <= POSITION_MAX_STEP_M + 1.0e-6
+    assert _quat_angle(conditioned[3:7], left[3:7]) <= ROTATION_MAX_STEP_RAD + 1.0e-5
+    assert _quat_angle(conditioned[10:14], right[3:7]) <= ROTATION_MAX_STEP_RAD + 1.0e-5
+    assert torch.equal(conditioned[14:], RECORDED_FIRST_ACTION[14:])
+
+
+def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
+    """A success/drop auto-reset inside env.step moves the wrists; the ramp must restart from there."""
+    env, left, _ = _fake_env()
+    poses = env.scene["robot"].data.body_link_pose_w.torch
+
+    def step(terminated: bool = False) -> None:
+        # Advance the counters like ManagerBasedRLEnv.step; a terminated episode resets to a lower pose.
+        env.common_step_counter += 1
+        env.episode_length_buf += 1
+        if terminated:
+            env.episode_length_buf[0] = 0
+            poses[0, :, :3] += torch.tensor([0.0, 0.0, -0.2])
+
+    state = {}
+    target = RECORDED_FIRST_ACTION.clone()
+    conditioned = condition_kitless_newton_g1_action(env, target, state)
+    for _ in range(58):
+        step()
+        conditioned = condition_kitless_newton_g1_action(env, target, state)
+    # The ramp has converged near the operator's hands, far from the reset pose.
+    assert float(torch.linalg.norm(conditioned[:3] - left[:3])) > 2 * POSITION_MAX_STEP_M
+    # The episode terminates, then the next one terminates on its first step: its counter goes
+    # 0 -> 1 -> 0 between two frames without decreasing.
+    for _ in range(2):
+        step(terminated=True)
+        conditioned = condition_kitless_newton_g1_action(env, target, state)
+        assert float(torch.linalg.norm(conditioned[:3] - poses[0, 0, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+        assert float(torch.linalg.norm(conditioned[7:10] - poses[0, 1, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+
+
+@pytest.mark.parametrize(
+    "angle, axis, sign", [(0.9, (1, 0, 0), 1), (1.2, (0, 1, 1), -1), (0.1, (0, 0, 1), 1), (0, (1, 0, 0), -1)]
+)
+def test_conditioned_wrist_rotation_obeys_angular_cap(angle, axis, sign):
+    """The public action conditioner follows the short rotation without exceeding its cap."""
+    env, _, _ = _fake_env()
+    pose = env.scene["robot"].data.body_link_pose_w.torch
+    # Any fixed unit quaternion works as the start: slerp is convention-independent. This is the
+    # (x, y, z, w) = (1, 0, 0, 0) half-turn about x, not identity.
+    pose[0, :, 3:7] = torch.tensor([1.0, 0, 0, 0])
+    direction = torch.nn.functional.normalize(torch.tensor(axis, dtype=torch.float32), dim=0)
+    target = sign * torch.cat((torch.tensor([math.cos(angle / 2)]), direction * math.sin(angle / 2)))
+    action = RECORDED_FIRST_ACTION.clone()
+    action[3:7] = action[10:14] = target
+    conditioned = condition_kitless_newton_g1_action(env, action, {})
+    start = torch.tensor([1.0, 0, 0, 0])
+    for result in (conditioned[3:7], conditioned[10:14]):
+        assert torch.isfinite(result).all()
+        assert torch.linalg.norm(result).item() == pytest.approx(1, abs=1.0e-6)
+        assert _quat_angle(start, result) <= min(angle, ROTATION_MAX_STEP_RAD) + 1.0e-5
+        assert _quat_angle(result, target) == pytest.approx(max(0, angle - ROTATION_MAX_STEP_RAD), abs=1.0e-5)
+
+
+def test_invalid_actions_fail_closed() -> None:
+    nonfinite = RECORDED_FIRST_ACTION.clone()
+    nonfinite[0] = float("nan")
+    assert teleop_action_target_issue(nonfinite) == "non-finite action target"
+
+    oversized = RECORDED_FIRST_ACTION.clone()
+    oversized[14] = 7.0
+    assert teleop_action_target_issue(oversized) == "unreasonable hand joint target magnitude"
+    assert "unexpected G1 controller action size" in teleop_action_target_issue(torch.zeros(27))
+
+    missing_wrist_env, _, _ = _fake_env()
+    missing_wrist_env.scene = {}
+    with pytest.raises(RuntimeError, match="could not resolve the task-selected G1 wrist poses"):
+        condition_kitless_newton_g1_action(missing_wrist_env, RECORDED_FIRST_ACTION, {})
+
+
+@pytest.mark.parametrize("nonfinite", [False, True])
+def test_invalid_action_errors_preserve_priority(nonfinite) -> None:
+    action = RECORDED_FIRST_ACTION.clone()
+    action[3:7] = 0.0
+    action[10:14] = torch.tensor([3.0, 0.0, 0.0, 0.0])
+    action[14] = 7.0
+    if nonfinite:
+        action[0] = float("nan")
+    expected = "non-finite action target" if nonfinite else "invalid wrist quaternion norms [0.0, 3.0]"
+    assert teleop_action_target_issue(action) == expected
+
+
+def test_action_validation_accepts_inclusive_thresholds() -> None:
+    action = RECORDED_FIRST_ACTION.clone()
+    action[3:7] = torch.tensor([0.25, 0.0, 0.0, 0.0])
+    action[10:14] = torch.tensor([2.0, 0.0, 0.0, 0.0])
+    action[14:] = 6.5
+    assert teleop_action_target_issue(action) is None
+
+
+def test_pink_targets_are_slew_limited_and_clamped_to_common_limits() -> None:
+    current = torch.tensor([0.25, 0.0, -0.5])
+    proposed = torch.tensor([0.5215, -4.0, 4.0])
+    lower = torch.tensor([-0.2617994, -2.0, -1.0])
+    upper = torch.tensor([0.2617994, 2.0, 1.0])
+
+    bounded = bound_pink_joint_targets(current, proposed, lower, upper)
+
+    assert torch.all(bounded >= lower + JOINT_LIMIT_MARGIN_RAD)
+    assert torch.all(bounded <= upper - JOINT_LIMIT_MARGIN_RAD)
+    assert float(bounded[0]) == pytest.approx(0.2617994 - JOINT_LIMIT_MARGIN_RAD)
+    assert float(bounded[1]) == pytest.approx(-JOINT_TARGET_MAX_STEP_RAD)
+    assert float(bounded[2]) == pytest.approx(-0.5 + JOINT_TARGET_MAX_STEP_RAD)
+
+
+@pytest.mark.parametrize("invalid_input", ["current", "proposed", "lower", "upper"])
+def test_nonfinite_pink_target_fails_closed(invalid_input) -> None:
+    inputs = {
+        "current": torch.zeros((2, 1)),
+        "proposed": torch.zeros((2, 1)),
+        "lower": -torch.ones((2, 1)),
+        "upper": torch.ones((2, 1)),
+    }
+    inputs[invalid_input][1, 0] = float("nan")
+    with pytest.raises(RuntimeError, match="non-finite Pink joint target boundary"):
+        bound_pink_joint_targets(**inputs)
+
+
+@pytest.mark.parametrize("nonfinite", [False, True])
+def test_empty_pink_limit_intersection_fails_closed(nonfinite) -> None:
+    current = torch.zeros((2, 1))
+    if nonfinite:
+        current[0, 0] = float("nan")
+    lower = torch.tensor([[-1.0], [0.0]])
+    upper = torch.tensor([[1.0], [0.0]])
+    message = "non-finite Pink joint target boundary" if nonfinite else "joint-limit intersection is empty"
+    with pytest.raises(RuntimeError, match=message):
+        bound_pink_joint_targets(current, torch.zeros_like(current), lower, upper)
+
+
+def test_pink_limit_cache_keeps_live_articulation_limits(monkeypatch):
+    from isaaclab.envs.mdp.actions.pink_task_space_actions import PinkInverseKinematicsAction
+
+    proposed = torch.tensor([[0.6, -0.4], [0.8, 0.8]])
+    monkeypatch.setattr(PinkInverseKinematicsAction, "_compute_ik_solutions", lambda self: proposed)
+    action = G1NewtonBoundedPinkInverseKinematicsAction.__new__(G1NewtonBoundedPinkInverseKinematicsAction)
+    action._env = SimpleNamespace(device="cpu")
+    limits = torch.tensor([[[-1.0, 1.0]] * 3, [[-0.8, 0.8]] * 3])
+    action._asset = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_pos=SimpleNamespace(torch=torch.tensor([[0.2, 0.0, 0.0], [0.4, 0.0, -0.2]])),
+            joint_pos_limits=SimpleNamespace(torch=limits),
+        )
+    )
+    action._isaaclab_controlled_joint_ids = [2, 0]
+    action._ik_controllers = [
+        SimpleNamespace(
+            pink_configuration=SimpleNamespace(
+                controlled_model=SimpleNamespace(
+                    lowerPositionLimit=lower,
+                    upperPositionLimit=upper,
+                )
+            ),
+            pink_to_isaac_lab_controlled_ordering=[1, 0],
+        )
+        for lower, upper in [([-0.25, -0.05], [0.5, 0.06]), ([-0.3, -0.4], [0.45, 0.7])]
+    ]
+    action._pink_joint_limits = None
+    torch.testing.assert_close(action._compute_ik_solutions(), torch.tensor([[0.059, 0.1], [-0.1, 0.449]]))
+    cached = action._pink_joint_limits
+    limits[0, 2, 1] = 0.03
+    limits[1, 0, 1] = 0.42
+    torch.testing.assert_close(action._compute_ik_solutions(), torch.tensor([[0.029, 0.1], [-0.1, 0.419]]))
+    assert action._pink_joint_limits is cached

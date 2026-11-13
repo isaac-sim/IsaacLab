@@ -23,6 +23,10 @@ both OVPhysX and Newton. OVPhysX also retains native physics cloning.
 ``0`` selects native OVRTX cloning. Set the flag before creating the simulation. Reset retains the
 selected route. This flag alone never enables physics/rendering stage sharing.
 
+An active :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` makes OVStage rendering the
+unset default for the leased OVRTX renderer, and rejects
+``ISAAC_LAB_OVRTX_USE_OVSTAGE=0`` and ``ISAAC_LAB_SHARE_OVSTAGE=1``.
+
 To share one OVStage with OVPhysX and OVRTX, set ``ISAAC_LAB_SHARE_OVSTAGE=1``. Sharing requires
 OVPhysX and selects OVStage rendering regardless of ``ISAAC_LAB_OVRTX_USE_OVSTAGE``.
 
@@ -33,6 +37,7 @@ consumer attaches.
 
 Configure shared-stage cameras before the initial simulation reset. Cameras may have different product
 settings, but share one native renderer and must agree on native logging and transform-cache settings.
+They must also select the same rendering GPUs (:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.active_cuda_gpus`).
 Full-stage physics imports, including deformable scenes that require authored environment copies, are
 not supported in shared mode. Disable ``ISAAC_LAB_SHARE_OVSTAGE``
 for those scenes; sharing rejects them before native population rather than dropping their USD overrides.

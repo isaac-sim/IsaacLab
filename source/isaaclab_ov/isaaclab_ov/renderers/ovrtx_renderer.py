@@ -14,6 +14,10 @@ How it fits together
   its own pending ``step_async`` render operation and publishes it at the next ``read_output``.
   The ovrtx binding write operations retain their input buffers until ovrtx has consumed them.
 
+- **render_lease.py**: External borrowing, ownership transfer and scene publication ordering.
+
+- **publication_buffers.py**: Producer-buffer retention and native write completion.
+
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
@@ -28,12 +32,12 @@ import math
 import os
 import sys
 import tempfile
+import threading
 import weakref
 from builtins import ExceptionGroup
-from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +88,12 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import (
+    OVRTXBackendCfg,
+    OVRTXRendererCfg,
+    parse_active_cuda_gpus,
+    parse_cuda_device_index,
+)
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
@@ -107,6 +116,9 @@ from isaaclab_ov.stage import (
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
+
+from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
+from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -256,9 +268,14 @@ def _resolve_env_light_partitions(
 class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
+    # None is uninitialized; an empty tuple requests native GPU selection for CPU simulation.
+    _initial_gpu_selection: tuple[int, ...] | None = None
+    _initialization_lock = threading.Lock()
+
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
         self.attached = False
+        self._render_lease_owner: OVRTXRenderer | None = None
         self.render_products: set[str] = set()
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
@@ -266,9 +283,18 @@ class OVRTXBackend:
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
+        # An explicit ``active_cuda_gpus`` selection takes precedence.
         sim_device = wp.get_device(cfg.device)
+        active_cuda_gpus = (
+            cfg.active_cuda_gpus
+            if cfg.active_cuda_gpus is not None
+            else str(sim_device.ordinal)
+            if sim_device.is_cuda
+            else None
+        )
+        selection = parse_active_cuda_gpus(active_cuda_gpus) if active_cuda_gpus is not None else ()
         native_cfg = RendererConfig(
-            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
+            active_cuda_gpus=active_cuda_gpus,
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -276,8 +302,6 @@ class OVRTXBackend:
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Redirection may initialize the native library and must use the same settings.
-        redirect_shader_cache(native_cfg)
         self.next_camera_id = 0
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
@@ -285,16 +309,40 @@ class OVRTXBackend:
             self.clone_env_paths: list[str] = []
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
-        self.renderer = Renderer(native_cfg)
+        with OVRTXBackend._initialization_lock:
+            initial = OVRTXBackend._initial_gpu_selection
+            if initial is not None and selection != initial:
+                raise ValueError(
+                    "OVRTX rendering GPU selection cannot change in this process:"
+                    f" first requested {initial or 'native default'}, requested {selection or 'native default'}."
+                    " Reuse the original selection or start a new process to select different rendering GPUs."
+                )
+            # Cache redirection and failed renderer construction can retain native system state.
+            # Reserve the selection before either call; keep_system_alive also preserves it after close.
+            OVRTXBackend._initial_gpu_selection = selection
+            redirect_shader_cache(native_cfg)
+            self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
-        """Release the borrowed stage before it is rebuilt or destroyed."""
+        """Release the borrowed stage before it is rebuilt or destroyed.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        if self._render_lease_owner is not None:
+            raise RuntimeError("Cannot detach a backend with an active render lease")
         if self.attached:
             self.renderer.detach_ovstage()
             self.attached = False
 
     def close(self) -> None:
-        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
+        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        if self._render_lease_owner is not None:
+            raise RuntimeError("Cannot destroy a backend with an active render lease")
         if self.renderer is not None:
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
@@ -328,6 +376,8 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        self.readback_buffers: dict[tuple, wp.array] = {}
+        self.readback_stream: wp.Stream | None = None
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
@@ -351,6 +401,9 @@ class OVRTXCameraRenderData:
         Resources are released in reverse acquisition order, before the shared renderer or stage
         is closed. The product path remains as an identifier for renderer bookkeeping.
         """
+        if self.readback_stream is not None:
+            # Retain storage and native resources if completion cannot be established.
+            wp.synchronize_stream(self.readback_stream)
         try:
             with self.resources:
                 self.camera_writes.close()
@@ -360,6 +413,8 @@ class OVRTXCameraRenderData:
             self.camera_xform_binding = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
+            self.readback_buffers.clear()
+            self.readback_stream = None
             self.renderer_info.clear()
             self.ppisp_pipeline = None
 
@@ -380,6 +435,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def __init__(self, cfg: OVRTXRendererCfg, *, sim: SimulationContext):
         super().__init__(cfg, sim=sim)
+        self._closed = False
+        self._render_lease = RenderLeaseController(self)
+        self._geometry_publication: _GeometryPublicationBuffers | None = None
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._camera_render_data: list[OVRTXCameraRenderData] = []
@@ -412,17 +470,57 @@ class OVRTXRenderer(BaseRenderer):
 
     @property
     def visual_material_writer(self):
-        """Return a writer factory once this renderer has a scene consumer."""
-        return self._create_visual_material_writer if self._initialized_scene else None
+        """Return a writer factory once this renderer has a scene consumer.
+
+        A leased pair registers its writer before the borrower binds the Stage, because
+        environment reset finalizes material consumers first; addresses compile on the
+        first publication after population.
+
+        The writer requires material buffers on one CUDA device. On a CPU simulation device,
+        an environment with :class:`~isaaclab.assets.VisualMaterial` assets therefore fails at
+        reset, with or without a lease.
+        """
+        return (
+            self._create_visual_material_writer
+            if self._initialized_scene or self._render_lease.active is not None
+            else None
+        )
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
-        """Create the detached-scene material writer after scene population."""
+        """Retain material buffers; deferred scenes compile addresses after population."""
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
 
+    @contextlib.contextmanager
+    def _publish_visual_materials(self) -> Iterator[None]:
+        """Publish dirty materials and complete their reads before buffers may change."""
+        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
+        try:
+            if material_writer is not None:
+                material_writer.publish()
+            yield
+        finally:
+            if material_writer is not None:
+                # When another exception is already propagating, log the drain failure instead of
+                # replacing it. Losing it silently would hide a failed material write.
+                primary_active = sys.exc_info()[0] is not None
+                try:
+                    material_writer.drain()
+                except Exception as e:
+                    if not primary_active:
+                        raise
+                    logger.warning("Error draining material writes after a failed scene update: %s", e, exc_info=True)
+
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
+        if not self._render_lease.prepare_stage(num_envs):
+            return
+        if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
+            if not self._use_ovstage:
+                raise ValueError("geometry_publication_device requires OVStage")
+            self._validate_geometry_publication_device()
+            self._geometry_publication = _GeometryPublicationBuffers(self.cfg.geometry_publication_device)
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
@@ -434,6 +532,7 @@ class OVRTXRenderer(BaseRenderer):
                 stage, self.scene.clone_env_paths, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
                 preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
+                preserve_partition_visibility=self._render_lease.active is not None,
             )  # fmt: skip
             if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
                 # Author the camera mode before loading the stage: changing it later
@@ -451,7 +550,7 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
             if self._use_ovstage:
-                self.scene.populate(usd)
+                self._render_lease.populate_stage(usd)
             else:
                 self.backend.renderer.open_usd_from_string(usd)
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
@@ -490,7 +589,7 @@ class OVRTXRenderer(BaseRenderer):
                     tensors=cpu_cameras, is_array=False,
                 ).wait()  # fmt: skip
         if self._use_ovstage:
-            self.scene.commit()
+            self.scene._commit()
             if not self.backend.attached:
                 self.backend.renderer.attach_ovstage(self.scene.stage)
                 self.backend.attached = True
@@ -499,6 +598,53 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.resources.callback(self.close)
         self._initialized_scene = True
         self._needs_transform_initialization = not self._use_ovstage and self.backend.cfg.read_gpu_transforms
+        self._render_lease.bind_stage()
+
+    def _validate_geometry_publication_device(self) -> None:
+        """Require the geometry publication device to be one of the GPUs that render.
+
+        The rendering GPUs are the explicit ``active_cuda_gpus`` selection, or the simulation GPU that
+        the renderer follows otherwise. Copies to any other GPU add work and memory without reaching
+        the renderer.
+
+        Raises:
+            ValueError: If the device is not a rendering GPU, or there is neither an explicit
+                selection nor a simulation GPU.
+        """
+        publication = self.cfg.geometry_publication_device
+        if self.cfg.active_cuda_gpus is not None:
+            rendering = parse_active_cuda_gpus(self.cfg.active_cuda_gpus)
+        elif self._warp_device.is_cuda:
+            rendering = (self._warp_device.ordinal,)
+        else:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} requires active_cuda_gpus when the simulation runs"
+                f" on {self._device!r}: there is no simulation GPU for rendering to follow"
+            )
+        if parse_cuda_device_index(publication) not in rendering:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} is not a rendering GPU {list(rendering)}; select one"
+                " of active_cuda_gpus, or the simulation GPU when that is unset"
+            )
+
+    def _render_product_device_id(self) -> int | None:
+        """CUDA index that render products request, or ``None`` for OVRTX's automatic assignment.
+
+        Products request the simulation GPU so render vars map there. When an explicit
+        ``active_cuda_gpus`` excludes that GPU, OVRTX would skip the request on every frame and
+        assign a device automatically; request automatic assignment directly. Render vars then map
+        on a rendering GPU and are copied to the simulation GPU before extraction.
+        """
+        if not self._warp_device.is_cuda:
+            return None
+        active = self.cfg.active_cuda_gpus
+        if active is not None and self._warp_device.ordinal not in parse_active_cuda_gpus(active):
+            return None
+        return self._warp_device.ordinal
+
+    def acquire_ov_libraries_render_lease(self) -> OvLibrariesRenderLease:
+        """Reserve the native renderer/scene pair before stage preparation."""
+        return self._render_lease.acquire()
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
         """Bind SDP body paths and preserve their authored scales when writing world poses."""
@@ -607,26 +753,48 @@ class OVRTXRenderer(BaseRenderer):
             self._bindings.callback(self._geometry_points_binding.unbind)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
-        """Register a camera's product and bindings in the prepared scene."""
+        """Register an ordinary camera, or reserve an authorized external camera until handoff."""
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
+        auxiliary = self._render_lease.accept_camera_spec(spec)
+        if not auxiliary:
+            self._render_lease.reject_ordinary_operation("create ordinary camera render data")
+        camera = self._render_lease.camera_for_spec(spec) if auxiliary else None
+        if camera is not None and camera.render_data is not None:
+            raise RuntimeError("Auxiliary camera render data already exists")
         camera_paths = list(spec.camera_prim_paths)
+        env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
+        source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
+        if source_root is not None and len(camera_paths) < spec.num_instances:
+            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
+            suffix = camera_paths[0][len(str(source_root)) :]
+            camera_paths = [path + suffix for path in self.scene.clone_env_paths]
+        data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
+        if not auxiliary or not self._render_lease.stage_deferred:
+            self._register_camera(spec, data)
+        self.scene.next_camera_id += 1
+        self._camera_render_data.append(data)
+        if camera is not None:
+            camera.render_data = data
+        return data
+
+    def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+        """Bind one product in the already populated simulation-owned scene."""
+        camera_paths = render_data.camera_paths
         env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
         source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
         camera_partitions = []
         if source_root is not None:
-            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
-            if len(camera_paths) < spec.num_instances:
-                suffix = camera_paths[0][len(str(source_root)) :]
-                camera_paths = [path + suffix for path in self.scene.clone_env_paths]
             camera_partitions = [
                 next(env_partitions[root] for root in Sdf.Path(path).GetPrefixes() if root in env_partitions)
                 for path in camera_paths
             ]
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_render_product_as_string(
-            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
+            spec,
+            render_data,
+            device_id=self._render_product_device_id(),
+            enable_shadows=self.cfg.enable_shadows,
         )
         try:
             # Registration mutates the shared scene; finish renders using its existing products first.
@@ -716,11 +884,8 @@ class OVRTXRenderer(BaseRenderer):
         except Exception:
             render_data.cleanup()
             raise
-        self.scene.next_camera_id += 1
-        self._camera_render_data.append(render_data)
         self.backend.render_products.add(render_data.render_product_path)
         render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
-        return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -798,7 +963,7 @@ class OVRTXRenderer(BaseRenderer):
         Wait for rendering on the consuming stream, or on the host on Linux unless
         :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` is ``1``. Consume the zero-copy view inside the
         context. Unmapping records the consuming stream; native release waits for its queued
-        reads and the last view to be dropped.
+        reads and the last view to be dropped. CPU consumers wait on the host and release without a CUDA stream.
 
         Args:
             render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
@@ -806,6 +971,14 @@ class OVRTXRenderer(BaseRenderer):
         Yields:
             The render var's contents as a Warp array, valid for the duration of the context.
         """
+        if not self._warp_device.is_cuda:
+            mapping = render_var.map(device=Device.CPU)
+            try:
+                mapping.wait()
+                yield wp.from_dlpack(mapping)
+            finally:
+                mapping.unmap()
+            return
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
         # OVRTX uses 0 for no synchronization and 1 for Torch's legacy default stream (CUDA handle 0).
         stream = self._warp_device.stream.cuda_stream or 1
@@ -816,6 +989,31 @@ class OVRTXRenderer(BaseRenderer):
             yield wp.from_dlpack(mapping)
         finally:
             mapping.unmap(stream=stream)
+
+    def _on_simulation_device(self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array) -> wp.array:
+        """Copy foreign-device pixels into reusable camera-owned storage.
+
+        The mapping has already waited for rendering on the simulation stream (or the host).
+        Queue the copy and extraction on that same stream, which is passed to native unmap
+        after both operations. A stream change waits for the preceding extraction before
+        overwriting its staging buffer.
+        """
+        if str(tiled_buffer.device) == self._device:
+            return tiled_buffer
+        stream = self._warp_device.stream if self._warp_device.is_cuda else None
+        if render_data.readback_stream is not None and render_data.readback_stream != stream:
+            if stream is None:
+                wp.synchronize_stream(render_data.readback_stream)
+            else:
+                stream.wait_stream(render_data.readback_stream)
+        key = (tiled_buffer.shape, tiled_buffer.dtype, self._device)
+        target = render_data.readback_buffers.get(key)
+        if target is None:
+            target = wp.empty(tiled_buffer.shape, dtype=tiled_buffer.dtype, device=self._device)
+            render_data.readback_buffers[key] = target
+        wp.copy(target, tiled_buffer, stream=stream)
+        render_data.readback_stream = stream
+        return target
 
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
@@ -845,6 +1043,7 @@ class OVRTXRenderer(BaseRenderer):
                 if tiled_data.dtype != wp.uint32:
                     continue
                 if colorize:
+                    tiled_data = self._on_simulation_device(render_data, tiled_data)
                     color_buffer = self._output_id_color_buffers.get(key)
                     if color_buffer is None or color_buffer.shape != tiled_data.shape:
                         color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
@@ -906,6 +1105,7 @@ class OVRTXRenderer(BaseRenderer):
                 " extract_all_tiles_kernel would read out of bounds."
             )
 
+        tiled_buffer = self._on_simulation_device(render_data, tiled_buffer)
         wp.launch(
             kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
@@ -969,10 +1169,6 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
-                output_device = str(output_buffers["rgb_hdr"].device)
-                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
-                    tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
                 self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])
@@ -1039,6 +1235,17 @@ class OVRTXRenderer(BaseRenderer):
                 )
 
     def update_transforms(self) -> None:
+        """Publish ordinary scene data when the native pair is not leased.
+
+        While a lease is active its scene publisher owns these writes, so eager scene
+        updates (for example ``lazy_sensor_update=False``) return without writing.
+        """
+        if self._render_lease.owns_scene_updates():
+            return
+        self._render_lease.reject_ordinary_operation("update ordinary transforms")
+        self._update_transforms()
+
+    def _update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
         binding = self._object_xform_binding
         if binding is None:
@@ -1046,13 +1253,15 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.transforms_timestamp
         if self._transforms_timestamp == timestamp:
             return
-        stream = self._warp_device.stream
+        stream = self._warp_device.stream if self._warp_device.is_cuda else None
         asynchronous = self.cfg.async_rendering and not self._use_ovstage
         output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = output.matrices
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write_transforms(self.scene.stage, binding, matrices, self.scene.ordinal)
+        elif self._use_ovstage:
             # The write waits for consumption; the producing CUDA stream orders access to the
             # borrowed buffer.
             self.scene.stage.write_attribute(
@@ -1062,15 +1271,29 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
+                cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
             ).wait()
         elif asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
-            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+            binding.write(
+                matrices,
+                data_access=DataAccess.ASYNC,
+                cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
+            )
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
+        """Publish ordinary scene data when the native pair is not leased.
+
+        While a lease is active its scene publisher owns these writes.
+        """
+        if self._render_lease.owns_scene_updates():
+            return
+        self._render_lease.reject_ordinary_operation("update ordinary geometries")
+        self._update_geometries()
+
+    def _update_geometries(self) -> None:
         """Write changed SDP geometry to OVRTX."""
         for callback in self.geometry_callbacks.values():
             callback(self)
@@ -1089,7 +1312,7 @@ class OVRTXRenderer(BaseRenderer):
         binding = self._geometry_points_binding
         if binding is None:
             return
-        stream = self._warp_device.stream
+        stream = self._warp_device.stream if self._warp_device.is_cuda else None
         asynchronous = self.cfg.async_rendering and not self._use_ovstage
         if asynchronous:
             output = self._geometry_writes.acquire(stream)
@@ -1102,7 +1325,11 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write(
+                self.scene.stage, binding, self._geometry_paths, points, self.scene.ordinal
+            )
+        elif self._use_ovstage:
             self.scene.stage.write_attribute(
                 binding,
                 "points",
@@ -1110,15 +1337,32 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=[points_tensor_from_warp(array) for array in points],
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=stream.cuda_stream or 1,
+                cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
             ).wait()
         elif asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
-            binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+            binding.write(
+                points,
+                data_access=DataAccess.ASYNC,
+                cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
+            )
         self._geometry_timestamp = timestamp
 
     def update_camera(
+        self,
+        render_data: OVRTXCameraRenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
+    ) -> None:
+        """Update an ordinary camera or queue a sample for an external borrower."""
+        if self._render_lease.queue_camera_update(render_data, positions, orientations, intrinsics):
+            return
+        self._render_lease.reject_ordinary_operation("update ordinary cameras")
+        self._update_camera(render_data, positions, orientations, intrinsics)
+
+    def _update_camera(
         self,
         render_data: OVRTXCameraRenderData,
         positions: ProxyArray,
@@ -1129,7 +1373,7 @@ class OVRTXRenderer(BaseRenderer):
         binding = render_data.camera_xform_binding
         if binding is None:
             return
-        stream = self._warp_device.stream
+        stream = self._warp_device.stream if self._warp_device.is_cuda else None
         matrices = render_data.camera_writes.acquire(stream)
         wp.launch(
             create_camera_transforms_kernel, len(matrices), [positions, orientations, matrices], device=self._device
@@ -1142,7 +1386,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
+                cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
             ).wait()
         else:
             operation = render_data.camera_writes.submit(binding, matrices, stream)
@@ -1150,13 +1394,14 @@ class OVRTXRenderer(BaseRenderer):
                 operation.wait()
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
-        """Publish calibration columns from GPU memory into the renderer-owned scene."""
+        """Publish calibration columns from their producing device into the renderer-owned scene."""
         # A runtime calibration change is a scene write for this camera's bindings, so its
         # in-flight renders must finish first. Other cameras keep their pipelines.
+        self._render_lease.reject_ordinary_operation("update ordinary camera intrinsics")
         errors = self.drain_pending_renders((render_data,))
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
-        stream = wp.get_stream(parameters.device).cuda_stream or 1
+        stream = (wp.get_stream(parameters.device).cuda_stream or 1) if parameters.device.is_cuda else None
         if self._use_ovstage:
             self.scene.stage.write_attributes(
                 render_data.camera_xform_binding,
@@ -1183,6 +1428,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def log_mesh(self, name: str, *args, **kwargs) -> None:
         """Publish a runtime mesh through the same scene used by every camera."""
+        self._render_lease.reject_ordinary_operation("log runtime meshes")
         if name not in self.meshes:
             self.meshes[name] = OVRTXMesh(self, f"/IsaacLabMeshes/{name.lstrip('/')}")
         self.meshes[name].update(*args, **kwargs)
@@ -1204,15 +1450,13 @@ class OVRTXRenderer(BaseRenderer):
         """
         if not render_data:
             return
+        self._render_lease.reject_ordinary_operation("render an ordinary camera batch")
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or not self._camera_render_data:
             return
         products = self.backend.render_products.copy()
-        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
-        try:
-            if material_writer is not None:
-                material_writer.publish()
+        with self._publish_visual_materials():
             if self._needs_transform_initialization:
                 # OVRTX 0.6 initializes GPU world transforms on its first step using
                 # authored poses. Flush that initialization before capturing runtime
@@ -1234,18 +1478,6 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 result = self.backend.renderer.step(render_products=products, delta_time=_RENDER_DELTA_TIME)
                 self._process_render_products(render_data, result)
-        finally:
-            if material_writer is not None:
-                # When another exception is already propagating, log the drain failure instead of
-                # replacing it. Losing it silently would hide a failed material write.
-                primary_active = sys.exc_info()[0] is not None
-                try:
-                    material_writer.drain()
-                except Exception as e:
-                    if not primary_active:
-                        raise
-                    logger.warning("Error draining material writes after a failed render: %s", e, exc_info=True)
-
         if self._use_ovstage:
             # Stage writes and material reads finish before rendering. Consume only after advancing
             # the ordinal so a failed readback cannot leave later writes at the sealed floor.
@@ -1259,9 +1491,15 @@ class OVRTXRenderer(BaseRenderer):
 
         Each camera owns its product and pose binding. Scene and physics bindings remain alive
         until :meth:`close`, so other cameras can continue rendering.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+                Releasing a product removes it from the borrowed Stage, so the camera keeps its
+                resources until the lease is released; :meth:`close` releases them afterwards.
         """
         if render_data is None:
             return
+        self._render_lease.reject_ordinary_operation("release camera render data", retiring=True)
         try:
             self.reset(render_data)
         finally:
@@ -1277,7 +1515,15 @@ class OVRTXRenderer(BaseRenderer):
         ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
 
     def close(self) -> None:
-        """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
+        """Complete borrowed-buffer reads and release bindings; the registry owns the native engine.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        self._render_lease.reject_ordinary_operation("close the renderer", retiring=True)
+        # A failed drain must preserve publication storage and its scene bindings for retry.
+        if self._geometry_publication is not None:
+            self._geometry_publication.close()
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
@@ -1295,6 +1541,7 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
+            self._geometry_publication = None
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
@@ -1302,6 +1549,7 @@ class OVRTXRenderer(BaseRenderer):
             self.meshes.clear()
             self.markers.clear()
             self.geometry_callbacks.clear()
+            self._closed = True
 
 
 class OVRTXMesh:
@@ -1634,42 +1882,3 @@ class OVRTXMarkers:
                 raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
         self._transforms = self._selection = self._stage = None
         self._local_transforms = None
-
-
-_BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)
-
-
-class _AsyncWriteBuffers(Generic[_BufferT]):
-    """Retain GPU buffers until native writes finish; reuse them in submission order."""
-
-    def __init__(self, buffers: Iterable[_BufferT] = ()):
-        self._writes: deque[tuple[_BufferT, Operation[bool] | None, wp.Stream | None]] = deque(
-            (buffer, None, None) for buffer in buffers
-        )
-
-    def acquire(self, stream: wp.Stream) -> _BufferT:
-        """Wait until the next buffer is writable on the given stream."""
-        buffer, operation, producer = self._writes[0]
-        if operation is not None:
-            operation.wait()
-            if producer != stream:
-                stream.wait_stream(producer)
-        return buffer
-
-    def submit(
-        self, binding: AttributeBinding, values: wp.array | list[wp.array], stream: wp.Stream
-    ) -> Operation[bool]:
-        """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
-        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
-        self._writes[0] = (self._writes[0][0], operation, stream)
-        self._writes.rotate(-1)
-        return operation
-
-    def close(self) -> None:
-        """Complete every pending write before releasing storage, including on failure."""
-        with contextlib.ExitStack() as writes:
-            writes.callback(self._writes.clear)
-            for _, operation, producer in self._writes:
-                if operation is not None:
-                    writes.callback(wp.synchronize_stream, producer)
-                    writes.callback(operation.wait)

@@ -529,27 +529,53 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
     assert 'def Camera "Camera"' not in exported
 
 
-@pytest.mark.parametrize("settings_path", [None, "/Render/AuthoredSettings"])
-def test_export_stage_preserves_authored_scene(settings_path):
-    """Renderer settings and clone trimming are confined to the exported scene."""
+@pytest.mark.parametrize("preserve_partition_visibility", [False, True], ids=["forced", "preserved"])
+@pytest.mark.parametrize(
+    "settings_path, authored_show_all, preserved_show_all",
+    [
+        (None, None, True),
+        ("/Render/AuthoredSettings", False, False),
+        ("/Render/AuthoredSettings", True, True),
+        # A value block authors no value, so the export keeps every partition visible.
+        ("/Render/AuthoredSettings", "blocked", True),
+    ],
+)
+def test_export_stage_preserves_authored_scene(
+    settings_path, authored_show_all, preserved_show_all, preserve_partition_visibility
+):
+    """Renderer settings and clone trimming are confined to the exported scene.
+
+    Only a partition-preserving export keeps an authored ``showAllPartitionsByDefault``; any other
+    export forces every partition visible.
+    """
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
     if settings_path is not None:
         settings = UsdRender.Settings.Define(stage, settings_path)
         settings.CreateResolutionAttr(Gf.Vec2i(1280, 720))
+        show_all = settings.GetPrim().CreateAttribute(
+            "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+        )
+        if authored_show_all == "blocked":
+            show_all.Block()
+        else:
+            show_all.Set(authored_show_all)
         stage.SetMetadata("renderSettingsPrimPath", settings_path)
     before = stage.ExportToString()
     layer = Sdf.Layer.CreateAnonymous()
     layer.ImportFromString(
         export_stage_to_string(
-            stage, tuple(f"/World/envs/env_{i}" for i in range(num_envs)), source_paths=("/World/envs/env_0",)
+            stage,
+            tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
+            source_paths=("/World/envs/env_0",),
+            preserve_partition_visibility=preserve_partition_visibility,
         )
     )
     exported = Usd.Stage.Open(layer)
     assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
     show_all = settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault")
-    assert show_all and show_all.Get() is True
+    assert show_all and show_all.Get() is (preserved_show_all if preserve_partition_visibility else True)
     if settings_path is not None:
         assert settings.GetPath() == settings_path
         assert settings.GetAttribute("resolution").Get() == (1280, 720)

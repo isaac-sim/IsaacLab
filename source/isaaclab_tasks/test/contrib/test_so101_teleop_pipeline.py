@@ -7,13 +7,17 @@
 
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 pytest.importorskip("isaacteleop")
 
 from isaacteleop.retargeting_engine.interface import ComputeContext, ExecutionEvents, ExecutionState, TensorGroup
 from isaacteleop.schema import ControllerInputState, ControllerPose, ControllerSnapshot, Point, Pose, Quaternion
 
-from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import _build_so101_stack_pipeline
+from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import (
+    _BASE_T_GRIPPER_HOME,
+    _build_so101_stack_pipeline,
+)
 
 
 def test_so101_pipeline_tracks_engage_relative_pose_and_gripper():
@@ -37,11 +41,14 @@ def test_so101_pipeline_tracks_engage_relative_pose_and_gripper():
         assert action.shape == (8,) and action.dtype == np.float32
         return action.copy()
 
-    home = [0.01918, -0.18852, 0.18887, 0.0, 0.0, 0.0, 1.0, 1.0]
+    home_rotation = Rotation.from_matrix(_BASE_T_GRIPPER_HOME[:3, :3])
+    home = [*_BASE_T_GRIPPER_HOME[:3, 3], *home_rotation.as_quat(), 1.0]
     # The first squeeze emits the configured home even with a rotated controller.
     np.testing.assert_allclose(step((0.2, 0.3, 0.4), (0.0, 0.0, 2**-0.5, 2**-0.5)), home, atol=1e-6)
     # Relative to the initial Z quarter-turn, this controller quaternion gives [1, 2, 3, 4] / sqrt(30).
-    moved = [0.11918, 0.01148, 0.48887, *np.array([1, 2, 3, 4]) / np.sqrt(30), 1.0]
+    # The clutch applies that world-frame rotation and the controller displacement to the full home pose.
+    delta = Rotation.from_quat(np.array([1, 2, 3, 4]) / np.sqrt(30))
+    moved = [*np.add(home[:3], (0.1, 0.2, 0.3)), *(delta * home_rotation).as_quat(), 1.0]
     np.testing.assert_allclose(step((0.3, 0.5, 0.7), np.array([3, 1, 7, 1]) / np.sqrt(60)), moved, atol=1e-6)
     # Release at another pose, then re-engage there: the commanded arm pose stays held.
     held = [*moved[:7], 0.0]
