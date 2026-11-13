@@ -41,14 +41,18 @@ class _ThrusterCollection(dict):
     exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset every thruster actuator for the given environments.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
+            env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
         for actuator in self.values():
-            actuator.reset(env_ids)
+            actuator.reset(env_ids, env_mask=env_mask)
 
 
 class Multirotor(Articulation):
@@ -77,15 +81,20 @@ class Multirotor(Articulation):
         .. code-block:: python
 
             import isaaclab.sim as sim_utils
+            from isaaclab.utils import instantiate
             from isaaclab_contrib.assets import MultirotorCfg
             from isaaclab_contrib.actuators import ThrusterCfg
 
             # Define thruster actuator configuration
+            # Illustrative coefficients; match them and dt to the asset and update rate.
             thruster_cfg = ThrusterCfg(
-                thruster_names_expr=["rotor_[0-3]"],  # Match rotors 0-3
+                thruster_names_expr=["rotor_0", "rotor_1", "rotor_2", "rotor_3"],
+                dt=1 / 120,
                 thrust_range=(0.0, 10.0),  # Min and max thrust in Newtons
-                rise_time_constant=0.1,  # Time constant for thrust increase
-                fall_time_constant=0.2,  # Time constant for thrust decrease
+                thrust_const_range=(1.0e-5, 1.0e-5),
+                torque_to_thrust_ratio=0.01,
+                tau_inc_range=(0.1, 0.1),  # Time constant range for thrust increase [s]
+                tau_dec_range=(0.2, 0.2),  # Time constant range for thrust decrease [s]
             )
 
             # Create multirotor configuration
@@ -94,9 +103,9 @@ class Multirotor(Articulation):
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)
-                    [1.0, 1.0, 1.0, 1.0],  # Total vertical force
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (x)
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (y)
+                    [0.0, 0.0, 0.0, 0.0],  # Force X
+                    [0.0, 0.0, 0.0, 0.0],  # Force Y
+                    [1.0, 1.0, 1.0, 1.0],  # Force Z (vertical thrust)
                     [0.0, 0.1, 0.0, -0.1],  # Roll torque
                     [-0.1, 0.0, 0.1, 0.0],  # Pitch torque
                     [0.01, -0.01, 0.01, -0.01],  # Yaw torque
@@ -244,23 +253,38 @@ class Multirotor(Articulation):
         # set targets
         self._data.thrust_target[env_ids, thruster_ids] = target
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the multirotor to default state.
 
         This method resets both the base articulation state (pose, velocities) and
         multirotor-specific state (thruster targets) to their default values as specified
         in the configuration.
 
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
                 Can be a sequence of integers or None.
+            env_mask: Boolean environment mask. Shape is (num_instances,). Resets without synchronizing the
+                device. Defaults to None.
 
         Note:
             The default thruster state is set via the :attr:`MultirotorCfg.init_state.rps`
             configuration parameter.
         """
         # call parent reset
-        super().reset(env_ids)
+        super().reset(env_ids, env_mask)
+
+        if env_mask is not None:
+            if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
+                torch.where(
+                    wp.to_torch(env_mask)[:, None],
+                    self._data.default_thruster_rps,
+                    self._data.thrust_target,
+                    out=self._data.thrust_target,
+                )
+            return
 
         # reset multirotor-specific data
         if env_ids is None:

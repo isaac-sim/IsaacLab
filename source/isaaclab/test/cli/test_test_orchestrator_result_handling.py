@@ -11,6 +11,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import shutil
 import signal
 import sys
 from pathlib import Path
@@ -197,6 +198,69 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
     assert "test_present" in xml
     assert "test_skipped" in xml
     assert "pytest exited with code 2" in xml
+
+
+def test_passing_test_over_output_budget_fails_and_names_the_repeated_line(monkeypatch, tmp_path: Path) -> None:
+    """A passing test that floods its output must fail its file, although pytest prints none of that output."""
+    orchestrator = _load_orchestrator_module()
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    # The repo-root conftest.py is what hands the runner the output pytest captured.
+    shutil.copy(TOOLS_DIR.parent / "conftest.py", tmp_path / "conftest.py")
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text(
+        "import os\n\n"
+        "def test_present():\n"
+        "    for i in range(100_000):\n"
+        "        os.write(1, b'[Warning] attr /World/envs/env_%d/material has no valid data\\n' % i)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=60,
+        startup_deadline=0,
+        env={**os.environ, "PYTHONPATH": str(TOOLS_DIR.parent)},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(echo=False),
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert status["result"] == "FAILED"
+    assert was_failure
+    xml = next((tmp_path / "tests").glob("test-reports-*.xml")).read_text(encoding="utf-8")
+    assert "test_present" in xml
+    assert "output budget" in xml
+    assert "(100000x): [Warning] attr /World/envs/env_N/material has no valid data" in xml
+
+
+@posix_only
+def test_capture_keeps_up_with_flooding_output(tmp_path: Path) -> None:
+    """Capturing tens of megabytes must take seconds; a reader slower than the test stalls it on a full pipe."""
+    orchestrator = _load_orchestrator_module()
+    script = tmp_path / "floods.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('collected 1 item\\n')\n"
+        "sys.stdout.flush()\n"
+        "sys.stdout.buffer.write((b'x' * 99 + b'\\n') * 200_000)\n",
+        encoding="utf-8",
+    )
+
+    returncode, stdout, _stderr, kill_reason, wall_time, _diag = orchestrator.capture_test_output_with_timeout(
+        [sys.executable, str(script)],
+        timeout=60,
+        env=os.environ.copy(),
+        options=orchestrator._CaptureOptions(echo=False),
+    )
+
+    assert (returncode, kill_reason) == (0, "")
+    assert len(stdout) == len("collected 1 item\n") + 20_000_000
+    assert wall_time < 10
 
 
 def test_filter_deselecting_all_tests_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:

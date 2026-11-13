@@ -53,7 +53,7 @@ class GripperRetargeter(RetargeterBase):
                 The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
 
         Returns:
-            torch.Tensor: Tensor containing a single bool value where True = close gripper, False = open gripper
+            torch.Tensor: Tensor containing a single float value where -1.0 = close gripper, 1.0 = open gripper
         """
         # Extract key joint poses
         hand_data = data[self.bound_hand]

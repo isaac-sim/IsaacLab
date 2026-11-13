@@ -429,13 +429,11 @@ class OVRTXRenderer(BaseRenderer):
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
-            # Shared physics stages need fully composed instance collider data.
+            # Physics population needs fully composed instance collider data.
             usd = export_stage_to_string(
                 stage, self.scene.clone_env_paths, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
-                preserve_references=not (
-                    self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
-                ),
+                preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
             )  # fmt: skip
             if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
                 # Author the camera mode before loading the stage: changing it later

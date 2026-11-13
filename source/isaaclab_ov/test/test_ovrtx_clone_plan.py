@@ -480,7 +480,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
-        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
+        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.RENDERING)
         backend = OvstageBackend(cfg)
         sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
@@ -488,7 +488,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         exported_usd = renderer.backend.renderer.open_usd_from_string.call_args.args[0]
         backend.populate(exported_usd)
         assert imported.call_args.args == (native, exported_usd)
-        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
+        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.RENDERING
         native.clone.assert_called_once_with(source, [env_template.format(i) + suffix for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()

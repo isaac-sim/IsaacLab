@@ -59,8 +59,6 @@ def test_ideal_pd_actuator_init_minimum(device, usd_default):
     torch.testing.assert_close(
         actuator.actuator_effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)
     )
-    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-        torch.testing.assert_close(actuator.effort_limit, actuator.actuator_effort_limit)
     torch.testing.assert_close(
         actuator.actuator_velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)
     )

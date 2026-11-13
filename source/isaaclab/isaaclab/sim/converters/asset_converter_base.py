@@ -225,7 +225,7 @@ class AssetConverterBase(abc.ABC):
             It only checks the main asset file (:attr:`cfg.asset_path`).
 
         Args:
-            config : The asset converter configuration object.
+            cfg: The asset converter configuration object.
 
         Returns:
             An MD5 hash of a string.

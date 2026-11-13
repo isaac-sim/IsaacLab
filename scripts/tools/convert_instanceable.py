@@ -21,10 +21,10 @@ positional arguments:
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --conversion-type         Select file type to convert, urdf or mesh. (default: urdf)
+  --conversion-type         Select file type to convert, urdf, mesh, or both. (default: both)
   --merge-joints            Consolidate links that are connected by fixed joints. (default: False)
   --fix-base                Fix the base to where it is imported. (default: False)
-  --make-instanceable       Make the asset instanceable for efficient cloning. (default: False)
+  --make-instanceable       Make the asset instanceable for efficient cloning. (default: True)
 
 """
 

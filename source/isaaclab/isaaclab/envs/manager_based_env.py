@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import math
 import sys
 import warnings
 from typing import Any
@@ -31,6 +32,31 @@ from .utils.io_descriptors import (
 from .utils.video_recorder import VideoRecorder
 
 logger = logging.getLogger(__name__)
+
+
+def _physics_can_handle_actions(env: ManagerBasedEnv) -> bool:
+    """Whether nothing runs between the physics steps of one environment step.
+
+    Renders, recorder terms that record every physics step, and sensors that refresh on update at times other than
+    whole environment steps all run there.
+
+    Args:
+        env: Environment with its managers loaded.
+
+    Returns:
+        Whether the physics backend may run the environment's actions and decimation loop inside its step.
+    """
+    if env.cfg.sim.render_interval % env.cfg.decimation != 0 or env.recorder_manager.records_physics_steps:
+        return False
+    eager_sensors = not env.scene.cfg.lazy_sensor_update
+    for sensor in env.scene.sensors.values():
+        # a sensor that refreshes on update samples between env steps unless its period spans whole env steps
+        periods = sensor.cfg.update_period / env.step_dt
+        if (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and (
+            round(periods) == 0 or not math.isclose(periods, round(periods), abs_tol=1e-6)
+        ):
+            return False
+    return True
 
 
 class ManagerBasedEnv:
@@ -94,6 +120,8 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._physics_handles_decimation = False
+        # decided on the first step
+        self._physics_handles_actions: bool | None = None
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -202,14 +230,11 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt)
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
-        # let the physics backend know about the env decimation so it can
-        # fold the full loop into a single step() when possible
-        self.sim.backend_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
@@ -352,7 +377,7 @@ class ManagerBasedEnv:
 
             However, in case of extension mode, the user must call this function manually after the simulator
             is reset. This is because the simulator is only reset when the user calls
-            :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
+            :meth:`~isaaclab.sim.SimulationContext.reset`.
 
         """
         # prepare the managers
@@ -517,6 +542,16 @@ class ManagerBasedEnv:
         # return observations
         return self.obs_buf, self.extras
 
+    def _handle_physics_actions(self):
+        """Let the physics backend run the actions, asset writes and decimation loop inside its step when it can.
+
+        Decided on the first step, so code that wraps the action manager after construction can mark it not graphable.
+        """
+        self._physics_handles_actions = _physics_can_handle_actions(self) and self.sim.backend_manager.handle_actions(
+            self.action_manager, self.scene
+        )
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
@@ -544,6 +579,8 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         self.action_manager.process_action(action.to(self.device))
+        if self._physics_handles_actions is None:
+            self._handle_physics_actions()
 
         self.recorder_manager.record_pre_step()
 
@@ -555,8 +592,9 @@ class ManagerBasedEnv:
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:

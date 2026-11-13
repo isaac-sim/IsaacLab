@@ -125,12 +125,12 @@ def _colorize(text: str, color: str, stream: IO[str]) -> str:
     """Colorize bit of text, if the stream supports colors or colors aren't disabled.
 
     Args:
-        label: Text to colorize.
+        text: Text to colorize.
         color: ANSI color code prefix.
         stream: Output stream used to detectcolor support.
 
     Returns:
-        Colorized label when supported; otherwise the original label.
+        Colorized text when supported; otherwise the original text.
     """
 
     if os.environ.get("NO_COLOR"):
