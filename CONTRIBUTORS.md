@@ -228,6 +228,7 @@ Guidelines for modifications:
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wang Ke
+* Wayne Huang
 * Wei Yang
 * Weihua Zhang
 * Welf Rehberg

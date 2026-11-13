@@ -384,6 +384,29 @@ def validate_launch(  # noqa: C901
             node.max_visible_envs = max_visible
 
     configs = _walk_runtime_configs(cfg, replacements)
+    ovrtx_configs = [node for node in configs if isinstance(node, OVRTXRendererCfg)]
+    if ovrtx_configs:
+        from isaaclab_ov.renderers.ovrtx_usd import uses_minimal_rendering
+
+        cameras = [
+            node for node in configs if isinstance(node, CameraCfg) and isinstance(node.renderer_cfg, OVRTXRendererCfg)
+        ]
+        # Without a SceneCfg, an RTX viewer may create cameras later whose render modes are unknown.
+        has_undeclared_viewer_cameras = scene_cfg is None and any(
+            isinstance(viewer.backend, NewtonRTXBackendCfg) for viewer in viewers
+        )
+        # An OVRTX renderer configuration without a declared camera may also serve cameras created later.
+        all_ovrtx_configs_have_cameras = all(
+            any(camera.renderer_cfg is renderer for camera in cameras) for renderer in ovrtx_configs
+        )
+        # Include explicit render-product overrides, which can request PT/RT2 even for simple-shading outputs.
+        all_declared_cameras_use_minimal = all(uses_minimal_rendering(camera) for camera in cameras)
+        # Disable PT/RT2 only for a known, nonempty set of exclusively Minimal OVRTX cameras.
+        minimal_only = (
+            not has_undeclared_viewer_cameras and all_ovrtx_configs_have_cameras and all_declared_cameras_use_minimal
+        )
+        for renderer in ovrtx_configs:
+            renderer._minimal_only = minimal_only
     if kit_sources:
         for node in configs:
             if isinstance(node, OvPhysxCfg):

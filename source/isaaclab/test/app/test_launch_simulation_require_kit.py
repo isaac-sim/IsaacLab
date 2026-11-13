@@ -92,6 +92,68 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     assert calls == ["register", "user"]
 
 
+@pytest.mark.parametrize(
+    "outputs, override, viewer, minimal_only",
+    [
+        (["simple_shading_constant_diffuse"], None, False, True),
+        (["simple_shading_diffuse_mdl", "simple_shading_full_mdl"], None, False, True),
+        (["simple_shading_full_mdl", "rgb"], None, False, False),
+        (["depth"], None, False, False),
+        (["rgb"], "MinimalRendering", False, True),
+        (["simple_shading_full_mdl"], "PathTracing", False, False),
+        (["simple_shading_full_mdl"], None, True, False),
+        ([], None, False, False),
+    ],
+)
+def test_ovrtx_disables_pt_and_rt2_only_for_all_minimal_cameras(outputs, override, viewer, minimal_only):
+    """Disable PT and RT2 at startup only when every configured OVRTX camera requests Minimal.
+
+    Check cameras across separate OVRTX renderer configurations, viewer cameras, and explicit
+    render-mode overrides. Keep all modes enabled when any camera needs PT/RT2 or no camera is known.
+    """
+    from isaaclab.scene import InteractiveSceneCfg
+
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"),
+        scene=InteractiveSceneCfg(num_envs=1, env_spacing=1.0),
+    )
+    renderers = []
+    for index, output in enumerate(outputs):
+        renderer = sim_launcher.OVRTXRendererCfg(enable_shadows=bool(index))
+        camera = sim_launcher.CameraCfg(
+            prim_path=f"/World/Camera{index}", width=16, height=16, data_types=[output],
+            renderer_cfg=renderer,
+            render_settings={"omni:rtx:rendermode": ("Token", override)} if override else {},
+        )  # fmt: skip
+        vars(cfg.scene)[f"camera_{index}"] = camera
+        renderers.append(camera.renderer_cfg)
+    if not outputs:
+        cfg.renderer = sim_launcher.OVRTXRendererCfg()
+        renderers.append(cfg.renderer)
+    args = {"visualizer": ["newton_rtx"] if viewer else []}
+    sim_launcher.validate_launch(cfg, args)
+    assert all(renderer._minimal_only is minimal_only for renderer in renderers)
+    # Revalidating a modified configuration must not retain an earlier Minimal-only decision.
+    cfg.scene.extra = sim_launcher.CameraCfg(
+        prim_path="/World/Extra", width=16, height=16, data_types=["rgb"], renderer_cfg=renderers[0]
+    )
+    sim_launcher.validate_launch(cfg, args)
+    assert all(not renderer._minimal_only for renderer in renderers)
+
+
+def test_ovrtx_unknown_viewer_camera_keeps_all_modes_available():
+    """A script without a SceneCfg may create its viewer's RT2 camera after launch preparation."""
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"),
+        camera=sim_launcher.CameraCfg(
+            prim_path="/World/Camera", width=16, height=16,
+            data_types=["simple_shading_full_mdl"], renderer_cfg=sim_launcher.OVRTXRendererCfg(),
+        ),
+    )  # fmt: skip
+    sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
+    assert not cfg.camera.renderer_cfg._minimal_only
+
+
 @pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
 def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     """Launch declares selected cameras without adding unrelated sensors to the window."""

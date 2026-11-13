@@ -41,6 +41,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    minimal_only: bool = False
+    """Whether launch preparation restricted every OVRTX consumer to Minimal rendering."""
 
 
 @configclass
@@ -65,6 +67,9 @@ class OVRTXRendererCfg(RendererCfg):
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
     """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
+
+    _minimal_only: bool = False
+    """Startup availability resolved across all OVRTX consumers by launch preparation."""
 
     async_rendering: bool = False
     """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).

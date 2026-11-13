@@ -88,6 +88,8 @@ def _simulation(monkeypatch):
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
+    from isaaclab_ov.renderers import OVRTXBackendCfg
+
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = SimpleNamespace(
         clone_copies=[],
@@ -95,7 +97,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         population_env_paths=[],
         clone_positions=None,
         render_products=set(),
-        cfg=SimpleNamespace(read_gpu_transforms=False),
+        cfg=OVRTXBackendCfg(use_ovstage=False, read_gpu_transforms=False, device="cpu"),
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
