@@ -10,7 +10,7 @@ import weakref
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import torch
 import warp as wp
@@ -67,7 +67,8 @@ class AssetBase(Asset, ABC):
     Unlike backend-specific interfaces (e.g. Isaac Sim PhysX) where one usually needs to call
     initialize explicitly, the asset class automatically initializes and invalidates physics
     handles when the simulation is ready or stopped. This is done by registering callbacks
-    for the physics lifecycle events (:attr:`PhysicsEvent.PHYSICS_READY`, :attr:`PhysicsEvent.STOP`).
+    for the backend's binding-initialization event (by default :attr:`PhysicsEvent.PHYSICS_READY`)
+    and :attr:`PhysicsEvent.STOP`.
 
     Additionally, the class registers a callback for debug visualization of the asset if a debug visualization
     is implemented in the asset class. This can be enabled by setting the :attr:`AssetBaseCfg.debug_vis` attribute
@@ -77,6 +78,9 @@ class AssetBase(Asset, ABC):
 
     _check_shapes: bool = __debug__
     """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
+
+    is_graphable: ClassVar[bool] = False
+    """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
 
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
@@ -212,11 +216,14 @@ class AssetBase(Asset, ABC):
             self._debug_vis_handle = None
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets all internal buffers of selected environments.
 
         Args:
             env_ids: The indices of the object to reset. Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
+                ``env_ids``; implementations must leave the unselected environments unchanged and must not
+                synchronize the device. Defaults to None.
         """
         raise NotImplementedError
 
@@ -364,12 +371,12 @@ class AssetBase(Asset, ABC):
         def _invoke(callback_name, event):
             getattr(obj_ref, callback_name)(event)
 
-        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        # Acquire native bindings in the backend's initialization phase, before public readiness if needed.
         self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
-            PhysicsEvent.PHYSICS_READY,
+            physics_mgr.binding_init_event,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(
@@ -395,8 +402,8 @@ class AssetBase(Asset, ABC):
         """Initializes the scene elements.
 
         .. note::
-            Physics handles are only valid once the simulation is ready. This callback runs when
-            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
+            The backend dispatches this callback once native physics handles are valid, no later
+            than :attr:`PhysicsEvent.PHYSICS_READY`.
         """
         if not self._is_initialized:
             self._backend = self._backend_manager.get_backend()

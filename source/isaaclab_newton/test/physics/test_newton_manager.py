@@ -32,6 +32,7 @@ from isaaclab_newton.physics import (
     NewtonShapeCfg,
     NewtonSolver,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
     create_builder,
@@ -48,6 +49,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import instantiate
 
 # ----- Configuration and lifecycle -------------------------------------------------------
 
@@ -76,6 +78,37 @@ def test_newton_shape_cfg_defaults_match_newton():
 def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     """The default must not override Newton's estimate, which grows with the world count."""
     assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
+def test_explicit_collision_capacity_reaches_the_solver_before_construction():
+    """A configured pipeline capacity must also size solver scratch allocated at construction."""
+
+    class CapacitySeen(Exception):
+        pass
+
+    class RecordingSolver(NewtonSolver):
+        def build(self, model, mode, env_template):
+            assert model.rigid_contact_max == 48
+            raise CapacitySeen
+
+    cfg = NewtonCfg(
+        solver_cfg=NewtonSolverCfg(class_type=RecordingSolver),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=48),
+    )
+    backend = backend_stub(
+        cfg=cfg, model=SimpleNamespace(rigid_contact_max=None), deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED
+    )
+
+    with pytest.raises(CapacitySeen):
+        backend.init_solver()
+
+
+def test_kamino_rejects_conflicting_contact_capacities():
+    cfg = KaminoPADMMSolverCfg(max_contacts_per_world=32, use_fk_solver=False)
+    model = SimpleNamespace(rigid_contact_max=128, world_count=2)
+
+    with pytest.raises(ValueError, match="one consistent contact capacity"):
+        instantiate(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
 
 
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
@@ -124,6 +157,7 @@ def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(mon
         pytest.param(XPBDSolverCfg, newton.solvers.SolverXPBD, True, id="xpbd"),
         pytest.param(VBDSolverCfg, SolverVBD, True, id="vbd"),
         pytest.param(FeatherstoneSolverCfg, newton.solvers.SolverFeatherstone, True, id="featherstone"),
+        pytest.param(SteelSolverCfg, newton.solvers.SolverSteel, True, id="steel"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=True), SolverKamino, False, id="kamino_internal"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=False), SolverKamino, True, id="kamino_pipeline"),
         pytest.param(P(MPMSolverCfg, max_iterations=2, voxel_size=0.05), SolverImplicitMPM, False, id="mpm"),
@@ -165,8 +199,9 @@ def test_reset_builds_the_configured_solver_and_steps(solver_cfg_factory, solver
                 particle_radius=0.01,
             )
         else:
-            body = builder.add_body(mass=1.0)
-            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            body = builder.add_link(mass=1.0)
+            joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            builder.add_articulation([joint])
             if solver_cls is SolverKamino and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
@@ -233,7 +268,7 @@ class _State:
 
 
 def _recording_backend(
-    events, *, single_state=True, num_substeps=1, device="cpu", captures=True, ignored_model_changes=None, **cfg
+    events, *, single_state=True, num_substeps=1, device="cpu", captures=False, ignored_model_changes=None, **cfg
 ):
     """A backend whose solver hooks and states record every operation of a step."""
 
@@ -250,8 +285,10 @@ def _recording_backend(
         def pre_step(self, state):
             events.append(("pre_step", state.name))
 
-        def step(self, state_in, state_out, *_args):
+        def step(self, state_in, state_out, *_args, observables=None):
             events.append(("step", state_in.name, state_out.name))
+            if observables is not None:
+                events.append(("observables", observables))
 
         def post_step(self, state):
             events.append(("post_step", state.name))
@@ -280,6 +317,7 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
+        handles_actions=False,
         contact_sensors={},
         imu_sensors=[],
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
@@ -336,8 +374,8 @@ def test_deterministic_request_resolves_to_the_mode_the_solver_applies(
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
 def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg):
-    """A deterministic pipeline sizes its sort buffer at construction, so it is rebuilt for the solver's contacts."""
-    pipelines, prepared = [], []
+    """Contact allocation can rebuild the pipeline but must leave solver output allocation to its caller."""
+    pipelines, prepared, observable_requests = [], [], []
 
     class FakePipeline:
         def __init__(self, **kwargs):
@@ -349,7 +387,10 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
 
     class RecordingSolver(NewtonSolver):
         def build(self, model, mode, env_template):
-            return SimpleNamespace(get_max_contact_count=lambda: 2)
+            return SimpleNamespace(
+                get_max_contact_count=lambda: 2,
+                observables=lambda *args, **kwargs: observable_requests.append((args, kwargs)),
+            )
 
         def create_collision_pipeline(self, **kwargs):
             return FakePipeline(**kwargs)
@@ -365,6 +406,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
         solver=ops.native,
         solver_ops=ops,
         collision_pipeline=None,
+        contact_sensors={"foot": object()},
         device="cpu",
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
@@ -375,6 +417,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert pipelines[0]["deterministic"] is True
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
+    assert observable_requests == []
 
 
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
@@ -389,7 +432,72 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         backend._allocate_contacts()
 
 
+def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch):
+    """A new sensor must be included in the next captured step without reallocating existing contacts."""
+    allocated, requests = [], []
+    contacts = SimpleNamespace(rigid_contact_max=2)
+
+    class RecordingSensor:
+        solver_observable_kinds = frozenset({"contact_f"})
+
+        def __init__(self, model, **kwargs):
+            requests.append(kwargs["request_contact_attributes"])
+
+    solver = SimpleNamespace(observables=lambda kinds, *, contacts: allocated.append((kinds, contacts)) or object())
+    backend = backend_stub(
+        cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
+        model=object(),
+        solver=solver,
+        contacts=contacts,
+        graphs={"simulate": object()},
+    )
+    monkeypatch.setattr(newton_backend, "SensorContact", RecordingSensor)
+
+    backend.add_contact_sensor(body_names_expr="foot")
+
+    assert requests == [False]
+    assert allocated == [(RecordingSensor.solver_observable_kinds, contacts)]
+    assert backend.contact_observables is not None
+    assert backend.graphs == {}
+    backend.graphs = {"simulate": object()}
+    backend.add_contact_sensor(body_names_expr="hand")
+    assert backend.graphs == {}
+    assert len(allocated) == 1
+
+
+@pytest.mark.parametrize("solver_cfg", [FeatherstoneSolverCfg(), MPMSolverCfg()], ids=["featherstone", "mpm"])
+def test_contact_sensor_requires_solver_contact_force_observables(solver_cfg):
+    backend = backend_stub(cfg=NewtonCfg(solver_cfg=solver_cfg), model=object())
+
+    with pytest.raises(NotImplementedError, match="CONTACT_F observables"):
+        backend.add_contact_sensor(body_names_expr="foot")
+
+
 # ----- The step ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("decimation", "graphable"),
+    [(1, True), (2, True), (2, False)],
+    ids=["physics_only", "captured_actuators", "eager_actuators"],
+)
+def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable):
+    events = []
+    backend = _recording_backend(events, num_substeps=2)
+    backend.contacts = object()
+    backend.contact_observables = object()
+    backend.contact_sensors["foot"] = SimpleNamespace(
+        update=lambda state, contacts, *, observables: events.append(("sensor", contacts, observables))
+    )
+    if decimation > 1:
+        backend.actuators_active = True
+        backend.actuators = SimpleNamespace(is_all_graphable=graphable, step=lambda *args, **kwargs: None)
+        backend.set_decimation(decimation)
+
+    backend.step()
+
+    assert events.count(("observables", backend.contact_observables)) == 1
+    assert events.count(("sensor", backend.contacts, backend.contact_observables)) == 1
 
 
 @pytest.mark.parametrize("single_state", [True, False], ids=["single_state", "double_state"])
@@ -647,12 +755,21 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    ("device", "execution"),
+    [
+        (device, execution)
+        for device in test_devices()
+        for execution in ("eager", "backend_capture", "outer_capture")
+        # The capture cases already step their CPU reference backends eagerly.
+        if execution != "eager" or device != "cpu"
+    ],
+)
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 
-    An outer capture records each backend's step without running it or capturing a graph of its own.
+    An outer capture records each backend's step without running it or capturing a graph of its own. On the CPU,
+    both captures use Warp's CPU graph capture.
     """
     captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
@@ -858,3 +975,58 @@ def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(mo
                     )
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
+
+
+@wp.kernel
+def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtype=wp.spatial_vector)):
+    # a state-dependent command: it changes between the physics steps of one environment step
+    body_f[0] = wp.spatial_vector(0.0, 0.0, -20.0 * body_qd[0][2], 0.0, 0.0, 0.0)
+
+
+def test_handled_actions_run_before_every_physics_step_like_the_environment_loop():
+    """Handled actions run before every physics step of one captured step, also after a hard reset, like the env loop.
+
+    The post-step callbacks still run once per step, after its last physics step.
+    """
+    decimation, num_steps, velocities = 3, 4, []
+    for handled in (True, False):
+        sim_cfg = SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+            builder.add_body(mass=1.0)
+            sim.reset()
+            manager = sim.backend_manager
+            manager.set_decimation(decimation)
+            applied = []
+            # actions that damp the free body, recorded into the step only when handled
+            actions = SimpleNamespace(
+                is_graphable=handled,
+                apply_action=lambda: (
+                    applied.append("action"),
+                    wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
+                ),
+            )
+            scene = SimpleNamespace(is_graphable=True, write_data_to_sim=lambda: None)
+            assert manager.handle_actions(actions, scene) is handled
+            assert manager.handles_decimation() is handled
+            for reset in (False, True):
+                if reset:
+                    sim.reset()
+                    assert manager.backend.handles_actions is handled
+                # hard resets discard the post-step callbacks
+                manager.register_post_step_callback(lambda: applied.append("publish"))
+                applied.clear()
+                for _ in range(num_steps):
+                    for _ in range(1 if handled else decimation):
+                        if not handled:
+                            actions.apply_action()
+                        sim.step(render=False)
+                # steps that handle actions record the actions once per physics step and then replay them
+                if handled:
+                    assert applied == (["action"] * decimation + ["publish"]) * 2
+                else:
+                    assert applied.count("action") == num_steps * decimation
+                velocities.append(manager.backend.state_0.body_qd.numpy().copy())
+    np.testing.assert_allclose(velocities[:2], velocities[2:], rtol=1e-5, atol=1e-6)
+    # damping holds the body well below free-fall speed
+    assert velocities[0][0, 2] > -0.5 * 9.81 * num_steps * decimation * 0.01

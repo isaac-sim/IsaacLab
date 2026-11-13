@@ -21,6 +21,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -218,10 +219,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids, full_data=True)
 
     def write_nodal_pos_to_sim_index(
@@ -288,10 +286,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_pos_to_sim_index(nodal_pos, env_ids=env_ids, full_data=True)
 
     def write_nodal_velocity_to_sim_index(
@@ -359,10 +354,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_velocity_to_sim_index(nodal_vel, env_ids=env_ids, full_data=True)
 
     def write_nodal_kinematic_target_to_sim_index(
@@ -438,10 +430,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 4).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
     """
@@ -512,7 +501,8 @@ class DeformableObject(AssetBase):
         """Transform the nodal positions based on the pose transformation.
 
         This function computes the transformation of the nodal positions based on the pose transformation.
-        It multiplies the nodal positions with the rotation matrix of the pose and adds the translation.
+        It centers the nodal positions about their mean, multiplies them with the rotation matrix of the pose,
+        adds the translation, and then adds the mean back, so the rotation is applied about the nodal centroid.
         Internally, it calls the :meth:`isaaclab.utils.math.transform_points` function.
 
         Args:
@@ -566,17 +556,7 @@ class DeformableObject(AssetBase):
         Returns:
             A warp array of environment indices.
         """
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _initialize_impl(self):
         # obtain global simulation view

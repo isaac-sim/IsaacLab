@@ -28,6 +28,7 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -232,7 +233,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -382,10 +383,9 @@ class Articulation(BaseArticulation):
         on the name matching.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions to match the joint
-                names with fixed tendons.
-            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
-                all joints in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the fixed tendon names.
+            tendon_subsets: A subset of fixed tendon names to search for. Defaults to None, which means
+                all fixed tendons in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
             as_proxy: Whether to return cached proxy indices. Subset searches use asset-global proxy indices.
                 Defaults to False.
@@ -590,7 +590,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_pose_to_sim_index(
             root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -691,7 +691,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_com_pose_to_sim_index(
             root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -864,7 +864,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_com_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -974,7 +974,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1118,8 +1118,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # set into simulation
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_ids(joint_mask=joint_mask)
         self._write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
@@ -1223,8 +1223,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_position_to_sim_index(
             position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1327,8 +1327,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_velocity_to_sim_index(
             velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1413,8 +1413,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_stiffness_to_sim_index(
             stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True
@@ -1492,8 +1492,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_damping_to_sim_index(damping=damping, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
@@ -1516,8 +1516,10 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).
-                In warp the expected shape is (num_instances, num_joints), with dtype wp.vec2f.
+            limits: Joint limits. With full_data=False, Torch shape is (len(env_ids), len(joint_ids), 2)
+                and Warp shape is (len(env_ids), len(joint_ids)). With full_data=True, Torch shape is
+                (num_instances, num_joints, 2) and Warp shape is (num_instances, num_joints).
+                Warp arrays use dtype wp.vec2f.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -1603,8 +1605,8 @@ class Articulation(BaseArticulation):
                 exceed the new limits. Defaults to True.
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_position_limit_to_sim_index(
             limits=limits,
@@ -1693,8 +1695,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_velocity_limit_to_sim_index(
             limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True
@@ -1778,8 +1780,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_effort_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
@@ -1861,8 +1863,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_armature_to_sim_index(armature=armature, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
@@ -2032,8 +2034,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_friction_coefficient_to_sim_index(
             joint_friction_coeff=joint_friction_coeff,
@@ -2141,8 +2143,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
             joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
@@ -2251,8 +2253,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        joint_ids = self._resolve_joint_ids(joint_mask=joint_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_viscous_friction_coefficient_to_sim_index(
             joint_viscous_friction_coeff=joint_viscous_friction_coeff,
@@ -2353,8 +2355,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        body_ids = self._resolve_body_mask(body_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -2460,8 +2462,8 @@ class Articulation(BaseArticulation):
         all_envs_selected = env_mask is None
         all_bodies_selected = body_mask is None
         # Resolve masks.
-        env_ids = None if all_envs_selected else self._resolve_env_mask(env_mask)
-        body_ids = None if all_bodies_selected else self._resolve_body_mask(body_mask)
+        env_ids = None if all_envs_selected else self._resolve_env_ids(env_mask=env_mask)
+        body_ids = None if all_bodies_selected else self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -2557,8 +2559,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        body_ids = self._resolve_body_mask(body_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -2641,8 +2643,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_stiffness_index(
             stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -2719,8 +2721,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_damping_index(
             damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -2805,8 +2807,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_limit_stiffness_index(
             limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -2883,8 +2885,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_position_limit_index(
             limit=limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -2967,8 +2969,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_rest_length_index(
             rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -2994,7 +2996,7 @@ class Articulation(BaseArticulation):
         desired values. To apply it, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         Args:
             target: Target tendon length [m or rad, depending on the spanned joints' type]. Shape is
@@ -3043,7 +3045,7 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -3096,8 +3098,8 @@ class Articulation(BaseArticulation):
         """
         self.set_fixed_tendon_position_target_index(
             target=target,
-            fixed_tendon_ids=self._resolve_fixed_tendon_mask(fixed_tendon_mask),
-            env_ids=self._resolve_env_mask(env_mask),
+            fixed_tendon_ids=self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask),
+            env_ids=self._resolve_env_ids(env_mask=env_mask),
             full_data=True,
         )
 
@@ -3127,8 +3129,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_mask=fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_offset_index(
             offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
@@ -3183,7 +3185,7 @@ class Articulation(BaseArticulation):
         only the selected cached values before this method pushes the complete rows.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
@@ -3192,7 +3194,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
 
     def set_spatial_tendon_stiffness_index(
@@ -3270,8 +3272,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        spatial_tendon_ids = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_mask=spatial_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_stiffness_index(
             stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
@@ -3348,8 +3350,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        spatial_tendon_ids = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_mask=spatial_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_damping_index(
             damping=damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
@@ -3435,8 +3437,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        spatial_tendon_ids = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_mask=spatial_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_limit_stiffness_index(
             limit_stiffness=limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
@@ -3513,8 +3515,8 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        spatial_tendon_ids = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_mask=spatial_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_offset_index(
             offset=offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
@@ -3567,7 +3569,7 @@ class Articulation(BaseArticulation):
         this method pushes the complete rows.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
@@ -3576,7 +3578,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         # Write spatial tendon properties to the simulation.
         self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
 
@@ -4132,62 +4134,23 @@ class Articulation(BaseArticulation):
             )
         return self._cpu_env_ids_views[count]
 
-    def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """
-        Resolve environment mask to a torch tensor.
-
-        Args:
-            env_mask: Environment mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of environment indices.
-        """
-        # resolve masks
-        if env_mask is not None:
-            if isinstance(env_mask, wp.array):
-                env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0]
-        else:
-            env_ids = self._ALL_INDICES
-        return env_ids
-
-    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_env_ids(
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
+    ) -> wp.array | torch.Tensor:
         """Resolve environment indices.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Boolean mask, converted to ids only when ``env_ids`` is not given.
 
         Returns:
             Environment indices.
         """
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES)
 
-    def _resolve_joint_mask(self, joint_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve joint mask to a torch tensor.
-
-        Args:
-            joint_mask: Joint mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of joint indices.
-        """
-        if joint_mask is not None:
-            if isinstance(joint_mask, wp.array):
-                joint_mask = wp.to_torch(joint_mask)
-            joint_ids = torch.nonzero(joint_mask)[:, 0]
-        else:
-            joint_ids = self._ALL_JOINT_INDICES
-        return joint_ids
-
-    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_joint_ids(
+        self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None, joint_mask: wp.array | None = None
+    ) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
 
         .. note::
@@ -4195,123 +4158,58 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
+            joint_mask: Boolean mask, converted to ids only when ``joint_ids`` is not given.
 
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
-        if isinstance(joint_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(joint_ids, list):
-            return wp.array(joint_ids, dtype=wp.int32, device=self.device)
-        if (joint_ids is None) or (joint_ids == slice(None)):
-            return self._ALL_JOINT_INDICES
-        return joint_ids
+        return resolve_ids(ids=joint_ids, mask=joint_mask, all_ids=self._ALL_JOINT_INDICES)
 
-    def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve body mask to a torch tensor.
-
-        Args:
-            body_mask: Body mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of body indices.
-        """
-        if body_mask is not None:
-            if isinstance(body_mask, wp.array):
-                body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0]
-        else:
-            body_ids = self._ALL_BODY_INDICES
-        return body_ids
-
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | None = None, body_mask: wp.array | None = None
+    ) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
         Args:
             body_ids: Body indices. If None, then all indices are used.
+            body_mask: Boolean mask, converted to ids only when ``body_ids`` is not given.
 
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        return body_ids
-
-    def _resolve_fixed_tendon_mask(self, fixed_tendon_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve fixed tendon mask to a torch tensor.
-
-        Args:
-            fixed_tendon_mask: Fixed tendon mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of fixed tendon indices.
-        """
-        if fixed_tendon_mask is not None:
-            if isinstance(fixed_tendon_mask, wp.array):
-                fixed_tendon_mask = wp.to_torch(fixed_tendon_mask)
-            fixed_tendon_ids = torch.nonzero(fixed_tendon_mask)[:, 0]
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        return fixed_tendon_ids
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_fixed_tendon_ids(
-        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+        self,
+        tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> wp.array | torch.Tensor:
         """Resolve tendon indices to a warp array or tensor.
 
         Args:
             tendon_ids: Tendon indices. If None, then all indices are used.
+            fixed_tendon_mask: Boolean mask, converted to ids only when ``tendon_ids`` is not given.
 
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
-        if isinstance(tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(tendon_ids, list):
-            return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
-        if (tendon_ids is None) or (tendon_ids == slice(None)):
-            return self._ALL_FIXED_TENDON_INDICES
-        return tendon_ids
-
-    def _resolve_spatial_tendon_mask(self, spatial_tendon_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve spatial tendon mask to a torch tensor.
-
-        Args:
-            spatial_tendon_mask: Spatial tendon mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of spatial tendon indices.
-        """
-        if spatial_tendon_mask is not None:
-            if isinstance(spatial_tendon_mask, wp.array):
-                spatial_tendon_mask = wp.to_torch(spatial_tendon_mask)
-            spatial_tendon_ids = torch.nonzero(spatial_tendon_mask)[:, 0]
-        else:
-            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
-        return spatial_tendon_ids
+        return resolve_ids(ids=tendon_ids, mask=fixed_tendon_mask, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
-        self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+        self,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_mask: wp.array | None = None,
     ) -> wp.array | torch.Tensor:
         """Resolve spatial tendon indices to a warp array or tensor.
 
         Args:
             spatial_tendon_ids: Spatial tendon indices. If None, then all indices are used.
+            spatial_tendon_mask: Boolean mask, converted to ids only when ``spatial_tendon_ids`` is not given.
 
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
-        if isinstance(spatial_tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(spatial_tendon_ids, list):
-            return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
-        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
-            return self._ALL_SPATIAL_TENDON_INDICES
-        return spatial_tendon_ids
+        return resolve_ids(ids=spatial_tendon_ids, mask=spatial_tendon_mask, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
 
     """
     Deprecated methods.

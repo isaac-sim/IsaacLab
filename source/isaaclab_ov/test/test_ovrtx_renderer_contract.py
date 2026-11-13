@@ -151,7 +151,6 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     from isaaclab.cloner import make_clone_plan, replicate
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
-
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
@@ -223,6 +222,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     sim.plan = make_clone_plan(assets, (tuple(range(len(assets))),), 2, positions=np.zeros((2, 3), dtype=np.float32))
     replicate(sim.plan)
     sim.render_context.ensure_initialize()
+    # Adding a consumer must retain the route selected before native construction.
+    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", str(int(not shared_physics)))
     other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
     assert other.backend is not None
     assert (other.backend is renderer.backend) is shared_physics
@@ -237,14 +238,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
-    if with_physics and not shared_physics:
+    if with_physics:
         expected_contexts.add(OvPhysxReplicateContext)
     assert set(sim.clone_contexts) == expected_contexts
     assert {source for source, _ in renderer.scene.clone_copies} == {
         "/World/envs/env_0/Visual",
         *(["/World/envs/env_0/Body"] if shared_physics else []),
     }
-    assert bool(sim.backend_manager._clone_recipes) is (with_physics and not shared_physics)
+    assert bool(sim.backend_manager._clone_recipes) is with_physics
     # Repeated preparation retains the selected resource identity.
     resources = tuple(sim._backend_registry)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
@@ -253,13 +254,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     if use_ovstage:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
         assert renderer.scene.cfg.populate_physics is shared_physics
+        assert renderer.scene.cfg.defer_render_copies is shared_physics
     if shared_physics:
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
+            sim.get_or_create_backend(replace(renderer.cfg, log_level="verbose"))
         conflict = next(
             resource
             for cfg, resource in sim._backend_registry
-            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
+            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "verbose"
         )
         sim.close_backend(conflict)
     renderer.close()
@@ -388,7 +390,7 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -648,6 +650,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
         if use_ovstage:
             SimulationContext.instance().close_backend(renderer.scene)
+    # The default log level keeps native cloning quiet; lower levels print a warning per attribute of every cloned
+    # environment, over a million lines at 8192 environments.
+    assert "has no valid data" not in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
@@ -1048,7 +1053,7 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     ],
 )
 def test_ovrtx_clone_preparation_rejects_invalid_selection(monkeypatch, setting, value, error):
-    """Reject malformed flags and unsupported sharing before allocating native resources."""
+    """Reject malformed flags and unsupported sharing before native allocation."""
     from isaaclab_ov.cloner import OvrtxReplicateContext
 
     sim = SimulationContext.instance()
@@ -1221,6 +1226,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     path_ids = {path: 2**63 + i for i, path in enumerate(dict.fromkeys(path for group in paths for path in group))}
     renderer.scene.paths.intern_path.side_effect = lambda path: handle(path_ids[path])
     if use_ovstage:
+        renderer.scene.render_copies_pending = False
         monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
         monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
         renderer.scene.resources = contextlib.ExitStack()
@@ -1513,6 +1519,8 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         commit=lambda: events.append("commit"),
         resources=contextlib.ExitStack(),
     )
+    if renderer._use_ovstage:
+        renderer.scene.render_copies_pending = False
     renderer.prepare_stage(stage, 0)
     assert renderer.backend.cfg.read_gpu_transforms is True
     assert events.count("export") == (stage_mode != "shared")

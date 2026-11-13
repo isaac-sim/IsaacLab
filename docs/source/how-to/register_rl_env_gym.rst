@@ -82,7 +82,7 @@ call for the cartpole environment in the ``isaaclab_tasks.core.cartpole`` sub-pa
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 14-16,61-75
+   :lines: 13-15,54-70
    :emphasize-lines: 5, 6, 9
 
 The ``id`` argument is the name of the environment. As a convention, we name all the environments
@@ -117,7 +117,7 @@ As an example, the following shows the registration call for the cartpole enviro
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 14-16,32-43
+   :lines: 13-15,21-34
    :emphasize-lines: 5, 6, 9
 
 

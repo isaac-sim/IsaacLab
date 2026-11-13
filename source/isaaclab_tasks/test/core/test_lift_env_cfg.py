@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.physics.coupling import CouplerProxyCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -22,7 +23,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg, FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -51,22 +52,26 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize(
-    ("selected_presets", "expected_physics"),
+    ("env_cfg_cls", "selected_presets", "expected_physics"),
     [
-        ((), "mujoco"),
-        (("newton_mjwarp_vbd_proxy",), "mujoco"),
-        (("isaacsim_physx",), "physx"),
-        (("physx",), "physx"),
+        (FrankaSoftEnvCfg, (), "mujoco"),
+        (FrankaSoftEnvCfg, ("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (FrankaSoftEnvCfg, ("isaacsim_physx",), "physx"),
+        (FrankaSoftEnvCfg, ("physx",), "physx"),
+        (FrankaSoftCameraEnvCfg, (), "mujoco"),
     ],
 )
 def test_franka_soft_robot_physics_variant_matches_backend(
-    selected_presets: tuple[str, ...], expected_physics: str
+    env_cfg_cls: type[FrankaSoftEnvCfg], selected_presets: tuple[str, ...], expected_physics: str
 ) -> None:
-    """The Franka USD physics payload must match the selected simulation backend."""
-    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+    """The Franka payload matches the backend, and Newton tasks use generic proxy coupling."""
+    cfg = resolve_presets(env_cfg_cls(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
+    if expected_physics == "mujoco":
+        assert isinstance(cfg.sim.physics.solver_cfg, CouplerProxyCfg)
 
 
 def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:

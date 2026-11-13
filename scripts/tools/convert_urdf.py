@@ -17,7 +17,8 @@ https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset
 
 positional arguments:
   input               The path to the input URDF file.
-  output              The path to store the USD file.
+  output              The directory to store the USD output in. The URDF importer writes the USD file into
+                      a subdirectory named after the robot (``<output>/<robot_name>/<robot_name>.usda``).
 
 optional arguments:
   -h, --help                Show this help message and exit
