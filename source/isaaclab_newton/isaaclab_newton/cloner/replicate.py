@@ -207,11 +207,12 @@ def _replicate_newton(
             continue
         shapes = {label: index for index, label in enumerate(source_builders[source].shape_label)}
         for path, (bodies, _) in imported["path_cable_map"].items():
-            if imported["path_cable_attrs"][path]["closed"]:
-                continue
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
-            cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
+            cables[path] = (
+                [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))],
+                imported["path_cable_attrs"][path]["closed"],
+            )
     if simulation:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
@@ -240,8 +241,11 @@ def _replicate_newton(
     }
 
     def record_geometry(source: str, destination: str, shape_offset: int, particle_offset: int) -> None:
-        for path, shapes in source_cables[source].items():
-            cable_bindings[cloner_path.rebase(path, source, destination)] = [shape_offset + shape for shape in shapes]
+        for path, (shapes, closed) in source_cables[source].items():
+            cable_bindings[cloner_path.rebase(path, source, destination)] = (
+                [shape_offset + shape for shape in shapes],
+                closed,
+            )
         for path, (start, end) in import_results[source]["path_particle_map"].items():
             native_range = (particle_offset + start, end - start)
             particle_ranges[cloner_path.rebase(path, source, destination)] = native_range

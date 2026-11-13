@@ -16,7 +16,7 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -238,6 +238,20 @@ class TestVisualizationClonePlan(unittest.TestCase):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_1/Rope"))
+
+        # Physics replication must retain periodic topology and offset native shape ids for each clone.
+        self.sim.cfg.physics = NewtonCfg(load_visual_shapes=True)
+        self.sim.cfg.physics_prim_path = "/physicsScene"
+        self.sim.backend_manager.inject_sites = mock.Mock(return_value=({}, {}, {}))
+        self.sim.backend_manager.record_clone = mock.Mock()
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
+        record = self.sim.backend_manager.record_clone.call_args.args[0]
+        expected = {"/Scene/PeriodicRope": (3, True), "/Scene/SharedRope": (2, False)}
+        expected.update((f"/Scene/copy_{index}/Rope", (2, False)) for index in range(2))
+        self.assertEqual(set(record.cable_bindings), set(expected))
+        for path, (count, closed) in expected.items():
+            shapes = [builder.shape_label.index(f"{path}_edge_capsule_{index}") for index in range(count)]
+            self.assertEqual(record.cable_bindings[path], (shapes, closed))
 
     def test_visualization_builder_preserves_nested_attachment_and_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()

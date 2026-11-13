@@ -103,8 +103,8 @@ class NewtonCloneRecord:
     """Per-source builders, keyed by clone-plan source path."""
     particle_ranges: dict[str, tuple[int, int]]
     """``(start, count)`` particle range per replicated deformable prim path."""
-    cable_bindings: dict[str, list[int]]
-    """Body indices per replicated cable prim path."""
+    cable_bindings: dict[str, tuple[list[int], bool]]
+    """``(capsule shape indices, closed)`` per replicated cable prim path."""
     geometry_batches: list
     """Shape batches the scene data backend publishes as geometry."""
 
