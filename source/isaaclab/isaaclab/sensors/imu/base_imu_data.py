@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from ...utils.leapp import (
     ANGULAR_VELOCITY_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     ExpressionFrame,
     Kind,
     leapp_tensor_semantics,
@@ -33,7 +35,7 @@ class BaseImuData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(
         kind=Kind.FRAME_ANGULAR_VELOCITY,
-        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
         expressed_in=ExpressionFrame.SELF,
     )
     def ang_vel_b(self) -> ProxyArray:
@@ -46,7 +48,9 @@ class BaseImuData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_ACCELERATION, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_ACCELERATION,
+        axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (proper) in the IMU frame [m/s^2].

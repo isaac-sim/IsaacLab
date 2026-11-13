@@ -222,6 +222,10 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
         model = description["models"][task]
         connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
         assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        for port in model["inputs"] + model["outputs"]:
+            if "isaaclab_connection" in port:
+                assert port["axes"][0] == {"kind": "system"}
+                assert len(port["axes"]) == len(port["shape"])
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
         assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
         if backend != "sb3":

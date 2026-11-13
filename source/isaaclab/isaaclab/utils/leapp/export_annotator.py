@@ -91,9 +91,7 @@ def _gain_semantics(
     sem = (kp if kind == "kp" else kd)(
         name=f"{term_name}_{kind}_gains",
         ref=ref,
-        axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=element_names)]
-        if element_names is not None
-        else None,
+        axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=element_names)],
     )
     sem.extra = build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind])
     return sem
@@ -686,7 +684,7 @@ class ExportPatcher:
                 name=leapp_input_name,
                 ref=result,
                 kind=kind,
-                axes=getattr(command_cfg, "axes", None),
+                axes=getattr(command_cfg, "axes", None) or [Axis(AxisKind.SYSTEM)] + [None] * (result.ndim - 1),
                 is_setpoint=True,
                 reference=getattr(command_cfg, "cmd_reference", None),
                 expressed_in=getattr(command_cfg, "cmd_expressed_in", None),
@@ -732,6 +730,7 @@ class ExportPatcher:
                         name=term_name,
                         ref=processed,
                         kind=None,
+                        axes=[Axis(AxisKind.SYSTEM)] + [None] * (processed.ndim - 1),
                     )
                 )
                 fallback_terms.add(term_name)

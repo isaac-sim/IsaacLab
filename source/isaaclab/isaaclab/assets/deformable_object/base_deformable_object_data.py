@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from ...utils.leapp import (
     LINEAR_VELOCITY_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     Kind,
     leapp_tensor_semantics,
 )
@@ -82,7 +84,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), None, XYZ_COMPONENT_AXIS])
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m].
 
@@ -94,7 +96,9 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, None, LINEAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), None, LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s].
 
@@ -122,7 +126,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_pos_w(self) -> ProxyArray:
         """Root position from nodal positions of the simulation mesh for the deformable bodies
         in simulation world frame [m]. Shape is (num_instances,) vec3f.
@@ -135,7 +139,9 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_vel_w(self) -> ProxyArray:
         """Root velocity from vertex velocities for the deformable bodies in simulation
         world frame [m/s]. Shape is (num_instances,) vec3f.

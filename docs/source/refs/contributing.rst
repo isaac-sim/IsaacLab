@@ -499,7 +499,9 @@ annotates them. Metadata on a property is insufficient if the observation bypass
   overrides inherit the metadata through the exporter. Prefer a built-in ``Kind``; use a descriptive
   custom kind when LEAPP has no matching quantity.
 * Declare ``axes`` or ``axes_resolver`` for known coordinate, joint, body, and time dimensions. Match
-  the actual Torch layout with one entry per dimension. Use ``None`` for an unspecified dimension.
+  the actual Torch layout with one entry per dimension. Mark the leading environment dimension
+  as ``Axis(AxisKind.SYSTEM)`` for environment-batched scene data, commands, and action targets.
+  Use ``None`` for unspecified dimensions; do not infer a system axis from its size being one.
   Preserve selected element order, quaternion order, and known reference and expression frames.
 * Mark fixed defaults with ``const=True``. Keep evolving state in explicit feedback. Do not assign
   physical kinds to normalized features, embeddings, or concatenated observations merely because

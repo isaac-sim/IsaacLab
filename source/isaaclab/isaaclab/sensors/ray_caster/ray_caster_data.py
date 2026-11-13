@@ -10,6 +10,8 @@ import warp as wp
 from ...utils.leapp import (
     QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     Kind,
     leapp_tensor_semantics,
 )
@@ -33,7 +35,7 @@ class RayCasterData:
         # Accessing the public properties before create_buffers() raises AttributeError.
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m].
 
@@ -44,7 +46,7 @@ class RayCasterData:
         return self._pos_w_ta
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[None, QUAT_XYZW_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
