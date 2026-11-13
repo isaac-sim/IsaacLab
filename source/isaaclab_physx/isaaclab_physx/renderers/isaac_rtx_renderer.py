@@ -322,7 +322,9 @@ class IsaacRtxRenderer(BaseRenderer):
         needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
         )
-        if spec.cfg.isp_cfg is not None:
+        # Explicit HDR outputs and ISPs need Gaussian splats tonemapped with the rest of the frame.
+        needs_gaussian_hdr = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or spec.cfg.isp_cfg is not None
+        if needs_gaussian_hdr:
             # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
             # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
@@ -441,7 +443,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
         # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
-        if spec.cfg.isp_cfg is not None:
+        if needs_gaussian_hdr:
             stage.GetPrimAtPath(rp.path).CreateAttribute(
                 "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
             ).Set(False)

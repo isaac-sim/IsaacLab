@@ -118,6 +118,7 @@ def test_render_product_default_background_is_dome_light(camera_spec, render_dat
     assert "omni:rtx:background:source:color" not in render_scope
     assert 'token omni:rtx:rendermode = "RealTimePathTracing"' in render_scope
     assert "omni:rtx:minimal:" not in render_scope
+    assert "omni:rtx:gaussian:skipTonemapping:enabled" not in render_scope
 
 
 def test_render_product_solid_background_color(camera_spec, render_data):
@@ -320,10 +321,14 @@ def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_
         Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
     ]
     assert camera_spec.cfg.data_types == data_types
+    gaussian_policy = layer.GetAttributeAtPath(
+        "/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled"
+    )
+    assert gaussian_policy is not None and gaussian_policy.default is False
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data):
-    """Requesting LDR RGB and RGB_HDR keeps both OVRTX render variables."""
+    """Explicit HDR keeps both render variables and tonemaps Gaussian splats with the frame without an ISP."""
     render_var_configs = get_render_var_configs(["rgb", "rgb_hdr"], render_scope_name="RenderCamera_0")
 
     assert render_var_configs == [
@@ -337,6 +342,12 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     assert "rel orderedVars = [</RenderCamera_0/Vars/LdrColor>, </RenderCamera_0/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
     assert 'def RenderVar "HdrColor"' in render_scope
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(render_scope)
+    gaussian_policy = layer.GetAttributeAtPath(
+        "/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled"
+    )
+    assert gaussian_policy is not None and gaussian_policy.default is False
 
 
 def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(camera_spec, render_data):
