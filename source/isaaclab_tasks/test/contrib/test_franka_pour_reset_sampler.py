@@ -5,50 +5,30 @@
 
 """CPU tests for the Franka Pour reset-dataset sampler."""
 
-from collections import deque
-
 import pytest
 import torch
 
 from isaaclab_tasks.contrib.franka_pour.reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
-
-def _ring_values(sampler: ResetDatasetSampler, row: int) -> list[bool]:
-    """Read one sampler ring in oldest-to-newest order."""
-    size = int(sampler._history_sizes[row])
-    pointer = int(sampler._history_pointers[row])
-    capacity = sampler._success_history.shape[1]
-    start = pointer if size == capacity else 0
-    return [bool(sampler._success_history[row, (start + index) % capacity]) for index in range(size)]
+pytestmark = pytest.mark.kitless
 
 
-def test_rolling_history_matches_per_row_deques():
-    """Duplicate IDs, wraparound, and oversized batches match sequential deque updates."""
-    capacity = 5
-    row_count = 4
+def test_adaptive_weights_preserve_pour_configuration_and_recent_outcomes():
+    """The adapter passes the target, concentration, floor, and history window to shared utilities."""
     sampler = ResetDatasetSampler(
-        row_count,
+        3,
         "cpu",
-        ResetDatasetSamplerCfg(monitored_history_len=capacity),
+        ResetDatasetSamplerCfg(monitored_history_len=4, target_success_rate=0.25, kappa=4.0, epsilon=0.01),
     )
-    reference = [deque(maxlen=capacity) for _ in range(row_count)]
-    generator = torch.Generator().manual_seed(31)
-
-    for batch_size in (4, 11, 2, 17, 7, 23):
-        rows = torch.randint(row_count, (batch_size,), generator=generator)
-        success = torch.rand(batch_size, generator=generator) > 0.45
-        sampler._record_validated(rows, success)
-        for row, outcome in zip(rows.tolist(), success.tolist(), strict=True):
-            reference[row].append(outcome)
-
-        expected_sizes = torch.tensor([len(history) for history in reference], dtype=torch.int32)
-        expected_counts = torch.tensor([sum(history) for history in reference], dtype=torch.int32)
-        expected_rates = expected_counts.float() / expected_sizes.clamp_min(1)
-        torch.testing.assert_close(sampler._history_sizes, expected_sizes)
-        torch.testing.assert_close(sampler._history_success_counts, expected_counts)
-        torch.testing.assert_close(sampler._success_rates, expected_rates)
-        for row, history in enumerate(reference):
-            assert _ring_values(sampler, row) == list(history)
+    torch.testing.assert_close(sampler._probabilities(), torch.full((3,), 1.0 / 3.0))
+    sampler._record_validated(
+        torch.tensor([0] * 4 + [1] * 6 + [2] * 4),
+        torch.tensor([False] * 4 + [True, True, False, False, False, True] + [True] * 4),
+    )
+    # Recent rates are 0, 1/4, and 1. Their normalized Beta weights including the floor are:
+    torch.testing.assert_close(sampler._probabilities(), torch.tensor([64.0 / 867, 739.0 / 867, 64.0 / 867]))
+    sampler._record_validated(torch.ones(4, dtype=torch.long), torch.ones(4, dtype=torch.bool))
+    torch.testing.assert_close(sampler._probabilities(), torch.full((3,), 1.0 / 3.0))
 
 
 def test_uniform_replay_covers_every_row_before_repeating(monkeypatch: pytest.MonkeyPatch):
