@@ -7,7 +7,6 @@
 
 import math
 import re
-from pathlib import Path
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
@@ -27,13 +26,13 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
-TERRAIN_ASSET_DIR = Path(__file__).parent / "assets"
+TERRAIN_ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/G1Terrain"
 GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
 
 
@@ -180,7 +179,7 @@ class TerrainSceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="usd",
-        usd_path=str(TERRAIN_ASSET_DIR / "platforms.usdc"),
+        usd_path=f"{TERRAIN_ASSET_DIR}/platforms.usdc",
         use_terrain_origins=False,
         visual_material=None,
         collision_group=-1,
@@ -275,9 +274,9 @@ class GranularSceneCfg(TerrainSceneCfg):
 
     terrain = TerrainSceneCfg().terrain.replace(
         usd_path=preset(
-            default=str(TERRAIN_ASSET_DIR / "granular.usdc"),
-            isaacsim_physx=str(TERRAIN_ASSET_DIR / "granular_physx.usdc"),
-            physx=str(TERRAIN_ASSET_DIR / "granular_physx.usdc"),
+            default=f"{TERRAIN_ASSET_DIR}/granular.usdc",
+            isaacsim_physx=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
+            physx=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
         ),
         class_type=preset(
             default=TerrainImporter,
@@ -440,7 +439,7 @@ class G1RampsEnvCfg(G1PlatformsEnvCfg):
     def __post_init__(self):
         self.scene.robot.init_state.pos = (0.22, -0.3, 1.308342456817627)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
-        self.scene.terrain.usd_path = str(TERRAIN_ASSET_DIR / "ramps.usdc")
+        self.scene.terrain.usd_path = f"{TERRAIN_ASSET_DIR}/ramps.usdc"
 
 
 @configclass

@@ -1,12 +1,11 @@
 """Check the fixed-demo configuration at the same preset boundary used by the CLI."""
 
-from pathlib import Path
-
 import pytest
 from isaaclab_newton.physics.coupling import CouplerProxyCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
 
@@ -24,8 +23,7 @@ from isaaclab_tasks.utils.hydra import resolve_task_config
 def test_course_and_physics_selection_before_launch(course, backend, expected_asset, decimation):
     """Backend selection must choose compatible particles and the 50 Hz control cadence before launch."""
     cfg, _ = resolve_task_config("IsaacContrib-G1-Terrain", None, overrides=[f"presets={course}", f"physics={backend}"])
-    assert Path(cfg.scene.terrain.usd_path).name == expected_asset
-    assert Path(cfg.scene.terrain.usd_path).is_file()
+    assert cfg.scene.terrain.usd_path == f"{ISAACLAB_NUCLEUS_DIR}/Contrib/G1Terrain/{expected_asset}"
     assert cfg.decimation == cfg.sim.render_interval == decimation
     assert cfg.decimation * cfg.sim.dt == pytest.approx(0.02)
     if course != "granular":

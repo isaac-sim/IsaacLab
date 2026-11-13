@@ -1,20 +1,19 @@
 """Validate the standalone fixed-course assets and their sensor-safe appearance switch."""
 
-import importlib.util
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
-ASSET_DIR = Path(importlib.util.find_spec("isaaclab_tasks").origin).parent / "contrib" / "g1_terrain" / "assets"
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/G1Terrain"
 
 
 @pytest.mark.parametrize("layout", ("platforms", "ramps", "granular"))
 def test_standalone_course(layout):
     """Assets resolve alone and switching spectator appearance preserves static contacts."""
-    asset_path = ASSET_DIR / f"{layout}.usdc"
+    asset_path = retrieve_file_path(f"{ASSET_DIR}/{layout}.usdc")
     layers, assets, unresolved = UsdUtils.ComputeAllDependencies(str(asset_path))
     assert len(layers) == 1
     assert not assets
@@ -60,7 +59,7 @@ def test_standalone_course(layout):
 
 def test_physx_particle_asset_references_remap_without_duplicate_tray_contacts():
     """The saved PBD scene stays dynamic and self-contained when imported below the terrain root."""
-    path = ASSET_DIR / "granular_physx.usdc"
+    path = retrieve_file_path(f"{ASSET_DIR}/granular_physx.usdc")
     layers, assets, unresolved = UsdUtils.ComputeAllDependencies(str(path))
     assert len(layers) == 1 and not assets and not unresolved
     stage = Usd.Stage.CreateInMemory()
