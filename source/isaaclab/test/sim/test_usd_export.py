@@ -15,7 +15,13 @@ import torch
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
-from isaaclab.sim.usd_export.base_usd_exporter import JOINT_DATA_FIELDS
+from isaaclab.sim.usd_export.base_usd_exporter import (
+    _DEFINE_PRIM,
+    JOINT_DATA_FIELDS,
+    BaseUsdExporter,
+    PrimDefinition,
+    UsdEdit,
+)
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 from isaaclab.utils import assets as assets_utils
 
@@ -479,6 +485,39 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     other, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/Other/Collider")).ComputeBoundMaterial("physics")
     assert other.GetPath() == "/PhysicsMaterials/Material_2"
     assert other.GetPrim().GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.9)
+
+
+def test_values_of_a_prim_an_edit_defines_are_kept():
+    """A prim an edit defines holds that edit's values, though another edit writes an attribute of the same name, as
+    the gains of a velocity actuator the Newton export adds next to the asset's own MuJoCo actuators."""
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/Robot/AssetActuator", "MjcActuator")
+    gain = [80.0] + [0.0] * 9
+    actuator = PrimDefinition(
+        "MjcActuator", {"mjc:target": ["/Robot/Joint"]}, {"mjc:gainPrm": (Sdf.ValueTypeNames.DoubleArray, gain)}
+    )
+    edits = [
+        UsdEdit("/Robot/AssetActuator", "mjc:gainPrm", [50.0] + [0.0] * 9, "double[]"),
+        UsdEdit("/Robot/VelocityActuator", _DEFINE_PRIM, actuator),
+    ]
+
+    BaseUsdExporter._apply_edits(stage, edits)
+
+    assert list(stage.GetPrimAtPath("/Robot/VelocityActuator").GetAttribute("mjc:gainPrm").Get()) == gain
+
+
+def test_the_exported_environment_rows_keep_a_one_row_axis():
+    """The exported environment's rows of asset data readings keep a one-row axis; a shared asset keeps its one row."""
+    scene = _scene()
+    scene.num_envs = 3
+    exporter = _Exporter(scene, env_id=2)
+    rows = exporter._copy_selected_env_to_host({"body_mass": torch.arange(6.0).reshape(3, 2)})
+    shared = exporter._copy_selected_env_to_host({"body_mass": torch.ones(1, 2)})
+
+    assert rows["body_mass"].tolist() == [[4.0, 5.0]]
+    assert shared["body_mass"].tolist() == [[1.0, 1.0]]
+    with pytest.raises(NotImplementedError, match="2 instances for 3 environments"):
+        exporter._copy_selected_env_to_host({"body_mass": torch.ones(2, 2)})
 
 
 def test_remote_asset_references_are_reported(caplog):

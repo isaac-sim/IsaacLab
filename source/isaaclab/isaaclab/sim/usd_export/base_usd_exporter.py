@@ -418,8 +418,10 @@ class BaseUsdExporter(ABC):
         for edit in edits:
             edit.apply(stage)
         edited = {(edit.path, edit.attribute) for edit in edits}
+        # A prim an edit defines holds that edit's values, though another edit writes an attribute of the same name.
+        defined = {edit.path for edit in edits if edit.attribute == _DEFINE_PRIM}
         for key, value in _read_authored_values(stage, names).items():
-            if key not in edited and value != before.get(key):
+            if key not in edited and key[0] not in defined and value != before.get(key):
                 _set_or_block_property(_make_prim_editable(stage, key[0]), key[1], before.get(key))
 
     def _compute_pd_drive_edits(self, stage: Usd.Stage) -> list[UsdEdit]:

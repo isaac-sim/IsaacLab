@@ -15,6 +15,7 @@ from collections import defaultdict
 from collections.abc import Callable
 
 import numpy as np
+import torch
 
 from pxr import Usd, UsdGeom, UsdPhysics, Vt
 
@@ -270,7 +271,8 @@ class PhysxUsdExporter(BaseUsdExporter):
             with self._open_engine_view(self._resolve_engine_path(cfg.prim_path), False) as view:
                 live = self._read_collider_values(view)
             colliders = {name: self._select_env_row(live[name]) for name in COLLIDER_READINGS}
-            readings[key] = {**self._select_mass_properties(self._read_body_data(data), index), **colliders}
+            bodies = self._copy_selected_env_to_host(self._read_body_data(data))
+            readings[key] = {**self._select_mass_properties(bodies, index), **colliders}
             bases[key] = {
                 **self._select_mass_properties(engine, 0),
                 **{name: self._select_env_row(engine[name]) for name in COLLIDER_READINGS},
@@ -293,8 +295,9 @@ class PhysxUsdExporter(BaseUsdExporter):
         joints = self._index_prims_by_name(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
         links = self._index_prims_by_name(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
         data = articulation.data
-        dofs = {name: self._select_env_row(rows) for name, rows in self._read_joint_data(data).items()}
-        bodies = self._read_body_data(data)
+        joint_rows = self._copy_selected_env_to_host(self._read_joint_data(data))
+        dofs = {name: self._select_env_row(rows) for name, rows in joint_rows.items()}
+        bodies = self._copy_selected_env_to_host(self._read_body_data(data))
         # The joint state Isaac Lab resets the articulation to; the engine holds it only from the first reset on.
         initial = {
             "default_joint_pos": self._select_data_env_row(data.default_joint_pos),
@@ -378,8 +381,10 @@ class PhysxUsdExporter(BaseUsdExporter):
             data_type = ArticulationData if articulation else RigidObjectData
             # The data only reads the view; the view outlives it.
             data = data_type(view, self.scene.sim.device, backend_manager=self.scene.sim.backend_manager)
-            values = self._read_body_data(data)
-            values |= self._read_joint_data(data) if articulation else self._read_collider_values(view)
+            values = self._read_body_data(data) | (self._read_joint_data(data) if articulation else {})
+            values = {name: value.detach().cpu().numpy().copy() for name, value in values.items()}
+            if not articulation:
+                values |= self._read_collider_values(view)
         return values
 
     @staticmethod
@@ -394,22 +399,33 @@ class PhysxUsdExporter(BaseUsdExporter):
         return matches[0][1]
 
     @staticmethod
-    def _read_body_data(data) -> dict[str, np.ndarray]:
-        """Read the mass properties of every body of asset data, in every environment."""
-        values = {
+    def _read_body_data(data) -> dict[str, torch.Tensor]:
+        """Read the mass properties of every body of asset data, in every environment, on the data's device."""
+        return {
             "body_mass": data.body_mass.torch,
             "body_com_pos_b": data.body_com_pose_b.torch[..., :3],  # reads faster than body_com_pos_b
             "body_inertia": data.body_inertia.torch,
         }
-        return {name: value.detach().cpu().numpy().copy() for name, value in values.items()}
 
     @staticmethod
-    def _read_joint_data(data) -> dict[str, np.ndarray]:
-        """Read the DOF properties of :data:`JOINT_ATTRIBUTES` from articulation data, in every environment."""
+    def _read_joint_data(data) -> dict[str, torch.Tensor]:
+        """Read the DOF properties of :data:`JOINT_ATTRIBUTES` from articulation data, in every environment, on the
+        data's device."""
         values = {name: getattr(data, name).torch for name in JOINT_DATA_FIELDS}
         limits = data.joint_pos_limits.torch
-        values |= {"joint_pos_limits_lower": limits[..., 0], "joint_pos_limits_upper": limits[..., 1]}
-        return {name: value.detach().cpu().numpy().copy() for name, value in values.items()}
+        return values | {"joint_pos_limits_lower": limits[..., 0], "joint_pos_limits_upper": limits[..., 1]}
+
+    def _copy_selected_env_to_host(self, values: dict[str, torch.Tensor]) -> dict[str, np.ndarray]:
+        """Copy the selected environment's rows of asset data readings to the host, keeping a one-row leading axis
+        (:meth:`_select_env_row` then returns that row); an asset outside the environments has one row."""
+        rows = {}
+        for name, value in values.items():
+            if len(value) not in (1, self.scene.num_envs):
+                raise NotImplementedError(
+                    f"An asset holds {len(value)} instances for {self.scene.num_envs} environments."
+                )
+            rows[name] = (value if len(value) == 1 else value[self.env_id : self.env_id + 1]).detach().cpu().numpy()
+        return rows
 
     """
     Edits.
