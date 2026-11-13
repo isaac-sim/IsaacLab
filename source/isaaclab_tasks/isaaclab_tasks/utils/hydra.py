@@ -407,7 +407,9 @@ def _resolve_active_presets(
                     consumed_selectors.add(matches)
             value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
         if isinstance(value, tuple):
-            return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            children = tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            # Keep the tuple when nothing in it changed, so that frozen parents are not reassigned.
+            return value if all(new is old for new, old in zip(children, value)) else children
         for key, child in _iter_cfg_items(value):
             resolved = resolve(child, f"{path}.{key}" if path else str(key))
             if resolved is child:
