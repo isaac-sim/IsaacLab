@@ -18,17 +18,20 @@ from newton.usd import PrimType, SchemaResolverNewton
 from pxr import Sdf, Tf, Usd, UsdPhysics
 
 from isaaclab.sim.usd_export.base_usd_exporter import (
+    _DEACTIVATE,
+    _DEFINE_PRIM,
     JOINT_STATE_ATTRIBUTES,
     USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
     USD_PHYSICS_JOINT_ATTRIBUTES,
     USD_PHYSICS_MATERIAL_ATTRIBUTES,
     BaseUsdExporter,
     JointAttribute,
+    PrimDefinition,
     UsdEdit,
 )
 from isaaclab.utils.string import string_to_callable
 
-from isaaclab_newton.physics import NewtonSolver, NewtonSolverCfg
+from isaaclab_newton.physics import NewtonSolverCfg
 from isaaclab_newton.physics.newton_builder import (
     register_builder_attributes,
     usd_schema_resolvers,
@@ -249,8 +252,10 @@ class UsdExporter(BaseUsdExporter):
                         for name, (live, base) in state.items()
                         if not self._close(live, base)
                     ]
-        self._target_mode_actuators(stage, model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
-        return edits + self._force_range_edits(stage, edits), drives
+        actuators = self._compute_target_mode_actuator_edits(
+            model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes
+        )
+        return edits + self._force_range_edits(stage, edits) + actuators, drives
 
     @staticmethod
     def _joint_prims(
@@ -493,7 +498,7 @@ class UsdExporter(BaseUsdExporter):
             if cls._close(gain[0], value):
                 continue
             if value <= 0.0:
-                prim.SetActive(False)
+                edits.append(UsdEdit(str(prim.GetPath()), _DEACTIVATE, None))
                 deactivated.append(str(prim.GetPath()))
                 continue
             gain[0], bias[index] = value, -value
@@ -503,10 +508,10 @@ class UsdExporter(BaseUsdExporter):
             logger.info(f"MuJoCo actuators replaced by the exported zero-gain joint drives: {deactivated}.")
         return edits
 
-    def _target_mode_actuators(
-        self, stage: Usd.Stage, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
-    ):
-        """Make Newton's USD import reproduce each joint's target mode, and warn where it cannot.
+    def _compute_target_mode_actuator_edits(
+        self, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
+    ) -> list[UsdEdit]:
+        """Edits making Newton's USD import reproduce each joint's target mode, warning where it cannot.
 
         Workaround until USD states a target mode: Newton's import infers the mode from the drive gains, so a joint
         with both gains runs in position mode, while Isaac Lab runs it in position-velocity mode. A MuJoCo velocity
@@ -518,7 +523,7 @@ class UsdExporter(BaseUsdExporter):
         converted = self._converted_velocity_dofs(model) if mujoco else set()
         axes = Counter(dofs.values())
         root = self.scene.env_prim_paths[self.env_id]
-        differ = set()
+        edits, differ = [], set()
         for dof, path in dofs.items():
             inferred = newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True)
             if modes[dof] == int(newton.JointTargetMode.NONE) or modes[dof] == int(inferred) or dof in converted:
@@ -528,23 +533,19 @@ class UsdExporter(BaseUsdExporter):
                 continue
             damping = float(target_kd[dof])
             name = Tf.MakeValidIdentifier(path.removeprefix(root + "/"))
-            actuator = stage.DefinePrim(f"{root}/VelocityActuators/{name}", "MjcActuator")
-            actuator.CreateRelationship("mjc:target", custom=False).SetTargets([path])
             values = {
                 "mjc:biasType": (Sdf.ValueTypeNames.Token, "affine"),
                 "mjc:gainPrm": (Sdf.ValueTypeNames.DoubleArray, [damping] + [0.0] * 9),
                 "mjc:biasPrm": (Sdf.ValueTypeNames.DoubleArray, [0.0, 0.0, -damping] + [0.0] * 7),
             }
-            # As the MjcActuator schema defines them, whether or not this process registered it.
-            for attribute, (type_name, value) in values.items():
-                actuator.CreateAttribute(attribute, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(
-                    value
-                )
+            actuator = PrimDefinition("MjcActuator", {"mjc:target": [path]}, values)
+            edits.append(UsdEdit(f"{root}/VelocityActuators/{name}", _DEFINE_PRIM, actuator))
         # Of Newton's solvers, only MuJoCo and Kamino apply a target mode.
         if differ and (mujoco or self._runs(solver_cfg, newton.solvers.SolverKamino)):
             logger.warning(
                 f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
             )
+        return edits
 
     @staticmethod
     def _converted_velocity_dofs(model: newton.Model) -> set[int]:
@@ -633,20 +634,14 @@ class UsdExporter(BaseUsdExporter):
         return options
 
     @staticmethod
-    def _solver(solver_cfg: NewtonSolverCfg) -> type[NewtonSolver]:
-        solver = solver_cfg.class_type
-        solver = string_to_callable(solver) if isinstance(solver, str) else solver
-        # An exported file sets the class type; accept only Newton solvers.
-        if not (isinstance(solver, type) and issubclass(solver, NewtonSolver)):
-            raise ValueError(f"'{solver_cfg.class_type}' is not a Newton solver.")
-        return solver
-
-    @classmethod
-    def _runs(cls, solver_cfg: NewtonSolverCfg | None, solver_class: type) -> bool:
+    def _runs(solver_cfg: NewtonSolverCfg | None, solver_class: type) -> bool:
         """Whether the configured solver runs ``solver_class`` (and so reads its custom attributes)."""
         if solver_cfg is None:
             return False
-        return any(issubclass(c, solver_class) for c in cls._solver(solver_cfg).solver_classes(solver_cfg))
+        # The scene has built this solver, so its class type is a Newton solver.
+        solver = solver_cfg.class_type
+        solver = string_to_callable(solver) if isinstance(solver, str) else solver
+        return any(issubclass(c, solver_class) for c in solver.solver_classes(solver_cfg))
 
     """
     Model values.

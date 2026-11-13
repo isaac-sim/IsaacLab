@@ -33,9 +33,11 @@ def _export(
     initialized scene.
     """
     import contextlib
+    from unittest import mock
 
     from isaaclab_newton.cloner import newton_builder_world_hook
     from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.sim.usd_export import UsdExporter
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -60,7 +62,16 @@ def _export(
         sim_cfg.physics.default_shape_cfg = default_shape_cfg
     output = str(tmp_path / "exported.usda")
     hook = newton_builder_world_hook(world_hook) if world_hook is not None else contextlib.nullcontext()
-    with build_simulation_context(sim_cfg=sim_cfg) as sim, hook:
+    compute_diff = UsdExporter.compute_diff
+
+    def compute_diff_without_writing(exporter, stage):
+        before = stage.GetRootLayer().ExportToString()
+        edits = compute_diff(exporter, stage)
+        assert stage.GetRootLayer().ExportToString() == before  # detection leaves writing to the edits
+        return edits
+
+    detection = mock.patch.object(UsdExporter, "compute_diff", compute_diff_without_writing)
+    with build_simulation_context(sim_cfg=sim_cfg) as sim, hook, detection:
         scene = InteractiveScene(cfg)
         sim.reset()
         if before_export is not None:

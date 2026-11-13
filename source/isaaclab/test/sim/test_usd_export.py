@@ -130,7 +130,11 @@ def test_pd_actuator_becomes_a_drive_of_single_axis_joints_only(joint_type, conv
     actuator.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
     actuator.CreateAttribute("newton:kp", Sdf.ValueTypeNames.Float).Set(80.0)
 
-    _Exporter(_scene())._write_pd_actuators_as_drives(stage)
+    before = stage.GetRootLayer().ExportToString()
+    edits = _Exporter(_scene())._compute_pd_drive_edits(stage)
+    assert stage.GetRootLayer().ExportToString() == before  # detecting the conversion writes nothing
+    for edit in edits:
+        edit.apply(stage)
 
     assert actuator.IsActive() != converted
     assert bool([schema for schema in joint.GetAppliedSchemas() if schema.startswith("PhysicsDriveAPI")]) == converted

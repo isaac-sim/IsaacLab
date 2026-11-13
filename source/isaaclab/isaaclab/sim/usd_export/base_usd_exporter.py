@@ -36,6 +36,12 @@ _WORLD_POSE = "isaaclab:worldPose"
 _PHYSICS_MATERIAL = "isaaclab:physicsMaterial"
 """Pseudo attribute of a :class:`UsdEdit` that binds a new physics material, at the path it gives, to a collider."""
 
+_DEACTIVATE = "isaaclab:deactivate"
+"""Pseudo attribute of a :class:`UsdEdit` that deactivates a prim."""
+
+_DEFINE_PRIM = "isaaclab:definePrim"
+"""Pseudo attribute of a :class:`UsdEdit` that defines a prim from the :class:`PrimDefinition` it gives."""
+
 UNLIMITED = 1e10
 """Engine values of this magnitude mean "no limit", which an unset USD attribute already states.
 
@@ -89,6 +95,19 @@ USD_PHYSICS_MATERIAL_ATTRIBUTES = {
 """UsdPhysics material property -> USD attribute, read by every backend's importer."""
 
 
+class PrimDefinition(NamedTuple):
+    """A typed prim to define, with the relationships and uniform attributes it states."""
+
+    type_name: str
+    """Prim type, e.g. ``"MjcActuator"``."""
+
+    relationships: dict[str, list[str]]
+    """Relationship name -> target paths."""
+
+    uniform_attributes: dict[str, tuple[Sdf.ValueTypeName, Any]]
+    """Uniform attribute name -> value type and value."""
+
+
 class UsdEdit(NamedTuple):
     """One value the exported USD must author so that an import reproduces the engine."""
 
@@ -96,8 +115,9 @@ class UsdEdit(NamedTuple):
     """Prim path in the exported stage."""
 
     attribute: str
-    """Attribute name; ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`, or
-    ``_PHYSICS_MATERIAL`` for a new physics material bound to the prim, given as its path."""
+    """Attribute name; ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`,
+    ``_PHYSICS_MATERIAL`` for a new physics material bound to the prim, given as its path, ``_DEACTIVATE`` to
+    deactivate the prim, or ``_DEFINE_PRIM`` for a new prim given as a :class:`PrimDefinition`."""
 
     value: Any
     """Value in USD units."""
@@ -110,7 +130,18 @@ class UsdEdit(NamedTuple):
 
     def apply(self, stage: Usd.Stage):
         """Author the edit on ``stage``, un-instancing the asset instance that contains the prim."""
+        if self.attribute == _DEFINE_PRIM:
+            prim = stage.DefinePrim(self.path, self.value.type_name)
+            for name, targets in self.value.relationships.items():
+                prim.CreateRelationship(name, custom=False).SetTargets(targets)
+            # As the prim's schema defines them, whether or not this process registered it.
+            for name, (type_name, value) in self.value.uniform_attributes.items():
+                prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
+            return
         prim = _editable_prim(stage, self.path)
+        if self.attribute == _DEACTIVATE:
+            prim.SetActive(False)
+            return
         if self.attribute == _PHYSICS_MATERIAL:
             material = UsdShade.Material.Define(stage, self.value)
             UsdPhysics.MaterialAPI.Apply(material.GetPrim())
@@ -262,18 +293,9 @@ class BaseUsdExporter(ABC):
             )
         stage = Usd.Stage.Open(layer)
         self._select_environment(stage)
-        edits = self.compute_diff(stage)
-        # An edited value also reaches the prims composing the edited one, such as a material referencing another;
-        # theirs are kept as the import read them.
-        names = {edit.attribute for edit in edits} - {_WORLD_POSE, _PHYSICS_MATERIAL}
-        before = _authored(stage, names)
-        for edit in edits:
-            edit.apply(stage)
-        edited = {(edit.path, edit.attribute) for edit in edits}
-        for key, value in _authored(stage, names).items():
-            if key not in edited and value != before.get(key):
-                _author(_editable_prim(stage, key[0]), key[1], before.get(key))
-        self._write_pd_actuators_as_drives(stage)
+        self._apply_edits(stage, self.compute_diff(stage))
+        # The conversion reads the drive force limits the edits above wrote.
+        self._apply_edits(stage, self._compute_pd_drive_edits(stage))
         # The file names remote assets where the stage composed their cached copies; no stage composes this copy.
         exported = Sdf.Layer.CreateAnonymous(".usda")
         exported.TransferContent(layer)
@@ -367,8 +389,21 @@ class BaseUsdExporter(ABC):
             if index != self.env_id:
                 stage.RemovePrim(env_path)
 
-    def _write_pd_actuators_as_drives(self, stage: Usd.Stage):
-        """Move explicit PD actuators into their joints' USD drives, the form every physics importer reads.
+    @staticmethod
+    def _apply_edits(stage: Usd.Stage, edits: list[UsdEdit]):
+        """Author ``edits`` on ``stage``, keeping what other prims composed from an edited one as the import read it."""
+        # An edited value also reaches the prims composing the edited one, such as a material referencing another.
+        names = {edit.attribute for edit in edits} - {_WORLD_POSE, _PHYSICS_MATERIAL, _DEACTIVATE, _DEFINE_PRIM}
+        before = _authored(stage, names)
+        for edit in edits:
+            edit.apply(stage)
+        edited = {(edit.path, edit.attribute) for edit in edits}
+        for key, value in _authored(stage, names).items():
+            if key not in edited and value != before.get(key):
+                _author(_editable_prim(stage, key[0]), key[1], before.get(key))
+
+    def _compute_pd_drive_edits(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """Edits moving explicit PD actuators into their joints' USD drives, the form every physics importer reads.
 
         An explicit actuator runs outside the engine, which holds zero drive gains for its joint; its gains
         live only on a ``NewtonActuator`` prim. The drive replaces the prim, which is deactivated so that
@@ -376,7 +411,7 @@ class BaseUsdExporter(ABC):
         position-dependent limits or a network, and actuators of joints other than revolute and prismatic,
         stay prims.
         """
-        kept = []
+        kept, result = [], []
         for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]:
             # The type info also lists schemas whose plugin is not registered, unlike GetAppliedSchemas.
             schemas = set(prim.GetPrimTypeInfo().GetAppliedAPISchemas())
@@ -401,11 +436,10 @@ class BaseUsdExporter(ABC):
             max_effort, max_force = prim.GetAttribute("newton:maxEffort").Get(), self._stated(joint, drive + "maxForce")
             if max_effort is not None and (max_force is None or max_effort < max_force):
                 edits.append(UsdEdit(path, drive + "maxForce", float(max_effort), schema=schema))
-            for edit in edits:
-                edit.apply(stage)
-            prim.SetActive(False)
+            result += [*edits, UsdEdit(str(prim.GetPath()), _DEACTIVATE, None)]
         if kept:
             logger.warning(f"Actuators without a USD drive equivalent stay Newton actuator prims: {kept}.")
+        return result
 
     def _localize_asset_paths(self, layer: Sdf.Layer, export_path: str):
         """Reference the source of cached remote assets, and keep files the run wrote to the temporary directory."""
