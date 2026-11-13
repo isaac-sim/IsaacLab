@@ -93,7 +93,7 @@ def test_plane(num_envs, env_spacing):
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
         # These square grids are centered on the world origin.
-        origins = terrain_importer.env_origins
+        origins = terrain_importer.env_origins.torch
         half_span = (int(np.sqrt(num_envs)) - 1) * env_spacing / 2.0
         assert origins.shape == (num_envs, 3)
         assert origins.device == torch.device("cuda:0")
