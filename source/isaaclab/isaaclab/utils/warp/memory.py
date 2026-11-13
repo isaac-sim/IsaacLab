@@ -20,6 +20,7 @@ import torch
 import warp as wp
 
 from .index_kernel import selector_dtype
+from .proxy_array import ProxyArray
 
 _CONCAT_TILE_SIZE = 32
 
@@ -290,6 +291,37 @@ def make_masked_fill(dtype, ndim: int) -> wp.Kernel:
     return fill
 
 
+def write_2d_with_mask(
+    data: "float | torch.Tensor | wp.array",
+    row_mask: wp.array,
+    column_mask: wp.array,
+    out: wp.array,
+) -> None:
+    """Write ``data`` into ``out`` where both masks are true, launching over the mask lengths.
+
+    A mask shorter than ``out`` writes only the rows or columns it covers. Callers resolve the masks and check the
+    data shape.
+
+    Args:
+        data: Values of shape ``(row_mask.shape[0], column_mask.shape[0])`` in the dtype of ``out``, as a ``wp.array``
+            or a ``torch.Tensor`` with the dtype's trailing dimensions, or one scalar for every selected entry.
+        row_mask: Boolean mask over the first dimension of ``out``.
+        column_mask: Boolean mask over the second dimension of ``out``.
+        out: Output array. The launch runs on its device.
+    """
+    dim = (row_mask.shape[0], column_mask.shape[0])
+    if isinstance(data, (int, float)):
+        kernel = make_masked_fill(out.dtype, 2)
+    elif isinstance(data, torch.Tensor) and data.ndim > 2 and data.stride(-1) != 1:
+        # a vector-typed argument needs packed components; copy strided ones through scalar views instead
+        scalar = out.dtype._wp_scalar_type_
+        kernel, dim = make_masked_copy(scalar, 3), (*dim, data.shape[-1])
+        data, out = wp.from_torch(data, dtype=scalar), out.view(scalar)
+    else:
+        kernel = make_masked_copy(out.dtype, 2)
+    wp.launch(kernel, dim=dim, inputs=[data, row_mask, column_mask], outputs=[out], device=out.device)
+
+
 @cache
 def _make_populate_mask(dtype) -> wp.Kernel:
     @wp.kernel(module="unique")
@@ -316,11 +348,11 @@ def resolve_1d_mask(
     ids: "Sequence[int] | slice | torch.Tensor | wp.array | None" = None,
     mask: "wp.array | torch.Tensor | None" = None,
     all_mask: wp.array,
-    scratch_mask: wp.array,
+    scratch_mask: wp.array | None = None,
 ) -> wp.array:
     """Resolve a selection using caller-owned boolean storage on its device.
 
-    An explicit boolean mask takes precedence. ``None`` and ``slice(None)`` return
+    A given boolean mask is used as given, so a mask consumer converts no ids. ``None`` and ``slice(None)`` return
     the identical ``all_mask`` object. Boolean selectors are masks; signed int32/int64
     selectors are indices, supporting negatives and duplicates. Index values must be
     in ``[-size, size)``; invalid device indices are ignored without a host sync.
@@ -329,21 +361,32 @@ def resolve_1d_mask(
     storage. Host sequences and device transfers are eager-only and may allocate.
     Temporary CUDA index uploads synchronize their stream before releasing storage;
     preallocated device selectors avoid this synchronization.
-    Integer widths and strides are preserved. Masks must have the destination shape
-    and boolean dtype. The returned scratch storage is reused, so this is not reentrant.
+    Integer widths and strides are preserved. Masks use the boolean dtype and are never
+    longer than ``all_mask``; with a ``scratch_mask`` they have its exact shape. The returned
+    scratch storage is reused, so this is not reentrant.
+    Callers that never select by ids may omit ``scratch_mask``; their masks, which may be
+    shorter than ``all_mask``, are then returned as given, and the callers launch over the
+    mask lengths, so a short mask writes only the rows it covers.
+
+    Raises:
+        ValueError: If ids or a slice select a subset of elements and no ``scratch_mask`` is given,
+            or a boolean mask is longer than ``all_mask`` or differs from a given ``scratch_mask`` shape.
     """
-    device = scratch_mask.device
-    if scratch_mask.ndim != 1 or scratch_mask.dtype != wp.bool:
-        raise ValueError("scratch_mask must be a rank-1 boolean Warp array")
-    if all_mask.shape != scratch_mask.shape or all_mask.dtype != wp.bool or all_mask.device != device:
-        raise ValueError("all_mask must match scratch_mask shape, dtype and device")
+    device = all_mask.device
+    if scratch_mask is not None:
+        if scratch_mask.ndim != 1 or scratch_mask.dtype != wp.bool:
+            raise ValueError("scratch_mask must be a rank-1 boolean Warp array")
+        if all_mask.shape != scratch_mask.shape or all_mask.dtype != wp.bool or all_mask.device != scratch_mask.device:
+            raise ValueError("all_mask must match scratch_mask shape, dtype and device")
 
     temporary_input = False
     selection = mask if mask is not None else ids
     if selection is None or (isinstance(selection, slice) and selection == slice(None)):
         return all_mask
     if isinstance(selection, slice):
-        start, stop, step = selection.indices(scratch_mask.shape[0])
+        start, stop, step = selection.indices(all_mask.shape[0])
+        if scratch_mask is None:
+            raise ValueError("resolve_1d_mask needs a scratch_mask to write ids into.")
         scratch_mask.zero_()
         count = len(range(start, stop, step))
         if count:
@@ -381,11 +424,15 @@ def resolve_1d_mask(
     if selection.ndim != 1:
         raise ValueError("Selectors must be rank-1 arrays")
     if mask is not None or selection.dtype == wp.bool:
-        if selection.dtype != wp.bool or selection.shape != scratch_mask.shape:
-            raise ValueError("Boolean masks must match the destination shape and dtype")
+        size = all_mask.shape[0]  # the scratch_mask length when one is given
+        fits = selection.shape[0] == size if scratch_mask is not None else selection.shape[0] <= size
+        if selection.dtype != wp.bool or not fits:
+            raise ValueError("Boolean masks must fit the destination shape and use the boolean dtype")
         return selection
     if selection.dtype not in (wp.int32, wp.int64):
         raise TypeError("Index arrays must use signed int32 or int64 values")
+    if scratch_mask is None:
+        raise ValueError("resolve_1d_mask needs a scratch_mask to write ids into.")
     scratch_mask.zero_()
     if selection.size:
         wp.launch(
@@ -395,3 +442,56 @@ def resolve_1d_mask(
             # Eager uploads must outlive scatter even on imported nonblocking CUDA streams.
             wp.synchronize_stream(wp.get_stream(device))
     return scratch_mask
+
+
+def resolve_ids(
+    *,
+    ids: "Sequence[int] | slice | torch.Tensor | wp.array | None" = None,
+    mask: "wp.array | torch.Tensor | None" = None,
+    all_ids: wp.array,
+) -> "wp.array | torch.Tensor":
+    """Resolve ids/mask into ids on the device of ``all_ids``. Given ids are used as given: a consumer of ids takes
+    them without converting the mask, which happens only when no ids (or ``slice(None)``) are given.
+
+    Pass the result to :func:`resolve_1d_indices` where contiguous int32 ids are needed.
+
+    Args:
+        ids: Index ids. Accepts ``Sequence[int]``, ``slice``, ``torch.Tensor``, ``wp.array``,
+            or ``None`` (all elements). Tensors and warp arrays keep their integer dtype.
+        mask: Boolean mask. Its ids are found with :func:`torch.nonzero`, which waits for
+            the device.
+        all_ids: Pre-allocated ids of every element, returned as-is when *ids* and *mask*
+            select every element.
+
+    Returns:
+        ``all_ids``, a ``torch.Tensor`` or a ``wp.array`` of ids on the device of ``all_ids``.
+        A mask resolves to an int64 ``torch.Tensor``; lists and slices resolve to ``wp.int32``.
+
+    Raises:
+        TypeError: If *ids* is a :class:`ProxyArray`, which is output-only, or *mask* is
+            neither a ``wp.array`` nor a ``torch.Tensor``.
+    """
+    device = all_ids.device
+    if mask is not None and (ids is None or (isinstance(ids, slice) and ids == slice(None))):
+        if isinstance(mask, wp.array):
+            mask = wp.to_torch(mask)
+        elif not isinstance(mask, torch.Tensor):
+            raise TypeError(f"Unsupported mask type: {type(mask)}")
+        return torch.nonzero(mask.to(wp.device_to_torch(device))).squeeze(-1)
+    if isinstance(ids, torch.Tensor):
+        return ids if str(ids.device) == str(device) else ids.to(wp.device_to_torch(device))
+    if ids is None:
+        return all_ids
+    if isinstance(ids, wp.array):
+        return ids if ids.device == device else ids.to(device)
+    if isinstance(ids, ProxyArray):
+        raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
+    if isinstance(ids, slice):
+        if ids == slice(None):
+            return all_ids
+        start, stop, step = ids.indices(all_ids.shape[0])
+        if step > 0:
+            # a strided view of the caller's all-ids, no copy
+            return wp.from_torch(wp.to_torch(all_ids)[start:stop:step])
+        return wp.array(list(range(start, stop, step)), dtype=wp.int32, device=device)
+    return wp.array(list(ids), dtype=wp.int32, device=device)
