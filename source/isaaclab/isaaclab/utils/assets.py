@@ -649,7 +649,8 @@ def search_simready_usd_paths(
     """Search the SimReady USD-Search service and return the matching USD asset paths in service order.
 
     The arguments are mapped onto the service's ``/search_hybrid`` request; any other request field of the
-    service can be passed through :paramref:`params`.
+    service can be passed through :paramref:`params`. SimReady feature tags certify PhysX readiness only;
+    validate assets under other physics backends before training on them.
 
     Args:
         query: Short description of the assets, matched on text and image embeddings. Defaults to None.
