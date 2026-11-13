@@ -6,5 +6,8 @@
 * Preserved full-stage physics import and world placement for CPU simulations using a shared OVStage.
 * Restricted early binding initialization to shared stages, preserving non-shared callback priorities
   during startup, resets, and forced reinitialization.
+* Preserved joints and authored physics properties when selecting clone recipes and original worlds,
+  and rejected unsupported physics-only native clone roots before attachment instead of dropping them.
+  Reused source classifications within each export to avoid repeated USD traversal.
 * Exposed the OVPhysX binding phase through ``binding_init_event`` and ``initialize_event`` attributes,
   removing asset and contact-sensor dependencies on private event selection.

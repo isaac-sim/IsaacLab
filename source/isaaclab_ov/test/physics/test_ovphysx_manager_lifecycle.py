@@ -694,6 +694,44 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
 
 @pytest.mark.kitless
 @pytest.mark.integration
+@pytest.mark.skipif(not _CUDA_DEVICES, reason="Requires a selected CUDA test device")
+def test_shared_stage_rejects_joint_only_native_recipe():
+    """A joint-only recipe must fail before attachment instead of silently losing its destination."""
+    import numpy as np
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CUDA_DEVICES[0])
+    with build_simulation_context(sim_cfg=cfg, auto_add_lighting=False) as sim:
+        source = "/World/envs/env_0/Constraints"
+        UsdGeom.Xform.Define(sim.stage, source)
+        body_path = "/World/envs/env_0/Body"
+        body = UsdGeom.Cube.Define(sim.stage, body_path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.CollisionAPI.Apply(body)
+        joint = UsdPhysics.FixedJoint.Define(sim.stage, source + "/Joint")
+        joint.CreateBody1Rel().SetTargets([body_path])
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Constraints"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+        )
+        sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+
+        with pytest.raises(ValueError, match=source + ".*USD replication"):
+            sim.reset()
+        assert sim.backend_manager.get_physx_instance() is None
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
 @pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
 @pytest.mark.parametrize("shared", [False, True])
 def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, shared):

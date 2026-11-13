@@ -31,6 +31,14 @@ original worlds in one stage before OVPhysX attaches. ``OvstageReplicateContext`
 physics asset routes so it can complete the rendering copies after native physics cloning and binding
 acquisition. The selected route is retained across resets and subsequent renderer creation.
 
+Shared-stage filtering retains joints, physics schemas, and authored physics properties, excluding
+only render-only clone sources. Native replication of physics-only roots without rigid bodies or
+colliders is rejected before attachment. Route these prims through
+:class:`~isaaclab.cloner.UsdReplicateContext` so their destinations are present when physics attaches.
+Worlds containing USD-only physics retain their companion bodies in the initial import.
+Source classifications are reused within each export and refreshed on subsequent exports, avoiding
+repeated subtree traversal while accounting for stage edits and reinitialization.
+
 Configure shared-stage cameras and contact sensors before the initial simulation reset. Cameras may have
 different product settings, but share one native renderer and must agree on native logging and transform-cache settings.
 Full-stage physics imports, including deformable scenes that require authored environment copies, are

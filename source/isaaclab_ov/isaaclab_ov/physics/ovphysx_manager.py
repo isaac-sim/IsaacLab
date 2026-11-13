@@ -749,31 +749,15 @@ class OvPhysxManager(PhysicsManager):
 
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
-        if shared_scene is not None:
-            physics_recipes = [
-                recipe
-                for recipe in self._clone_recipes
-                if any(
-                    prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI)
-                    for prim in Usd.PrimRange(sim.stage.GetPrimAtPath(recipe[0]), Usd.TraverseInstanceProxies())
-                )
-            ]
-            stage_usda, native_clones = _serialize_stage(
-                sim.stage,
-                physics_recipes,
-                full_stage,
-                plan,
-                friction_replacements=self._cfg.legacy_joint_friction_replacements,
-                preserve_physics_ancestors=True,
-            )
-        else:
-            stage_usda, native_clones = _serialize_stage(
-                sim.stage,
-                self._clone_recipes,
-                full_stage,
-                plan,
-                friction_replacements=self._cfg.legacy_joint_friction_replacements,
-            )
+        stage_usda, native_clones = _serialize_stage(
+            sim.stage,
+            self._clone_recipes,
+            full_stage,
+            plan,
+            friction_replacements=self._cfg.legacy_joint_friction_replacements,
+            filter_render_only=shared_scene is not None,
+            preserve_physics_ancestors=shared_scene is not None,
+        )
         self._stage_usda = stage_usda
 
         self.backend = sim.get_or_create_backend(
