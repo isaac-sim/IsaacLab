@@ -101,7 +101,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
 
 
-def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path):
+def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path) -> None:
     """``all`` aggregates only the curated OV, RL, and visualizer extras."""
     optional = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
 
@@ -119,6 +119,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "importers",
         "mimic",
         "teleop",
+        "ovxr",
         "tetrahedralization",
         "video",
         "leapp",
@@ -216,18 +217,16 @@ def test_public_ov_packages_use_public_pypi_index(source_checkout_root: Path):
         assert sources[package] == {"index": "pypi-public"}
 
 
-def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
-    """No extra is forked: every combination resolves into a single environment.
+def test_uv_run_conflicts_are_limited_to_standalone_ovxr(source_checkout_root: Path) -> None:
+    """Only standalone OVXR isolates its Capture and presentation dependencies.
 
-    ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The remaining dependency overrides reconcile
-    packages whose Isaac Sim pins lag the standalone stack. The importers install beside Isaac Sim
-    without displacing it: the two distributions share no files, and Kit serves ``isaacsim.asset``
-    from its extension roots either way.
+    Kit teleop, Isaac Sim, importers, and the ordinary OV extras remain combinable.
+    Dependency overrides reconcile their older pins without adding extra conflicts.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
-    assert "conflicts" not in tool_uv
+    conflicts = {frozenset(item["extra"] for item in group) for group in tool_uv["conflicts"]}
+    assert conflicts == {frozenset(("ovxr", extra)) for extra in ("teleop", "isaacsim", "viser", "all")}
     assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
     assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]
