@@ -1976,8 +1976,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         else:
             if self._overlay_publisher is not None:
                 self._overlay_publisher.hide_all(self._rtx_renderers)
-            back = self._rtx_pose_view
-            self._rtx_pose_view = None
+            back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
 
     @property
