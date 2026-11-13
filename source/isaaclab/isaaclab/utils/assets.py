@@ -28,7 +28,7 @@ import tempfile
 import threading
 import uuid
 import warnings
-from collections.abc import Coroutine, Iterator
+from collections.abc import Coroutine, Iterator, Sequence
 from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
@@ -638,85 +638,60 @@ def read_file(path: str) -> io.BytesIO:
 
 def search_simready_usd_paths(
     query: str | None = None,
-    top_k: int = 20,
-    min_relevance: float = 0.0,
-    filter_profiles: list[str] | None = None,
-    filter_features: list[str] | None = None,
-    exclude_features: list[str] | None = None,
+    size_range: tuple[float, float] | None = None,
+    mass_range: tuple[float, float] | None = None,
+    features: Sequence[str] = (),
+    exclude_features: Sequence[str] = (),
+    limit: int = 100,
     service_endpoint: str = SIMREADY_SEARCH_SERVICE_ENDPOINT,
+    **params,
 ) -> list[str]:
-    """Search the SimReady USD-Search service and return the top-ranked USD asset paths.
+    """Search the SimReady USD-Search service and return the matching USD asset paths in service order.
 
-    This function requires the optional ``simready-search`` package, provided by the ``simready``
-    extra (``uv sync --extra simready``).
-
-    .. note::
-        The service returns identical results for identical queries while its asset index is
-        unchanged, but the index evolves over time, so the same query may resolve differently
-        across days. Treat this function as an authoring-time discovery step: resolve once, then
-        record the returned paths directly (e.g. in a spawner configuration's ``usd_path``)
-        instead of re-querying on every run. For assets that spawn as a single rigid body (e.g.
-        with :class:`~isaaclab.assets.RigidObject`), pass ``filter_features=["FET003_BASE_PHYSX"]``
-        and ``exclude_features=["FET004_BASE_PHYSX"]``, since ``FET004_BASE_PHYSX`` marks multibody
-        assets. Feature tags certify PhysX readiness only; validate assets under other physics
-        backends before training on them.
+    The arguments are mapped onto the service's ``/search_hybrid`` request; any other request field of the
+    service can be passed through :paramref:`params`.
 
     Args:
-        query: Free-text search phrase (e.g. ``"can"``). At least one of :paramref:`query`,
-            :paramref:`filter_profiles`, or :paramref:`filter_features` must be provided.
-        top_k: Maximum number of asset paths to return.
-        min_relevance: Minimum relevance score for a match to be included.
-        filter_profiles: SimReady profile names that every match must have
-            (e.g. ``"Prop-Robotics-Isaac"``).
-        filter_features: SimReady feature names that every match must have
-            (e.g. ``"FET003_BASE_PHYSX"``).
-        exclude_features: SimReady feature names that no match may have
-            (e.g. ``"FET004_BASE_PHYSX"``).
-        service_endpoint: URL of the USD-Search service.
+        query: Short description of the assets, matched on text and image embeddings. Defaults to None.
+        size_range: Minimum and maximum extent [m] of the asset's bounding box along every axis.
+        mass_range: Minimum and maximum mass [kg] authored in the asset's SimReady metadata.
+        features: SimReady feature names that every match must have passed (e.g. ``FET003_BASE_PHYSX``).
+        exclude_features: SimReady feature names that no match may have passed.
+        limit: Maximum number of paths to return. Defaults to 100.
+        service_endpoint: Base URL of the service.
+        params: Further ``/search_hybrid`` request fields, sent as given.
 
     Returns:
-        USD asset paths ordered by descending relevance, at most :paramref:`top_k` entries.
+        Asset paths under :data:`ISAAC_NUCLEUS_DIR`, at most :paramref:`limit` entries.
 
     Raises:
-        ImportError: If the optional ``simready-search`` package is not installed.
-        ValueError: If no search criterion is provided, ``top_k`` is not positive, or the search
-            returned no results.
+        requests.HTTPError: If the service rejects the request.
     """
-    from simready.search import (  # noqa: PLC0415
-        AssetLibrary,
-        SearchFilterFeature,
-        SearchFilterPhrase,
-        SearchFilterProfile,
-        SearchFilterRelevance,
-    )
+    import requests  # noqa: PLC0415
 
-    if top_k < 1:
-        raise ValueError(f"Expected 'top_k' to be positive, got: {top_k}.")
-    if query is None and not filter_profiles and not filter_features:
-        raise ValueError("At least one of 'query', 'filter_profiles', or 'filter_features' must be provided.")
-
-    # assemble the search filters. a match must pass all of them.
-    filters = []
-    if query is not None:
-        filters.append(SearchFilterPhrase(query))
-    if min_relevance > 0.0:
-        filters.append(SearchFilterRelevance(minimum=min_relevance))
-    for profile in filter_profiles or []:
-        filters.append(SearchFilterProfile(profile))
-    for feature in filter_features or []:
-        filters.append(SearchFilterFeature(feature))
-    excluded = [SearchFilterFeature(feature) for feature in exclude_features or []]
-
-    # raise on network/auth failures instead of the library default of returning empty results
-    library = AssetLibrary(raise_on_network_error=True)
-    library.add_service_source(service_endpoint)
-    matches = library.search(include_all=filters, exclude_any=excluded, max_count=top_k)
-    if not matches:
-        raise ValueError(
-            f"SimReady search returned no results for query: {query!r}. Check the query phrase,"
-            " the filters, and the service endpoint."
+    feature = "*validation__validated_features__*__{}__passed=~True"
+    request = {"file_extension_include": "usd*", "limit": limit, **params}
+    if query:
+        request["hybrid_text_query"] = query
+        request["vector_queries"] = [
+            {"field_name": "siglip2-embedding.embedding", "query_type": "text", "query": query}
+        ]
+    if size_range:
+        for axis in "xyz":
+            request[f"min_bbox_{axis}"], request[f"max_bbox_{axis}"] = size_range
+    if mass_range:
+        request["filter_by_properties_numeric"] = "simready_metadata_mass>={},simready_metadata_mass<={}".format(
+            *mass_range
         )
-    return [match.asset_path for match in matches]
+    if features:
+        request["filter_by_properties"] = ",".join(feature.format(name) for name in features)
+    if exclude_features:
+        request["exclude_filter_by_properties"] = ",".join(feature.format(name) for name in exclude_features)
+    response = requests.post(f"{service_endpoint.rstrip('/')}/search_hybrid", json=request, timeout=60)
+    response.raise_for_status()
+    # the service indexes the public Isaac asset bucket; keep the part under SimReady/ and use the configured root
+    relative = [hit["source"]["path"].partition("/Isaac/SimReady/")[2] for hit in response.json()["hits"]]
+    return [f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}" for path in relative if path]
 
 
 def _resolve_reference_url(base_url: str, ref: str) -> str:
