@@ -12,7 +12,7 @@ import inspect
 import subprocess
 import sys
 import textwrap
-from contextlib import nullcontext
+from contextlib import closing, nullcontext
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -629,6 +629,57 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
 
     with pytest.raises(RuntimeError, match="owned"):
         manager_module._prepare_default_cache_dir(str(target))
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.parametrize("device", _CPU_DEVICES)
+def test_shared_cpu_stage_materializes_clone_worlds(monkeypatch, device):
+    """A shared CPU stage imports every world with its placement instead of using native clones."""
+    import numpy as np
+    import ovphysx
+    import warp as wp
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.sim.views import OvPhysxView
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    def reject_native_clone(*args, **kwargs):
+        pytest.fail("CPU worlds must be imported through USD, not native-cloned")
+
+    monkeypatch.setattr(ovphysx.PhysX, "clone", reject_native_clone)
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        source = "/World/envs/env_0/Cube"
+        cube = UsdGeom.Cube.Define(sim.stage, source)
+        cube.AddTranslateOp().Set((0.0, 0.0, 1.0))
+        UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Cube"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+            positions=np.array([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]]),
+        )
+        shared = sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        shared.clone_copies = [(source, [source, "/World/envs/env_1/Cube"])]
+        sim.reset()
+
+        with closing(
+            OvPhysxView(
+                sim.backend_manager.get_physx_instance(), prim_paths=[source, "/World/envs/env_1/Cube"], device=device
+            )
+        ) as view:
+            binding = view.binding_for("rigid_body_pose")
+            poses = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
+            binding.read(poses)
+            np.testing.assert_allclose(poses.numpy()[:, :3], [[0.0, 0.0, 1.0], [5.0, 0.0, 1.0]], atol=1e-6)
 
 
 @pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")

@@ -730,6 +730,7 @@ class OvPhysxManager(PhysicsManager):
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
+        full_stage = self._requires_full_stage or ovphysx_device == "cpu"
 
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
@@ -745,13 +746,12 @@ class OvPhysxManager(PhysicsManager):
             stage_usda, native_clones = _serialize_stage(
                 sim.stage,
                 physics_recipes,
-                False,
+                full_stage,
                 plan,
                 friction_replacements=self._cfg.legacy_joint_friction_replacements,
                 preserve_physics_ancestors=True,
             )
         else:
-            full_stage = self._requires_full_stage or ovphysx_device == "cpu"
             stage_usda, native_clones = _serialize_stage(
                 sim.stage,
                 self._clone_recipes,
