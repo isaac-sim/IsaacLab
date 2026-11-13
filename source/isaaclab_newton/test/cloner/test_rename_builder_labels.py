@@ -563,6 +563,53 @@ class TestRootJointNaming(unittest.TestCase):
         newton_clone_utils_module._name_root_joints_after_their_body(builder)
         self.assertEqual(builder.joint_label, expected)
 
+    def test_explicit_standalone_fixed_roots_keep_articulation_identity(self):
+        """World-fixed objects retain their authored root, pose, and articulation attributes."""
+        source = "/World/Asset"
+        for root_path in (None, "/World", source, source + "/body"):
+            for body_side in (0, 1):
+                with self.subTest(root_path=root_path, body_side=body_side):
+                    stage = Usd.Stage.CreateInMemory()
+                    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+                    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+                    UsdGeom.Xform.Define(stage, source).AddTranslateOp().Set((0.4, -0.2, 1.3))
+                    body = UsdGeom.Cube.Define(stage, source + "/body")
+                    body.AddTranslateOp().Set((0.1, 0.2, 0.3))
+                    body.CreateSizeAttr(0.1)
+                    UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+                    UsdPhysics.CollisionAPI.Apply(body.GetPrim())
+                    UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+                    joint = UsdPhysics.FixedJoint.Define(stage, source + "/body/FixedJoint")
+                    relationship = joint.CreateBody0Rel() if body_side == 0 else joint.CreateBody1Rel()
+                    relationship.SetTargets([body.GetPath()])
+                    if root_path is not None:
+                        root = stage.GetPrimAtPath(root_path)
+                        UsdPhysics.ArticulationRootAPI.Apply(root)
+                        root.CreateAttribute("newton:root_tag", Sdf.ValueTypeNames.Int).Set(7)
+
+                    def create_builder():
+                        builder = newton.ModelBuilder()
+                        builder.add_custom_attribute(
+                            newton.ModelBuilder.CustomAttribute(
+                                "root_tag", wp.int32, newton.Model.AttributeFrequency.ARTICULATION
+                            )
+                        )
+                        return builder
+
+                    builders = newton_clone_utils_module.build_source_builders(stage, [source], create_builder, [])
+                    builder = builders[source]
+                    self.assertEqual(builder.joint_type, [newton.JointType.FIXED])
+                    self.assertEqual(builder.joint_parent, [-1])
+                    self.assertEqual(builder.joint_child, [0])
+                    np.testing.assert_allclose(np.asarray(builder.body_q)[0, :3], (0.5, 0.0, 1.6), atol=1.0e-6)
+                    if root_path in (None, "/World"):
+                        self.assertEqual(builder.articulation_count, 0)
+                        self.assertEqual(builder.joint_articulation, [-1])
+                    else:
+                        self.assertEqual(builder.articulation_label, [root_path])
+                        self.assertEqual(builder.joint_articulation, [0])
+                        self.assertEqual(builder.custom_attributes["root_tag"].values, {0: 7})
+
 
 if __name__ == "__main__":
     unittest.main()
