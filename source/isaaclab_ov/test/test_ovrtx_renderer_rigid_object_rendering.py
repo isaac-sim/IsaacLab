@@ -291,7 +291,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             scene["other_camera"]._invalidate_initialize_callback(None)
 
 
-def _run_readback_contract(sim_device: str, active_cuda_gpus: str) -> None:
+def _run_readback_contract(sim_device: str, active_cuda_gpus: str | None) -> None:
     """Render the rigid-object contract on ``sim_device`` with OVRTX limited to ``active_cuda_gpus``."""
     import warp as wp
     from isaaclab_ov.renderers import parse_active_cuda_gpus
@@ -326,7 +326,8 @@ def _run_readback_contract(sim_device: str, active_cuda_gpus: str) -> None:
             )
         )
     # Outputs must come from the selected GPUs, not merely arrive on the simulation GPU.
-    assert rendered_on and rendered_on <= set(parse_active_cuda_gpus(active_cuda_gpus)), rendered_on
+    expected_gpus = parse_active_cuda_gpus(active_cuda_gpus or sim_device.removeprefix("cuda:"))
+    assert rendered_on and rendered_on <= set(expected_gpus), rendered_on
 
 
 @pytest.mark.parametrize(
@@ -360,5 +361,34 @@ def test_camera_readback_with_rendering_gpus_excluding_or_including_the_simulati
     assert completed.returncode == 0, completed.stdout[-4000:] + completed.stderr[-8000:]
 
 
+def test_renderer_gpu_selection_cannot_change_after_teardown() -> None:
+    """Recreated renderers keep their selected GPU; conflicting requests fail before native startup."""
+    devices = test_devices(DeviceScope.CUDA)
+    if len(devices) < 2:
+        pytest.skip("requires two selected CUDA devices")
+    env = {**os.environ, "ISAAC_LAB_OVRTX_USE_OVSTAGE": "1"}
+    env.pop("ISAAC_LAB_SHARE_OVSTAGE", None)
+    completed = subprocess.run(
+        [sys.executable, __file__, "--check-reselection", devices[0], devices[-1]],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout[-4000:] + completed.stderr[-8000:]
+
+
 if __name__ == "__main__":
-    _run_readback_contract(*sys.argv[1:])
+    if sys.argv[1] == "--check-reselection":
+        from isaaclab_ov.renderers import OVRTXBackendCfg
+        from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
+
+        device, other = sys.argv[2:]
+        # The default and the equivalent explicit choice must render correctly across teardown.
+        _run_readback_contract(device, None)
+        _run_readback_contract(device, device.removeprefix("cuda:"))
+        with pytest.raises(ValueError, match="new process"):
+            OVRTXBackend(OVRTXBackendCfg(device=other, use_ovstage=True, read_gpu_transforms=True))
+    else:
+        _run_readback_contract(*sys.argv[1:])

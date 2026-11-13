@@ -133,6 +133,40 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
+@pytest.mark.parametrize(("initial_selection", "failure_point"), [(None, None), ("0", "redirect"), ("0", "renderer")])
+def test_native_gpu_selection_survives_close_and_partial_startup(monkeypatch, initial_selection, failure_point):
+    """Default selection is repeatable; partial native startup cannot authorize a different GPU."""
+    monkeypatch.setattr(OVRTXBackend, "_initial_gpu_selection", None)
+    calls = []
+
+    def redirect(config):
+        calls.append("redirect")
+        if failure_point == "redirect":
+            raise RuntimeError("native startup failed")
+
+    def construct(config):
+        calls.append("renderer")
+        if failure_point == "renderer":
+            raise RuntimeError("native startup failed")
+        return types.SimpleNamespace(destroy=lambda: None)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirect)
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", construct)
+    cfg = OVRTXBackendCfg(device="cpu", active_cuda_gpus=initial_selection, use_ovstage=False, read_gpu_transforms=True)
+    if failure_point is None:
+        OVRTXBackend(cfg).close()
+    else:
+        with pytest.raises(RuntimeError, match="native startup failed"):
+            OVRTXBackend(cfg)
+    before = calls.copy()
+    failure_point = None
+    with pytest.raises(ValueError, match="new process"):
+        OVRTXBackend(replace(cfg, active_cuda_gpus="1"))
+    assert calls == before, "Reject conflicting selections before any native initialization."
+    OVRTXBackend(cfg).close()
+    assert calls[len(before) :] == ["redirect", "renderer"]
+
+
 @pytest.mark.parametrize(
     "settings, with_physics, use_ovstage, shared_physics",
     [
@@ -165,6 +199,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     loaded = []
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "__file__", str(tmp_path / "__init__.py"))
     monkeypatch.setattr(ctypes, "CDLL", lambda path: loaded.append(path))
+    # Isolate mocked startup from the real native system's retained GPU selection.
+    monkeypatch.setattr(OVRTXBackend, "_initial_gpu_selection", None)
     # Cache redirection can load the SDK too; isolate it with the other native entry points.
     monkeypatch.setenv("OVRTX_SHADER_CACHE_PATH", str(tmp_path / "shader-cache"))
     monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirected.append)
@@ -1640,6 +1676,7 @@ def leased_renderer(monkeypatch):
     import isaaclab_ov.stage as stage_module
 
     monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    monkeypatch.setattr(OVRTXBackend, "_initial_gpu_selection", None)
     native, stage, paths = MagicMock(), MagicMock(), MagicMock()
     floor = stage.get_attribute_write_floor.return_value.__enter__.return_value
     floor.fetch.return_value = 0

@@ -178,8 +178,11 @@ class OVRTXRendererCfg(RendererCfg):
     """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
 
     Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
-    The first OVRTX renderer in a process fixes the set for that process. This does not change
-    physics or the geometry publication destination. Camera outputs are still returned on the
+    The first native initialization attempt fixes this selection for the process, even after
+    renderer teardown or failed startup. Later renderers must request the same selection;
+    conflicting requests raise :class:`ValueError`. Start a new process to change rendering GPUs.
+    Native selection for CPU simulation must not be mixed with an explicit selection in one process.
+    This does not change physics or the geometry publication destination. Camera outputs are still returned on the
     simulation device. When the set excludes the simulation GPU, render products use automatic
     device assignment and their outputs are copied from the rendering GPU to the simulation GPU
     before extraction, which costs one device-to-device copy per output and frame.

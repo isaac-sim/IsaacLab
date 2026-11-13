@@ -216,6 +216,12 @@ rendering device. Omit it to preserve source-buffer placement. CPU data and
 already-local geometry keep their placement; mixed CPU/CUDA geometry batches
 are unsupported by OVStage.
 
+The rendering GPU selection is fixed by the first native initialization attempt
+in each process. Recreating a renderer with the same selection is supported;
+a different selection is rejected, including after teardown or failed startup.
+Start a new process to change rendering GPUs. For CPU simulation, consistently
+use native selection or an explicit GPU list throughout the process.
+
 Custom geometry producers must order updates on their current Warp stream and
 avoid concurrent mutation during publication. These controls do not change
 physics fidelity or guarantee a rendering rate.

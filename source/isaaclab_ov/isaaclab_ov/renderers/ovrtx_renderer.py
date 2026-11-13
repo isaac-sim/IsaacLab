@@ -32,6 +32,7 @@ import math
 import os
 import sys
 import tempfile
+import threading
 import weakref
 from builtins import ExceptionGroup
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -267,6 +268,10 @@ def _resolve_env_light_partitions(
 class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
+    # None is uninitialized; an empty tuple requests native GPU selection for CPU simulation.
+    _initial_gpu_selection: tuple[int, ...] | None = None
+    _initialization_lock = threading.Lock()
+
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
         self.attached = False
@@ -280,14 +285,16 @@ class OVRTXBackend:
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
         # An explicit ``active_cuda_gpus`` selection takes precedence.
         sim_device = wp.get_device(cfg.device)
+        active_cuda_gpus = (
+            cfg.active_cuda_gpus
+            if cfg.active_cuda_gpus is not None
+            else str(sim_device.ordinal)
+            if sim_device.is_cuda
+            else None
+        )
+        selection = parse_active_cuda_gpus(active_cuda_gpus) if active_cuda_gpus is not None else ()
         native_cfg = RendererConfig(
-            active_cuda_gpus=(
-                cfg.active_cuda_gpus
-                if cfg.active_cuda_gpus is not None
-                else str(sim_device.ordinal)
-                if sim_device.is_cuda
-                else None
-            ),
+            active_cuda_gpus=active_cuda_gpus,
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -295,8 +302,6 @@ class OVRTXBackend:
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Redirection may initialize the native library and must use the same settings.
-        redirect_shader_cache(native_cfg)
         self.next_camera_id = 0
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
@@ -304,7 +309,19 @@ class OVRTXBackend:
             self.clone_env_paths: list[str] = []
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
-        self.renderer = Renderer(native_cfg)
+        with OVRTXBackend._initialization_lock:
+            initial = OVRTXBackend._initial_gpu_selection
+            if initial is not None and selection != initial:
+                raise ValueError(
+                    "OVRTX rendering GPU selection cannot change in this process:"
+                    f" first requested {initial or 'native default'}, requested {selection or 'native default'}."
+                    " Reuse the original selection or start a new process to select different rendering GPUs."
+                )
+            # Cache redirection and failed renderer construction can retain native system state.
+            # Reserve the selection before either call; keep_system_alive also preserves it after close.
+            OVRTXBackend._initial_gpu_selection = selection
+            redirect_shader_cache(native_cfg)
+            self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed.

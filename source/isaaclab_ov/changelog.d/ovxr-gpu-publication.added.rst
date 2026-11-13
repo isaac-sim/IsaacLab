@@ -7,5 +7,7 @@
   :func:`~isaaclab_ov.renderers.parse_cuda_device_index` apply the same checks beforehand. The
   configuration and :class:`~isaaclab_ov.renderers.OVRTXRenderer` reject a publication device that is
   not a rendering GPU: one of ``active_cuda_gpus``, or the simulation GPU when that is unset.
+  Later native renderer initialization rejects a conflicting rendering GPU selection, including
+  after teardown, instead of silently retaining the first selection.
 * Added ``python -m isaaclab_ov.renderers.check_cuda_peer``, a preflight that checks the geometry
   publication copy between two GPUs before splitting physics and rendering across them.
