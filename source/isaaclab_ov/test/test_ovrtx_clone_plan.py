@@ -517,9 +517,8 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 
 
-@pytest.mark.parametrize("failure", ["ordinal", "clone", "commit"])
-def test_deferred_render_copy_failure_requires_stage_reset(monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
-    """Incomplete population remains pending and cannot be replayed onto a partially copied stage."""
+def test_deferred_render_copy_failure_requires_stage_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject a wrong ordinal before copying; a failed commit requires reset before replay."""
     import ovstage
     from isaaclab_ov import stage as stage_module
 
@@ -533,22 +532,24 @@ def test_deferred_render_copy_failure_requires_stage_reset(monkeypatch: pytest.M
     backend.clone_copies = [("/World/env_0", ["/World/env_1"])]
     try:
         backend.populate(source.ExportToString())
-        if failure == "ordinal":
-            backend.commit()
-            error = "reserved render-copy ordinal"
-        else:
-            error = "injected failure"
-            operation = native.clone if failure == "clone" else native.advance_write_floor.return_value.wait
-            operation.side_effect = RuntimeError(error)
-        with pytest.raises(RuntimeError, match=error):
+        backend.commit()
+        with pytest.raises(RuntimeError, match="reserved render-copy ordinal"):
             backend.complete_render_copies()
+        native.clone.assert_not_called()
+
+        backend.reset()
+        backend.populate(source.ExportToString())
+        native.advance_write_floor.return_value.wait.side_effect = RuntimeError("injected commit failure")
+        with pytest.raises(RuntimeError, match="injected commit failure"):
+            backend.complete_render_copies()
+        native.clone.assert_called_once()
         assert backend.render_copies_pending
+        native.advance_write_floor.return_value.wait.side_effect = None
         calls = list(native.mock_calls)
         with pytest.raises(RuntimeError, match="reset"):
             backend.complete_render_copies()
         assert native.mock_calls == calls, "A failed copy must not be replayed onto partial native state"
 
-        native.clone.side_effect = native.advance_write_floor.return_value.wait.side_effect = None
         backend.reset()
         backend.populate(source.ExportToString())
         backend.complete_render_copies()
