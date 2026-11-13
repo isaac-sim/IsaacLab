@@ -52,7 +52,7 @@ class Asset:
             )
             if not self._prim:
                 raise RuntimeError(f"Could not spawn prim at path {spawn_path}.")
-            self.cfg._post_spawn(self.stage)
+        self.cfg._post_spawn(self.stage)
 
     @property
     def prim(self) -> Usd.Prim | None:

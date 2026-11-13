@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -76,6 +77,25 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
+    self_collision_filter_pairs: list[tuple[str | list[str], str | list[str]]] = []
+    """Additional self-collision exclusions between pairs of body-name regex groups. Defaults to [].
+
+    Each pair excludes collisions between every body matched by its first group and every body matched
+    by its second group. A group is a regex string or a non-empty list of regex strings, matched against
+    complete body names. Every expression must match at least one body in the selected articulation.
+    Overlapping groups are allowed; a body is never paired with itself. Use the same group on both
+    sides to exclude collisions within that group.
+
+    For example, ``[("thumb_.*", ["palm_link", "arm_link_[5-7]"])]`` filters thumb-to-palm and
+    thumb-to-arm contacts. Existing exclusions, including disabled articulation self-collisions and
+    adjacent-link filters, still apply. These pairs cannot re-enable contacts.
+
+    The exclusions are authored as USD ``physics:filteredPairs`` relationships when the asset is
+    constructed, before physics import and cloning. This also applies when :attr:`spawn` is None.
+    Set this field before constructing the asset; changing it after model initialization has no effect.
+    Body prims that are USD instance proxies cannot be edited and raise :class:`ValueError`.
+    """
+
     joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public joint-name ordering convention or complete explicit permutation.
 
@@ -119,15 +139,24 @@ class ArticulationCfg(AssetBaseCfg):
     """
 
     def _post_spawn(self, stage: Any) -> None:
-        """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
+        """Author collision exclusions and, for spawned assets, Newton actuator prims.
 
         Invoked by :class:`~isaaclab.assets.Asset` once the articulation's prims
-        exist on the stage. Delegates to
+        exist on the stage. Actuator authoring delegates to
         :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
         on ``sim_cfg.use_newton_actuators``. BAM requires native Newton execution;
         other actuator configurations no-op when native execution is disabled.
         """
-        if self.actuators is MISSING:
+        if self.self_collision_filter_pairs:
+            from ...sim.schemas.schemas import _apply_articulation_collision_filters  # noqa: PLC0415
+
+            _apply_articulation_collision_filters(
+                self._resolve_self_collision_filter_paths(),
+                self.self_collision_filter_pairs,
+                articulation_root_prim_path=self.articulation_root_prim_path,
+                stage=stage,
+            )
+        if self.spawn is None or self.actuators is MISSING:
             return
         from ...sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 
@@ -139,3 +168,39 @@ class ArticulationCfg(AssetBaseCfg):
             self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path is not None else self.prim_path
         )
         define_actuator_properties(author_prim_path, self.actuators, stage=stage)
+
+    def _resolve_self_collision_filter_paths(self) -> list[str]:
+        """Resolve source prim-path expressions for this asset's collision exclusions."""
+        from ...cloner import path as cloner_path  # noqa: PLC0415
+        from ...sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext  # noqa: PLC0415
+
+        if self.spawn is not None:
+            # Destination expressions can be shared by distinct asset prototypes. Only edit
+            # the sources assigned to this spawner; their clones inherit the exclusions.
+            if isinstance(self.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)) and self.spawn.spawn_paths is not None:
+                return [re.escape(path) for path in self.spawn.spawn_paths if path is not None]
+            if self.spawn.spawn_path is not None:
+                return [re.escape(self.spawn.spawn_path)]
+            return [self.prim_path]
+
+        expressions = [self.prim_path]
+
+        sim = SimulationContext.instance()
+        plan = sim.get_clone_plan() if sim is not None else None
+        if plan is not None:
+            sources = cloner_path.get_asset_prototype_paths(plan)
+            expressions.extend(
+                re.escape(sources[index])
+                for index in cloner_path.get_asset_prototypes(plan, self.prim_path)
+                if sources[index] is not None
+            )
+            # A non-spawning articulation may be owned by a larger scene source.
+            templates, _ = cloner_path.get_world_prototype_asset_templates(plan)
+            for asset, template in zip(plan.topology.world_prototypes, templates, strict=True):
+                source = sources[asset]
+                if source is None or "{}" not in template:
+                    continue
+                matched = cloner_path.match(self.prim_path, template)
+                if matched is not None:
+                    expressions.append(re.escape(source) + matched.suffix)
+        return expressions
