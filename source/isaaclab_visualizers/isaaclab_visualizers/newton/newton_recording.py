@@ -333,7 +333,7 @@ class NewtonRecordingPanel:
             return
         try:
             path = self._output_path("video", ".mp4", self._video_started)
-            os.replace(temp, path)
+            shutil.move(temp, path)  # Also works when the folder is on another filesystem.
         except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
             self._message = f"Could not save the video: {exc}"
             return
