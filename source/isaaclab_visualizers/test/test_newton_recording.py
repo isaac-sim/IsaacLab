@@ -320,7 +320,7 @@ def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, 
     panel.stop_video()
     assert panel.unsaved_video
 
-    monkeypatch.setattr("os.replace", Mock(side_effect=OSError("disk full")))
+    monkeypatch.setattr("shutil.move", Mock(side_effect=OSError("disk full")))
     panel.save_video()
 
     assert panel.unsaved_video and "disk full" in panel._message and "ffmpeg" not in panel._message
