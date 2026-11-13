@@ -81,6 +81,7 @@ Guidelines for modifications:
 * Cheng-Rong Lai
 * Chenyu Cao
 * Chenyu Yang
+* Chr0mium24
 * Connor Smith
 * CY (Chien-Ying) Chen
 * cyanseek
