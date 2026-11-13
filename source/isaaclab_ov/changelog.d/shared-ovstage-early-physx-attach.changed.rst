@@ -4,6 +4,7 @@
 * Completed shared-stage bindings and render copies before public physics-readiness callbacks, preserving
   startup gravity edits. Failed render copies remained pending and required a stage rebuild before retry.
 * Preserved full-stage physics import and world placement for CPU simulations using a shared OVStage.
+* Respected ``populate_physics`` when deferring render copies, preserving rendering-only population.
 * Restricted early binding initialization to shared stages, preserving non-shared callback priorities
   during startup, resets, and forced reinitialization.
 * Preserved joints and authored physics properties when selecting clone recipes and original worlds,

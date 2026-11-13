@@ -316,7 +316,13 @@ class OvstageBackend:
         for source, targets in copies:
             if targets and not original_stage.GetPrimAtPath(source):
                 raise ValueError(f"The original-world export omitted render clone source {source!r}.")
-        populate_stage(self.stage, layer.ExportToString(), ordinal=1, domains=self.cfg.population_domains, physics=True)
+        populate_stage(
+            self.stage,
+            layer.ExportToString(),
+            ordinal=1,
+            domains=self.cfg.population_domains,
+            physics=self.cfg.populate_physics,
+        )
         if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
             self.stage.compute_hierarchy(
                 input_ordinal=1, output_ordinal=1, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
