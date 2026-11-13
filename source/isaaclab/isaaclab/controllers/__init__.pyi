@@ -4,12 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "AckermannController",
+    "AckermannControllerCfg",
     "DifferentialIKController",
     "DifferentialIKControllerCfg",
     "OperationalSpaceController",
     "OperationalSpaceControllerCfg",
 ]
 
+from .ackermann import AckermannController
+from .ackermann_cfg import AckermannControllerCfg
 from .differential_ik import DifferentialIKController
 from .differential_ik_cfg import DifferentialIKControllerCfg
 from .operational_space import OperationalSpaceController
