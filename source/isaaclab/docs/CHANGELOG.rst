@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+46.0.1 (2026-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed CPU graph capture of actuator target writes with Torch values and index
+  selectors, preserving shared storage so replay observes updated commands.
+
+
 46.0.0 (2026-11-11)
 ~~~~~~~~~~~~~~~~~~~
 
