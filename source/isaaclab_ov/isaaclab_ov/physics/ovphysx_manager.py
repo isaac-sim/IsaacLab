@@ -408,7 +408,11 @@ class OvPhysxBackend:
 
 
 class _OvPhysxEvent(Enum):
-    """Internal initialization phase after native cloning and before render expansion."""
+    """Internal binding phase after native cloning and before render expansion.
+
+    It also initializes late consumers on ordinary resets, independently of MODEL_INIT's
+    construction callbacks, which run only during warmup or rebuild.
+    """
 
     BINDINGS_READY = "ovphysx_bindings_ready"
 

@@ -735,7 +735,7 @@ def test_shared_stage_rejects_joint_only_native_recipe():
 @pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
 @pytest.mark.parametrize("shared", [False, True])
 def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, shared):
-    """Only shared stages bind before public readiness, including consumers added after warmup."""
+    """Binding callbacks preserve priority and initialize late consumers without replaying construction."""
     from isaaclab_ov.assets import RigidObject
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.stage import OvstageBackendCfg
@@ -764,6 +764,7 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
         events = []
         manager = sim.backend_manager
         for name, event, order in [
+            ("model_init", PhysicsEvent.MODEL_INIT, -100),
             ("ready_first", PhysicsEvent.PHYSICS_READY, 0),
             ("bindings", manager.binding_init_event, 11),
             ("ready_last", PhysicsEvent.PHYSICS_READY, 20),
@@ -777,7 +778,7 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
         if shared:
             sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
         sim.reset()
-        assert events == (
+        assert events == [("model_init", (False,))] + (
             [("bindings", (True,)), ("ready_first", (True,)), ("ready_last", (True,))]
             if shared
             else [("ready_first", (False,)), ("bindings", (True,)), ("ready_last", (True,))]
@@ -791,7 +792,8 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
             if rebuild:
                 manager._warmup_done = False
             sim.reset()
-            assert events == (
+            construction = [("model_init", (False, False))] if rebuild else []
+            assert events == construction + (
                 [("bindings", (True, True)), ("ready_first", (True, True)), ("ready_last", (True, True))]
                 if shared
                 else [

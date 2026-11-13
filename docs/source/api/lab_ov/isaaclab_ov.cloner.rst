@@ -130,6 +130,11 @@ The earlier phase runs only when OVPhysX borrows a shared stage. Without a share
 contact initialization callbacks run together with ``PHYSICS_READY`` callbacks in priority order,
 including on resets and forced reinitialization.
 
+``MODEL_INIT`` is a construction hook and may run before native handles exist. In OVPhysX it
+runs during initial warmup and rebuilds. Binding callbacks also run on ordinary non-soft resets,
+allowing late-created assets and contact sensors to initialize without replaying construction
+callbacks. The two phases therefore remain separate even though they are adjacent during startup.
+
 Later physics edits consume their exact update ordinals and exclude the render-copy ordinal 2.
 A failed render copy requires a stage rebuild before retry. A forced reset releases bindings before
 their native owners and rebuilds the attachment sequence.

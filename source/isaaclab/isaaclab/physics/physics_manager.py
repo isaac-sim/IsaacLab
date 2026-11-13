@@ -44,6 +44,7 @@ class PhysicsEvent(Enum):
     """Physics model is being constructed.
     Fired during scene building, before simulation can run. Use this to register
     physics representations (rigid bodies, joints, constraints) with the solver.
+    Native handles need not be available yet; this event does not imply binding readiness.
     """
 
     PHYSICS_READY = "physics_ready"
@@ -157,6 +158,8 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     it to register initialization callbacks without depending on backend-specific event names.
     When early binding is unnecessary, backends may combine this phase with
     :attr:`PhysicsEvent.PHYSICS_READY` in callback priority order.
+    Construction callbacks on :attr:`PhysicsEvent.MODEL_INIT` need not run on every reset,
+    so they cannot replace this binding-readiness contract for late-created consumers.
     """
 
     def __init__(self, cfg: PhysicsCfg):
