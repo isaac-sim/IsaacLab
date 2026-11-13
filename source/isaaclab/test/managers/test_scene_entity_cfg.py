@@ -6,20 +6,29 @@
 """Scene selections resolve on the host, then finalize to device indices used without synchronization."""
 
 import copy
+from dataclasses import field
 from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
+
+
+class _Scene(dict):
+    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
+
+    device = "cpu"
 
 
 @pytest.fixture
@@ -108,3 +117,64 @@ def test_external_force_uses_selected_body_count(scene):
     torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
     torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
     assert kwargs["body_ids"].tolist() == [3, 1]
+
+
+def test_resolve_warp_ids_fills_the_selection_order(scene):
+    """Warp ids keep the resolved order and repeats, expand slices, and count the bodies of a contact sensor.
+
+    :meth:`resolve` does no Warp work, so a scene without a device resolves the torch selections as on main.
+    """
+    sensor_entity = SimpleNamespace(num_sensors=2, num_bodies=5)
+    subset = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True, body_ids=[3, 3, -1])
+    full = SceneEntityCfg("robot")
+    sensor = SceneEntityCfg("sensor")
+    for cfg in (subset, full, sensor):
+        cfg.resolve(dict(scene, sensor=sensor_entity))
+        assert cfg.joint_ids_wp is None and cfg.body_ids_wp is None
+        cfg.resolve_warp_ids(_Scene(scene, sensor=sensor_entity))
+
+    assert subset.joint_ids_wp.dtype == wp.int32
+    assert subset.joint_ids_wp.numpy().tolist() == [2, 0]
+    assert subset.body_ids_wp.numpy().tolist() == [3, 3, 3]
+    assert full.joint_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert sensor.joint_ids_wp is None
+    assert sensor.body_ids_wp.numpy().tolist() == [0, 1]
+    # the torch selections keep their form
+    subset.finalize("cpu")
+    assert subset.joint_ids.dtype == torch.long
+    assert full.joint_ids == slice(None)
+
+
+def test_copies_share_the_warp_ids(scene):
+    """Configuration copies made after :meth:`resolve_warp_ids` share the Warp ids instead of copying device memory."""
+    scene = _Scene(scene)
+    cfg = SceneEntityCfg("robot", joint_names=["part_1"])
+    cfg.resolve(scene)
+    cfg.resolve_warp_ids(scene)
+
+    for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot"), copy.deepcopy(cfg)):
+        assert copied.joint_ids_wp is cfg.joint_ids_wp
+        assert copied.body_ids_wp is cfg.body_ids_wp
+
+
+@configclass
+class _SelectionCfg(SceneEntityCfg):
+    """Keeps resolved state in a field the constructor does not take, as the contrib selection configuration does."""
+
+    instance_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long), init=False)
+
+
+def test_deepcopy_keeps_resolved_subclass_state(scene):
+    """A deep copy keeps the fields the constructor does not take and still shares the Warp ids."""
+    scene = _Scene(scene)
+    cfg = _SelectionCfg("robot", joint_names=["part_1"])
+    cfg.resolve(scene)
+    cfg.resolve_warp_ids(scene)
+    cfg.instance_ids = torch.tensor([3, -1, 0])
+
+    copied = copy.deepcopy(cfg)
+
+    torch.testing.assert_close(copied.instance_ids, cfg.instance_ids)
+    assert copied.instance_ids is not cfg.instance_ids
+    assert copied.joint_ids_wp is cfg.joint_ids_wp
