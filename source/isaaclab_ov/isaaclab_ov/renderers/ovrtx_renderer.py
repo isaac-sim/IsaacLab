@@ -91,6 +91,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_marker_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    hide_environment_bodies_kernel,
     normalize_mesh_normals,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
@@ -122,6 +123,8 @@ _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
+_HIDDEN_DROP = wp.float64(1.0e6)
+"""Distance [m] below the scene to which the bodies of hidden environments are moved."""
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
     "horizontalAperture",
@@ -393,6 +396,11 @@ class OVRTXRenderer(BaseRenderer):
         self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
         self._object_scales: wp.array | None = None
         self._geometry_paths: list[str] = []
+        self._visible_envs: np.ndarray | None = None
+        self._hidden_marker_rows: torch.Tensor | None = None
+        self._hidden_envs: wp.array | None = None
+        self._body_envs: wp.array | None = None
+        self._hidden_matrices: dict[int, wp.array] = {}
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
@@ -409,6 +417,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
         self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
+        self._env_paths: Sequence[str] = ()
 
     @property
     def visual_material_writer(self):
@@ -424,7 +433,7 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
-        env_paths = self.scene.clone_env_paths
+        env_paths = self._env_paths = self.scene.clone_env_paths
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
@@ -1038,6 +1047,80 @@ class OVRTXRenderer(BaseRenderer):
                     data.warp_buffers[str(RenderBufferKind.RGBA)],
                 )
 
+    def set_environment_visibility(self, visible: Sequence[bool]) -> None:
+        """Show or hide whole cloned environments' bodies and markers in every camera that renders the scene.
+
+        Writing the USD ``visibility`` of a cloned environment corrupts the transforms of its bodies once it is shown
+        again, so hidden bodies are instead moved far below the scene when their poses are published.
+
+        Args:
+            visible: Per-environment flag, in environment order.
+        """
+        num_envs = len(self._env_paths)
+        if len(visible) != num_envs:
+            raise ValueError(f"Expected {num_envs} visibility flags, got {len(visible)}.")
+        self._visible_envs = np.asarray(visible, dtype=bool)
+        self._hidden_marker_rows = None
+        hidden = np.zeros(num_envs + 1, dtype=np.uint8)  # The last entry stands for bodies outside any environment.
+        hidden[:num_envs] = ~self._visible_envs
+        self._hidden_envs = wp.array(hidden, dtype=wp.uint8, device=self._device) if hidden.any() else None
+        self._transforms_timestamp = -1  # Publish the poses again even when the simulation has not stepped.
+
+    def _visible_marker_rows(self, marker: Any) -> tuple:
+        """Return the marker's translations, orientations, scales, and indices with hidden markers moved away.
+
+        A batch whose size divides by the environment count is laid out environment-major; other batches are global.
+        The batch keeps its size, so the marker instances are never rebuilt when the visible environments change;
+        hidden environments' markers are moved far below the scene, as their bodies are.
+        """
+        tensors = (marker.translations, marker.orientations, marker.scales, marker.marker_indices)
+        mask, num_envs, count = self._visible_envs, len(self._env_paths), len(marker.translations)
+        if mask is None or mask.all() or num_envs == 0 or count % num_envs:
+            return tensors
+        hidden = self._hidden_marker_rows
+        if hidden is None or hidden.device != marker.translations.device:
+            hidden = self._hidden_marker_rows = torch.as_tensor(~mask, device=marker.translations.device)
+        translations = marker.translations.reshape(num_envs, count // num_envs, -1).clone()
+        translations[hidden, :, 2] -= float(_HIDDEN_DROP)
+        return (translations.reshape(marker.translations.shape), *tensors[1:])
+
+    def _body_environment_ids(self) -> wp.array:
+        """Return each published body's environment index, or ``num_envs`` for a body outside any environment."""
+        paths = self._sdp.backend.transform_paths
+        if self._body_envs is None or len(self._body_envs) != len(paths):
+            roots = {root: i for i, root in enumerate(self._env_paths)}
+            outside = len(self._env_paths)
+            env_ids = []
+            for path in paths:
+                env_id, end = outside, path.rfind("/")
+                while end > 0:  # Walk up the prim path until it reaches an environment root.
+                    env_id = roots.get(path[:end], outside)
+                    if env_id != outside:
+                        break
+                    end = path.rfind("/", 0, end)
+                env_ids.append(env_id)
+            self._body_envs = wp.array(env_ids, dtype=wp.int32, device=self._device)
+        return self._body_envs
+
+    def _hide_environment_bodies(self, matrices: wp.array, stream: wp.Stream) -> wp.array:
+        """Return the body poses with those of hidden environments moved out of view."""
+        if self._hidden_envs is None:
+            return matrices
+        body_envs = self._body_environment_ids()
+        # A published buffer may be shared with other consumers, so hidden poses are written to a copy. The copy is
+        # kept per source buffer: an asynchronous write still reads it until the source buffer is acquired again.
+        hidden = self._hidden_matrices.get(matrices.ptr)
+        if hidden is None or len(hidden) != len(matrices):
+            hidden = self._hidden_matrices[matrices.ptr] = wp.empty(len(matrices), dtype=wp.mat44d, device=self._device)
+        wp.launch(
+            hide_environment_bodies_kernel,
+            len(matrices),
+            [matrices, body_envs, self._hidden_envs, _HIDDEN_DROP, hidden],
+            device=self._device,
+            stream=stream,
+        )
+        return hidden
+
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
         binding = self._object_xform_binding
@@ -1051,7 +1134,7 @@ class OVRTXRenderer(BaseRenderer):
         output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
-        matrices = output.matrices
+        matrices = self._hide_environment_bodies(output.matrices, stream)
         if self._use_ovstage:
             # The write waits for consumption; the producing CUDA stream orders access to the
             # borrowed buffer.
@@ -1083,7 +1166,7 @@ class OVRTXRenderer(BaseRenderer):
             if marker not in self.markers:
                 self.markers[marker] = OVRTXMarkers(self, marker.cfg)
             self.markers[marker].update(
-                marker.translations, marker.orientations, marker.scales, marker.marker_indices,
+                *self._visible_marker_rows(marker),
                 visible=marker.is_visible(),
             )  # fmt: skip
         binding = self._geometry_points_binding
@@ -1354,6 +1437,8 @@ class OVRTXMesh:
             normals = self._normals
         if self._face_counts is None or len(self._face_counts) != len(indices) // 3:
             self._face_counts = wp.full(len(indices) // 3, 3, dtype=wp.int32, device=indices.device)
+        if color is not None:
+            color = tuple(float(channel) for channel in color[:3])  # Callers pass NumPy rows or sequences.
         appearance = tuple(
             old if value is None else value
             for old, value in zip(
@@ -1384,7 +1469,7 @@ class OVRTXMesh:
         if populate:
             mesh.CreateDoubleSidedAttr(not appearance[0])
             for name, value in zip(("diffuseColor", "roughness", "metallic", "opacity"), appearance[1:], strict=True):
-                surface.GetInput(name).Set(value)
+                surface.GetInput(name).Set(Gf.Vec3f(*value) if name == "diffuseColor" else value)
             self._appearance = appearance
         if uvs is not None and not UsdGeom.PrimvarsAPI(mesh).HasPrimvar("st"):
             UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
