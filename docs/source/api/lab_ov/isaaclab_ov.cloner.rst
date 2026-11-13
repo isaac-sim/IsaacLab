@@ -60,9 +60,12 @@ Shared mode uses early physics attachment without an additional flag:
         style="display: block; width: 100%; max-width: 36rem; margin: 1.5rem auto;">
      <title id="shared-stage-flow-title">Shared OVStage attachment order</title>
      <desc id="shared-stage-flow-desc">
-       Populate originals at ordinal 1, attach physics, complete native clones and warmup,
-       acquire bindings, then clone render prims at ordinal 2 before publishing readiness
-       and attaching OVRTX. The numbered steps below describe the same sequence.
+       Populate original worlds and required render sources, then seal ordinal 1.
+       Attach OVPhysX and wait. Execute native physics clones and wait before warmup.
+       Initialize asset and contact bindings, then acquire scene-data bindings.
+       Clone remaining render prims, place environments, and seal rendering-only ordinal 2.
+       Publish PHYSICS_READY for startup callbacks and camera preparation, then attach
+       OVRTX during renderer preparation and continue normal rendering.
      </desc>
      <defs>
        <marker id="shared-stage-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5"
@@ -111,21 +114,22 @@ Shared mode uses early physics attachment without an additional flag:
      </g>
    </svg>
 
-#. Populate complete original worlds and required render sources in the shared OVStage, then seal ordinal 1.
-#. Attach OVPhysX to ordinal 1 and wait for attachment to complete.
-#. Execute native physics clones, wait for completion, and run physics warmup.
-#. Initialize asset and contact bindings on the manager's
-   :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`, then acquire scene-data bindings.
-#. Clone the remaining render prims into the shared OVStage, apply environment placement, and seal ordinal 2.
-#. Publish ``PHYSICS_READY``, allowing startup gravity callbacks and camera preparation to use the completed stage.
-#. Attach OVRTX to the shared stage during renderer preparation and continue normal rendering.
+.. only:: not html
+
+   #. Populate complete original worlds and required render sources in the shared OVStage, then seal ordinal 1.
+   #. Attach OVPhysX to ordinal 1 and wait for attachment to complete.
+   #. Execute native physics clones, wait for completion, and run physics warmup.
+   #. Initialize asset and contact bindings, then acquire scene-data bindings.
+   #. Clone the remaining render prims into the shared OVStage, apply environment placement, and seal ordinal 2.
+   #. Publish ``PHYSICS_READY``, allowing startup gravity callbacks and camera preparation to use the completed stage.
+   #. Attach OVRTX to the shared stage during renderer preparation and continue normal rendering.
 
 CPU simulations populate all physics worlds before OVPhysX attachment and skip native physics cloning.
 Deferred render copies still populate any missing render-only prims at ordinal 2.
 
 Sensors select their initialization phase through the
 :attr:`~isaaclab.sensors.SensorBase.initialize_event` attribute. Ordinary sensors use ``PHYSICS_READY``;
-OVPhysX contact sensors use the manager's earlier binding event.
+OVPhysX contact sensors use the manager's earlier :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`.
 The earlier phase runs only when OVPhysX borrows a shared stage. Without a shared stage, asset and
 contact initialization callbacks run together with ``PHYSICS_READY`` callbacks in priority order,
 including on resets and forced reinitialization.
