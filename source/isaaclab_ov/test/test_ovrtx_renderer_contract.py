@@ -87,6 +87,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     from isaaclab_ov.stage import OvstageBackend
 
     renderer.scene.commit = OvstageBackend.commit.__get__(renderer.scene)
+    renderer.scene._commit = OvstageBackend._commit.__get__(renderer.scene)
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
     renderer.scene.clone_copies = []
@@ -1515,7 +1516,7 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         populate=load,
         stage=types.SimpleNamespace(write_attribute=write),
         query=lambda paths: contextlib.nullcontext(paths),
-        commit=lambda: events.append("commit"),
+        _commit=lambda: events.append("commit"),
         resources=contextlib.ExitStack(),
     )
     renderer.prepare_stage(stage, 0)
@@ -1703,6 +1704,11 @@ def test_render_lease_complete_scene_components_share_the_supplied_ordinal(compl
     renderer.scene.stage.advance_write_floor.assert_not_called()
     assert not renderer._render_lease._poisoned
 
+    # An independently changed XR anchor still needs this same scene identity.
+    state.events.clear()
+    state.publisher.write_complete_scene(state.ordinal + 1, "step", force=True)
+    assert state.events == [(name, state.ordinal + 1) for name in names if name != "partition"]
+
 
 @pytest.mark.parametrize("failure", ["material", "transform", "geometry", "material-drain"])
 def test_render_lease_complete_scene_failure_preserves_commit_boundary(complete_scene_publication, failure):
@@ -1780,7 +1786,8 @@ def test_render_lease_closed_publisher_reports_no_pending_publication(leased_ren
     lease.release()
 
 
-def test_render_lease_poison_blocks_publication_but_not_retirement(leased_renderer, monkeypatch):
+@pytest.mark.parametrize("failure_owner", ["producer", "borrower"])
+def test_render_lease_poison_blocks_publication_but_not_retirement(leased_renderer, monkeypatch, failure_owner):
     """A failed producer write must not prevent the borrower from retiring the pair (Capture's close order)."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
@@ -1788,9 +1795,12 @@ def test_render_lease_poison_blocks_publication_but_not_retirement(leased_render
     _prepare_leased_renderer(renderer)
     monkeypatch.setattr(renderer, "_update_transforms", MagicMock(side_effect=ValueError("write failed")))
     monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
-    with pytest.raises(RuntimeError, match="scene publication failed"):
-        publisher.write_complete_scene(19, "step-1")
-    with pytest.raises(RuntimeError, match="unavailable"):
+    if failure_owner == "producer":
+        with pytest.raises(RuntimeError, match="scene publication failed"):
+            publisher.write_complete_scene(19, "step-1")
+    else:
+        publisher.invalidate()
+    with pytest.raises(RuntimeError, match="unavailable|closed"):
         publisher.publication_required("step-2")
     with pytest.raises(RuntimeError, match="poisoned"):
         lease.validate_live()
@@ -1813,6 +1823,8 @@ def test_render_lease_release_rebases_ordinal_and_restores_ordinary_use(leased_r
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
     _prepare_leased_renderer(renderer)
+    with pytest.raises(RuntimeError, match="active render lease"):
+        renderer.scene.commit()
     floor = renderer.scene.stage.get_attribute_write_floor.return_value.__enter__.return_value
     floor.fetch.return_value = 41
     lease.release()

@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 pytestmark = [
+    pytest.mark.ov,
     pytest.mark.integration,
     pytest.mark.skipif(
         os.environ.get("ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER") != "1",

@@ -91,29 +91,6 @@ class OvPhysxCfg(PhysicsCfg):
     setting can affect simulated velocities and contact forces.
     """
 
-    bounce_threshold_velocity: float | None = None
-    """Relative contact velocity below which contacts do not bounce [m/s].
-
-    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is 0, which sets no speed
-    threshold, so contact restitution alone decides whether a contact bounces.
-    Authored as ``physxScene:bounceThreshold``.
-    """
-
-    friction_correlation_distance: float | None = None
-    """Distance below which contact points merge into one friction anchor [m].
-
-    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is ``0.025 * tolerancesLength``,
-    which is 0.025 m on a meter-based stage. Authored as ``physxScene:frictionCorrelationDistance``.
-    """
-
-    solve_articulation_contact_last: bool | None = None
-    """Whether the solver resolves articulation contacts after other constraints.
-
-    Enable it so object contacts can stall position-driven grippers before they tunnel through a
-    grasp. ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is off. Authored as
-    ``physxScene:solveArticulationContactLast``.
-    """
-
     gpu_max_rigid_contact_count: int = 2**23
     """Size of the GPU rigid-body contact buffer."""
 
@@ -131,3 +108,24 @@ class OvPhysxCfg(PhysicsCfg):
 
     gpu_collision_stack_size: int = 2**26
     """GPU collision stack size in bytes."""
+
+    bounce_threshold_velocity: float | None = None
+    """Relative contact velocity below which contacts do not bounce [m/s].
+
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is 0, which sets no speed
+    threshold, so contact restitution alone decides whether a contact bounces.
+    Authored as ``physxScene:bounceThreshold``.
+    """
+    friction_correlation_distance: float | None = None
+    """Distance below which contact points merge into one friction anchor [m].
+
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is ``0.025 * tolerancesLength``,
+    which is 0.025 m on a meter-based stage. Authored as ``physxScene:frictionCorrelationDistance``.
+    """
+    solve_articulation_contact_last: bool | None = None
+    """Whether the solver resolves articulation contacts after other constraints.
+
+    Enable it so object contacts can stall position-driven grippers before they tunnel through a
+    grasp. ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is off. Authored as
+    ``physxScene:solveArticulationContactLast``.
+    """

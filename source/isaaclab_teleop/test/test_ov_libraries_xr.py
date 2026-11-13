@@ -19,6 +19,8 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+
+pytestmark = pytest.mark.ov
 from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg
 
 
@@ -47,12 +49,15 @@ class _FakePublisher:
     def publication_required(self, _publication_id):
         return self.required
 
-    def write_complete_scene(self, ordinal, publication_id):
+    def write_complete_scene(self, ordinal, publication_id, *, force=False):
         self.calls.append((ordinal, publication_id, threading.get_native_id()))
         if self.fail is not None:
             raise self.fail
 
     def close(self):
+        self.closed = True
+
+    def invalidate(self):
         self.closed = True
 
 
@@ -415,11 +420,9 @@ def test_host_abandons_failed_write_and_failed_publish(xr_module, monkeypatch):
         host.publish_complete_scene("step-1")
     assert host._ordinal_ledger.abandoned == [11]
 
-    bootstrap.publisher.fail = None
-    host._ordinal_ledger.publish_error = RuntimeError("publish failed")
-    with host.publication_guard(), pytest.raises(RuntimeError, match="publish failed"):
-        host.publish_complete_scene("step-2")
-    assert host._ordinal_ledger.abandoned == [11, 12]
+    with host.publication_guard(), pytest.raises(RuntimeError, match="publication is not available"):
+        host.prepare_frame_scene()
+    assert bootstrap.publisher.closed
 
 
 @pytest.mark.parametrize("sealed", [False, True])
@@ -443,6 +446,8 @@ def test_host_reconciles_failed_publication_without_reusing_generation(xr_module
         _update_transforms=lambda: None,
         _update_geometries=lambda: None,
         _visual_material_writer_ref=None,
+        marker_groups=(),
+        markers={},
         _publish_visual_materials=contextlib.nullcontext,
     )
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
@@ -478,6 +483,8 @@ def test_host_reconciles_failed_publication_without_reusing_generation(xr_module
     ledger.abandon(next_ordinal)
     host.close_on_render_thread()
     lease.release()
+    with pytest.raises(RuntimeError, match="poisoned this OVRTX/OVStage pair; recreate it"):
+        controller.reject_ordinary_operation("render")
 
 
 def test_failed_bootstrap_retirement_retains_environment(xr_module, monkeypatch):
@@ -657,6 +664,7 @@ def bootstrap_context(xr_module, monkeypatch):
         cleanup_failure = None
 
         def __init__(self, _cfg):
+            self.cfg = _cfg
             type(self).current = self
 
         @classmethod
@@ -687,7 +695,7 @@ def bootstrap_context(xr_module, monkeypatch):
 def test_failed_start_releases_lease_before_environment_and_context(xr_module, bootstrap_context, route):
     """An existing environment retains its context until the caller closes it."""
     module, context, events = bootstrap_context
-    bootstrap = module.OvxrSessionBootstrap(object())
+    bootstrap = module.OvxrSessionBootstrap(SimpleNamespace(device="cpu", dt=0.01))
     if route == "before_owner":
         session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg())
         session.close()
@@ -712,7 +720,7 @@ def test_bootstrap_construction_failure_restores_terminal_mode(bootstrap_context
     if cleanup_fails:
         context.cleanup_failure = RuntimeError("context cleanup failed")
     with pytest.raises(error_type) as caught:
-        module.OvxrSessionBootstrap(object())
+        module.OvxrSessionBootstrap(SimpleNamespace(device="cpu", dt=0.01))
     assert caught.value is error
     assert events == ["context-close"]
     assert context.current is None
@@ -862,6 +870,8 @@ def test_poisoned_publication_still_retires_in_capture_order(xr_module, monkeypa
         _update_transforms=failed_transforms,
         _update_geometries=lambda: None,
         _visual_material_writer_ref=None,
+        marker_groups=(),
+        markers={},
         _publish_visual_materials=contextlib.nullcontext,
     )
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
@@ -974,6 +984,11 @@ def test_anchor_state_readoption_requires_the_same_paths(xr_module, monkeypatch)
     replacement = _FakeAnchorState()
     host.set_external_anchor_state(replacement)
     assert host._anchor_snapshot is None and host._last_anchor_frame_time is None
+    host._scene_publisher.required = False
+    ordinal = host.publish_complete_scene("initial")
+    assert ordinal == host._ordinal_ledger.published[-1]
+    assert _writes == [11, ordinal]
+    assert replacement.commits[-1][2] == replacement.epoch[0]
     moved = _FakeAnchorState()
     moved.external_anchor_paths = ("/World/Other",)
     with pytest.raises(ValueError, match="preserve its anchor paths"):

@@ -254,7 +254,8 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
             # A failed seed can follow the publisher recording its identity.
             # Check the terminal policy before dedup may return an older seal.
             anchor_epoch = self._external_anchor.external_epoch
-        if not self._scene_publisher.publication_required(publication_id):
+        seed_pending = anchor_epoch is not None and (anchor_epoch[1] or self._anchor_snapshot is None)
+        if not self._scene_publisher.publication_required(publication_id) and not seed_pending:
             if self._last_published_ordinal is None:
                 raise RuntimeError("OVStage publication deduplicated before a sealed ordinal exists")
             return self._last_published_ordinal
@@ -262,12 +263,15 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         seed = False
         if self._external_anchor is not None:
             epoch, seed = anchor_epoch
+            seed = seed_pending
             reference = self._bootstrap.get_world_transform(self._external_anchor.external_reference_path)
             snapshot = (epoch, reference)
         ordinal = self._ordinal_ledger.reserve()
         try:
-            self._scene_publisher.write_complete_scene(ordinal, publication_id)
+            self._scene_publisher.write_complete_scene(ordinal, publication_id, force=seed_pending)
         except BaseException as write_error:
+            self._scene_publisher.invalidate()
+            self.close_publication()
             try:
                 self._ordinal_ledger.abandon(ordinal)
             except BaseException as abandon_error:
@@ -291,6 +295,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         except BaseException as publish_error:
             # Component writes already consumed this generation. Do not let a
             # retry deduplicate it to an older seal after publication failed.
+            self._scene_publisher.invalidate()
             self.close_publication()
             try:
                 self._ordinal_ledger.abandon(ordinal)
@@ -330,6 +335,8 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         The first begun frame after reset establishes the monotonic clock with
         zero elapsed time. Scene publication never advances this frame clock.
         """
+        if self._publication_closed:
+            raise RuntimeError("IsaacLab scene publication is not available")
         if self._anchor_snapshot is None:
             return
         epoch, reference = self._anchor_snapshot
@@ -343,6 +350,8 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                 # OVXR reads sealed anchor state at bind; bind reserves the next ordinal.
                 self._ordinal_ledger.publish(ordinal)
             except BaseException as publication_error:
+                self._scene_publisher.invalidate()
+                self.close_publication()
                 try:
                     self._ordinal_ledger.abandon(ordinal)
                 except BaseException as abandon_error:
