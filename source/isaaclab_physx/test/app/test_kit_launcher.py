@@ -217,7 +217,7 @@ def test_add_launcher_args_registers_every_launcher_option():
 
 
 def test_visualizer_alias_parsing(monkeypatch):
-    """Test that --viz alias maps to visualizer values, resolving the deprecated ``newton`` name."""
+    """Test that --viz alias maps to visualizer values."""
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
 
@@ -225,9 +225,9 @@ def test_visualizer_alias_parsing(monkeypatch):
     assert args.visualizer_explicit is True
     monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
     cfg = SimulationCfg(device="cpu")
-    with pytest.warns(FutureWarning, match="newton_gl"), sim_launcher.launch_simulation(cfg, args):
+    with sim_launcher.launch_simulation(cfg, args):
         pass
-    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -548,7 +548,7 @@ def test_cuda_initialization_remains_deferred_when_torch_is_not_loaded(monkeypat
 @pytest.mark.parametrize(
     "visualizer, headless_env, expected_headless",
     [
-        (["kit", "newton_gl"], 0, False),
+        (["kit", "newton"], 0, False),
         (["rerun"], 0, True),
         # a Kit visualizer only a video records from (``--video viz:kit``) is not selected, and records headless
         ([], 0, True),

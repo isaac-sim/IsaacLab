@@ -32,7 +32,7 @@ parser.add_argument(
 add_launcher_args(parser)
 # a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
 physics_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -106,7 +106,7 @@ class H1RoughDemo:
         self._viewers = [
             visualizer
             for visualizer in self.env.unwrapped.sim.visualizers
-            if visualizer.cfg.backend.visualizer_type in {"newton_gl", "newton_rtx"}
+            if visualizer.cfg.backend.visualizer_type == "newton"
         ]
         self._key_to_control = {
             "i": torch.tensor([FORWARD_SPEED, 0.0, 0.0], device=self.device),
