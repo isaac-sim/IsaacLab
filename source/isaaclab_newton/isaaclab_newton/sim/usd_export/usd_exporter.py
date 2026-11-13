@@ -144,9 +144,17 @@ class UsdExporter(BaseUsdExporter):
             if (flags[shape] ^ builder.shape_flags[shape]) & collide
             or (shape in builder.unmatched["shape"] and flags[shape] & collide)
         ]
+        # A free root joint is compared through its body: Isaac Lab's cloner names it after the body, the import not.
+        types, parents = model.joint_type.numpy(), model.joint_parent.numpy()
+        added += [
+            model.joint_label[joint]
+            for joint in self._selected(model.joint_world)
+            if joint in builder.unmatched["joint"]
+            and not (types[joint] == int(newton.JointType.FREE) and parents[joint] == -1)
+        ]
         if added:
             raise NotImplementedError(
-                f"These bodies and colliders were added, or their collision switched, outside the USD: {added}."
+                f"These bodies, joints and colliders were added, or their collision switched, outside the USD: {added}."
             )
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
@@ -683,8 +691,10 @@ class UsdExporter(BaseUsdExporter):
 class _AlignedBase:
     """The arrays of a base model indexed like a live model's entities, matched by body, shape and joint label.
 
-    An entity of the live model that the base does not have, such as one of another environment, keeps its
-    live value, so it never counts as changed; :attr:`unmatched` holds these bodies and shapes.
+    The base, an import of the exported environment alone, orders entities differently from the live model even
+    with one environment, and holds none of the other environments. An entity of the live model that the base does
+    not have keeps its live value, so it never counts as changed; :attr:`unmatched` holds these bodies, shapes and
+    joints, a joint also when the base gives it another DOF count.
     """
 
     def __init__(self, live: newton.Model, base: newton.Model):
@@ -700,6 +710,14 @@ class _AlignedBase:
             kind: set(range(len(getattr(live, f"{kind}_label")))) - {index for index, _ in self._pairs[kind]}
             for kind in ("body", "shape")
         }
+        live_starts, base_starts = live.joint_qd_start.numpy(), base.joint_qd_start.numpy()
+        alike = {
+            live_joint
+            for live_joint, base_joint in joints
+            if live_starts[live_joint + 1] - live_starts[live_joint]
+            == base_starts[base_joint + 1] - base_starts[base_joint]
+        }
+        self.unmatched["joint"] = set(range(len(live.joint_label))) - alike
 
     @staticmethod
     def _entries(joints: list[tuple[int, int]], live_starts, base_starts) -> list[tuple[int, int]]:
@@ -714,10 +732,16 @@ class _AlignedBase:
 
     @staticmethod
     def _match(live_labels, base_labels) -> list[tuple[int, int]]:
-        first = {}
+        indices = {}
         for index, label in enumerate(base_labels):
-            first.setdefault(label, index)
-        return [(index, first[label]) for index, label in enumerate(live_labels) if label in first]
+            indices.setdefault(label, []).append(index)
+        pairs = []
+        for index, label in enumerate(live_labels):
+            if len(indices.get(label, ())) > 1:
+                raise ValueError(f"An import of the USD has {len(indices[label])} entities labeled '{label}'.")
+            if label in indices:
+                pairs.append((index, indices[label][0]))
+        return pairs
 
     def __getattr__(self, name: str) -> np.ndarray:
         if name.startswith("_"):

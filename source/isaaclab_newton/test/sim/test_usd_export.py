@@ -548,6 +548,23 @@ def test_model_without_joint_dofs_has_no_changed_values():
     assert changed["joint_armature"].shape == (0,)
 
 
+def test_joints_the_import_lacks_or_holds_with_other_dofs_are_unmatched():
+    """A live joint is compared only with the import's joint of its label and DOF count; a repeated label is refused."""
+    from isaaclab_newton.sim.usd_export.usd_exporter import _AlignedBase
+
+    def model(joints):
+        builder = newton.ModelBuilder()
+        for label, add in joints:
+            add(builder, -1, builder.add_link(label=f"{label}Body"), label=label)
+        return builder.finalize(device="cpu")
+
+    revolute, ball = newton.ModelBuilder.add_joint_revolute, newton.ModelBuilder.add_joint_ball
+    live = model([("A", revolute), ("B", revolute), ("C", revolute)])
+    assert _AlignedBase(live, model([("A", revolute), ("B", ball)])).unmatched["joint"] == {1, 2}
+    with pytest.raises(ValueError, match="2 entities labeled 'A'"):
+        _AlignedBase(live, model([("A", revolute), ("A", revolute)]))
+
+
 def test_merged_joint_dofs_map_to_their_usd_joints():
     """Newton merges single-axis joints between two bodies into one D6 joint; each DOF maps to its own USD joint."""
     from types import SimpleNamespace
