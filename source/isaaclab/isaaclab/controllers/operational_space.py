@@ -276,8 +276,10 @@ class OperationalSpaceController:
             # split input command
             task_space_command, stiffness = torch.split(command, [self.target_dim, 6], dim=-1)
             # format command
-            stiffness = stiffness.clip_(
-                min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
+            # ``torch.split`` views alias ``command``, which the caller may pass expanded or with
+            # ``requires_grad``; clamp out of place so writing through the view cannot mutate or raise.
+            stiffness = torch.clamp(
+                stiffness, min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
             )
             # task space targets + stiffness
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
@@ -288,11 +290,13 @@ class OperationalSpaceController:
             # split input command
             task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
             # format command
-            stiffness = stiffness.clip_(
-                min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
+            stiffness = torch.clamp(
+                stiffness, min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
             )
-            damping_ratio = damping_ratio.clip_(
-                min=self._motion_damping_ratio_limits[..., 0], max=self._motion_damping_ratio_limits[..., 1]
+            damping_ratio = torch.clamp(
+                damping_ratio,
+                min=self._motion_damping_ratio_limits[..., 0],
+                max=self._motion_damping_ratio_limits[..., 1],
             )
             # task space targets + stiffness + damping
             self._task_space_target_task[:] = task_space_command
