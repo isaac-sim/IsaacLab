@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..utils import index_fill_
 from ..utils.assets import read_file
@@ -68,11 +69,12 @@ class ActuatorNetLSTM(DCMotor):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
+        selection = env_ids if env_mask is None else wp.to_torch(env_mask)
         # reset the hidden and cell states for the specified environments
         with torch.no_grad():
-            index_fill_(self.sea_hidden_state_per_env, env_ids, 0.0, dim=1)
-            index_fill_(self.sea_cell_state_per_env, env_ids, 0.0, dim=1)
+            index_fill_(self.sea_hidden_state_per_env, selection, 0.0, dim=1)
+            index_fill_(self.sea_cell_state_per_env, selection, 0.0, dim=1)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -138,10 +140,11 @@ class ActuatorNetMLP(DCMotor):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
+        selection = env_ids if env_mask is None else wp.to_torch(env_mask)
         # reset the history for the specified environments
-        index_fill_(self._joint_pos_error_history, env_ids, 0.0)
-        index_fill_(self._joint_vel_history, env_ids, 0.0)
+        index_fill_(self._joint_pos_error_history, selection, 0.0)
+        index_fill_(self._joint_vel_history, selection, 0.0)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

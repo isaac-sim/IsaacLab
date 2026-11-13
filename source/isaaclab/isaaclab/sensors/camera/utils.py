@@ -30,16 +30,16 @@ def transform_points(
 ) -> np.ndarray | torch.Tensor:
     r"""Transform input points in a given frame to a target frame.
 
-    This function transform points from a source frame to a target frame. The transformation is defined by the
-    position ``t`` and orientation ``R`` of the target frame in the source frame.
+    This function transforms points from a source frame to a target frame. The transformation is defined by the
+    position ``t`` and orientation ``R`` of the source frame expressed in the target frame.
 
     .. math::
-        p_{target} = R_{target} \times p_{source} + t_{target}
+        p_{target} = R \times p_{source} + t
 
     If either the inputs `position` and `orientation` are None, the corresponding transformation is not applied.
 
     Args:
-        points: a tensor of shape (p, 3) or (n, p, 3) comprising of 3d points in source frame.
+        points: An array or tensor of shape (P, 3) or (N, P, 3) containing 3D points in the source frame.
         position: The position of source frame in target frame. Defaults to None.
         orientation: The orientation (x, y, z, w) of source frame in target frame.
             Defaults to None.
@@ -47,7 +47,7 @@ def transform_points(
             should be executed. Defaults to None, i.e. takes the device that matches the depth image.
 
     Returns:
-        A tensor of shape (N, 3) comprising of 3D points in target frame.
+        Transformed points in the target frame, with shape (P, 3) or (N, P, 3).
         If the input is a numpy array, the output is a numpy array. Otherwise, it is a torch tensor.
     """
     # check if numpy
@@ -186,10 +186,11 @@ def create_pointcloud_from_rgbd(
         orientation: The orientation `(x, y, z, w)` of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed. Defaults to None, in which case
             it takes the device that matches the depth image.
-        num_channels: Number of channels in RGB pointcloud. Defaults to 3.
+        num_channels: Number of color channels in the point cloud, either 3 (RGB) or 4 (RGBA). Defaults to 3.
 
     Returns:
-        A tuple of (N, 3) arrays or tensors containing the 3D coordinates of points and their RGB color respectively.
+        A tuple of arrays or tensors containing point coordinates of shape (N, 3) and colors of shape
+        (N, num_channels), respectively.
         The returned datatype is torch if input depth is of type torch.tensor or wp.array. Otherwise, a np.ndarray
         is returned.
 

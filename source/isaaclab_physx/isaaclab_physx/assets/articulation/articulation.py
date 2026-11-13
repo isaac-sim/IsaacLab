@@ -234,7 +234,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -384,10 +384,9 @@ class Articulation(BaseArticulation):
         on the name matching.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions to match the joint
-                names with fixed tendons.
-            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
-                all joints in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the fixed tendon names.
+            tendon_subsets: A subset of fixed tendon names to search for. Defaults to None, which means
+                all fixed tendons in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
             as_proxy: Whether to return cached proxy indices. Subset searches use asset-global proxy indices.
                 Defaults to False.
@@ -1518,8 +1517,10 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).
-                In warp the expected shape is (num_instances, num_joints), with dtype wp.vec2f.
+            limits: Joint limits. With full_data=False, Torch shape is (len(env_ids), len(joint_ids), 2)
+                and Warp shape is (len(env_ids), len(joint_ids)). With full_data=True, Torch shape is
+                (num_instances, num_joints, 2) and Warp shape is (num_instances, num_joints).
+                Warp arrays use dtype wp.vec2f.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2963,7 +2964,7 @@ class Articulation(BaseArticulation):
         desired values. To apply it, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         Args:
             target: Target tendon length [m or rad, depending on the spanned joints' type]. Shape is
@@ -3012,7 +3013,7 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
