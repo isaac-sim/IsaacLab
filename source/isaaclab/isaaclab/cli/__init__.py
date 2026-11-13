@@ -8,6 +8,7 @@ import importlib.metadata
 import logging
 import os
 import sys
+import warnings
 from pathlib import Path
 
 from .commands.format import command_format
@@ -127,8 +128,17 @@ def demo(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    from isaaclab.programs import DEMOS, run_program_cli
+    from isaaclab.programs import DEMOS, EXAMPLES, run_program_cli
 
+    args = sys.argv[1:] if args is None else args
+    if args and args[0] in ("newton-block-and-tackle", "snowball-smash", "teapot-fill"):
+        warnings.warn(
+            f"'isaaclab demo {args[0]}' is deprecated; use 'isaaclab example {args[0]}' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        run_program_cli("example", EXAMPLES, args)
+        return
     run_program_cli("demo", DEMOS, args)
 
 

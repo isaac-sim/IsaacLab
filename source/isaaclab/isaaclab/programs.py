@@ -113,17 +113,6 @@ DEMOS = (
         newton_gl_args=None,
     ),
     ProgramSpec(
-        "newton-block-and-tackle",
-        "examples/demos/newton_viewer_block_and_tackle.py",
-        "Interact with a Newton VBD block-and-tackle scene.",
-    ),
-    ProgramSpec(
-        "snowball-smash",
-        "examples/demos/snowball_smash.py",
-        "Smash rigid crates with MPM snowballs.",
-    ),
-    ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
-    ProgramSpec(
         "rizon-sharpa-coffee",
         "examples/demos/rizon_sharpa_coffee.py",
         "Scoop, dissolve and stir coffee using IK (external Rizon/Sharpa robot assets required).",
@@ -165,6 +154,11 @@ EXAMPLES = (
     ),
     ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
+    ProgramSpec(
+        "newton-block-and-tackle",
+        "examples/newton_viewer_block_and_tackle.py",
+        "Interact with a Newton VBD block-and-tackle scene.",
+    ),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
         "rizon-sharpa-teapot",
@@ -178,6 +172,8 @@ EXAMPLES = (
         "Generate procedural terrain meshes.",
         **_ISAACSIM,
     ),
+    ProgramSpec("snowball-smash", "examples/snowball_smash.py", "Smash rigid crates with MPM snowballs."),
+    ProgramSpec("teapot-fill", "examples/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
     ProgramSpec(
         "tablecloth",
         "examples/tablecloth.py",

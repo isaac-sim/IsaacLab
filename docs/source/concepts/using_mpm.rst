@@ -15,7 +15,7 @@ for resolution, convergence, material settings, and the nearly rigid MPM limit.
 Examples and tasks
 ------------------
 
-These examples and demos introduce MPM construction and interaction. They
+These examples introduce MPM construction and interaction. They
 default to Newton GL for interactive viewing. The launcher uses ``cuda:0`` by
 default. Pass ``--device cuda:N`` to select a different GPU.
 
@@ -56,7 +56,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
 
       .. code-block:: bash
 
-         uv run isaaclab demo snowball-smash
+         uv run isaaclab example snowball-smash
 
    .. grid-item-card:: Teapot fill
 
@@ -68,7 +68,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
 
       .. code-block:: bash
 
-         uv run isaaclab demo teapot-fill --fluid_render_mode particles
+         uv run isaaclab example teapot-fill --fluid_render_mode particles
 
 .. _franka-pour-reset-artifact:
 
@@ -134,7 +134,7 @@ into named entries:
 * a proxy mapping that exposes selected rigid bodies as colliders in the MPM
   entry and feeds the resulting impulses back to the rigid entry.
 
-The ``mpm-two-way-coupling`` example, the ``snowball-smash`` demo, and the
+The ``mpm-two-way-coupling`` example, the ``snowball-smash`` example, and the
 Franka Pour task all use this pattern. See :ref:`newton-coupled-solvers` for
 proxy and ADMM coupling, exchange modes, and tuning.
 
@@ -304,18 +304,18 @@ Rendering a particle surface
 
 MPM simulation state remains a set of particles. Surface reconstruction is an
 optional visualization pass: it does not change particle motion, collisions, or
-material behavior. Run the teapot demo to compare the available modes:
+material behavior. Run the teapot example to compare the available modes:
 
 .. code-block:: bash
 
    # Reconstructed surface
-   uv run isaaclab demo teapot-fill \
+   uv run isaaclab example teapot-fill \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
-   uv run isaaclab demo teapot-fill \
+   uv run isaaclab example teapot-fill \
      --visualizer newton_gl --fluid_render_mode both
 
-The teapot demo uses Newton GL and defaults to the reconstructed surface. Select
+The teapot example uses Newton GL and defaults to the reconstructed surface. Select
 ``particles`` or ``both`` to inspect the source MPM state. Its ``--visualizer`` / ``--viz``
 option accepts only ``newton_gl``; omit the option to use that default.
 
@@ -337,7 +337,7 @@ Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers
 This recording demonstrates rendering appearance, not a different
 constitutive model.
 
-The teapot demo configures ``newton.geometry.ParticleSurface`` after
+The teapot example configures ``newton.geometry.ParticleSurface`` after
 ``sim.reset()`` and updates the mesh before ``sim.render()``. Its renderer
 captures extraction on CUDA when enabled and stages the dynamic mesh inside
 the viewer's frame lifecycle.

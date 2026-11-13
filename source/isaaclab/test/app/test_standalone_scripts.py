@@ -116,7 +116,7 @@ assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
         "scripts/tutorials/08_mpm/material_parameters.py",
         "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
         "scripts/tutorials/08_mpm/surface_reconstruction.py",
-        "examples/demos/snowball_smash.py",
+        "examples/snowball_smash.py",
         "examples/mpm/newton_mpm_granular.py",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "examples/mpm/g1_coupling.py",
@@ -173,8 +173,8 @@ raise AssertionError('The program did not reach launch_simulation')
 
 
 def test_teapot_uses_only_newton_gl():
-    """The GL-only demo rejects other backends before launch and needs no task presets."""
-    script = script_cases.ROOT / "examples/demos/teapot_fill.py"
+    """The GL-only example rejects other backends before launch and needs no task presets."""
+    script = script_cases.ROOT / "examples/teapot_fill.py"
     code = """
 import runpy
 import sys
