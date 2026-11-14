@@ -10,6 +10,7 @@ __all__ = [
     "KeyEventSource",
     "KeyboardSubscription",
     "PerspectiveCameraCfg",
+    "TrackingCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
     "VisualizerBackendCfg",
@@ -20,4 +21,12 @@ __all__ = [
 from .base_visualizer import BaseVisualizer
 from .image_view import ImageView
 from .key_event_source import KeyboardSubscription, KeyEventSource, add_key_callbacks
-from .visualizer_cfg import WindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, VisualizerBackendCfg
+from .visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    TrackingCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    WindowCfg,
+)

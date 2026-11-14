@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -669,7 +670,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     from isaaclab.visualizers import ImageView, ImageViewCfg
 
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
-    view.render = visualizer._capture_frame
+    view.render = partial(visualizer._capture_view, view)
     visualizer.current_image_view, visualizer._image_views = view, [view]
     if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
@@ -947,7 +948,8 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             back_frame = back.frame.torch.clone()
             assert visualizer.current_image_view.camera is None
             assert isinstance(visualizer._image_views[0].cfg.source, PerspectiveCameraCfg)
-            assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:]] == [
+            # the task's own tracking camera comes after the scene cameras
+            assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:] if view.camera is not None] == [
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]

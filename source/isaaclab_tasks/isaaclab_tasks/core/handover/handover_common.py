@@ -13,7 +13,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.core.reorient.utils import SuccessTracker
 
@@ -35,7 +35,12 @@ holding hand."""
 
 # The camera is world-framed, so this aims at the environment nearest the grid center for the
 # default 2048 environments (x = 0.75 m); other counts shift the grid.
-VISUALIZER_CFG = VisualizerCfg(eye=(2.35, -0.5, 1.1), lookat=(0.75, -0.5, 0.55), focal_length=35.0)
+VISUALIZER_CFG = VisualizerCfg(
+    eye=(2.35, -0.5, 1.1),
+    lookat=(0.75, -0.5, 0.55),
+    focal_length=35.0,
+    cameras=[TrackingCameraCfg(eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0)],
+)
 """Recording view facing one hand pair from the side, with both hands and the object between them."""
 
 

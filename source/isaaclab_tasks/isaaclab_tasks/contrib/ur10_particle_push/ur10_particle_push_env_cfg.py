@@ -18,7 +18,6 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, Ne
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -36,9 +35,7 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
@@ -616,10 +613,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
         render_interval=decimation,
+        # the viewport starts on the free view; the tracking camera is the next choice in the Camera Source list
         visualizer_cfgs=VisualizerCfg(
-            eye=(1.7, 1.5, 1.0),
-            lookat=(0.55, 0.0, 0.0),
-            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+            cameras=[TrackingCameraCfg(eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),
     )
     actions: ActionsCfg = ActionsCfg()
