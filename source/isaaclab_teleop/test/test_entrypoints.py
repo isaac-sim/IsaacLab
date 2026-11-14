@@ -50,8 +50,9 @@ def test_entrypoints_load_out_of_tree_tasks_before_parsing(monkeypatch, module_n
     assert status == (3 if cli_name == "run_teleop_replay_agent_cli" else 0)
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize("failing_step", ["environment", "teleop device"])
-def test_teleop_se3_agent_propagates_startup_failures(monkeypatch, failing_step):
+def test_teleop_se3_agent_propagates_startup_failures(monkeypatch: pytest.MonkeyPatch, failing_step: str) -> None:
     """A session that cannot start raises, so the command exits non-zero instead of reporting success."""
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent
@@ -64,9 +65,6 @@ def test_teleop_se3_agent_propagates_startup_failures(monkeypatch, failing_step)
         if failing_step == "environment":
             raise error
         return env
-
-    def create_teleop_device(*args, **kwargs):
-        raise error
 
     args_cli = argparse.Namespace(
         task="Test-Task-v0",
@@ -81,7 +79,7 @@ def test_teleop_se3_agent_propagates_startup_failures(monkeypatch, failing_step)
     monkeypatch.setattr(teleop_se3_agent, "args_cli", args_cli, raising=False)
     monkeypatch.setattr(teleop_se3_agent, "has_kit", lambda: False)
     monkeypatch.setattr(teleop_se3_agent.gym, "make", make)
-    monkeypatch.setattr(teleop_se3_agent, "create_teleop_device", create_teleop_device)
+    monkeypatch.setattr(teleop_se3_agent, "create_teleop_device", mock.Mock(side_effect=error))
     monkeypatch.setattr(isaaclab_teleop, "XrCameraFeedSession", mock.Mock(prepare=lambda *a, **k: camera_feed_session))
 
     with pytest.raises(RuntimeError) as raised, ExitStack() as cleanup:
