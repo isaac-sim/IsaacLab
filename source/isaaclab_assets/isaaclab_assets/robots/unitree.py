@@ -454,13 +454,13 @@ G1_29DOF_CFG = ArticulationCfg(
             ],
             actuator_effort_limit={
                 ".*_hip_yaw_joint": 88.0,
-                ".*_hip_roll_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
                 ".*_hip_pitch_joint": 88.0,
                 ".*_knee_joint": 139.0,
             },
             actuator_velocity_limit={
                 ".*_hip_yaw_joint": 32.0,
-                ".*_hip_roll_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
                 ".*_hip_pitch_joint": 32.0,
                 ".*_knee_joint": 20.0,
             },
@@ -567,6 +567,8 @@ G1_29DOF_CFG = ArticulationCfg(
 This configuration sets up the G1 humanoid robot for locomanipulation tasks,
 allowing both locomotion and manipulation capabilities. The robot can be configured
 for either fixed base or mobile scenarios by modifying the fix_root_link parameter.
+
+The hip roll effort (139 Nm) and velocity (20 rad/s) limits follow the Unitree G1 rev 1.0 URDF.
 
 Key features:
 - Configurable base (fixed or mobile) via fix_root_link parameter
@@ -722,13 +724,13 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
             ],
             actuator_effort_limit={
                 ".*_hip_yaw_joint": 88.0,
-                ".*_hip_roll_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
                 ".*_hip_pitch_joint": 88.0,
                 ".*_knee_joint": 139.0,
             },
             actuator_velocity_limit={
                 ".*_hip_yaw_joint": 32.0,
-                ".*_hip_roll_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
                 ".*_hip_pitch_joint": 32.0,
                 ".*_knee_joint": 20.0,
             },
@@ -837,4 +839,6 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
 """Configuration for the Unitree G1 29DOF robot with Dex3 hands and fixed base.
 
 This configuration is designed for high-precision manipulation tasks such as trocar assembly.
+
+The hip roll effort (139 Nm) and velocity (20 rad/s) limits follow the Unitree G1 rev 1.0 URDF.
 """
