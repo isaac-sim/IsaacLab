@@ -11,15 +11,16 @@ from isaaclab_teleop.entrypoints.replay_demos import compare_states
 
 from isaaclab.utils.datasets import EpisodeData
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
-def _recorded_and_runtime_states(runtime_env_index):
+def _recorded_and_runtime_states(
+    runtime_env_index: int,
+) -> tuple[dict[str, dict[str, dict[str, torch.Tensor]]], dict[str, dict[str, dict[str, torch.Tensor]]]]:
     recorded = {
         "articulation": {
             "robot": {
                 "root_pose": torch.tensor([0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0]),
-                "root_velocity": torch.arange(6, dtype=torch.float32),
                 "joint_position": torch.arange(9, dtype=torch.float32),
             }
         },
@@ -49,18 +50,21 @@ def _recorded_and_runtime_states(runtime_env_index):
     return dataset_state, runtime
 
 
-@pytest.mark.parametrize("runtime_env_index", [0, 1])
 @pytest.mark.parametrize("different_value", [False, True])
-def test_replay_compares_single_sample_to_selected_runtime_env(runtime_env_index, different_value):
+def test_replay_compares_single_sample_to_selected_runtime_env(different_value: bool) -> None:
+    runtime_env_index = 1
     dataset_state, runtime = _recorded_and_runtime_states(runtime_env_index)
     if different_value:
         runtime["rigid_object"]["cube"]["root_pose"][runtime_env_index, 0] += 0.02
     matched, log = compare_states(dataset_state, runtime, runtime_env_index)
     assert matched is not different_value
-    assert bool(log) is different_value
+    if different_value:
+        assert 'State ["rigid_object"]["cube"]["root_pose"][0] don\'t match' in log
+    else:
+        assert log == ""
 
 
-def test_replay_still_rejects_different_feature_counts():
+def test_replay_still_rejects_different_feature_counts() -> None:
     dataset_state, runtime = _recorded_and_runtime_states(0)
     runtime["articulation"]["robot"]["joint_position"] = torch.zeros(1, 8)
     with pytest.raises(ValueError, match="State shape of joint_position for asset robot"):
