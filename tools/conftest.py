@@ -20,7 +20,7 @@ from dataclasses import dataclass, replace
 
 import pytest
 import tomllib
-from junitparser import Error, JUnitXml, TestCase, TestSuite
+from junitparser import Error, Failure, JUnitXml, Skipped, TestCase, TestSuite
 from prettytable import PrettyTable
 
 from isaaclab.test.utils import resolve_test_sim_device
@@ -888,6 +888,34 @@ def _queued_files(queue_dir):
         yield claimed
 
 
+def _case_result_status(case):
+    """Return the summary status for a JUnit test case."""
+    case_results = list(case.result) if case.result else []
+    if not case_results:
+        return "passed"
+    if any(isinstance(r, Failure) for r in case_results):
+        return "FAILED"
+    if any(isinstance(r, Error) for r in case_results):
+        return "ERROR"
+    if any(isinstance(r, Skipped) for r in case_results):
+        return "skipped"
+    return "passed"
+
+
+def _collect_case_results(report):
+    """Return per-test-case name, classname, time, and status for every case in ``report``."""
+    return [
+        {
+            "name": case.name or "",
+            "classname": case.classname or "",
+            "time": float(case.time or 0.0),
+            "result": _case_result_status(case),
+        }
+        for suite in report
+        for case in suite
+    ]
+
+
 def _read_test_report(report_file, file_name):
     """Read a pytest JUnit report and return its summary fields."""
     report = JUnitXml.fromfile(report_file)
@@ -964,6 +992,7 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
         "tests": prev["tests"] + new["tests"],
         "time_elapsed": prev["time_elapsed"] + new["time_elapsed"],
         "wall_time": prev["wall_time"] + new["wall_time"],
+        "cases": prev.get("cases", []) + new.get("cases", []),
         "result": prev["result"]
         if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
         else new["result"],
@@ -1361,6 +1390,7 @@ def _run_one_pass(
             "result": result,
             "time_elapsed": time_elapsed,
             "wall_time": wall_time,
+            "cases": _collect_case_results(report),
         },
         was_failure,
     )
@@ -1696,6 +1726,9 @@ def _format_test_file_results(test_files: list[str], test_status: dict[str, dict
                 f"{num_tests_passed}/{status['tests']}",
             ]
         )
+        for case in status.get("cases", []):
+            case_label = f"{case['classname']}::{case['name']}" if case["classname"] else case["name"]
+            table.add_row([f"    \u21b3 {case_label}", "", case["result"], f"{case['time']:0.2f}", "", ""])
 
     return summary + table.get_string()
 

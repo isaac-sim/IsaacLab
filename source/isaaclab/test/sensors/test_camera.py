@@ -521,7 +521,7 @@ def setup_camera_device(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_camera_multi_regex_init(setup_camera_device, device):
+def test_camera_multi_regex_init(setup_camera_device, device, monkeypatch):
     """Test multi-camera initialization with regex prim paths and content validation."""
     sim, camera_cfg, dt = setup_camera_device
 
@@ -540,6 +540,12 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     camera.reset(slice(1, None, 2))
     torch.testing.assert_close(camera.frame.torch[::2], torch.full((5,), 7, device=device, dtype=torch.int64))
     torch.testing.assert_close(camera.frame.torch[1::2], torch.zeros(4, device=device, dtype=torch.int64))
+    if device.startswith("cuda"):
+        # a mask on another device resets the same rows; strict launches reject a CPU array on CUDA
+        monkeypatch.setattr(wp.config, "launch_array_access_mode", wp.config.LaunchArrayAccessMode.STRICT)
+        camera.frame.torch.fill_(7)
+        camera.reset(env_mask=wp.array([i == 0 for i in range(num_cameras)], dtype=wp.bool, device="cpu"))
+        assert camera.frame.torch.tolist() == [0] + [7] * (num_cameras - 1)
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
