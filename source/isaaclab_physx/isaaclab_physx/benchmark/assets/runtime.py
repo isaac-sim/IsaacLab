@@ -152,6 +152,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_link_vel_w_f32", None)
     object.__setattr__(articulation, "_sim_env_ids", wp.empty(num_instances, dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_sim_env_ids_views", {})
+    object.__setattr__(articulation, "_clamped_default_count", wp.zeros(1, dtype=wp.int32, device=device))
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, J, B = num_instances, num_joints, num_bodies
