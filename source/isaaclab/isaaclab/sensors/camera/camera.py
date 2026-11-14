@@ -993,7 +993,11 @@ class Camera(SensorBase):
 
     def _as_device_tensor(self, value: np.ndarray | torch.Tensor | Sequence, num_cols: int) -> torch.Tensor:
         """Convert array-like input to a float32 tensor of shape (N, ``num_cols``) on the camera device."""
-        if isinstance(value, np.ndarray):
+        if isinstance(value, ProxyArray):
+            # deprecation bridge: callers such as ``set_world_poses_from_view(eyes, scene.env_origins)``
+            ProxyArray._warn_implicit()
+            value = value.torch
+        elif isinstance(value, np.ndarray):
             value = torch.from_numpy(value)
         elif not isinstance(value, torch.Tensor):
             value = torch.tensor(value)

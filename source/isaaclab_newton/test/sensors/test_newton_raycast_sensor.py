@@ -39,7 +39,7 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -226,6 +226,73 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     torch.testing.assert_close(sensor.data.pos_w.torch, pose[:, :3])
 
 
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_partial_reset_resamples_drift_of_selected_envs_only(sim, monkeypatch):
+    """Slice, host-mask and replayed masked resets resample the drift of the selected environments only."""
+    scene_cfg = RaycastTestSceneCfg(num_envs=3)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene_cfg.raycast.ray_cast_drift_range = {"z": (0.1, 0.2)}
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    sensor.reset()
+
+    drift = sensor.drift.torch.clone()
+    sensor.reset(env_ids=slice(2, None))
+    torch.testing.assert_close(sensor.drift.torch[:2], drift[:2])
+    assert not torch.allclose(sensor.drift.torch[2], drift[2])
+
+    # The masked reset records into a CUDA graph without allocating (the disabled memory pool makes an
+    # allocation raise), and every replay draws new drift for the masked environment only.
+    env_mask = wp.array([True, False, False], dtype=wp.bool, device=sensor.device)
+    with wp.ScopedMempool(sensor.device, False), wp.ScopedCapture(sensor.device) as capture:
+        sensor.reset(env_mask=env_mask)
+    for _ in range(2):
+        drift = sensor.drift.torch.clone()
+        ray_cast_drift = sensor.ray_cast_drift.torch.clone()
+        wp.capture_launch(capture.graph)
+        torch.testing.assert_close(sensor.drift.torch[1:], drift[1:])
+        torch.testing.assert_close(sensor.ray_cast_drift.torch[1:], ray_cast_drift[1:])
+        assert not torch.allclose(sensor.drift.torch[0], drift[0])
+        assert not torch.allclose(sensor.ray_cast_drift.torch[0, 2], ray_cast_drift[0, 2])
+    assert ((sensor.drift.torch >= 0.01) & (sensor.drift.torch <= 0.05)).all()
+    assert ((sensor.ray_cast_drift.torch[:, 2] >= 0.1) & (sensor.ray_cast_drift.torch[:, 2] <= 0.2)).all()
+
+    # A host mask reaches the drift kernel on the sensor device. Strict launches reject a host array that
+    # GPUs with heterogeneous memory management would otherwise read silently.
+    monkeypatch.setattr(wp.config, "launch_array_access_mode", wp.config.LaunchArrayAccessMode.STRICT)
+    drift = sensor.drift.torch.clone()
+    sensor.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu"))
+    torch.testing.assert_close(sensor.drift.torch[[0, 2]], drift[[0, 2]])
+    assert not torch.allclose(sensor.drift.torch[1], drift[1])
+
+
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_drift_is_seeded_once_from_the_environment_seed(sim):
+    """The drift states are seeded from the environment seed when the rays initialize; resets only draw from them.
+
+    Neither initialization nor resets draw from torch's global generator, and new storage, as after a simulation
+    stop and play, starts the same drift sequence again.
+    """
+    scene_cfg = RaycastTestSceneCfg(num_envs=2)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    state = torch.get_rng_state()
+
+    sensor._initialize_rays_impl()
+    sensor.reset()
+    first = sensor.drift.torch.clone()
+    sensor.reset()
+    assert not torch.allclose(sensor.drift.torch, first)
+    sensor._initialize_rays_impl()
+    sensor.reset()
+    torch.testing.assert_close(sensor.drift.torch, first)
+    assert ((first >= 0.01) & (first <= 0.05)).all()
+    assert torch.equal(torch.get_rng_state(), state)
+
+
 @configclass
 class MultiMeshTargetSceneCfg(RaycastTestSceneCfg):
     """Read the same box through a static target and a tracked target."""
@@ -396,3 +463,15 @@ def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
         assert camera._renderer.backend is raycast.backend is sim.backend_manager.backend
         assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
         assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph
+
+
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_ray_casters_draw_independent_drift(sim):
+    """Two ray casters with the same drift ranges draw different drift: each mixes its prim path into the seed."""
+    scene_cfg = RaycastTestSceneCfg(num_envs=2)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene_cfg.raycast_box = replace(scene_cfg.raycast, prim_path="{ENV_REGEX_NS}/Box")
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    scene.reset()
+    assert not torch.allclose(scene["raycast"].drift.torch, scene["raycast_box"].drift.torch)

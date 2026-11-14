@@ -29,7 +29,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -44,6 +44,13 @@ class SelectorRecordingActuator(ImplicitActuator):
     def compute(self, control_action, joint_pos, joint_vel):
         self.observed_joint_indices = control_action.joint_indices
         return super().compute(control_action, joint_pos, joint_vel)
+
+
+class ResetRecordingActuator(ImplicitActuator):
+    """Custom actuator that records the selection supplied to :meth:`reset`."""
+
+    def reset(self, env_ids=None, env_mask=None):
+        self.reset_selection = (env_ids, env_mask)
 
 
 def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
@@ -910,6 +917,19 @@ def test_write_command_mask_uses_full_sized_value(command_name):
         setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
 
 
+def test_index_and_mask_resets_pass_both_selections_to_models():
+    cfg = _implicit_cfg()
+    cfg.class_type = ResetRecordingActuator
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.reset([1])
+    assert collection["all"].reset_selection == ([1], None)
+
+    collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    env_ids, env_mask = collection["all"].reset_selection
+    assert env_ids is None and env_mask.numpy().tolist() == [False, True]
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_masked_reset_leaves_unselected_envs_untouched(device):
     """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
@@ -931,6 +951,26 @@ def test_masked_reset_leaves_unselected_envs_untouched(device):
     finally:
         torch.cuda.set_sync_debug_mode("default")
 
+    for delay_buffer in buffers:
+        torch.testing.assert_close(delay_buffer.time_lags, torch.where(env_mask, 2, 1).to(torch.int))
+        torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_masked_reset_accepts_a_host_mask(device):
+    """A host mask resets the same environments of a CUDA collection as a mask on its device."""
+    control = FakeActuatorControl(num_envs=4, device=device)
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=2, max_delay=2)
+    collection = ActuatorCollection({"delayed": cfg}, control)
+    buffers = collection["delayed"]._delay_buffers
+    for delay_buffer in buffers:
+        delay_buffer.set_time_lag(1)
+    for _ in range(3):
+        collection.compute()
+
+    collection.reset(env_mask=wp.array([False, True, False, True], dtype=wp.bool, device="cpu"))
+
+    env_mask = torch.tensor([False, True, False, True], device=device)
     for delay_buffer in buffers:
         torch.testing.assert_close(delay_buffer.time_lags, torch.where(env_mask, 2, 1).to(torch.int))
         torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))

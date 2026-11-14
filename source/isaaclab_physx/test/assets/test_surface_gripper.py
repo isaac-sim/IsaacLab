@@ -194,3 +194,32 @@ def test_command_filter_and_partial_property_update_use_literal_view_payloads() 
         "retry_interval": [0.0, 0.0, 0.0],
         "indices": [2, 0],
     }
+
+
+def test_reset_by_mask_matches_reset_by_ids() -> None:
+    """A masked reset opens the same grippers as the equivalent index reset."""
+    results = []
+    resets = (
+        lambda gripper: gripper.reset(env_ids=[1]),
+        lambda gripper: gripper.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu")),
+    )
+    for reset in resets:
+        # Skip USD initialization: a three-environment CPU gripper, closed everywhere, around a recording view.
+        gripper = object.__new__(SurfaceGripper)
+        gripper._device = "cpu"
+        gripper._ALL_INDICES = wp.array([0, 1, 2], dtype=wp.int32, device="cpu")
+        gripper._gripper_command = wp.ones(3, dtype=wp.float32, device="cpu")
+        gripper._gripper_state = wp.ones(3, dtype=wp.float32, device="cpu")
+        gripper._gripper_view = SimpleNamespace(apply_gripper_action=Mock())
+
+        reset(gripper)
+
+        results.append(
+            (
+                gripper.gripper_view.apply_gripper_action.call_args,
+                gripper._gripper_command.numpy().tolist(),
+                gripper._gripper_state.numpy().tolist(),
+            )
+        )
+    assert results[0] == results[1]
+    assert results[0][1:] == ([1.0, 0.0, 1.0], [1.0, -1.0, 1.0])

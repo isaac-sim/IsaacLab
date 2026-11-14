@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import quat_error_magnitude
 
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -191,17 +192,16 @@ Joint terminations.
 @wp.kernel
 def _joint_pos_out_of_manual_limit_kernel(
     joint_pos: wp.array(dtype=wp.float32, ndim=2),
-    joint_mask: wp.array(dtype=wp.bool),
+    joint_ids: wp.array(dtype=wp.int32),
     lower: float,
     upper: float,
     out: wp.array(dtype=wp.bool),
 ):
-    """2D kernel (num_envs, num_joints). ``out`` is pre-zeroed; only writes True."""
-    i, j = wp.tid()
-    if joint_mask[j]:
-        v = joint_pos[i, j]
-        if v < lower or v > upper:
-            out[i] = True
+    """2D kernel (num_envs, num_selected_joints). ``out`` is pre-zeroed; only writes True."""
+    i, k = wp.tid()
+    v = joint_pos[i, joint_ids[k]]
+    if v < lower or v > upper:
+        out[i] = True
 
 
 def joint_pos_out_of_manual_limit(
@@ -209,20 +209,15 @@ def joint_pos_out_of_manual_limit(
 ) -> None:
     """Terminate when joint positions are outside configured bounds. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    if asset_cfg.joint_mask is None:
+    if asset_cfg.joint_ids_wp is None:
         raise ValueError(
-            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask, "
+            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_ids_wp, "
             f"but got None for asset '{asset_cfg.name}'."
-        )
-    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask.shape[0]:
-        raise ValueError(
-            f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
-            f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
-        dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
+        dim=(env.num_envs, asset_cfg.joint_ids_wp.shape[0]),
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_ids_wp, bounds[0], bounds[1], out],
         device=env.device,
     )
 

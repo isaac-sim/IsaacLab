@@ -39,23 +39,13 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.kernels import initialize_rng_state
 from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 class ManagerBasedEnvWarp:
@@ -275,14 +265,8 @@ class ManagerBasedEnvWarp:
 
     @property
     def env_origins_wp(self) -> wp.array:
-        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
-        if not hasattr(self, "_env_origins_wp"):
-            origins = self.scene.env_origins
-            if isinstance(origins, wp.array):
-                self._env_origins_wp = origins
-            else:
-                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
-        return self._env_origins_wp
+        """Scene env origins as a warp ``vec3f`` array."""
+        return self.scene.env_origins.warp
 
     def resolve_env_mask(
         self,

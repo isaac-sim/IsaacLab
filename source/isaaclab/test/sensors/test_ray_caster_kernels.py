@@ -33,8 +33,13 @@ from isaaclab.sensors.ray_caster.kernels import (
     compute_distance_to_image_plane_to_image_masked_kernel,
     copy_float2d_to_image1_depth_clipped_masked_kernel,
     fill_ray_hits_distance_inf_kernel,
+    resample_drift_masked_kernel,
 )
-from isaaclab.utils.warp.kernels import raycast_dynamic_meshes_kernel, raycast_mesh_masked_kernel
+from isaaclab.utils.warp.kernels import (
+    initialize_rng_state,
+    raycast_dynamic_meshes_kernel,
+    raycast_mesh_masked_kernel,
+)
 from isaaclab.utils.warp.ops import convert_to_warp_mesh
 
 # ---------------------------------------------------------------------------
@@ -671,3 +676,63 @@ class TestQuatYawOnly:
 
         expected = [[0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)] for _, _, yaw in cases]
         np.testing.assert_allclose(_to_numpy(q_out), expected, atol=ATOL)
+
+
+# ---------------------------------------------------------------------------
+# resample_drift_masked_kernel
+# ---------------------------------------------------------------------------
+
+
+def _rng_state(num_envs: int = 4, seed: int = 7) -> wp.array:
+    """Per-environment random states seeded by :func:`initialize_rng_state`."""
+    state = wp.empty(num_envs, dtype=wp.uint32, device=DEVICE)
+    wp.launch(initialize_rng_state, dim=num_envs, inputs=[seed], outputs=[state], device=DEVICE)
+    return state
+
+
+def _resample_drift(env_mask, drift_range, ray_cast_min, ray_cast_max, rng_state):
+    """Resample drift buffers that start at -1 and return them as numpy arrays."""
+    num_envs = env_mask.shape[0]
+    drift = wp.array(np.full((num_envs, 3), -1.0, dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
+    ray_cast_drift = wp.array(np.full((num_envs, 3), -1.0, dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
+    wp.launch(
+        resample_drift_masked_kernel,
+        dim=num_envs,
+        inputs=[env_mask, wp.vec2f(*drift_range), wp.vec3f(*ray_cast_min), wp.vec3f(*ray_cast_max), rng_state],
+        outputs=[drift, ray_cast_drift],
+        device=DEVICE,
+    )
+    wp.synchronize_device(DEVICE)
+    return drift.numpy(), ray_cast_drift.numpy()
+
+
+class TestResampleDriftMaskedKernel:
+    """Tests for :func:`resample_drift_masked_kernel`."""
+
+    def test_only_masked_envs_change(self):
+        env_mask = wp.array([True, False, True, False], dtype=wp.bool, device=DEVICE)
+        drift, ray_cast_drift = _resample_drift(env_mask, (0.1, 0.2), (0.1, 0.1, 0.1), (0.2, 0.2, 0.2), _rng_state())
+        for values in (drift, ray_cast_drift):
+            np.testing.assert_array_equal(values[[1, 3]], -1.0)
+            assert (values[[0, 2]] >= 0.1).all()
+
+    def test_draws_stay_in_their_ranges(self):
+        env_mask = wp.array([True] * 64, dtype=wp.bool, device=DEVICE)
+        drift, ray_cast_drift = _resample_drift(
+            env_mask, (-0.5, 0.25), (-0.1, 0.0, 0.3), (0.1, 0.2, 0.4), _rng_state(64)
+        )
+        assert ((drift >= -0.5) & (drift <= 0.25)).all()
+        assert ((ray_cast_drift >= [-0.1, 0.0, 0.3]) & (ray_cast_drift <= [0.1, 0.2, 0.4])).all()
+
+    def test_zero_range_draws_zero(self):
+        env_mask = wp.array([True] * 4, dtype=wp.bool, device=DEVICE)
+        drift, ray_cast_drift = _resample_drift(env_mask, (0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), _rng_state())
+        np.testing.assert_array_equal(drift, 0.0)
+        np.testing.assert_array_equal(ray_cast_drift, 0.0)
+
+    def test_state_advances_between_launches(self):
+        env_mask = wp.array([True] * 4, dtype=wp.bool, device=DEVICE)
+        rng_state = _rng_state()
+        first, _ = _resample_drift(env_mask, (-1.0, 1.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), rng_state)
+        second, _ = _resample_drift(env_mask, (-1.0, 1.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), rng_state)
+        assert not np.array_equal(first, second)

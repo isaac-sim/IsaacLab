@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -25,6 +26,7 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.integration
 
@@ -149,7 +151,7 @@ def test_relative_deformable_state():
     )
     scene = SimpleNamespace(
         device="cpu",
-        env_origins=env_origins,
+        env_origins=ProxyArray(wp.from_torch(env_origins, dtype=wp.vec3f)),
         _articulations={},
         _cable_objects={},
         _deformable_objects={"object": deformable},
@@ -182,6 +184,33 @@ def test_relative_deformable_state():
     torch.testing.assert_close(written_state["position"], reset_nodal_position + env_origins[env_ids, None, :])
     torch.testing.assert_close(written_state["velocity"], reset_nodal_velocity)
     torch.testing.assert_close(written_state["env_ids"], env_ids)
+
+
+def test_masked_reset_reaches_every_entity():
+    """Resets by ids and by mask pass both selections to every asset and sensor."""
+    groups = (
+        "_articulations",
+        "_cable_objects",
+        "_deformable_objects",
+        "_rigid_objects",
+        "_surface_grippers",
+        "_rigid_object_collections",
+        "_sensors",
+    )
+    calls = {}
+
+    def entity(group):
+        return SimpleNamespace(reset=lambda env_ids=None, env_mask=None: calls.update({group: (env_ids, env_mask)}))
+
+    scene = SimpleNamespace(**{group: {"entity": entity(group)} for group in groups})
+    env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
+
+    InteractiveScene.reset(scene, env_mask=env_mask)
+    assert calls == dict.fromkeys(groups, (None, env_mask))
+
+    calls.clear()
+    InteractiveScene.reset(scene, env_ids=[1])
+    assert calls == dict.fromkeys(groups, ([1], None))
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
@@ -256,7 +285,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         assert sim.get_clone_plan() is None
         env_template = scene.cfg.clone_cfg.clone_template
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
-        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        torch.testing.assert_close(scene.env_origins.torch, torch.from_numpy(grid_positions))
         env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
         assert env_0 and not env_0.GetAttribute("xformOpOrder").Get()
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
@@ -277,7 +306,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
 
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
-        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
+        torch.testing.assert_close(scene.env_origins.torch, torch.from_numpy(positions))
         for env_id, position in enumerate(positions):
             np.testing.assert_allclose(
                 sim_utils.resolve_prim_pose(scene.stage.GetPrimAtPath(env_template.format(env_id)))[0], position

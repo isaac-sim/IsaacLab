@@ -11,11 +11,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import trimesh
+import warp as wp
 
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
 from ..markers.config import FRAME_MARKER_CFG
 from ..utils import instantiate, replace, to_dict, validate
+from ..utils.warp import ProxyArray
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -52,8 +54,11 @@ class TerrainImporter:
     Otherwise, the environment origins are computed based on the grid spacing.
     """
 
-    env_origins: torch.Tensor
-    """The origins of the environments. Shape is (num_envs, 3)."""
+    env_origins: ProxyArray
+    """The origins of the environments [m] as a :class:`~isaaclab.utils.warp.ProxyArray` of ``wp.vec3f``.
+
+    Torch code reads ``.torch``, of shape (num_envs, 3); Warp code reads ``.warp``, of shape (num_envs,).
+    """
 
     def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
@@ -347,14 +352,18 @@ class TerrainImporter:
             # store the origins
             self.terrain_origins = origins.to(self.device, dtype=torch.float)
             # compute environment origins
-            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
+            self.env_origins = ProxyArray(
+                wp.array(self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins), dtype=wp.vec3f)
+            )
         else:
             self.terrain_origins = None
             # check if env spacing is valid
             if self.cfg.env_spacing is None:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
-            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            self.env_origins = ProxyArray(
+                wp.array(self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing), dtype=wp.vec3f)
+            )
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
         """Update the environment origins based on the terrain levels."""

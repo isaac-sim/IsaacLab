@@ -13,22 +13,11 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
+from isaaclab.utils.warp.kernels import initialize_rng_state
 from isaaclab.utils.warp.math import quat_error_magnitude
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    """Initialize each env's random number generator state from the seed."""
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 @wp.kernel
@@ -581,8 +570,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.y_unit_vec = wp.vec3f(0.0, 1.0, 0.0)
         self.z_unit_vec = wp.vec3f(0.0, 0.0, 1.0)
 
-        # Per-env origins (Warp view for kernels; Torch env uses `self.scene.env_origins` directly).
-        self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
+        # Per-env origins (Warp view for kernels; the Torch env uses `self.scene.env_origins.torch`).
+        self.env_origins = self.scene.env_origins.warp
 
         # ---------------------------------------------------------------------
         # Warp buffers

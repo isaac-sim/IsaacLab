@@ -753,7 +753,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         assert robot.num_joints == 1
         assert robot.num_bodies == 2
         assert robot.root_view.prim_paths == [f"/World/envs/env_{i}/Robot" for i in range(scene.num_envs)]
-        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins)
+        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins.torch)
         selected = torch.tensor([5, 3], device=device)
         positions = torch.tensor([[0.25], [-0.4]], device=device)
         robot.write_joint_state_to_sim(positions, torch.zeros_like(positions), env_ids=selected)
@@ -1635,6 +1635,13 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     articulation.reset(env_ids=torch.tensor([0], device=device, dtype=torch.long))
     # The delay state is flattened environment-major over the group's joints.
     assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0] * num_joints + [1] * num_joints
+
+    scene.step(articulation)
+    articulation.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=device))
+    stateful_pairs = [
+        state for state in adapter._states_a if state is not None and getattr(state, "delay_state", None) is not None
+    ]
+    assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [1] * num_joints + [0] * num_joints
 
     env = Env(articulation)
     asset_cfg = SceneEntityCfg("robot")
