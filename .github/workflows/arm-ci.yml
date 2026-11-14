@@ -70,11 +70,16 @@ jobs:
       pull-requests: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/actions/detect-changes
+        sparse-checkout: |
+          .github/actions/detect-changes
+          .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
     - id: detect
       uses: ./.github/actions/detect-changes
@@ -94,26 +99,9 @@ jobs:
           ^\.github/workflows/config\.yaml$ :: Base image config
           ^\.github/actions/ :: CI actions
 
-  # Loads the Isaac Sim base image name/tag from config.yaml and computes the
-  # per-run CI image tag. Inlined here (rather than shared with build.yaml)
-  # because arm-ci builds its own independent -arm64 image and only needs three
-  # of the values build.yaml's config job produces.
-  config:
-    name: Load Config
-    needs: [changes]
-    if: needs.changes.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
-      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
-      ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        sparse-checkout: .github/workflows/config.yaml
-        sparse-checkout-cone-mode: false
+    # Resolve image inputs on the detector's existing hosted runner.
     - id: load
+      if: steps.detect.outputs.should_run == 'true'
       run: |
         set -euo pipefail
         f=.github/workflows/config.yaml
@@ -123,6 +111,7 @@ jobs:
     # config job — the two images are independent (-arm64 here vs x86 there), so
     # they are not shared. Keep the two formulas in sync if either changes.
     - id: image_tag
+      if: steps.detect.outputs.should_run == 'true'
       shell: bash
       env:
         EVENT_NAME: ${{ github.event_name }}
@@ -149,7 +138,7 @@ jobs:
   arm-ci:
     name: Build & Test
     runs-on: [self-hosted, arm64]
-    needs: [changes, config]
+    needs: [changes]
     if: needs.changes.outputs.should_run == 'true'
     timeout-minutes: 60
     steps:
@@ -161,9 +150,9 @@ jobs:
     - name: Build base image (linux/arm64)
       uses: ./.github/actions/docker-build
       with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        image-tag: ${{ needs.changes.outputs.ci_image_tag }}-arm64
+        isaacsim-base-image: ${{ needs.changes.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.changes.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         platform: linux/arm64
         # The Spark runner is long-lived self-hosted with no ECR, so its local
@@ -182,10 +171,10 @@ jobs:
       id: tests
       uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        image-tag: ${{ needs.changes.outputs.ci_image_tag }}-arm64
         platform: linux/arm64
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        isaacsim-base-image: ${{ needs.changes.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.changes.outputs.isaacsim_image_tag }}
         ci-marker: arm_ci
         # ovstage rendering cases are post-merge only on x86 as well.
         test-k-expr: not ovstage
@@ -206,7 +195,7 @@ jobs:
         test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
         result-file: arm-ci-smoke-report.xml
         container-name: isaac-lab-arm-ci-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        image-tag: ${{ needs.changes.outputs.ci_image_tag }}-arm64
         volume-mount-source: ${{ github.workspace }}
         warp-cache-host-dir: ${{ steps.tests.outputs.warp-cache-host-dir }}
         ovrtx-shader-cache-host-dir: ${{ steps.tests.outputs.ovrtx-shader-cache-host-dir }}

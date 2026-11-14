@@ -1009,43 +1009,26 @@ def test_quat_inv(device):
         torch.testing.assert_close(math_utils.quat_mul(q_inv, q), id_batch, atol=1e-4, rtol=1e-4)
 
 
-def test_interpolate_rotations():
-    """Test interpolate_rotations function.
+@pytest.mark.parametrize("axis_angle", [False, True], ids=["slerp", "axis-angle"])
+@pytest.mark.parametrize(
+    "start_angles,end_angles,num_steps",
+    [
+        ((0, 0, 0), (0, 0, 90), 1),
+        ((20, -30, 40), (-50, 60, -70), 7),
+        ((-80, 10, 120), (70, -60, -20), 49),
+    ],
+)
+def test_interpolate_rotations(axis_angle, start_angles, end_angles, num_steps):
+    """Both interpolation modes agree with SciPy, including the endpoints."""
+    rotations = scipy_tf.Rotation.from_euler("xyz", [start_angles, end_angles], degrees=True)
+    matrices = torch.from_numpy(rotations.as_matrix())
+    expected = scipy_tf.Slerp([0, 1], rotations)(np.linspace(0, 1, num_steps + 1)).as_matrix()
 
-    This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_rotations` function against
-    the output from :func:`scipy.spatial.transform.Slerp`.
-    """
-    # Generate NUM_ITERS random rotation matrices
-    random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(100)]
-    random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(100)]
+    # Keep one case on the public default while exercising explicit selection in the others.
+    kwargs = {} if axis_angle and num_steps == 1 else {"axis_angle": axis_angle}
+    result = math_utils.interpolate_rotations(matrices[0], matrices[1], num_steps, **kwargs)
 
-    for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
-        # Compute expected results using scipy's Slerp
-        key_rots = scipy_tf.Rotation.from_matrix(np.array([rmat1, rmat2]))
-
-        # Create a Slerp object and interpolate create the interpolated matrices
-        # Minimum 2 required because Interpolate_rotations returns one extra rotation matrix
-        num_steps = np.random.randint(2, 51)
-        key_times = [0, 1]
-        slerp = scipy_tf.Slerp(key_times, key_rots)
-        interp_times = np.linspace(0, 1, num_steps)
-        expected = slerp(interp_times).as_matrix()
-
-        # Test 1:
-        # Interpolate_rotations using interpolate_rotations and quat_slerp
-        # interpolate_rotations returns one extra rotation matrix hence num_steps-1
-        result_quat = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1)
-
-        # Assert that the result is almost equal to the expected quaternion
-        np.testing.assert_array_almost_equal(result_quat.cpu(), expected, decimal=DECIMAL_PRECISION)
-
-        # Test 2:
-        # Interpolate_rotations using axis_angle and ensure the result is still the same
-        # interpolate_rotations returns one extra rotation matrix hence num_steps-1
-        result_axis_angle = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1, axis_angle=True)
-
-        # Assert that the result is almost equal to the expected quaternion
-        np.testing.assert_array_almost_equal(result_axis_angle.cpu(), expected, decimal=DECIMAL_PRECISION)
+    np.testing.assert_array_almost_equal(result.numpy(), expected, decimal=DECIMAL_PRECISION)
 
 
 def test_euler_xyz_from_quat():
