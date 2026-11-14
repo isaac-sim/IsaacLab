@@ -27,6 +27,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp.capture import record_at_end
 
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
@@ -185,9 +186,17 @@ class NewtonManager(PhysicsManager):
         self._flag_outer_capture()
 
     def _flag_outer_capture(self) -> None:
-        """Flag writes recorded into an outer graph capture."""
-        if self.backend.device.is_capturing:
-            self.backend.transforms_may_change_on_graph_replay = True
+        """Flag writes recorded into an outer graph capture.
+
+        A :class:`~isaaclab.utils.warp.capture.GraphedCallable` recording the write also records :meth:`forward` at
+        its end, so each replay resets the solver and evaluates FK once after the write; a raw capture cannot, so FK
+        then runs before every physics step.
+        """
+        backend = self.backend
+        if backend.device.is_capturing:
+            backend.transforms_may_change_on_graph_replay = True
+            if not record_at_end(backend.forward):
+                backend.fk_on_every_step = True
 
     def step(self) -> None:
         """Advance physics by one environment step, or one physics step when the environment runs decimation."""

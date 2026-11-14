@@ -128,10 +128,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._manager = manager
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
-        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
+        self._transforms = TimestampedBuffer(SceneDataFormat.Transform(), update_in_graph=False)
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
-        self._geometry = TimestampedBuffer()
+        self._geometry = TimestampedBuffer(update_in_graph=False)
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
         self._pending_setup: tuple[OvPhysxBackend, str, Sequence[DeformableStageEntry] | None] | None = None
 
@@ -143,7 +143,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._transforms.data.transforms = None
         self.transforms_timestamp += 1
         self._deformable_bindings = []
-        self._geometry = TimestampedBuffer()
+        self._geometry = TimestampedBuffer(update_in_graph=False)
         self.geometry_timestamp += 1
         self._pending_setup = (backend, device, entries)
 
@@ -204,7 +204,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self.transforms_timestamp += 1
         self._deformable_bindings = []
         self.geometry_timestamp += 1
-        self._geometry = TimestampedBuffer()
+        self._geometry = TimestampedBuffer(update_in_graph=False)
 
         if backend.rigid_body_view is not None and backend.rigid_body_view.count:
             self._transforms.data.transforms = wp.empty(

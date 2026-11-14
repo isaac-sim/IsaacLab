@@ -438,6 +438,7 @@ def test_task_space_allocation_and_capture(device, first_property):
         state_version=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
@@ -492,6 +493,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
         state_version=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)
@@ -929,6 +931,22 @@ def scene(composite_scene: _Scene) -> _Scene:
     for articulation in composite_scene.articulations.values():
         composite_scene.rest(articulation)
     return composite_scene
+
+
+def test_zero_step_update_keeps_the_accelerations(scene: _Scene) -> None:
+    """``update(0.0)``, which an articulation runs at initialization, takes no finite difference (a division by zero).
+
+    The joint and body accelerations keep their values, as main's lazy finite difference gives no NaN before the first
+    step either.
+    """
+    articulation = scene.articulations["floating"]
+    scene.step("floating")
+    joint_acc = articulation.data.joint_acc.torch.clone()
+    body_com_acc_w = articulation.data.body_com_acc_w.torch.clone()
+
+    articulation.update(0.0)
+    torch.testing.assert_close(articulation.data.joint_acc.torch, joint_acc)
+    torch.testing.assert_close(articulation.data.body_com_acc_w.torch, body_com_acc_w)
 
 
 def _model_attribute(articulation: Articulation, name: str) -> torch.Tensor:

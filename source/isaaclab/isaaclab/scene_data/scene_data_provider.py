@@ -156,7 +156,7 @@ class SceneDataProvider:
                 )
                 if allow_passthrough:
                     if cached is None:
-                        cached = self._cache[key] = TimestampedBuffer()
+                        cached = self._cache[key] = TimestampedBuffer(update_in_graph=False)
                     # Shared requests own the result; Fabric owns its destination, not SDP.
                     cached.data, cached.timestamp = (layout if fabric else result), timestamp
         for name in output_format.vars:
@@ -382,7 +382,7 @@ class SceneDataProvider:
                 jobs.append((source_indices, destination_indices, buffer, transfer))
             if offsets is not None and bound != offsets.keys():
                 raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
-            cached = self._cache[key] = TimestampedBuffer((views, jobs, offsets))
+            cached = self._cache[key] = TimestampedBuffer((views, jobs, offsets), update_in_graph=False)
 
         views, jobs, _ = cached.data
         timestamp = self.backend.geometry_timestamp

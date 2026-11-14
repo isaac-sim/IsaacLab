@@ -68,6 +68,7 @@ from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
     BRANCHING_PHYSX_JOINT_NAMES,
 )
 from isaaclab.utils import replace  # noqa: E402
+from isaaclab.utils.buffers import TimestampedBuffer  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
@@ -407,10 +408,8 @@ def test_static_property_reads_are_not_invalidated_by_simulation_steps():
     native actuator telemetry sync) host-bound. State buffers must still refresh every step.
     """
 
-    class Buffer:
-        def __init__(self, shape):
-            self.data = wp.zeros(shape, dtype=wp.float32, device="cpu")
-            self.timestamp = -1.0
+    def Buffer(shape):
+        return TimestampedBuffer(wp.zeros(shape, dtype=wp.float32, device="cpu"))
 
     data = ArticulationData.__new__(ArticulationData)
     data.device = "cpu"

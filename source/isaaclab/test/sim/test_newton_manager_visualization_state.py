@@ -146,6 +146,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         state_version=0,
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
         device=wp.get_device("cpu"),
     )
     monkeypatch.setattr(owner, "backend", newton_backend)
