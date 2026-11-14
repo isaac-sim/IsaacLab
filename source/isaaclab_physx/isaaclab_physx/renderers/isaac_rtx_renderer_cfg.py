@@ -38,6 +38,21 @@ class IsaacRtxRendererGlobalSettingsCfg:
     they affect the process-global RTX renderer rather than a single camera.
     """
 
+    points_update_mode: Literal["auto", "cpu", "gpu"] | None = field(default=None, kw_only=True)
+    """Transport for simulation-authored Points positions, shared by Kit and Isaac RTX.
+
+    ``None`` preserves the launch-time ``/isaaclab/render/points_update_mode`` setting,
+    whose default is ``"auto"``. ``"auto"`` uses CUDA for procedural Points on Kit 110.4
+    or newer and retains the CPU fallback for streamed Points and older Kit versions.
+    ``"cpu"`` selects the CPU fallback explicitly.
+
+    ``"gpu"`` requires a CUDA simulation device and Kit 110.4 or newer. Streamed Points require
+    a compatible Kit build with correct GPU position and color updates; select this
+    mode only after verifying that runtime. Configure the mode before the scene's
+    geometry is bound. GPU position transport avoids the host particle-position mirror;
+    other simulation and rendering operations may still synchronize with the host.
+    """
+
     enable_translucency: bool | None = None
     """Enable translucency for specular transmissive surfaces such as glass."""
 
