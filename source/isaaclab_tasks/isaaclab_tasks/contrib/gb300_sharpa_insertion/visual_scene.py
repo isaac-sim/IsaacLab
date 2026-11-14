@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 
 def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
-    """Configure USD-only facility assets and return the working rack's USD path.
+    """Configure renderer-only scenery and return the rack's USD path.
 
     Call after launcher resolution and before environment construction. USD-only
     cloning keeps every visual rack and facility mesh out of the Newton model.
@@ -57,21 +57,24 @@ def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
     return rack_path
 
 
-def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str) -> None:
-    """Register one full-detail, static CAD rack without adding physics shapes.
+def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str, *, front_only: bool = False) -> None:
+    """Register the detailed switch front or full rack without physics shapes.
 
-    Call after the initial environment reset. Native USD mesh loading preserves
-    the CAD normals and scalar materials; six material batches avoid thousands
-    of draw calls. The canonical rack has no albedo textures.
+    Call after the initial environment reset. The front-only asset contains
+    three prepared material meshes in the demo's world frame, retaining every
+    port and authored normal without processing the full rack at startup.
     """
+    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton_gl"]
+    if not viewers:
+        return
     import newton.usd
 
     from pxr import Usd, UsdGeom, UsdShade
 
-    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton_gl"]
-    if not viewers:
-        return
-    stage = Usd.Stage.Open(retrieve_file_path(rack_path))
+    path = rack_path
+    if front_only:
+        path = f"{rack_path.rsplit('/', 1)[0]}/switch_front_c0ddcdf9d4ef.usdc"
+    stage = Usd.Stage.Open(retrieve_file_path(path))
     transform = np.eye(4)
     transform[:3, :3] = ((0, 1, 0), (-1, 0, 0), (0, 0, 1))
     transform[:3, 3] = GB300_PRESENTATION_TRANSLATION_E
@@ -86,17 +89,21 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str) -> None:
         if key not in sources:
             sources[key] = newton.usd.get_mesh(prim, load_normals=True, compute_inertia=False)
         mesh = sources[key]
+        points, normals = mesh.vertices, mesh.normals
+        indices = mesh.indices.reshape(-1, 3)
+        if not front_only:
+            matrix = transform @ np.asarray(cache.GetLocalToWorldTransform(prim)).T
+            points = (points @ matrix[:3, :3].T + matrix[:3, 3]).astype(np.float32)
+            normals = normals @ np.linalg.inv(matrix[:3, :3])
+            normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+            if np.linalg.det(matrix[:3, :3]) < 0:
+                indices = indices[:, ::-1]
+        if not len(indices):
+            continue
         material = str(UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0].GetPath())
         group = groups.setdefault(material, {"mesh": mesh, "points": [], "normals": [], "indices": [], "offset": 0})
-        matrix = transform @ np.asarray(cache.GetLocalToWorldTransform(prim)).T
-        points = (mesh.vertices @ matrix[:3, :3].T + matrix[:3, 3]).astype(np.float32)
-        normals = mesh.normals @ np.linalg.inv(matrix[:3, :3])
-        normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
         group["points"].append(points)
-        group["normals"].append(normals.astype(np.float32))
-        indices = mesh.indices.reshape(-1, 3)
-        if np.linalg.det(matrix[:3, :3]) < 0:
-            indices = indices[:, ::-1]
+        group["normals"].append(normals.astype(np.float32, copy=False))
         group["indices"].append(indices.reshape(-1) + group["offset"])
         group["offset"] += len(points)
     for index, group in enumerate(groups.values()):
