@@ -1,6 +1,3 @@
-Fixed
-^^^^^
-
 * Fixed the ``"variable_kp"`` impedance mode of :class:`~isaaclab.controllers.joint_impedance.JointImpedanceController`
   ignoring :attr:`~isaaclab.controllers.joint_impedance_cfg.JointImpedanceControllerCfg.damping_ratio` and always
   using critical damping, matching the ``"variable_kp"`` mode of
