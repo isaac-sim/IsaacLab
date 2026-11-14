@@ -48,8 +48,12 @@ UNLIMITED = 1e10
 Newton's ``MAXVAL`` sentinel is 1e10; PhysX uses the float maximum.
 """
 
-_MASS_PROPERTIES = {"physics:mass": "body_mass", "physics:centerOfMass": "body_com_pos_b"}
-"""Mass attribute -> the body property it states; the other mass attributes state ``body_inertia``."""
+_MASS_ATTRIBUTES = {
+    "body_mass": ("physics:mass",),
+    "body_com_pos_b": ("physics:centerOfMass",),
+    "body_inertia": ("physics:diagonalInertia", "physics:principalAxes", "newton:inertia"),
+}
+"""Body mass property, named as the asset data names it, -> the USD attributes stating it."""
 
 _PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
 """API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
@@ -597,11 +601,8 @@ class BaseUsdExporter(ABC):
             moments, axes = cls._compute_principal_inertia(inertia)
             edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
             edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
-        return [
-            edit
-            for edit in edits
-            if edit is not None and _MASS_PROPERTIES.get(edit.attribute, "body_inertia") in changed
-        ]
+        stated = {attribute: name for name, attributes in _MASS_ATTRIBUTES.items() for attribute in attributes}
+        return [edit for edit in edits if edit is not None and stated[edit.attribute] in changed]
 
     @classmethod
     def _compute_pose_edit(cls, prim: Usd.Prim, pose: np.ndarray) -> UsdEdit | None:
