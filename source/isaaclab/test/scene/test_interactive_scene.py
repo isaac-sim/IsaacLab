@@ -325,6 +325,43 @@ def test_scene_registers_physx_replicator(device, setup_scene, monkeypatch):
     assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
 
 
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_heterogeneous_scene_lists_environments_in_order(device, setup_scene):
+    """Environment rows follow the environment index when variants are spawned into different environments.
+
+    With two variants in four environments, the default ``sequential`` strategy spawns the second variant's source
+    into ``env_2`` before ``env_1`` exists. Views of a homogeneous asset in the same scene must still list
+    ``env_0`` to ``env_3`` in order, at the environment origins.
+    """
+    _, sim = setup_scene
+    rigid = dict(
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    )
+    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=2.0)
+    scene_cfg.shape = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Shape",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), sim_utils.SphereCfg(radius=0.05)], **rigid
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+    scene_cfg.box = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Box",
+        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), **rigid),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 1.0)),
+    )
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    scene.reset()
+
+    envs = sim_utils.get_current_stage().GetPrimAtPath("/World/envs").GetChildren()
+    assert [prim.GetName() for prim in envs] == [f"env_{i}" for i in range(4)]
+    box_pos = scene["box"].data.root_pos_w.torch
+    torch.testing.assert_close(box_pos[:, :2] - scene.env_origins[:, :2], box_pos.new_tensor([[0.5, 0.0]] * 4))
+
+
 def test_collect_asset_cfgs_preserves_declarations_and_resolves_namespaces():
     """Collections, shared assets, and non-spawning sensors feed one plan without parallel manifests."""
     scene = object.__new__(InteractiveScene)
