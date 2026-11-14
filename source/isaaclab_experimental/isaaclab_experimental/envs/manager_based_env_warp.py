@@ -39,23 +39,13 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.kernels import initialize_rng_state
 from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 class ManagerBasedEnvWarp:

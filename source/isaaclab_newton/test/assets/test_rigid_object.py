@@ -385,7 +385,8 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
     """A permanent wrench reaches the solver in the local and the global frame, and a reset clears it.
 
     Cube 0 receives a force equal to its weight and hovers while cube 1 falls. Cube 0 then receives a force set
-    and added 1 m off its center along y and must turn about x while cube 1 keeps falling.
+    and added 1 m off its center along y and must turn about x while cube 1 keeps falling. A masked reset clears
+    the wrench of the selected environment only.
     """
     cube = scene.cube
     composer = cube.permanent_wrench_composer
@@ -413,6 +414,12 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
                 else:
                     assert cube.data.root_ang_vel_b.torch[0, 0].abs() > 0.1
                 assert cube.data.root_pos_w.torch[1, 2] < 1.0
+
+    ones = torch.ones_like(zeros)
+    composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    cube.reset(env_mask=wp.from_torch(torch.arange(cube.num_instances, device=scene.device) == 0))
+    assert torch.count_nonzero(composer.out_force_b.torch[0]) == 0
+    assert torch.count_nonzero(composer.out_force_b.torch[1:]) == composer.out_force_b.torch[1:].numel()
 
 
 @pytest.mark.isaacsim_ci
@@ -904,7 +911,8 @@ def test_collection_external_force_on_single_body(scene: _Scene) -> None:
     """A permanent wrench reaches the solver in the local and the global frame, and a reset clears it.
 
     Every other cube receives a force equal to its weight and hovers while the rest fall. Those cubes then
-    receive a force set and added 1 m off their centers along y and must turn about x.
+    receive a force set and added 1 m off their centers along y and must turn about x. A masked reset clears the
+    wrenches of the selected environment only.
     """
     collection = scene.collection
     composer = collection.permanent_wrench_composer
@@ -932,6 +940,12 @@ def test_collection_external_force_on_single_body(scene: _Scene) -> None:
                 else:
                     assert torch.all(collection.data.body_com_ang_vel_b.torch[:, 0::2, 0] > 0.1)
                 assert torch.all(height[:, 1::2] < 1.0)
+
+    ones = torch.ones_like(zeros)
+    composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    collection.reset(env_mask=wp.from_torch(torch.arange(collection.num_instances, device=scene.device) == 0))
+    assert torch.count_nonzero(composer.out_force_b.torch[0]) == 0
+    assert torch.count_nonzero(composer.out_force_b.torch[1:]) == composer.out_force_b.torch[1:].numel()
 
 
 @pytest.mark.isaacsim_ci

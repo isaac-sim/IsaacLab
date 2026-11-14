@@ -12,8 +12,8 @@ via ``wp.launch``.  The calling convention mirrors the stable noise interface::
 
 Random noise kernels (gaussian, uniform) consume the shared per-env Warp RNG state
 (``rng_state_wp``) that is set on the config at manager prep time from
-``env.rng_state_wp``.  See :func:`initialize_rng_state` in
-``isaaclab_experimental.envs.manager_based_env_warp`` for the initialization pattern.
+``env.rng_state_wp``.  See :func:`isaaclab.utils.warp.kernels.initialize_rng_state` for the initialization
+pattern.
 """
 
 from __future__ import annotations

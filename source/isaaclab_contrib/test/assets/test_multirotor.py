@@ -18,6 +18,8 @@ import warnings
 
 import pytest
 import torch
+import warp as wp
+from isaaclab_physx.assets.articulation import Articulation
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim.utils.prims as prim_utils
@@ -154,6 +156,29 @@ def test_set_thrust_target_env_slice_unit():
     # other envs remain unchanged
     assert torch.allclose(m._data.thrust_target[0], original[0])
     assert torch.allclose(m._data.thrust_target[3], original[3])
+
+
+@pytest.mark.parametrize("selection", ["ids", "mask"])
+def test_reset_restores_selected_thrust_targets_unit(selection, monkeypatch):
+    """Resets by ids and by mask reach the articulation and restore the selected thrust targets only."""
+    parent_resets = []
+    monkeypatch.setattr(
+        Articulation, "reset", lambda self, env_ids=None, env_mask=None: parent_resets.append((env_ids, env_mask))
+    )
+    m = Multirotor.__new__(Multirotor)
+    m._device = "cpu"
+    m._ALL_INDICES = wp.array([0, 1, 2, 3], dtype=wp.int32, device="cpu")
+    m._data = types.SimpleNamespace(thrust_target=torch.ones(4, 2), default_thruster_rps=torch.zeros(4, 2))
+    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+
+    if selection == "ids":
+        m.reset(env_ids=[0, 2])
+        assert parent_resets == [([0, 2], None)]
+    else:
+        m.reset(env_mask=env_mask)
+        assert parent_resets == [(None, env_mask)]
+    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]])
+    torch.testing.assert_close(m._data.thrust_target, expected)
 
 
 def generate_multirotor(
