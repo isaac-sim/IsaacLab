@@ -162,7 +162,7 @@ through the packaged demo command. You can run it as:
 
       .. code-block:: bash
 
-         # Spawn many pick-and-place robots and perform a pick-and-place task
+         # Spawn one pick-and-place robot and perform a pick-and-place task
          uv run --extra isaacsim isaaclab demo pick-and-place --viz kit
 
 Register :class:`~isaaclab_physx.assets.SurfaceGripper` instances in an
