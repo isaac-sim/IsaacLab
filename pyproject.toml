@@ -437,6 +437,7 @@ override-dependencies = [
     "packaging>=20,<27",
     # isaacsim-kernel 6.2 pins the urllib3 release affected by GHSA-vxq7-64xx-v4gw.
     "urllib3>=2.8.0",
+    # isaacsim-core 6.2 pins scipy 1.17.0, whose bundled OpenBLAS crashes when threads fork concurrently.
     "scipy>=1.18.0",
 ]
 python-preference = "only-managed"
