@@ -51,7 +51,8 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
         "--experiment_name", type=str, default=None, help="Name of the experiment folder where logs will be stored."
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
-    arg_group.add_argument(
+    source_group = arg_group.add_mutually_exclusive_group()
+    source_group.add_argument(
         "--checkpoint",
         type=str,
         default=None,
@@ -60,6 +61,24 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
             " (https://wandb.ai/<entity>/<project>/runs/<run_id>, optionally with a '?checkpoint=<iteration>' query,"
             " or the wandb:<entity>/<project>/<run_id> shorthand)."
         ),
+    )
+    source_group.add_argument(
+        "--wandb_run",
+        type=str,
+        default=None,
+        help="Weights & Biases run ID to load for training or playback; excludes --checkpoint.",
+    )
+    arg_group.add_argument(
+        "--wandb_entity",
+        type=str,
+        default=None,
+        help="Source W&B entity. Defaults to WANDB_ENTITY/WANDB_USERNAME or the local W&B login.",
+    )
+    arg_group.add_argument(
+        "--wandb_project",
+        type=str,
+        default=None,
+        help="Source W&B project. Defaults to the agent's project before logging overrides.",
     )
     arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."
@@ -116,6 +135,8 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
     Returns:
         The updated RSL-RL agent configuration.
     """
+    if args_cli.wandb_run is not None and args_cli.wandb_project is None:
+        args_cli.wandb_project = agent_cfg.wandb_project
     agent_cfg.device = args_cli.device
     if getattr(args_cli, "seed", None) is not None:
         args_cli.seed = resolve_seed(args_cli.seed)
