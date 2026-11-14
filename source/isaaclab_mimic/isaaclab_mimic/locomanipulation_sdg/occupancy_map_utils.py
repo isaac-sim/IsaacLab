@@ -477,8 +477,8 @@ free_thresh: {free_thresh}
         """
 
         pixel = self.world_to_pixel_numpy(np.array([[point.x, point.y]]))
-        x_px = int(pixel[0, 0])
-        y_px = int(pixel[0, 1])
+        x_px = math.floor(pixel[0, 0])
+        y_px = math.floor(pixel[0, 1])
 
         return self.check_pixel_in_bounds(x_px, y_px)
 
@@ -495,8 +495,8 @@ free_thresh: {free_thresh}
         if not self.check_world_point_in_bounds(point):
             return False
         pixel = self.world_to_pixel_numpy(np.array([[point.x, point.y]]))
-        x_px = int(pixel[0, 0])
-        y_px = int(pixel[0, 1])
+        x_px = math.floor(pixel[0, 0])
+        y_px = math.floor(pixel[0, 1])
         freespace = self.freespace_mask()
         return bool(freespace[y_px, x_px])
 

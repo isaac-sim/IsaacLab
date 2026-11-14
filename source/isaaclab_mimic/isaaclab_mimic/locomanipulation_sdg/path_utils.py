@@ -5,6 +5,7 @@
 
 
 import logging
+import math
 
 import torch
 
@@ -211,8 +212,8 @@ def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> 
 
     # Check if end_yx_pixels are inside the occupancy map bounds
     map_height, map_width = occupancy_map.freespace_mask().shape
-    start_y, start_x = int(start_yx_pixels[0]), int(start_yx_pixels[1])
-    end_y, end_x = int(end_yx_pixels[0]), int(end_yx_pixels[1])
+    start_y, start_x = math.floor(start_yx_pixels[0]), math.floor(start_yx_pixels[1])
+    end_y, end_x = math.floor(end_yx_pixels[0]), math.floor(end_yx_pixels[1])
 
     if not occupancy_map.check_pixel_in_bounds(start_x, start_y):
         logger.warning(
