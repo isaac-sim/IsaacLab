@@ -497,8 +497,8 @@ def _custom_post_init(obj):
             continue
         # get data member
         value = getattr(obj, key)
-        # check annotation
-        ann = obj.__class__.__dict__.get(key)
+        # look up the class member through the MRO so inherited properties are detected
+        ann = getattr(obj.__class__, key, None)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
             copied_value = deepcopy(value)

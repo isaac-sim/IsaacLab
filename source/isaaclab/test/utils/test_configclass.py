@@ -344,6 +344,24 @@ class ClassFunctionImplementedDemoCfg:
         self.a = value
 
 
+@configclass
+class ReadOnlyPropertyDemoCfg:
+    """Dummy configuration class with a read-only property."""
+
+    a: int = 5
+
+    @property
+    def a_doubled(self) -> int:
+        return 2 * self.a
+
+
+@configclass
+class ReadOnlyPropertyChildDemoCfg(ReadOnlyPropertyDemoCfg):
+    """Dummy configuration class that inherits a read-only property."""
+
+    b: int = 3
+
+
 """
 Dummy configuration: Nested dictionaries
 """
@@ -881,6 +899,12 @@ def test_class_function_impl_config():
     new_cfg2 = ClassFunctionImplementedDemoCfg.class_method(20)
     # check value is correct
     assert new_cfg2.a == 20
+
+
+def test_inherited_read_only_property():
+    """Tests that a subclass can be created when its parent defines a read-only property."""
+    cfg = ReadOnlyPropertyChildDemoCfg(a=4)
+    assert cfg.a_doubled == 8
 
 
 def test_dict_conversion_functions_config():
