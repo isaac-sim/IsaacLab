@@ -219,6 +219,7 @@ Guidelines for modifications:
 * Stefan Van de Mosselaer
 * Stephan Pleines
 * Sujal
+* T1Amoo
 * Tiffany Chen
 * Trushant Adeshara
 * Tsz Ki GAO
