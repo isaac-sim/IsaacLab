@@ -385,10 +385,10 @@ free_thresh: {free_thresh}
             OccupancyMap: The buffered (aka: dilated / padded) occupancy map.
         """
 
-        buffer_distance_pixels = int(buffer_distance_pixels)
-
-        radius = buffer_distance_pixels
-        diameter = radius * 2
+        radius = int(buffer_distance_pixels)
+        # Use an odd kernel size so the disk is centered on the kernel anchor and grows every side equally.
+        # A radius of zero gives a 1x1 kernel (no growth) rather than an empty kernel, which cv2 replaces with 3x3.
+        diameter = 2 * radius + 1
         kernel = np.zeros((diameter, diameter), np.uint8)
         cv2.circle(kernel, (radius, radius), radius, 255, -1)
         occupied = self.occupied_mask().astype(np.uint8) * 255
