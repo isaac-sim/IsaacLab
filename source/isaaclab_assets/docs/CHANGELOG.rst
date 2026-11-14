@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.2.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :obj:`~isaaclab_assets.robots.asimov_1.ASIMOV_1_CFG` for the Asimov-1 humanoid with delayed PD actuators.
+
+
 2.1.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 
