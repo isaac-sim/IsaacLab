@@ -67,7 +67,28 @@ belong to the camera product and are released with it.
 Kit and RTX use the same backdrop declared in the scene configuration.
 The scene owns its lights, geometry and lifetime. Both use the
 authored refracting water material, with local coffee colour driving optical
-absorption. GL uses its native textured surface.
+absorption. GL interpolates the same local tint over the reconstructed surface.
+
+## Shared scene setup and camera benchmark
+
+`CoffeeSceneCfg` declares the shared robot and props without
+sampling coffee or water or constructing a material solver. The full demo continues
+to use `configure_scene`, which adds its original material initialization and physics
+settings. `CoffeeKitchenCfg` gives both consumers the same kitchen import preparation;
+its lighting and ceiling overrides allow a replicated camera workload to use one
+scene lighting setup rather than copying every authored kitchen light.
+
+The example and benchmark share the kitchen view and the mounted spoon's pose and
+velocity synchronization. The example keeps its existing IK sequence, material
+behavior, video and follow-camera controls.
+
+`Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark` uses the existing render benchmark's
+deterministic joint animation with the hand held in its default grip. It includes
+one kitchen and camera per environment and deliberately excludes coffee/water and
+MPM. It does not record or replay the demo's exact trajectory. Camera resolution,
+renderer and animation mode follow the runtime benchmark options described in the
+runtime benchmarking guide. Untextured Newton images and textured RTX images have
+different rendering workloads; their timings are not matched-quality comparisons.
 
 ## Assets and runtime
 

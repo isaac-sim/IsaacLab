@@ -84,13 +84,15 @@ class CoffeeDemoEnv(ManagerBasedEnv):
     def load_managers(self) -> None:
         robot = self.scene["robot"]
         self._palm_id = robot.find_bodies(PALM_BODY_NAME)[0][0]
-        self._tool_position = torch.tensor(self.cfg.spoon_offset_pos, device=self.device).expand(self.num_envs, -1)
-        self._tool_quaternion = torch.tensor(self.cfg.spoon_offset_rot, device=self.device).expand(self.num_envs, -1)
         self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
-        self.sync_spoon()
         self._attachment = MountedSpoonAttachment(
-            robot, self.scene["spoon"], self.cfg.spoon_offset_pos, self.cfg.spoon_offset_rot
+            robot,
+            self.scene["spoon"],
+            self.cfg.spoon_offset_pos,
+            self.cfg.spoon_offset_rot,
+            backend_manager=self.sim.backend_manager,
         )
+        self.sync_spoon()
         (solver,) = (
             solver
             for solver in implicit_mpm_solvers(self.sim.backend_manager.backend.solver)
@@ -163,20 +165,9 @@ class CoffeeDemoEnv(ManagerBasedEnv):
             finite &= torch.isfinite(self.scene["water"].data.particle_pos_w.torch).all(dim=(1, 2))
         return finite
 
-    def sync_spoon(self, env_ids=None) -> None:
+    def sync_spoon(self, env_ids: torch.Tensor | slice | None = None) -> None:
         """Initialize the spoon from the palm during construction or episode reset."""
-        selected = slice(None) if env_ids is None else env_ids
-        data = self.scene["robot"].data
-        palm = data.body_link_pose_w.torch[selected, self._palm_id]
-        pos, quat = math_utils.combine_frame_transforms(
-            palm[:, :3], palm[:, 3:], self._tool_position[selected], self._tool_quaternion[selected]
-        )
-        velocity = data.body_link_vel_w.torch[selected, self._palm_id].clone()
-        offset = pos - palm[:, :3]
-        velocity[:, :3] += torch.cross(velocity[:, 3:], offset, dim=-1)
-        spoon = self.scene["spoon"]
-        spoon.write_root_link_pose_to_sim_index(root_pose=torch.cat((pos, quat), dim=-1), env_ids=env_ids)
-        spoon.write_root_link_velocity_to_sim_index(root_velocity=velocity, env_ids=env_ids)
+        self._attachment.sync_to_sim(env_ids)
 
     def delivered_fraction(self) -> torch.Tensor:
         """Return the fraction of coffee inside each cup, shape (N,)."""

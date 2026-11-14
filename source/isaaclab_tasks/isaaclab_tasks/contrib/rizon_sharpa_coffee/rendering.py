@@ -204,15 +204,16 @@ class CoffeeRendering:
         self._liquid_points = None
         self._liquid_radii = None
         self._surface = None
-        self._clear_surface_cache()
+        self._surface_cache = None
         self._hash_grid = None
         self._mixing_radius = 2.0 * voxel_size
         self._diffusion_rate = diffusion_rate
         self._tint_elapsed = 0.0
         self._appearance_time = None
-        self._gl_face_colors = None
         self._vertex_colors = None
-        self._gl_points = None
+        self._gl_uvs = None
+        self._gl_palette = np.asarray(((WATER_COLOR, BREW_COLOR),), dtype=np.float32)
+        self._gl_empty_point = wp.zeros(1, dtype=wp.vec3, device=device)
         self._empty_points = wp.empty(0, dtype=wp.vec3, device=device)
         self._empty_indices = wp.empty(0, dtype=wp.int32, device=device)
         if self._water is not None:
@@ -229,9 +230,8 @@ class CoffeeRendering:
             self._concentration_scale = color_mass_scale / float(
                 liquid_masses[: self._dissolution.water_ids.size].sum()
             )
-            self._dye_mass = wp.zeros(self._liquid_ids.size, dtype=float, device=device)
-            self._color_released = wp.zeros(self._coffee_ids.size, dtype=int, device=device)
-            self._next_dye_mass = wp.zeros_like(self._dye_mass)
+            self._dye_mass = wp.empty(self._liquid_ids.size, dtype=float, device=device)
+            self._next_dye_mass = wp.empty_like(self._dye_mass)
             self._diffusion_support = wp.empty_like(self._dye_mass)
             self._hash_grid = wp.HashGrid(64, 64, 64, device=device)
             self._hash_grid.reserve(self._liquid_ids.size)
@@ -261,7 +261,7 @@ class CoffeeRendering:
             )
         for visualizer in self._visualizers:
             visualizer.rendering = self
-        self.update()
+        self.reset()
 
     def update(self) -> None:
         """Prepare appearance once per simulation state before native rendering."""
@@ -276,19 +276,6 @@ class CoffeeRendering:
             wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
             # The coupled MPM view owns the converted particles' actual radii.
             wp.copy(self._liquid_radii, wp.indexedarray(self._solver.model.particle_radius, self._liquid_ids))
-            wp.launch(
-                _release_converted_color,
-                dim=self._coffee_ids.size,
-                inputs=[
-                    self._liquid_ids,
-                    self._model.particle_mass,
-                    self._dissolution.water_ids.size,
-                    self._liquid_flags,
-                    self._color_released,
-                    self._dye_mass,
-                ],
-                device=self._model.device,
-            )
             self._tint_elapsed += dt
             # Optical transport at 25 Hz avoids repeating neighbour searches at
             # the 100 Hz control rate. Physical MPM motion keeps its own rate.
@@ -353,31 +340,24 @@ class CoffeeRendering:
             return
         points, indices, normals, colors, fraction = self._water_surface_arrays()
         hidden = points is None
-        face_count = 0 if hidden else indices.size // 3
         uvs, texture = None, None
-        if face_count:
-            width, height = 256, math.ceil(face_count / 256)
-            if self._gl_face_colors is None or self._gl_face_colors.size < width * height:
-                self._gl_face_colors = wp.full(width * height, wp.vec3(WATER_COLOR), device=self._model.device)
-                self._gl_points = wp.empty(3 * width * height, dtype=wp.vec3, device=self._model.device)
-                self._gl_normals = wp.empty_like(self._gl_points)
-                self._gl_uvs = wp.empty(3 * width * height, dtype=wp.vec2, device=self._model.device)
-                self._gl_indices = wp.array(np.arange(3 * width * height, dtype=np.int32), device=self._model.device)
+        if not hidden and indices.size:
+            if self._gl_uvs is None or self._gl_uvs.size < points.size:
+                self._gl_uvs = wp.empty(points.size, dtype=wp.vec2, device=self._model.device)
+            uvs = self._gl_uvs[: points.size]
             wp.launch(
-                _color_water_faces,
-                dim=face_count,
-                inputs=[points, indices, normals, self._vertex_colors, width, height],
-                outputs=[self._gl_face_colors, self._gl_points, self._gl_normals, self._gl_uvs],
+                _water_palette_uvs,
+                dim=points.size,
+                inputs=[colors, wp.vec3(WATER_COLOR), wp.vec3(BREW_COLOR)],
+                outputs=[uvs],
                 device=self._model.device,
             )
-            points, normals = self._gl_points[: 3 * face_count], self._gl_normals[: 3 * face_count]
-            indices, uvs = self._gl_indices[: 3 * face_count], self._gl_uvs[: 3 * face_count]
-            texture = self._gl_face_colors[: width * height].numpy().reshape(height, width, 3)
+            texture = self._gl_palette
         viewer.log_mesh(
             "/coffee_water_surface",
-            self._empty_points if hidden else points,
+            self._gl_empty_point if hidden else points,
             self._empty_indices if hidden else indices,
-            normals=None if hidden else normals,
+            normals=self._gl_empty_point if hidden else normals,
             uvs=uvs,
             texture=texture,
             hidden=hidden,
@@ -406,17 +386,12 @@ class CoffeeRendering:
 
     def _water_surface_arrays(self):
         """Reconstruct once per physics state and interpolate tint on shared vertices."""
-        step = self._env.sim.get_physics_step_count()
-        if step != self._surface_step:
-            # Native ACTIVE flags exclude dry coffee without a host-side compaction.
-            self._surface.update_field(self._liquid_points, self._liquid_radii, particle_flags=self._liquid_flags)
-            self._surface_mesh = self._surface.resurface().to_arrays()
-            self._surface_step = step
-            self._surface_cache = None
         if self._surface_cache is not None:
             return self._surface_cache
+        # Native ACTIVE flags exclude dry coffee without a host-side compaction.
+        self._surface.update_field(self._liquid_points, self._liquid_radii, particle_flags=self._liquid_flags)
+        points, indices, normals = self._surface.resurface().to_arrays()
         fraction = 1.0 - math.exp(-self._dissolution.converted_mass_kg / self._color_mass_scale)
-        points, indices, normals = self._surface_mesh
         hidden = points is None
         colors = None
         if not hidden and indices.size:
@@ -445,23 +420,18 @@ class CoffeeRendering:
         self._surface_cache = points, indices, normals, colors, fraction
         return self._surface_cache
 
-    def _clear_surface_cache(self) -> None:
-        """Invalidate reconstructed geometry at lifecycle boundaries."""
-        self._surface_step = -1
-        self._surface_mesh = None
-        self._surface_cache = None
-
     def reset(self, env_ids=None) -> None:
         """Clear appearance after the single demo world is reset."""
         if env_ids is not None and not isinstance(env_ids, slice) and len(env_ids) == 0:
             return
         self._tint_elapsed = 0.0
         self._appearance_time = None
-        self._clear_surface_cache()
+        self._surface_cache = None
         if self._water is not None:
             self._dye_mass.zero_()
-            self._next_dye_mass.zero_()
-            self._color_released.zero_()
+            # Dry carriers retain their tracer until physics activates them as liquid.
+            water_count = self._dissolution.water_ids.size
+            wp.copy(self._dye_mass[water_count:], self._liquid_mass[water_count:])
         self.update()
 
     def close(self) -> None:
@@ -469,14 +439,15 @@ class CoffeeRendering:
         for visualizer in self._visualizers:
             visualizer.rendering = None
         self._visualizers.clear()
-        self._clear_surface_cache()
+        self._surface_cache = None
 
 
 def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=None, orientation=None):
     """Spawn the shared RTX backdrop before scene cameras initialize."""
     from pxr import UsdGeom
 
-    from .assets import COFFEE_ASSET_DIR
+    from .assets import spawn_kitchen
+    from .demo_env_cfg import CoffeeKitchenCfg
 
     stage = sim_utils.get_current_stage()
     root = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
@@ -485,8 +456,7 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
     _add_coffee_studio_lights(stage, f"{prim_path}/Lights")
     if cfg.backdrop == "kitchen":
         kitchen_path = f"{prim_path}/Kitchen"
-        kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
-        kitchen_cfg.func(kitchen_path, kitchen_cfg)
+        spawn_kitchen(kitchen_path, CoffeeKitchenCfg())
         for prim in stage.Traverse():
             if prim.GetName() == "StudioFloor":
                 UsdGeom.Imageable(prim).MakeInvisible()
@@ -553,22 +523,6 @@ def _water_material(stage, path):
     for terminal in (material.CreateSurfaceOutput, material.CreateVolumeOutput, material.CreateDisplacementOutput):
         terminal("mdl").ConnectToSource(output, "out")
     return material, preview_shader
-
-
-@wp.kernel
-def _release_converted_color(
-    ids: wp.array[int],
-    mass: wp.array[float],
-    water_count: int,
-    flags: wp.array[int],
-    released: wp.array[int],
-    dye: wp.array[float],
-):
-    i = wp.tid()
-    carrier = water_count + i
-    if flags[carrier] != 0 and released[i] == 0:
-        dye[carrier] += mass[ids[carrier]]
-        released[i] = 1
 
 
 @wp.func
@@ -653,29 +607,11 @@ def _color_water_vertices(
 
 
 @wp.kernel
-def _color_water_faces(
-    points: wp.array[wp.vec3],
-    indices: wp.array[int],
-    normals: wp.array[wp.vec3],
-    vertex_colors: wp.array[wp.vec3],
-    width: int,
-    height: int,
-    colors: wp.array[wp.vec3],
-    expanded_points: wp.array[wp.vec3],
-    expanded_normals: wp.array[wp.vec3],
-    expanded_uvs: wp.array[wp.vec2],
-):
-    face = wp.tid()
-    colors[face] = (
-        vertex_colors[indices[3 * face]] + vertex_colors[indices[3 * face + 1]] + vertex_colors[indices[3 * face + 2]]
-    ) / 3.0
-    # Newton's GL image upload flips texture rows vertically.
-    uv = wp.vec2((float(face % width) + 0.5) / float(width), 1.0 - (float(face // width) + 0.5) / float(height))
-    for corner in range(3):
-        vertex = 3 * face + corner
-        expanded_points[vertex] = points[indices[vertex]]
-        expanded_normals[vertex] = normals[indices[vertex]]
-        expanded_uvs[vertex] = uv
+def _water_palette_uvs(colors: wp.array[wp.vec3], clear_color: wp.vec3, brown_color: wp.vec3, uvs: wp.array[wp.vec2]):
+    vertex = wp.tid()
+    fraction = wp.clamp((colors[vertex][2] - clear_color[2]) / (brown_color[2] - clear_color[2]), 0.0, 1.0)
+    # Texel centers keep the two-color palette inside the native repeat boundary.
+    uvs[vertex] = wp.vec2(0.25 + 0.5 * fraction, 0.5)
 
 
 @wp.kernel
