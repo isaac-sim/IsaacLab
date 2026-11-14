@@ -114,8 +114,7 @@ class Se3Keyboard(DeviceBase):
         self._close_gripper = False
         self._delta_pos = np.zeros(3)  # (x, y, z)
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
-        # Forget keys that are still physically held (e.g. a pull key held while the reset key is
-        # pressed): the reset already cleared their deltas, so their release has nothing to remove.
+        # Forget held motion keys: the reset already cleared their deltas, so their release has nothing to remove.
         self._held_keys.clear()
 
     def add_callback(self, key: str, func: Callable):
@@ -141,12 +140,13 @@ class Se3Keyboard(DeviceBase):
         """
         # A release that never reached this device (Kit can consume key events, e.g. in the frame of a
         # viewport click) would keep its key's motion forever: drop keys the keyboard reports as up.
-        for key in [
-            key
-            for key in self._held_keys
-            if not self._input.get_keyboard_value(self._keyboard, getattr(carb.input.KeyboardInput, key))
-        ]:
-            self._release(key)
+        if self._held_keys:
+            for key in [
+                key
+                for key in self._held_keys
+                if not self._input.get_keyboard_value(self._keyboard, getattr(carb.input.KeyboardInput, key))
+            ]:
+                self._release(key)
         # convert to rotation vector
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # return the command and gripper state
@@ -167,7 +167,7 @@ class Se3Keyboard(DeviceBase):
         Reference:
             https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html
         """
-        # apply the command when pressed (once per press: a key already held adds nothing)
+        # apply the command when pressed
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
             if event.input.name == "L":
                 self.reset()
@@ -179,9 +179,7 @@ class Se3Keyboard(DeviceBase):
             elif event.input.name in ["Z", "X", "T", "G", "C", "V"] and event.input.name not in self._held_keys:
                 self._held_keys.add(event.input.name)
                 self._delta_rot += self._INPUT_KEY_MAPPING[event.input.name]
-        # remove the command when un-pressed. A release whose press was not applied (the key was
-        # pressed before the last reset, or the press never reached this device) has nothing to
-        # remove; subtracting it anyway would leave a constant motion command behind.
+        # remove the command when un-pressed; never subtract a delta whose press was not applied
         if event.type == carb.input.KeyboardEventType.KEY_RELEASE and event.input.name in self._held_keys:
             self._release(event.input.name)
         # additional callbacks
@@ -192,7 +190,7 @@ class Se3Keyboard(DeviceBase):
         # since no error, we are fine :)
         return True
 
-    def _release(self, key: str):
+    def _release(self, key: str) -> None:
         """Remove the delta of a held motion key."""
         self._held_keys.remove(key)
         if key in ["W", "S", "A", "D", "Q", "E"]:
