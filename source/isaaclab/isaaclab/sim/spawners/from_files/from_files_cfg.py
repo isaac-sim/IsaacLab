@@ -45,6 +45,18 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     scale: tuple[float, float, float] | None = None
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
+    make_uninstanceable: bool = False
+    """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
+
+    Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
+    when a recursive override, such as :attr:`collision_props`, :attr:`physics_material` or authored
+    :attr:`visual_material` inputs, has to author properties on those descendants, for example on the mesh
+    colliders that the URDF and MJCF importers author inside instances. Disabling instancing makes them
+    editable at the cost of stage memory, so leave this option disabled unless an override requires it.
+
+    Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
+    """
+
     articulation_props: (
         dict[str, list[schemas.ArticulationRootFragment]]
         | schemas.ArticulationRootFragment
@@ -192,7 +204,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Relative paths are resolved below the spawned prim. None applies non-None inputs from
     :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
     bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
-    The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
+    The config must match the authored shader. Enable :attr:`make_uninstanceable` for
     materials inside instances. Named paths create and bind a replacement material only with Kit.
     Ignored when :attr:`visual_material` is None.
     """
@@ -276,17 +288,6 @@ class UsdFileCfg(FileCfg):
     This can either be a configclass object, in which case each attribute is used as a variant set name and
     its specified value, or a dictionary mapping between the two. Please check the
     :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
-    """
-
-    make_uninstanceable: bool = False
-    """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
-
-    Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
-    when a recursive override, such as :attr:`physics_material` or authored :attr:`visual_material`
-    inputs, has to author properties on those descendants. Disabling instancing makes them editable
-    at the cost of stage memory, so leave this option disabled unless an override requires it.
-
-    Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
 
 
