@@ -99,6 +99,10 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
+_RENDERING_DT = 0.025
+"""Simulated time between rendered frames reported by the fake simulation context [s]."""
+
+
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
     from pxr import Usd
@@ -118,6 +122,7 @@ def _simulation_registry(monkeypatch):
         plan=None,
     )
     sim.render_context = sim._render_context
+    sim.get_rendering_dt = lambda: _RENDERING_DT
     sim.get_clone_plan = lambda: sim.plan
     sim.get_scene_data_provider = lambda: types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
@@ -359,6 +364,8 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert not postprocessed
 
     assert len(submissions) == 1
+    # Temporal effects advance by the simulated rendering interval, not a fixed frame rate.
+    assert submissions[0]["delta_time"] == _RENDERING_DT
     # Unrequested products are submitted too, and only the requested cameras are read back.
     assert submissions[0]["render_products"] == {
         *[f"/Render/Camera{i}" for i in range(len(cameras))],
@@ -677,6 +684,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     ordinal = 0
 
     def submit(render_products, delta_time):
+        assert delta_time == _RENDERING_DT
         operation = MagicMock()
         frames = [types.SimpleNamespace(end_time=float(ordinal), value=ordinal)]
         if batch:
