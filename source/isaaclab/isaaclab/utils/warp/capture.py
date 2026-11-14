@@ -26,13 +26,16 @@ if TYPE_CHECKING:
 
 
 def capturing(device: wp.Device | str | None = None) -> bool:
-    """Whether a CUDA graph is being recorded on ``device`` (the current device by default).
+    """Whether a graph is being recorded on ``device`` (the current device by default), a CUDA graph or Warp's CPU one.
 
-    It reads Warp's table of the recordings in progress first, which costs ~20x less than ``Device.is_capturing``, so
-    outside a recording the check spares the CUDA query; every recording in Isaac Lab starts through Warp.
+    It reads Warp's records of the captures in progress first, which costs ~20x less than ``Device.is_capturing``, so
+    outside a recording the check spares the CUDA query; every recording in Isaac Lab starts through Warp. Warp's CPU
+    capture is not in its CUDA capture table and is read from the runtime's private ``_apic_capture``.
     """
     runtime = _warp_context.runtime
-    return runtime is not None and bool(runtime.captures) and wp.get_device(device).is_capturing
+    if runtime is None or not (runtime.captures or runtime._apic_capture is not None):
+        return False
+    return wp.get_device(device).is_capturing
 
 
 def is_recording() -> bool:

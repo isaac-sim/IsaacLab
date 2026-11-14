@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 import warp as wp
 
-from isaaclab.utils.warp.capture import GraphedCallable, eager, eager_method
+from isaaclab.utils.warp.capture import GraphedCallable, capturing, eager, eager_method
 
 wp.init()
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")]
@@ -183,6 +183,19 @@ def test_eager_call_raises_inside_a_capture_no_callable_started():
     with pytest.raises(RuntimeError, match="no GraphedCallable started"):
         with wp.ScopedDevice(DEVICE), wp.ScopedCapture():
             eager(fn, values)
+    assert fn.calls == 0
+
+
+def test_capturing_sees_a_cpu_capture():
+    """Warp's CPU capture counts as a capture, so a call that cannot be recorded raises inside it as on CUDA."""
+    fn = _Affine()
+    values = wp.zeros(1, dtype=wp.int32, device="cpu")
+
+    with wp.ScopedDevice("cpu"), wp.ScopedCapture():
+        assert capturing("cpu")
+        with pytest.raises(RuntimeError, match="no GraphedCallable started"):
+            eager(fn, values)
+    assert not capturing("cpu")
     assert fn.calls == 0
 
 
