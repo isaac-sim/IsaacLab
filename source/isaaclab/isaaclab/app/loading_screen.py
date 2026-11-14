@@ -338,14 +338,15 @@ class LoadingScreen:
                 output. Defaults to None, which enables both when standard
                 output is a terminal.
             logo: Whether :meth:`summary` shows a responsive greeting beside
-                the run summary. Defaults to True.
+                the run summary. Greetings the console cannot encode are left
+                out. Defaults to True.
         """
         self._num_stages = num_stages
-        self._logos = random.choice(_LOGO_PAIRS) if logo else ()
         self._remote_greetings: RemoteGreetings | None = None
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
+        self._logos = _bundled_logos(self._console) if logo else ()
         self._rich_console: Console | None = None
         self._live: Live | None = None
         self._display = self._Display(self)
@@ -645,10 +646,26 @@ def _console_is_interactive() -> bool:
         return False
 
 
-def _supports_box_drawing(stream: IO[str]) -> bool:
-    """Return whether *stream* can encode box-drawing characters."""
+def _can_encode(stream: IO[str], text: str) -> bool:
+    """Return whether *stream* can encode *text*."""
     try:
-        "".join(_BOX).encode(getattr(stream, "encoding", None) or "ascii")
+        text.encode(getattr(stream, "encoding", None) or "ascii")
     except (LookupError, UnicodeEncodeError):
         return False
     return True
+
+
+def _supports_box_drawing(stream: IO[str]) -> bool:
+    """Return whether *stream* can encode box-drawing characters."""
+    return _can_encode(stream, "".join(_BOX))
+
+
+def _bundled_logos(stream: IO[str]) -> tuple[str, ...]:
+    """Draw a bundled greeting pair, keeping only the logos *stream* can encode.
+
+    A console that cannot encode block or box-drawing characters, such as a
+    Windows code page, would otherwise fail on the first summary that draws them.
+    """
+    pairs = [tuple(logo for logo in pair if _can_encode(stream, logo)) for pair in _LOGO_PAIRS]
+    pairs = [pair for pair in pairs if pair]
+    return random.choice(pairs) if pairs else ()
