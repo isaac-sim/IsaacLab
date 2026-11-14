@@ -174,6 +174,12 @@ def test_axis_angle_from_quat_approximation(device):
     # Assert that the computed values are close to the expected values
     torch.testing.assert_close(axis_angle_computed, axis_angle_expected)
 
+    # The unselected exact formula must not introduce NaN gradients through 0/0 at identity.
+    identities = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, -1.0]], device=device, requires_grad=True)
+    math_utils.axis_angle_from_quat(identities).sum().backward()
+    expected_gradient = torch.tensor([[2.0, 2.0, 2.0, 0.0], [-2.0, -2.0, -2.0, 0.0]], device=device)
+    torch.testing.assert_close(identities.grad, expected_gradient)
+
 
 @pytest.mark.parametrize("device", test_devices())
 def test_quat_error_magnitude(device):

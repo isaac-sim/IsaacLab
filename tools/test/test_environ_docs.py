@@ -109,11 +109,13 @@ def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():
         "skrl_mappo_cfg_entry_point": "agents:skrl_mappo_cfg.yaml",
         "skrl_amp_cfg_entry_point": "agents:skrl_amp_cfg.yaml",
         "rsl_rl_with_symmetry_cfg_entry_point": "agents.rsl_rl_ppo_cfg:RunnerCfg",
+        "supermimic_cfg_entry_point": "isaaclab_rl.supermimic.supermimic_cfg:SuperMimicCfg",
         "rl_games_cfg_entry_point_ignored": "nope",
     }
     agents = parse_rl_libraries_from_kwargs(kwargs)
     assert agents["rl_games"] == ["PPO"]
     assert agents["skrl"] == ["PPO", "AMP", "IPPO", "MAPPO"]
+    assert agents["supermimic"] == ["MBRL"]
 
 
 def test_parse_rl_libraries_does_not_label_canonical_amp_alias_as_ppo():

@@ -92,6 +92,7 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Abs", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
+            ["IsaacContrib-Motion-Tracking-G1", "supermimic", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_nav.jpg"],
@@ -287,6 +288,7 @@
             ["skrl", "skrl", "skrl"],
             ["sb3", "sb3", "Stable-Baselines3"],
             ["rlinf", "rlinf", "RLinf"],
+            ["supermimic", "supermimic", "SuperMimic"],
         ]],
     ];
 
