@@ -16,7 +16,7 @@ import warp as wp
 from newton import JointType, Model
 from newton.actuators import Actuator
 
-from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators import ActuatorCollection, ImplicitActuator
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
@@ -84,6 +84,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
         if not self._native_actuator_path_active:
+            # Native execution can be activated by another articulation. Keep the environment's
+            # physics loop in Python whenever a Lab model needs compute() on every physics step.
+            if any(type(actuator) is not ImplicitActuator for actuator in collection.values()):
+                self._articulation._backend_manager.backend.lab_actuators_active = True
             return None
 
         articulation = self._articulation

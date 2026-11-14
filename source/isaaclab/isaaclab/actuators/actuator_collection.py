@@ -26,6 +26,7 @@ from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
+from .actuator_pd_cfg import DelayedImplicitActuatorCfg
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,13 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
+        if self._control.native_actuator_path_active and any(
+            isinstance(cfg, DelayedImplicitActuatorCfg) for cfg in resolved_cfgs.values()
+        ):
+            raise ValueError(
+                "Delayed implicit actuators require Lab command processing. "
+                "Disable 'use_newton_actuators' when combining them with native explicit actuators."
+            )
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
         if self._native_group_names:

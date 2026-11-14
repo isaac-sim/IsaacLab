@@ -212,6 +212,8 @@ class NewtonBackend:
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
         self.handles_actions = False
         """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
+        self.lab_actuators_active = False
+        """Whether any articulation requires Lab actuator computation outside each backend step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
@@ -466,8 +468,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
-        return self.handles_actions or self.actuators_active
+        """Whether one :meth:`step` runs decimation without skipping actions or Lab actuator updates."""
+        return self.handles_actions or (self.actuators_active and not self.lab_actuators_active)
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""

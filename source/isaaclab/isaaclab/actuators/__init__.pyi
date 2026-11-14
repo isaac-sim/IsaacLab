@@ -17,11 +17,13 @@ __all__ = [
     "BamActuatorCfg",
     "BamMotorCfg",
     "DCMotor",
+    "DelayedImplicitActuator",
     "DelayedPDActuator",
     "IdealPDActuator",
     "ImplicitActuator",
     "RemotizedPDActuator",
     "DCMotorCfg",
+    "DelayedImplicitActuatorCfg",
     "DelayedPDActuatorCfg",
     "IdealPDActuatorCfg",
     "ImplicitActuatorCfg",
@@ -38,6 +40,7 @@ from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from .actuator_pd import (
     DCMotor,
+    DelayedImplicitActuator,
     DelayedPDActuator,
     IdealPDActuator,
     ImplicitActuator,
@@ -45,6 +48,7 @@ from .actuator_pd import (
 )
 from .actuator_pd_cfg import (
     DCMotorCfg,
+    DelayedImplicitActuatorCfg,
     DelayedPDActuatorCfg,
     IdealPDActuatorCfg,
     ImplicitActuatorCfg,

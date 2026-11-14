@@ -52,6 +52,11 @@ simplest model that meets your requirements.
       - Solver runs the PD law from the written gains.
       - ``joint_effort_limit`` clips in the solver.
       - --
+    * - :class:`~isaaclab.actuators.DelayedImplicitActuator`
+        (:class:`~isaaclab.actuators.DelayedImplicitActuatorCfg`)
+      - Solver runs PD on delayed position, velocity, and effort targets.
+      - ``joint_effort_limit`` clips in the solver.
+      - ``min_delay``, ``max_delay``
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
       - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
@@ -86,6 +91,10 @@ simplest model that meets your requirements.
 
 **ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
 estimates effort telemetry from the current state when the backend does not expose it.
+
+**DelayedImplicitActuator.** Delays position, velocity, and feed-forward effort targets before
+passing them to the solver. Gains and joint-state feedback remain current. Delay is sampled per
+environment from ``[min_delay, max_delay]`` at reset, as with ``DelayedPDActuator``.
 
 **IdealPDActuator.** An explicit PD controller with feed-forward effort and a symmetric model-side
 torque limit at :math:`\pm\,\tau_{max}`.
@@ -498,11 +507,38 @@ requests a solver constraint. Enforcement depends on the backend; see
 Command delay
 ^^^^^^^^^^^^^
 
-A :class:`~isaaclab.actuators.DelayedPDActuator` delays every command by a fixed number of physics
+Both :class:`~isaaclab.actuators.DelayedImplicitActuator` and
+:class:`~isaaclab.actuators.DelayedPDActuator` delay every command by a fixed number of physics
 steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
 :math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
 position command. Longer delays make the pendulum trail the reference. Randomizing delay between
 resets can model transport delay during sim-to-real training.
+
+For implicit PD control, configure the delay directly on the actuator group:
+
+.. code-block:: python
+
+    from isaaclab.actuators import DelayedImplicitActuatorCfg
+
+    actuator_cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness=40.0,
+        damping=5.0,
+        min_delay=2,
+        max_delay=4,
+    )
+
+Delays count physics steps, including steps within policy decimation. Each environment samples
+one delay shared by all joints and all three command channels in the group and holds it until
+reset. Reset clears history only for the selected environments. Until enough history exists,
+the oldest command since reset is used; ``min_delay=max_delay=0`` passes commands through.
+
+Delayed implicit actuators run through Lab command processing on PhysX and Newton. When combining
+them with explicit actuator groups in the same articulation, set
+``SimulationCfg(use_newton_actuators=False)``. Native explicit actuator execution bypasses that
+articulation's Lab command processing and this combination raises an error. Separate articulations
+may mix delayed implicit and native explicit actuators; Newton then keeps command updates in the
+environment's physics loop so delays still count physics steps.
 
 .. figure:: ../_static/actuators/delay-clip.webp
     :align: center

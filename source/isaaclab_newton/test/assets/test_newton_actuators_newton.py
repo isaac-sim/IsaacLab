@@ -46,6 +46,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import (
     ActuatorBaseCfg,
     DCMotorCfg,
+    DelayedImplicitActuatorCfg,
     DelayedPDActuatorCfg,
     IdealPDActuatorCfg,
     ImplicitActuator,
@@ -202,6 +203,19 @@ class _Island:
 def _islands(mlp_path: str | None = None, lstm_path: str | None = None) -> dict[str, _Island]:
     """Return the actuator islands, with the neural island when the network checkpoints are given."""
     islands = {
+        "delayed_implicit": _Island(
+            {
+                "all": DelayedImplicitActuatorCfg(
+                    joint_names_expr=[".*"],
+                    stiffness=40.0,
+                    damping=5.0,
+                    min_delay=2,
+                    max_delay=2,
+                )
+            },
+            usd="fixed_cartpole.usda",
+            newton_only=True,
+        ),
         "ideal": _Island(IDEAL_PD_ACTUATORS),
         "ideal_reordered": _Island(IDEAL_PD_ACTUATORS, joint_ordering=_LEG_REORDERED_JOINT_NAMES),
         "cartpole": _Island(CARTPOLE_EXPLICIT_ACTUATORS, usd="fixed_cartpole.usda"),
@@ -781,6 +795,32 @@ def test_newton_actuators_match_lab_actuators(lab_run: dict, newton_run: _Run, i
 def test_decimated_remotized_pd_matches_lab_actuators(decimated_runs: dict) -> None:
     """RemotizedPD with decimation 2 and CUDA-graph capture: Lab vs Newton."""
     _assert_equivalent(decimated_runs["lab"], decimated_runs["newton"])
+
+
+def test_delayed_implicit_keeps_physics_step_delay_beside_native_articulation(newton_run: _Run) -> None:
+    delayed = newton_run.articulations["delayed_implicit"]
+    delayed.reset()
+    manager = newton_run.sim.backend_manager
+    previous_decimation = manager._decimation
+    manager.set_decimation(4)
+    steps_per_call = 4 if manager.handles_decimation() else 1
+    samples = []
+    try:
+        for policy_step in range(4):
+            delayed.actuators.target_command.set_position_index(
+                value=torch.full_like(delayed.data.joint_pos.torch, float(policy_step))
+            )
+            for _ in range(4 // steps_per_call):
+                for articulation in newton_run.articulations.values():
+                    articulation.write_data_to_sim()
+                samples.append(delayed.actuators.output_command.position.torch[0, 0].clone())
+                newton_run.sim.step()
+                for articulation in newton_run.articulations.values():
+                    articulation.update(DT * steps_per_call)
+    finally:
+        manager.set_decimation(previous_decimation)
+    expected = torch.tensor([0.0] * 6 + [1.0] * 4 + [2.0] * 4 + [3.0] * 2, device=delayed.device)
+    torch.testing.assert_close(torch.stack(samples), expected)
 
 
 def test_dc_motor_clamp_binds(lab_run: dict, newton_run: _Run) -> None:
