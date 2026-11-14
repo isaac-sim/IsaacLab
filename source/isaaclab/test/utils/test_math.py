@@ -1115,6 +1115,25 @@ def test_euler_xyz_from_quat():
         torch.testing.assert_close(output, wrapped)
 
 
+def test_euler_xyz_from_quat_gimbal_lock():
+    """Test that euler_xyz_from_quat keeps the rotation at gimbal lock (pitch = ±90°).
+
+    Roll and yaw are not unique at gimbal lock, so the returned angles are checked through the
+    rotation they describe instead of against fixed values. Quaternions are in xyzw format.
+    """
+    quat = torch.tensor(
+        [
+            [0.5, 0.5, -0.5, 0.5],  # pitch +90°, yaw - roll = -90°
+            [0.5, -0.5, 0.5, 0.5],  # pitch -90°, yaw + roll = +90°
+        ]
+    )
+    euler = torch.stack(math_utils.euler_xyz_from_quat(quat), dim=-1)
+    rotation_error = (
+        scipy_tf.Rotation.from_euler("xyz", euler.numpy()) * scipy_tf.Rotation.from_quat(quat.numpy()).inv()
+    )
+    np.testing.assert_allclose(rotation_error.magnitude(), 0.0, atol=1e-5)
+
+
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "eye, up_axis",
