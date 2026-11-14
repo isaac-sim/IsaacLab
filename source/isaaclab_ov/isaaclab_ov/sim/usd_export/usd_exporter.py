@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""OVPhysX USD export: every engine value that differs from what OVPhysX loaded from the stage."""
+
+from __future__ import annotations
+
+import contextlib
+import re
+
+import numpy as np
+
+from pxr import Usd
+
+from isaaclab.sim.usd_export.base_usd_exporter import UsdEdit
+from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
+from isaaclab.sim.utils.queries import path_expr_to_glob
+
+from isaaclab_ov import tensor_types as TT
+from isaaclab_ov.physics import ovphysx_compat
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
+
+COLLIDER_TENSORS = {
+    "material": TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+    "contact_offset": TT.RIGID_BODY_CONTACT_OFFSET,
+    "rest_offset": TT.RIGID_BODY_REST_OFFSET,
+}
+"""Collider value -> OVPhysX binding."""
+
+LEGACY_JOINT_ATTRIBUTES = {
+    "joint_armature": ("physxJoint:armature", "newton:armature"),
+    "joint_vel_limits": ("physxJoint:maxJointVelocity", "newton:velocityLimit"),
+    "joint_friction_coeff": ("physxJoint:jointFriction", "newton:friction"),
+    "joint_dynamic_friction_coeff": ("physxJoint:jointFriction", "newton:friction"),
+    "joint_viscous_friction_coeff": ("physxJoint:jointFriction", "newton:damping"),
+}
+"""Joint property -> the ``PhysxJointAPI`` attribute Isaac Lab migrates before OVPhysX 0.7 loads the stage, and the
+Newton attribute the migration keeps instead."""
+
+NEWTON_JOINT_ATTRIBUTES = {
+    "joint_armature": "newton:armature",
+    "joint_vel_limits": "newton:velocityLimit",
+    "joint_friction_coeff": "newton:friction",
+    "joint_viscous_friction_coeff": "newton:damping",
+}
+"""Joint property -> the Newton attribute OVPhysX 0.7 keeps when the per-axis value is not positive."""
+
+
+class UsdExporter(PhysxUsdExporter):
+    """Export an OVPhysX scene environment: its USD plus every engine value Isaac Lab changed."""
+
+    # OVPhysX loads deformables from their USD schemas.
+    exports_deformables = True
+
+    def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """The PhysX edits, plus the authored Newton joint values OVPhysX 0.7 would keep over the written ones."""
+        edits = super().compute_diff(stage)
+        if not ovphysx_compat.OVPHYSX_USES_TASKS:
+            return edits
+        # OVPhysX 0.7 applies a per-axis joint value only when it is positive and otherwise keeps an authored Newton
+        # value, so a Newton value the live engine no longer holds is restated.
+        readings, _ = self._read_assets(stage)
+        for (path, axis), values in readings.items():
+            if axis is None:
+                continue
+            prim, table = stage.GetPrimAtPath(path), self._get_joint_attribute_table(axis)
+            for name, attribute in NEWTON_JOINT_ATTRIBUTES.items():
+                live = float(values[name]) * (1.0 if axis == "linear" else table[name].angular_scale)
+                stated = self._get_authored_value(prim, attribute)
+                if stated is not None and not self._is_close(stated, live):
+                    edits.append(UsdEdit(path, attribute, live))
+        return edits
+
+    def _get_properties_to_restate(self, prim, axis):
+        if not ovphysx_compat.OVPHYSX_USES_TASKS:
+            return set()
+        # OVPhysX 0.7 ignores PhysxJointAPI; Isaac Lab migrated its values into the stage the engine loaded.
+        table = self._get_joint_attribute_table(axis)
+        return {
+            name
+            for name, (legacy, newton) in LEGACY_JOINT_ATTRIBUTES.items()
+            if prim.GetAttribute(legacy).HasAuthoredValue()
+            and not prim.GetAttribute(newton).HasAuthoredValue()
+            and not prim.GetAttribute(table[name].name.format(axis=axis)).HasAuthoredValue()
+        }
+
+    @contextlib.contextmanager
+    def _open_engine_view(self, path_expr: str, articulation: bool):
+        # Bound as the assets bind them: OVPhysX matches globs, one path per environment in environment order.
+        pattern = path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", path_expr))
+        paths = _expand_env_pattern(pattern, self.scene.sim.get_clone_plan())
+        physx = self.scene.sim.backend_manager.get_physx_instance()
+        view = OvPhysxView(physx, prim_paths=paths, device=self.scene.sim.device)
+        try:
+            # The view reads its counts from a binding, which the asset data needs before it reads any.
+            view.try_binding_for(TT.ROOT_POSE if articulation else TT.RIGID_BODY_POSE)
+            yield view
+        finally:
+            view.close()
+
+    def _read_collider_values(self, view) -> dict[str, np.ndarray]:
+        return {name: view.get_attribute(tensor).numpy().copy() for name, tensor in COLLIDER_TENSORS.items()}

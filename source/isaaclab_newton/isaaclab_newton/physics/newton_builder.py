@@ -67,7 +67,8 @@ def inject_terrain_heightfields(
             indices=wp.array(faces, dtype=wp.int32, device=device),
         )
         heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-        builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+        # The mesh path identifies the collider that the heightfield replaces.
+        builder.add_shape_heightfield(heightfield=heightfield, xform=xform, label=str(mesh_prim.GetPath()))
         logger.info(
             "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
             prim.GetPath().pathString,

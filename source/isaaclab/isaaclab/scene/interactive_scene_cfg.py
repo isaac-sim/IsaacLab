@@ -126,6 +126,14 @@ class InteractiveSceneCfg:
     clone_cfg: CloneCfg = CloneCfg()
     """Clone execution and legal scene-combination configuration."""
 
+    export_usd_path: str | None = None
+    """USD file to export environment 0 to after asset initialization. Defaults to None (no export).
+
+    The export happens before startup events and the first physics step; see
+    :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`. On PhysX and OvPhysX, setting it also has the
+    scene read the engine before its assets initialize, which the export compares against.
+    """
+
 
 def add(
     target: InteractiveSceneCfg,

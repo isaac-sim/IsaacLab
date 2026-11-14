@@ -1,0 +1,810 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import functools
+import logging
+import math
+import os
+import shutil
+import tempfile
+from abc import ABC, abstractmethod
+from collections.abc import Collection
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
+
+import numpy as np
+
+from pxr import Gf, Plug, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+
+from ... import cloner
+from ...utils.assets import check_file_path, retrieve_file_path, unmirror_file_path
+
+if TYPE_CHECKING:
+    from ...scene import InteractiveScene
+
+logger = logging.getLogger(__name__)
+
+# USD vocabulary of the export: pseudo attributes of an edit, engine sentinels, and the USD attributes that
+# every backend's importer reads, which the backend exporters map their engine values onto.
+
+_WORLD_POSE = "isaaclab:worldPose"
+"""Pseudo attribute of a :class:`UsdEdit` that places a prim at a world transform."""
+
+_PHYSICS_MATERIAL = "isaaclab:physicsMaterial"
+"""Pseudo attribute of a :class:`UsdEdit` that binds a new physics material, at the path it gives, to a collider."""
+
+_DEACTIVATE = "isaaclab:deactivate"
+"""Pseudo attribute of a :class:`UsdEdit` that deactivates a prim."""
+
+_DEFINE_PRIM = "isaaclab:definePrim"
+"""Pseudo attribute of a :class:`UsdEdit` that defines a prim from the :class:`PrimDefinition` it gives."""
+
+UNLIMITED = 1e10
+"""Engine values of this magnitude mean "no limit", which an unset USD attribute already states.
+
+Newton's ``MAXVAL`` sentinel is 1e10; PhysX uses the float maximum.
+"""
+
+_MASS_ATTRIBUTES = {
+    "body_mass": ("physics:mass",),
+    "body_com_pos_b": ("physics:centerOfMass",),
+    "body_inertia": ("physics:diagonalInertia", "physics:principalAxes", "newton:inertia"),
+}
+"""Body mass property, named as the asset data names it, -> the USD attributes stating it."""
+
+_PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
+"""API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
+
+
+class JointAttribute(NamedTuple):
+    """The USD attribute stating a joint property; ``{axis}`` in its names stands for the joint axis."""
+
+    name: str
+    """Attribute name."""
+    schema: str | None
+    """API schema the attribute requires, if any."""
+    angular_scale: float
+    """Scale from the engine's units to USD units for an angular DOF."""
+
+
+JOINT_DATA_FIELDS = (
+    "joint_stiffness",
+    "joint_damping",
+    "joint_effort_limits",
+    "joint_armature",
+    "joint_vel_limits",
+    "joint_friction_coeff",
+    "joint_dynamic_friction_coeff",
+    "joint_viscous_friction_coeff",
+)
+"""Asset data DOF properties the export compares, besides the position limits, which it compares by their ends."""
+
+USD_PHYSICS_JOINT_ATTRIBUTES = {
+    "joint_stiffness": JointAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "joint_damping": JointAttribute("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "joint_effort_limits": JointAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
+    "joint_pos_limits_lower": JointAttribute("physics:lowerLimit", None, math.degrees(1.0)),
+    "joint_pos_limits_upper": JointAttribute("physics:upperLimit", None, math.degrees(1.0)),
+}
+"""Joint property, named as the asset data names it, -> UsdPhysics attribute; every backend's importer reads these."""
+
+USD_PHYSICS_D6_LIMIT_ATTRIBUTES = {
+    "joint_pos_limits_lower": JointAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "joint_pos_limits_upper": JointAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+}
+"""UsdPhysics limits of one axis of a D6 joint (``rotX``, ``rotY``, ``rotZ``), which replace a single-axis joint's."""
+
+JOINT_STATE_ATTRIBUTES = {
+    "default_joint_pos": JointAttribute(
+        "state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)
+    ),
+    "default_joint_vel": JointAttribute(
+        "state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)
+    ),
+}
+"""Initial joint state of one axis, which Isaac Sim, OVPhysX and Newton's import read; unset means zero."""
+
+USD_PHYSICS_MATERIAL_ATTRIBUTES = {
+    "static_friction": "physics:staticFriction",
+    "dynamic_friction": "physics:dynamicFriction",
+    "restitution": "physics:restitution",
+}
+"""UsdPhysics material property -> USD attribute, read by every backend's importer."""
+
+
+class PrimDefinition(NamedTuple):
+    """A typed prim to define, with the relationships and uniform attributes it states."""
+
+    type_name: str
+    """Prim type, e.g. ``"MjcActuator"``."""
+
+    relationships: dict[str, list[str]]
+    """Relationship name -> target paths."""
+
+    uniform_attributes: dict[str, tuple[Sdf.ValueTypeName, Any]]
+    """Uniform attribute name -> value type and value."""
+
+
+class UsdEdit(NamedTuple):
+    """One value the exported USD must author so that an import reproduces the engine."""
+
+    path: str
+    """Prim path in the exported stage."""
+
+    attribute: str
+    """Attribute name; ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`,
+    ``_PHYSICS_MATERIAL`` for a new physics material bound to the prim, given as its path, ``_DEACTIVATE`` to
+    deactivate the prim, or ``_DEFINE_PRIM`` for a new prim given as a :class:`PrimDefinition`."""
+
+    value: Any
+    """Value in USD units."""
+
+    type_name: str = "float"
+    """Value type used when the attribute does not exist yet."""
+
+    schema: str | None = None
+    """Applied API schema the importer requires for the attribute, e.g. ``"PhysicsDriveAPI:angular"``."""
+
+    def apply(self, stage: Usd.Stage):
+        """Author the edit on ``stage``, un-instancing the asset instance that contains the prim."""
+        if self.attribute == _DEFINE_PRIM:
+            prim = stage.DefinePrim(self.path, self.value.type_name)
+            for name, targets in self.value.relationships.items():
+                prim.CreateRelationship(name, custom=False).SetTargets(targets)
+            # As the prim's schema defines them, whether or not this process registered it.
+            for name, (type_name, value) in self.value.uniform_attributes.items():
+                prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
+            return
+        prim = _make_prim_editable(stage, self.path)
+        if self.attribute == _DEACTIVATE:
+            prim.SetActive(False)
+            return
+        if self.attribute == _PHYSICS_MATERIAL:
+            material = UsdShade.Material.Define(stage, self.value)
+            UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+            binding = UsdShade.MaterialBindingAPI.Apply(prim)
+            binding.Bind(material, UsdShade.Tokens.weakerThanDescendants, "physics")
+            return
+        if self.attribute == _WORLD_POSE:
+            # Replace the local transform, keeping the prim's scale.
+            cache = UsdGeom.XformCache()
+            scale = Gf.Transform(cache.GetLocalToWorldTransform(prim)).GetScale()
+            parent = cache.GetLocalToWorldTransform(prim.GetParent())
+            local = Gf.Matrix4d().SetScale(scale) * self.value * parent.GetInverse()
+            xformable = UsdGeom.Xformable(prim)
+            xformable.ClearXformOpOrder()
+            xformable.AddTransformOp().Set(local)
+            return
+        if self.schema and self.schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(self.schema)
+        attribute = prim.GetAttribute(self.attribute)
+        if not attribute:
+            # Schema attributes, whether or not this process registered the schema that defines them.
+            attribute = prim.CreateAttribute(self.attribute, Sdf.ValueTypeNames.Find(self.type_name), custom=False)
+        attribute.Set(self.value)
+
+
+def _make_prim_editable(stage: Usd.Stage, path: str) -> Usd.Prim:
+    """The prim at ``path``, after un-instancing the asset instances that contain it.
+
+    Opinions an instance's own layers author beneath it are ignored while it is instanced, so un-instancing would
+    apply them; what the instance composed is authored back over them, keeping what an import reads.
+    """
+    prim = stage.GetPrimAtPath(path)
+    if not prim:
+        raise RuntimeError(f"Exported stage has no prim at '{path}'.")
+    while prim.IsInstanceProxy():
+        # 1. Un-instance the outermost instance containing the prim.
+        instance = prim.GetParent()
+        while instance.IsInstanceProxy():
+            instance = instance.GetParent()
+        root, composed = instance.GetPath(), _snapshot_composed_prims(instance)
+        instance.SetInstanceable(False)
+        # 2. Author back what the instance composed, so the opinions it ignored stay ignored.
+        for prim_path, (active, type_name, schemas, values) in _snapshot_composed_prims(
+            stage.GetPrimAtPath(root)
+        ).items():
+            changed = stage.GetPrimAtPath(prim_path)
+            if prim_path not in composed:
+                changed.SetActive(False)  # defined only by the ignored opinions
+                continue
+            was_active, was_type, was_schemas, was_values = composed[prim_path]
+            if active != was_active:
+                changed.SetActive(was_active)
+            if type_name != was_type:
+                changed.SetTypeName(was_type)
+            for schema in set(schemas) - set(was_schemas):
+                changed.RemoveAppliedSchema(schema)
+            for schema in set(was_schemas) - set(schemas):
+                changed.AddAppliedSchema(schema)
+            for name, value in values.items():
+                previous = was_values.get(name, () if isinstance(value, tuple) else None)
+                if value != previous:
+                    _set_or_block_property(changed, name, previous)
+        prim = stage.GetPrimAtPath(path)
+    return prim
+
+
+def _snapshot_composed_prims(root: Usd.Prim) -> dict[str, tuple[bool, str, list[str], dict[str, Any]]]:
+    """Activation, type, applied schemas, and authored attribute values and relationship targets of each prim in
+    ``root``'s subtree, through instance proxies; ``None`` for an attribute without an authored value."""
+    composed = {}
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)):
+        values = {a.GetName(): a.Get() if a.HasAuthoredValue() else None for a in prim.GetAttributes()}
+        values |= {r.GetName(): tuple(r.GetTargets()) for r in prim.GetRelationships()}
+        composed[str(prim.GetPath())] = (prim.IsActive(), prim.GetTypeName(), prim.GetAppliedSchemas(), values)
+    return composed
+
+
+def _read_authored_values(stage: Usd.Stage, names: Collection[str]) -> dict[tuple[str, str], Any]:
+    """Authored values of the attributes ``names`` on every prim, through instance proxies."""
+    values = {}
+    for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
+        for name in names:
+            attribute = prim.GetAttribute(name)
+            if attribute and attribute.HasAuthoredValue():
+                values[str(prim.GetPath()), name] = attribute.Get()
+    return values
+
+
+def _set_or_block_property(prim: Usd.Prim, name: str, value: Any):
+    """Author ``value`` on the property ``name``; ``None`` blocks the attribute's weaker opinions."""
+    if isinstance(value, tuple):
+        prim.GetRelationship(name).SetTargets(list(value))
+    elif value is None:
+        prim.GetAttribute(name).Block()
+    else:
+        prim.GetAttribute(name).Set(value)
+
+
+class BaseUsdExporter(ABC):
+    """Export one environment of an initialized scene: its USD plus the values its engine holds.
+
+    The exported layer is the scene's root layer reduced to one environment, so assets
+    stay references to their source files. A backend compares the engine with what an import of the
+    layer gives (its base) and writes every value that differs, which is what Isaac Lab set.
+    """
+
+    exports_deformables: ClassVar[bool] = False
+    """Whether an import of the layer reproduces the scene's deformable objects."""
+
+    exports_cables: ClassVar[bool] = False
+    """Whether an import of the layer reproduces the scene's cable objects."""
+
+    def __init__(self, scene: InteractiveScene, env_id: int = 0):
+        """Initialize the exporter.
+
+        Args:
+            scene: Scene whose assets are initialized and whose physics has not stepped yet.
+            env_id: Environment to export.
+        """
+        if not 0 <= env_id < scene.num_envs:
+            raise ValueError(f"Environment {env_id} is outside [0, {scene.num_envs}).")
+        if scene.sim.get_physics_step_count() != 0:
+            raise ValueError("USD export must precede the first physics step.")
+        self.scene = scene
+        self.env_id = env_id
+
+    """
+    Operations.
+    """
+
+    def export(self, path: str) -> str:
+        """Write the environment to a USD file.
+
+        Args:
+            path: Destination USD file.
+
+        Returns:
+            The destination path.
+        """
+        if (self.scene.cable_objects and not self.exports_cables) or (
+            self.scene.deformable_objects and not self.exports_deformables
+        ):
+            # Their values are not exported, so a fresh import would not reproduce them.
+            raise NotImplementedError("Scenes with deformable or cable objects are not exported on this backend.")
+        self._read_schema_defaults.cache_clear()  # include schemas registered since the last export
+        source = self.scene.stage.GetRootLayer()
+        layer = Sdf.Layer.CreateAnonymous(".usda")
+        layer.TransferContent(source)
+        if not source.anonymous:
+            # Relative asset paths resolve against the source file, which the copy and the export do not share.
+            UsdUtils.ModifyAssetPaths(
+                layer, lambda asset: asset if "://" in asset else source.ComputeAbsolutePath(asset)
+            )
+        stage = Usd.Stage.Open(layer)
+        self._reduce_stage_to_environment(stage)
+        self._apply_edits(stage, self.compute_diff(stage))
+        # The conversion reads the drive force limits the edits above wrote.
+        self._apply_edits(stage, self._compute_pd_drive_edits(stage))
+        # The file names remote assets where the stage composed their cached copies; no stage composes this copy.
+        exported = Sdf.Layer.CreateAnonymous(".usda")
+        exported.TransferContent(layer)
+        self._make_asset_paths_portable(exported, path)
+        if not exported.Export(path):
+            raise RuntimeError(f"Could not write USD to '{path}'.")
+        return path
+
+    @abstractmethod
+    def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """Return the engine values that ``stage`` does not already state.
+
+        Args:
+            stage: The exported stage, reduced to the selected environment.
+        """
+
+    def read_engine_base(self) -> Any:
+        """Read what the engine loaded from the stage, before the scene's assets write their configuration.
+
+        The scene calls this when its physics is ready, ahead of asset initialization, and keeps the result for
+        :meth:`compute_diff`. Backends that compare against something else return None.
+
+        Returns:
+            The backend's base values, or None.
+        """
+        return None
+
+    @staticmethod
+    def open_stage(path: str) -> Usd.Stage:
+        """Open an exported USD file, downloading referenced remote assets as Isaac Lab does when spawning them.
+
+        Args:
+            path: Exported USD file.
+
+        Returns:
+            A stage whose layer references local copies of the remote assets.
+        """
+        source = Sdf.Layer.FindOrOpen(path)
+        if source is None:
+            raise FileNotFoundError(f"Could not open '{path}'.")
+        layer = Sdf.Layer.CreateAnonymous(".usda")
+        layer.TransferContent(source)
+        UsdUtils.ModifyAssetPaths(
+            layer,
+            lambda asset: (
+                retrieve_file_path(asset) if check_file_path(asset) == 2 else source.ComputeAbsolutePath(asset)
+            ),
+        )
+        return Usd.Stage.Open(layer)
+
+    def _get_engine_base(self) -> Any:
+        """The base :meth:`read_engine_base` returned when the scene's physics became ready."""
+        base = self.scene._usd_export_base
+        if isinstance(base, Exception):
+            raise RuntimeError("The engine could not be read when the physics became ready.") from base
+        if base is None:
+            raise RuntimeError(
+                "The engine was not read when the physics became ready: create the scene with the scene"
+                " configuration's export_usd_path set, and export after the simulation is reset."
+            )
+        return base
+
+    """
+    Exported stage.
+    """
+
+    def _reduce_stage_to_environment(self, stage: Usd.Stage):
+        """Keep only the selected environment, copying prototypes the cloner replicated in physics only."""
+        plan = self.scene.clone_plan
+        if plan is not None:
+            layer = stage.GetRootLayer()
+            templates, starts = cloner.path.get_world_prototype_asset_templates(plan)
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            assets = np.asarray(plan.topology.world_prototypes)
+            group = int(np.asarray(plan.topology.world_prototype_layout)[self.env_id]) + 1
+            for index in range(int(starts[group]), int(starts[group + 1])):
+                target = templates[index].format(self.env_id)
+                source = sources[assets[index]]
+                if source is not None and not stage.GetPrimAtPath(target):
+                    # An environment the cloner created in physics only has no prim; an undefined parent hides the copy.
+                    stage.DefinePrim(Sdf.Path(target).GetParentPath())
+                    Sdf.CopySpec(layer, source, layer, target)
+            # The cloner offsets each environment in the engine only; place the environment prim there.
+            env = stage.GetPrimAtPath(self.scene.env_prim_paths[self.env_id])
+            origin = np.asarray(plan.positions[self.env_id], dtype=float)
+            if not self._is_close(UsdGeom.XformCache().GetLocalToWorldTransform(env).ExtractTranslation(), origin):
+                if not env.GetTypeName():
+                    env.SetTypeName("Xform")  # a typeless prim's transform is ignored
+                UsdEdit(str(env.GetPath()), _WORLD_POSE, Gf.Matrix4d().SetTranslate(Gf.Vec3d(*origin))).apply(stage)
+        for index, env_path in enumerate(self.scene.env_prim_paths):
+            if index != self.env_id:
+                stage.RemovePrim(env_path)
+
+    @staticmethod
+    def _apply_edits(stage: Usd.Stage, edits: list[UsdEdit]):
+        """Author ``edits`` on ``stage``, keeping what other prims composed from an edited one as the import read it."""
+        # An edited value also reaches the prims composing the edited one, such as a material referencing another.
+        names = {edit.attribute for edit in edits} - {_WORLD_POSE, _PHYSICS_MATERIAL, _DEACTIVATE, _DEFINE_PRIM}
+        before = _read_authored_values(stage, names)
+        for edit in edits:
+            edit.apply(stage)
+        edited = {(edit.path, edit.attribute) for edit in edits}
+        # A prim an edit defines holds that edit's values, though another edit writes an attribute of the same name.
+        defined = {edit.path for edit in edits if edit.attribute == _DEFINE_PRIM}
+        for key, value in _read_authored_values(stage, names).items():
+            if key not in edited and key[0] not in defined and value != before.get(key):
+                _set_or_block_property(_make_prim_editable(stage, key[0]), key[1], before.get(key))
+
+    def _compute_pd_drive_edits(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """Edits moving explicit PD actuators into their joints' USD drives, the form every physics importer reads.
+
+        An explicit actuator runs outside the engine, which holds zero drive gains for its joint; its gains
+        live only on a ``NewtonActuator`` prim. The drive replaces the prim, which is deactivated so that
+        importers reading both do not apply the PD twice. Actuators with motor saturation, delay,
+        position-dependent limits or a network, and actuators of joints other than revolute and prismatic,
+        stay prims.
+        """
+        kept, result = [], []
+        for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]:
+            # The type info also lists schemas whose plugin is not registered, unlike GetAppliedSchemas.
+            schemas = set(prim.GetPrimTypeInfo().GetAppliedAPISchemas())
+            targets = prim.GetRelationship("newton:targets").GetTargets()
+            joint = stage.GetPrimAtPath(targets[0]) if len(targets) == 1 else None
+            axis = None
+            if joint and joint.IsA(UsdPhysics.RevoluteJoint):
+                axis = "angular"
+            elif joint and joint.IsA(UsdPhysics.PrismaticJoint):
+                axis = "linear"
+            if "NewtonPDControlAPI" not in schemas or not schemas <= _PD_ACTUATOR_SCHEMAS or axis is None:
+                kept.append(str(prim.GetPath()))
+                continue
+            scale = math.pi / 180.0 if axis == "angular" else 1.0
+            kp, kd = (float(prim.GetAttribute(name).Get() or 0.0) * scale for name in ("newton:kp", "newton:kd"))
+            drive, schema, path = f"drive:{axis}:physics:", f"PhysicsDriveAPI:{axis}", str(joint.GetPath())
+            edits = [
+                UsdEdit(path, drive + "stiffness", kp, schema=schema),
+                UsdEdit(path, drive + "damping", kd, schema=schema),
+            ]
+            # The engine clamps at the joint effort limit; the actuator clamps its output as well.
+            max_effort, max_force = (
+                prim.GetAttribute("newton:maxEffort").Get(),
+                self._get_authored_value(joint, drive + "maxForce"),
+            )
+            if max_effort is not None and (max_force is None or max_effort < max_force):
+                edits.append(UsdEdit(path, drive + "maxForce", float(max_effort), schema=schema))
+            result += [*edits, UsdEdit(str(prim.GetPath()), _DEACTIVATE, None)]
+        if kept:
+            logger.warning(f"Actuators without a USD drive equivalent stay Newton actuator prims: {kept}.")
+        return result
+
+    def _make_asset_paths_portable(self, layer: Sdf.Layer, export_path: str):
+        """Reference the source of cached remote assets, and keep files the run wrote to the temporary directory."""
+        # Cached copies of remote assets exist only on this machine; reference their source instead.
+        UsdUtils.ModifyAssetPaths(layer, lambda asset: unmirror_file_path(asset) or asset)
+        UsdUtils.ModifyAssetPaths(layer, functools.partial(self._copy_temporary_file, export_path=export_path))
+        remote = sorted({asset for asset in layer.GetCompositionAssetDependencies() if "://" in asset})
+        if remote:
+            logger.warning(
+                "The export references remote assets; an import opens them only with a resolver that fetches them, such"
+                f" as Isaac Sim's, or after they are copied locally: {remote}."
+            )
+
+    @staticmethod
+    def _copy_temporary_file(asset: str, export_path: str) -> str:
+        """Copy a file the run wrote to the temporary directory next to the export, and reference the copy.
+
+        Such files, e.g. re-saved actuator networks, are removed with the machine's temporary directory.
+        USD layers stay referenced in place, since a copy would not carry the layers they reference; one an
+        asset converter wrote to its default temporary folder, or a rewritten copy of a layer, raises instead.
+        """
+        temporary = os.path.realpath(tempfile.gettempdir())
+        source = os.path.realpath(asset) if os.path.isabs(asset) else None
+        if source is None or not os.path.isfile(source) or os.path.commonpath([source, temporary]) != temporary:
+            return asset
+        if Sdf.FileFormat.FindByExtension(source):
+            # Default output folder of AssetConverterBase, and retrieve_file_path's rewritten layer copies.
+            converted = os.path.join(temporary, "IsaacLab")
+            rewritten = os.path.relpath(source, temporary).split(os.sep)[0].startswith("isaaclab_usd_")
+            if os.path.commonpath([source, converted]) != converted and not rewritten:
+                return asset
+            raise ValueError(
+                f"USD layer '{source}' is in the temporary directory and would be lost with it; reference a persistent"
+                " copy (convert assets with a persistent 'usd_dir')."
+            )
+        directory = os.path.dirname(os.path.abspath(export_path))
+        folder = os.path.splitext(os.path.abspath(export_path))[0] + "_files"
+        os.makedirs(folder, exist_ok=True)
+        return "./" + os.path.relpath(shutil.copy2(source, folder), directory)
+
+    """
+    Edits.
+    """
+
+    @classmethod
+    def _compute_value_edit(
+        cls, prim: Usd.Prim, attribute: str, value, type_name: str = "float", schema: str | None = None
+    ) -> UsdEdit | None:
+        """Edit writing ``value`` [USD units] unless the USD states it already, authored or as its schema default.
+
+        An unset "no limit" stays unset.
+
+        Args:
+            prim: Prim owning the attribute.
+            attribute: Attribute name.
+            value: Scalar, vector, or quaternion (x, y, z, w) value.
+            type_name: Value type of the attribute. Defaults to ``"float"``.
+            schema: Applied API schema the attribute requires. Defaults to None.
+
+        Returns:
+            The edit, or None if nothing needs writing.
+        """
+        # 1. What the USD states: the authored value, else the schema default.
+        array = np.asarray(value, dtype=float)
+        current = cls._get_authored_value(prim, attribute)
+        if current is None:
+            if array.size == 1 and not abs(array.item()) < UNLIMITED:
+                return None
+            current = cls._get_schema_default(attribute)
+        # 2. Nothing to write if it equals the value (a quaternion also as its negation).
+        if current is not None:
+            if type_name == "quatf":
+                current = np.asarray([*current.GetImaginary(), current.GetReal()])
+                if cls._is_close(current, array) or cls._is_close(current, -array):
+                    return None
+            elif cls._is_close(np.asarray(current, dtype=float), array):
+                return None
+        # 3. The value as its USD type.
+        if type_name == "quatf":
+            usd_value = Gf.Quatf(float(array[3]), Gf.Vec3f(*array[:3].tolist()))
+        elif array.size == 3:
+            usd_value = Gf.Vec3f(*array.tolist())
+        elif type_name == "bool":
+            usd_value = bool(array.item())
+        else:
+            usd_value = float(array.item())
+        return UsdEdit(str(prim.GetPath()), attribute, usd_value, type_name, schema)
+
+    @classmethod
+    def _compute_mass_edits(
+        cls,
+        prim: Usd.Prim,
+        mass: float,
+        com: np.ndarray,
+        inertia: np.ndarray,
+        changed: Collection[str] = ("body_mass", "body_com_pos_b", "body_inertia"),
+    ) -> list[UsdEdit]:
+        """Edits writing a body's mass [kg], COM [m] and body-axes inertia [kg*m^2, 3x3 or 9] the USD does not state.
+
+        Only the properties in ``changed`` (``body_mass``, ``body_com_pos_b``, ``body_inertia``) are written, so one
+        an import derives by itself is not restated when another changed. An inertia the USD leaves unset is derived
+        from the mass, so a changed mass then also writes the inertia. ``com`` is the engine's, which includes the
+        body's scale; importers scale the USD center of mass by it.
+        """
+        if "body_mass" in changed and mass <= 0.0:
+            # USD states an unset mass as zero, and an import derives it from the geometry.
+            logger.warning(f"USD cannot state the zero mass of '{prim.GetPath()}'; an import derives one.")
+            return []
+        if "body_mass" in changed and cls._get_authored_value(prim, "physics:diagonalInertia") is None:
+            changed = {*changed, "body_inertia"}
+        scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
+        com = np.asarray(com, dtype=float) / scale
+        edits = [
+            cls._compute_value_edit(prim, "physics:mass", mass, schema="PhysicsMassAPI"),
+            cls._compute_value_edit(prim, "physics:centerOfMass", com, "point3f", "PhysicsMassAPI"),
+        ]
+        inertia = np.asarray(inertia, dtype=float).reshape(3, 3)
+        compact = cls._get_authored_value(prim, "newton:inertia")
+        if compact is not None and len(compact):
+            # Newton reads this compact tensor [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] ahead of the diagonal inertia.
+            value = [inertia[0, 0], inertia[1, 1], inertia[2, 2], inertia[0, 1], inertia[0, 2], inertia[1, 2]]
+            if not cls._is_close(np.asarray(compact, dtype=float), value):
+                edits.append(UsdEdit(str(prim.GetPath()), "newton:inertia", [float(v) for v in value], "double[]"))
+        moments = cls._get_authored_value(prim, "physics:diagonalInertia")
+        rotation = np.asarray(
+            Gf.Matrix3d(Gf.Quatd(cls._get_authored_value(prim, "physics:principalAxes") or Gf.Quatf(1)))
+        ).T
+        stated = moments is not None and cls._is_close(rotation @ np.diag(np.asarray(moments)) @ rotation.T, inertia)
+        if not stated:
+            moments, axes = cls._compute_principal_inertia(inertia)
+            edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
+            edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
+        stated = {attribute: name for name, attributes in _MASS_ATTRIBUTES.items() for attribute in attributes}
+        return [edit for edit in edits if edit is not None and stated[edit.attribute] in changed]
+
+    @classmethod
+    def _compute_pose_edit(cls, prim: Usd.Prim, pose: np.ndarray) -> UsdEdit | None:
+        """Edit placing ``prim`` at a world pose (x, y, z, qx, qy, qz, qw) unless it is there already."""
+        world = Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim))
+        rotation = world.GetRotation().GetQuat()
+        current = np.asarray([*world.GetTranslation(), *rotation.GetImaginary(), rotation.GetReal()])
+        pose = np.asarray(pose, dtype=float)
+        if cls._is_close(current[:3], pose[:3]) and (
+            cls._is_close(current[3:], pose[3:]) or cls._is_close(current[3:], -pose[3:])
+        ):
+            return None
+        x, y, z, w = pose[3:7].tolist()
+        matrix = Gf.Matrix4d().SetRotate(Gf.Quatd(w, Gf.Vec3d(x, y, z))).SetTranslateOnly(Gf.Vec3d(*pose[:3].tolist()))
+        return UsdEdit(str(prim.GetPath()), _WORLD_POSE, matrix)
+
+    def _compute_gravity_edits(self, stage: Usd.Stage, gravity) -> list[UsdEdit]:
+        """Edits making the physics scene's USD gravity, in stage units, equal ``gravity`` [m/s^2].
+
+        Nothing is written when the scene resolves to it already: USD's physics parsing, which importers use, reads an
+        unset direction as down the up axis and an unset magnitude as Earth gravity.
+        """
+        scene_path = self.scene.physics_scene_path
+        _, scenes = UsdPhysics.LoadUsdPhysicsFromRange(stage, [scene_path]).get(UsdPhysics.ObjectType.Scene, ([], []))
+        meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
+        gravity = np.asarray(gravity, dtype=float)
+        if scenes:
+            resolved = np.asarray(scenes[0].gravityDirection) * scenes[0].gravityMagnitude * meters_per_unit
+            if self._is_close(resolved, gravity):
+                return []
+        norm = float(np.linalg.norm(gravity))
+        direction = gravity / norm if norm else np.array([0.0, 0.0, -1.0])
+        return [
+            UsdEdit(scene_path, "physics:gravityDirection", Gf.Vec3f(*direction.tolist()), "vector3f"),
+            UsdEdit(scene_path, "physics:gravityMagnitude", norm / meters_per_unit),
+        ]
+
+    @staticmethod
+    def _get_collider_physics_materials(stage: Usd.Stage) -> dict[str, str]:
+        """Each collider's physics material, as UsdPhysics' parser, which the importers use, resolves it.
+
+        A bound material without the physics material API, such as a render material, is none; colliders without
+        a physics material are left out.
+        """
+        parsed = UsdPhysics.LoadUsdPhysicsFromRange(stage, ["/"])
+        return {
+            str(path): str(desc.materials[0])
+            for paths, descs in parsed.values()
+            for path, desc in zip(paths, descs)
+            if getattr(desc, "materials", None)
+        }
+
+    @classmethod
+    def _compute_material_edits(
+        cls,
+        stage: Usd.Stage,
+        values: dict[str, dict[str, float]],
+        fallbacks: dict[str, float] | None = None,
+        bound: dict[str, str] | None = None,
+    ) -> list[UsdEdit]:
+        """Edits writing collider material values that the colliders' physics materials do not state.
+
+        Colliders sharing a material must have equal values, and a material also used by colliders missing
+        from ``values`` is never changed. Colliders without a physics material get a new one, shared by those
+        with equal values, which states each value that differs from what an import reads from an unset one.
+
+        Args:
+            stage: The exported stage.
+            values: Engine material values [USD units], keyed by collider path and then by attribute; every value
+                of the material for a collider without one.
+            fallbacks: What the importer reads for a material attribute left unset, where the attribute's schema
+                defines no default. Defaults to None (only schema defaults).
+            bound: :meth:`_get_collider_physics_materials` of ``stage``. Defaults to None (parsed here).
+
+        Returns:
+            The edits.
+        """
+        bound = cls._get_collider_physics_materials(stage) if bound is None else bound
+        users, groups, created, edits = {}, {}, {}, []
+        for collider, material in bound.items():
+            users.setdefault(material, []).append(collider)
+        # 1. Colliders without a material share one new material per set of values; the others group by material.
+        for collider, engine in values.items():
+            material = bound.get(collider)
+            if not material:
+                stated = tuple(sorted(cls._drop_import_defaults(engine, fallbacks or {}).items()))
+                if stated not in created:
+                    root = stage.GetDefaultPrim().GetPath() if stage.GetDefaultPrim() else Sdf.Path.absoluteRootPath
+                    index, taken = 0, set(created.values())
+                    # Never reuse a prim the stage already has, nor a new material's path.
+                    while (path := str(root.AppendPath(f"PhysicsMaterials/Material_{index}"))) in taken or (
+                        stage.GetPrimAtPath(path)
+                    ):
+                        index += 1
+                    created[stated] = path
+                edits.append(UsdEdit(collider, _PHYSICS_MATERIAL, created[stated]))
+                continue
+            path = material
+            if path in groups and (
+                groups[path].keys() != engine.keys()
+                or not all(cls._is_close(groups[path][name], value) for name, value in engine.items())
+            ):
+                raise NotImplementedError(f"Colliders sharing material '{path}' have different values.")
+            groups[path] = engine
+        # 2. Changed existing materials, unless a collider outside ``values`` also uses them.
+        for path, engine in groups.items():
+            prim = stage.GetPrimAtPath(path)
+            pending = [
+                cls._compute_value_edit(
+                    prim, name, value, schema="PhysicsMaterialAPI" if name.startswith("physics:") else None
+                )
+                for name, value in engine.items()
+            ]
+            pending = [edit for edit in pending if edit is not None]
+            if pending and any(user not in values for user in users[path]):
+                raise NotImplementedError(f"Material '{path}' changed but is shared with colliders not exported.")
+            edits += pending
+        # 3. The values of the new materials.
+        for stated, path in created.items():
+            edits += [
+                UsdEdit(path, name, value, schema="PhysicsMaterialAPI" if name.startswith("physics:") else None)
+                for name, value in stated
+            ]
+        return edits
+
+    @classmethod
+    def _drop_import_defaults(cls, values: dict[str, float], fallbacks: dict[str, float]) -> dict[str, float]:
+        """The values an unset attribute would not give: unlike its schema default, else its importer fallback."""
+        stated = {}
+        for name, value in values.items():
+            default = cls._get_schema_default(name)
+            default = fallbacks.get(name) if default is None else default
+            if default is None or not cls._is_close(value, default):
+                stated[name] = value
+        return stated
+
+    """
+    USD values.
+    """
+
+    @staticmethod
+    def _get_authored_value(prim: Usd.Prim, attribute: str) -> Any:
+        """Value the USD authors for ``attribute`` on ``prim``, or None if it states none."""
+        value = prim.GetAttribute(attribute) if prim else None
+        return value.Get() if value and value.HasAuthoredValue() else None
+
+    @classmethod
+    def _get_schema_default(cls, attribute: str) -> Any:
+        """Value the registered USD schemas give ``attribute`` when unset.
+
+        Returns None if no schema defines one, schemas disagree, or the default is non-finite, which
+        leaves the value to the engine.
+        """
+        parts = attribute.split(":")
+        templates = [":".join([*parts[:i], "__INSTANCE_NAME__", *parts[i + 1 :]]) for i in range(len(parts))]
+        defaults = cls._read_schema_defaults()
+        return next((defaults[name] for name in (attribute, *templates) if name in defaults), None)
+
+    @staticmethod
+    @functools.cache
+    def _read_schema_defaults() -> dict[str, Any]:
+        """Finite default of every attribute in the registered schema plugins; multi-apply names are templates.
+
+        Read from each plugin's generated schema, since the schema registry misses plugins registered
+        after its first use.
+        """
+        defaults = {}
+        for plugin in Plug.Registry().GetAllPlugins():
+            path = plugin.FindPluginResource("generatedSchema.usda", True)
+            layer = Sdf.Layer.FindOrOpen(path) if path else None
+            for prim in layer.rootPrims if layer else ():
+                for attribute in prim.attributes:
+                    value = attribute.default if BaseUsdExporter._is_finite(attribute.default) else None
+                    defaults[attribute.name] = value if defaults.get(attribute.name, value) == value else None
+        return defaults
+
+    """
+    Math.
+    """
+
+    @staticmethod
+    def _is_close(a, b) -> bool:
+        return bool(np.allclose(np.asarray(a, dtype=float), np.asarray(b, dtype=float), rtol=1e-5, atol=1e-7))
+
+    @staticmethod
+    def _compute_principal_inertia(inertia: np.ndarray) -> tuple[Gf.Vec3f, Gf.Quatf]:
+        """Split a body-frame inertia tensor [kg*m^2] into USD principal moments and principal axes."""
+        if np.allclose(inertia, np.diag(np.diag(inertia))):
+            # Keep a diagonal tensor in body axes; sorting its moments would rotate them.
+            return Gf.Vec3f(*np.maximum(np.diag(inertia), 0.0).tolist()), Gf.Quatf(1)
+        moments, axes = np.linalg.eigh(inertia)
+        if np.linalg.det(axes) < 0:
+            axes[:, 0] *= -1
+        # Gf matrices act on row vectors, so the rotation taking principal to body axes is transposed.
+        rotation = Gf.Matrix3d(*axes.T.flatten().tolist()).ExtractRotation().GetQuat()
+        return Gf.Vec3f(*np.maximum(moments, 0.0).tolist()), Gf.Quatf(rotation)
+
+    @staticmethod
+    def _is_finite(value) -> bool:
+        if isinstance(value, Gf.Quatf):
+            return True
+        try:
+            return bool(np.all(np.isfinite(np.asarray(value, dtype=float))))
+        except (TypeError, ValueError):
+            return False
