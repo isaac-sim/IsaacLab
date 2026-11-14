@@ -302,6 +302,50 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
+Camera tensor processors
+------------------------
+
+:attr:`~sensors.CameraCfg.tensor_processors` computes camera outputs from the renderer's outputs. Each entry is a
+:class:`~utils.tensor_processors.TensorProcessorCfg` whose ``func`` is a
+:class:`~utils.tensor_processors.TensorProcessor` class with named ``inputs`` and ``outputs``. The camera asks the
+renderer for the inputs no earlier processor produces, constructs each processor at the first capture with
+its configuration and the camera buffers, and runs the processors in list order on every capture.
+Their outputs are added to :attr:`~sensors.CameraData.output`; a processor can also replace a render output it
+reads. Camera resets call each processor's ``reset`` with the reset environments, and camera teardown calls its
+``close``.
+
+.. code-block:: python
+
+   from isaaclab.utils import replace
+   from isaaclab.utils.tensor_processors import TensorProcessorCfg
+
+   # ShadeDepth is a TensorProcessor class that shades a depth image into an rgb image.
+   depth_camera = replace(
+       front_camera,
+       tensor_processors=[
+           TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
+       ],
+   )
+
+Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.output["rgb"]`` holds the
+processor's result. The render outputs that processors read, here ``distance_to_image_plane``, are published as
+well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
+produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
+raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
+:attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
+
+With ``update_period > 0``, environments that reset at different times become due on different steps, but each
+capture renders every environment. Stateful processors (frame stacking, temporal filters, video generation) can
+list ``isaaclab.sensors.camera.CAPTURE_ENV_MASK_NAME`` in their ``inputs`` to receive a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. The name is reserved, and the mask is not
+published as an output. The mask describes
+the current capture request, so processors that read it need synchronous rendering; with ``async_rendering=True``
+the camera raises an error.
+
+With ``async_rendering=True``, the capture after a camera's first capture and after each reset publishes no new
+image, and the processors run on the previous image again. Processors that keep state between captures therefore
+need synchronous rendering as well.
+
 Post-render image signal processing
 -----------------------------------
 

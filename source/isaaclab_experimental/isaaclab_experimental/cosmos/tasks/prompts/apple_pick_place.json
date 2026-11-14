@@ -1,0 +1,18 @@
+{
+  "scene": "A real indoor robot apple pick-and-place experiment viewed from a fixed downward-looking robot RGB camera.",
+  "subjects": [
+    {
+      "description": "One small apple with a bright golden yellow crown around a short brown stem, orange middle, and deep red lower half; smooth natural skin."
+    },
+    {
+      "description": "One plain shallow white disposable plate with a broad smooth white rim and a softly shaded white centre."
+    },
+    {
+      "description": "Robot hands with matte black articulated fingers, black wrist cuffs, plain silver brushed-aluminium wrist housings, and thin black cables. Preserve all hands visible in the depth sequence."
+    }
+  ],
+  "environment": "The working surface and the whole background are covered by the same charcoal grey cotton bedsheet. Broad horizontal fold creases, soft diagonal wrinkles and irregular light grey mottling are clearly visible. A narrow pale strip may appear at the very top edge. Upper background surfaces are draped fabric, continuous in colour and texture with the tabletop.",
+  "lighting": "Soft diffuse neutral overhead indoor light, low contrast, natural contact shadows, bright white plate with preserved grey shading.",
+  "camera": "Ordinary real robot RGB footage, slightly soft image detail and mild compression; fixed depth-defined viewpoint.",
+  "motion": "Preserve the exact depth-defined object and robot motion. The robot reaches for the apple and transfers it towards the plate only as recorded. Preserve object count, shape, position, and occlusion throughout."
+}

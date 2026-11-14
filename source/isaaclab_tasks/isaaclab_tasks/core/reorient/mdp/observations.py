@@ -175,15 +175,15 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         self._keypoints_buf = torch.empty(env.num_envs, 8, 3, dtype=torch.float32, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Finish the shape-probe phase on the first Manager reset.
+        """Finish the shape-probe phase on the first Manager reset and start new episodes' supervision.
 
         Args:
-            env_ids: Environment indices being reset. The feature extractor
-                has no per-environment state, so the indices are unused.
+            env_ids: Environment indices being reset. The feature extractor forgets their held images, so
+                each new episode's first image takes a new pose target.
         """
-        del env_ids
         if self._shape_probe_pending:
             self._shape_probe_pending = False
+        self._feature_extractor.reset(env_ids)
 
     def __call__(
         self,

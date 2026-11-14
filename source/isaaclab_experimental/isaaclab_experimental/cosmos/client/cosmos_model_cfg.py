@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Configuration for the Cosmos image-transfer backend."""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING, Any, Literal
+
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
+
+from .._protocol import DEFAULT_ENDPOINT, MAX_CHUNK_FRAMES
+
+if TYPE_CHECKING:
+    from .cosmos_model import CosmosModel
+
+
+def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, int]:
+    """Count a camera's captures per episode and the Cosmos frame budget that holds them.
+
+    The episode lasts ``ceil(episode_length_s / step_dt)`` environment steps, as the environment counts them. The
+    camera captures at most once per step, once its elapsed time reaches ``update_period - 1e-6`` [s], the
+    threshold :class:`~isaaclab.sensors.SensorBase` uses.
+
+    Args:
+        env_cfg: Environment configuration with ``sim.dt``, ``decimation``, and ``episode_length_s``.
+        update_period: Camera update period [s]. Zero captures every step.
+
+    Returns:
+        Environment steps per capture, captures per episode including the initial capture, and the smallest
+        frame budget ``1 + 4*k`` that holds them.
+    """
+    step_dt = env_cfg.sim.dt * env_cfg.decimation
+    episode_steps = math.ceil(env_cfg.episode_length_s / step_dt)
+    steps_per_capture = max(1, math.ceil((update_period - 1e-6) / step_dt))
+    captures = math.ceil(episode_steps / steps_per_capture) + 1
+    return steps_per_capture, captures, 1 + MAX_CHUNK_FRAMES * math.ceil((captures - 1) / MAX_CHUNK_FRAMES)
+
+
+@configclass
+class CosmosModelCfg(BackendCfg):
+    """Settings for a camera's resident Cosmos service connection.
+
+    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferProcessorCfg` after a depth control
+    processor, as :func:`~isaaclab_experimental.cosmos.depth_processor` arranges. Cosmos generates an initial
+    one-frame chunk, then four-frame chunks. Configure that processor with ``initial_frames=1`` and ``update_frames=4``.
+    """
+
+    class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
+    """Client resource constructor. The model framework runs in the service's environment."""
+
+    endpoint: str | list[str] = DEFAULT_ENDPOINT
+    """Endpoint of the independently started Cosmos service: ``unix:///path`` on the same machine, or
+    ``tcp://host:port``. Defaults to the service's default, a Unix socket private to this user on Linux and
+    ``tcp://127.0.0.1:5555`` on Windows.
+
+    A list names several services, for example one per GPU. The camera's views are then split into contiguous
+    shares of near-equal size, one per service in list order; each service generates its share as one batch, all
+    services at the same time. Each view stays on its service, which keeps its generation history."""
+
+    prompt: str | list[str] | None = None
+    """Appearance prompt. A string applies to every episode. A list varies the appearance, for visual
+    randomization. With one view, episode ``k`` of the camera stream uses ``prompt[k % len(prompt)]``; an episode
+    reset before the first generated update (for example the environment's initial reset right after its first
+    capture) keeps the current prompt. With several views (environments), view ``v`` uses
+    ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
+    resets. None omits an appearance description."""
+
+    prompt_files: str | list[str] | None = None
+    """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
+    :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
+    list; they are read when the camera's Cosmos client is created. Keeping paths in their own field means a prompt
+    is never mistaken for a path."""
+
+    cameras: tuple[str, ...] = ()
+    """Scene names of the cameras that share one session, each configured with this model. Defaults to none, which
+    gives each camera its own session. With several, every capture generates all their environments as one batch:
+    camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
+    takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
+    independently and need not agree with each other. The cameras need the same canvas and capture rate: pass
+    each to :func:`~isaaclab_experimental.cosmos.cosmos_camera` with this model, one ``canvas`` and its scene
+    name."""
+
+    max_episode_frames: int | None = None
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The Shadow Hand Cosmos tasks
+    derive it from the task duration and capture rate with :func:`episode_frame_budget`.
+    Low-level callers must set it before creating the client. The service tells the model the episode's duration
+    from it and rejects frames beyond it.
+    """
+
+    transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
+    """How images move between the camera and the service. ``"cuda_ipc"`` keeps them on the GPU through shared
+    device memory; it needs the service on the same Linux machine, on the camera's GPU or on another GPU that both
+    processes can see and that can access the camera's GPU directly (NVLink or PCIe peer access). ``"socket"`` sends
+    images through host memory in the endpoint's messages, which also works across machines. ``"auto"`` (default)
+    uses CUDA IPC when the service supports it, runs on this machine, and its GPU qualifies, and the socket otherwise.
+    The endpoint carries the small step messages in both cases."""
+
+    timeout: float = 600.0
+    """Maximum wait per network operation [s], including the first generation."""

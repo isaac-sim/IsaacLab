@@ -5,11 +5,14 @@
 
 """Tests for the renderer→camera output contract."""
 
+import contextlib
 import warnings
 from types import SimpleNamespace
+from typing import ClassVar
 
 import numpy as np
 import pytest
+import torch
 import warp as wp
 
 pytest.importorskip("isaaclab_physx")
@@ -18,11 +21,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.renderers import BaseRenderer
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME, CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, instantiate, replace, validate
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -32,6 +37,28 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+
+
+class _ScaleProcessor(TensorProcessor):
+    """Scale one input into a persistent output and record lifecycle calls."""
+
+    events: ClassVar[list[tuple]] = []
+    masks: ClassVar[list[list[bool]]] = []
+
+    def __init__(self, cfg: TensorProcessorCfg, data: dict[str, ProxyArray]) -> None:
+        super().__init__(cfg)
+        self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
+
+    def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
+        _ScaleProcessor.masks.append(data[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist())
+        torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
+        return {self._cfg.outputs[0]: self._output}
+
+    def reset(self, env_ids=None) -> None:
+        _ScaleProcessor.events.append(("reset", self._cfg.outputs[0], env_ids))
+
+    def close(self) -> None:
+        _ScaleProcessor.events.append(("close", self._cfg.outputs[0]))
 
 
 def test_camera_isp_is_resolved_during_construction():
@@ -72,10 +99,9 @@ def test_camera_isp_is_resolved_during_construction():
         assert not hasattr(BaseRenderer, "prepare_cameras")
 
 
-@pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_newton_hdr_background_preserves_unlit_geometry(background, device):
-    """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
+@contextlib.contextmanager
+def _newton_cube_scene(device: str, num_envs: int, **camera_kwargs):
+    """Yield an unlit Newton camera above a cube in each environment, and a function that captures ``rgb_hdr``."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -85,7 +111,7 @@ def test_newton_hdr_background_preserves_unlit_geometry(background, device):
         device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
     )
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
-        scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg = InteractiveSceneCfg(num_envs=num_envs, env_spacing=2.0)
         scene_cfg.cube = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
@@ -99,21 +125,75 @@ def test_newton_hdr_background_preserves_unlit_geometry(background, device):
             prim_path="{ENV_REGEX_NS}/Camera",
             width=32,
             height=32,
-            data_types=["rgb_hdr"],
-            background_color=background,
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
             spawn=PinholeCameraCfg(clipping_range=(0.1, 10.0)),
             renderer_cfg=NewtonWarpRendererCfg(enable_ambient_lighting=False, create_default_light=False),
+            **camera_kwargs,
         )
         scene = InteractiveScene(scene_cfg)
         camera = scene["camera"]
         sim.reset()
-        expected = (0.0, 0.0, 0.0) if background is None else (0.050876088, 0.21404114, 0.52252155)
-        for _ in range(2):
+
+        def capture() -> np.ndarray:
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
             camera.update(sim.get_physics_dt(), force_recompute=True)
-            pixels = camera.data.output["rgb_hdr"].warp.numpy()[0]
+            return camera.data.output["rgb_hdr"].warp.numpy()
+
+        yield camera, capture
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
+    """Processors read render outputs and earlier results, and may replace a render output they read."""
+    _ScaleProcessor.events.clear()
+    _ScaleProcessor.masks.clear()
+    # The second processor is constructed from the first one's output and replaces the render input.
+    processors = [
+        TensorProcessorCfg(
+            func=_ScaleProcessor, inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME], outputs=["half"], params={"scale": 0.5}
+        ),
+        TensorProcessorCfg(
+            func=_ScaleProcessor, inputs=["half", CAPTURE_ENV_MASK_NAME], outputs=["rgb_hdr"], params={"scale": 4.0}
+        ),
+    ]
+    camera_kwargs = dict(data_types=["rgb_hdr"], background_color=(0.25, 0.5, 0.75), tensor_processors=processors)
+    background = np.array([0.050876088, 0.21404114, 0.52252155])
+    with _newton_cube_scene(device, 2, **camera_kwargs) as (camera, capture):
+        # Later captures read the new render rather than the published replacement.
+        for _ in range(2):
+            np.testing.assert_allclose(capture()[:, 0, 0], [2 * background] * 2, atol=1e-6)
+        # env_mask reaches each processor once per capture with one flag per environment, and is not published.
+        assert set(camera.data.output) == set(camera.data.info) == {"rgb_hdr", "half"}
+        assert _ScaleProcessor.masks == [[True, True]] * 4
+        camera.reset(env_ids=[1])
+        assert _ScaleProcessor.events == [("reset", "half", [1]), ("reset", "rgb_hdr", [1])]
+    assert _ScaleProcessor.events[2:] == [("close", "half"), ("close", "rgb_hdr")]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_camera_rejects_unsupported_types_only_when_rendered(device):
+    """A processor output may reuse the name of a type the camera cannot render, since it is not rendered."""
+    processor = TensorProcessorCfg(
+        func=_ScaleProcessor,
+        inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME],
+        outputs=["bounding_box_3d"],
+        params={"scale": 1.0},
+    )
+    camera_kwargs = dict(data_types=["bounding_box_3d"], tensor_processors=[processor])
+    with _newton_cube_scene(device, 1, **camera_kwargs) as (camera, capture):
+        capture()
+        assert set(camera.data.output) == {"rgb_hdr", "bounding_box_3d"}
+
+
+@pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_newton_hdr_background_preserves_unlit_geometry(background, device):
+    """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
+    expected = (0.0, 0.0, 0.0) if background is None else (0.050876088, 0.21404114, 0.52252155)
+    with _newton_cube_scene(device, 1, data_types=["rgb_hdr"], background_color=background) as (_, capture):
+        for _ in range(2):
+            pixels = capture()[0]
             np.testing.assert_allclose(pixels[16, 16], 0.0, atol=1e-6)
             np.testing.assert_allclose(pixels[0, 0], expected, atol=1e-6)
 
@@ -242,7 +322,7 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
     pytest.importorskip("isaaclab_newton")
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
-    def make_cfg(data_type: str) -> CameraCfg:
+    def make_cfg(data_type: str, *processors: TensorProcessorCfg) -> CameraCfg:
         return CameraCfg(
             height=64,
             width=64,
@@ -250,11 +330,32 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
             spawn=_SPAWN,
             data_types=[data_type],
             renderer_cfg=NewtonWarpRendererCfg(),
+            tensor_processors=list(processors),
         )
+
+    def processor(source: str, output: str) -> TensorProcessorCfg:
+        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source, CAPTURE_ENV_MASK_NAME], outputs=[output])
 
     validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("simple_shading_full_mdl"))
+    # Processor outputs and env_mask are not requested from the renderer, but processor inputs are.
+    validate(make_cfg("half", processor("rgb_hdr", "half")))
+    with pytest.raises(ValueError, match="simple_shading_full_mdl"):
+        validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
+    with pytest.raises(ValueError, match="reserved"):
+        validate(make_cfg("rgb_hdr", processor("rgb_hdr", CAPTURE_ENV_MASK_NAME)))
+    # A processor input that no earlier processor produces is reported with the processor's name.
+    with pytest.raises(ValueError, match=r"_ScaleProcessor reads \['half'\]"):
+        validate(make_cfg("rgb_hdr", processor("half", "quarter"), processor("rgb_hdr", "half")))
+    # A bare name is neither a class nor an import string, so it would fail only at the first capture.
+    with pytest.raises(ValueError, match="import string"):
+        validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
+    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
+    async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
+    async_cfg.renderer_cfg.async_rendering = True
+    with pytest.raises(ValueError, match="synchronous rendering"):
+        validate(async_cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])
