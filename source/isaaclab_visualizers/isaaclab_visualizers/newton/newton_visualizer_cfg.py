@@ -32,6 +32,14 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
     """
 
+    record_history: bool | None = None
+    """Record bounded display history in Newton's experimental workspace.
+
+    ``None`` uses the launch default: disabled for training and enabled for other workflows.
+    State snapshots copy arrays to the host. The workspace's Record control can change this
+    setting at runtime. Viewers without workspace support ignore it.
+    """
+
     show_joints: bool = False
     """Show joint visualization."""
 

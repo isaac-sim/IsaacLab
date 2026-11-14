@@ -283,9 +283,11 @@ def _build_system(builder: newton.ModelBuilder) -> tuple[int, list[wp.transform]
     return cable_bodies[0], wrapped_xforms
 
 
-def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.transform]) -> None:
+def _initialize_wrapped_cable(
+    sim: sim_utils.SimulationContext, cable_body_start: int, wrapped_xforms: list[wp.transform]
+) -> None:
     """Restore model defaults and wrap the structurally straight cable."""
-    backend = sim_utils.SimulationContext.instance().backend_manager.backend
+    backend = sim.backend_manager.backend
     model = backend.model
     wrapped = wp.array(wrapped_xforms, dtype=wp.transform, device=model.device)
     for state in (backend.state_0, backend.state_1):
@@ -296,10 +298,14 @@ def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.tra
     backend.solver.reset(backend.state_0, flags=0)
 
 
-def run_simulator(sim: sim_utils.SimulationContext) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, cable_body_start: int, wrapped_xforms: list[wp.transform]) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     step_count = 0
     while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+        if sim.consume_reset_request():
+            _initialize_wrapped_cable(sim, cable_body_start, wrapped_xforms)
+            sim.forward()
+            sim.render()
         sim.step()
         step_count += 1
 
@@ -321,9 +327,9 @@ def main() -> None:
         cable_body_start, wrapped_xforms = _build_system(builder)
         builder.color(balance_colors=False)
         sim.reset()
-        _initialize_wrapped_cable(cable_body_start, wrapped_xforms)
+        _initialize_wrapped_cable(sim, cable_body_start, wrapped_xforms)
         print("[INFO]: Setup complete. Right-drag the yellow cable handle downward to lift the red load.", flush=True)
-        run_simulator(sim)
+        run_simulator(sim, cable_body_start, wrapped_xforms)
 
 
 if __name__ == "__main__":

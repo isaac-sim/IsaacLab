@@ -126,10 +126,22 @@ def _apply_display_colors() -> None:
     _set_display_color("/World/Dominoes/Trigger", (0.02, 0.02, 0.02))
 
 
-def run_simulator(sim: sim_utils.SimulationContext) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     step_count = 0
     while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+        if sim.consume_reset_request():
+            dominoes = scene["dominoes"]
+            dominoes.write_body_pose_to_sim_index(body_poses=dominoes.data.default_body_pose)
+            dominoes.write_body_velocity_to_sim_index(body_velocities=dominoes.data.default_body_vel)
+            trigger = scene["trigger"]
+            trigger.write_root_pose_to_sim_index(root_pose=trigger.data.default_root_pose)
+            trigger.write_root_velocity_to_sim_index(root_velocity=trigger.data.default_root_vel)
+            scene.reset()
+            scene.write_data_to_sim()
+            sim.forward()
+            scene.update(0.0)
+            sim.render()
         sim.step()
         step_count += 1
 
@@ -146,7 +158,7 @@ def main() -> None:
     with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(0.0, -18.0, 15.0), target=(0.0, 0.0, 0.0))
-        _scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))
+        scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))
         _apply_display_colors()
         sim.reset()
         print(
@@ -154,7 +166,7 @@ def main() -> None:
             "Right-click and drag the black trigger slab on the right to topple the logo.",
             flush=True,
         )
-        run_simulator(sim)
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":

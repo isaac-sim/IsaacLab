@@ -169,4 +169,10 @@ def run(argv: list[str]) -> None:
                         index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            run_playback(
+                step,
+                dt=env.unwrapped.step_dt,
+                args_cli=args_cli,
+                env_cfg=env_cfg,
+                is_running=env.unwrapped.sim.is_running,
+            )

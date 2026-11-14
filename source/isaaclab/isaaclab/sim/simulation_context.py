@@ -334,7 +334,9 @@ class SimulationContext:
         Without visualizers it keeps running until the caller stops. Once visualizers were started, it keeps
         running while one of them is still open, so closing the last one ends the loop.
         """
-        return not self._visualizers_started or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
+        return not self._is_stopped and (
+            not self._visualizers_started or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
+        )
 
     def require_visual_shapes(self) -> None:
         """Record that something in this simulation draws the physics model's visual-only shapes.
@@ -591,15 +593,26 @@ class SimulationContext:
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.backend_manager.wait_for_playing()
-        visualizers_to_remove = []
-        for viz in self._visualizers:
-            try:
-                while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0)
-            except Exception as exc:
-                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
-                visualizers_to_remove.append(viz)
-        self._remove_visualizers(visualizers_to_remove)
+        while self.is_running() and any(viz.is_training_paused() and viz.is_running() for viz in self._visualizers):
+            # Leave reset requests pending for the environment to restore task and policy state.
+            if (
+                self._reset_requested
+                or any(viz.is_reset_requested() for viz in self._visualizers)
+                or any(viz.consume_step_request() for viz in self._visualizers)
+            ):
+                break
+            visualizers_to_remove = []
+            # Every window needs a UI frame to generate its own transport requests.
+            for viz in self._visualizers:
+                try:
+                    if viz.is_running():
+                        viz.step(0.0)
+                except Exception as exc:
+                    logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
+                    visualizers_to_remove.append(viz)
+            self._remove_visualizers(visualizers_to_remove)
+        if not self.is_running():
+            return
         self._physics_step_count += 1
         self.backend_manager.step()
         if render and self.is_rendering:
