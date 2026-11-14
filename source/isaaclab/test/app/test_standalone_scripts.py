@@ -583,6 +583,13 @@ def test_supervisor_bounds_run_time(readiness_pattern):
     assert result.returncode not in (None, 0)
 
 
+def test_supervisor_dumps_stacks_of_a_timed_out_script():
+    """A script stopped at the time limit reports where its Python threads were."""
+    result = run_until_ready(_python("import time; time.sleep(30)"), None, startup_timeout=3.0)
+    assert result.returncode not in (None, 0)
+    assert 'File "<string>", line 1 in <module>' in result.diagnostics
+
+
 def test_supervisor_retains_fatal_state_when_output_is_truncated(monkeypatch):
     """Fatal output must remain detectable after the bounded output tail rolls over."""
     monkeypatch.setattr(script_cases, "MAX_OUTPUT_BYTES", 64)

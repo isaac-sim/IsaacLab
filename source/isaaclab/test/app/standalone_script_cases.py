@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import ast
+import collections
 import fcntl
 import importlib.util
 import os
 import re
 import selectors
+import shutil
 import signal
 import struct
 import subprocess
@@ -38,6 +40,8 @@ VISUALIZERS = (None, "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 """Visualizer selections of the launch matrix; None launches without ``--viz``."""
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
+HANG_DUMP_SITE = Path(__file__).with_name("hang_dump_site")
+"""Directory whose ``sitecustomize`` lets the supervisor collect stacks from a timed-out launch."""
 DEFAULT_BATCHED_NUM_ENVS = 2
 DEFAULT_MAX_STEPS = 10
 """Steps a script with a ``--max_steps`` option runs before it must exit cleanly."""
@@ -182,6 +186,8 @@ class SmokeResult:
     elapsed: float
     stopped_after_soak: bool
     fatal_patterns: tuple[str, ...] = ()
+    diagnostics: str = ""
+    """Thread summaries and Python stacks collected when the script reached its time limit."""
 
 
 # newton ships the same NVIDIA Ant model the Kit importer bundles, as in test_mjcf_converter.py.
@@ -511,10 +517,11 @@ def run_until_ready(
     monitored through its shutdown.
     """
     start_time = time.monotonic()
+    dump_dir = Path(tempfile.mkdtemp(prefix="isaaclab-script-hang-"))
     process = subprocess.Popen(
         command,
         cwd=ROOT,
-        env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "PYTHONUNBUFFERED": "1"},
+        env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "PYTHONUNBUFFERED": "1", **_hang_dump_env(dump_dir)},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
@@ -528,6 +535,7 @@ def run_until_ready(
     screenshot_captured = False
     fatal_patterns = set()
     monitor_fatal_patterns = True
+    diagnostics = ""
 
     def record_output(chunk: bytes) -> None:
         """Record bounded output while retaining fatal-pattern state."""
@@ -583,6 +591,7 @@ def run_until_ready(
                 returncode = process.poll()
                 break
             if ready_at is None and now - start_time >= startup_timeout:
+                diagnostics = _describe_hung_session(process.pid, dump_dir)
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
@@ -597,6 +606,7 @@ def run_until_ready(
             os.killpg(process.pid, signal.SIGKILL)
             remainder, _ = process.communicate(timeout=5)
             record_output(remainder or b"")
+        shutil.rmtree(dump_dir, ignore_errors=True)
 
     decoded = output.decode(errors="replace")
     if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
@@ -609,6 +619,7 @@ def run_until_ready(
         elapsed=time.monotonic() - start_time,
         stopped_after_soak=stopped_after_soak,
         fatal_patterns=tuple(sorted(fatal_patterns)),
+        diagnostics=diagnostics,
     )
 
 
@@ -622,10 +633,12 @@ def assert_smoke_passed(result: SmokeResult, case: LaunchCase) -> None:
     if case.spec.finite:
         assert result.returncode == 0, (
             f"{case.id} did not exit cleanly after its steps "
-            f"(exit {result.returncode} in {result.elapsed:.1f}s):\n{tail}"
+            f"(exit {result.returncode} in {result.elapsed:.1f}s):\n{tail}{result.diagnostics}"
         )
         return
-    assert result.ready, f"{case.id} did not reach {case.spec.readiness_pattern!r} in {result.elapsed:.1f}s:\n{tail}"
+    assert result.ready, (
+        f"{case.id} did not reach {case.spec.readiness_pattern!r} in {result.elapsed:.1f}s:\n{tail}{result.diagnostics}"
+    )
     assert result.stopped_after_soak or result.returncode == 0, (
         f"{case.id} exited with {result.returncode} before completing the soak:\n{tail}"
     )
@@ -666,6 +679,55 @@ def _literal_cli_options(tree: ast.AST) -> dict[str, tuple[str, ...]]:
             choices = tuple(str(choice) for choice in literal_choices)
         options[option.value] = choices
     return options
+
+
+def _hang_dump_env(dump_dir: Path) -> dict[str, str]:
+    """Return the environment that makes each Python process of a launch dump its stacks into ``dump_dir``."""
+    python_path = os.pathsep.join(path for path in (str(HANG_DUMP_SITE), os.environ.get("PYTHONPATH")) if path)
+    return {"PYTHONPATH": python_path, "ISAACLAB_SCRIPT_HANG_DUMP_DIR": str(dump_dir)}
+
+
+def _describe_hung_session(session_id: int, dump_dir: Path) -> str:
+    """Describe each process of a timed-out launch and collect the stacks of its Python processes.
+
+    Every process in the launch's session is listed with its threads' names, states, and kernel wait channels.
+    Only processes that registered the ``hang_dump_site`` handler and still catch ``SIGUSR1`` are signaled:
+    the signal terminates a process without a handler, and Python drops the handler when it finalizes.
+    """
+    lines = ["", "==== hang diagnostics ===="]
+    requested = []
+    for proc in sorted(Path("/proc").glob("[0-9]*"), key=lambda path: int(path.name)):
+        try:
+            if int((proc / "stat").read_text().rsplit(")", 1)[1].split()[3]) != session_id:
+                continue
+            cmdline = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+            caught = re.search(r"^SigCgt:\s*([0-9a-f]+)", (proc / "status").read_text(), re.MULTILINE)
+            threads = collections.Counter()
+            main_thread = ""
+            for task in (proc / "task").iterdir():
+                state = (task / "stat").read_text().rsplit(")", 1)[1].split()[0]
+                key = ((task / "comm").read_text().strip(), state, (task / "wchan").read_text().strip())
+                threads[key] += 1
+                if task.name == proc.name:
+                    main_thread = " ".join(key)
+        except (OSError, ValueError, IndexError):
+            continue
+        registered = (dump_dir / f"{proc.name}.log").exists()
+        catches = caught is not None and bool(int(caught.group(1), 16) & (1 << (signal.SIGUSR1 - 1)))
+        dump = "requested" if registered and catches else "handler gone" if registered else "not Python"
+        lines.append(f"pid {proc.name} main thread [{main_thread}] stack dump {dump}: {cmdline[:300]}")
+        lines.extend(f"  {count:3d} x {' '.join(key)}" for key, count in threads.most_common())
+        if registered and catches:
+            os.kill(int(proc.name), signal.SIGUSR1)
+            requested.append(dump_dir / f"{proc.name}.log")
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not all(path.stat().st_size for path in requested):
+        time.sleep(0.05)
+    time.sleep(0.1)
+    for dump in sorted(dump_dir.glob("*.log")):
+        if text := dump.read_text(errors="replace").strip():
+            lines.extend((f"---- Python stacks of pid {dump.stem} ----", text))
+    return "\n".join(lines) + "\n"
 
 
 def _terminate_process_group(process: subprocess.Popen) -> None:
