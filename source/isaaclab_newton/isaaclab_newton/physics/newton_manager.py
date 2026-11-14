@@ -27,7 +27,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
-from isaaclab.utils.warp.capture import record_at_end
+from isaaclab.utils.warp.capture import capturing, eager, is_recording, record_at_end
 
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
@@ -359,18 +359,19 @@ class NewtonManager(PhysicsManager):
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver at the next step.
 
-        Inside a graph capture, the refresh of this change alone is recorded instead, so every replay applies it;
-        changes queued before the capture stay queued for the next step.
+        The registration is host work: a recorded part of the step that writes registers it again on each replay. A
+        capture that no :class:`~isaaclab.utils.warp.capture.GraphedCallable` records cannot repeat host work, so it
+        records the refresh of this change alone instead; changes queued before the capture stay queued.
         """
         backend = self.backend
-        if wp.get_device(backend.device).is_capturing:
+        if capturing(backend.device) and not is_recording():
             queued, backend.model_changes = backend.model_changes, {change}
             try:
                 backend.notify_model_changes()
             finally:
                 backend.model_changes = queued
         else:
-            backend.model_changes.add(change)
+            eager(backend.model_changes.add, change)
 
     def invalidate_fk(
         self,
