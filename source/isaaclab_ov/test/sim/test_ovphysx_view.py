@@ -231,6 +231,62 @@ def test_variant_bindings_preserve_environment_and_collection_order(explicit):
         view.close()
 
 
+@pytest.mark.parametrize(
+    "tensor_type",
+    [TensorType.SURFACE_DEFORMABLE_SIM_POSITION, TensorType.DEFORMABLE_SIM_NODAL_POSITION],
+    ids=lambda tensor_type: tensor_type.name.lower(),
+)
+def test_deformable_bindings_restore_numeric_environment_order(tensor_type):
+    """Deformable rows follow ``env_i`` order when the wheel returns lexicographic prim order."""
+    lexicographic = sorted(f"/World/env_{i}/cloth" for i in range(12))
+    numeric = [f"/World/env_{i}/cloth" for i in range(12)]
+
+    class LexicographicPhysX(_FakePhysX):
+        def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+            binding = super().create_tensor_binding(tensor_type=tensor_type, pattern=pattern, prim_paths=prim_paths)
+            binding.prim_paths = list(prim_paths) if prim_paths else lexicographic
+            return binding
+
+    physx = LexicographicPhysX(n=len(numeric))
+    view = OvPhysxView(physx, pattern="/World/env_*/cloth")
+    try:
+        view.binding_for(tensor_type)
+        assert physx.created[-1] == (tensor_type, None, numeric)
+        assert physx.bindings[0].destroy_calls == 1
+        assert view.prim_paths == numeric
+    finally:
+        view.close()
+
+
+def test_deformable_material_binding_is_not_reordered():
+    """Material bindings expose no prim paths, so they keep the wheel's binding unchanged."""
+
+    class NoPathsBinding(_FakeBinding):
+        @property
+        def prim_paths(self):
+            raise RuntimeError("binding does not expose prim path metadata")
+
+        @prim_paths.setter
+        def prim_paths(self, value):
+            pass
+
+    class MaterialPhysX(_FakePhysX):
+        def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+            self.created.append((tensor_type, pattern, prim_paths))
+            binding = NoPathsBinding(tensor_type, self.n)
+            self.bindings.append(binding)
+            return binding
+
+    physx = MaterialPhysX(n=12)
+    view = OvPhysxView(physx, pattern="/World/env_*/cloth")
+    try:
+        binding = view.binding_for(TensorType.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)
+        assert binding is physx.bindings[0]
+        assert len(physx.created) == 1 and binding.destroy_calls == 0
+    finally:
+        view.close()
+
+
 @pytest.fixture(autouse=True)
 def _close_live_views():
     existing_views = set(OvPhysxView._live_views)

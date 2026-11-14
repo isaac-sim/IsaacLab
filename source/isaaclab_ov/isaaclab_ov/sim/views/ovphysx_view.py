@@ -123,6 +123,20 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
 # so the two never drift.
 _CPU_ONLY_NAMES: frozenset[str] = frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES)
 
+# Tensor-type families whose binding rows are re-sorted into numeric environment order. The
+# wheel returns pattern matches in lexicographic prim order (``env_0, env_1, env_10, ...``),
+# so without this row ``i`` stops belonging to ``env_i`` once a scene has more than 10
+# environments. ``DEFORMABLE_MATERIAL_*`` is excluded because those bindings expose no prim
+# paths. TODO(ovphysx): order deformable material views once the wheel exposes their paths.
+_ENV_ORDERED_PREFIXES: tuple[str, ...] = (
+    "RIGID_BODY_",
+    "ARTICULATION_",
+    "SURFACE_DEFORMABLE_",
+    "DEFORMABLE_SIM_",
+    "DEFORMABLE_REST_",
+    "DEFORMABLE_COLLISION_",
+)
+
 # Structured Warp dtype for attributes whose flat trailing dimension has a fixed semantic
 # layout: 7-scalar poses -> ``wp.transformf``, 6-scalar spatial vectors -> ``wp.spatial_vectorf``.
 # :meth:`OvPhysxView.get_attribute` returns an array of this dtype, so callers get a typed
@@ -691,7 +705,7 @@ class OvPhysxView:
         # Variant batches are discovered in clone order, not environment order.
         # Rebind only when needed; explicit path lists also preserve collection body order.
         patterns = kwargs.get("prim_paths", [self._pattern])
-        paths = list(binding.prim_paths) if create_type.name.startswith(("RIGID_BODY_", "ARTICULATION_")) else []
+        paths = list(binding.prim_paths) if create_type.name.startswith(_ENV_ORDERED_PREFIXES) else []
 
         ordered_paths = ordered_clone_paths(paths, patterns)
         if ordered_paths != paths:
