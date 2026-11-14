@@ -752,6 +752,53 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
+def test_rsl_wandb_logger_uploads_environment_heatmap_grid(monkeypatch) -> None:
+    """Environment grid values and labels reach W&B at the logging interval."""
+    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _HeatmapLogger
+
+    uploaded = []
+    monkeypatch.setitem(
+        sys.modules,
+        "wandb",
+        SimpleNamespace(Image=lambda figure: figure, log=lambda images, step: uploaded.append((images, step))),
+    )
+    env = SimpleNamespace(
+        unwrapped=SimpleNamespace(
+            extras={
+                "heatmap": {
+                    "Metrics/ResetSuccessRate": {
+                        "values": torch.tensor([[0.5, float("nan")]]),
+                        "x_labels": ("nut", "gear"),
+                        "y_labels": ("approach",),
+                    },
+                    "Metrics/ResetProbs": {
+                        "values": torch.tensor([[0.25, 0.75]]),
+                        "x_labels": ("nut", "gear"),
+                        "y_labels": ("approach",),
+                        "value_format": ".2%",
+                    },
+                }
+            }
+        )
+    )
+    base_logger = SimpleNamespace(writer=object(), log=mock.Mock())
+    logger = _HeatmapLogger(base_logger, env)
+
+    logger.log(it=249)
+    assert uploaded == []
+    logger.log(it=250)
+
+    images, step = uploaded[0]
+    assert step == 250
+    assert set(images) == {"Metrics/ResetSuccessRate", "Metrics/ResetProbs"}
+    axes = images["Metrics/ResetSuccessRate"].axes[0]
+    assert [tick.get_text() for tick in axes.get_xticklabels()] == ["nut", "gear"]
+    assert [tick.get_text() for tick in axes.get_yticklabels()] == ["approach"]
+    assert [label.get_text() for label in axes.texts] == ["50%", "—"]
+    assert [label.get_text() for label in images["Metrics/ResetProbs"].axes[0].texts] == ["25.00%", "75.00%"]
+    base_logger.log.assert_has_calls([mock.call(it=249), mock.call(it=250)])
+
+
 @pytest.mark.parametrize("mode", ["train", "play"])
 def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -> None:
     """External task registration preserves selector aliases through callback filtering."""
