@@ -17,6 +17,9 @@ __all__ = [
     "LeePosControllerCfg",
     "LeeVelController",
     "LeeVelControllerCfg",
+    "Ik7dController",
+    "Ik7dControllerCfg",
+    "JointMap",
 ]
 
 from .lee_controller_utils import compute_body_torque, compute_desired_orientation, yaw_rate_to_body_angvel
@@ -30,3 +33,5 @@ from .lee_position_control import LeePosController
 from .lee_position_control_cfg import LeePosControllerCfg
 from .lee_velocity_control import LeeVelController
 from .lee_velocity_control_cfg import LeeVelControllerCfg
+from .ik_7d_controller import Ik7dController, JointMap
+from .ik_7d_controller_cfg import Ik7dControllerCfg
