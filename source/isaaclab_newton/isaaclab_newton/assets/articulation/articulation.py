@@ -38,6 +38,7 @@ from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_wi
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.assets._views import _validate_asset_view
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 
@@ -3265,7 +3266,9 @@ class Articulation(BaseArticulation):
             re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            homogeneous=False,
         )
+        _validate_asset_view(self._root_view, "Articulation")
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device, backend_manager=self._backend_manager)

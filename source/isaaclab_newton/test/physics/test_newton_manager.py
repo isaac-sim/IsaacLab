@@ -330,6 +330,8 @@ def _recording_backend(
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
         state_force_callbacks=[],
+        post_solver_substep_callbacks=[],
+        solver_observables=None,
         post_step_callbacks=[],
         solver_init_callbacks=[],
         decimation=1,
@@ -432,7 +434,8 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         backend._allocate_contacts()
 
 
-def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch):
+@pytest.mark.parametrize("substep_consumer", [False, True], ids=["sensor_only", "existing_contact_f"])
+def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch, substep_consumer):
     """A new sensor must be included in the next captured step without reallocating existing contacts."""
     allocated, requests = [], []
     contacts = SimpleNamespace(rigid_contact_max=2)
@@ -444,11 +447,13 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
             requests.append(kwargs["request_contact_attributes"])
 
     solver = SimpleNamespace(observables=lambda kinds, *, contacts: allocated.append((kinds, contacts)) or object())
+    existing = SimpleNamespace(kinds=RecordingSensor.solver_observable_kinds) if substep_consumer else None
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
         model=object(),
         solver=solver,
         contacts=contacts,
+        solver_observables=existing,
         graphs={"simulate": object()},
     )
     monkeypatch.setattr(newton_backend, "SensorContact", RecordingSensor)
@@ -456,13 +461,15 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
     backend.add_contact_sensor(body_names_expr="foot")
 
     assert requests == [False]
-    assert allocated == [(RecordingSensor.solver_observable_kinds, contacts)]
+    assert allocated == ([] if substep_consumer else [(RecordingSensor.solver_observable_kinds, contacts)])
     assert backend.contact_observables is not None
+    if substep_consumer:
+        assert backend.contact_observables is existing
     assert backend.graphs == {}
     backend.graphs = {"simulate": object()}
     backend.add_contact_sensor(body_names_expr="hand")
     assert backend.graphs == {}
-    assert len(allocated) == 1
+    assert len(allocated) == int(not substep_consumer)
 
 
 @pytest.mark.parametrize("solver_cfg", [FeatherstoneSolverCfg(), MPMSolverCfg()], ids=["featherstone", "mpm"])
@@ -477,11 +484,11 @@ def test_contact_sensor_requires_solver_contact_force_observables(solver_cfg):
 
 
 @pytest.mark.parametrize(
-    ("decimation", "graphable"),
-    [(1, True), (2, True), (2, False)],
-    ids=["physics_only", "captured_actuators", "eager_actuators"],
+    ("decimation", "graphable", "substep_consumer"),
+    [(1, True, False), (2, True, False), (2, False, False), (2, True, True)],
+    ids=["physics_only", "captured_actuators", "eager_actuators", "shared_contact_f"],
 )
-def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable):
+def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable, substep_consumer):
     events = []
     backend = _recording_backend(events, num_substeps=2)
     backend.contacts = object()
@@ -489,6 +496,11 @@ def test_solver_observables_reach_contact_sensors_once_per_step(decimation, grap
     backend.contact_sensors["foot"] = SimpleNamespace(
         update=lambda state, contacts, *, observables: events.append(("sensor", contacts, observables))
     )
+    if substep_consumer:
+        backend.solver_observables = backend.contact_observables
+        backend.post_solver_substep_callbacks.append(
+            lambda contacts, outputs, state, dt: events.append(("substep", outputs, state.name))
+        )
     if decimation > 1:
         backend.actuators_active = True
         backend.actuators = SimpleNamespace(is_all_graphable=graphable, step=lambda *args, **kwargs: None)
@@ -496,8 +508,14 @@ def test_solver_observables_reach_contact_sensors_once_per_step(decimation, grap
 
     backend.step()
 
-    assert events.count(("observables", backend.contact_observables)) == 1
+    assert events.count(("observables", backend.contact_observables)) == (4 if substep_consumer else 1)
     assert events.count(("sensor", backend.contacts, backend.contact_observables)) == 1
+    if substep_consumer:
+        assert events.count(("substep", backend.contact_observables, "state_0")) == 4
+        for index, event in enumerate(events):
+            if event[0] == "substep":
+                assert events[index - 1] == ("observables", backend.contact_observables)
+                assert events[index + 1] == ("clear", "state_0")
 
 
 @pytest.mark.parametrize("single_state", [True, False], ids=["single_state", "double_state"])
@@ -938,6 +956,13 @@ def test_captured_step_holds_staged_forces_and_recaptures_after_decimation_chang
             assert manager.backend.graphs
             np.testing.assert_allclose(manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
+
+        substeps = wp.zeros(1, dtype=wp.int32, device="cuda:0")
+        manager.register_post_solver_substep_callback(
+            lambda contacts, observables, state, dt: wp.launch(_count_steps, 1, inputs=[substeps])
+        )
+        sim.step(render=False)
+        assert substeps.numpy()[0] == num_substeps * decimation
 
 
 def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(monkeypatch):

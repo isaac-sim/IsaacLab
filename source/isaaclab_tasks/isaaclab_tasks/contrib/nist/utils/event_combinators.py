@@ -35,7 +35,7 @@ from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
-from isaaclab_tasks.contrib.nist.utils.sampling import Sampler, SamplerCfg
+from isaaclab_tasks.utils.sampling import Sampler, SamplerCfg
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 if TYPE_CHECKING:

@@ -106,6 +106,13 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``"explicit"`` (same as Newton's default when ``broad_phase=None``).
     """
 
+    include_static_kinematic_pairs: bool = True
+    """Whether to generate static-kinematic and kinematic-kinematic contacts.
+
+    Static-static pairs are always excluded. Set to ``False`` to also exclude
+    static-kinematic and kinematic-kinematic pairs. Defaults to ``True``, matching Newton's default.
+    """
+
     reduce_contacts: bool = True
     """Whether to reduce contacts for mesh-mesh collisions.
 

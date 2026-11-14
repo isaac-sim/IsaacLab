@@ -25,6 +25,7 @@ from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.assets._views import _validate_asset_view
 
 from .rigid_object_data import RigidObjectData
 
@@ -999,7 +1000,9 @@ class RigidObject(BaseRigidObject):
             self._backend_manager.backend.model,
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
+            homogeneous=False,
         )
+        _validate_asset_view(self._root_view, "Rigid-object")
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)

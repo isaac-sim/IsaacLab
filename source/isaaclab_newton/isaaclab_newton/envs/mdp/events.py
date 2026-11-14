@@ -59,8 +59,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._restitution_range = cfg.params["restitution_range"]
 
         model = self._newton_manager.backend.model
-        self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
-        self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+        friction_binding = asset._root_view.get_attribute("shape_material_mu", model)  # type: ignore
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # The view's shape axis follows the model's shape order, which is not grouped by body,
@@ -70,7 +69,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             shape_indices_list = [shape_id for body_id in backend_body_ids for shape_id in body_shapes[body_id]]
             self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
         else:
-            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
+            self._shape_indices = torch.arange(friction_binding.shape[2], dtype=torch.long)
 
     def __call__(
         self,
@@ -106,8 +105,11 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         friction_range = torch.tensor(self._static_friction_range, device=device)
         restitution_range_t = torch.tensor(self._restitution_range, device=device)
-        friction_view = wp.to_torch(self._friction_binding)
-        restitution_view = wp.to_torch(self._restitution_binding)
+        model = self._newton_manager.backend.model
+        friction_binding = self.asset._root_view.get_attribute("shape_material_mu", model)
+        restitution_binding = self.asset._root_view.get_attribute("shape_material_restitution", model)
+        friction_view = wp.to_torch(friction_binding)[:, 0]
+        restitution_view = wp.to_torch(restitution_binding)[:, 0]
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         if self._newton_manager.shares_materials:
@@ -136,6 +138,9 @@ class randomize_rigid_body_material(ManagerTermBase):
             friction_view[env_rows, shape_idx] = friction_samples
             restitution_view[env_rows, shape_idx] = restitution_samples
 
+        # Non-affine shape layouts return gathered copies that need an explicit scatter.
+        self.asset._root_view.set_attribute("shape_material_mu", model, friction_binding)
+        self.asset._root_view.set_attribute("shape_material_restitution", model, restitution_binding)
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 

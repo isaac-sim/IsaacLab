@@ -7,6 +7,7 @@
 
 from collections.abc import Iterator
 from copy import copy
+from itertools import product
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,7 @@ from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
     JointEffortActionCfg,
@@ -60,6 +61,10 @@ def device(request: pytest.FixtureRequest) -> str:
 def event_env(
     request: pytest.FixtureRequest, device: str, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[ManagerBasedEnv]:
+    solver_cfg = getattr(request, "param", MJWarpSolverCfg())
+    filler_counts = ()
+    if isinstance(solver_cfg, tuple):
+        solver_cfg, filler_counts = solver_cfg
     source = Path(__file__).parents[1] / "assets/data/articulation_ordering_branching.usda"
     stage = Usd.Stage.Open(Usd.Stage.Open(str(source)).Flatten())
     body_names = ["base", "left_upper", "left_tip", "right_upper", "right_tip"]
@@ -86,12 +91,35 @@ def event_env(
         joint_ordering=("right_elbow", "right_shoulder", "left_elbow", "left_shoulder"),
         body_ordering=list(reversed(body_names)),
     )
+    # Different background collider counts make the robot's shape offsets non-affine across worlds.
+    fillers = []
+    for count in filler_counts:
+        filler = Usd.Stage.CreateInMemory()
+        filler.SetDefaultPrim(UsdGeom.Xform.Define(filler, "/Filler").GetPrim())
+        for index in range(count):
+            collider = UsdGeom.Mesh.Define(filler, f"/Filler/Collider_{index}")
+            collider.CreatePointsAttr(list(product((-0.025, 0.025), repeat=3)))
+            collider.CreateFaceVertexCountsAttr([4] * 6)
+            collider.CreateFaceVertexIndicesAttr(
+                [0, 1, 3, 2, 4, 6, 7, 5, 0, 4, 5, 1, 2, 3, 7, 6, 0, 2, 6, 4, 1, 5, 7, 3]
+            )
+            UsdGeom.Xformable(collider).AddTranslateOp().Set((5.0, index * 0.1, 0.0))
+            UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+            UsdPhysics.MeshCollisionAPI.Apply(collider.GetPrim()).CreateApproximationAttr("convexHull")
+        filler_path = path.with_name(f"filler_{count}.usda")
+        filler.Export(str(filler_path))
+        fillers.append(sim_utils.UsdFileCfg(usd_path=str(filler_path)))
+    if fillers:
+        scene_cfg.filler = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Filler",
+            spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=fillers, random_choice=False),
+        )
     observations = ObservationGroupCfg()
     observations.joints = ObservationTermCfg(func=joint_pos)
     cfg = ManagerBasedEnvCfg(
         sim=SimulationCfg(
             device=device,
-            physics=NewtonCfg(solver_cfg=getattr(request, "param", MJWarpSolverCfg()), use_cuda_graph=False),
+            physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=False),
         ),
         scene=scene_cfg,
         decimation=1,
@@ -108,7 +136,7 @@ def event_env(
         env.close()
 
 
-@pytest.mark.parametrize("event_env", [MJWarpSolverCfg(), KaminoPADMMSolverCfg()], indirect=True)
+@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2)), (KaminoPADMMSolverCfg(), (1, 2))], indirect=True)
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model
@@ -136,6 +164,9 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
+    # Preserve another writer's updates made after this term was constructed.
+    friction[0] = expected_friction[0] = 0.7
+    restitution[0] = expected_restitution[0] = 0.2
     term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
