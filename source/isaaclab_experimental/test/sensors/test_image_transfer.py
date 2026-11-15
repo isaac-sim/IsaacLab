@@ -17,7 +17,6 @@ from isaaclab_experimental.image_transfer import (
 )
 from isaaclab_experimental.image_transfer import processor as processor_module
 
-from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
@@ -73,12 +72,9 @@ def _controls(value):
     return torch.full((2, 2, 3, 3), value, dtype=torch.uint8)
 
 
-def _buffers(controls, mask=None):
-    """Camera buffers holding ``controls`` and, when given, the capture mask."""
-    buffers = {"control": ProxyArray(wp.from_torch(controls))}
-    if mask is not None:
-        buffers[CAPTURE_ENV_MASK_NAME] = ProxyArray(wp.array(mask, dtype=wp.bool, device="cpu"))
-    return buffers
+def _buffers(controls):
+    """Camera buffers holding ``controls``."""
+    return {"control": ProxyArray(wp.from_torch(controls))}
 
 
 def _processor(**kwargs):
@@ -88,7 +84,8 @@ def _processor(**kwargs):
 
 
 def _rgb(processor, value, mask=None):
-    return processor(_buffers(_controls(value), mask))["rgb"].torch
+    env_mask = None if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
+    return processor(_buffers(_controls(value)), env_mask=env_mask)["rgb"].torch
 
 
 def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
@@ -111,11 +108,15 @@ def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
     assert torch.equal(output.torch, _controls(225))
 
 
-def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim):
+@pytest.mark.parametrize(
+    "selection",
+    [{"env_ids": torch.tensor([1])}, {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")}],
+)
+def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection):
     processor, model = _processor(initial_frames=1, update_frames=1)
     _rgb(processor, 10)
 
-    processor.reset(torch.tensor([1]))
+    processor.reset(**selection)
     assert torch.equal(processor._output[1], torch.zeros(2, 3, 3, dtype=torch.uint8))
     assert torch.equal(processor._output[0], torch.full((2, 3, 3), 245, dtype=torch.uint8))
     _rgb(processor, 10)

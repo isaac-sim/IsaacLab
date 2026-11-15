@@ -12,7 +12,6 @@ from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
-from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 
 pytestmark = pytest.mark.unit
 
@@ -47,7 +46,7 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     # The renderer produces depth; the processors produce the published rgb.
     assert chain[0].inputs == ["distance_to_image_plane"] and chain[-1].outputs == ["rgb"]
     assert isinstance(chain[0], FunctionProcessorCfg) and chain[0].params == {"near": 0.2, "far": 1.5}
-    assert isinstance(chain[1], CosmosTransferProcessorCfg) and chain[1].inputs == ["control", CAPTURE_ENV_MASK_NAME]
+    assert isinstance(chain[1], CosmosTransferProcessorCfg) and chain[1].inputs == ["control"]
     # Square pixels: apertures scale with the canvas, and the crop covers the original apertures.
     pixel = camera.spawn.horizontal_aperture / canvas[0]
     assert camera.spawn.vertical_aperture == pytest.approx(pixel * canvas[1])
@@ -85,7 +84,7 @@ def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output
 
     assert chain[0].function is _first_three_channels and chain[0].inputs == [render_output]
     assert isinstance(chain[1], CosmosTransferProcessorCfg) and len(chain) == 3  # control, Cosmos, resize
-    assert chain[1].inputs == ["control", CAPTURE_ENV_MASK_NAME] and chain[-1].outputs == ["rgb"]
+    assert chain[1].inputs == ["control"] and chain[-1].outputs == ["rgb"]
     # The renderer produces only the control's input, including rgb when the control is made from the rendered image.
     assert _render_data_types(camera) == [render_output]
 

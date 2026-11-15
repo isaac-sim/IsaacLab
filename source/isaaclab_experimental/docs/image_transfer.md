@@ -60,7 +60,7 @@ Every view needs a complete chunk before a chunk is generated, and
 `max_pending_frames` bounds each view's queue.
 
 With `update_period > 0`, environments that reset at different times capture on
-different steps. The processor reads the camera's `env_mask` input and queues
+different steps. The camera passes `env_mask` to the processor, which queues
 controls only for the views captured in each call.
 
 Resetting a view clears its queued controls and its visible image. Its next chunk
