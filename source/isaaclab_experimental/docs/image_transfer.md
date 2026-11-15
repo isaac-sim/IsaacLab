@@ -9,6 +9,9 @@ For a ready-made adapter with a separately started Cosmos service, see
 
 ## Camera integration
 
+Use synchronous rendering (`renderer_cfg.async_rendering=False` for OVRTX). Image transfer advances temporal
+history, so delayed or repeated images must not be treated as fresh controls.
+
 Add the processors to `CameraCfg.tensor_processors`. The camera requests their inputs
 that no processor produces, here `distance_to_image_plane`, from its renderer, runs the
 processors once per captured image, resets and closes them with the camera, and
