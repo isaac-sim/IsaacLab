@@ -316,35 +316,51 @@ reads. Camera resets call each processor's ``reset`` with the reset environments
 
 .. code-block:: python
 
-   from isaaclab.utils import replace
-   from isaaclab.utils.tensor_processors import TensorProcessorCfg
+   import torch
+   import warp as wp
 
-   # ShadeDepth is a TensorProcessor class that shades a depth image into an rgb image.
-   depth_camera = replace(
-       front_camera,
-       tensor_processors=[
-           TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
-       ],
-   )
+   from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+   from isaaclab.utils.warp import ProxyArray
 
-Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.output["rgb"]`` holds the
-processor's result. The render outputs that processors read, here ``distance_to_image_plane``, are published as
+
+   class ShadeDepth(TensorProcessor):
+       """Shade a depth image into a gray rgb image: near is white, 10 m and farther is black."""
+
+       def __init__(self, cfg, data):
+           super().__init__(cfg)
+           depth = data["distance_to_image_plane"].torch  # (N, H, W, 1)
+           self._rgb = ProxyArray(wp.zeros((*depth.shape[:3], 3), dtype=wp.uint8, device=str(depth.device)))
+
+       def __call__(self, data, env_mask=None):
+           depth = data["distance_to_image_plane"].torch
+           shade = (255 * (1 - depth / 10).clamp(0, 1)).to(torch.uint8)
+           self._rgb.torch.copy_(shade.expand(-1, -1, -1, 3))
+           return {"rgb": self._rgb}
+
+
+   front_camera.tensor_processors = [
+       TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
+   ]
+
+Here the renderer also renders ``distance_to_image_plane`` for the processor, and ``camera.data.output["rgb"]``
+holds the processor's result instead of a rendered image. The render outputs that processors read, here ``distance_to_image_plane``, are published as
 well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
 produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
 raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
 :attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
+A processor class may define a ``prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method. Camera
+construction calls it before the scene is cloned or exported; it returns the configuration to use, or ``None`` to
+remove the processor.
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
-capture renders every environment. Stateful processors (frame stacking, temporal filters, video generation) can
-list ``isaaclab.sensors.camera.CAPTURE_ENV_MASK_NAME`` in their ``inputs`` to receive a boolean mask of the
-environments due for the capture, whose frame and timestamp advance. The name is reserved, and the mask is not
-published as an output. The mask describes
-the current capture request, so processors that read it need synchronous rendering; with ``async_rendering=True``
-the camera raises an error.
+capture renders every environment. The camera calls each processor with ``env_mask``, a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
+filters, video generation) use it to advance only those rows. With ``async_rendering=True`` the published image
+comes from an earlier request than the mask, so the camera passes ``env_mask=None``.
 
 With ``async_rendering=True``, the capture after a camera's first capture and after each reset publishes no new
 image, and the processors run on the previous image again. Processors that keep state between captures therefore
-need synchronous rendering as well.
+need synchronous rendering.
 
 Post-render image signal processing
 -----------------------------------
