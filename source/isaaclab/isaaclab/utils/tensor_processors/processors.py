@@ -171,32 +171,26 @@ class DigitalFilter(TensorProcessor):
         index_fill_(self.x_n, selection, 0.0)
         index_fill_(self.y_n, selection, 0.0)
 
-    def __call__(self, data: torch.Tensor, env_mask: wp.array | None = None) -> torch.Tensor:
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
 
         Args:
             data: The data to apply filter to.
-            env_mask: Boolean mask selecting environments to advance. None advances all environments.
 
         Returns:
             Filtered data. Shape is the same as data.
         """
-        mask = None if env_mask is None else wp.to_torch(env_mask).reshape((-1,) + (1,) * (data.ndim - 1))
-        # Advance selected histories without gathering variable-length GPU indices.
-        x_n = torch.roll(self.x_n, shifts=1, dims=-1)
-        x_n[..., 0] = data
-        self.x_n = x_n if mask is None else torch.where(mask.unsqueeze(-1), x_n, self.x_n)
+        # move history window for input
+        self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
+        self.x_n[..., 0] = data
 
         # calculate current filter value: y[i] = Y*A - X*B
         y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
         y_i.squeeze_(-1)
 
-        if mask is not None:
-            y_i = torch.where(mask, y_i, self.y_n[..., 0])
-        # Preserve both the last output and older history for inactive environments.
-        y_n = torch.roll(self.y_n, shifts=1, dims=-1)
-        y_n[..., 0] = y_i
-        self.y_n = y_n if mask is None else torch.where(mask.unsqueeze(-1), y_n, self.y_n)
+        # move history window for output and add current filter value to history
+        self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
+        self.y_n[..., 0] = y_i
 
         return y_i
 
@@ -253,24 +247,18 @@ class Integrator(TensorProcessor):
         index_fill_(self.integral, selection, 0.0)
         index_fill_(self.y_prev, selection, 0.0)
 
-    def __call__(self, data: torch.Tensor, env_mask: wp.array | None = None) -> torch.Tensor:
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.
 
         Args:
             data: The data to integrate.
-            env_mask: Boolean mask selecting environments to advance. None advances all environments.
 
         Returns:
             Integral of input signal. Shape is the same as data.
         """
         # integrate using middle Riemann sum
-        increment = (data + self.y_prev) / 2 * self._cfg.dt
-        if env_mask is None:
-            self.integral += increment
-            self.y_prev[:] = data
-        else:
-            mask = wp.to_torch(env_mask).reshape((-1,) + (1,) * (data.ndim - 1))
-            self.integral.copy_(torch.where(mask, self.integral + increment, self.integral))
-            self.y_prev.copy_(torch.where(mask, data, self.y_prev))
+        self.integral += (data + self.y_prev) / 2 * self._cfg.dt
+        # update previous value
+        self.y_prev[:] = data
 
         return self.integral
