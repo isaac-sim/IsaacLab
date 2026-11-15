@@ -41,6 +41,8 @@ class DeformableStageEntry:
     indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
     vis_vertices: np.ndarray = field(default_factory=lambda: np.empty((0, 3), dtype=np.float32))
     vis_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
+    vis_mesh_is_gaussian_splats: bool = False
+    """Whether the visual is a Gaussian splat, whose ``vis_vertices`` are splat centers [m]."""
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Parent-frame world position [m]."""
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
@@ -75,7 +77,9 @@ def deformable_geometry_batches(
             else:
                 if entry.deformable_type != "volume":
                     raise ValueError(f"Surface visual topology differs from its native nodes: {entry.root_path}")
-                remap = build_volume_vis_barycentric_remap(entry.vertices, entry.indices, entry.vis_vertices)
+                remap = build_volume_vis_barycentric_remap(
+                    entry.vertices, entry.indices, entry.vis_vertices, device=device
+                )
                 if remap is None:
                     raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {entry.root_path}")
                 prototype_remaps[key] = (remap.tet_vertex_indices.numpy(), remap.bary_weights.numpy())
@@ -96,16 +100,27 @@ def deformable_geometry_batches(
     return batches
 
 
-def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: int):
-    """Choose the visual mesh among candidates when several non-sim meshes exist.
+def _visual_points(prim) -> Sequence:
+    """Return a visual prim's authored points: a Gaussian splat's centers, or a point-based prim's points."""
+    if prim.GetTypeName() == "ParticleField3DGaussianSplat":
+        return prim.GetAttribute("positions").Get() or []
+    return UsdGeom.PointBased(prim).GetPointsAttr().Get() or []
 
-    Prefers a direct sibling of the simulation mesh, then name hints
+
+def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: int):
+    """Choose the visual among candidates when several non-sim meshes or Gaussian splats exist.
+
+    A Gaussian splat takes precedence over visual meshes. Otherwise prefers a direct sibling of
+    the simulation mesh, then name hints
     (``visual`` / ``render`` / ``display`` / ``proxy``), then a matching point
     count, then a shorter / lexicographically stable path.
     """
     if not vis_candidates:
         return sim_mesh_prim
 
+    vis_candidates = [
+        prim for prim in vis_candidates if prim.GetTypeName() == "ParticleField3DGaussianSplat"
+    ] or vis_candidates
     if len(vis_candidates) == 1:
         return vis_candidates[0]
 
@@ -117,7 +132,7 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
         name = prim.GetName().lower()
         name_bonus = int(any(token in name for token in ("visual", "render", "display", "proxy")))
         sibling_bonus = int(prim.GetParent() == sim_parent)
-        count_bonus = int(len(UsdGeom.PointBased(prim).GetPointsAttr().Get() or []) == sim_vertex_count)
+        count_bonus = int(len(_visual_points(prim)) == sim_vertex_count)
         path = prim.GetPath().pathString
         return (sibling_bonus, name_bonus, count_bonus, -path.count("/"), path)
 
@@ -138,11 +153,14 @@ def deformable_entry(root_prim: Usd.Prim, *, env_template: str | None = None) ->
     stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
     mesh_prims = sim_utils.get_all_matching_child_prims(
-        prim_path=root_path, predicate=lambda p: p.GetTypeName() in ("TetMesh", "Mesh"), stage=stage
+        prim_path=root_path,
+        predicate=lambda p: p.GetTypeName() in ("TetMesh", "Mesh", "ParticleField3DGaussianSplat"),
+        stage=stage,
     )
     tet_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "TetMesh"]
+    splat_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "ParticleField3DGaussianSplat"]
     mesh_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "Mesh"]
-    sim_candidates, vis_candidates = [], []
+    sim_candidates, vis_candidates = [], list(splat_prims)
     for prim in mesh_prims:
         schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
         is_sim = any("DeformableSimAPI" in schema for schema in schemas)
@@ -168,6 +186,9 @@ def deformable_entry(root_prim: Usd.Prim, *, env_template: str | None = None) ->
         sim_mesh_prim = sim_candidates[0] if sim_candidates else mesh_prims[0]
         if not sim_candidates:
             vis_candidates = []
+        if splat_prims:
+            logger.warning("Gaussian splats under surface deformable '%s' do not follow it and are skipped.", root_path)
+            vis_candidates = [prim for prim in vis_candidates if prim not in splat_prims]
         usd_mesh = UsdGeom.Mesh(sim_mesh_prim)
         pts = usd_mesh.GetPointsAttr().Get() or []
         indices = np.asarray(usd_mesh.GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
@@ -185,7 +206,7 @@ def deformable_entry(root_prim: Usd.Prim, *, env_template: str | None = None) ->
     vertices = (vertices @ mesh_to_parent[:3, :3] + mesh_to_parent[3, :3]).astype(np.float32)
     vis_vertices = vertices
     if vis_mesh_prim != sim_mesh_prim:
-        vis_pts = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+        vis_pts = _visual_points(vis_mesh_prim)
         vis_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(vis_mesh_prim) * world_to_parent)
         vis_vertices = np.asarray(vis_pts or [], dtype=np.float32).reshape(-1, 3)
         vis_vertices = (vis_vertices @ vis_to_parent[:3, :3] + vis_to_parent[3, :3]).astype(np.float32)
@@ -212,6 +233,7 @@ def deformable_entry(root_prim: Usd.Prim, *, env_template: str | None = None) ->
         indices=indices,
         vis_vertices=vis_vertices,
         vis_indices=vis_indices,
+        vis_mesh_is_gaussian_splats=vis_mesh_prim.GetTypeName() == "ParticleField3DGaussianSplat",
         init_pos=tuple(parent_transform.ExtractTranslation()),
         init_rot=(*rotation.GetImaginary(), rotation.GetReal()),
         source_env_origin=source_env_origin,
