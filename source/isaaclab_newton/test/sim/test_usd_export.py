@@ -575,9 +575,9 @@ def test_joints_the_import_lacks_or_holds_with_other_dofs_are_unmatched():
 
     revolute, ball = newton.ModelBuilder.add_joint_revolute, newton.ModelBuilder.add_joint_ball
     live = model([("A", revolute), ("B", revolute), ("C", revolute)])
-    assert _AlignedBase(live, model([("A", revolute), ("B", ball)])).unmatched["joint"] == {1, 2}
+    assert _AlignedBase(live, model([("A", revolute), ("B", ball)]), {}).unmatched["joint"] == {1, 2}
     with pytest.raises(ValueError, match="2 entities labeled 'A'"):
-        _AlignedBase(live, model([("A", revolute), ("A", revolute)]))
+        _AlignedBase(live, model([("A", revolute), ("A", revolute)]), {})
 
 
 def test_merged_joint_dofs_map_to_their_usd_joints():

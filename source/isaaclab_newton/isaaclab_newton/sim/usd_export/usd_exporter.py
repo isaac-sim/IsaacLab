@@ -579,6 +579,7 @@ class UsdExporter(BaseUsdExporter):
         )
         changed = self._compute_changed_masks(values, base) | self._compute_changed_masks(material, base)
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
+        shape_bodies = model.shape_body.numpy()
         edits, changed_materials, complete, generated = [], {}, {}, []
         physics = self._get_collider_physics_materials(stage)
         bound = {}
@@ -593,7 +594,7 @@ class UsdExporter(BaseUsdExporter):
             if not prim:
                 # Shapes Newton's import generates have no prim. Its cable import gives a cable's capsules the physics
                 # material of their curve, which states their material where they agree, and its own gap and margin.
-                path = label.rpartition("_edge_capsule_")[0]
+                path = base.curves.get(model.body_label[shape_bodies[shape]], "")
                 curve = stage.GetPrimAtPath(path) if path else None
                 agree = bool(curve) and all(self._is_close(complete.get(path, live)[a], v) for a, v in live.items())
                 if any(changed[n][shape] for n in SHAPE_ATTRIBUTES) or (
@@ -743,8 +744,15 @@ class UsdExporter(BaseUsdExporter):
         builder = newton.ModelBuilder()
         register_builder_attributes(builder, solver_cfg)
         # The stage's own actuator networks, which Isaac Lab loaded when it built the scene.
-        builder.add_usd(stage, schema_resolvers=usd_schema_resolvers(solver_cfg), allow_unsafe_torch_checkpoints=True)
-        return _AlignedBase(model, builder.finalize(device="cpu"))
+        result = builder.add_usd(
+            stage,
+            schema_resolvers=usd_schema_resolvers(solver_cfg),
+            allow_unsafe_torch_checkpoints=True,
+            return_deformable_results=True,
+        )
+        base = builder.finalize(device="cpu")
+        curves = {base.body_label[b]: path for path, (bodies, _) in result["path_cable_map"].items() for b in bodies}
+        return _AlignedBase(model, base, curves)
 
     def _select_env_entities(self, worlds) -> np.ndarray:
         return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
@@ -771,11 +779,12 @@ class _AlignedBase:
     The base, an import of the exported environment alone, orders entities differently from the live model even
     with one environment, and holds none of the other environments. An entity of the live model that the base does
     not have keeps its live value, so it never counts as changed; :attr:`unmatched` holds these bodies, shapes and
-    joints, a joint also when the base gives it another DOF count.
+    joints, a joint also when the base gives it another DOF count. :attr:`curves` maps the label of each cable
+    segment body the import generates to its curve's path.
     """
 
-    def __init__(self, live: newton.Model, base: newton.Model):
-        self._live, self._base, self._arrays = live, base, {}
+    def __init__(self, live: newton.Model, base: newton.Model, curves: dict[str, str]):
+        self._live, self._base, self._arrays, self.curves = live, base, {}, curves
         joints = self._match_labels(live.joint_label, base.joint_label)
         self._pairs = {
             "body": self._match_labels(live.body_label, base.body_label),
