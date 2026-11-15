@@ -225,8 +225,7 @@ class CameraCfg(SensorBaseCfg):
     Defaults to an empty list.
 
     Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
-    documentation for inputs, outputs, ``env_mask`` and the optional ``prepare_camera`` class method.
-    Requires synchronous rendering.
+    documentation for inputs, outputs, ``env_mask``, asynchronous rendering, and ``prepare_camera``.
     """
 
     def __post_init__(self):
@@ -269,9 +268,12 @@ class CameraCfg(SensorBaseCfg):
                 )
         if self.renderer_cfg is None:
             return
-        if self.tensor_processors and getattr(self.renderer_cfg, "async_rendering", False):
+        if getattr(self.renderer_cfg, "async_rendering", False) and any(
+            cfg.func.requires_fresh_capture for cfg in self.tensor_processors
+        ):
             raise ValueError(
-                "Camera tensor processors require synchronous rendering; set renderer_cfg.async_rendering=False."
+                "Camera processors that require fresh captures require synchronous rendering;"
+                " set renderer_cfg.async_rendering=False."
             )
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:

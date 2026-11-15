@@ -296,6 +296,8 @@ class Camera(SensorBase):
                 for cfg in self.cfg.tensor_processors
             ]
             self.cfg.tensor_processors = [cfg for cfg in prepared if cfg is not None]
+        # Legacy ISP conversion and preparation can change the chain after SensorBase validation.
+        self.cfg.validate_config()
         self._render_data_types = _render_data_types(self.cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
@@ -821,6 +823,9 @@ class Camera(SensorBase):
         """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
+        # The current mask cannot describe an earlier asynchronous request's image.
+        if getattr(self.cfg.renderer_cfg, "async_rendering", False):
+            env_mask = None
         buffers = dict(self._render_outputs)
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.

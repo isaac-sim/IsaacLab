@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, ClassVar, Union
 
 import torch
 import warp as wp
@@ -43,6 +43,12 @@ class TensorProcessor(ABC):
     results must copy them. Warp-based GPU work uses the caller's current Warp stream.
     """
 
+    requires_fresh_capture: ClassVar[bool] = True
+    """Whether camera use requires synchronous rendering. Stateless processors that can process repeated or
+    delayed images may set this to False. Camera implementations accept ``__call__(data, env_mask=None)``;
+    asynchronous cameras pass None because their current mask does not describe the published image.
+    """
+
     def __init__(
         self, cfg: TensorProcessorCfg, data_dim: tuple[int, ...] | None = None, device: str | None = None
     ) -> None:
@@ -74,14 +80,11 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
-            env_mask: Boolean mask of the environments with new data in this call. Shape is (num_envs,). Defaults to
-                None, which processes all environments. Stateful implementations consume new inputs only for
-                selected environments. Stateless implementations may ignore the mask.
 
         Returns:
             Processed data with the structure defined by the implementation.

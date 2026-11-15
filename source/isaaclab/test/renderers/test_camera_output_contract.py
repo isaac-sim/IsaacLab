@@ -42,15 +42,17 @@ _SPAWN = PinholeCameraCfg(
 class _ScaleProcessor(TensorProcessor):
     """Scale one input into a persistent output and record lifecycle calls."""
 
+    requires_fresh_capture = False
+
     events: ClassVar[list[tuple]] = []
-    masks: ClassVar[list[list[bool]]] = []
+    masks: ClassVar[list[list[bool] | None]] = []
 
     def __init__(self, cfg: TensorProcessorCfg, data: dict[str, ProxyArray]) -> None:
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        _ScaleProcessor.masks.append(env_mask.numpy().tolist())
+        _ScaleProcessor.masks.append(None if env_mask is None else env_mask.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -134,6 +136,42 @@ def test_camera_isp_is_resolved_during_construction(caplog, monkeypatch):
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.
         assert not hasattr(BaseRenderer, "author_camera")
         assert not hasattr(BaseRenderer, "prepare_cameras")
+
+
+def test_camera_async_ppisp_validates_normalized_chain(monkeypatch):
+    """Both PPISP entry points support async; legacy conversion cannot bypass final chain validation."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    pytest.importorskip("isaaclab_ov")
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+    from isaaclab_ppisp import PpispCfg, PpispProcessor, PpispProcessorCfg
+
+    from isaaclab.sensors.camera.camera_exposure import ExposureCfg
+
+    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())) as sim:
+        # Construction authors USD and validates configs; this test does not render.
+        monkeypatch.setattr(
+            type(sim), "get_or_create_backend", lambda self, cfg: SimpleNamespace(cleanup=lambda render_data: None)
+        )
+        cfg = CameraCfg(
+            prim_path="/World/AsyncCamera", width=16, height=16, data_types=["rgb"], spawn=_SPAWN,
+            renderer_cfg=OVRTXRendererCfg(async_rendering=True), exposure=ExposureCfg(mode="neutral"),
+            tensor_processors=[PpispProcessorCfg(isp_cfg=PpispCfg())],
+        )  # fmt: skip
+        explicit = instantiate(cfg)
+        legacy_cfg = replace(cfg, prim_path="/World/LegacyCamera", tensor_processors=[], isp_cfg=PpispCfg())
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            legacy = instantiate(legacy_cfg)
+        assert len(explicit.cfg.tensor_processors) == len(legacy.cfg.tensor_processors) == 1
+        assert explicit.cfg.renderer_cfg.async_rendering and legacy.cfg.renderer_cfg.async_rendering
+        # The initial legacy config has no processors; only validation after conversion can reject this.
+        monkeypatch.setattr(PpispProcessor, "requires_fresh_capture", True)
+        with (
+            pytest.warns(FutureWarning, match="isp_cfg is deprecated"),
+            pytest.raises(ValueError, match="require synchronous rendering"),
+        ):
+            instantiate(legacy_cfg)
 
 
 @contextlib.contextmanager
@@ -375,9 +413,13 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
 
 
-def test_camera_processors_require_synchronous_rendering():
-    """Reject delayed captures before a processor can advance on a stale image."""
+def test_camera_processors_validate_async_compatibility():
+    """Allow stateless processing of delayed images while rejecting processors that need fresh captures."""
+    pytest.importorskip("isaaclab_ov")
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+
+    class FreshCaptureProcessor(_ScaleProcessor):
+        requires_fresh_capture = True
 
     cfg = CameraCfg(
         height=32,
@@ -389,6 +431,8 @@ def test_camera_processors_require_synchronous_rendering():
     )
     validate(cfg)
     cfg.tensor_processors = [TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb"], outputs=["half"])]
+    validate(cfg)
+    cfg.tensor_processors.append(TensorProcessorCfg(func=FreshCaptureProcessor, inputs=["half"], outputs=["rgb"]))
     with pytest.raises(ValueError, match="require synchronous rendering"):
         validate(cfg)
     cfg.renderer_cfg.async_rendering = False

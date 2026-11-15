@@ -92,6 +92,8 @@ class PpispPipeline:
 class PpispProcessor(TensorProcessor):
     """Camera processor that converts scene-linear HDR to ``rgba`` and its ``rgb`` view with PPISP."""
 
+    requires_fresh_capture = False
+
     def __init__(self, cfg: PpispProcessorCfg, data: dict[str, ProxyArray]) -> None:
         super().__init__(cfg)
         self._pipeline = PpispPipeline(cfg.isp_cfg)
