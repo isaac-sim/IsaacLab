@@ -74,11 +74,14 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
+            env_mask: Boolean mask selecting batch entries with new inputs. Shape is (num_envs,). None processes
+                all entries. Stateful implementations preserve the history and output of unselected entries;
+                stateless implementations may ignore the mask.
 
         Returns:
             Processed data with the structure defined by the implementation.
