@@ -80,8 +80,8 @@ class TensorProcessor(ABC):
         Args:
             data: Tensor or nested collection supported by the implementation.
             env_mask: Boolean mask of the environments with new data in this call. Shape is (num_envs,). Defaults to
-                None, which processes all environments. Stateful implementations must preserve the history and
-                output of unselected environments. Stateless implementations may ignore the mask.
+                None, which processes all environments. Stateful implementations consume new inputs only for
+                selected environments. Stateless implementations may ignore the mask.
 
         Returns:
             Processed data with the structure defined by the implementation.
