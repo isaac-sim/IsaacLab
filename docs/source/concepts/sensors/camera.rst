@@ -357,10 +357,8 @@ capture renders every environment. The camera calls each processor with ``env_ma
 environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
 filters, video generation) use it to advance only those rows.
 
-With ``async_rendering=True``, the renderer can publish an earlier request's image or no new image, and the
-camera passes ``env_mask=None``. Processors used in this mode must tolerate repeated or delayed images.
-Processors that need fresh frames to advance their history must use ``renderer_cfg.async_rendering=False``.
-The camera does not check this requirement.
+With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
+Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
 
 Post-render image signal processing
 -----------------------------------
