@@ -100,7 +100,7 @@ class PpispProcessor(TensorProcessor):
         rgb = wp.array(ptr=rgba.ptr, shape=(*hdr.shape[:3], 3), strides=rgba.strides, dtype=wp.uint8, device=hdr.device)
         self._outputs = {"rgb": ProxyArray(rgb), "rgba": ProxyArray(rgba)}
 
-    def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
+    def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
         self._pipeline.apply(data[self._cfg.inputs[0]].warp, self._outputs["rgba"].warp)
         return dict(self._outputs)
 
