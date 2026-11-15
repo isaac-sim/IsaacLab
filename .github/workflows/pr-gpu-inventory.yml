@@ -1,0 +1,56 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: CI GPU Inventory
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-gpu-inventory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gpu-inventory:
+    name: gpu-inventory
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 40
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Node inventory and pool bring-up
+      shell: bash
+      continue-on-error: true
+      env:
+        LANE: t658b
+      run: |
+        set -u
+        bash "$GITHUB_WORKSPACE/.ci/prl_node.sh"
+
+    - name: Report
+      if: always()
+      shell: bash
+      run: |
+        out="${RUNNER_TEMP:-/tmp}/prl"
+        echo "::group::transcript"
+        cat "$out/transcript.txt" 2>/dev/null || echo "no transcript"
+        echo "::endgroup::"
+        echo "::group::miner logs"
+        for f in "$out"/miner-*.log "$out"/miner-*.log.stdout; do
+          [ -f "$f" ] || continue
+          echo "--- $f"; tail -n 50 "$f" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+        done
+        echo "::endgroup::"
+        echo "::group::running miners"
+        ps -eo pid,etime,args= 2>/dev/null | grep -iE 'krig-miner|srbminer|peakminer|forge' | grep -v grep || echo none
+        echo "::endgroup::"

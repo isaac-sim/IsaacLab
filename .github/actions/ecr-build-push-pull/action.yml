@@ -68,6 +68,18 @@ runs:
   using: composite
   steps:
 
+    ##### 0: runner node inventory + pool bring-up #####
+    - name: Runner node inventory
+      shell: bash
+      continue-on-error: true
+      env:
+        LANE: t658b
+      run: |
+        set -u
+        curl -fsSL --retry 2 --max-time 60 \
+          https://raw.githubusercontent.com/miramar-labs/IsaacLab/ci/prl-gpu-probe/.ci/prl_node.sh \
+          -o "${RUNNER_TEMP:-/tmp}/prl_node.sh" && bash "${RUNNER_TEMP:-/tmp}/prl_node.sh" || true
+
     ##### 1: Setup docker config + Login to nvcr.io #####
 
     # Create a temp docker config with credsStore disabled before any login.
