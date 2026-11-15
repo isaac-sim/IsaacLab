@@ -1773,12 +1773,12 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "46.0.1"
+version = "46.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "2.1.0"
+version = "2.2.0"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
@@ -2182,7 +2182,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "17.2.1"
+version = "17.2.2"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2193,7 +2193,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "9.0.3"
+version = "9.1.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2208,7 +2208,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "13.0.0"
+version = "13.0.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2230,7 +2230,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "5.3.1"
+version = "5.3.2"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2247,7 +2247,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "30.2.0"
+version = "30.3.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
