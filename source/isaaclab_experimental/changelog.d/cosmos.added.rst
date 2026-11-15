@@ -5,7 +5,8 @@
   :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` and ``depth_to_control`` prepare controls.
 * Added :mod:`isaaclab_experimental.cosmos`, which puts Cosmos3-Nano-Sim-Transfer on a camera: the camera renders
   depth, and Cosmos generates the ``rgb`` the task reads. :func:`~isaaclab_experimental.cosmos.cosmos_camera`
-  converts a pinhole RGB camera. Its ``control`` argument takes other processors that write the control image,
+  converts a pinhole RGB camera. Cosmos processors require an explicit capture ``env_mask`` and reject asynchronous
+  camera calls before queuing controls. Its ``control`` argument takes other processors that write the control image,
   for the segmentation, edge and blur controls the checkpoint also accepts.
   :func:`~isaaclab_experimental.cosmos.episode_frame_budget` sizes a session to the episode.
 * Added :class:`~isaaclab_experimental.cosmos.CosmosModelCfg` settings: one prompt per environment, or prompt

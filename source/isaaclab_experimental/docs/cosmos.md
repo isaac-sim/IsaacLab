@@ -322,6 +322,11 @@ captions reach the model unchanged. In code, `read_prompt_files([...])` returns 
 
 ## Runtime and resets
 
+Cosmos requires synchronous camera rendering. Its processor rejects `env_mask=None` before queuing controls
+or generating images; asynchronous cameras supply `None`. This also protects cameras configured directly
+or changed by later overrides. Use `renderer_cfg.async_rendering=False` for OVRTX. Direct processor callers
+must supply a boolean Warp mask identifying the captured views, including an all-true mask when all views are fresh.
+
 The camera's tensor processors are the integration boundary.
 `CosmosTransferProcessor` is implemented in `client/cosmos_processor.py`, with its
 `CosmosTransferProcessorCfg` in `client/cosmos_processor_cfg.py`. It uses the shared image
