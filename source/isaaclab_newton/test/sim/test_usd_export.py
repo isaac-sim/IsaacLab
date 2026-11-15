@@ -229,7 +229,11 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
 
 
 def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path, caplog):
-    """Newton's import builds a cable from its USD curve; the segments it generates take its own contact gap."""
+    """Newton's import builds a cable from its USD curve; the segments it generates take its own contact gap.
+
+    A segment friction Isaac Lab changes is stated on the curve's material, which the import reads; a changed gain of
+    a cable joint or mass of a segment has no prim to state it on, and the export warns.
+    """
     from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
     from newton.usd import SchemaResolverPhysx
 
@@ -253,8 +257,17 @@ def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(cfg)
         sim.reset()
+        model = sim.backend_manager.backend.model
+        model.shape_material_mu.assign(np.full(model.shape_count, 0.7, dtype=np.float32))
+        stiffness, masses, starts = model.joint_target_ke.numpy(), model.body_mass.numpy(), model.joint_qd_start.numpy()
+        types = model.joint_type.numpy()
+        cable_joint = next(j for j in range(model.joint_count) if types[j] != int(newton.JointType.FREE))
+        stiffness[starts[cable_joint]] *= 2.0
+        masses[0] *= 2.0
+        model.joint_target_ke.assign(stiffness)
+        model.body_mass.assign(masses)
         scene.export_to_usd(output)
-        live = _capture(sim.backend_manager.backend.model, sim.backend_manager.backend.state_0.body_q)
+        live = _capture(model, sim.backend_manager.backend.state_0.body_q)
     builder = newton.ModelBuilder()
     newton.solvers.SolverVBD.register_custom_attributes(builder)
     builder.add_usd(Usd.Stage.Open(output), schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()])
@@ -270,8 +283,10 @@ def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path
             differ.add(key)
     segments = {label for name, label in live if name == "shape_gap"}
     assert len(segments) == 3
-    assert differ == {("shape_gap", label) for label in segments}
+    joint, body = f"{model.joint_label[cable_joint]}:0", model.body_label[0]
+    assert differ == {("shape_gap", label) for label in segments} | {("joint_target_ke", joint), ("body_mass", body)}
     assert "contact values" in caplog.text
+    assert "joints it generates" in caplog.text and "bodies it generates" in caplog.text
 
 
 @pytest.mark.parametrize("mass", [None, 4.0], ids=["unchanged", "changed mass"])

@@ -15,7 +15,7 @@ import newton
 import numpy as np
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Sdf, Tf, Usd, UsdPhysics
+from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
 
 from isaaclab.sim.usd_export.base_usd_exporter import (
     _DEACTIVATE,
@@ -217,12 +217,17 @@ class UsdExporter(BaseUsdExporter):
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
         coords, (positions, velocities) = model.joint_q_start.numpy(), self._compute_reset_joint_state(model)
         reference = self._get_mjc_limit_reference(model)
-        edits, dofs, drive_gains = [], {}, {}
+        edits, dofs, drive_gains, generated = [], {}, {}, []
         for joint in self._select_env_entities(model.joint_world):
             # 2. The joint's USD prims and DOF axes; a changed joint of an unsupported type is refused.
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
-            if types[joint] == int(newton.JointType.FREE) or not prim:
+            if types[joint] == int(newton.JointType.FREE):
+                continue
+            if not prim:
+                # Joints Newton's import generates, such as a cable's, have no prim to state a value on.
+                if any(rows[starts[joint] : starts[joint + 1]].any() for rows in changed.values()):
+                    generated.append(model.joint_label[joint])
                 continue
             units = self._map_joint_dofs_to_prims(stage, model, joint, prim)
             if units is None:
@@ -287,6 +292,10 @@ class UsdExporter(BaseUsdExporter):
                         for name, (live, imported) in state.items()
                         if not self._is_close(live, imported)
                     ]
+        if generated:
+            logger.warning(
+                f"Newton's import gives the joints it generates their own values, which these do not hold: {generated}."
+            )
         # 6. MuJoCo: actuators restoring target modes, and force ranges below a written max force.
         actuators = self._compute_target_mode_actuator_edits(
             model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes
@@ -532,12 +541,20 @@ class UsdExporter(BaseUsdExporter):
         values = self._read_model_arrays(model, tuple(BODY_MASS_ARRAYS))
         changed = self._compute_changed_masks(values, base)
         mass, com, inertia = values["body_mass"], values["body_com"], values["body_inertia"]
-        edits = []
+        edits, generated = [], []
         for body in self._select_env_entities(model.body_world):
             prim = stage.GetPrimAtPath(model.body_label[body])
             properties = {BODY_MASS_ARRAYS[name] for name, rows in changed.items() if rows[body]}
-            if prim and properties:
+            # Bodies Newton's import generates, such as a cable's segments, have no prim to state a value on.
+            if not prim and properties:
+                generated.append(model.body_label[body])
+            elif properties:
                 edits += self._compute_mass_edits(prim, float(mass[body]), com[body], inertia[body], properties)
+        if generated:
+            logger.warning(
+                "Newton's import gives the bodies it generates their own mass properties, which these do not hold:"
+                f" {generated}."
+            )
         # 2. Root bodies and world anchors where initialization placed them; the joint states place the other bodies.
         body_q, anchors = self.scene.sim.backend_manager.backend.state_0.body_q.numpy(), model.joint_X_p.numpy()
         parents, children, types = model.joint_parent.numpy(), model.joint_child.numpy(), model.joint_type.numpy()
@@ -570,21 +587,33 @@ class UsdExporter(BaseUsdExporter):
             # Sensor sites and visual shapes do not collide.
             if not int(flags[shape]) & collide:
                 continue
-            prim = stage.GetPrimAtPath(model.shape_label[shape])
+            label = model.shape_label[shape]
+            prim = stage.GetPrimAtPath(label)
+            live = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
             if not prim:
-                # Shapes Newton's import generates, such as cable segments, have no prim to state a value on.
-                if any(rows[shape] for rows in changed.values()):
-                    generated.append(model.shape_label[shape])
-                continue
-            edits += [
-                UsdEdit(str(prim.GetPath()), attribute, float(values[name][shape]))
-                for name, attribute in SHAPE_ATTRIBUTES.items()
-                if changed[name][shape]
-            ]
-            path = str(prim.GetPath())
+                # Shapes Newton's import generates have no prim. Its cable import gives a cable's capsules the physics
+                # material of their curve, which states their material where they agree, and its own gap and margin.
+                path = label.rpartition("_edge_capsule_")[0]
+                curve = stage.GetPrimAtPath(path) if path else None
+                agree = bool(curve) and all(self._is_close(complete.get(path, live)[a], v) for a, v in live.items())
+                if any(changed[n][shape] for n in SHAPE_ATTRIBUTES) or (
+                    not agree and any(rows[shape] for rows in changed.values())
+                ):
+                    generated.append(label)
+                if not agree:
+                    continue
+                if bound_material := UsdShade.MaterialBindingAPI(curve).ComputeBoundMaterial("physics")[0].GetPrim():
+                    physics[path] = str(bound_material.GetPath())
+            else:
+                path = str(prim.GetPath())
+                edits += [
+                    UsdEdit(path, attribute, float(values[name][shape]))
+                    for name, attribute in SHAPE_ATTRIBUTES.items()
+                    if changed[name][shape]
+                ]
             bound[path] = physics.get(path)
-            complete[path] = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
-            updated = {a: complete[path][a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
+            complete[path] = live
+            updated = {a: live[a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
             if updated:
                 changed_materials[path] = updated
         # 3. Every collider sharing a material with a changed value submits it, so the material edits check they agree.
