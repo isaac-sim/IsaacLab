@@ -45,8 +45,8 @@ class TensorProcessor(ABC):
 
     requires_fresh_capture: ClassVar[bool] = True
     """Whether camera use requires synchronous rendering. Stateless processors that can process repeated or
-    delayed images may set this to False. Camera implementations accept ``__call__(data, env_mask=None)``;
-    asynchronous cameras pass None because their current mask does not describe the published image.
+    delayed images may set this to False. Asynchronous cameras pass ``env_mask=None`` because their current
+    mask does not describe the published image.
     """
 
     def __init__(
@@ -80,11 +80,14 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
+            env_mask: For camera processors, a boolean mask of environments due for this capture, or None when
+                the renderer does not identify fresh rows. Camera implementations must accept this keyword.
+                Observation-only implementations may omit it; the observation manager passes only ``data``.
 
         Returns:
             Processed data with the structure defined by the implementation.
