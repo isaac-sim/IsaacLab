@@ -23,10 +23,6 @@ from isaaclab.utils.math import quat_apply
 
 logger = logging.getLogger(__name__)
 
-_OMNIPBR_DEFAULTS = {
-    "diffuse_color_constant": (0.2, 0.2, 0.2),
-    "diffuse_tint": (1.0, 1.0, 1.0),
-}
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
 
 
@@ -280,22 +276,10 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
         return _NewtonMarkerSpec(
             renderer="mesh", mesh_type="box", mesh_params={"size": tuple(float(v) for v in marker_cfg.size)}
         )
-    if cfg_type == "CylinderCfg":
+    if cfg_type in ("CylinderCfg", "CapsuleCfg", "ConeCfg"):
         return _NewtonMarkerSpec(
             renderer="mesh",
-            mesh_type="cylinder",
-            mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
-        )
-    if cfg_type == "CapsuleCfg":
-        return _NewtonMarkerSpec(
-            renderer="mesh",
-            mesh_type="capsule",
-            mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
-        )
-    if cfg_type == "ConeCfg":
-        return _NewtonMarkerSpec(
-            renderer="mesh",
-            mesh_type="cone",
+            mesh_type=cfg_type.removesuffix("Cfg").lower(),
             mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
         )
 
@@ -456,37 +440,16 @@ def _extract_color(marker_cfg: object) -> tuple[float, float, float]:
     if material_cfg is None:
         return _UNBOUND_DEFAULT_FALLBACK_GRAY
 
-    if color := _extract_omnipbr_like_color(material_cfg):
-        return color
-
     material_type = type(material_cfg).__name__
+    if material_type == "MdlFileCfg" and str(material_cfg.mdl_path).lower().endswith("omnipbr.mdl"):
+        brightness = 0.2 if material_cfg.albedo_brightness is None else float(material_cfg.albedo_brightness)
+        return (brightness, brightness, brightness)
     if material_type == "PreviewSurfaceCfg":
         return _extract_rgb(material_cfg.diffuse_color) or _UNBOUND_DEFAULT_FALLBACK_GRAY
     if material_type == "GlassMdlCfg":
         return _extract_rgb(material_cfg.glass_color) or _UNBOUND_DEFAULT_FALLBACK_GRAY
 
     return _UNBOUND_DEFAULT_FALLBACK_GRAY
-
-
-def _extract_omnipbr_like_color(material_cfg: object) -> tuple[float, float, float] | None:
-    material_type = type(material_cfg).__name__
-    if material_type == "MdlFileCfg":
-        if not str(material_cfg.mdl_path).lower().endswith("omnipbr.mdl"):
-            return None
-        brightness = material_cfg.albedo_brightness
-        if brightness is not None:
-            diffuse_constant = (float(brightness), float(brightness), float(brightness))
-        else:
-            diffuse_constant = _OMNIPBR_DEFAULTS["diffuse_color_constant"]
-        diffuse_tint = _OMNIPBR_DEFAULTS["diffuse_tint"]
-    else:
-        return None
-
-    return (
-        diffuse_constant[0] * diffuse_tint[0],
-        diffuse_constant[1] * diffuse_tint[1],
-        diffuse_constant[2] * diffuse_tint[2],
-    )
 
 
 def _extract_rgb(value: Any) -> tuple[float, float, float] | None:
