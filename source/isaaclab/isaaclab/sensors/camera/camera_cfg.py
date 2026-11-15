@@ -268,13 +268,6 @@ class CameraCfg(SensorBaseCfg):
                 )
         if self.renderer_cfg is None:
             return
-        if getattr(self.renderer_cfg, "async_rendering", False) and any(
-            cfg.func.requires_fresh_capture for cfg in self.tensor_processors
-        ):
-            raise ValueError(
-                "Camera processors that require fresh captures require synchronous rendering;"
-                " set renderer_cfg.async_rendering=False."
-            )
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return

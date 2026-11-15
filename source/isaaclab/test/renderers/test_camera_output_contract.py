@@ -42,8 +42,6 @@ _SPAWN = PinholeCameraCfg(
 class _ScaleProcessor(TensorProcessor):
     """Scale one input into a persistent output and record lifecycle calls."""
 
-    requires_fresh_capture = False
-
     events: ClassVar[list[tuple]] = []
     masks: ClassVar[list[list[bool] | None]] = []
 
@@ -413,13 +411,10 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
 
 
-def test_camera_processors_validate_async_compatibility():
-    """Allow stateless processing of delayed images while rejecting processors that need fresh captures."""
+def test_camera_processors_allow_async_rendering():
+    """Adding a processor requires no opt-in flag for asynchronous rendering."""
     pytest.importorskip("isaaclab_ov")
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
-
-    class FreshCaptureProcessor(_ScaleProcessor):
-        requires_fresh_capture = True
 
     cfg = CameraCfg(
         height=32,
@@ -429,13 +424,7 @@ def test_camera_processors_validate_async_compatibility():
         data_types=["rgb"],
         renderer_cfg=OVRTXRendererCfg(async_rendering=True),
     )
-    validate(cfg)
     cfg.tensor_processors = [TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb"], outputs=["half"])]
-    validate(cfg)
-    cfg.tensor_processors.append(TensorProcessorCfg(func=FreshCaptureProcessor, inputs=["half"], outputs=["rgb"]))
-    with pytest.raises(ValueError, match="require synchronous rendering"):
-        validate(cfg)
-    cfg.renderer_cfg.async_rendering = False
     validate(cfg)
 
 
