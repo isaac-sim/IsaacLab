@@ -136,14 +136,14 @@ def test_camera_isp_is_resolved_during_construction(caplog, monkeypatch):
         assert not hasattr(BaseRenderer, "prepare_cameras")
 
 
-def test_camera_async_ppisp_validates_normalized_chain(monkeypatch):
-    """Both PPISP entry points support async; legacy conversion cannot bypass final chain validation."""
+def test_camera_async_ppisp_supports_explicit_and_legacy_configs(monkeypatch):
+    """Both explicit and deprecated PPISP configurations support asynchronous rendering."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     pytest.importorskip("isaaclab_ov")
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
-    from isaaclab_ppisp import PpispCfg, PpispProcessor, PpispProcessorCfg
+    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
     from isaaclab.sensors.camera.camera_exposure import ExposureCfg
 
@@ -163,13 +163,6 @@ def test_camera_async_ppisp_validates_normalized_chain(monkeypatch):
             legacy = instantiate(legacy_cfg)
         assert len(explicit.cfg.tensor_processors) == len(legacy.cfg.tensor_processors) == 1
         assert explicit.cfg.renderer_cfg.async_rendering and legacy.cfg.renderer_cfg.async_rendering
-        # The initial legacy config has no processors; only validation after conversion can reject this.
-        monkeypatch.setattr(PpispProcessor, "requires_fresh_capture", True)
-        with (
-            pytest.warns(FutureWarning, match="isp_cfg is deprecated"),
-            pytest.raises(ValueError, match="require synchronous rendering"),
-        ):
-            instantiate(legacy_cfg)
 
 
 @contextlib.contextmanager

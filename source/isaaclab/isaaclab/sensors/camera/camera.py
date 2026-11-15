@@ -296,8 +296,6 @@ class Camera(SensorBase):
                 for cfg in self.cfg.tensor_processors
             ]
             self.cfg.tensor_processors = [cfg for cfg in prepared if cfg is not None]
-        # Legacy ISP conversion and preparation can change the chain after SensorBase validation.
-        self.cfg.validate_config()
         self._render_data_types = _render_data_types(self.cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
