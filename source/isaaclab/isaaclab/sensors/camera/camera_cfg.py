@@ -31,10 +31,6 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "depth_clipping_behavior": "none",
 }
 
-CAPTURE_ENV_MASK_NAME = "env_mask"
-"""Processor input holding the capture's environment mask, shape ``(N,)``, dtype bool: the environments that receive a
-new frame in the capture."""
-
 
 @configclass
 class CameraCfg(SensorBaseCfg):
@@ -237,24 +233,11 @@ class CameraCfg(SensorBaseCfg):
     """
 
     tensor_processors: list[TensorProcessorCfg] = []
-    """Processors that compute camera outputs from render outputs. Defaults to an empty list.
+    """Processors that compute camera outputs from render outputs, run in order after each capture.
+    Defaults to an empty list.
 
-    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
-    capture with the configuration and the camera buffers. After each capture, processors run in order on the
-    render outputs and earlier processors' outputs, and their outputs are added to :attr:`CameraData.output`, where
-    they exist from the first capture on; before it, only the render outputs do. The
-    renderer produces every input that no earlier processor produces, so a processor can replace an output it reads.
-    The render outputs that processors read are published too, :attr:`data_types` adds render outputs that no
-    processor reads, and an entry that a processor produces is not rendered. A processor returns exactly the names
-    in its ``outputs``. Camera resets and teardown call the processors' ``reset`` and ``close``.
-
-    With ``update_period > 0``, environments become due on different steps, but each capture renders every
-    environment. A stateful processor can list ``CAPTURE_ENV_MASK_NAME`` in its ``inputs`` to receive a boolean
-    mask of shape ``(N,)`` marking the environments due for the capture, whose frame and timestamp advance. The name
-    is reserved and the mask is not published as a camera output. It describes the current capture request, so these
-    processors need synchronous rendering. So do processors that keep state between captures: asynchronous rendering
-    publishes no new image for the capture after the first one and after each reset, and the processors run on the
-    previous image again.
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
+    documentation for how inputs, outputs and ``env_mask`` work.
     """
 
     def __post_init__(self):
@@ -287,10 +270,7 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate processor names, the capture mask's rendering mode, and the requested data types against the
-        selected renderer contract."""
-        if any(CAPTURE_ENV_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
-            raise ValueError(f"Processor output name {CAPTURE_ENV_MASK_NAME!r} is reserved for the capture mask.")
+        """Validate the processors and the requested data types against the selected renderer contract."""
         for processor_cfg in self.tensor_processors:
             # Import strings become callable lazily; any other string fails only at the first capture.
             if not callable(processor_cfg.func):
@@ -298,15 +278,6 @@ class CameraCfg(SensorBaseCfg):
                     "Camera tensor processor func must be a TensorProcessor class or an import string"
                     f" 'module:Class', not {processor_cfg.func!r}."
                 )
-        if getattr(self.renderer_cfg, "async_rendering", False) and any(
-            CAPTURE_ENV_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
-        ):
-            # The mask marks the environments of the current request, while asynchronous rendering publishes the
-            # previous request's image, so the mask would select the wrong rows.
-            raise ValueError(
-                f"Processors reading {CAPTURE_ENV_MASK_NAME!r} need synchronous rendering; set "
-                "renderer_cfg.async_rendering=False."
-            )
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
@@ -315,7 +286,7 @@ class CameraCfg(SensorBaseCfg):
         supported = {str(kind) for kind in supported_specs}
         produced: set[str] = set()
         for processor_cfg in self.tensor_processors:
-            missing = sorted(set(processor_cfg.inputs) - produced - supported - {CAPTURE_ENV_MASK_NAME})
+            missing = sorted(set(processor_cfg.inputs) - produced - supported)
             if missing:
                 name = getattr(processor_cfg.func, "__name__", str(processor_cfg.func))
                 raise ValueError(
@@ -337,6 +308,6 @@ def _render_data_types(cfg: CameraCfg) -> list[str]:
     """Return the data types that no processor produces and the inputs that no earlier processor produces."""
     produced, inputs = set(), []
     for processor_cfg in cfg.tensor_processors:
-        inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_ENV_MASK_NAME]
+        inputs += [name for name in processor_cfg.inputs if name not in produced]
         produced.update(processor_cfg.outputs)
     return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

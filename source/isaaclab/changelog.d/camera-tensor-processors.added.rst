@@ -1,4 +1,4 @@
 * Added ``CameraCfg.tensor_processors``, which compute camera outputs from render outputs and earlier
-  processor outputs after each capture, and reset and close with the camera. Processors can read
-  the reserved ``CAPTURE_ENV_MASK_NAME`` input, which marks the environments due for each capture when ``update_period``
-  staggers them; processors reading it need synchronous rendering.
+  processor outputs after each capture, and reset and close with the camera.
+* Added the ``env_mask`` keyword to :meth:`~isaaclab.utils.tensor_processors.TensorProcessor.__call__`. Cameras pass
+  the environments due for each capture when ``update_period`` staggers them, and ``None`` with asynchronous rendering.

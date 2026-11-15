@@ -23,7 +23,6 @@ from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import Camera, SensorBase
-from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
@@ -302,12 +301,13 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=()):
+    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=(), async_rendering=False):
         self.cfg = SimpleNamespace(
             update_period=update_period,
             update_latest_camera_pose=True,
+            renderer_cfg=SimpleNamespace(async_rendering=async_rendering),
             tensor_processors=[
-                SimpleNamespace(func=Mock(return_value=processor), inputs=[CAPTURE_ENV_MASK_NAME], outputs=outputs)
+                SimpleNamespace(func=Mock(return_value=processor), inputs=[], outputs=outputs)
                 for processor in processors
             ],
         )
@@ -610,9 +610,10 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     ]
 
     slow.pose = 3.0
-    slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    reset_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
+    slow.reset(env_mask=reset_mask)
     renderer.reset.assert_called_once_with(slow._render_data, None)
-    np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])  # only the masked rows
+    processor.reset.assert_called_once_with(env_ids=None, env_mask=reset_mask)  # the mask, not ids copied to the CPU
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0
@@ -626,15 +627,18 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     renderer.render.assert_not_called()
 
 
+@pytest.mark.parametrize("async_rendering", [False, True])
 @pytest.mark.parametrize("lazy", [False, True])
-def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy):
-    """Processors run once per capture with the mask of the environments due for it."""
+def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy, async_rendering):
+    """Processors run once per capture with the mask of the environments due for it, or None when asynchronous
+    rendering publishes an earlier request's image."""
     _, renderer, _ = camera_batch_context
     masks = []
     processor = Mock(
-        side_effect=lambda buffers: masks.append(buffers[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist()) or {}
+        side_effect=lambda buffers, env_mask: masks.append(None if env_mask is None else env_mask.numpy().tolist())
+        or {}
     )
-    camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor])
+    camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor], async_rendering=async_rendering)
     scene = _camera_scene([camera], lazy=lazy)
 
     InteractiveScene.update(scene, 0.1)
@@ -644,7 +648,7 @@ def test_camera_processors_receive_the_due_environments(camera_batch_context, la
     assert camera.data.info["pose"] == 0.0
 
     # Only the reset environment is due for the second capture.
-    assert masks == [[True, True], [False, True]]
+    assert masks == ([None, None] if async_rendering else [[True, True], [False, True]])
 
 
 def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
@@ -665,18 +669,14 @@ def test_first_processor_output_carries_the_capture_metadata(camera_batch_contex
     assert camera.data.info["rgb"] == camera.data.info["depth"] == {"capture": {"frame": 0.0}}
 
 
-def test_processors_read_and_return_only_what_their_configuration_lists(camera_batch_context):
-    """The capture mask reaches only processors that list it, and returning unlisted output names is an error."""
+def test_processors_return_only_what_their_configuration_lists(camera_batch_context):
+    """Returning output names the configuration does not list is an error."""
     _, renderer, _ = camera_batch_context
-    received = []
-    processor = Mock(side_effect=lambda buffers: received.append(set(buffers)) or {"rgba": object()})
+    processor = Mock(return_value={"rgba": object()})
     camera = _CpuCamera(renderer, "camera", processors=[processor], outputs=["rgb"])
-    camera.cfg.tensor_processors[0].inputs = []
 
     with pytest.raises(ValueError, match=r"lists the outputs \['rgb'\]"):
         InteractiveScene.update(_camera_scene([camera]), 0.01)
-
-    assert received == [set()]
 
 
 def test_failed_processor_close_still_releases_the_camera(camera_batch_context):
