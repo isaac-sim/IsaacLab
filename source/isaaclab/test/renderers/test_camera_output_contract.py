@@ -54,7 +54,7 @@ class _ScaleProcessor(TensorProcessor):
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
-    def reset(self, env_ids=None) -> None:
+    def reset(self, env_ids=None, env_mask=None) -> None:
         _ScaleProcessor.events.append(("reset", self._cfg.outputs[0], env_ids))
 
     def close(self) -> None:

@@ -643,11 +643,8 @@ class Camera(SensorBase):
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
-        if self._tensor_processors:
-            # Processors may keep per-environment history, so a mask resets only its rows, given as indices.
-            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero().squeeze(-1).tolist()
-            for processor in self._tensor_processors:
-                processor.reset(processor_ids)
+        for processor in self._tensor_processors:
+            processor.reset(env_ids=env_ids, env_mask=env_mask)
         # reset the timestamps
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
