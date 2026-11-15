@@ -233,7 +233,12 @@ def test_variant_bindings_preserve_environment_and_collection_order(explicit):
 
 @pytest.mark.parametrize(
     "tensor_type",
-    [TensorType.SURFACE_DEFORMABLE_SIM_POSITION, TensorType.DEFORMABLE_SIM_NODAL_POSITION],
+    [
+        TensorType.SURFACE_DEFORMABLE_SIM_POSITION,
+        TensorType.DEFORMABLE_SIM_NODAL_POSITION,
+        TensorType.DEFORMABLE_REST_NODAL_POSITION,
+        TensorType.DEFORMABLE_COLLISION_ELEMENT_INDICES,
+    ],
     ids=lambda tensor_type: tensor_type.name.lower(),
 )
 def test_deformable_bindings_restore_numeric_environment_order(tensor_type):
