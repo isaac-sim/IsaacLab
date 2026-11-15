@@ -152,7 +152,7 @@ class ImageTransferProcessor(TensorProcessor):
             return
         if env_mask is not None:
             # The queues are host-side lists, so the mask is read on the host.
-            rows = wp.to_torch(env_mask).nonzero().squeeze(-1).tolist()
+            rows = [row for row, selected in enumerate(wp.to_torch(env_mask).tolist()) if selected]
         elif env_ids is None:
             rows = range(len(self._pending))
         else:
