@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.renderers import BaseRenderer
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME, CameraCfg, CameraISPMode, TiledCameraCfg
+from isaaclab.sensors.camera import Camera, CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -49,8 +49,8 @@ class _ScaleProcessor(TensorProcessor):
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
-    def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
-        _ScaleProcessor.masks.append(data[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist())
+    def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
+        _ScaleProcessor.masks.append(env_mask.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -150,12 +150,8 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
     _ScaleProcessor.masks.clear()
     # The second processor is constructed from the first one's output and replaces the render input.
     processors = [
-        TensorProcessorCfg(
-            func=_ScaleProcessor, inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME], outputs=["half"], params={"scale": 0.5}
-        ),
-        TensorProcessorCfg(
-            func=_ScaleProcessor, inputs=["half", CAPTURE_ENV_MASK_NAME], outputs=["rgb_hdr"], params={"scale": 4.0}
-        ),
+        TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["half"], params={"scale": 0.5}),
+        TensorProcessorCfg(func=_ScaleProcessor, inputs=["half"], outputs=["rgb_hdr"], params={"scale": 4.0}),
     ]
     camera_kwargs = dict(data_types=["rgb_hdr"], background_color=(0.25, 0.5, 0.75), tensor_processors=processors)
     background = np.array([0.050876088, 0.21404114, 0.52252155])
@@ -163,27 +159,12 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
         # Later captures read the new render rather than the published replacement.
         for _ in range(2):
             np.testing.assert_allclose(capture()[:, 0, 0], [2 * background] * 2, atol=1e-6)
-        # env_mask reaches each processor once per capture with one flag per environment, and is not published.
+        # env_mask reaches each processor once per capture with one flag per environment.
         assert set(camera.data.output) == set(camera.data.info) == {"rgb_hdr", "half"}
         assert _ScaleProcessor.masks == [[True, True]] * 4
         camera.reset(env_ids=[1])
         assert _ScaleProcessor.events == [("reset", "half", [1]), ("reset", "rgb_hdr", [1])]
     assert _ScaleProcessor.events[2:] == [("close", "half"), ("close", "rgb_hdr")]
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_camera_rejects_unsupported_types_only_when_rendered(device):
-    """A processor output may reuse the name of a type the camera cannot render, since it is not rendered."""
-    processor = TensorProcessorCfg(
-        func=_ScaleProcessor,
-        inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME],
-        outputs=["bounding_box_3d"],
-        params={"scale": 1.0},
-    )
-    camera_kwargs = dict(data_types=["bounding_box_3d"], tensor_processors=[processor])
-    with _newton_cube_scene(device, 1, **camera_kwargs) as (camera, capture):
-        capture()
-        assert set(camera.data.output) == {"rgb_hdr", "bounding_box_3d"}
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
@@ -334,28 +315,25 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         )
 
     def processor(source: str, output: str) -> TensorProcessorCfg:
-        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source, CAPTURE_ENV_MASK_NAME], outputs=[output])
+        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source], outputs=[output])
 
     validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("simple_shading_full_mdl"))
-    # Processor outputs and env_mask are not requested from the renderer, but processor inputs are.
+    # Processor outputs are not requested from the renderer, but processor inputs are.
     validate(make_cfg("half", processor("rgb_hdr", "half")))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
-    with pytest.raises(ValueError, match="reserved"):
-        validate(make_cfg("rgb_hdr", processor("rgb_hdr", CAPTURE_ENV_MASK_NAME)))
+    # So a processor output may reuse the name of a type the camera cannot render.
+    with pytest.raises(ValueError, match="bounding_box_3d"):
+        Camera._check_supported_data_types(None, make_cfg("bounding_box_3d"))
+    Camera._check_supported_data_types(None, make_cfg("bounding_box_3d", processor("rgb_hdr", "bounding_box_3d")))
     # A processor input that no earlier processor produces is reported with the processor's name.
     with pytest.raises(ValueError, match=r"_ScaleProcessor reads \['half'\]"):
         validate(make_cfg("rgb_hdr", processor("half", "quarter"), processor("rgb_hdr", "half")))
     # A bare name is neither a class nor an import string, so it would fail only at the first capture.
     with pytest.raises(ValueError, match="import string"):
         validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
-    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
-    async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
-    async_cfg.renderer_cfg.async_rendering = True
-    with pytest.raises(ValueError, match="synchronous rendering"):
-        validate(async_cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])

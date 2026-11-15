@@ -28,7 +28,7 @@ from ...utils.math import (
 )
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
-from .camera_cfg import CAPTURE_ENV_MASK_NAME, _render_data_types
+from .camera_cfg import _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
@@ -791,17 +791,15 @@ class Camera(SensorBase):
         """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
+        # Asynchronous rendering publishes an earlier request's image, which this capture's mask does not describe.
+        if getattr(self.cfg.renderer_cfg, "async_rendering", False):
+            env_mask = None
         buffers = dict(self._render_outputs)
-        capture_mask = ProxyArray(env_mask)
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
-            # The capture mask is an input for the processors that list it, not a camera output.
-            inputs = buffers
-            if CAPTURE_ENV_MASK_NAME in processor_cfg.inputs:
-                inputs = {**buffers, CAPTURE_ENV_MASK_NAME: capture_mask}
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
-                self._tensor_processors.append(processor_cfg.func(processor_cfg, inputs))
-            outputs = self._tensor_processors[index](inputs)
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
+            outputs = self._tensor_processors[index](buffers, env_mask=env_mask)
             # The renderer is asked for inputs according to the listed outputs, so the two must agree.
             if outputs.keys() != set(processor_cfg.outputs):
                 raise ValueError(
