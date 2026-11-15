@@ -180,11 +180,13 @@ class ImageTransferProcessor(TensorProcessor):
 
 
 class FunctionProcessor(TensorProcessor):
-    """Apply a Torch function to one camera buffer and publish the result in a persistent buffer.
+    """Apply a stateless Torch function to one camera buffer and publish the result in a persistent buffer.
 
     The function takes the input tensor and :attr:`TensorProcessorCfg.params` as keyword arguments, and returns a
     tensor whose shape and dtype do not change between calls, for example :func:`depth_to_control`.
     """
+
+    requires_fresh_capture = False
 
     def __init__(self, cfg: FunctionProcessorCfg, data: dict[str, ProxyArray]):
         """Allocate the output from the function's result on a zero input of the input's shape.

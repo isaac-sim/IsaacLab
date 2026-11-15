@@ -111,3 +111,18 @@ def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
     calibrated = sim_utils.PinholeCameraCfg(distortion=sim_utils.OpenCvPinholeDistortionCfg())
     with pytest.raises(ValueError, match="uncalibrated pinhole"):
         cosmos_camera(_camera(64, 64, spawn=calibrated), CosmosModelCfg())
+
+
+def test_cosmos_temporal_processor_rejects_async_but_control_function_allows_it():
+    """Stateless control conversion can process delayed images; temporal generation needs fresh frames."""
+    pytest.importorskip("isaaclab_ov")
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+
+    from isaaclab.utils import validate
+
+    renderer = OVRTXRendererCfg(async_rendering=True)
+    camera = cosmos_camera(_camera(64, 64, renderer_cfg=renderer), CosmosModelCfg())
+    with pytest.raises(ValueError, match="require synchronous rendering"):
+        validate(camera)
+    # Keep only the actual depth-to-control processor, including its lazy class import.
+    validate(camera.replace(tensor_processors=camera.tensor_processors[:1]))
