@@ -317,8 +317,11 @@ def _paused_gc():
 
 
 def _argument_key(args: tuple, kwargs: dict[str, Any]) -> tuple:
-    """Key a call by the pointer, shape, strides, dtype and device of its arrays and the values of its scalars."""
-    return tuple(_value_key(value) for value in args) + tuple(
+    """Key a call by the pointer, shape, strides, dtype and device of its arrays and the type and value of its scalars.
+
+    Positional and keyword arguments key apart.
+    """
+    return tuple(_value_key(value) for value in args), tuple(
         (name, _value_key(value)) for name, value in kwargs.items()
     )
 
@@ -329,8 +332,9 @@ def _value_key(value: Any) -> Any:
         return value.ptr, value.shape, value.strides, value.dtype, str(value.device)
     if isinstance(value, torch.Tensor):
         return value.data_ptr(), value.shape, value.stride(), value.dtype, value.device
+    # True, 1 and 1.0 compare equal, so the type tells them apart
     if value is None or isinstance(value, (bool, int, float, str)):
-        return value
+        return type(value), value
     if isinstance(value, (list, tuple)):
-        return tuple(_value_key(item) for item in value)
+        return type(value), tuple(_value_key(item) for item in value)
     return id(value)

@@ -84,6 +84,26 @@ def test_changed_argument_records_the_callable_again():
     assert (_read(old), _read(new), fn.calls, _num_graphs(graphed)) == ([1], [12], 3, 3)
 
 
+def test_equal_arguments_of_another_layout_or_type_record_their_own_graphs():
+    """Arguments that compare equal but differ in position, keyword or scalar type each record a graph."""
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    calls = []
+
+    def fn(*args, **kwargs):
+        calls.append((args, kwargs))
+        wp.launch(_affine, dim=1, inputs=[values, 1, 1], device=DEVICE)
+
+    graphed = GraphedCallable(fn, DEVICE)
+    graphed(("shift", 1))
+    graphed(shift=1)
+    graphed(1)
+    graphed(True)
+    graphed(1.0)
+    graphed([1])
+    graphed((1,))
+    assert len(calls) == 7, "an equal-comparing call replayed another call's graph"
+
+
 def test_views_of_one_array_record_their_own_graphs():
     """Views that share an address but differ in length record their own graphs, each replaying over its length."""
     fn = _Affine()
