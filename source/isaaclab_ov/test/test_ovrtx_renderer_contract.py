@@ -63,6 +63,9 @@ _SPAWN = PinholeCameraCfg(
     clipping_range=(0.1, 1.0e5),
 )
 
+_RENDERING_DT = 0.025
+"""Simulated time between rendered frames reported by the fake simulation context [s]."""
+
 
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     return CameraCfg(
@@ -97,10 +100,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend.cfg = cfg
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
-
-
-_RENDERING_DT = 0.025
-"""Simulated time between rendered frames reported by the fake simulation context [s]."""
 
 
 @pytest.fixture(autouse=True)
