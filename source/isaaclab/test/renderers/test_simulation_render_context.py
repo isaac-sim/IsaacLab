@@ -301,11 +301,10 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=(), async_rendering=False):
+    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=()):
         self.cfg = SimpleNamespace(
             update_period=update_period,
             update_latest_camera_pose=True,
-            renderer_cfg=SimpleNamespace(async_rendering=async_rendering),
             tensor_processors=[
                 SimpleNamespace(func=Mock(return_value=processor), inputs=[], outputs=outputs)
                 for processor in processors
@@ -627,18 +626,13 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     renderer.render.assert_not_called()
 
 
-@pytest.mark.parametrize("async_rendering", [False, True])
 @pytest.mark.parametrize("lazy", [False, True])
-def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy, async_rendering):
-    """Processors run once per capture with the mask of the environments due for it, or None when asynchronous
-    rendering publishes an earlier request's image."""
+def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy):
+    """Processors receive the environments due for each synchronous capture."""
     _, renderer, _ = camera_batch_context
     masks = []
-    processor = Mock(
-        side_effect=lambda buffers, env_mask: masks.append(None if env_mask is None else env_mask.numpy().tolist())
-        or {}
-    )
-    camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor], async_rendering=async_rendering)
+    processor = Mock(side_effect=lambda buffers, env_mask: masks.append(env_mask.numpy().tolist()) or {})
+    camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor])
     scene = _camera_scene([camera], lazy=lazy)
 
     InteractiveScene.update(scene, 0.1)
@@ -648,7 +642,7 @@ def test_camera_processors_receive_the_due_environments(camera_batch_context, la
     assert camera.data.info["pose"] == 0.0
 
     # Only the reset environment is due for the second capture.
-    assert masks == ([None, None] if async_rendering else [[True, True], [False, True]])
+    assert masks == [[True, True], [False, True]]
 
 
 def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
