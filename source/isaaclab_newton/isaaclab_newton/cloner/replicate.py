@@ -23,6 +23,7 @@ from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
+    DeformableStageEntry,
     deformable_geometry_batches,
     deformable_prototypes,
     expand_deformable_entries,
@@ -32,8 +33,10 @@ from isaaclab.sim import SimulationContext, SpawnerCfg
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
+    add_deformable_gaussian_splats,
     add_visual_deformables_to_sources,
     build_source_builders,
+    isolate_deformable_gaussian_splats,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
@@ -96,6 +99,24 @@ def newton_builder_world_hook(
     finally:
         if hook in hooks:
             hooks.remove(hook)
+
+
+def _add_deformables(
+    source_builders: dict[str, ModelBuilder],
+    stage: Usd.Stage,
+    entries: Sequence[DeformableStageEntry],
+    load_visual_shapes: bool,
+) -> None:
+    """Add each deformable, and its Gaussian splat visual when visual shapes are loaded, to its owning sources."""
+    for entry in entries:
+        ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
+        owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
+        if not owners:
+            raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
+        for source in owners:
+            add_deformable_from_usd(source, stage, entry)
+            if load_visual_shapes:
+                add_deformable_gaussian_splats(source, stage, entry)
 
 
 def _replicate_newton(
@@ -213,16 +234,10 @@ def _replicate_newton(
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
     if simulation:
-        for entry in entries:
-            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
-            if not owners:
-                raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
-            for source in owners:
-                add_deformable_from_usd(source, stage, entry)
+        _add_deformables(source_builders, stage, entries, load_visual_shapes)
         global_sites, source_sites, root_sites = sim.backend_manager.inject_sites(builder, source_builders)
     else:
-        add_visual_deformables_to_sources(source_builders, entries)
+        add_visual_deformables_to_sources(source_builders, stage, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
             imported.shape_collision_filter_pairs = []
@@ -258,8 +273,9 @@ def _replicate_newton(
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
+    geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
+    isolate_deformable_gaussian_splats(builder, geometry)
     if simulation:
-        geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))
         ranges.update(zip(builder.volume_label, builder._volume_particle_start, strict=True))
         offsets = [ranges[entry.root_path] for entry in geometry]

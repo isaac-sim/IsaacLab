@@ -10,9 +10,9 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, ModelBuilder, ShapeFlags
+from newton import Gaussian, JointType, ModelBuilder, ShapeFlags
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
@@ -25,6 +25,66 @@ from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
+
+
+class _IndependentGaussian(Gaussian):
+    """Gaussian whose identity, not its contents, decides whether Newton shares its data."""
+
+    __hash__ = object.__hash__
+    __eq__ = object.__eq__
+
+
+def add_deformable_gaussian_splats(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
+    """Import the Gaussian splat visual of a deformable, which Newton's USD importer skips with its subtree.
+
+    Deformables with another visual are left unchanged.
+
+    Args:
+        builder: Source builder that receives the Gaussian shape.
+        stage: Stage containing the authored Gaussian splat prim.
+        geometry: Deformable prototype discovered beneath an imported source.
+    """
+    if not geometry.vis_mesh_is_gaussian_splats:
+        return
+    prim = stage.GetPrimAtPath(geometry.vis_mesh_path)
+    transform = Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim))
+    rotation = transform.GetRotation().GetQuat()
+    builder.add_shape_gaussian(
+        -1,
+        gaussian=Gaussian.create_from_usd(prim),
+        xform=wp.transform(transform.GetTranslation(), (*rotation.GetImaginary(), rotation.GetReal())),
+        scale=wp.vec3(*transform.GetScale()),
+        label=geometry.vis_mesh_path,
+    )
+
+
+def isolate_deformable_gaussian_splats(builder: ModelBuilder, entries: Sequence[DeformableStageEntry]) -> None:
+    """Give each replicated Gaussian splat visual its own data, as its centers are rewritten at runtime.
+
+    Newton merges Gaussians with equal contents into one shared buffer, which would make every clone of a
+    deformable follow the same simulation.
+
+    Args:
+        builder: Replicated builder holding the Gaussian shapes.
+        entries: Replicated deformables; only those with a Gaussian splat visual are isolated.
+    """
+    paths = {entry.vis_mesh_path for entry in entries if entry.vis_mesh_is_gaussian_splats}
+    if not paths:
+        return
+    for index, label in enumerate(builder.shape_label):
+        if label in paths:
+            source = builder.shape_source[index]
+            builder.shape_source[index] = _IndependentGaussian(
+                source.positions,
+                source.rotations,
+                source.scales,
+                source.opacities,
+                source.sh_coeffs,
+                source.sh_degree,
+                source.min_response,
+                source.sorting_mode,
+                sh_color_space=source.sh_color_space,
+            )
 
 
 def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
@@ -70,13 +130,16 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
 
 
 def add_visual_deformables_to_sources(
-    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+    builders: dict[str, ModelBuilder], stage: Usd.Stage, entries: Sequence[DeformableStageEntry]
 ) -> None:
     """Add each visual deformable to every imported source containing its USD subtree."""
     for entry in entries:
         for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
             builder = builders.get(str(path))
             if builder is None:
+                continue
+            if entry.vis_mesh_is_gaussian_splats:
+                add_deformable_gaussian_splats(builder, stage, entry)
                 continue
             pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
             surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
