@@ -30,8 +30,9 @@ import sys
 import tempfile
 import weakref
 from builtins import ExceptionGroup
-from collections import deque
+from collections import defaultdict, deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
@@ -392,9 +393,7 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms_timestamp = -1
         self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
         self._object_scales: wp.array | None = None
-        self._geometry_paths: list[str] = []
-        self._geometry_offsets: dict[str, int] = {}
-        self._geometry_writes = _AsyncWriteBuffers[wp.array]()
+        self._geometry_groups: list[_GeometryGroup] = []
         self._geometry_timestamp = -1
         self._initialized_scene = False
         self._output_id_color_buffers: dict[str, wp.array] = {}
@@ -407,7 +406,6 @@ class OVRTXRenderer(BaseRenderer):
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
         self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
-        self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
 
     @property
@@ -477,7 +475,7 @@ class OVRTXRenderer(BaseRenderer):
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
-        self._setup_geometry_bindings()
+        self._setup_geometry_bindings(stage)
         if self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
             # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
             # Disable only camera reads before registering products (and before attaching
@@ -546,65 +544,93 @@ class OVRTXRenderer(BaseRenderer):
                 prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
             )
 
-    def _setup_geometry_bindings(self) -> None:
+    def _setup_geometry_bindings(self, stage: Usd.Stage) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
         points = self._sdp.get_geometry_points()
-        self._geometry_paths = list(points)
-        if not self._geometry_paths:
+        # Clones are native copies absent from the stage, so read each prim's type from its authored prototype.
+        prototypes = {target: root for root, targets in self.scene.clone_copies for target in targets}
+
+        def prototype(path: str) -> str:
+            for ancestor in reversed(Sdf.Path(path).GetPrefixes()):
+                if (root := prototypes.get(str(ancestor))) is not None:
+                    return root + path[len(str(ancestor)) :]
+            return path
+
+        # Gaussian splats keep their centers in ``positions``; every other visual in ``points``.
+        by_attribute = defaultdict(list)
+        for path in points:
+            visual = stage.GetPrimAtPath(prototype(path))
+            is_splat = visual.IsValid() and visual.GetTypeName() == "ParticleField3DGaussianSplat"
+            by_attribute["positions" if is_splat else "points"].append(path)
+        self._geometry_groups = [_GeometryGroup(attribute, paths) for attribute, paths in by_attribute.items()]
+        paths = [path for group in self._geometry_groups for path in group.paths]
+        if not paths:
             return
-        prim_count = len(self._geometry_paths)
+        prim_count = len(paths)
         reset_xforms = np.ones(prim_count, dtype=np.bool_)
+        # Published points are world-space, so every visual resets to an identity transform.
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        if self._use_ovstage:
-            self._geometry_points_binding = self._bindings.enter_context(self.scene.query(self._geometry_paths))
-            self.scene.stage.write_attribute(
-                self._geometry_points_binding,
-                "omni:resetXformStack",
-                ordinal=self.scene.ordinal,
-                tensors=reset_xforms,
-                is_array=False,
-            ).wait()
-            self.scene.stage.write_attribute(
-                self._geometry_points_binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_numpy(identity_xforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
-        else:
-            if self.cfg.async_rendering:
-                count = 0
-                for path, array in points.items():
-                    self._geometry_offsets[path] = count
-                    count += len(array)
-                self._geometry_writes = _AsyncWriteBuffers(
-                    wp.empty(count, wp.vec3f, device=self._device) for _ in range(2)
+        splats = {
+            prototype(path) for group in self._geometry_groups if group.attribute == "positions" for path in group.paths
+        }
+        xform_cache = UsdGeom.XformCache()
+        for splat in splats:
+            linear = np.array(xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(splat)))[:3, :3]
+            if not np.allclose(linear, np.eye(3)):
+                logger.warning(
+                    "OVRTX renders the deformable Gaussian splat %s without its authored rotation and scale.", splat
                 )
+        if not self._use_ovstage:
             self.backend.renderer.write_attribute(
-                prim_paths=self._geometry_paths,
+                prim_paths=paths,
                 attribute_name="omni:resetXformStack",
                 tensor=reset_xforms,
                 prim_mode=PrimMode.MUST_EXIST,
             )
             self.backend.renderer.write_attribute(
-                prim_paths=self._geometry_paths,
+                prim_paths=paths,
                 attribute_name="omni:xform",
                 tensor=identity_xforms,
                 semantic=Semantic.XFORM_MAT4x4,
                 prim_mode=PrimMode.MUST_EXIST,
             )
-            self._geometry_points_binding = self.backend.renderer.bind_array_attribute(
-                prim_paths=self._geometry_paths,
-                attribute_name="points",
+        for group in self._geometry_groups:
+            if self._use_ovstage:
+                group.binding = self._bindings.enter_context(self.scene.query(group.paths))
+                self.scene.stage.write_attribute(
+                    group.binding,
+                    "omni:resetXformStack",
+                    ordinal=self.scene.ordinal,
+                    tensors=reset_xforms[: len(group.paths)],
+                    is_array=False,
+                ).wait()
+                self.scene.stage.write_attribute(
+                    group.binding,
+                    "omni:xform",
+                    ordinal=self.scene.ordinal,
+                    tensors=xform_tensor_from_numpy(identity_xforms[: len(group.paths)]),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+                group.replays = _OVSTAGE_DROPPED_SPLAT_WRITES if group.attribute == "positions" else 0
+                continue
+            if self.cfg.async_rendering:
+                count = 0
+                for path in group.paths:
+                    group.offsets[path] = count
+                    count += len(points[path])
+                group.writes = _AsyncWriteBuffers(wp.empty(count, wp.vec3f, device=self._device) for _ in range(2))
+            group.binding = self.backend.renderer.bind_array_attribute(
+                prim_paths=group.paths,
+                attribute_name=group.attribute,
                 dtype=np.float32,
                 shape=(3,),
                 prim_mode=PrimMode.MUST_EXIST,
                 flags=BindingFlag.OPTIMIZE,
             )
-            if self._geometry_points_binding is None:
-                raise RuntimeError("Failed to create OVRTX geometry point bindings")
-            self._bindings.callback(self._geometry_points_binding.unbind)
+            if group.binding is None:
+                raise RuntimeError(f"Failed to create OVRTX geometry {group.attribute} bindings")
+            self._bindings.callback(group.binding.unbind)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Register a camera's product and bindings in the prepared scene."""
@@ -1086,36 +1112,39 @@ class OVRTXRenderer(BaseRenderer):
                 marker.translations, marker.orientations, marker.scales, marker.marker_indices,
                 visible=marker.is_visible(),
             )  # fmt: skip
-        binding = self._geometry_points_binding
-        if binding is None:
+        if not self._geometry_groups:
             return
         stream = self._warp_device.stream
         asynchronous = self.cfg.async_rendering and not self._use_ovstage
-        if asynchronous:
-            output = self._geometry_writes.acquire(stream)
-            self._sdp.get_geometry_points(output=output, offsets=self._geometry_offsets)
-            offsets = list(self._geometry_offsets.values())
-            points = [output[start:end] for start, end in zip(offsets, [*offsets[1:], len(output)], strict=True)]
-        else:
-            points = self._sdp.get_geometry_points()
-            points = [points[path] for path in self._geometry_paths]
-        timestamp = self._sdp.backend.geometry_timestamp
-        if self._geometry_timestamp == timestamp:
-            return
-        if self._use_ovstage:
-            self.scene.stage.write_attribute(
-                binding,
-                "points",
-                ordinal=self.scene.ordinal,
-                tensors=[points_tensor_from_warp(array) for array in points],
-                is_array=True,
-                semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        elif asynchronous:
-            self._geometry_writes.submit(binding, points, stream)
-        else:
-            binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+        views = None if asynchronous else self._sdp.get_geometry_points()
+        for group in self._geometry_groups:
+            if asynchronous:
+                output = group.writes.acquire(stream)
+                self._sdp.get_geometry_points(output=output, offsets=group.offsets)
+                offsets = list(group.offsets.values())
+                points = [output[start:end] for start, end in zip(offsets, [*offsets[1:], len(output)], strict=True)]
+            else:
+                points = [views[path] for path in group.paths]
+            # The producer advances its timestamp while serving the request.
+            timestamp = self._sdp.backend.geometry_timestamp
+            if self._geometry_timestamp == timestamp:
+                if not group.replays:
+                    continue
+                group.replays -= 1
+            if self._use_ovstage:
+                self.scene.stage.write_attribute(
+                    group.binding,
+                    group.attribute,
+                    ordinal=self.scene.ordinal,
+                    tensors=[points_tensor_from_warp(array) for array in points],
+                    is_array=True,
+                    semantic=_GEOMETRY_SEMANTICS[group.attribute],
+                    cuda_stream=stream.cuda_stream or 1,
+                ).wait()
+            elif asynchronous:
+                group.writes.submit(group.binding, points, stream)
+            else:
+                group.binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._geometry_timestamp = timestamp
 
     def update_camera(
@@ -1282,18 +1311,18 @@ class OVRTXRenderer(BaseRenderer):
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
                 resources.callback(self._transform_writes.close)
-                resources.callback(self._geometry_writes.close)
+                for group in self._geometry_groups:
+                    resources.callback(group.writes.close)
                 resources.callback(self.geometry_resources.close)
                 for geometry in (*self.meshes.values(), *self.markers.values()):
                     resources.callback(geometry.close)
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
         finally:
-            self._object_xform_binding = self._geometry_points_binding = None
+            self._object_xform_binding = None
             self._object_scales = None
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
-            self._geometry_offsets.clear()
-            self._geometry_paths = []
+            self._geometry_groups = []
             self._geometry_timestamp = -1
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
@@ -1673,3 +1702,25 @@ class _AsyncWriteBuffers(Generic[_BufferT]):
                 if operation is not None:
                     writes.callback(wp.synchronize_stream, producer)
                     writes.callback(operation.wait)
+
+
+# OVStage drops the first two writes to a Gaussian splat field's positions. Rewriting unchanged points for two
+# further frames guarantees a third write, which applies them even when the simulation is paused.
+_OVSTAGE_DROPPED_SPLAT_WRITES = 2
+
+# ovstage writes need the semantic of the attribute they target.
+_GEOMETRY_SEMANTICS = {"points": ovstage.AttributeSemantic.POINT, "positions": ovstage.AttributeSemantic.NONE}
+
+
+@dataclass
+class _GeometryGroup:
+    """Visual prims whose world-space points are written to one native attribute through one binding."""
+
+    attribute: str
+    paths: list[str]
+    offsets: dict[str, int] = field(default_factory=dict)
+    """Flat offset of each path in the group's asynchronous write buffer."""
+    binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
+    writes: _AsyncWriteBuffers[wp.array] = field(default_factory=_AsyncWriteBuffers)
+    replays: int = 0
+    """Updates that rewrite unchanged points, for the first writes that the native stage drops."""
