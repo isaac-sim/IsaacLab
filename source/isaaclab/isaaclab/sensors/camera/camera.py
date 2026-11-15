@@ -821,9 +821,6 @@ class Camera(SensorBase):
         """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
-        # Asynchronous rendering publishes an earlier request's image, which this capture's mask does not describe.
-        if getattr(self.cfg.renderer_cfg, "async_rendering", False):
-            env_mask = None
         buffers = dict(self._render_outputs)
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
