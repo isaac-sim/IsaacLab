@@ -192,9 +192,10 @@ class randomize_rigid_body_material(ManagerTermBase):
       :attr:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg.friction_combine_mode`.
     - **Newton with the MuJoCo Warp solver**: When both shapes have the same MuJoCo contact priority
       (``mjc:priority``, which defaults to 0), the solver uses the larger of the two friction coefficients.
-      If the terrain friction is at or above the upper end of ``static_friction_range``, every contact uses
-      the terrain friction and this randomization has no effect. To make it effective, set the terrain
-      friction below the sampled range, or give the asset's colliders a higher priority with
+      If the terrain friction is at or above the upper end of ``static_friction_range``, every contact
+      between the asset and the terrain uses the terrain friction, so this randomization has no effect on
+      them. To make it effective, set the terrain friction below the sampled range, or give the asset's
+      colliders a higher priority with
       :attr:`~isaaclab_newton.sim.schemas.MujocoCollisionCfg.priority` so that their friction is used.
 
     .. attention::
