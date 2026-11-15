@@ -19,6 +19,7 @@ from pxr import UsdPhysics
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
 from isaaclab.utils.warp import memory as memory_kernels
+from isaaclab.utils.warp.capture import eager_method
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -180,6 +181,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
         return self.cfg.prim_path + root_prim_path_relative_to_prim_path
 
+    @eager_method  # OVPhysX binding reads are host calls, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Read OVPhysX incoming joint wrenches and split them into force / torque buffers.
 

@@ -35,6 +35,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_cont
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.warp.capture import GraphedCallable
 
 ##
 # Custom helper classes.
@@ -269,13 +270,46 @@ def test_contact_sensor_refuses_update_inside_outer_graph_capture():
     sensor._fetch_physx_buffers = fetch
 
     with wp.ScopedCapture(device=wp.get_device(device)):
-        with pytest.raises(RuntimeError, match="CUDA graph capture"):
+        with pytest.raises(RuntimeError, match="graph capture"):
             sensor._update_buffers_impl(env_mask)
         # record something so the outer capture does not end empty
         wp.copy(destination, source)
 
     assert sensor._compute_graph is None
     assert fetch_call_count == 0
+
+
+def test_contact_sensor_update_repeats_eagerly_on_every_replay_of_a_recording(monkeypatch):
+    """A GraphedCallable recording that updates the sensor runs the PhysX reads and the update on every replay."""
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
+    device = "cuda:0"
+    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    source = wp.ones(1, dtype=wp.int32, device=device)
+    destination = wp.zeros(1, dtype=wp.int32, device=device)
+    before = wp.zeros(1, dtype=wp.int32, device=device)
+    sensor = _make_graph_test_sensor()
+
+    fetch_call_count = 0
+
+    def fetch() -> None:
+        nonlocal fetch_call_count
+        fetch_call_count += 1
+
+    sensor._fetch_physx_buffers = fetch
+    sensor._compute = lambda: wp.copy(destination, source)
+
+    def step() -> None:
+        wp.copy(before, source)  # recorded work around the eager update
+        sensor._update_buffers_impl(env_mask)
+
+    graphed = GraphedCallable(step, device)
+    graphed()  # the recording is the first run; without the eager boundary the sensor raises here
+    source.fill_(2)
+    graphed()
+    wp.synchronize_device(device)
+
+    assert fetch_call_count == 2
+    assert destination.numpy().tolist() == [2]
 
 
 def test_contact_sensor_falls_back_when_graph_capture_fails(monkeypatch):

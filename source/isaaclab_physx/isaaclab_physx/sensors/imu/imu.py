@@ -17,6 +17,7 @@ from isaaclab.sensors.imu import BaseImu
 from isaaclab.sensors.imu.kernels import imu_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob
 from isaaclab.utils.warp import memory as memory_kernels
+from isaaclab.utils.warp.capture import eager_method
 
 from .imu_data import ImuData
 
@@ -172,6 +173,7 @@ class Imu(BaseImu):
         self._gravity_w = gravity
         self._gravity_bias_w = wp.vec3f(-gravity[0], -gravity[1], -gravity[2])
 
+    @eager_method  # PhysX tensor reads run on the legacy CUDA stream, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)

@@ -17,6 +17,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
+from isaaclab.utils.warp.capture import eager_method
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
                 self._raw_transforms = wp.from_torch(transforms.contiguous()).view(wp.transformf)
         return self._raw_transforms
 
+    @eager_method  # PhysX tensor reads run on the legacy CUDA stream, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Refresh PhysX transforms and update ray data eagerly or through a CUDA graph.
 
