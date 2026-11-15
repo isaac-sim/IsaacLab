@@ -39,9 +39,7 @@ class FunctionProcessorCfg(TensorProcessorCfg):
     """Function processor class."""
 
     function: Callable[..., torch.Tensor] | str = MISSING
-    """Stateless function applied to the input tensor, with :attr:`params` as keyword arguments, or its import
-    string. It must tolerate repeated or delayed images when the camera renders asynchronously.
-    """
+    """Function applied to the input tensor, with :attr:`params` as keyword arguments, or its import string."""
 
     inputs: list[str] = MISSING
     """The input buffer name."""
