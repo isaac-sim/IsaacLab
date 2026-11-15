@@ -607,19 +607,24 @@ class NewtonBackend:
         state = self.state_0
         return tuple(0 if array is None else array.ptr for array in (state.body_q, state.particle_q))
 
-    def bind_gaussian_splats(self, splat_counts: dict[str, int]) -> None:
+    def bind_gaussian_splats(self, provider: SceneDataProvider) -> None:
         """Bind the Gaussian shapes whose splat centers follow a deformable.
 
         Consumers then fill :attr:`gaussian_centers` through the scene data provider before each
         :meth:`refit_bvh`, which writes them into the shapes. Repeated calls keep the first binding.
 
         Args:
-            splat_counts: Splat count of each published geometry path. Paths without a Gaussian shape are ignored.
+            provider: Scene data provider publishing a center for each splat of the deformable visuals.
         """
         if self._gaussian_splats is not None:
             return
         labels = {label: index for index, label in enumerate(self.model.shape_label)}
         types = self.model.shape_type.numpy()
+        if not (types == GeoType.GAUSSIAN).any():
+            return
+        splat_counts = {
+            path: count for _, ranges in provider.backend.get_geometry_batches() for path, (_, count) in ranges.items()
+        }
         paths = [path for path in splat_counts if path in labels and types[labels[path]] == GeoType.GAUSSIAN]
         if not paths:
             return

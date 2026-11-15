@@ -456,12 +456,7 @@ class NewtonWarpRenderer(BaseRenderer):
         self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        splat_counts = {
-            path: count
-            for _, ranges in self._scene_data_provider.backend.get_geometry_batches()
-            for path, (_, count) in ranges.items()
-        }
-        self.backend.bind_gaussian_splats(splat_counts)
+        self.backend.bind_gaussian_splats(self._scene_data_provider)
         self._render_model = self.backend.create_render_model()
         self.newton_sensor = newton.sensors.SensorTiledCamera(
             self._render_model,
