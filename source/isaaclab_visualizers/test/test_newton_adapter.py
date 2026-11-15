@@ -1267,38 +1267,71 @@ def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
     assert spec.renderer == "frame"
 
 
-def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
-    import isaaclab_visualizers.newton.newton_visualization_markers as _mod
-    import numpy as np
-    from isaaclab_visualizers.newton.newton_visualization_markers import (
-        NewtonVisualizationMarkers,
-        _NewtonMarkerSpec,
+def test_marker_render_handles_none_normals_and_uvs(monkeypatch, marker_registry):
+    """Mesh registration remains viewer-local and accepts untextured meshes without normals."""
+    from isaaclab.sim import SphereCfg
+
+    mesh = SimpleNamespace(
+        vertices=np.zeros((3, 3), dtype=np.float32), indices=np.array([0, 1, 2], dtype=np.int32), normals=None, uvs=None
     )
-
-    fake_mesh = SimpleNamespace(
-        vertices=np.zeros((4, 3), dtype=np.float32),
-        indices=np.array([0, 1, 2, 0, 2, 3], dtype=np.int32),
-        normals=None,
-        uvs=None,
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: mesh)
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/test", markers={"sphere": SphereCfg(radius=1)})
     )
-    monkeypatch.setattr(_mod, "_create_mesh", lambda cfg: fake_mesh)
+    marker.visualize(torch.zeros((1, 3)), None, None, None)
+    for _ in range(2):
+        viewer = SimpleNamespace(device="cpu", world_offsets=None, log_mesh=Mock(), log_instances=Mock())
+        marker.render(viewer, None, 1)
+        marker.render(viewer, None, 1)
+        assert viewer.log_mesh.call_count == 1
+        assert viewer.log_mesh.call_args.kwargs["normals"] is None
+        assert viewer.log_mesh.call_args.kwargs["uvs"] is None
 
-    log_calls = []
 
-    class _LoggingViewer:
-        device = "cpu"
+@pytest.mark.parametrize("device", test_devices())
+def test_marker_batches_preserve_selected_instances(device, marker_registry):
+    """Shared geometry keeps each prototype's color/scale, filtering, and live tensor updates."""
+    from contextlib import nullcontext
 
-        def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
-            log_calls.append({"normals": normals, "uvs": uvs})
+    from isaaclab.sim import CuboidCfg, PreviewSurfaceCfg, UsdFileCfg
 
-    fake_self = SimpleNamespace(_registered_meshes=set())
-    spec = _NewtonMarkerSpec(renderer="mesh", mesh_type="usd", preloaded_mesh=fake_mesh)
-
-    NewtonVisualizationMarkers._ensure_mesh_registered(fake_self, _LoggingViewer(), "/test/mesh", spec)
-
-    assert len(log_calls) == 1
-    assert log_calls[0]["normals"] is None
-    assert log_calls[0]["uvs"] is None
+    cfg = newton_markers.VisualizationMarkersCfg(
+        prim_path="/test",
+        markers={
+            "red": UsdFileCfg(
+                usd_path="/assets/arrow_x.usd",
+                scale=(1, 2, 3),
+                visual_material=PreviewSurfaceCfg(diffuse_color=(1, 0, 0)),
+            ),
+            "box": CuboidCfg(size=(1, 1, 1)),
+            "green": UsdFileCfg(
+                usd_path="/assets/arrow_x.usd",
+                scale=(3, 2, 1),
+                visual_material=PreviewSurfaceCfg(diffuse_color=(0, 1, 0)),
+            ),
+        },
+    )
+    marker = newton_markers.NewtonVisualizationMarkers(cfg)
+    viewer = SimpleNamespace(device=device, world_offsets=None, log_mesh=Mock(), log_instances=Mock())
+    stream = torch.cuda.Stream(device=device) if torch.device(device).type == "cuda" else None
+    with torch.cuda.stream(stream) if stream is not None else nullcontext():
+        positions = torch.tensor([[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]], dtype=torch.float32, device=device)
+        marker.visualize(positions, None, torch.full_like(positions, 2), torch.tensor([1, 0, 2, 0], device=device))
+        marker.render(viewer, [1], 2)
+        assert viewer.log_instances.call_count == 2
+        arrows = viewer.log_instances.call_args_list[0].args
+        np.testing.assert_array_equal(arrows[2].numpy()[:, :3], [[2, 0, 0], [3, 0, 0]])
+        np.testing.assert_array_equal(arrows[3].numpy(), [[6, 10, 5], [2, 10, 15]])
+        np.testing.assert_array_equal(arrows[4].numpy(), [[0, 1, 0], [1, 0, 0]])
+        np.testing.assert_array_equal(viewer.log_instances.call_args_list[1].args[3].numpy(), np.zeros((2, 3)))
+        positions.add_(10)
+        marker.render(viewer, [1], 2)
+        np.testing.assert_array_equal(
+            viewer.log_instances.call_args_list[-2].args[2].numpy()[:, :3], [[12, 10, 10], [13, 10, 10]]
+        )
+    marker.set_visibility(False)
+    marker.render(viewer, None, 2)
+    assert all(call.kwargs["hidden"] for call in viewer.log_instances.call_args_list[-2:])
 
 
 # ---------------------------------------------------------------------------

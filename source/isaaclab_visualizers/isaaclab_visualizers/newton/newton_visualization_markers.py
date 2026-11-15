@@ -73,10 +73,27 @@ class NewtonVisualizationMarkers:
         self.marker_indices: torch.Tensor | None = None
         self.count = len(cfg.markers)
         self._registered_meshes: set[tuple[int, str]] = set()
-        self._warned_unsupported: set[str] = set()
-        self._marker_specs: dict[str, _NewtonMarkerSpec] = {
-            name: _infer_newton_marker_cfg(marker_cfg) for name, marker_cfg in cfg.markers.items()
-        }
+        self._marker_batches: list[tuple[str, _NewtonMarkerSpec, list[int]]] = []
+        self._prototype_scales = []
+        self._prototype_colors = []
+        for index, (name, marker_cfg) in enumerate(cfg.markers.items()):
+            spec = _infer_newton_marker_cfg(marker_cfg)
+            self._prototype_scales.append(spec.scale or _extract_scale_hint(marker_cfg))
+            self._prototype_colors.append(spec.color or _extract_color(marker_cfg))
+            if spec.renderer == "none":
+                logger.warning("Unsupported Newton marker prototype '%s' in '%s'; skipping.", name, self.group_id)
+                continue
+            # Primitive geometry is shared; color and scale belong to each instance.
+            for _, existing, indices in self._marker_batches:
+                if (
+                    spec.renderer == "mesh"
+                    and spec.mesh_type != "usd"
+                    and (spec.mesh_type == existing.mesh_type and spec.mesh_params == existing.mesh_params)
+                ):
+                    indices.append(index)
+                    break
+            else:
+                self._marker_batches.append((name, spec, [index]))
 
         sim = sim_utils.SimulationContext.instance()
         self._registry = sim.vis_marker_registry if sim is not None else None
@@ -147,12 +164,7 @@ class NewtonVisualizationMarkers:
         marker_indices = self.marker_indices
         count = self.count
 
-        if not self.visible:
-            for name, newton_cfg in self._marker_specs.items():
-                self._hide_batch(viewer, name, newton_cfg)
-            return
-
-        if count > 0 and num_envs > 0 and count % num_envs == 0:
+        if self.visible and count > 0 and num_envs > 0 and count % num_envs == 0:
             markers_per_env = count // num_envs
             env_selection = slice(num_envs) if visible_env_ids is None else visible_env_ids
             selected_env_count = num_envs if visible_env_ids is None else len(visible_env_ids)
@@ -171,108 +183,92 @@ class NewtonVisualizationMarkers:
                     translations = translations + offsets[:, None, :]
                 translations = translations.flatten(0, 1)
 
-        if count == 0:
-            for name, newton_cfg in self._marker_specs.items():
-                self._hide_batch(viewer, name, newton_cfg)
-            return
-
-        if translations is None:
+        hidden = not self.visible or count == 0
+        if not self._marker_batches or (translations is None and not hidden):
             return
 
         device = viewer.device
-        num_markers = translations.shape[0]
-        if orientations is None:
-            orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
-
-        for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
-            newton_cfg = self._marker_specs[name]
-            batch_name = f"{self.group_id}/{name}"
-            if newton_cfg.renderer == "none":
-                unsupported_key = f"{self.group_id}:{name}"
-                if unsupported_key not in self._warned_unsupported:
-                    logger.warning(
-                        "[NewtonVisualizationMarkers] Unsupported marker prototype '%s' in group '%s'; skipping.",
-                        name,
-                        self.group_id,
-                    )
-                    self._warned_unsupported.add(unsupported_key)
-                continue
-
-            # Keep instance batches stable as prototype selections change.
-            if marker_indices is None:
-                shown = torch.full((num_markers,), proto_index == 0, dtype=torch.bool, device=translations.device)
-            else:
-                shown = marker_indices == proto_index
-            marker_scales = translations.new_tensor(newton_cfg.scale or _extract_scale_hint(marker_cfg))
-            marker_scales = marker_scales * shown.unsqueeze(-1)
-            if scales is not None:
-                marker_scales = scales * marker_scales
-
-            if newton_cfg.renderer == "mesh":
-                mesh_name = f"{self.group_id}/meshes/{name}"
-                self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
-                color = newton_cfg.color or _extract_color(marker_cfg)
-                colors = translations.new_tensor(color).expand(num_markers, -1)
-                # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
-                texture_flag = float(newton_cfg.texture is not None)
-                materials = translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(num_markers, -1)
-                xforms = torch.cat((translations, orientations), dim=1).detach().cpu().numpy()
-                viewer.log_instances(
-                    batch_name,
-                    mesh_name,
-                    wp.array(xforms.astype(np.float32), dtype=wp.transform, device=device),
-                    wp.array(marker_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
-                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4, device=device),
-                    hidden=False,
-                )
-            elif newton_cfg.renderer == "frame":
-                starts, ends, colors = _build_frame_lines(translations, orientations, marker_scales)
-                shown_scales = marker_scales[shown]
-                width = max(float(shown_scales.mean().item()) * 0.05, 0.0025) if shown_scales.numel() else 0.0025
-                viewer.log_lines(
-                    batch_name,
-                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
-                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
-                    width=width,
-                    hidden=False,
-                )
-
-    def _hide_batch(self, viewer: ViewerBase, name: str, newton_cfg: _NewtonMarkerSpec) -> None:
-        batch_name = f"{self.group_id}/{name}"
-        if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
-            mesh_name = f"{self.group_id}/meshes/{name}"
-            self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
-            viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
-        elif newton_cfg.renderer == "frame":
-            viewer.log_lines(batch_name, None, None, None, hidden=True)
-
-    def _ensure_mesh_registered(self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
-        # The marker backend is shared by all Newton-family visualizers. Mesh
-        # registration is viewer-local, so the same marker mesh must be logged
-        # once per viewer (for example, once for Rerun and once for Viser).
-        registered_key = (id(viewer), mesh_name)
-        if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
-            return
-        mesh = _create_mesh(newton_cfg)
-        normals_arr = mesh.normals
-        uvs_arr = mesh.uvs
-        device = viewer.device
-        viewer.log_mesh(
-            mesh_name,
-            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
-            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
-            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3, device=device)
-            if normals_arr is not None and normals_arr.size
-            else None,
-            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2, device=device)
-            if uvs_arr is not None and uvs_arr.size
-            else None,
-            texture=newton_cfg.texture,
-            hidden=True,
+        stream = (
+            wp.stream_from_torch(torch.cuda.current_stream(translations.device))
+            if (translations is not None and translations.is_cuda)
+            else None
         )
-        self._registered_meshes.add(registered_key)
+        # Warp consumes Torch storage on its producing stream, including non-default streams.
+        with wp.ScopedStream(stream, sync_exit=True):
+            if not hidden:
+                num_markers = translations.shape[0]
+                if orientations is None:
+                    orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
+                xforms = wp.from_torch(torch.cat((translations, orientations), dim=1).float(), dtype=wp.transform).to(
+                    device
+                )
+                indices = (
+                    torch.zeros(num_markers, device=translations.device, dtype=torch.long)
+                    if (marker_indices is None)
+                    else marker_indices.long()
+                )
+                selected = indices.clamp(0, len(self.cfg.markers) - 1)
+                prototype_scales = translations.new_tensor(self._prototype_scales)[selected]
+                if scales is not None:
+                    prototype_scales = prototype_scales * scales
+                colors = translations.new_tensor(self._prototype_colors)[selected]
+                colors = wp.from_torch(colors.float().contiguous(), dtype=wp.vec3).to(device)
+
+            for name, spec, prototype_indices in self._marker_batches:
+                batch_name = f"{self.group_id}/{name}"
+                if spec.renderer == "mesh":
+                    mesh_name = f"{self.group_id}/meshes/{name}"
+                    registered_key = (id(viewer), mesh_name)
+                    if registered_key not in self._registered_meshes:
+                        mesh = _create_mesh(spec)
+                        viewer.log_mesh(
+                            mesh_name,
+                            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
+                            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
+                            normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3, device=device)
+                            if mesh.normals is not None and mesh.normals.size
+                            else None,
+                            uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2, device=device)
+                            if mesh.uvs is not None and mesh.uvs.size
+                            else None,
+                            texture=spec.texture,
+                            hidden=True,
+                        )
+                        self._registered_meshes.add(registered_key)
+                    if hidden:
+                        viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
+                        continue
+                elif hidden:
+                    viewer.log_lines(batch_name, None, None, None, hidden=True)
+                    continue
+
+                shown = torch.isin(indices, indices.new_tensor(prototype_indices))
+                marker_scales = prototype_scales * shown.unsqueeze(-1)
+                if spec.renderer == "mesh":
+                    # ViewerGL uses material.w to enable texture sampling.
+                    materials = translations.new_tensor((0.0, 0.0, 0.0, float(spec.texture is not None)))
+                    materials = materials.expand(num_markers, -1).float().contiguous()
+                    viewer.log_instances(
+                        batch_name,
+                        mesh_name,
+                        xforms,
+                        wp.from_torch(marker_scales.float().contiguous(), dtype=wp.vec3).to(device),
+                        colors,
+                        wp.from_torch(materials, dtype=wp.vec4).to(device),
+                        hidden=False,
+                    )
+                else:
+                    starts, ends, line_colors = _build_frame_lines(translations, orientations, marker_scales)
+                    shown_scales = marker_scales[shown]
+                    width = max(float(shown_scales.mean().item()) * 0.05, 0.0025) if shown_scales.numel() else 0.0025
+                    viewer.log_lines(
+                        batch_name,
+                        wp.from_torch(starts.float().contiguous(), dtype=wp.vec3).to(device),
+                        wp.from_torch(ends.float().contiguous(), dtype=wp.vec3).to(device),
+                        wp.from_torch(line_colors.float().contiguous(), dtype=wp.vec3).to(device),
+                        width=width,
+                        hidden=False,
+                    )
 
 
 def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
