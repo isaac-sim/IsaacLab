@@ -110,6 +110,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Rendering a deformable as Gaussian splats </source/how-to/run_deformable_gaussian_splats>`
+
+         Embed a Gaussian splat in a volume deformable so the rendered splats follow the simulation.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
          Attach and release rigid objects with a surface gripper.
