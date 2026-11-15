@@ -42,15 +42,17 @@ _SPAWN = PinholeCameraCfg(
 class _ScaleProcessor(TensorProcessor):
     """Scale one input into a persistent output and record lifecycle calls."""
 
+    requires_fresh_capture = False
+
     events: ClassVar[list[tuple]] = []
-    masks: ClassVar[list[list[bool]]] = []
+    masks: ClassVar[list[list[bool] | None]] = []
 
     def __init__(self, cfg: TensorProcessorCfg, data: dict[str, ProxyArray]) -> None:
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        _ScaleProcessor.masks.append(env_mask.numpy().tolist())
+        _ScaleProcessor.masks.append(None if env_mask is None else env_mask.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -338,9 +340,13 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
 
 
-def test_camera_processors_require_synchronous_rendering():
-    """Reject delayed captures before a processor can advance on a stale image."""
+def test_camera_processors_validate_async_compatibility():
+    """Allow stateless processing of delayed images while rejecting processors that need fresh captures."""
+    pytest.importorskip("isaaclab_ov")
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+
+    class FreshCaptureProcessor(_ScaleProcessor):
+        requires_fresh_capture = True
 
     cfg = CameraCfg(
         height=32,
@@ -352,6 +358,8 @@ def test_camera_processors_require_synchronous_rendering():
     )
     validate(cfg)
     cfg.tensor_processors = [TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb"], outputs=["half"])]
+    validate(cfg)
+    cfg.tensor_processors.append(TensorProcessorCfg(func=FreshCaptureProcessor, inputs=["half"], outputs=["rgb"]))
     with pytest.raises(ValueError, match="require synchronous rendering"):
         validate(cfg)
     cfg.renderer_cfg.async_rendering = False

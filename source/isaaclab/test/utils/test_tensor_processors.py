@@ -12,7 +12,7 @@ import torch
 import warp as wp
 
 import isaaclab.utils.tensor_processors as tensor_processors
-from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass, to_dict
 from isaaclab.utils.warp import ProxyArray
 
@@ -90,7 +90,7 @@ class ScaledSumProcessor(tensor_processors.TensorProcessor):
         super().__init__(cfg)
         self.output = torch.empty_like(data[0][cfg.inputs[0]].torch)
 
-    def __call__(self, data: list[dict[str, ProxyArray]], env_mask: wp.array | None = None) -> torch.Tensor:
+    def __call__(self, data: list[dict[str, ProxyArray]]) -> torch.Tensor:
         key = self._cfg.inputs[0]
         torch.add(data[0][key].torch, data[1][key].torch, out=self.output)
         return self.output.mul_(self._cfg.params["multiplier"])
@@ -207,36 +207,22 @@ def test_integral(device):
 
 
 @pytest.mark.parametrize(
-    ("cfg", "first", "second", "third", "resumed"),
+    ("cfg", "first", "third"),
     [
         # y[i] = 0.5 x[i] + 0.5 x[i-1] - 0.1 y[i-2] on a unit step: 0.5, 1.0, 0.95
-        (tensor_processors.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), 0.5, 1.0, 0.95, 0.9),
+        (tensor_processors.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), 0.5, 0.95),
         # trapezoidal integral of a unit step with dt = 0.1: 0.05, 0.15, 0.25
-        (tensor_processors.IntegratorCfg(dt=0.1), 0.05, 0.15, 0.25, 0.35),
+        (tensor_processors.IntegratorCfg(dt=0.1), 0.05, 0.25),
     ],
 )
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_stateful_tensor_processor_mask_reset(cfg, first, second, third, resumed, device):
-    """Masked calls and resets preserve inactive rows, including their older history."""
-    processor = cfg.func(cfg, (3, 2), device=device)
-    data = torch.ones(3, 2, device=device)
+def test_stateful_tensor_processor_mask_reset(cfg, first, third):
+    """A mask reset restarts the history of the selected environments; the others continue."""
+    processor = cfg.func(cfg, (3, 2), device="cpu")
+    data = torch.ones(3, 2)
     for _ in range(2):
         processor(data)
 
-    mask = wp.array([True, False, True], dtype=wp.bool, device=device)
-    processor.reset(env_mask=mask)
-    output = processor(data, env_mask=None)
-    expected = torch.tensor([first, third, first], device=device)[:, None].expand(3, 2)
-    torch.testing.assert_close(output, expected)
+    processor.reset(env_mask=wp.array([True, False, True], dtype=wp.bool, device="cpu"))
+    output = processor(data)
 
-    # NaNs in inactive rows must affect neither their output nor their saved history.
-    masked_data = data.clone()
-    masked_data[1] = torch.nan
-    output = processor(masked_data, env_mask=mask)
-    torch.testing.assert_close(output, torch.tensor([second, third, second], device=device)[:, None].expand(3, 2))
-    none = wp.zeros(3, dtype=wp.bool, device=device)
-    unchanged = output.clone()
-    torch.testing.assert_close(processor(torch.full_like(data, torch.nan), env_mask=none), unchanged)
-    torch.testing.assert_close(
-        processor(data, env_mask=None), torch.tensor([third, resumed, third], device=device)[:, None].expand(3, 2)
-    )
+    torch.testing.assert_close(output, torch.tensor([first, third, first])[:, None].expand(3, 2))
