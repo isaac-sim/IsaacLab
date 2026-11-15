@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, ClassVar, Union
 
 import torch
 import warp as wp
@@ -41,6 +41,12 @@ class TensorProcessor(ABC):
     Constructors inspect input metadata and allocate outputs without reading input values or
     advancing state. Persistent outputs remain valid until the next call; consumers retaining
     results must copy them. Warp-based GPU work uses the caller's current Warp stream.
+    """
+
+    requires_fresh_capture: ClassVar[bool] = True
+    """Whether camera use requires synchronous rendering. Stateless processors that can process repeated or
+    delayed images may set this to False. Asynchronous cameras pass ``env_mask=None`` because their current
+    mask does not describe the published image.
     """
 
     def __init__(
@@ -79,8 +85,9 @@ class TensorProcessor(ABC):
 
         Args:
             data: Tensor or nested collection supported by the implementation.
-            env_mask: Boolean mask of the environments with new data in this call. Shape is (num_envs,). Defaults to
-                None, which the caller passes when it does not track new data per environment.
+            env_mask: For camera processors, a boolean mask of environments due for this capture, or None when
+                the renderer does not identify fresh rows. Camera implementations must accept this keyword.
+                Observation-only implementations may omit it; the observation manager passes only ``data``.
 
         Returns:
             Processed data with the structure defined by the implementation.

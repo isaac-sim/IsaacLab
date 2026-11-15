@@ -627,11 +627,9 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     renderer.render.assert_not_called()
 
 
-@pytest.mark.parametrize("async_rendering", [False, True])
-@pytest.mark.parametrize("lazy", [False, True])
+@pytest.mark.parametrize("lazy,async_rendering", [(False, False), (True, False), (True, True)])
 def test_camera_processors_receive_the_due_environments(camera_batch_context, lazy, async_rendering):
-    """Processors run once per capture with the mask of the environments due for it, or None when asynchronous
-    rendering publishes an earlier request's image."""
+    """Synchronous captures forward the due mask; asynchronous captures cannot identify fresh rows."""
     _, renderer, _ = camera_batch_context
     masks = []
     processor = Mock(

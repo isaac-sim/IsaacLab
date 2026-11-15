@@ -326,6 +326,8 @@ reads. Camera resets call each processor's ``reset`` with the reset environments
    class ShadeDepth(TensorProcessor):
        """Shade a depth image into a gray rgb image: near is white, 10 m and farther is black."""
 
+       requires_fresh_capture = False
+
        def __init__(self, cfg, data):
            super().__init__(cfg)
            depth = data["distance_to_image_plane"].torch  # (N, H, W, 1)
@@ -352,12 +354,13 @@ raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraDat
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
 capture renders every environment. The camera calls each processor with ``env_mask``, a boolean mask of the
 environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
-filters, video generation) use it to advance only those rows. With ``async_rendering=True`` the published image
-comes from an earlier request than the mask, so the camera passes ``env_mask=None``.
+filters, video generation) use it to advance only those rows.
 
-With ``async_rendering=True``, the capture after a camera's first capture and after each reset publishes no new
-image, and the processors run on the previous image again. Processors that keep state between captures therefore
-need synchronous rendering.
+Processors require synchronous rendering by default. A stateless processor such as ``ShadeDepth`` can set
+``requires_fresh_capture = False`` to allow ``async_rendering=True``. In that mode, the renderer can publish an
+earlier request's image or no new image, and the camera passes ``env_mask=None``. Such processors must tolerate
+repeated or delayed images. Stateful processors that advance history on each capture should keep the default
+and use ``renderer_cfg.async_rendering=False``.
 
 Post-render image signal processing
 -----------------------------------
