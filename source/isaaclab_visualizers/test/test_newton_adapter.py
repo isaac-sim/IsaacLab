@@ -1267,34 +1267,17 @@ def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
     assert spec.renderer == "frame"
 
 
-def test_marker_render_handles_none_normals_and_uvs(monkeypatch, marker_registry):
-    """Mesh registration remains viewer-local and accepts untextured meshes without normals."""
-    from isaaclab.sim import SphereCfg
-
-    mesh = SimpleNamespace(
-        vertices=np.zeros((3, 3), dtype=np.float32), indices=np.array([0, 1, 2], dtype=np.int32), normals=None, uvs=None
-    )
-    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: mesh)
-    marker = newton_markers.NewtonVisualizationMarkers(
-        newton_markers.VisualizationMarkersCfg(prim_path="/test", markers={"sphere": SphereCfg(radius=1)})
-    )
-    marker.visualize(torch.zeros((1, 3)), None, None, None)
-    for _ in range(2):
-        viewer = SimpleNamespace(device="cpu", world_offsets=None, log_mesh=Mock(), log_instances=Mock())
-        marker.render(viewer, None, 1)
-        marker.render(viewer, None, 1)
-        assert viewer.log_mesh.call_count == 1
-        assert viewer.log_mesh.call_args.kwargs["normals"] is None
-        assert viewer.log_mesh.call_args.kwargs["uvs"] is None
-
-
 @pytest.mark.parametrize("device", test_devices())
-def test_marker_batches_preserve_selected_instances(device, marker_registry):
+def test_marker_batches_preserve_selected_instances(device, marker_registry, monkeypatch):
     """Shared geometry keeps each prototype's color/scale, filtering, and live tensor updates."""
     from contextlib import nullcontext
 
     from isaaclab.sim import CuboidCfg, PreviewSurfaceCfg, UsdFileCfg
 
+    mesh = SimpleNamespace(
+        vertices=np.zeros((3, 3), dtype=np.float32), indices=np.array([0, 1, 2], dtype=np.int32), normals=None, uvs=None
+    )
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: mesh)
     cfg = newton_markers.VisualizationMarkersCfg(
         prim_path="/test",
         markers={
@@ -1329,6 +1312,11 @@ def test_marker_batches_preserve_selected_instances(device, marker_registry):
         np.testing.assert_array_equal(
             viewer.log_instances.call_args_list[-2].args[2].numpy()[:, :3], [[12, 10, 10], [13, 10, 10]]
         )
+    assert viewer.log_mesh.call_count == 2
+    assert all(call.kwargs["normals"] is None and call.kwargs["uvs"] is None for call in viewer.log_mesh.call_args_list)
+    viewer = SimpleNamespace(device=device, world_offsets=None, log_mesh=Mock(), log_instances=Mock())
+    marker.render(viewer, None, 2)
+    assert viewer.log_mesh.call_count == 2
     marker.set_visibility(False)
     marker.render(viewer, None, 2)
     assert all(call.kwargs["hidden"] for call in viewer.log_instances.call_args_list[-2:])
