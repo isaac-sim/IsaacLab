@@ -1691,7 +1691,10 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_pos_backend: TimestampedBuffer | None = None
         self._joint_vel_backend: TimestampedBuffer | None = None
-        self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
+        # update() advances the finite difference once per physics step, so a recording reads it as it is
+        self._joint_acc = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))

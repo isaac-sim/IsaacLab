@@ -861,7 +861,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
         self._body_com_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
         # -- derived properties (acceleration via finite differencing)
-        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        # update() advances the finite difference once per physics step, so a recording reads it as it is
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), update_in_graph=False
+        )
         # Holds the previous-step COM velocity for FD; initialised lazily on first access.
         self._previous_body_com_vel: wp.array | None = None
         # -- derived properties (projected gravity and heading)

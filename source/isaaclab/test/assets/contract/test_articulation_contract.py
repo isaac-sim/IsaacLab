@@ -441,10 +441,14 @@ def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda
     """
     monkeypatch.setattr(GraphedCallable, "enabled", True)
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    # a previous velocity apart from the current one gives the step a nonzero acceleration, which a recorded
+    # finite difference would overwrite
+    art.data._previous_joint_vel.fill_(-1.0)
     art.data.update(dt=0.01)
     _ = art.data.heading_w  # current when the read is recorded
     joint_acc = art.data.joint_acc
     joint_acc_before = joint_acc.torch.clone()
+    assert torch.count_nonzero(joint_acc_before) > 0
 
     def read():
         _ = art.data.joint_acc
