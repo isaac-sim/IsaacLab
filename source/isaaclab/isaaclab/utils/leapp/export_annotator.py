@@ -36,9 +36,10 @@ import inspect
 import logging
 from collections.abc import Callable
 from contextlib import suppress
-from functools import wraps
+from functools import partial, wraps
 from typing import TYPE_CHECKING, Any
 
+import leapp
 import torch
 from leapp import Axis, AxisKind, ExportManager, FunctionPatch, Kind, TensorSemantics, annotate, kd, kp
 
@@ -202,7 +203,7 @@ def _normalize_rgb_for_export(images, channel_dim=-1, output_channel_dim=None, m
 
 
 def _broadcast_tensors_for_export(*tensors: torch.Tensor) -> tuple[torch.Tensor, ...]:
-    """Trace expand views to avoid LEAPP 0.8.0's list-to-varargs broadcast rewrite."""
+    """Trace expand views to preserve broadcast tracing and view aliases."""
     shape = torch.broadcast_shapes(*(tensor.shape for tensor in tensors))
     return tuple(tensor.expand(shape) for tensor in tensors)
 
@@ -682,16 +683,22 @@ class ExportPatcher:
                 command_cfg = env.command_manager.get_term(leapp_input_name).cfg
             kind = getattr(command_cfg, "cmd_kind", None)
             kind = next((quantity for quantity in Kind if quantity.value == kind), kind)
-            sem = TensorSemantics(
+            constructor = (
+                getattr(leapp, kind.name.lower()) if isinstance(kind, Kind) else partial(TensorSemantics, kind=kind)
+            )
+            spatial = {}
+            for field in ("reference", "expressed_in"):
+                value = getattr(command_cfg, f"cmd_{field}", None)
+                if value is not None:
+                    spatial[field] = value
+            sem = constructor(
                 name=leapp_input_name,
                 ref=result,
-                kind=kind,
                 axes=getattr(command_cfg, "axes", None) or [Axis(AxisKind.SYSTEM)] + [None] * (result.ndim - 1),
                 is_setpoint=True,
-                reference=getattr(command_cfg, "cmd_reference", None),
-                expressed_in=getattr(command_cfg, "cmd_expressed_in", None),
-                extra=build_command_connection(leapp_input_name),
+                **spatial,
             )
+            sem.extra = build_command_connection(leapp_input_name)
             return annotate.input_tensors(task_name, sem)
 
         wrapped.__name__ = original_func.__name__

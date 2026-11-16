@@ -704,7 +704,8 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
 
 
 @pytest.mark.parametrize(
-    ("command_type", "custom_axes"), [("velocity", False), ("pose", False), ("planar", False), ("velocity", True)]
+    ("command_type", "custom_axes"),
+    [("velocity", False), ("pose", False), ("planar", False), ("velocity", True), ("velocity", "duplicates")],
 )
 def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type, custom_axes):
     """Command annotations use the backend root and leave yaw-only references unspecified."""
@@ -729,7 +730,12 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         sim=SimpleNamespace(vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None)),
     )
     common = {"asset_name": "robot", "resampling_time_range": (1.0, 1.0)}
-    if custom_axes:
+    if custom_axes == "duplicates":
+        common["axes"] = [
+            leapp.Axis(leapp.AxisKind.SYSTEM),
+            leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "x", "angular_z"]),
+        ]
+    elif custom_axes:
         common["axes"] = [None, leapp.Axis("operator_controls", names=["forward", "sideways", "turn"])]
     if command_type == "velocity":
         cfg = UniformVelocityCommandCfg(
@@ -758,6 +764,10 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
     captured = _capture_leapp_inputs(monkeypatch)
     patcher = ExportPatcher("onnx")
     patcher.task_name = "command"
+    if custom_axes == "duplicates":
+        with pytest.raises(ValueError, match="unique subset"):
+            patcher._wrap_generated_commands(mdp.generated_commands, term_cfg)(env, "target")
+        return
     patcher._wrap_generated_commands(mdp.generated_commands, term_cfg)(env, "target")
     semantics = captured[0][1]
     assert semantics.is_setpoint is True
