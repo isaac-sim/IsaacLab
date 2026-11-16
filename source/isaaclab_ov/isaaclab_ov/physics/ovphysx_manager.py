@@ -19,6 +19,7 @@ import math
 import os
 import stat
 from collections.abc import Sequence
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -42,9 +43,9 @@ from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
-from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
@@ -406,6 +407,16 @@ class OvPhysxBackend:
                 self.stage = None
 
 
+class _OvPhysxEvent(Enum):
+    """Internal binding phase after native cloning and before render expansion.
+
+    It also initializes late consumers on ordinary resets, independently of MODEL_INIT's
+    construction callbacks, which run only during warmup or rebuild.
+    """
+
+    BINDINGS_READY = "ovphysx_bindings_ready"
+
+
 class OvPhysxManager(PhysicsManager):
     """Manages an ovphysx-backed physics simulation lifecycle.
 
@@ -435,6 +446,24 @@ class OvPhysxManager(PhysicsManager):
 
     backend_name = "ovphysx"
     clone_context_type = OvPhysxReplicateContext
+
+    binding_init_event = _OvPhysxEvent.BINDINGS_READY
+    """Binding phase before render cloning and public readiness when a shared stage is borrowed.
+
+    Otherwise, its subscribers run with PHYSICS_READY subscribers in callback priority order.
+    """
+
+    def dispatch_event(self, event: PhysicsEvent, payload: Any = None) -> None:
+        """Resolve binding readiness using the stage ownership selected after callback registration.
+
+        Args:
+            event: Lifecycle event to dispatch.
+            payload: Optional data to pass to callbacks.
+        """
+        if event == PhysicsEvent.PHYSICS_READY and (self.backend is None or self.backend.owns_scene):
+            self._dispatch_events((self.binding_init_event, event), payload)
+        else:
+            super().dispatch_event(event, payload)
 
     def get_dt(self) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
@@ -536,7 +565,7 @@ class OvPhysxManager(PhysicsManager):
         - Serializes the current USD stage in memory
         - Creates the ovphysx.PhysX instance
         - Populates and attaches an OVStage
-        - Warms up GPU buffers (if on CUDA)
+        - Runs the runtime warmup entry point (on CPU and CUDA)
         - Dispatches PHYSICS_READY
 
         A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
@@ -547,6 +576,9 @@ class OvPhysxManager(PhysicsManager):
                 if self.backend is not None and self.backend.stage is not None:
                     self.dispatch_event(PhysicsEvent.STOP, payload={})
                 self._warmup_and_load()
+            elif not self.backend.owns_scene:
+                # Consumers added since the previous reset still need their binding callback.
+                self.dispatch_event(self.binding_init_event, payload={})
             self.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         self.kinematics_dirty = True
         self._scene_data_backend.transforms_timestamp += 1
@@ -717,35 +749,19 @@ class OvPhysxManager(PhysicsManager):
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
+        full_stage = self._requires_full_stage or ovphysx_device == "cpu"
 
-        scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and self._clone_recipes:
-            scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
-        if shared_scene is not None:
-            stage_usda = export_stage_to_string(
-                sim.stage,
-                shared_scene.clone_env_paths,
-                source_paths=tuple(source for source, _ in shared_scene.clone_copies),
-                keep_env_roots=False,
-                env_paths=shared_scene.population_env_paths,
-            )
-            if ovphysx_compat.OVPHYSX_USES_TASKS:
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, self._cfg.legacy_joint_friction_replacements)
-                stage_usda = layer.ExportToString()
-            native_clones = ()
-        else:
-            full_stage = self._requires_full_stage or ovphysx_device == "cpu"
-            stage_usda, native_clones = _serialize_stage(
-                sim.stage,
-                self._clone_recipes,
-                full_stage,
-                plan,
-                friction_replacements=self._cfg.legacy_joint_friction_replacements,
-            )
+        stage_usda, native_clones = _serialize_stage(
+            sim.stage,
+            self._clone_recipes,
+            full_stage,
+            plan,
+            friction_replacements=self._cfg.legacy_joint_friction_replacements,
+            filter_render_only=shared_scene is not None,
+            preserve_physics_ancestors=shared_scene is not None,
+        )
         self._stage_usda = stage_usda
 
         self.backend = sim.get_or_create_backend(
@@ -774,6 +790,13 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend._defer_setup(self.backend, self._device, entries)
 
         self.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        if not self.backend.owns_scene:
+            self.dispatch_event(self.binding_init_event, payload={})
+        if shared_scene is not None and shared_scene.render_copies_pending:
+            # Acquire publication bindings while the stage still contains only originals.
+            # Complete the reserved ordinal before public callbacks can author gravity or cameras.
+            self._scene_data_backend._ensure_setup()
+            shared_scene.complete_render_copies()
         self._warmup_done = True
 
     def _close_at_exit(self) -> None:

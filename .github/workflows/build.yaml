@@ -921,7 +921,10 @@ jobs:
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_newton_warp.py,
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_newton_warp.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -963,7 +966,8 @@ jobs:
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
@@ -1266,7 +1270,8 @@ jobs:
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
         # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
         # which populates neither tree. The nodes are pinned by exact ID rather

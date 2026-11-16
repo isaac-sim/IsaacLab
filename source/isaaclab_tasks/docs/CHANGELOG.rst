@@ -3,6 +3,63 @@ Changelog
 
 .. towncrier release notes start
 
+30.3.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
+
+
+30.3.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``IsaacContrib-Velocity-Rough-Asimov1`` velocity-tracking task for the Asimov-1 humanoid,
+  using the shared velocity configuration, reward terms, and observation delay. Robot-specific terms
+  include episode-aware swing heights, foot-height rewards relative to the last ground contact,
+  whole-body angular momentum, and joint-zero calibration offsets owned by the action term.
+
+
+30.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tuned ``presets=newton_steel`` configurations to supported rigid-body tasks without changing their substep counts.
+* Selected driven Franka assets for Steel and enabled parallel streams for the SO101 keyboard contact solve.
+
+
+30.1.3 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the coupled tasks to import their couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour curriculum gripper filtering each command against itself once joint actions processed in
+  place.
+
+
+30.1.2 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Rizon coffee MPM solver to build through the instance :class:`~isaaclab_newton.physics.NewtonSolver` API.
+* Migrated the NIST Franka actuator configurations to the canonical actuator and joint limit
+  fields after the deprecated aliases were removed, preserving the distinct rated and solver limits.
+
+
 30.1.1 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

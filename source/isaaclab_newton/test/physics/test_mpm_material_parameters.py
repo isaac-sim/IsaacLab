@@ -22,6 +22,8 @@ from isaaclab_newton.physics import (
 )
 from newton.solvers import SolverImplicitMPM
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def material_backend():
@@ -115,8 +117,7 @@ def test_material_updates_reuse_and_invalidate_cuda_graphs(coupled):
     if not wp.is_cuda_available():
         pytest.skip("CUDA graph replay requires a CUDA device.")
     from isaaclab_newton.physics import XPBDSolverCfg
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 
     builder = newton.ModelBuilder(gravity=(0.0, 0.0, -1.0))
     SolverImplicitMPM.register_custom_attributes(builder)

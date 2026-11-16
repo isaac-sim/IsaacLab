@@ -13,6 +13,8 @@ Build a command and browse the core and contributed tasks available in Isaac Lab
 Command Builder
 ---------------
 
+Select ``newton_steel`` under ``physics=`` for tasks that offer the Steel solver.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-browser>

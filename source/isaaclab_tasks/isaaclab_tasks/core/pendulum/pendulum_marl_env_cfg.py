@@ -87,8 +87,8 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-    initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled from on reset [rad]
+    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [pi rad]
+    initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled on reset [pi rad]
 
     # success metric
     success_upright_angle = math.pi / 12  # both physical links must remain within this angle [rad]

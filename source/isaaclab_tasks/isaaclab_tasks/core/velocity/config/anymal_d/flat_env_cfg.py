@@ -24,6 +24,7 @@ class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
         newton_mjwarp.solver_cfg.cone = "elliptic"
         newton_mjwarp.solver_cfg.impratio = 100.0
         self.sim.physics.default = newton_mjwarp
+        self.sim.physics.newton_steel.solver_cfg.iterations = 8
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None

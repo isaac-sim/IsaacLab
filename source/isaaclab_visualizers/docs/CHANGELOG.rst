@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.4 (2026-11-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to read picking support from ``NewtonBackend.solver_ops``.
+
+
 4.1.3 (2026-10-31)
 ~~~~~~~~~~~~~~~~~~
 

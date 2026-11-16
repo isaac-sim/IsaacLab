@@ -17,7 +17,7 @@ forces between them during each simulation step. This lets a task combine
 solver families that target different physics, such as an MJWarp rigid robot
 interacting with VBD cloth or an MPM material.
 
-Configure coupling through :mod:`isaaclab_contrib.coupling` and
+Configure coupling through :mod:`isaaclab_newton.physics.coupling` and
 :class:`~isaaclab_newton.physics.NewtonCfg`. Newton's `Coupled Solvers guide
 <https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_ describes
 the algorithms, constraints, and solver internals.
@@ -117,10 +117,10 @@ more accurate; compare them on task-relevant physical metrics.
 Configure a coupled solver
 --------------------------
 
-In Isaac Lab, :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` defines each
+In Isaac Lab, :class:`~isaaclab_newton.physics.coupling.CouplerEntryCfg` defines each
 entry's solver and ownership. Use
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` or
-:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` as the
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` or
+:class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` as the
 :class:`~isaaclab_newton.physics.NewtonCfg` solver configuration.
 
 The following configuration mirrors the maintained Franka rigid--deformable tasks. It
@@ -129,7 +129,7 @@ to VBD, and exposes only the hand and fingers as VBD proxy colliders:
 
 .. code-block:: python
 
-   from isaaclab_contrib.coupling import (
+   from isaaclab_newton.physics.coupling import (
        CouplerEntryCfg,
        CouplerProxyCfg,
        CouplerProxyMappingCfg,
@@ -174,7 +174,7 @@ symmetric interfaces that should be coupled:
 
 .. code-block:: python
 
-   from isaaclab_contrib.coupling import CouplerAdmmCfg
+   from isaaclab_newton.physics.coupling import CouplerAdmmCfg
 
    physics = NewtonCfg(
        solver_cfg=CouplerAdmmCfg(
@@ -208,7 +208,7 @@ Stabilize each entry independently before changing coupling controls.
 More substeps or iterations can improve stability or convergence, but cost
 runtime and cannot repair an unstable entry. The generated
 :doc:`coupling configuration API
-</source/api/lab_contrib/isaaclab_contrib.coupling>` lists every field and
+</source/api/lab_newton/isaaclab_newton.physics.coupling>` lists every field and
 default; Newton's concept page explains the underlying algorithms.
 
 

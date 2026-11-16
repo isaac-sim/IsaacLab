@@ -7,7 +7,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -31,7 +31,7 @@ from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp
 
@@ -97,40 +97,32 @@ LIGHT_CFG = AssetBaseCfg(
 
 
 @configclass
-class CabinetSimCfg(PresetCfg):
-    """Simulation configuration presets for the cabinet environment.
+class CabinetPhysicsCfg(PresetCfg):
+    """Physics backend presets for the cabinet environment."""
 
-    Wraps the full :class:`~isaaclab.sim.SimulationCfg` so that Newton can run at a
-    finer physics timestep (1/600 s) while PhysX keeps its default (1/60 s).
-    """
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(njmax=90, nconmax=100, cone="pyramidal", integrator="implicitfast", impratio=1),
+        num_substeps=1,
+        debug_mode=False,
+    )
+    newton_steel: NewtonCfg = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            enable_joint_limits=True, articulation_constraint_max=256, free_body_constraint_max=32
+        )
+    )
+    default: NewtonCfg = newton_mjwarp
 
-    isaacsim_physx: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=1,
-        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-        visualizer_cfgs=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
-    )
-    ovphysx: SimulationCfg = replace(isaacsim_physx, physics=OvPhysxCfg())
-    physx: SimulationCfg = replace(
-        isaacsim_physx, physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
-    )
-    newton_mjwarp: SimulationCfg = SimulationCfg(
-        dt=1 / 600,
-        render_interval=1,
-        visualizer_cfgs=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=90,
-                nconmax=100,
-                cone="pyramidal",
-                integrator="implicitfast",
-                impratio=1,
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        ),
-    )
-    default: SimulationCfg = newton_mjwarp
+
+CABINET_SIM_CFG = SimulationCfg(
+    dt=preset(default=1 / 600, isaacsim_physx=1 / 60, ovphysx=1 / 60, physx=1 / 60, newton_steel=1 / 60),
+    render_interval=1,
+    visualizer_cfgs=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+    physics=CabinetPhysicsCfg(),
+)
+"""Shared simulation configuration for manager-based and direct cabinet tasks."""
 
 
 @configclass
@@ -145,6 +137,7 @@ class CabinetDecimationCfg(PresetCfg):
     ovphysx: int = isaacsim_physx
     physx: int = isaacsim_physx
     newton_mjwarp: int = 10
+    newton_steel: int = 1
     default: int = newton_mjwarp
 
 
@@ -334,7 +327,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
     # Simulation settings: the time step and physics vary per backend
-    sim: CabinetSimCfg = CabinetSimCfg()
+    sim: SimulationCfg = CABINET_SIM_CFG
     decimation: int = CabinetDecimationCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)

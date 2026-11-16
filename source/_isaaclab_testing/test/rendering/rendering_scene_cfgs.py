@@ -24,6 +24,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg, NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -60,8 +61,6 @@ from isaaclab.utils.math import (
     quat_from_matrix,
     quat_mul,
 )
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG

@@ -307,23 +307,33 @@ class VisualizationManager:
         Args:
             trigger: Type of trigger that should execute the callback
             arg: Dictionary containing trigger-specific parameters:
-                - For TRIGGER_ON_PERIOD: {"period": float}
-                - For TRIGGER_ON_EVENT: {"event_name": str}
-                - For TRIGGER_ON_CHANGE: {"variable_name": str}
-                - For TRIGGER_ON_UPDATE: {}
+
+                - For TRIGGER_ON_PERIOD: ``{"period": float}``
+                - For TRIGGER_ON_EVENT: ``{"event_name": str}``
+                - For TRIGGER_ON_CHANGE: ``{"variable_name": str}``
+                - For TRIGGER_ON_UPDATE: ``{}``
+
             callback: Function to execute when trigger condition is met. The callback should have
                 the following signatures according to the trigger type:
+
                 - For TRIGGER_ON_EVENT:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                        event_params: Any,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                          event_params: Any,
+                      )
+
                 - For others:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                      )
 
         Raises:
             TypeError: If callback signature doesn't match the expected signature for the trigger type
@@ -371,11 +381,10 @@ class VisualizationManager:
     def cancel_rule(self, trigger: TriggerType, arg: str | TimeCountdown, callback: Callable | None = None) -> None:
         """Remove a previously registered callback.
 
-        Periodic callbacks are not supported to be cancelled for now.
-
         Args:
             trigger: Type of trigger for the callback to remove
-            arg: Trigger-specific identifier (event name or variable name)
+            arg: Trigger-specific identifier (event name, variable name, or the timer returned when
+                registering a periodic callback)
             callback: The callback function to remove
         """
         callbacks = None
@@ -483,10 +492,10 @@ class XRVisualization:
 
     @classmethod
     def __create_instance(cls, manager: type[VisualizationManager] = VisualizationManager) -> XRVisualization:
-        """Get the visualization manager instance.
+        """Create the singleton instance with the given visualization manager type, if needed.
 
         Returns:
-            VisualizationManager: The visualization manager instance
+            XRVisualization: The singleton instance of the visualization system
         """
         with cls._lock:
             if cls._instance is None:
@@ -549,7 +558,7 @@ class XRVisualization:
 
         Args:
             name: Name of the event to trigger
-            args: Optional arguments for the event (currently unused)
+            args: Optional arguments for the event, passed to each callback as ``event_params``
         """
         instance = cls.__get_instance()
         instance._visualization_manager.on_event(name, args)

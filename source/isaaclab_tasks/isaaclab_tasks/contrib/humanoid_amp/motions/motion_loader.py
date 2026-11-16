@@ -254,7 +254,7 @@ class MotionLoader:
         """Get skeleton body indexes by body names.
 
         Args:
-            dof_names: List of body names.
+            body_names: List of body names.
 
         Raises:
             AssertionError: If the specified body name doesn't exist.

@@ -16,6 +16,17 @@ cluster:
   component_placement:
       actor,env,rollout: all
 
+weight_syncer:
+  type: patch
+  patch:
+    snapshot_device: cpu
+    delta_encoding: True
+    compression: none
+    init_sync:
+      enabled: True
+      prefixes: null
+      bucket_size: 134217728
+
 runner:
   task_type: embodied
   logger:
