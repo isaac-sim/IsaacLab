@@ -123,6 +123,7 @@ _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
+# TODO: Remove with the below-the-scene hiding workaround in OVRTXRenderer.set_environment_visibility.
 _HIDDEN_DROP = wp.float64(1.0e6)
 """Distance [m] below the scene to which the bodies of hidden environments are moved."""
 _CAMERA_INTRINSIC_ATTRIBUTES = (
@@ -1052,6 +1053,10 @@ class OVRTXRenderer(BaseRenderer):
 
         Writing the USD ``visibility`` of a cloned environment corrupts the transforms of its bodies once it is shown
         again, so hidden bodies are instead moved far below the scene when their poses are published.
+
+        .. todo::
+            Hiding by moving bodies below the scene is a workaround. Find why writing ``visibility`` on a cloned
+            environment corrupts its body transforms after it is shown again, and hide with ``visibility`` instead.
 
         Args:
             visible: Per-environment flag, in environment order.
