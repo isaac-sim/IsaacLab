@@ -492,9 +492,11 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
-        # Only the cloud is due here. It must enter Fabric without a device-to-host copy.
+        # Only the cloud is due here. Its points must enter Fabric without a device-to-host copy.
+        # Fabric index reads are int32 and legitimate, so the guard watches only vec3f data.
         with monkeypatch.context() as patch:
-            patch.setattr(wp, "copy", _forbid_warp_copy_readback("The cloud update copied CUDA points to the CPU"))
+            guard = _forbid_warp_copy_readback(wp.vec3f, "The cloud update copied CUDA points to the CPU")
+            patch.setattr(wp, "copy", guard)
             fabric.update_geometries(provider, 3)
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
@@ -593,13 +595,12 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
             sim.register_interactive_scene(None)
 
 
-def _forbid_warp_copy_readback(message: str):
-    """Return a ``wp.copy`` replacement that fails with ``message`` on a device-to-host copy of positions."""
+def _forbid_warp_copy_readback(dtype, message: str):
+    """Return a ``wp.copy`` replacement that fails with ``message`` on a device-to-host copy of ``dtype`` data."""
     copy = wp.copy
 
     def copy_without_readback(dest, src, *args, **kwargs):
-        # Fabric index reads are int32 and legitimate. Only a position payload is a readback.
-        is_readback = src.dtype is wp.vec3f and src.device.is_cuda and dest.device.is_cpu
+        is_readback = src.dtype is dtype and src.device.is_cuda and dest.device.is_cpu
         assert not is_readback, message
         return copy(dest, src, *args, **kwargs)
 
