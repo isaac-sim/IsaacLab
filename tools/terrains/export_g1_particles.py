@@ -1,10 +1,15 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Export the fixed G1 PhysX particle scene without launching a simulator."""
 
 import argparse
 from pathlib import Path
 
 import numpy as np
-from export_g1_courses import GRANULAR_TOP, export_course
+from export_g1_courses import export_course
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 from physx_usd_schemas import PhysxSchema
 
@@ -13,23 +18,30 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_physics_material
 
+from isaaclab_tasks.contrib.g1_terrain.course_parameters import GRANULAR_TOP
+
 
 def export_particles(output: Path) -> Path:
-    """Save the initial particle state, systems, materials, and PhysX tray contacts."""
-    source = output / "granular.usdc"
-    if not source.exists():
-        export_course(output, "granular")
+    """Regenerate the course and save its initial PhysX particle state and contacts.
+
+    Args:
+        output: Directory for the regenerated static and particle USD files.
+
+    Returns:
+        Path to the generated PhysX particle USD file.
+    """
+    source = export_course(output, "granular")
     path = output / "granular_physx.usdc"
     Usd.Stage.Open(str(source)).Flatten().Export(str(path))
     stage = Usd.Stage.Open(str(path))
     stage.GetPrimAtPath("/Course/granular_container/mesh").RemoveAPI(UsdPhysics.CollisionAPI)
     with sim_utils.use_stage(stage):
-        author_particle_beds(stage)
+        _author_particle_beds(stage)
     stage.GetRootLayer().Save()
     return path
 
 
-def author_particle_beds(stage: Usd.Stage) -> None:
+def _author_particle_beds(stage: Usd.Stage) -> None:
     """Author deterministic PBD beds; subsequent motion is computed by PhysX at runtime."""
     bottom = GRANULAR_TOP - 0.03
     material_path = "/Course/RigidMaterials/granular_container"

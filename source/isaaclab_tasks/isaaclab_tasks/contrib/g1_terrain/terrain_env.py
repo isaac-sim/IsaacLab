@@ -18,7 +18,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
 from isaaclab.terrains import TerrainImporter
 
-from .terrain_env_cfg import G1PlatformsEnvCfg
+from .terrain_env_cfg import G1GranularEnvCfg, G1PlatformsEnvCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.kit import KitVisualizer
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class ParticleTerrainImporter(TerrainImporter):
     """Load the particle USD and enable GPU simulation with host state buffers."""
 
-    def import_usd(self, name: str, usd_path: str):
+    def import_usd(self, name: str, usd_path: str) -> None:
         from pxr import PhysxSchema  # noqa: PLC0415
 
         super().import_usd(name, usd_path)
@@ -42,17 +42,17 @@ class ParticleTerrainImporter(TerrainImporter):
 class G1TerrainEnv(ManagerBasedRLEnv):
     """A fixed course with explicit resets and absolute joint position actions."""
 
-    def __init__(self, cfg: G1PlatformsEnvCfg, **kwargs):
+    def __init__(self, cfg: G1PlatformsEnvCfg, **kwargs) -> None:
         """Use host buffers for PhysX particles only after the launcher selects the CUDA device."""
         if cfg.scene.num_envs != 1:
             raise ValueError("The reconstructed courses support one robot per scene.")
         is_physx = isinstance(cfg.sim.physics, PhysxCfg)
         if not is_physx and not isinstance(cfg.sim.physics, NewtonCfg):
             raise ValueError("Select physics=isaacsim_physx or physics=newton_mjwarp.")
-        if cfg.terrain_name == "granular" and is_physx:
+        if isinstance(cfg, G1GranularEnvCfg) and is_physx:
             cfg.sim.device = "cpu"
         super().__init__(cfg, **kwargs)
-        if cfg.terrain_name == "granular" and is_physx:
+        if isinstance(cfg, G1GranularEnvCfg) and is_physx:
             self.sim.set_setting("/physics/updateParticlesToUsd", True)
 
     def reset(self, **kwargs):

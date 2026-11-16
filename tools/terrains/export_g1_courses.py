@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Build the self-contained, solid-color USD assets used by the fixed G1 demos."""
 
 from __future__ import annotations
@@ -15,6 +20,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 from isaaclab.terrains.height_field.utils import convert_height_field_to_mesh
 from isaaclab.utils.mesh import convert_faces_to_triangles
 
+from isaaclab_tasks.contrib.g1_terrain.course_parameters import GRANULAR_TOP
+
 PLATFORM_HEIGHTS = (
     (0.51, 0.56, 0.50),
     (0.56, 0.51, 0.58),
@@ -23,7 +30,6 @@ PLATFORM_HEIGHTS = (
     (0.50, 0.57, 0.51),
     (0.54, 0.51, 0.56),
 )
-GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
 COLORS = {
     "white": (0.73, 0.75, 0.75),
     "steel": (0.26, 0.28, 0.29),
@@ -38,11 +44,11 @@ COLORS = {
 }
 
 
-def platforms_and_ramps(layout: str) -> list[tuple[str, str, trimesh.Trimesh]]:
+def _platforms_and_ramps(layout: str) -> list[tuple[str, str, trimesh.Trimesh]]:
     """Reproduce the measured platforms, wedges, supports, and surrounding geometry."""
     parts = []
 
-    def box(name, center, size, material):
+    def box(name: str, center: tuple[float, float, float], size: tuple[float, float, float], material: str) -> None:
         mesh = trimesh.creation.box(size)
         mesh.apply_translation(center)
         parts.append((name, material, mesh))
@@ -94,7 +100,7 @@ def platforms_and_ramps(layout: str) -> list[tuple[str, str, trimesh.Trimesh]]:
     return parts
 
 
-def granular_course() -> list[tuple[str, str, trimesh.Trimesh]]:
+def _granular_course() -> list[tuple[str, str, trimesh.Trimesh]]:
     """Create the approach, exit, and tray; particle simulation remains in the task."""
     parts = []
     for name, start, end in (("approach", -1.5, 5.5), ("end", 11.5, 16.5)):
@@ -128,7 +134,7 @@ def granular_course() -> list[tuple[str, str, trimesh.Trimesh]]:
     return parts
 
 
-def add_ramp_appearance_variants(stage: Usd.Stage) -> None:
+def _add_ramp_appearance_variants(stage: Usd.Stage) -> None:
     """Keep original sensor geometry until the task selects its spectator appearance."""
     source = UsdGeom.Mesh(stage.GetPrimAtPath("/Course/wood_base/mesh"))
     points = np.asarray(source.GetPointsAttr().Get(), dtype=np.float32).copy()
@@ -162,7 +168,15 @@ def add_ramp_appearance_variants(stage: Usd.Stage) -> None:
 
 
 def export_course(output: Path, layout: str) -> Path:
-    """Write a standalone USD with geometry, solid materials, and static contact properties."""
+    """Write a standalone USD with geometry, materials, and static contacts.
+
+    Args:
+        output: Directory for the generated USD file.
+        layout: Course to export: ``platforms``, ``ramps``, or ``granular``.
+
+    Returns:
+        Path to the generated USD file.
+    """
     output.mkdir(parents=True, exist_ok=True)
     path = output / f"{layout}.usdc"
     stage = Usd.Stage.CreateNew(str(path))
@@ -174,7 +188,7 @@ def export_course(output: Path, layout: str) -> Path:
     physics_api.CreateStaticFrictionAttr(1.0)
     physics_api.CreateDynamicFrictionAttr(1.0)
     physics_api.CreateRestitutionAttr(0.0)
-    parts = granular_course() if layout == "granular" else platforms_and_ramps(layout)
+    parts = _granular_course() if layout == "granular" else _platforms_and_ramps(layout)
     for material_name in dict.fromkeys(material for _, material, _ in parts):
         material = UsdShade.Material.Define(stage, f"/Course/Looks/{material_name}")
         shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
@@ -201,7 +215,7 @@ def export_course(output: Path, layout: str) -> Path:
         if layout == "granular":
             mesh.CreateDisplayColorAttr([(0.18, 0.19, 0.20) if material_name == "tray" else (0.22, 0.23, 0.25)])
     if layout != "granular":
-        add_ramp_appearance_variants(stage)
+        _add_ramp_appearance_variants(stage)
     stage.GetRootLayer().Save()
     return path
 

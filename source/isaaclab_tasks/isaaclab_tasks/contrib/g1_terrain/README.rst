@@ -12,6 +12,13 @@ Assets are hosted separately, not packaged with the Python source. The existing
 ``ISAACSIM_ASSET_ROOT`` setting selects the asset server or a local mirror;
 individual courses can also override ``env.scene.terrain.usd_path``.
 
+Select the course with ``presets=platforms``, ``presets=ramps``, or
+``presets=granular``. Python callers use ``G1PlatformsEnvCfg``, ``G1RampsEnvCfg``,
+or ``G1GranularEnvCfg`` respectively. The ``terrain_name`` field has been removed;
+replace ``G1PlatformsEnvCfg(terrain_name="ramps")`` with ``G1RampsEnvCfg()`` and
+replace ``env.terrain_name=ramps`` with ``presets=ramps``. The demo commands
+continue to select these presets through their existing arguments.
+
 Platforms and ramps have an ``appearance`` variant set. The default,
 ``simulation``, exposes the original geometry to physics and the depth camera.
 After the initial depth update, the demo selects ``visual`` to display the
@@ -43,6 +50,8 @@ To regenerate the PhysX particle asset without launching Kit or a simulator::
 
 Both exporters are offline tools. The runtime task does not import them and
 does not require PIL or temporary texture directories for terrain.
+The particle exporter regenerates ``granular.usdc`` before creating
+``granular_physx.usdc`` so the tray and particles use the same course dimensions.
 
 Publish all four ``.usdc`` files under ``Isaac/IsaacLab/Contrib/G1Terrain/``
 in the asset root. No texture directory or robot USD needs to be uploaded.

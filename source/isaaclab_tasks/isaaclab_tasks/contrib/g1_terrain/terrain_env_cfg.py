@@ -6,7 +6,6 @@
 """Single-robot demonstrations on platforms, ramps, and granular terrain."""
 
 import math
-import re
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
@@ -24,16 +23,31 @@ from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.string import resolve_matching_names
 
-from isaaclab_tasks.utils import PresetCfg, preset
-
+from ...utils import PresetCfg, preset
+from .course_parameters import GRANULAR_TOP
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
 TERRAIN_ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/G1Terrain"
-GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
+
+
+def _sonic_actuators(actuators: dict[str, ImplicitActuatorCfg]) -> dict[str, ImplicitActuatorCfg]:
+    """Apply SONIC gains and effort limits to the existing actuator groups."""
+    actuators = {
+        name: replace(actuator, joint_effort_limit={"feet": 20.0, "waist": 50.0}.get(name, 300.0))
+        for name, actuator in actuators.items()
+    }
+    for name, actuator in actuators.items():
+        if name == "hands":
+            continue
+        indices, _ = resolve_matching_names(actuator.joint_names_expr, JOINT_NAMES)
+        actuator.stiffness = {JOINT_NAMES[i]: float(STIFFNESS[i]) for i in indices}
+        actuator.damping = {JOINT_NAMES[i]: float(DAMPING[i]) for i in indices}
+    return actuators
 
 
 @configclass
@@ -116,58 +130,6 @@ class TerrainPhysicsCfg(PresetCfg):
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
-    )
-    default = newton_mjwarp
-
-
-@configclass
-class GranularPhysicsCfg(PresetCfg):
-    """PhysX PBD or a Newton rigid-body/MPM coupling for the fixed particle beds."""
-
-    isaacsim_physx = TerrainPhysicsCfg().isaacsim_physx
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    newton_mjwarp = NewtonCfg(
-        num_substeps=2,
-        solver_cfg=CouplerProxyCfg(
-            entries=[
-                CouplerEntryCfg(
-                    name="robot",
-                    solver_cfg=TerrainPhysicsCfg().newton_mjwarp.solver_cfg,
-                    bodies=[r"{ENV_REGEX_NS}/Robot"],
-                    include_static_shapes=True,
-                ),
-                CouplerEntryCfg(
-                    name="media",
-                    solver_cfg=MPMSolverCfg(
-                        voxel_size=0.01,
-                        grid_type="sparse",
-                        grid_padding=0,
-                        max_active_cell_count=1 << 19,
-                        max_leaf_node_count=1 << 15,
-                        max_lower_node_count=1024,
-                        max_upper_node_count=32,
-                        max_iterations=50,
-                        strain_basis="P0",
-                        critical_fraction=0.0,
-                        transfer_scheme="pic",
-                    ),
-                    all_particles=True,
-                    in_place=True,
-                ),
-            ],
-            proxies=[
-                CouplerProxyMappingCfg(
-                    source="robot",
-                    destination="media",
-                    bodies=[r"{ENV_REGEX_NS}/Robot"],
-                    mode="lagged",
-                    collision_pipeline=None,
-                ),
-            ],
-            iterations=1,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000, soft_contact_max=0),
-        default_shape_cfg=TerrainPhysicsCfg().newton_mjwarp.default_shape_cfg,
     )
     default = newton_mjwarp
 
@@ -272,43 +234,26 @@ class TerrainSceneCfg(InteractiveSceneCfg):
 class GranularSceneCfg(TerrainSceneCfg):
     """Authored PhysX particle beds or standard Newton MPM spawners, with SONIC gains."""
 
-    terrain = TerrainSceneCfg().terrain.replace(
-        usd_path=preset(
-            default=f"{TERRAIN_ASSET_DIR}/granular.usdc",
-            isaacsim_physx=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
-            physx=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
+    terrain = replace(
+        TerrainSceneCfg().terrain,
+        usd_path=f"{TERRAIN_ASSET_DIR}/granular.usdc",
+        class_type="isaaclab.terrains.terrain_importer:TerrainImporter",
+    )
+    terrain = preset(
+        default=terrain,
+        isaacsim_physx=replace(
+            terrain,
+            usd_path=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
+            class_type=f"{__package__}.terrain_env:ParticleTerrainImporter",
         ),
-        class_type=preset(
-            default=TerrainImporter,
-            isaacsim_physx="isaaclab_tasks.contrib.g1_terrain.terrain_env:ParticleTerrainImporter",
-            physx="isaaclab_tasks.contrib.g1_terrain.terrain_env:ParticleTerrainImporter",
+        physx=replace(
+            terrain,
+            usd_path=f"{TERRAIN_ASSET_DIR}/granular_physx.usdc",
+            class_type=f"{__package__}.terrain_env:ParticleTerrainImporter",
         ),
     )
     robot = TerrainSceneCfg().robot
-    robot.actuators = {
-        name: actuator.replace(
-            joint_effort_limit={"feet": 20.0, "waist": 50.0}.get(name, 300.0),
-            stiffness=(
-                {
-                    joint: float(gain)
-                    for joint, gain in zip(JOINT_NAMES, STIFFNESS)
-                    if any(re.fullmatch(pattern, joint) for pattern in actuator.joint_names_expr)
-                }
-                if name != "hands"
-                else actuator.stiffness
-            ),
-            damping=(
-                {
-                    joint: float(gain)
-                    for joint, gain in zip(JOINT_NAMES, DAMPING)
-                    if any(re.fullmatch(pattern, joint) for pattern in actuator.joint_names_expr)
-                }
-                if name != "hands"
-                else actuator.damping
-            ),
-        )
-        for name, actuator in robot.actuators.items()
-    }
+    robot.actuators = _sonic_actuators(robot.actuators)
     depth_camera = None
     sand = preset(
         default=MPMObjectCfg(
@@ -390,7 +335,6 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
         "dark": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.2), roughness=0.5),
     }
     warmup_height: float | None = 1.38
-    terrain_name: str = "platforms"
     duration: float = 7.76
     heading: float = math.pi
     camera_eye: tuple[float, float, float] = (3.5777457457175097, -0.8435508432753542, 2.1149220372215085)
@@ -419,7 +363,7 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
     commands = {}
     episode_length_s = 1000.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.scene.robot.init_state.pos = (3.25, 2.15, 1.3400013446807861)
         self.scene.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
 
@@ -428,18 +372,18 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
 class G1RampsEnvCfg(G1PlatformsEnvCfg):
     """Depth-based locomotion over wooden ramps."""
 
-    terrain_name = "ramps"
     warmup_height = 1.363555205562947
     duration = 8.68
     heading = 0.0
     camera_eye = (6.230492542938942, -3.910147672506915, 3.1521005517604688)
     camera_target = (2.7742890567655323, -0.7747420522966051, 1.3565813903711013)
     camera_vfov = 20.408707665145386
+    scene: TerrainSceneCfg = G1PlatformsEnvCfg().scene
+    scene.terrain.usd_path = f"{TERRAIN_ASSET_DIR}/ramps.usdc"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.scene.robot.init_state.pos = (0.22, -0.3, 1.308342456817627)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
-        self.scene.terrain.usd_path = f"{TERRAIN_ASSET_DIR}/ramps.usdc"
 
 
 @configclass
@@ -448,7 +392,6 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
 
     policy_repo: str = "nvidia/GEAR-SONIC"
     policy_revision: str = "6733128a3d8a523b1418b06bca3cdf61c8b0987f"
-    terrain_name = "granular"
     warmup_height = None
     duration = 23.04
     heading = 0.0
@@ -457,9 +400,52 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
     camera_vfov = 30.974660215824073
     seed = 42
     scene: GranularSceneCfg = GranularSceneCfg(num_envs=1, env_spacing=20.0)
+    sim = G1PlatformsEnvCfg().sim
+    sim.physics.newton_mjwarp = replace(
+        sim.physics.newton_mjwarp,
+        solver_cfg=CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(
+                    name="robot",
+                    solver_cfg=sim.physics.newton_mjwarp.solver_cfg,
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
+                    include_static_shapes=True,
+                ),
+                CouplerEntryCfg(
+                    name="media",
+                    solver_cfg=MPMSolverCfg(
+                        voxel_size=0.01,
+                        grid_type="sparse",
+                        grid_padding=0,
+                        max_active_cell_count=1 << 19,
+                        max_leaf_node_count=1 << 15,
+                        max_lower_node_count=1024,
+                        max_upper_node_count=32,
+                        max_iterations=50,
+                        strain_basis="P0",
+                        critical_fraction=0.0,
+                        transfer_scheme="pic",
+                    ),
+                    all_particles=True,
+                    in_place=True,
+                ),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="robot",
+                    destination="media",
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
+                    mode="lagged",
+                    collision_pipeline=None,
+                ),
+            ],
+            iterations=1,
+        ),
+        collision_cfg=replace(sim.physics.newton_mjwarp.collision_cfg, soft_contact_max=0),
+    )
+    sim.physics.default = sim.physics.newton_mjwarp
 
-    def __post_init__(self):
-        self.sim.physics = GranularPhysicsCfg()
+    def __post_init__(self) -> None:
         self.scene.robot.init_state.pos = (5.1, 0.0, 1.2338175773620605)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
         self.scene.light.spawn.intensity = 750.0
