@@ -201,6 +201,7 @@ def _declare_viewer_camera(
         render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.rtx_render_settings},
     )  # fmt: skip
     visualizer.streaming_view = True  # The window lists scene cameras, including this one, as view sources.
+    visualizer.backend.rtx_camera_path = f"/World/{name}"
     return name, visualizer, *declared
 
 
@@ -398,6 +399,7 @@ def validate_launch(  # noqa: C901
         for name, visualizer, window_size, streaming_view in implicit_viewer_cameras:
             vars(scene_cfg).pop(name, None)
             visualizer.window.size, visualizer.streaming_view = window_size, streaming_view
+            visualizer.backend.rtx_camera_path = None
         configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources:
         for node in configs:
