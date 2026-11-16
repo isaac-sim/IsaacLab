@@ -4,6 +4,9 @@ This reference example exercises `isaaclab.envs.reset.ResetStateBuffer`: task ca
 generate candidate states through simulation, reject invalid candidates, and freeze the
 accepted states before reinforcement learning. The example currently supports Newton MJWarp.
 
+See [Learning sparse cube pickup](../../../../../docs/source/how-to/sparse_cube_pickup.rst)
+for an illustrated walkthrough of the reward, reset creation, training, and evaluation.
+
 Support owner during reset API development: Maximilian Krause. Evaluate this example
 with the reset-state-buffer API before promotion to a stable reference. Remove or
 relocate it if that API is withdrawn or another example covers the same capability.
