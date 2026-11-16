@@ -3,6 +3,38 @@ Changelog
 
 .. towncrier release notes start
 
+17.2.2 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the Newton assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`. Any integer sequence and slices with a negative step are accepted,
+  ids on another device are moved to the asset's device, and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected
+  with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the Newton assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`, as the env selection does, so slices other than ``slice(None)`` are
+  accepted.
+* Changed the joint-coordinate writes of :class:`~isaaclab_newton.assets.Articulation` to write env ids into a
+  scratch mask of the articulation instead of allocating a mask on every call.
+* Changed the fixed-tendon mask setters of :class:`~isaaclab_newton.assets.Articulation` to write through the masks,
+  as the other Newton mask writers do, instead of converting the masks to indices, which synchronized the host with
+  the GPU on every call.
+* Changed the mask writers of :class:`~isaaclab_newton.assets.RigidObjectCollection` to launch over the mask lengths,
+  as the other Newton mask writers do, so a mask shorter than the asset dimension writes only the rows it covers.
+
+Fixed
+^^^^^
+
+* Fixed the fixed-tendon mask setters of :class:`~isaaclab_newton.assets.Articulation` accepting data whose shape
+  does not match the articulation.
+* Fixed model-property writes recorded into a graph capture refreshing the solver only on the first replay:
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change` now records the solver refresh of that change, so
+  every replay applies it.
+
+
 17.2.1 (2026-11-12)
 ~~~~~~~~~~~~~~~~~~~
 

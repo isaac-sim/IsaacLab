@@ -1,0 +1,1 @@
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
