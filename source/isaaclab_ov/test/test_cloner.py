@@ -277,7 +277,7 @@ def test_raw_replicate_validates_sources_and_pose_arrays():
 @pytest.mark.parametrize("independent_physics", [False, True])
 @pytest.mark.parametrize("nested", [False, True], ids=["sibling", "nested"])
 def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics, nested):
-    """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
+    """Export exact targets, retain independent assets and physics opinions, and leave inputs reusable."""
     stage = Usd.Stage.CreateInMemory()
     for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
         root = env_template.format(env_id)
@@ -288,7 +288,16 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
     for world in range(4) if nested else (1, 3):
         independent = stage.DefinePrim(env_template.format(world) + independent_path, "Xform")
         if independent_physics:
-            UsdPhysics.RigidBodyAPI.Apply(independent)
+            # Exercise schema, typed, and authored-property physics without adding a matrix axis.
+            if env_template.startswith("/World"):
+                if nested:
+                    UsdPhysics.RigidBodyAPI.Apply(independent)
+                else:
+                    UsdPhysics.FixedJoint.Define(stage, independent.GetPath())
+            elif nested:
+                independent.CreateAttribute("physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool).Set(False)
+            else:
+                independent.CreateRelationship("physics:body0").SetTargets(["/Shared/Ground"])
     assets = tuple(
         AssetBaseCfg(prim_path=env_template.format("[^/]+") + name)
         for name in ("/Object", "/Object", "/Support", independent_path)
@@ -299,17 +308,28 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
     recipes = [(object_paths[i], [object_paths[i], object_paths[i + 2]], [], [i, i + 2], i) for i in range(2)]
     # A target can also be inside a world which retains a different prototype.
     support = stage.DefinePrim(env_template.format(0) + "/Support", "Xform")
+    UsdPhysics.RigidBodyAPI.Apply(stage.DefinePrim(str(support.GetPath()) + "/Body", "Xform"))
     support.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
     support_worlds = [0, 2] if nested else list(range(4))
     targets = [env_template.format(i) + "/Support" for i in support_worlds]
     recipes.append((str(support.GetPath()), targets, [], support_worlds, 0))
     if not nested:
         stage.DefinePrim(targets[1], "Xform")
+    # Reuse two native sibling cases for schema-free opinions on otherwise empty ancestors.
+    preserve_physics_ancestors = not full_stage and independent_physics and not nested
+    if preserve_physics_ancestors:
+        ancestor = stage.GetPrimAtPath(env_template.format(2))
+        if env_template.startswith("/World"):
+            ancestor.CreateAttribute("physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool).Set(False)
+        else:
+            ancestor.CreateRelationship("physics:body0").SetTargets(["/Shared/Ground"])
     before = stage.GetRootLayer().ExportToString()
 
     for _ in range(2):
         layer = Sdf.Layer.CreateAnonymous("export.usda")
-        serialized, native = _serialize_stage(stage, recipes, full_stage, plan)
+        serialized, native = _serialize_stage(
+            stage, recipes, full_stage, plan, preserve_physics_ancestors=preserve_physics_ancestors
+        )
         assert layer.ImportFromString(serialized)
         exported = Usd.Stage.Open(layer)
         for env_id, variant in enumerate(("cube", "sphere")):
@@ -317,7 +337,14 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
             assert prim.GetAttribute("test:variant").Get() == variant
         assert exported.GetPrimAtPath("/Shared/Ground")
         assert exported.GetPrimAtPath(env_template.format(3) + independent_path)
-        assert bool(exported.GetPrimAtPath(env_template.format(2))) is full_stage
+        ancestor = exported.GetPrimAtPath(env_template.format(2))
+        assert bool(ancestor) is (full_stage or preserve_physics_ancestors)
+        if preserve_physics_ancestors:
+            assert not ancestor.GetAllChildren() and not ancestor.GetAppliedSchemas()
+            if env_template.startswith("/World"):
+                assert ancestor.GetAttribute("physics:rigidBodyEnabled").Get() is False
+            else:
+                assert ancestor.GetRelationship("physics:body0").GetTargets() == [Sdf.Path("/Shared/Ground")]
         for world, target in zip(support_worlds, targets, strict=True):
             prim = exported.GetPrimAtPath(target)
             assert bool(prim) is (full_stage or world < 2 or (independent_physics and world == 3))
@@ -326,6 +353,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
         if full_stage:
             assert not native
         else:
+            assert not exported.GetPrimAtPath(object_paths[2])
             assert {
                 (source, target, world) for source, paths, _, ids, _ in native for target, world in zip(paths, ids)
             } == {
@@ -336,6 +364,35 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
             }
         assert stage.GetRootLayer().ExportToString() == before
         assert len(recipes) == 3
+
+
+@pytest.mark.kitless
+def test_clone_export_rechecks_physics_after_source_edits():
+    """Each export sees source edits and finds bodies after non-body physics in the subtree."""
+    stage = Usd.Stage.CreateInMemory()
+    source, target = "/World/env_0/Root", "/World/env_1/Root"
+    UsdGeom.Xform.Define(stage, source)
+    joint = UsdPhysics.FixedJoint.Define(stage, source + "/Joint")
+    recipes = [(source, [source, target], [], [0, 1], 0)]
+    with pytest.raises(ValueError, match="without rigid bodies or colliders"):
+        _serialize_stage(stage, recipes, full_stage=False)
+
+    body_path = source + "/Body"
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, body_path).GetPrim())
+    joint.CreateBody1Rel().SetTargets([body_path])
+    before = stage.GetRootLayer().ExportToString()
+    serialized, native = _serialize_stage(stage, recipes, full_stage=False)
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(serialized)
+    assert exported.GetPrimAtPath(body_path).HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not exported.GetPrimAtPath(target)
+    assert native == [(source, [target], [], [1], 0)]
+    assert stage.GetRootLayer().ExportToString() == before
+
+    joint.GetBody1Rel().ClearTargets(True)
+    stage.RemovePrim(body_path)
+    with pytest.raises(ValueError, match="without rigid bodies or colliders"):
+        _serialize_stage(stage, recipes, full_stage=False)
 
 
 def test_full_stage_export_preserves_nested_authored_opinions():
