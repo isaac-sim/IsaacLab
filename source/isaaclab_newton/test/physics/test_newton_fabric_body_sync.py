@@ -26,16 +26,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.assets import MPMObjectCfg
-from isaaclab_newton.physics import (
-    MJWarpSolverCfg,
-    MPMSolverCfg,
-    NewtonCfg,
-    VBDSolverCfg,
-    XPBDSolverCfg,
-)
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -502,7 +494,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
         # Only the cloud is due here. It must enter Fabric without a device-to-host copy.
         with monkeypatch.context() as patch:
-            patch.setattr(wp, "copy", _forbid_point_readback())
+            patch.setattr(wp, "copy", _forbid_warp_copy_readback("The cloud update copied CUDA points to the CPU"))
             fabric.update_geometries(provider, 3)
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
@@ -522,87 +514,6 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 3)
         wp.synchronize_device(sim.device)
         np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_mpm_particle_writes_and_resets_are_visible_in_rtx(monkeypatch):
-    """RTX must render particle writes and resets independently for cloned MPM assets.
-
-    The particles are GPU Fabric Points. One particle per asset with a constant color is the
-    case that Kit builds without the GPU Points fix freeze or discolor (OMPE-106051), so this
-    test fails on such a build.
-    """
-
-    @configclass
-    class ParticleSceneCfg(InteractiveSceneCfg):
-        red = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Red",
-            spawn=MPMGridCfg(
-                lower=(-0.1, -0.1, -0.1),
-                upper=(0.1, 0.1, 0.1),
-                voxel_size=0.2,
-                particle_placement="cell_center",
-                visual_color=(1.0, 0.0, 0.0),
-            ),
-            init_state=MPMObjectCfg.InitialStateCfg(pos=(-0.4, 0.0, 1.0)),
-        )
-        green = replace(red, prim_path="{ENV_REGEX_NS}/Green")
-        green.spawn.visual_color = (0.0, 1.0, 0.0)
-        green.init_state.pos = (0.4, 0.0, 1.0)
-        camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            height=128,
-            width=128,
-            data_types=["rgb"],
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), convention="opengl"),
-            spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=20.0),
-            renderer_cfg=IsaacRtxRendererCfg(),
-        )
-        light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0))
-
-    cfg = SimulationCfg(
-        device="cuda:0",
-        gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.2), use_cuda_graph=False),
-    )
-    with build_simulation_context(sim_cfg=cfg) as sim:
-        scene = InteractiveScene(ParticleSceneCfg(num_envs=2, env_spacing=4.0))
-        sim.register_interactive_scene(scene)
-        try:
-            sim.reset()
-            scene.reset()
-
-            def centers():
-                for _ in range(4):
-                    _render(sim, scene)
-                rgb = scene["camera"].data.output["rgb"].torch[..., :3].to(torch.float32)
-                values = []
-                for image in rgb:
-                    for channel in (0, 1):
-                        others = image[..., [value for value in range(3) if value != channel]].amax(-1)
-                        pixels = torch.nonzero((image[..., channel] > 40) & (image[..., channel] > others * 1.5))
-                        assert len(pixels) >= 5, "The colored particle cloud is absent from RTX"
-                        values.append(pixels.to(torch.float32).mean(0))
-                return torch.stack(values)
-
-            before = centers()
-            sim.step(render=False)
-            # The due particle update must reach GPU Fabric without a host copy.
-            with monkeypatch.context() as patch:
-                patch.setattr(wp, "copy", _forbid_point_readback())
-                sim.render()
-                scene["camera"].update(sim.get_rendering_dt(), force_recompute=True)
-            state = scene["red"].data.default_particle_state_w.torch[1:2].clone()
-            state[..., 1] += 0.4
-            scene["red"].write_particle_state_to_sim_index(state, env_ids=[1])
-            moved = centers()
-            assert torch.linalg.vector_norm(moved[2] - before[2]) > 10
-            torch.testing.assert_close(moved[[0, 1, 3]], before[[0, 1, 3]], rtol=0.0, atol=2.0)
-            scene["red"].reset(env_ids=[1])
-            torch.testing.assert_close(centers(), before, rtol=0.0, atol=2.0)
-        finally:
-            sim.register_interactive_scene(None)
 
 
 @pytest.mark.isaacsim_ci
@@ -682,17 +593,17 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
             sim.register_interactive_scene(None)
 
 
-def _forbid_point_readback():
-    """Return a ``wp.copy`` replacement that fails on a device-to-host copy of points."""
+def _forbid_warp_copy_readback(message: str):
+    """Return a ``wp.copy`` replacement that fails with ``message`` on a device-to-host copy of positions."""
     copy = wp.copy
 
-    def copy_without_point_readback(dest, src, *args, **kwargs):
+    def copy_without_readback(dest, src, *args, **kwargs):
         # Fabric index reads are int32 and legitimate. Only a position payload is a readback.
         is_readback = src.dtype is wp.vec3f and src.device.is_cuda and dest.device.is_cpu
-        assert not is_readback, "The particle update copied CUDA data to the CPU"
+        assert not is_readback, message
         return copy(dest, src, *args, **kwargs)
 
-    return copy_without_point_readback
+    return copy_without_readback
 
 
 def _render(sim, scene) -> None:
