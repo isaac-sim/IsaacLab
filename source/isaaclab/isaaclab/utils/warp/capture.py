@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextlib
 import functools
-import gc
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -249,7 +248,7 @@ def _record_calls(device: wp.Device):
     recording = _Recording(device)
     enclosing, GraphedCallable._recording = GraphedCallable._recording, recording
     try:
-        with _paused_gc(), wp.ScopedStream(recording.capture_stream):
+        with wp.ScopedStream(recording.capture_stream):
             recording.begin()
             try:
                 yield recording
@@ -370,23 +369,6 @@ class _Recording:
             guard, self._guard = self._guard, None
             guard.__exit__(None, None, None)
         torch.cuda.set_sync_debug_mode(self._sync_debug_mode)
-
-
-@contextlib.contextmanager
-def _paused_gc():
-    """Keep collection-driven frees out of a recording, as ``NewtonQueries.capture_graph`` does.
-
-    Objects allocated during the recording stay in the youngest generation, so collecting that generation afterwards
-    frees the recording's garbage without the full collection of the whole heap.
-    """
-    was_enabled = gc.isenabled()
-    gc.disable()
-    try:
-        yield
-    finally:
-        if was_enabled:
-            gc.enable()
-            gc.collect(0)
 
 
 def _argument_key(args: tuple, kwargs: dict[str, Any]) -> tuple:
