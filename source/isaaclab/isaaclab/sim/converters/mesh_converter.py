@@ -67,7 +67,7 @@ class MeshConverter(AssetConverterBase):
     def _convert_asset(self, cfg: MeshConverterCfg):
         """Generate USD from OBJ, STL or FBX.
 
-        The USD file has Y-up axis and is scaled to meters.
+        The USD file has Z-up axis and is scaled to meters.
         The asset hierarchy is arranged as follows:
 
         .. code-block:: none

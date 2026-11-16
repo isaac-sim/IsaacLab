@@ -13,6 +13,8 @@ Build a command and browse the core and contributed tasks available in Isaac Lab
 Command Builder
 ---------------
 
+Select ``newton_steel`` under ``physics=`` for tasks that offer the Steel solver.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-browser>
@@ -108,6 +110,21 @@ uses a scripted controller. Each scene also offers Manual end-effector control.
 .. isaaclab-demos:: ur10_reach, franka_lift, franka_stack
    :title: Explore manipulation
    :physics: rigid
+
+Unitree H2 velocity tracking
+---------------------------
+
+The H2 flat and rough tasks train all 31 joints with RSL-RL PPO using the published H2 asset's
+``Colliders=minimal`` variant. The rough task includes terrain height observations and a terrain
+curriculum; the flat task uses a ground plane and proprioceptive observations.
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-H2 --num_envs 4096 physics=newton_mjwarp
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Rough-H2 --num_envs 4096 physics=newton_mjwarp
+
+Torque and velocity limits come from the asset. PD gains and armature are simulation training
+settings and have not been validated on hardware.
 
 Benchmarks
 ----------

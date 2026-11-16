@@ -19,7 +19,7 @@ Override categories (applied in order):
        global preset, but must resolve against a config of that type or it errors
     3. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
     4. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
-    5. Global scalars: ``env.decimation=10`` -- handled by Hydra
+    5. Global scalars: ``env.decimation=10`` -- handled by us; other keys are passed to Hydra
 
 Example usage::
 
@@ -708,6 +708,13 @@ def _setattr(obj, path: str, val):
     *parts, leaf = path.split(".")
     for p in parts:
         obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
+    if not isinstance(obj, dict) and not hasattr(obj, leaf):
+        # A misspelled field is added beside the intended one, which keeps its value.
+        warnings.warn(
+            f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}; it is added as a new attribute.",
+            UserWarning,
+            stacklevel=user_stacklevel(),
+        )
     if isinstance(obj, dict):
         obj[leaf] = val
     else:

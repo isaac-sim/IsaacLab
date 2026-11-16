@@ -106,6 +106,7 @@ class PolicyModeCfg(PresetCfg):
 @configclass
 class PresetCfgEnvCfg:
     decimation: int = 4
+    range: tuple[float, float] = (0.6, 1.7)
     backend: SimBackendCfg = SimBackendCfg()
     observations: ObsModeCfg = ObsModeCfg()
 
@@ -468,6 +469,15 @@ def test_register_task_mixed_overrides():
     assert env_cfg.range == (0.1, 0.9)
     assert agent_cfg.learning_rate == 1e-5
     assert hydra_args == ["--flag"]
+
+
+def test_register_task_warns_about_a_misspelled_field():
+    """A misspelled env override warns that it adds a field beside the one it was meant to set."""
+    with pytest.warns(UserWarning, match="has no field 'decimaton'"):
+        env_cfg, _, _ = _register(PresetCfgEnvCfg(), overrides=["env.decimaton=10"])
+    assert env_cfg.decimation == 4
+    with pytest.warns(UserWarning, match="has no field 'dtt'"):
+        _register(PresetCfgEnvCfg(), overrides=["env.backend.dtt=0.001"])
 
 
 def test_resolve_task_config_replaces_task_without_migration_warnings(monkeypatch, tmp_path):

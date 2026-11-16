@@ -129,7 +129,7 @@ class PhysicsCfg(PresetCfg):
 
     Newton mirrors the single-agent Shadow Hand Newton port: an elliptic friction
     cone with ``impratio=10``, which weights normal contacts over friction, 100
-    solver iterations and 2 substeps.
+    solver iterations, and 4 substeps (the single-agent port uses 2) for sustained ball-palm contact.
     """
 
     isaacsim_physx = PhysxCfg(

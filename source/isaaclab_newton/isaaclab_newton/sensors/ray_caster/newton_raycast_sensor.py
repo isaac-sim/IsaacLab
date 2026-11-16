@@ -347,7 +347,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
-        if not use_graph:
+        if not use_graph or backend.device.is_capturing:
             self._launch_raycast()
             return
         pointers = backend.state_pointers()

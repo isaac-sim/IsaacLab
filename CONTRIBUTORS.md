@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
+* Ahmet Gundogdu
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
@@ -63,6 +64,7 @@ Guidelines for modifications:
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
+* Asier Arranz
 * Ashwin Varghese Kuruttukulam
 * Asier Arranz
 * Bikram Pandit
@@ -85,6 +87,7 @@ Guidelines for modifications:
 * David Cao-Mueller
 * David Leon
 * David Yang
+* Daniel Florea
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar

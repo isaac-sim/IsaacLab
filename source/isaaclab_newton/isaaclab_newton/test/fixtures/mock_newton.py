@@ -45,6 +45,7 @@ def create_mock_newton_manager(
     num_bodies: int = 1,
     num_joints: int = 0,
     is_fixed_base: bool = False,
+    device: str = "cpu",
 ):
     """Create a mock NewtonManager instance for testing.
 
@@ -54,6 +55,7 @@ def create_mock_newton_manager(
         num_bodies: Number of bodies in each mock articulation.
         num_joints: Number of joint degrees of freedom in each mock articulation.
         is_fixed_base: Whether the mock articulation has a fixed base.
+        device: Device for the mock model's buffers.
 
     Returns:
         A mock manager to pass as an asset's or data container's ``backend_manager``.
@@ -64,6 +66,7 @@ def create_mock_newton_manager(
         num_bodies=num_bodies,
         num_joints=num_joints,
         is_fixed_base=is_fixed_base,
+        device=device,
     )
     mock_state = MagicMock()
     mock_control = MagicMock()
@@ -77,6 +80,8 @@ def create_mock_newton_manager(
         solver=None,
         actuators=None,
         dt=0.01,
+        state_version=0,
+        device=wp.get_device("cpu"),
         transforms_may_change_on_graph_replay=False,
     )
     return manager
@@ -87,5 +92,21 @@ def backend_stub(**fields):
     from isaaclab_newton.physics import NewtonBackend  # noqa: PLC0415
 
     backend = object.__new__(NewtonBackend)
+    backend.contact_sensors = {}
+    backend.contact_observables = None
     backend.__dict__.update(fields)
     return backend
+
+
+def solver_driver(solver_cls, cfg, native=None):
+    """Return a ``solver_cls`` driver of ``native`` for ``cfg``, without building a Newton solver.
+
+    ``solver_cls`` may be a configuration's ``class_type`` reference string.
+    """
+    from isaaclab.utils.string import string_to_callable  # noqa: PLC0415
+
+    if isinstance(solver_cls, str):
+        solver_cls = string_to_callable(solver_cls)
+    driver = object.__new__(solver_cls)
+    driver.cfg, driver.native = cfg, native
+    return driver

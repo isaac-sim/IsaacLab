@@ -183,7 +183,7 @@ def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset
     formatted = format_presets_rst(
         {
             PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "physx"],
-            PresetTarget.DOMAIN: ["newton_mjwarp", "ovphysx", "physx"],
+            PresetTarget.DOMAIN: ["newton_mjwarp", "newton_steel", "ovphysx", "physx"],
         }
     )
     assert formatted == "**physics=** ``isaacsim_physx``, ``newton_mjwarp``"

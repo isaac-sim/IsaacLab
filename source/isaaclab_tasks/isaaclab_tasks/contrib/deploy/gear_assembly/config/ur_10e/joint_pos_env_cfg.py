@@ -208,7 +208,7 @@ class EventCfg:
                 "z": [-0.1, 0.1],
                 "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
                 "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "yaw": [-math.pi / 6, math.pi / 6],  # 2 degree
+                "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
             },
             "gear_pos_range": {
                 "x": [-0.02, 0.02],

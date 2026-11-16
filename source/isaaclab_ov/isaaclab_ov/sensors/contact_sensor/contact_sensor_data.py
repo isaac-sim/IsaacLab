@@ -12,8 +12,8 @@ import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_ov.sensors.kernels import concat_pos_and_quat_to_pose_kernel
+from isaaclab.utils.warp import memory as memory_kernels
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,7 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._pose_w is None:
             return None
-        wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
-            dim=(self._num_envs, self._num_sensors),
-            inputs=[self._pos_w, self._quat_w],
-            outputs=[self._pose_w],
-            device=self._device,
-        )
+        self._read_launch_cache.launch("pose_w", memory_kernels.concat, self._pos_w, self._quat_w, self._pose_w)
         if self._pose_w_ta is None:
             self._pose_w_ta = ProxyArray(self._pose_w)
         return self._pose_w_ta
@@ -349,6 +343,7 @@ class ContactSensorData(BaseContactSensorData):
         self._num_envs = num_envs
         self._num_sensors = num_sensors
         self._device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
         # Ensure history_length >= 1 for consistent buffer shapes
         effective_history = max(history_length, 1)
 

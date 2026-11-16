@@ -18,11 +18,11 @@ from isaaclab import cloner
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
+from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 from .frame_transformer_data import FrameTransformerData
-from .kernels import frame_transformer_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg
@@ -44,7 +44,7 @@ class FrameTransformer(BaseFrameTransformer):
     and target frames from the physics engine and then computing the relative transform between the two.
 
     Additionally, the user can specify an offset for the source frame and each target frame. This is useful
-    for specifying the transform of the desired frame with respect to the body's center of mass, for instance.
+    for specifying the transform of the desired frame with respect to the body's link (actor) frame, for instance.
 
     A common example of using this sensor is to track the position and orientation of the end effector of a
     robotic manipulator. In this case, the source frame would be the body corresponding to the base frame of the

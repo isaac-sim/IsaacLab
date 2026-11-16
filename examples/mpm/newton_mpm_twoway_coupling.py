@@ -102,8 +102,7 @@ def _spawn_colored_shape(
 def create_sim_cfg():
     """Create the proxy-coupled MJWarp and MPM simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     solver_cfg = CouplerProxyCfg(
         entries=[

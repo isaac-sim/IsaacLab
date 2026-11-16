@@ -54,7 +54,9 @@ class LeeVelController(LeeControllerBase):
         """Compute wrench command from velocity setpoint.
 
         Args:
-            command: (num_envs, 4) velocity command [vx, vy, vz, yaw_rate] in body frame.
+            command: Velocity command [vx, vy, vz, yaw_rate]. Translation [m/s] is in
+                the gravity-aligned vehicle frame, which follows the current yaw only;
+                yaw rate is in [rad/s]. Shape is (num_envs, 4).
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.
@@ -116,16 +118,19 @@ class LeeVelController(LeeControllerBase):
         """Compute desired acceleration from velocity tracking error.
 
         Args:
-            setpoint_velocity: (num_envs, 3) desired velocity in body frame.
+            setpoint_velocity: Desired velocity [m/s] in the gravity-aligned vehicle
+                frame, which follows the current yaw only. Shape is (num_envs, 3).
+            root_quat_w: Current world-frame orientation (xyzw). Shape is (num_envs, 4).
+            root_lin_vel_w: Current world-frame linear velocity [m/s]. Shape is (num_envs, 3).
 
         Returns:
-            (num_envs, 3) desired acceleration in body frame.
+            Desired world-frame acceleration [m/s²]. Shape is (num_envs, 3).
         """
         # Get yaw-only orientation (vehicle frame)
         _, _, yaw = math_utils.euler_xyz_from_quat(root_quat_w)
         vehicle_quat = math_utils.quat_from_euler_xyz(torch.zeros_like(yaw), torch.zeros_like(yaw), yaw)
 
-        # Transform setpoint from body to world frame
+        # Transform setpoint from the yaw-aligned vehicle frame to the world frame
         setpoint_velocity_w = math_utils.quat_apply(vehicle_quat, setpoint_velocity)
 
         # Compute velocity error and acceleration command

@@ -16,6 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -119,7 +120,7 @@ class SurfaceGripper(AssetBase):
     def state(self) -> wp.array:
         """Returns the gripper state buffer.
 
-        The gripper state is a list of integers:
+        The gripper state is a float32 array with values:
         - -1 --> Open
         - 0 --> Closing
         - 1 --> Closed
@@ -187,10 +188,7 @@ class SurfaceGripper(AssetBase):
             states: A tensor/array of floats representing the gripper command (full size).
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.set_grippers_command_index(states, env_ids, full_data=True)
 
     def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
@@ -274,10 +272,7 @@ class SurfaceGripper(AssetBase):
             retry_interval: The retry interval. Shape (num_envs,).
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.update_gripper_properties_index(
             max_grip_distance=max_grip_distance,
             coaxial_force_limit=coaxial_force_limit,
@@ -407,23 +402,21 @@ class SurfaceGripper(AssetBase):
         Args:
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.reset_index(env_ids)
 
-    def reset(self, indices: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the gripper command buffer.
 
-        .. deprecated:: v2.0.0
-            Use :meth:`reset_index` instead.
-
         Args:
-            indices: A tensor of integers representing the indices of the grippers to reset. Defaults to None.
+            env_ids: Indices of the grippers to reset. Defaults to None (all grippers).
+            env_mask: Boolean mask of the grippers to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
-        env_ids = self._resolve_env_ids(indices)
-        self.reset_index(env_ids)
+        if env_mask is not None:
+            self.reset_mask(wp.to_torch(env_mask))
+        else:
+            self.reset_index(self._resolve_env_ids(env_ids))
 
     """
     Initialization.
@@ -433,7 +426,7 @@ class SurfaceGripper(AssetBase):
         """Initializes the gripper-related handles and internal buffers.
 
         Raises:
-            ValueError: If the simulation backend is not CPU.
+            Exception: If the simulation backend is not CPU.
             RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
         .. note::
@@ -552,24 +545,17 @@ class SurfaceGripper(AssetBase):
     Helper functions.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
+    def _resolve_env_ids(self, env_ids=None, env_mask: wp.array | torch.Tensor | None = None) -> wp.array:
         """Resolve environment indices to a warp array.
 
         Args:
             env_ids: Environment indices. Can be None, a slice, a list, or a torch.Tensor.
+            env_mask: Boolean mask, converted to ids only when ``env_ids`` is not given.
 
         Returns:
             A warp array of int32 indices.
         """
-        if env_ids is None or env_ids == slice(None):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        elif isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32).contiguous(), dtype=wp.int32)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES))
 
     def parse_gripper_parameter(
         self, cfg_value: float | int | tuple | None, default_value: float | int | tuple | None, ndim: int = 0

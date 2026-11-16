@@ -3,6 +3,117 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the OVPhysX assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`. Any integer sequence and slices with a negative step are accepted,
+  and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the OVPhysX assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`, as the env
+  selection does, so slices other than ``slice(None)`` are accepted.
+* Reduced shared OVStage initialization work and host memory by attaching and cloning physics originals
+  before acquiring bindings and completing render copies. This order is selected automatically with
+  ``ISAAC_LAB_SHARE_OVSTAGE=1``; shared stages remain experimental and opt-in.
+* Completed shared-stage bindings and render copies before public physics-readiness callbacks, preserving
+  startup gravity edits. Failed render copies remained pending and required a stage rebuild before retry.
+* Preserved full-stage physics import and world placement for CPU simulations using a shared OVStage.
+* Respected ``populate_physics`` when deferring render copies, preserving rendering-only population.
+* Restricted early binding initialization to shared stages, preserving non-shared callback priorities
+  during startup, resets, and forced reinitialization.
+* Preserved joints and authored physics properties when selecting clone recipes and original worlds,
+  and rejected unsupported physics-only native clone roots before attachment instead of dropping them.
+  Reused source classifications within each export to avoid repeated USD traversal.
+* Exposed the OVPhysX binding phase through ``binding_init_event`` and ``initialize_event`` attributes,
+  removing asset and contact-sensor dependencies on private event selection.
+
+
+9.0.3 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera tasks stalling when their output is read slowly, for example by a benchmark harness. The
+  default :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_level` is now ``"error"``: lower levels print an
+  OVRTX warning for each attribute of every cloned environment (over a million lines at 8192 environments).
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
+9.0.2 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reduced OVPhysX training throughput with cloned environments and shared ground by no longer forcing
+  ``physxScene:envIdInBoundsBitCount`` during scene initialization.
+
+
+9.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Authored ``omni:rtx:gaussian:skipTonemapping:enabled = false`` on the OVRTX render product when a camera sets
+  an ISP, so Gaussian splats are tonemapped with the rest of the frame.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX stage population and shared OVRTX stage setup for OVStage 0.4 builds that replaced
+  physics population domains with selectors, while retaining support for older domain-based builds.
+* Fixed OVRTX stage export to compose collider geometry whenever physics population was enabled,
+  including isolated stages.
+* Fixed Newton with OVRTX and OVStage failing during camera initialization with OVStage builds that
+  removed physics population flags, while preserving composed USD export for shared OVPhysX stages.
+
+
+9.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unused native bindings and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of OVPhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other OVRTX scene partitions.
+* Added CPU hierarchy preparation before cloning on the OVStage 0.4 release line, including
+  development builds, to reduce clone time while preserving the GPU hierarchy default at runtime.
+
+
+8.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX stage preparation, camera relationships, and mesh and marker visibility writes with typed OVStage
+  token and path handles (new in OVStage 0.4.0) while preserving compatibility with integer IDs from older builds.
+
+
 8.0.3 (2026-10-31)
 ~~~~~~~~~~~~~~~~~~
 

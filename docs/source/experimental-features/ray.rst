@@ -143,8 +143,9 @@ In a different terminal, run the following.
           --workflow scripts/reinforcement_learning/train.py \
           --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
-The Ray tuner launches training through its ``--workflow`` script path. The built-in
-example configurations use the unified training entrypoint and select RL-Games with:
+The Ray tuner launches training through its ``--workflow`` script path. ``JobCfg``
+defaults ``--rl_library`` to ``rsl_rl``, and the built-in example configurations do not
+override it. To select RL-Games, set:
 
 .. code-block:: python
 

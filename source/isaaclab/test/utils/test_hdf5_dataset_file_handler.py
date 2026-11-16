@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import json
+import subprocess
+import sys
 
 import h5py
 import pytest
@@ -49,6 +51,27 @@ def test_env_args_follow_active_file(tmp_path):
         env_args = json.loads(dataset_file["data"].attrs["env_args"])
 
     assert env_args == {"env_name": "second_env", "type": 2}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file locks are inherited by child processes")
+def test_child_process_does_not_keep_closed_file_locked(tmp_path):
+    """A child process started while a file is open must not keep its lock once the file is closed."""
+    dataset_file_path = str(tmp_path / "dataset.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    children = []
+    try:
+        for open_file in (dataset_file_handler.create, lambda path: dataset_file_handler.open(path, mode="r+")):
+            open_file(dataset_file_path)
+            # close_fds=False passes on every inheritable descriptor, as native process launchers do
+            children.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], close_fds=False))
+            dataset_file_handler.close()
+            # reopening for writing needs the exclusive lock the child would still hold
+            with h5py.File(dataset_file_path, "r+"):
+                pass
+    finally:
+        for child in children:
+            child.kill()
+            child.wait()
 
 
 def test_convert_dataset_to_xyzw_updates_format_version(tmp_path):

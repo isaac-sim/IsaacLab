@@ -102,7 +102,7 @@ class OperationalSpaceControllerCfg:
     """The null space control method for redundant manipulators: ``"none"``, ``"position"``.
 
     Note: ``"position"`` is used to drive the redundant manipulator to zero configuration by default. If
-    ``target_joint_pos`` is provided in the ``compute()`` method, it will be driven to this configuration.
+    ``nullspace_joint_pos_target`` is provided in the ``compute()`` method, it will be driven to this configuration.
     """
 
     nullspace_stiffness: float = 10.0

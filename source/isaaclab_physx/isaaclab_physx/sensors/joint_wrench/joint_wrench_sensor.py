@@ -17,9 +17,9 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
@@ -104,7 +104,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
@@ -190,11 +190,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """Launch or record the kernel that updates the joint wrench buffers."""
 
         return wp.launch(
-            joint_wrench_split_kernel,
+            memory_kernels.make_split(wp.vec3f, wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[
+                self._raw_incoming_joint_wrench.view(wp.float32),
                 env_mask,
-                self._raw_incoming_joint_wrench,
                 self._data._force,
                 self._data._torque,
             ],

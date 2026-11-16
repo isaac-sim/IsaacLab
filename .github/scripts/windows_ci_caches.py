@@ -10,7 +10,8 @@ which resolves to WSL on the Windows runners.
 
 Usage: windows_ci_caches.py keys|restored|growth
 
-  keys      resolves each cache's key and directory and exports the paths the tests read
+  keys      resolves each cache's key and directory, exports the paths the tests read, and the PATH
+            actions/cache archives with
   restored  reports each restore and checks Warp uses its path; a save also fingerprints them
   growth    reports each cache's size; a save also reports whether the run changed it
 
@@ -82,6 +83,14 @@ def _key_part(value: str) -> str:
 
 
 def keys() -> None:
+    # actions/cache archives with Git's GNU tar, whose shell runs gzip by name from Git's usr\bin;
+    # the runner service's PATH lacks that directory, so every save and restore would fail.
+    # Checked before a save clears the caches below.
+    git_tools = Path(os.environ["PROGRAMFILES"], "Git", "usr", "bin")
+    if not (git_tools / "gzip.exe").is_file():
+        print(f"::error::actions/cache needs {git_tools / 'gzip.exe'} to save and restore its archives")
+        sys.exit(1)
+    _write_lines("GITHUB_OUTPUT", [f"archive-path={git_tools}{os.pathsep}{os.environ['PATH']}"])
     warp_versions = _run_script(".github/actions/warp-cache-key/collection_id.py")
     driver = _gpu_query("driver_version")
     arch = _gpu_query("compute_cap").replace(".", "")

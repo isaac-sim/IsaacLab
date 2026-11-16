@@ -27,7 +27,7 @@ import importlib.util
 import numpy as np
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]

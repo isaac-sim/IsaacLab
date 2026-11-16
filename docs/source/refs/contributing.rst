@@ -409,6 +409,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Preserve observable behavior unless the change explicitly requires otherwise. Check ordering, shapes,
   dtype, device, input mutation, and failure behavior as well as return values. Public API removals and
   renames require a deprecation and migration path.
+* Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
+  Keep public base classes, backend data classes, and factories available through a deprecation release
+  when the broader consolidation is not part of the same change.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
@@ -640,7 +643,6 @@ Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a devic
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
-
 Shared Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -675,6 +677,22 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
+
+Shared sensor capabilities and storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Shared concepts have one owner, but backend capabilities can differ. Validate requested features
+before allocating resources. Keep optional measurements in coherent groups with explicit absence;
+never substitute zero measurements for unsupported features. A backend may extend a common data
+container with its own fields and lifecycle. Use the existing sensor factory and initialization
+root, not another capability registry or backend-specific copies of shared storage.
+
+Fused domain kernels retain gravity bias and lifecycle defaults while calling common equations.
+Name factories ``make_<operation>`` and cache optional PVA updates on demand. Isolate generated
+kernels with ``module="unique"``, keeping reset independent. Selecting one subset must not construct
+or compile other subsets, invalidate reset, or compile another backend's update path.
+Check cold compilation and warm execution separately.
+PVA shares pose/component storage and optional spatial outputs; backends own acquisition.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
@@ -1088,6 +1106,11 @@ or pruning tests. It maintains the detailed criteria for deciding whether a test
   and retry with ``uv run --extra <extra> python -m pytest ...``.
   For changes intended to reduce test time, measure before and after on the same machine and separate
   kernel compilation from execution time.
+* Mark tests for the CI selections they belong to: ``kitless`` when the test passes without Isaac Sim,
+  and ``ov`` when it runs or imports ``ovphysx``, ``ovrtx`` or ``ovstage``. Mark the whole file through
+  ``pytestmark`` when every test qualifies; otherwise mark the qualifying tests or parameters. CI selects
+  test files by searching their text for ``pytest.mark.<marker>``, so a mark applied by a shared helper
+  must also be named in the test file.
 
 Use the same commands on Linux and Windows:
 

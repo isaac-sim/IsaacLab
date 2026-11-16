@@ -22,7 +22,9 @@ class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
     """Direct-workflow cabinet scene configured for the Franka robot."""
 
     robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
+    robot.spawn.variants["Physics"] = preset(
+        default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_steel="physx"
+    )
 
 
 @configclass

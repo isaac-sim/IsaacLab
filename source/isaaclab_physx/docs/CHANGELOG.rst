@@ -3,6 +3,101 @@ Changelog
 
 .. towncrier release notes start
 
+13.0.1 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the PhysX assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`. Any integer sequence and slices with a negative step are accepted,
+  ids on another device are moved to the asset's device, and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected
+  with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the PhysX assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`, as the env selection does, so slices other than ``slice(None)`` are
+  accepted.
+* Changed the PhysX assets to use ``env_ids`` when both ``env_ids`` and ``env_mask`` are given: their views take
+  indices, so the mask is converted only when no ids are given.
+
+Fixed
+^^^^^
+
+* Fixed the ``write_nodal_*_to_sim_mask`` methods of :class:`~isaaclab_physx.assets.DeformableObject` raising a
+  :class:`RuntimeError` whenever ``env_mask`` was given.
+
+
+13.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.assets.SurfaceGripper.reset` now takes ``env_ids`` and ``env_mask``
+  instead of ``indices``.
+
+Fixed
+^^^^^
+
+* Fixed articulation and rigid-object resets with only ``env_mask`` resetting the actuator state or external
+  wrenches of every environment instead of the masked ones.
+
+
+12.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``Articulation.write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``, deprecated in Isaac Lab 3.0 for removal in 3.1. Use
+  ``randomize_actuator_gains`` for managed randomization, or
+  ``isaaclab.actuators.newton.write_group_parameter`` with the ``"drive"`` component and
+  ``"kp"`` or ``"kd"`` for direct native gain writes. The direct writer takes an actuator
+  group name and group-local joint indices.
+
+
+11.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Configured RTX camera rendering before simulation reset and Gaussian HDR tonemapping when creating render products,
+  including the legacy setting required by Isaac Sim 6.2.
+
+
+11.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unavailable native reads, retain recorded launches, and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of PhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other Isaac RTX scene partitions.
+
+
+10.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
 10.0.3 (2026-10-30)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -227,12 +227,28 @@ jobs:
       shell: bash
       run: docker pull "${{ steps.config.outputs.base_image }}"
 
+    # setup-trivy downloads through get.trivy.dev, which these runners cannot resolve.
+    - name: Install Trivy from GitHub release
+      shell: bash
+      run: |
+        set -euo pipefail
+        trivy_dir="$(mktemp -d "${RUNNER_TEMP}/trivy.XXXXXX")"
+        archive="${trivy_dir}/trivy.tar.gz"
+        curl --fail --show-error --location --retry 3 --connect-timeout 30 --max-time 180 \
+          https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz \
+          --output "$archive"
+        echo "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9  $archive" | sha256sum --check
+        tar -xzf "$archive" -C "$trivy_dir" trivy
+        "${trivy_dir}/trivy" --version
+        echo "$trivy_dir" >> "$GITHUB_PATH"
+
     - name: Scan Isaac Sim base dependency licenses
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
       env:
         TRIVY_PKG_TYPES: os,library
         TRIVY_SKIP_VERSION_CHECK: true
       with:
+        skip-setup-trivy: true
         scan-type: image
         image-ref: ${{ steps.config.outputs.base_image }}
         scanners: license
@@ -248,6 +264,7 @@ jobs:
         TRIVY_PKG_TYPES: os,library
         TRIVY_SKIP_VERSION_CHECK: true
       with:
+        skip-setup-trivy: true
         scan-type: image
         image-ref: ${{ steps.config.outputs.image_tag }}
         scanners: license
@@ -256,7 +273,6 @@ jobs:
         exit-code: '0'
         severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
         timeout: 30m
-        skip-setup-trivy: true
 
     - name: Verify standalone FFmpeg is not distributed
       shell: bash

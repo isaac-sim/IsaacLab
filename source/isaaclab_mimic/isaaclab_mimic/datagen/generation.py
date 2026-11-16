@@ -251,7 +251,9 @@ def setup_async_generation(
         motion_planners: Motion planner instances for all environments
 
     Returns:
-        List of asyncio tasks for data generation
+        Dictionary with the data generation asyncio tasks (``"tasks"``), the event loop (``"event_loop"``),
+        the reset and action queues (``"reset_queue"``, ``"action_queue"``) and the shared datagen info pool
+        (``"info_pool"``).
     """
     asyncio_event_loop = asyncio.get_event_loop()
     env_reset_queue = asyncio.Queue()

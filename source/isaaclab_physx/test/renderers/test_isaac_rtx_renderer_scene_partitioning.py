@@ -74,7 +74,7 @@ def test_partitioning_cfg_overrides_legacy_environment_variable(
 
     Without either, ``primvars:omni:scenePartition`` is authored by default.
     """
-    from pxr import Usd
+    from pxr import Usd, UsdLux
 
     if environment_value is None:
         monkeypatch.delenv(_ENV_VAR, raising=False)
@@ -85,6 +85,7 @@ def test_partitioning_cfg_overrides_legacy_environment_variable(
     plan = SimpleNamespace(env_template="/Lab/Cell{}")
     prim = stage.DefinePrim(plan.env_template.format(0), "Xform")
     camera = stage.DefinePrim(f"{prim.GetPath()}/Camera", "Camera")
+    light = UsdLux.DistantLight.Define(stage, f"{prim.GetPath()}/Light").GetPrim()
 
     renderer = object.__new__(IsaacRtxRenderer)
     renderer._sim = SimpleNamespace(get_clone_plan=lambda: plan)
@@ -96,6 +97,9 @@ def test_partitioning_cfg_overrides_legacy_environment_variable(
 
     assert prim.HasAttribute("primvars:omni:scenePartition") is expected
     assert camera.HasAttribute("omni:scenePartition") is expected
+    assert light.HasAttribute("omni:scenePartition") is expected
+    if expected:
+        assert light.GetAttribute("omni:scenePartition").Get() == "env_0"
 
 
 @pytest.mark.isaacsim_ci
