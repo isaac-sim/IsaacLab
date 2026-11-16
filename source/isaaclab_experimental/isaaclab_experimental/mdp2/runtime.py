@@ -60,7 +60,11 @@ def reset(mdp: MDP, state: MDPState, mask: ProxyArray, commit: Callable[[], None
 
 
 def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: ProxyArray) -> None:
-    """Compute observations for the masked worlds and leave the others unchanged. Changes no MDP state."""
+    """Compute observations for the masked worlds and leave the others unchanged.
+
+    Recomputes the quantities that observations read, and fills the observation histories of new episodes, in the
+    masked worlds. Changes no other MDP state.
+    """
     call = Call(state, mask=mask, observations=observations)
     for launch in mdp.launches.observe:
         launch(call)

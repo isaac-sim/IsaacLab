@@ -161,6 +161,8 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
     # Observations and action offsets read quantities between steps, also in worlds that were just reset, where
     # they are computed again, with the quantities that they read. The others keep the values of the last step.
     read = {selector for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values()}
+    noises = [op.observation.noise for op in ops[Phase.OBSERVATIONS]]
+    read |= {noise.scale for noise in noises if noise is not None and noise.scale is not None}
     read |= {op.offset for op in ops[Phase.ACTIONS]}
     observed = []
     for op in reversed(ops[Phase.QUANTITIES]):

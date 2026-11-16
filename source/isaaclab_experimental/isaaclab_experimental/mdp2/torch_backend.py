@@ -43,7 +43,7 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
     for step in mdp.plan.apply_actions:
         op = step.op
         target = call.state.arrays[op.target].torch.view(mdp.num_worlds, -1)
-        ids = slice(None) if op.subset is None else call.state.arrays[op.subset].torch.long()
+        ids = slice(None) if op.subset is None else call.state.arrays[op.subset].torch
         offset = op.offset
         if isinstance(offset, FieldSelector):
             offset = call.state.arrays[offset].torch.view(mdp.num_worlds, -1)[:, ids]

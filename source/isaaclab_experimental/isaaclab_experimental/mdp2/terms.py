@@ -79,7 +79,7 @@ class Term:
     init: Callable | None = None  # ``fn(ctx, **params)`` run eagerly once by ``startup``, to fill the state
     capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.torch is not None and not isinstance(self.torch, Implementation):
             object.__setattr__(self, "torch", Implementation(compute=self.torch))
         if self.warp is not None and not isinstance(self.warp, Implementation):

@@ -46,7 +46,7 @@ class MDPState:
     - ``("timer", op)``: seconds left per world, for a timed op;
     - ``("history", op)``: ``(num_worlds, history_length, size)``, for an observation with a history;
     - ``("scratch", op)``: the output of an eager term or of a Warp hook that launches its own kernels;
-    - ``("selected", op)``: the worlds that the hook of a timed or masked event acts on;
+    - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some.
     """
 
@@ -223,9 +223,13 @@ class MDP:
         # State belongs to the use: the ops that other world configs define differently share it.
         for op in self.term_ops:
             for name, spec in op.state.items():
-                if term_state(op.use, name) not in arrays:
+                key = term_state(op.use, name)
+                if key not in arrays:
                     values = wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device)
-                    arrays[term_state(op.use, name)] = ProxyArray(values)
+                    arrays[key] = ProxyArray(values)
+                elif op.worlds is not None and spec.shape[:1] == (self.num_worlds,):
+                    # Each world config starts the shared state of its worlds at its own initial value.
+                    arrays[key].torch[list(op.worlds)] = spec.initial
 
         selectors = [op.target for op in self.ops[Phase.ACTIONS]]
         selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
@@ -254,8 +258,8 @@ class MDP:
             launches = op.eager or self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
             if launches and op.phase not in events:
                 arrays["scratch", op.name] = self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
-            masked = op.worlds is not None and op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS)
-            if op.timer is not None or masked:
+            # Hooks of ops active in only some worlds get the reset worlds among those.
+            if op.timer is not None or op.worlds is not None:
                 arrays["selected", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
         for ops in self.ops.values():
             for op in ops:

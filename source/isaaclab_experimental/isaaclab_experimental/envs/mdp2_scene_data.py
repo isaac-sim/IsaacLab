@@ -28,29 +28,35 @@ STATELESS_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 class InteractiveSceneData:
     """Live views of the asset data of an :class:`InteractiveScene`, by scene entity name and field.
 
-    Fields keep the names of the asset data. Articulations and rigid objects provide their root state:
+    Fields keep the names, units, and frames of the asset data: positions in m, orientations as ``(x, y, z, w)``
+    quaternions, joint values in rad or m for revolute or prismatic joints, and times in s. Articulations and rigid
+    objects provide their root state:
 
-    - ``root_link_pose_w``, ``default_root_pose``: ``wp.transformf`` per world;
-    - ``root_com_vel_w``, ``default_root_vel``: ``wp.spatial_vectorf`` per world;
-    - ``body_link_pose_w``: ``wp.transformf`` per world and body.
+    - ``root_link_pose_w``, ``default_root_pose``: ``wp.transformf`` per world, in the world frame and in the
+      frame of the world's environment origin respectively;
+    - ``root_com_vel_w``, ``default_root_vel``: ``wp.spatial_vectorf`` per world, linear [m/s] then angular
+      [rad/s], in the world frame;
+    - ``body_link_pose_w``: ``wp.transformf`` per world and body, in the world frame.
 
-    Articulations also provide ``joint_pos``, ``joint_vel``, ``joint_acc``, ``default_joint_pos``,
-    ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target``, ``applied_effort``,
+    Articulations also provide ``joint_pos``, ``joint_vel``, ``joint_acc`` [rad/s^2 or m/s^2], ``default_joint_pos``,
+    ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target`` and ``applied_effort`` [N·m or N],
     ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world and joint. The ``scene``
-    entity provides ``env_origins`` and ``gravity_w`` (``wp.vec3f``, with magnitude) per world.
+    entity provides ``env_origins`` [m] and ``gravity_w`` (``wp.vec3f``, with magnitude) [m/s^2] per world.
 
-    Contact sensors provide ``net_forces_w`` and their histories ``net_forces_w_history`` and
+    Contact sensors provide ``net_forces_w`` [N] and their histories ``net_forces_w_history`` and
     ``net_normal_forces_w_history`` (``wp.vec3f``, most recent first), and the air and contact times
     ``current_air_time``, ``last_air_time``, ``current_contact_time``, and ``last_contact_time``, per world and body.
-    Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) per world, body, and filter.
+    Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) [N] per world, body, and
+    filter.
 
     The joint state and the root state of floating bases alias the solver state, so events may write them in place;
     :meth:`commit` makes the solver see the writes. The root pose of a fixed base, and ``gravity_w``, alias the
     physics model, which events may also write.
     """
 
-    def __init__(self, scene: InteractiveScene, step_dt: float):
+    def __init__(self, scene: InteractiveScene, sim: SimulationContext, step_dt: float) -> None:
         self.scene = scene
+        self.sim = sim
         assets = {**scene.articulations, **scene.rigid_objects}
         entities: dict[str, EntitySchema] = {}
         self._views: dict[str, dict[str, ProxyArray]] = {}
@@ -181,7 +187,7 @@ class InteractiveSceneData:
     def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
         """Recompute the body poses of the masked worlds from their joint and root state, and pass a written gravity
         or fixed-base root pose to the solver. Safe to capture in a CUDA graph."""
-        manager = SimulationContext.instance().backend_manager
+        manager = self.sim.backend_manager
         if FieldSelector("scene", "gravity_w") in fields:
             manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
         # The root pose of a fixed base is the frame of the joint that fixes it, a joint property of the model.
@@ -191,4 +197,4 @@ class InteractiveSceneData:
 
         for asset in (*self.scene.articulations.values(), *self.scene.rigid_objects.values()):
             manager.invalidate_fk(env_mask=mask, articulation_ids=asset.root_view.articulation_ids)
-        SimulationContext.instance().forward()
+        self.sim.forward()

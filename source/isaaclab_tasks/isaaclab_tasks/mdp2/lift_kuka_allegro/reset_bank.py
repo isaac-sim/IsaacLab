@@ -100,24 +100,24 @@ def _reset_from_bank(
 
 
 def _reset_from_bank_torch(
-    mask,
-    joint_pos,
-    joint_vel,
-    object_pose_w,
-    object_vel_w,
-    succeeded,
-    bank_joint_pos,
-    bank_joint_vel,
-    bank_object_pose_w,
-    bank_object_vel_w,
-    outcomes,
-    episodes,
-    playing,
-    rng,
+    mask: torch.Tensor,
+    joint_pos: torch.Tensor,
+    joint_vel: torch.Tensor,
+    object_pose_w: torch.Tensor,
+    object_vel_w: torch.Tensor,
+    succeeded: torch.Tensor,
+    bank_joint_pos: torch.Tensor,
+    bank_joint_vel: torch.Tensor,
+    bank_object_pose_w: torch.Tensor,
+    bank_object_vel_w: torch.Tensor,
+    outcomes: torch.Tensor,
+    episodes: torch.Tensor,
+    playing: torch.Tensor,
+    rng: torch.Tensor,
     *,
-    target_success_rate,
-    kappa,
-):
+    target_success_rate: float,
+    kappa: float,
+) -> None:
     worlds = torch.arange(len(mask), device=mask.device)
     history = outcomes.shape[2]
 
@@ -162,7 +162,15 @@ def _farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
     return chosen
 
 
-def _fill_bank(ctx, *, candidates, bank_size, oversample_factor=2.0, max_rolls=2000, **restore_params):
+def _fill_bank(
+    ctx: mdp2.TermContext,
+    *,
+    candidates: mdp2.TaskCfg,
+    bank_size: int,
+    oversample_factor: float = 2.0,
+    max_rolls: int = 2000,
+    **restore_params: float,
+) -> None:
     fields = ctx.outputs
     num_worlds, device = ctx.num_worlds, ctx.rng.device
     worlds = torch.arange(num_worlds, device=device)

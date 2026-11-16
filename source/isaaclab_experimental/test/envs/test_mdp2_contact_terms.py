@@ -30,7 +30,7 @@ from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_tasks.core.velocity.mdp as velocity_mdp1
 
-pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")
+pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
 ROBOT_USD = Path(__file__).parents[3] / "isaaclab_newton/test/assets/data/floating_two_leg.usda"
 NUM_ENVS = 8
@@ -123,11 +123,11 @@ def contact_env_cfg(robot_usd: Path, backend: str, capture: bool) -> MDP2EnvCfg:
             )
         },
         observations={
-            "policy": mdp2.ObservationGroup(
-                joint_pos=mdp2.Observation(
+            "policy": {
+                "joint_pos": mdp2.Observation(
                     mdp.joint_pos, inputs={"joint_pos": robot.joint_pos, "joint_ids": legs}, history_length=2
                 ),
-            )
+            }
         },
         rewards={
             "undesired_contacts": mdp2.Reward(mdp.undesired_contacts, inputs=feet_contacts, params={"threshold": 1.0}),
@@ -152,9 +152,8 @@ def contact_env_cfg(robot_usd: Path, backend: str, capture: bool) -> MDP2EnvCfg:
     )
 
 
-@pytest.mark.parametrize("backend", ["torch", "warp"])
-def test_contact_terms_match_mdp1(robot_with_feet: Path, backend: str):
-    env = MDP2Env(contact_env_cfg(robot_with_feet, backend, capture=False))
+def test_contact_terms_match_mdp1(robot_with_feet: Path):
+    env = MDP2Env(contact_env_cfg(robot_with_feet, "warp", capture=False))
     try:
         air_time = {**feet_air_times, "command": mdp2.commands.forward}
         builder = mdp2.MDPBuilder(env.scene_data.schema)
@@ -172,10 +171,13 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path, backend: str):
         builder.add_termination(
             "illegal_contact", mdp2.Termination(mdp.illegal_contact, inputs=feet_contacts, params={"threshold": 50.0})
         )
-        model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
-
-        state, transition = model.state(env.scene_data), model.transition()
-        mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+        # Both backends read the same scene.
+        models = {}
+        for backend in ("torch", "warp"):
+            model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
+            state, transition = model.state(env.scene_data), model.transition()
+            mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+            models[backend] = model, state, transition
 
         mdp1_env = MDP1Env(env, torch.ones(NUM_ENVS, 3, device=env.device))
         sensor_cfg = SceneEntityCfg("contact_forces", body_names=".*_SHANK")
@@ -185,17 +187,17 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path, backend: str):
         rewarded = False
         for _ in range(40):
             env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
-            mdp2.evaluate(model, state, transition)
-
-            observations = transition.observations
             undesired_contacts = mdp1.undesired_contacts(mdp1_env, 1.0, sensor_cfg).float()
             feet_air_time = velocity_mdp1.feet_air_time(mdp1_env, "forward", sensor_cfg, 0.1)
             illegal_contact = mdp1.illegal_contact(mdp1_env, 50.0, sensor_cfg)
-
-            torch.testing.assert_close(observations["undesired_contacts"].torch[:, 0], undesired_contacts)
-            torch.testing.assert_close(observations["feet_air_time"].torch[:, 0], feet_air_time)
-            assert torch.equal(transition.termination_terms.torch[:, 0], illegal_contact)
             rewarded |= bool(feet_air_time.abs().sum() > 0.0)
+
+            for model, state, transition in models.values():
+                mdp2.evaluate(model, state, transition)
+                observations = transition.observations
+                torch.testing.assert_close(observations["undesired_contacts"].torch[:, 0], undesired_contacts)
+                torch.testing.assert_close(observations["feet_air_time"].torch[:, 0], feet_air_time)
+                assert torch.equal(transition.termination_terms.torch[:, 0], illegal_contact)
 
         assert rewarded  # The feet landed during the rollout.
 

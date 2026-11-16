@@ -154,8 +154,8 @@ class KukaAllegroLiftPhysicsCfg(PresetCfg):
 
 CANDIDATES = mdp2.TaskCfg(
     observations={
-        "descriptor": mdp2.ObservationGroup(
-            grasp_travel_distance=mdp2.Observation(
+        "descriptor": {
+            "grasp_travel_distance": mdp2.Observation(
                 lift.grasp_travel_distance,
                 inputs={
                     "body_link_pose_w": robot.body_link_pose_w,
@@ -165,7 +165,7 @@ CANDIDATES = mdp2.TaskCfg(
                 },
                 params={"goal_center": tuple((low + high) / 2 for low, high in GOAL_RANGE)},
             ),
-        ),
+        },
     },
     terminations={
         "object_robot_clearance": mdp2.Termination(
@@ -276,33 +276,32 @@ TASK = mdp2.TaskCfg(
         "adr_progress": mdp2.Quantity(mdp.value, inputs={"value": progress}, log=True),
     },
     observations={
-        "policy": mdp2.ObservationGroup(
-            object_quat_b=mdp2.Observation(
+        "policy": {
+            "object_quat_b": mdp2.Observation(
                 lift.object_quat_b,
                 inputs={"root_link_pose_w": robot.root_link_pose_w, "object_pose_w": target.root_link_pose_w},
                 noise=noise(0.03),
                 history_length=5,
             ),
-            target_object_pose_b=mdp2.Observation(
+            "target_object_pose_b": mdp2.Observation(
                 mdp.generated_commands, inputs={"command": mdp2.commands.object_pose}, history_length=5
             ),
-            actions=mdp2.Observation(mdp.last_action, inputs={"actions": mdp2.last_action}, history_length=5),
-        ),
-        "proprio": mdp2.ObservationGroup(
-            joint_pos=mdp2.Observation(
+            "actions": mdp2.Observation(mdp.last_action, inputs={"actions": mdp2.last_action}, history_length=5),
+        },
+        "proprio": {
+            "joint_pos": mdp2.Observation(
                 mdp.joint_pos,
                 inputs={"joint_pos": robot.joint_pos, "joint_ids": joints},
                 noise=noise(0.1),
                 history_length=5,
             ),
-            joint_vel=mdp2.Observation(
+            "joint_vel": mdp2.Observation(
                 mdp.joint_vel,
                 inputs={"joint_vel": robot.joint_vel, "joint_ids": joints},
                 noise=noise(0.2),
                 history_length=5,
             ),
-            # Poses only: body velocities are the most solver-sensitive observables, and the history carries them.
-            hand_tips_state_b=mdp2.Observation(
+            "hand_tips_state_b": mdp2.Observation(
                 lift.body_state_b,
                 inputs={
                     "body_link_pose_w": robot.body_link_pose_w,
@@ -313,7 +312,7 @@ TASK = mdp2.TaskCfg(
                 clip=(-2.0, 2.0),
                 history_length=5,
             ),
-            contact=mdp2.Observation(
+            "contact": mdp2.Observation(
                 lift.fingers_contact_force_b,
                 inputs={
                     "normal_force_matrix_w": fingertip_contacts.normal_force_matrix_w,
@@ -323,9 +322,9 @@ TASK = mdp2.TaskCfg(
                 clip=(-20.0, 20.0),  # Fingertip contact forces stay under 20 N normally.
                 history_length=5,
             ),
-        ),
-        "perception": mdp2.ObservationGroup(
-            object_point_cloud=mdp2.Observation(
+        },
+        "perception": {
+            "object_point_cloud": mdp2.Observation(
                 lift.object_point_cloud_b,
                 inputs={"root_link_pose_w": robot.root_link_pose_w, "object_pose_w": target.root_link_pose_w},
                 params={"num_points": 64},
@@ -333,7 +332,7 @@ TASK = mdp2.TaskCfg(
                 clip=(-2.0, 2.0),
                 history_length=5,
             ),
-        ),
+        },
     },
     rewards={
         "action_l2": mdp2.Reward(mdp.action_l2, inputs={"actions": mdp2.last_action}, weight=-0.01),

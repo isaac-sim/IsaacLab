@@ -7,14 +7,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 
+if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
 
-def sample_object_point_cloud(asset, num_points: int) -> torch.Tensor:
+
+def sample_object_point_cloud(asset: RigidObject, num_points: int) -> torch.Tensor:
     """Return ``num_points`` surface points of the object of each world, ``(num_worlds, num_points, 3)``.
 
     Each object that a multi-asset spawner can choose is sampled once: area-weighted surface samples, twice as many
@@ -75,12 +80,12 @@ def _farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
     if count >= len(points):
         return torch.arange(len(points))
 
-    distances = torch.cdist(points, points)
     chosen = torch.zeros(count, dtype=torch.long)
     nearest = torch.full((len(points),), float("inf"))
     farthest = torch.randint(len(points), (1,))
     for k in range(count):
         chosen[k] = farthest
-        nearest = torch.minimum(nearest, distances[farthest].view(-1))
+        # Distances from the chosen point only: the full pairwise matrix is quadratic in the samples.
+        nearest = torch.minimum(nearest, (points - points[farthest]).norm(dim=-1))
         farthest = torch.argmax(nearest)
     return chosen

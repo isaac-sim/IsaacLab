@@ -19,6 +19,7 @@ import warp as wp
 
 from isaaclab.utils import math as math_utils
 
+from ..eager import TermContext
 from ..rng import uniform
 from ..terms import Term
 
@@ -81,7 +82,12 @@ def _reset_joints_by_scale(
         joint_vel[world, j] = wp.clamp(velocity, -velocity_limit, velocity_limit)
 
 
-def _joint_samples(rng, joint_ids, position_range, velocity_range):
+def _joint_samples(
+    rng: torch.Tensor,
+    joint_ids: torch.Tensor,
+    position_range: tuple[float, float],
+    velocity_range: tuple[float, float],
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Uniform position and velocity samples per world and joint, at the draws of the Warp funcs."""
     num_joints = len(joint_ids)
     position = uniform(rng, *position_range, (num_joints,))
@@ -90,8 +96,15 @@ def _joint_samples(rng, joint_ids, position_range, velocity_range):
 
 
 def _write_joint_state(
-    mask, joint_pos, joint_vel, position, velocity, soft_joint_pos_limits, soft_joint_vel_limits, joint_ids
-):
+    mask: torch.Tensor,
+    joint_pos: torch.Tensor,
+    joint_vel: torch.Tensor,
+    position: torch.Tensor,
+    velocity: torch.Tensor,
+    soft_joint_pos_limits: torch.Tensor,
+    soft_joint_vel_limits: torch.Tensor,
+    joint_ids: torch.Tensor,
+) -> None:
     """Write a joint state, clamped to the soft limits, to the masked worlds."""
     limits = soft_joint_pos_limits[:, joint_ids]
     velocity_limits = soft_joint_vel_limits[:, joint_ids]
@@ -103,19 +116,19 @@ def _write_joint_state(
 
 
 def _reset_joints_by_offset_torch(
-    mask,
-    joint_pos,
-    joint_vel,
-    default_joint_pos,
-    default_joint_vel,
-    soft_joint_pos_limits,
-    soft_joint_vel_limits,
-    joint_ids,
-    rng,
+    mask: torch.Tensor,
+    joint_pos: torch.Tensor,
+    joint_vel: torch.Tensor,
+    default_joint_pos: torch.Tensor,
+    default_joint_vel: torch.Tensor,
+    soft_joint_pos_limits: torch.Tensor,
+    soft_joint_vel_limits: torch.Tensor,
+    joint_ids: torch.Tensor,
+    rng: torch.Tensor,
     *,
-    position_range,
-    velocity_range,
-):
+    position_range: tuple[float, float],
+    velocity_range: tuple[float, float],
+) -> None:
     position, velocity = _joint_samples(rng, joint_ids, position_range, velocity_range)
     position = default_joint_pos[:, joint_ids] + position
     velocity = default_joint_vel[:, joint_ids] + velocity
@@ -125,19 +138,19 @@ def _reset_joints_by_offset_torch(
 
 
 def _reset_joints_by_scale_torch(
-    mask,
-    joint_pos,
-    joint_vel,
-    default_joint_pos,
-    default_joint_vel,
-    soft_joint_pos_limits,
-    soft_joint_vel_limits,
-    joint_ids,
-    rng,
+    mask: torch.Tensor,
+    joint_pos: torch.Tensor,
+    joint_vel: torch.Tensor,
+    default_joint_pos: torch.Tensor,
+    default_joint_vel: torch.Tensor,
+    soft_joint_pos_limits: torch.Tensor,
+    soft_joint_vel_limits: torch.Tensor,
+    joint_ids: torch.Tensor,
+    rng: torch.Tensor,
     *,
-    position_range,
-    velocity_range,
-):
+    position_range: tuple[float, float],
+    velocity_range: tuple[float, float],
+) -> None:
     position, velocity = _joint_samples(rng, joint_ids, position_range, velocity_range)
     position = default_joint_pos[:, joint_ids] * position
     velocity = default_joint_vel[:, joint_ids] * velocity
@@ -167,7 +180,7 @@ def _uniform_spatial(
     return sample
 
 
-def _uniform_spatial_torch(rng: torch.Tensor, offset: int, ranges) -> torch.Tensor:
+def _uniform_spatial_torch(rng: torch.Tensor, offset: int, ranges: tuple[tuple[float, float], ...]) -> torch.Tensor:
     """Return six uniform samples per world, the ``j``-th from ``ranges[j]`` at draw ``offset + j``."""
     return torch.stack([uniform(rng, low, high, offset=offset + j) for j, (low, high) in enumerate(ranges)], dim=-1)
 
@@ -197,17 +210,17 @@ def _reset_root_state_uniform(
 
 
 def _reset_root_state_uniform_torch(
-    mask,
-    root_link_pose_w,
-    root_com_vel_w,
-    default_root_pose,
-    default_root_vel,
-    env_origins,
-    rng,
+    mask: torch.Tensor,
+    root_link_pose_w: torch.Tensor,
+    root_com_vel_w: torch.Tensor,
+    default_root_pose: torch.Tensor,
+    default_root_vel: torch.Tensor,
+    env_origins: torch.Tensor,
+    rng: torch.Tensor,
     *,
-    pose_range,
-    velocity_range,
-):
+    pose_range: tuple[tuple[float, float], ...],
+    velocity_range: tuple[tuple[float, float], ...],
+) -> None:
     pose = _uniform_spatial_torch(rng, 0, pose_range)
 
     position = default_root_pose[:, :3] + env_origins + pose[:, :3]
@@ -236,7 +249,13 @@ def _push_by_setting_velocity(
     root_com_vel_w[world] = root_com_vel_w[world] + _uniform_spatial(rng, 0, velocity_range)
 
 
-def _push_by_setting_velocity_torch(mask, root_com_vel_w, rng, *, velocity_range):
+def _push_by_setting_velocity_torch(
+    mask: torch.Tensor,
+    root_com_vel_w: torch.Tensor,
+    rng: torch.Tensor,
+    *,
+    velocity_range: tuple[tuple[float, float], ...],
+) -> None:
     velocity = root_com_vel_w + _uniform_spatial_torch(rng, 0, velocity_range)
     root_com_vel_w.copy_(torch.where(mask[:, None], velocity, root_com_vel_w))
 
@@ -248,7 +267,13 @@ push_by_setting_velocity = Term(torch=_push_by_setting_velocity_torch, warp=_pus
 # Physical properties. These events change the physics model, so they are eager and best run at startup.
 
 
-def _samples(rng, distribution_params, distribution, shape, offset=0):
+def _samples(
+    rng: torch.Tensor,
+    distribution_params: tuple[float, float],
+    distribution: str,
+    shape: tuple[int, ...],
+    offset: int = 0,
+) -> torch.Tensor:
     """Draw ``(num_worlds, *shape)`` samples from ``"uniform"`` or ``"log_uniform"`` over ``distribution_params``."""
     low, high = distribution_params
     if distribution == "log_uniform":
@@ -256,7 +281,7 @@ def _samples(rng, distribution_params, distribution, shape, offset=0):
     return uniform(rng, low, high, shape, offset=offset)
 
 
-def _apply(values, samples, operation):
+def _apply(values: torch.Tensor, samples: torch.Tensor, operation: str) -> torch.Tensor:
     """Add ``samples`` to ``values``, scale them, or replace them (``"abs"``)."""
     if operation == "add":
         return values + samples
@@ -266,8 +291,13 @@ def _apply(values, samples, operation):
 
 
 def _randomize_rigid_body_mass(
-    ctx, *, mass_distribution_params, operation, distribution="uniform", recompute_inertia=True
-):
+    ctx: TermContext,
+    *,
+    mass_distribution_params: tuple[float, float],
+    operation: str,
+    distribution: str = "uniform",
+    recompute_inertia: bool = True,
+) -> None:
     asset = ctx.entity("body_ids")
     body_ids = ctx.inputs["body_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
@@ -293,8 +323,13 @@ inertias scale with the masses.
 
 
 def _randomize_rigid_body_inertia(
-    ctx, *, inertia_distribution_params, operation="add", distribution="uniform", diagonal_only=True
-):
+    ctx: TermContext,
+    *,
+    inertia_distribution_params: tuple[float, float],
+    operation: str = "add",
+    distribution: str = "uniform",
+    diagonal_only: bool = True,
+) -> None:
     asset = ctx.entity("body_ids")
     body_ids = ctx.inputs["body_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
@@ -317,13 +352,13 @@ ones at the first call, so it is meant for startup events.
 
 
 def _randomize_actuator_gains(
-    ctx,
+    ctx: TermContext,
     *,
-    stiffness_distribution_params=None,
-    damping_distribution_params=None,
-    operation="abs",
-    distribution="uniform",
-):
+    stiffness_distribution_params: tuple[float, float] | None = None,
+    damping_distribution_params: tuple[float, float] | None = None,
+    operation: str = "abs",
+    distribution: str = "uniform",
+) -> None:
     asset = ctx.entity("joint_ids")
     joint_ids = ctx.inputs["joint_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
@@ -351,13 +386,13 @@ Implicit actuators only, whose gains are the solver's joint gains.
 
 
 def _randomize_joint_parameters(
-    ctx,
+    ctx: TermContext,
     *,
-    friction_distribution_params=None,
-    armature_distribution_params=None,
-    operation="abs",
-    distribution="uniform",
-):
+    friction_distribution_params: tuple[float, float] | None = None,
+    armature_distribution_params: tuple[float, float] | None = None,
+    operation: str = "abs",
+    distribution: str = "uniform",
+) -> None:
     asset = ctx.entity("joint_ids")
     joint_ids = ctx.inputs["joint_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
@@ -383,7 +418,7 @@ One sample per world and joint. MDP1's joint position limit randomization is not
 """
 
 
-def _randomize_rigid_body_com(ctx, *, com_range):
+def _randomize_rigid_body_com(ctx: TermContext, *, com_range: tuple[tuple[float, float], ...]) -> None:
     asset = ctx.entity("body_ids")
     body_ids = ctx.inputs["body_ids"].long()
     env_ids = ctx.mask.nonzero().squeeze(-1)
@@ -400,7 +435,9 @@ randomize_rigid_body_com = Term(eager=_randomize_rigid_body_com, random=True)
 """
 
 
-def _randomize_rigid_body_material(ctx, *, friction_range, restitution_range):
+def _randomize_rigid_body_material(
+    ctx: TermContext, *, friction_range: tuple[float, float], restitution_range: tuple[float, float]
+) -> None:
     from newton import ModelFlags  # noqa: PLC0415
 
     from isaaclab.assets import Articulation  # noqa: PLC0415

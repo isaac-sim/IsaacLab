@@ -22,7 +22,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 
-pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")
+pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
 CARTPOLE_USD = Path(__file__).parents[3] / "isaaclab_newton/test/assets/data/fixed_cartpole.usda"
 NUM_ENVS = 16
@@ -79,8 +79,8 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = Fals
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, subset=cart, scale=100.0)},
         observations={
-            "policy": mdp2.ObservationGroup(
-                joint_pos_rel=mdp2.Observation(
+            "policy": {
+                "joint_pos_rel": mdp2.Observation(
                     mdp.joint_pos_rel,
                     inputs={
                         "joint_pos": robot.joint_pos,
@@ -88,7 +88,7 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = Fals
                         "joint_ids": joints,
                     },
                 ),
-                joint_vel_rel=mdp2.Observation(
+                "joint_vel_rel": mdp2.Observation(
                     mdp.joint_vel_rel,
                     inputs={
                         "joint_vel": robot.joint_vel,
@@ -96,7 +96,7 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = Fals
                         "joint_ids": joints,
                     },
                 ),
-            )
+            }
         },
         rewards={
             "alive": mdp2.Reward(mdp.is_alive, inputs=terminated),
@@ -172,6 +172,13 @@ def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[int, list[dict[str, torc
     return num_graphs, history
 
 
+step_count = mdp2.Term(
+    torch=mdp2.Implementation(compute=lambda steps: steps.clone(), update=lambda steps: steps.add_(1.0)),
+    state={"steps": mdp2.State()},
+)
+"""Steps of the episode before the current step, which its update counts after it."""
+
+
 def shift_root_torch(mask, root_link_pose_w, default_root_pose, env_origins, *, offset):
     pose = default_root_pose.clone()
     pose[:, :3] += env_origins
@@ -216,6 +223,11 @@ def test_env_follows_the_gym_interface_and_commits_resets():
         base_x = env.scene.env_origins[:, 0] + robot_data.default_root_pose.torch[:, 0] + 0.5
         torch.testing.assert_close(robot_data.body_pos_w.torch[:, 0, 0], base_x, atol=1e-5, rtol=0.0)
         assert torch.equal(observations["policy"][:, :2], robot_data.joint_pos.torch)
+
+        # A seed also reseeds the MDP's streams, which the reset events draw from; the config is left as it was.
+        seeded = [env.reset(seed=7)[0]["policy"].clone() for _ in range(2)]
+        assert torch.equal(seeded[0], seeded[1])
+        assert cfg.scene.lazy_sensor_update
     finally:
         env.close()
 
@@ -239,23 +251,30 @@ def test_captured_steps_match_eager_steps_and_the_torch_backend():
     assert num_graphs == 1 and eager_graphs == 0
     assert any(step["terminated"].any() for step in captured_run[1:])
 
-    for backend in ("warp", "torch"):
-        backend_graphs, backend_run = rollout(cartpole_cfg(backend=backend, eager=True), num_steps)
-        _, backend_eager_run = rollout(cartpole_cfg(backend=backend, capture=False, eager=True), num_steps)
-        # The eager reward splits evaluate: physics and the terms before it, then the rest of the step.
-        assert backend_graphs == 2
-        for captured_step, eager_step, backend_step in zip(captured_run, eager_run, backend_run):
-            for key, value in captured_step.items():
-                assert torch.equal(value, eager_step[key])
-                torch.testing.assert_close(backend_step[key], value, atol=1e-4, rtol=1e-4)
-        for captured_step, eager_step in zip(backend_run, backend_eager_run):
-            for key, value in captured_step.items():
-                assert torch.equal(value, eager_step[key])
+    # The Torch backend with an eager term: the capture split does not depend on the backend.
+    torch_graphs, torch_run = rollout(cartpole_cfg(backend="torch", eager=True), num_steps)
+    _, torch_eager_run = rollout(cartpole_cfg(backend="torch", capture=False, eager=True), num_steps)
+    # The eager reward splits evaluate: physics and the terms before it, then the rest of the step.
+    assert torch_graphs == 2
+    for captured_step, eager_step, torch_step in zip(captured_run, eager_run, torch_run):
+        for key, value in captured_step.items():
+            assert torch.equal(value, eager_step[key])
+            torch.testing.assert_close(torch_step[key], value, atol=1e-4, rtol=1e-4)
+    for captured_step, eager_step in zip(torch_run, torch_eager_run):
+        for key, value in captured_step.items():
+            assert torch.equal(value, eager_step[key])
 
 
 @pytest.mark.parametrize("task_worlds", [None, [12, 4]])
 def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_worlds):
     cfg = cartpole_cfg()
+    # A logged quantity that a reset restarts and the observations of the new episode read again.
+    cfg.task.quantities = {"steps": mdp2.Quantity(step_count, log=True)}
+    observation = mdp2.Observation(mdp.value, inputs={"value": mdp2.quantities.steps})
+    cfg.task.observations["policy"] = {
+        **cfg.task.observations["policy"],
+        "steps": observation,
+    }
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
     cfg.task = [cfg.task, without_alive]
     cfg.task_worlds = task_worlds
@@ -272,5 +291,7 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
         # Unpushed carts stay in bounds, so every world was alive for its whole episode.
         assert extras["log"]["Episode_Termination/cart_out_of_bounds"] == 0.0
         assert extras["log"]["Episode_Reward/alive"].item() == pytest.approx(1.0)
+        # The episodes ended at their last step, not at the restart of the next one.
+        assert extras["log"]["Metrics/steps"].item() == env.max_episode_length - 1
     finally:
         env.close()

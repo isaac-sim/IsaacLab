@@ -60,7 +60,7 @@ class Fusion:
     do not split it; any other hook ends the current kernel.
     """
 
-    def __init__(self, name: str, num_worlds: int, device: str, mask: Callable[[Any], wp.array] | None = None):
+    def __init__(self, name: str, num_worlds: int, device: str, mask: Callable[[Any], wp.array] | None = None) -> None:
         """If ``mask`` is given, it reads the worlds to run from each call, and threads of other worlds return."""
         self.name = name
         self.num_worlds = num_worlds

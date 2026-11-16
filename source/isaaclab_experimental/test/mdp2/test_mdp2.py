@@ -7,6 +7,7 @@
 
 import dataclasses
 import math
+from collections.abc import Collection
 
 import pytest
 import torch
@@ -18,7 +19,52 @@ from isaaclab.utils.warp import ProxyArray
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+pytestmark = pytest.mark.kitless
+
 robot = mdp2.Entity("robot")
+
+
+class PointMassScene:
+    """Scene for the tests: one ``"robot"`` whose joints are unit point masses driven by their effort targets."""
+
+    def __init__(
+        self,
+        num_worlds: int,
+        joint_names: tuple[str, ...] = ("x",),
+        dt: float = 0.01,
+        decimation: int = 2,
+        device: str = "cpu",
+    ):
+        fields = dict.fromkeys(("joint_pos", "joint_vel", "joint_effort_target"), mdp2.FieldSchema(("joints",)))
+
+        self.schema = mdp2.SceneSchema(
+            num_worlds=num_worlds,
+            step_dt=dt * decimation,
+            entities={"robot": mdp2.EntitySchema(names={"joints": joint_names}, fields=fields)},
+        )
+        self.dt = dt
+        self.decimation = decimation
+
+        shape = (num_worlds, len(joint_names))
+        self._data = {"robot": {name: ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device)) for name in fields}}
+
+    def data(self, entity: str, field: str) -> ProxyArray:
+        return self._data[entity][field]
+
+    def commit(self, mask: wp.array, fields: Collection[mdp2.FieldSelector]) -> None:
+        """Nothing to commit: the fields are the simulation state."""
+
+    def step(self) -> None:
+        """Advance one control step: ``decimation`` substeps of semi-implicit Euler."""
+        robot = {name: value.torch for name, value in self._data["robot"].items()}
+        for _ in range(self.decimation):
+            robot["joint_vel"].add_(robot["joint_effort_target"], alpha=self.dt)
+            robot["joint_pos"].add_(robot["joint_vel"], alpha=self.dt)
+
+    def reset(self, mask: torch.Tensor) -> None:
+        """Zero every field of the worlds selected by a boolean mask."""
+        for value in self._data["robot"].values():
+            value.torch.masked_fill_(mask[:, None], 0.0)
 
 
 @wp.func
@@ -295,7 +341,7 @@ eager_reset_joints_by_offset = mdp2.Term(eager=eager_reset_joints_by_offset_fn, 
 
 
 def make_task(
-    scene: mdp2.PointMassScene,
+    scene: PointMassScene,
     backend: str = "torch",
     episode_length_s: float = 1.0,
     random: bool = False,
@@ -328,12 +374,12 @@ def make_builder(
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, scale=2.0)},
         observations={
-            "policy": mdp2.ObservationGroup(
-                joint_pos=mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}),
-                joint_vel=mdp2.Observation(joint_vel, inputs={"joint_vel": robot.joint_vel}),
-                joint_pos_delta=mdp2.Observation(torch_only(delta), inputs={"value": robot.joint_pos}),
-                joint_vel_delta=mdp2.Observation(delta, inputs={"value": robot.joint_vel}),
-            )
+            "policy": {
+                "joint_pos": mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}),
+                "joint_vel": mdp2.Observation(joint_vel, inputs={"joint_vel": robot.joint_vel}),
+                "joint_pos_delta": mdp2.Observation(torch_only(delta), inputs={"value": robot.joint_pos}),
+                "joint_vel_delta": mdp2.Observation(delta, inputs={"value": robot.joint_vel}),
+            }
         },
         rewards={
             "alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}),
@@ -421,7 +467,7 @@ def env_reset(mdp, state, scene, observations, mask):
 
 def test_finalize_reports_all_errors():
     """Finalizing reports every invalid use at once, each prefixed with its name."""
-    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
     builder.add_reward("unknown_entity", mdp2.Reward(is_alive, inputs={"joint_pos": mdp2.Entity("table").joint_pos}))
     builder.add_reward("unknown_field", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_angle}))
     builder.add_reward("unknown_command", mdp2.Reward(generated_commands, inputs={"command": mdp2.commands.typo}))
@@ -466,7 +512,7 @@ def test_finalize_reports_all_errors():
 
 def test_schedule_edits_keep_phases_and_dependencies():
     """Edits that would break a phase or a read-after-write order fail and leave the schedule unchanged."""
-    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
     target = builder.add_command("target", mdp2.Command(uniform_command))
     target_copy = builder.add_command(
         "target_copy", mdp2.Command(copy_command, inputs={"source": mdp2.commands.target})
@@ -482,15 +528,6 @@ def test_schedule_edits_keep_phases_and_dependencies():
         builder.set_order(mdp2.Phase.COMMANDS, [target_copy])
 
     assert builder.schedule() == schedule
-    assert builder.describe() == "\n".join(
-        [
-            "rewards",
-            "  rewards.alive         reads robot.joint_pos",
-            "commands",
-            "  commands.target       writes commands.target",
-            "  commands.target_copy  reads commands.target; writes commands.target_copy",
-        ]
-    )
 
     # Added again, the command runs after its reader.
     builder.remove(target)
@@ -502,7 +539,7 @@ def test_schedule_edits_keep_phases_and_dependencies():
 
 def test_schedule_edits_change_execution_order():
     """Pushing then doubling the velocity differs from doubling then pushing. Finalized MDPs keep their order."""
-    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=2).schema)
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=2).schema)
     push = builder.add_event("push_robot", push_robot)
     double_joint_vel = mdp2.Event(
         scale_joint_vel,
@@ -523,7 +560,7 @@ def test_schedule_edits_change_execution_order():
         assert double_first.schedule == ("events.double_joint_vel", "events.push_robot")
 
         for mdp, expected in ((push_first, 2.0), (double_first, 1.0)):
-            scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+            scene = PointMassScene(num_worlds=2, device=DEVICE)
             state, transition = mdp.state(scene), mdp.transition()
             env_reset(mdp, state, scene, transition.observations, torch.ones(2, dtype=torch.bool, device=DEVICE))
 
@@ -536,7 +573,7 @@ def test_schedule_edits_change_execution_order():
 
 def test_step_matches_point_mass_dynamics():
     """Two steps give the analytic positions, velocities, deltas, and rewards of the point mass."""
-    scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+    scene = PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
     mdp, state = make_task(scene)
     transition = mdp.transition()
 
@@ -569,7 +606,7 @@ def test_step_matches_point_mass_dynamics():
 
 def test_step_ends_and_bootstraps_worlds():
     """In one step, world 0 continues, world 1 times out, and world 2 leaves the bounds."""
-    scene = mdp2.PointMassScene(num_worlds=3, device=DEVICE)
+    scene = PointMassScene(num_worlds=3, device=DEVICE)
     mdp, state = make_task(scene, episode_length_s=0.2)
     transition = mdp.transition()
     state.episode_length.torch[1] = mdp.max_episode_length - 1
@@ -589,7 +626,7 @@ def test_step_ends_and_bootstraps_worlds():
 
 def test_reset_touches_only_selected_worlds():
     """A reset of no worlds changes nothing, and a reset of world 0 changes only world 0."""
-    scene = mdp2.PointMassScene(num_worlds=3, device=DEVICE)
+    scene = PointMassScene(num_worlds=3, device=DEVICE)
     mdp, state = make_task(scene)
     observations = mdp.observations()
     env_reset(mdp, state, scene, observations, torch.ones(3, dtype=torch.bool, device=DEVICE))
@@ -619,7 +656,7 @@ def test_reset_touches_only_selected_worlds():
 def test_state_resets_after_reset_events():
     """The delta observation restarts from the joint positions that the reset event offset."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        scene = PointMassScene(num_worlds=2, device=DEVICE)
         mdp, state = make_task(scene, backend=backend, random=True)
         observations = mdp.observations()
 
@@ -632,7 +669,7 @@ def test_state_resets_after_reset_events():
 def test_mdp_fields_subsets_weights_and_diagnostics():
     """MDP field inputs, joint subsets, mutable reward weights, and per-term diagnostics."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y", "z"), device=DEVICE)
+        scene = PointMassScene(num_worlds=2, joint_names=("x", "y", "z"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
 
         # The actions drive the joints in the order z, x, y.
@@ -673,7 +710,7 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
 
 def test_commands_and_interval_events_follow_their_timers():
     """Rewards see the command that governed the step, and observations see the resampled one."""
-    scene = mdp2.PointMassScene(num_worlds=8, device=DEVICE)
+    scene = PointMassScene(num_worlds=8, device=DEVICE)
     builder = mdp2.MDPBuilder(scene.schema)
     builder.add_command("target", mdp2.Command(uniform_command, resampling_time_range=(0.02, 0.06)))
     builder.add_reward("target", mdp2.Reward(generated_commands, inputs={"command": mdp2.commands.target}))
@@ -700,7 +737,7 @@ def test_random_streams_are_independent_per_world_and_use():
     """Each world and each use of a random term draws from its own stream, once per step."""
 
     def noisy_observations(reset_world_0: bool, env: bool) -> torch.Tensor:
-        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+        scene = PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
         mdp, state = make_task(scene, random=True)
         transition = mdp.transition()
 
@@ -742,21 +779,11 @@ def test_fusion_cuts_kernels_where_threads_would_race():
     assert len(launches) == 2 and array.numpy()[:, 0].tolist() == [2.0, 2.0]
 
 
-def test_warp_fuses_functions_into_few_kernels():
-    """Each MDP function of the Warp backend runs in one or two kernels."""
-    mdp, _ = make_task(mdp2.PointMassScene(num_worlds=2, device=DEVICE), backend="warp")
-
-    # Observations share the kernel of the terminations and rewards. The state updates wait for them in a second one.
-    launches = mdp.launches
-    num_kernels = [len(function) for function in (launches.apply_actions, launches.evaluate, launches.observe)]
-    assert num_kernels == [1, 2, 1]
-
-
 def test_warp_matches_torch():
     """The Warp and Torch backends agree over episodes with resets, and draw bitwise the same random numbers."""
     runs = {}
     for backend, torch_hooks in (("torch", False), ("warp", False), ("warp", True)):
-        scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
+        scene = PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
         mdp, state = make_task(scene, backend=backend, episode_length_s=0.2, random=True, torch_hooks=torch_hooks)
         assert any(op.torch_hooks for op in mdp.term_ops) == torch_hooks
         transition = mdp.transition()
@@ -788,39 +815,12 @@ def test_warp_matches_torch():
     assert any(results[2].any() for results, _ in runs["torch", False])
 
 
-def test_eager_terms_split_segments():
-    """An eager term splits its function into capturable and eager segments."""
-    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
-    builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
-    eager = builder.add_reward("eager_l2", mdp2.Reward(eager_joint_pos_l2, inputs={"joint_pos": robot.joint_pos}))
-    l2 = builder.add_reward("joint_pos_l2", mdp2.Reward(joint_pos_l2, inputs={"joint_pos": robot.joint_pos}))
-
-    def evaluate_segments():
-        segments = builder.preview_segments()["evaluate"]
-        return [(segment.capturable, [step.op.name for step in segment.steps]) for segment in segments]
-
-    assert evaluate_segments() == [
-        (True, ["rewards.alive"]),
-        (False, ["rewards.eager_l2"]),
-        (True, ["rewards.joint_pos_l2"]),
-    ]
-
-    builder.move_after(eager, l2)
-
-    assert evaluate_segments() == [(True, ["rewards.alive", "rewards.joint_pos_l2"]), (False, ["rewards.eager_l2"])]
-    assert not builder.finalize().is_fully_capturable
-
-    builder.remove(eager)
-
-    assert builder.finalize().is_fully_capturable
-
-
 def test_eager_terms_match_compiled_terms():
     """Eager terms see the same data and draw from the same streams as compiled terms, for their worlds only."""
     for backend in ("torch", "warp"):
         runs = []
         for eager in (False, True):
-            scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+            scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
             mdp, state = make_task(scene, backend=backend, random=True, eager=eager)
             transition = mdp.transition()
 
@@ -842,10 +842,11 @@ def test_captured_mdp_replays_like_eager_calls():
     for backend, torch_hooks in (("torch", False), ("warp", False), ("warp", True)):
         runs = []
         for capture in (False, True):
-            scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
+            scene = PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
             mdp, state = make_task(
                 scene, backend=backend, episode_length_s=0.2, random=True, eager=True, torch_hooks=torch_hooks
             )
+            assert not mdp.is_fully_capturable
             transition = mdp.transition()
             actions = ProxyArray(wp.zeros((64, mdp.action_dim), dtype=wp.float32, device=DEVICE))
             captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
@@ -876,7 +877,7 @@ def test_captured_mdp_replays_like_eager_calls():
 
 def test_world_configs_report_errors():
     """Replicated builders report extra uses, uncovered worlds, and differing time limits."""
-    schema = mdp2.PointMassScene(num_worlds=4).schema
+    schema = PointMassScene(num_worlds=4).schema
     builder = mdp2.MDPBuilder(schema)
     builder.replicate(make_builder(schema, episode_length_s=1.0), 2)
     builder.replicate(make_builder(schema, episode_length_s=2.0), 1)
@@ -895,7 +896,7 @@ def test_world_configs_match_single_config_runs():
     """Each world of a mixed MDP gives bitwise the results of its config's MDP run alone, with zero padding."""
     num_worlds, split = 6, 3
     for backend in ("torch", "warp"):
-        schema = mdp2.PointMassScene(num_worlds=num_worlds, joint_names=("x", "y")).schema
+        schema = PointMassScene(num_worlds=num_worlds, joint_names=("x", "y")).schema
         configs = [
             make_builder(schema, episode_length_s=0.2, random=True),
             make_builder(schema, episode_length_s=0.2, joint_pos_weight=-1.0),
@@ -906,7 +907,7 @@ def test_world_configs_match_single_config_runs():
 
         runs = []
         for builder in (*configs, mixed):
-            scene = mdp2.PointMassScene(num_worlds=num_worlds, joint_names=("x", "y"), device=DEVICE)
+            scene = PointMassScene(num_worlds=num_worlds, joint_names=("x", "y"), device=DEVICE)
             mdp = builder.finalize(device=DEVICE, backend=backend)
             state, transition = mdp.state(scene), mdp.transition()
             env_reset(
@@ -945,10 +946,14 @@ def test_world_configs_match_single_config_runs():
             assert (mixed_step["policy"][split:, width:] == 0.0).all() and (mixed_step["noisy"][split:] == 0.0).all()
 
 
+eager_action_l2 = mdp2.Term(eager=lambda ctx: ctx.out.copy_(ctx.inputs["actions"].square().sum(dim=-1)))
+
+
 def test_world_configs_with_fewer_actions_read_their_own_actions():
-    """The action terms of a world config see its actions only, not the columns that pad them for a wider config."""
+    """The action terms of a world config, eager ones included, see its actions only, not the columns that pad them
+    for a wider config."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
         configs = []
         for subset in (None, robot.joints("x")):
             config = mdp2.MDPBuilder(scene.schema)
@@ -958,6 +963,7 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
             config.add_observation("policy", "action_l2", mdp2.Observation(mdp2.mdp.action_l2, inputs=actions))
             rate = mdp2.Observation(mdp2.mdp.action_rate_l2, inputs=actions)
             config.add_observation("policy", "narrow_rate" if subset else "action_rate_l2", rate)
+            config.add_observation("policy", "eager_l2", mdp2.Observation(eager_action_l2, inputs=actions))
             configs.append(config)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.replicate(configs[0], 2)
@@ -982,12 +988,15 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
         torch.testing.assert_close(policy[2:, 0], steps[1][2:, 0])
         torch.testing.assert_close(policy[2:, 1], steps[1][2:, 0].square())
         torch.testing.assert_close(policy[2:, 2], (steps[1][2:, 0] - steps[0][2:, 0]).square())
+        # Eager terms too.
+        torch.testing.assert_close(policy[:2, 4], steps[1][:2].square().sum(-1))
+        torch.testing.assert_close(policy[2:, 3], steps[1][2:, 0].square())
 
 
 def test_library_action_and_termination_terms():
     """The library's action and termination terms, which read MDP fields rather than the scene."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+        scene = PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
 
@@ -1025,7 +1034,7 @@ def test_library_action_and_termination_terms():
 def test_observation_history():
     """The group holds the last values oldest first, and a new episode starts with its first value repeated."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        scene = PointMassScene(num_worlds=2, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
         history = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}, history_length=3)
@@ -1035,19 +1044,25 @@ def test_observation_history():
 
         assert mdp.observation_dims["policy"] == 3
 
-        scene.data("robot", "joint_pos").torch.fill_(0.5)
-        env_reset(mdp, state, scene, transition.observations, torch.tensor([False, True], device=DEVICE))
+        # World 1 resets to a nonzero position, as a reset event would place it.
+        joint_positions = scene.data("robot", "joint_pos").torch
+        joint_positions.fill_(0.5)
+        reset = torch.tensor([False, True], device=DEVICE)
+        scene.reset(reset)
+        joint_positions[1] = 0.25
+        mdp2.reset(mdp, state, ProxyArray(wp.from_torch(reset)))
+        mdp2.observe(mdp, state, transition.observations, ProxyArray(wp.from_torch(reset)))
 
-        # The reset world starts its episode from the scene's reset positions.
-        assert transition.observations["policy"].torch[1].tolist() == [0.0, 0.0, 0.0]
+        # The new episode fills every slot with its first value.
+        assert transition.observations["policy"].torch[1].tolist() == [0.25, 0.25, 0.25]
 
         positions = []
         for _ in range(2):
             env_step(mdp, state, scene, torch.ones(2, 1, device=DEVICE), transition)
-            positions.append(scene.data("robot", "joint_pos").torch[:, 0].clone())
+            positions.append(joint_positions[:, 0].clone())
 
-        expected = torch.stack([torch.tensor([0.0, 0.0], device=DEVICE), *positions], dim=1)
-        expected[0, 0] = 0.0  # World 0 was never reset, so its history started at zero.
+        # World 0 was never reset, so its history started at zero.
+        expected = torch.stack([torch.tensor([0.0, 0.25], device=DEVICE), *positions], dim=1)
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
 
 
@@ -1070,7 +1085,7 @@ def test_command_resamples_keep_their_state():
     """A command resamples on episode resets and when its timer expires, and its state outlives episodes."""
     results = {}
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        scene = PointMassScene(num_worlds=4, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_command("count", mdp2.Command(sample_count, resampling_time_range=(0.03, 0.03)))
         mdp = builder.finalize(device=DEVICE, backend=backend)
@@ -1107,7 +1122,7 @@ drifting_count = mdp2.Term(
 def test_command_updates_change_only_their_worlds():
     """Update hooks that write a field shared by world configs get the worlds where their op runs as ``mask``."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        scene = PointMassScene(num_worlds=4, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         for step in (1.0, 2.0):
             config = mdp2.MDPBuilder(scene.schema)
@@ -1140,7 +1155,7 @@ def test_library_commands():
 
     results = {}
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=256, device=DEVICE)
+        scene = PointMassScene(num_worlds=256, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         for name, command in commands.items():
             builder.add_command(name, command)
@@ -1190,10 +1205,10 @@ Its compute writes its state, which a quantity may do; repeating it changes noth
 
 def test_curriculum_reads_quantity_and_scales_noise():
     """A sticky quantity is shared by a reward, an observation, and a curriculum, which reads what the episodes that
-    ended left and scales observation noise by its progress, all inside CUDA graphs."""
+    ended left and scales observation noise by its progress, in an MDP that can be captured whole."""
     results = {}
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_quantity("reached", mdp2.Quantity(reached, inputs={"joint_pos": robot.joint_pos}))
         builder.add_reward("reach", mdp2.Reward(mdp2.mdp.value, inputs={"value": mdp2.quantities.reached}))
@@ -1236,6 +1251,29 @@ def test_curriculum_reads_quantity_and_scales_noise():
     assert torch.equal(results["torch"], results["warp"])
 
 
+def test_noise_scaled_by_a_quantity_follows_the_new_episode():
+    """A quantity that only scales observation noise is computed again for the observations of a new episode."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_quantity("reached", mdp2.Quantity(reached, inputs={"joint_pos": robot.joint_pos}))
+        noise = mdp2.UniformNoise(-1.0, 1.0, scale=mdp2.quantities.reached)
+        observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}, noise=noise)
+        builder.add_observation("policy", "joint_pos", observation)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        all_worlds = torch.ones(4, dtype=torch.bool, device=DEVICE)
+        joint_positions = scene.data("robot", "joint_pos").torch
+
+        # The episode reaches, so its observations are noisy; the new one has not reached yet, so they are not.
+        joint_positions[:, 0] = 0.5
+        mdp2.evaluate(mdp, state, transition)
+        assert (transition.observations["policy"].torch != joint_positions).any()
+        joint_positions[:, 0] = -0.5
+        env_reset(mdp, state, scene, transition.observations, all_worlds)
+        assert torch.equal(transition.observations["policy"].torch, joint_positions)
+
+
 @wp.func
 def hold_second_joint_warp(world: int, joint_pos: wp.array2d(dtype=float)):
     joint_pos[world, 1] = 1.0
@@ -1255,7 +1293,7 @@ def test_action_offset_follows_a_quantity_through_resets():
     """An action offset by a quantity uses the value of the last step, and of the new episode after a reset, while
     a quantity that nothing reads between steps keeps what the episode that ended left."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+        scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_action("effort", mdp2.DirectAction(robot.joint_effort_target, offset=mdp2.quantities.reference))
         builder.add_quantity("reference", mdp2.Quantity(joint_pos, inputs={"joint_pos": robot.joint_pos}))
@@ -1301,7 +1339,7 @@ def test_world_configs_share_the_state_of_a_use_they_define_differently():
     """Two world configs give a quantity different params: it is two ops with one state, each in its own worlds,
     which a reward of both configs reads."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        scene = PointMassScene(num_worlds=4, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         for gain in (1.0, 2.0):
             config = mdp2.MDPBuilder(scene.schema)
@@ -1323,10 +1361,51 @@ def test_world_configs_share_the_state_of_a_use_they_define_differently():
         )
 
 
+def add_reset_count_torch(mask, total, *, gain):
+    total.add_(10.0 * gain * mask.float())
+
+
+def torch_accumulate(initial: float) -> mdp2.Term:
+    """:data:`accumulate` with Torch hooks only, its state starting at ``initial``, and a reset hook that adds
+    ``10 * gain``."""
+    hooks = mdp2.Implementation(compute=accumulate_torch, reset=add_reset_count_torch)
+    return mdp2.Term(torch=hooks, state={"total": mdp2.State(initial=initial)})
+
+
+def test_world_configs_keep_python_hooks_in_their_worlds():
+    """Torch hooks of a use that world configs define differently, which a Warp MDP also runs over every world, act
+    in their own worlds: the state starts at each config's initial value, compute and reset hooks change it in their
+    worlds only, and an untimed command resamples in its worlds."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=4, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        for gain in (1.0, 2.0):
+            config = mdp2.MDPBuilder(scene.schema)
+            quantity = mdp2.Quantity(
+                torch_accumulate(gain), inputs={"joint_pos": robot.joint_pos}, params={"gain": gain}
+            )
+            config.add_quantity("sum", quantity)
+            # Torch-only, so that a Warp MDP runs its hook over every world; the step only sets the configs apart.
+            command = mdp2.Command(mdp2.Term(torch=count_samples_torch, state={"samples": mdp2.State()}))
+            config.add_command("count", dataclasses.replace(command, params={"step": gain}))
+            builder.replicate(config, 2)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        total = state.arrays[mdp2.term_state("quantities.sum", "total")].torch
+
+        scene.data("robot", "joint_pos").torch.fill_(1.0)
+        mdp2.evaluate(mdp, state, transition)
+        assert total.tolist() == [2.0, 2.0, 4.0, 4.0]
+
+        mdp2.reset(mdp, state, ProxyArray(wp.from_torch(torch.tensor([True, False, True, False], device=DEVICE))))
+        assert total.tolist() == [12.0, 2.0, 24.0, 4.0]
+        assert state.arrays[mdp2.commands.count].torch.tolist() == [1.0, 0.0, 1.0, 0.0]
+
+
 def test_uses_that_read_each_other_are_reported_as_a_cycle():
     """A quantity that reads the state of an event that reads the quantity cannot be ordered: the only error."""
     counting = mdp2.Term(torch=lambda mask, value, count: None, state={"count": mdp2.State()})
-    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
     count = mdp2.term_state("events.counting", "count")
     builder.add_quantity("mirror", mdp2.Quantity(mdp2.mdp.value, inputs={"value": count}))
     builder.add_event("counting", mdp2.Event(counting, inputs={"value": mdp2.quantities.mirror}))
@@ -1339,7 +1418,7 @@ def test_uses_that_read_each_other_are_reported_as_a_cycle():
 def test_reset_commits_before_events_that_ask_for_it():
     """The scene commits the writes of the earlier reset events before an event that asks for it."""
     for backend in ("torch", "warp"):
-        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        scene = PointMassScene(num_worlds=2, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_event("push", mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}))
         scale = mdp2.Event(scale_joint_vel, outputs={"joint_vel": robot.joint_vel}, params={"factor": 3.0}, commit=True)

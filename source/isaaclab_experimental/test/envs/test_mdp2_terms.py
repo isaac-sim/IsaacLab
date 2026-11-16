@@ -27,7 +27,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
 
-pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")
+pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
 ROBOT_USD = Path(__file__).parents[3] / "isaaclab_newton/test/assets/data/floating_two_leg.usda"
 NUM_ENVS = 8

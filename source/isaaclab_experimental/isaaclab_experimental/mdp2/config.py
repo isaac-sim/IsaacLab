@@ -147,7 +147,8 @@ class TermCfg:
 
     term: Term
     inputs: dict[str, FieldSelector | SubsetSelector] = field(default_factory=dict)  # Passed by name, read-only
-    params: dict[str, Any] = field(default_factory=dict)  # Constant keyword arguments
+    # Constant keyword arguments. The MDP keeps the values themselves, not copies: do not change them after finalizing.
+    params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -249,16 +250,6 @@ class DirectAction:
     subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
 
 
-@dataclass(init=False)
-class ObservationGroup:
-    """Observation terms concatenated in declaration order into one buffer, such as ``"policy"``."""
-
-    terms: dict[str, Observation]
-
-    def __init__(self, **terms: Observation):
-        self.terms = terms
-
-
 @dataclass
 class TaskCfg:
     """Configuration of the MDP of a task. Setting a term use to ``None`` disables it."""
@@ -266,7 +257,8 @@ class TaskCfg:
     actions: dict[str, DirectAction | None] = field(default_factory=dict)
     commands: dict[str, Command | None] = field(default_factory=dict)
     quantities: dict[str, Quantity | None] = field(default_factory=dict)
-    observations: dict[str, ObservationGroup] = field(default_factory=dict)
+    # Groups, such as "policy", of observation uses that are concatenated in declaration order into one buffer.
+    observations: dict[str, dict[str, Observation | None]] = field(default_factory=dict)
     rewards: dict[str, Reward | None] = field(default_factory=dict)
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)
     events: dict[str, Event | None] = field(default_factory=dict)

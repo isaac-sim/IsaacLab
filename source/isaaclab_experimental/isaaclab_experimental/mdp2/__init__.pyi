@@ -20,9 +20,7 @@ __all__ = [
     "MDPBuilder",
     "MDPState",
     "Observation",
-    "ObservationGroup",
     "Phase",
-    "PointMassScene",
     "Quantity",
     "ExecutionPlan",
     "Reward",
@@ -59,9 +57,10 @@ __all__ = [
     "mdp",
 ]
 
-from .capture import CapturedMDP
 from . import mdp
 from .builder import MDPBuilder, ScheduleEntry
+from .capture import CapturedMDP
+from .compiled import MDP, Backend, MDPState, Transition, WorldConfig
 from .config import (
     Command,
     Constant,
@@ -71,7 +70,6 @@ from .config import (
     EventMode,
     FieldSelector,
     Observation,
-    ObservationGroup,
     Phase,
     Quantity,
     Reward,
@@ -89,10 +87,9 @@ from .config import (
     term_state,
     terminated,
 )
-from .compiled import MDP, Backend, MDPState, Transition, WorldConfig
 from .eager import TermContext
 from .plan import ExecutionPlan, Segment, Step, StepKind
-from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema
 from .rng import uniform
 from .runtime import apply_actions, evaluate, observe, reset, startup
+from .scene import EntitySchema, FieldSchema, SceneData, SceneSchema
 from .terms import Implementation, State, Term

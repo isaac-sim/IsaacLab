@@ -10,6 +10,7 @@ Each term returns whether to end each world's episode. Time-outs are :class:`~is
 
 from __future__ import annotations
 
+import torch
 import warp as wp
 
 from ..terms import Term
@@ -24,7 +25,7 @@ def _is_positive(world: int, value: wp.array(dtype=float)) -> bool:
     return value[world] > 0.0
 
 
-def _is_positive_torch(value):
+def _is_positive_torch(value: torch.Tensor) -> torch.Tensor:
     return value > 0.0
 
 
@@ -46,7 +47,9 @@ def _joint_pos_out_of_manual_limit(
     return outside
 
 
-def _joint_pos_out_of_manual_limit_torch(joint_pos, joint_ids, *, bounds):
+def _joint_pos_out_of_manual_limit_torch(
+    joint_pos: torch.Tensor, joint_ids: torch.Tensor, *, bounds: tuple[float, float]
+) -> torch.Tensor:
     position = joint_pos[:, joint_ids]
     return ((position < bounds[0]) | (position > bounds[1])).any(-1)
 
@@ -69,7 +72,9 @@ def _joint_vel_out_of_limit(
     return outside
 
 
-def _joint_vel_out_of_limit_torch(joint_vel, soft_joint_vel_limits, joint_ids):
+def _joint_vel_out_of_limit_torch(
+    joint_vel: torch.Tensor, soft_joint_vel_limits: torch.Tensor, joint_ids: torch.Tensor
+) -> torch.Tensor:
     return (joint_vel[:, joint_ids].abs() > soft_joint_vel_limits[:, joint_ids]).any(-1)
 
 
@@ -105,7 +110,9 @@ def _bad_orientation(
     return wp.abs(wp.acos(-gravity[2])) > limit_angle
 
 
-def _bad_orientation_torch(root_link_pose_w, gravity_w, *, limit_angle):
+def _bad_orientation_torch(
+    root_link_pose_w: torch.Tensor, gravity_w: torch.Tensor, *, limit_angle: float
+) -> torch.Tensor:
     gravity = projected_gravity_torch(root_link_pose_w, gravity_w)
     return gravity[:, 2].neg().acos().abs() > limit_angle
 
@@ -127,7 +134,9 @@ def _illegal_contact(
     return contact_count(world, net_normal_forces_w_history, body_ids, threshold) > 0
 
 
-def _illegal_contact_torch(net_normal_forces_w_history, body_ids, *, threshold):
+def _illegal_contact_torch(
+    net_normal_forces_w_history: torch.Tensor, body_ids: torch.Tensor, *, threshold: float
+) -> torch.Tensor:
     return contact_mask_torch(net_normal_forces_w_history, body_ids, threshold).any(-1)
 
 

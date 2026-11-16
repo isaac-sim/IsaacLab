@@ -50,7 +50,7 @@ class CapturedMDP:
         actions: ProxyArray,
         mask: ProxyArray,
         commit: Callable[[], None] | None = None,
-    ):
+    ) -> None:
         self.mdp = mdp
         self.num_graphs = 0  # CUDA graphs replayed by one call of each runtime function, summed over the functions
         self._on_cuda = wp.get_device(mdp.device).is_cuda

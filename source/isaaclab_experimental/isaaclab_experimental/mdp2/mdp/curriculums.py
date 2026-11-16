@@ -47,17 +47,17 @@ def _set_progress(total: wp.array(dtype=float), progress: wp.array(dtype=float),
 
 
 def _difficulty_scheduler(
-    mask,
-    succeeded,
-    difficulty,
-    progress,
-    total,
+    mask: wp.array,
+    succeeded: wp.array,
+    difficulty: wp.array,
+    progress: wp.array,
+    total: wp.array,
     *,
-    min_difficulty=0,
-    max_difficulty=50,
-    promotion_only=False,
-    min_progress=0.1,
-):
+    min_difficulty: float = 0,
+    max_difficulty: float = 50,
+    promotion_only: bool = False,
+    min_progress: float = 0.1,
+) -> None:
     num_worlds, device = difficulty.shape[0], difficulty.device
     wp.launch(
         _promote,
@@ -70,16 +70,16 @@ def _difficulty_scheduler(
 
 
 def _difficulty_scheduler_torch(
-    mask,
-    succeeded,
-    difficulty,
-    progress,
+    mask: torch.Tensor,
+    succeeded: torch.Tensor,
+    difficulty: torch.Tensor,
+    progress: torch.Tensor,
     *,
-    min_difficulty=0,
-    max_difficulty=50,
-    promotion_only=False,
-    min_progress=0.1,
-):
+    min_difficulty: float = 0,
+    max_difficulty: float = 50,
+    promotion_only: bool = False,
+    min_progress: float = 0.1,
+) -> None:
     step = torch.where(succeeded > 0.5, 1.0, 0.0 if promotion_only else -1.0)
     promoted = (difficulty + step).clamp(min_difficulty, max_difficulty)
     difficulty.copy_(torch.where(mask, promoted, difficulty))

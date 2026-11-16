@@ -23,7 +23,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_tasks.core.lift import mdp as lift_mdp1
 from isaaclab_tasks.mdp2.lift_kuka_allegro.lift_env_cfg import KukaAllegroLiftEnvCfg, KukaAllegroLiftPhysicsCfg
 
-pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")
+pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
 NUM_ENVS = 16
 FINGERTIPS = ("index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3")
@@ -230,7 +230,7 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
     """The whole step is one CUDA graph, in which resets restore banked states on both backends alike, and the
     curriculum's gravity reaches the solver."""
     env = scenario.env
-    assert env.mdp.is_fully_capturable and env.is_captured
+    assert env.mdp.is_fully_capturable and env.is_captured and env.num_graphs == 1
 
     # Both backends draw the same banked state for every world, and restore it.
     mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
@@ -243,7 +243,8 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
             torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
     assert torch.equal(playing["torch"], playing["warp"])
 
-    # At full progress, the worlds that the replayed graph resets get the final gravity.
+    # At full progress, every world times out in the replayed graph, which restores banked states and sets the final
+    # gravity.
     env.state.arrays[PROGRESS].torch.fill_(1.0)
     env.episode_length_buf = torch.full_like(env.episode_length_buf, env.max_episode_length)
     env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
@@ -252,3 +253,5 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
     solver_gravity = wp.to_torch(env.sim.backend_manager.backend.solver.mjw_model.opt.gravity)
     torch.testing.assert_close(env.scene_data.data("scene", "gravity_w").torch[:, 2], final)
     torch.testing.assert_close(solver_gravity[:NUM_ENVS, 2], final)
+    for name, (banked, restored) in bank_and_scene_state(env, env.state).items():
+        torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)

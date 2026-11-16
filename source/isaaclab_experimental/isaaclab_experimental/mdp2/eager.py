@@ -53,7 +53,8 @@ def call_eager(
     An eager term writes its output to the op's scratch buffer.
     """
     arrays = state.arrays
-    inputs = {arg: arrays[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes}
+    # A narrower world config reads its own copy of the last actions, see TermOp.array_key.
+    inputs = {arg: arrays[op.array_key(arg)].torch for arg, selector in op.inputs.items() if selector not in op.writes}
     outputs = {arg: arrays[selector].torch for arg, selector in op.inputs.items() if selector in op.writes}
 
     context = TermContext(

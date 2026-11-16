@@ -105,7 +105,9 @@ def _joint_pos_limit_normalized(
     return 2.0 * (joint_pos[world, j] - 0.5 * (lower + upper)) / (upper - lower)
 
 
-def _joint_pos_limit_normalized_torch(joint_pos, soft_joint_pos_limits, joint_ids):
+def _joint_pos_limit_normalized_torch(
+    joint_pos: torch.Tensor, soft_joint_pos_limits: torch.Tensor, joint_ids: torch.Tensor
+) -> torch.Tensor:
     limits = soft_joint_pos_limits[:, joint_ids]
     return math_utils.scale_transform(joint_pos[:, joint_ids], limits[..., 0], limits[..., 1])
 
@@ -146,7 +148,7 @@ def _root_quat_w(
     return quat[element]
 
 
-def _root_quat_w_torch(root_link_pose_w, *, make_quat_unique):
+def _root_quat_w_torch(root_link_pose_w: torch.Tensor, *, make_quat_unique: bool) -> torch.Tensor:
     quat = root_link_pose_w[:, 3:7]
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
@@ -166,7 +168,7 @@ def _base_lin_vel(
     return wp.quat_rotate_inv(quat, wp.spatial_top(root_com_vel_w[world]))[axis]
 
 
-def _base_lin_vel_torch(root_link_pose_w, root_com_vel_w):
+def _base_lin_vel_torch(root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor) -> torch.Tensor:
     return math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, :3])
 
 
@@ -185,7 +187,7 @@ def _base_ang_vel(
     return wp.quat_rotate_inv(quat, wp.spatial_bottom(root_com_vel_w[world]))[axis]
 
 
-def _base_ang_vel_torch(root_link_pose_w, root_com_vel_w):
+def _base_ang_vel_torch(root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor) -> torch.Tensor:
     return math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, 3:6])
 
 

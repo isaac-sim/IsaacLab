@@ -49,7 +49,7 @@ def _value(world: int, value: wp.array(dtype=float)) -> float:
     return value[world]
 
 
-def _value_torch(value):
+def _value_torch(value: torch.Tensor) -> torch.Tensor:
     return value
 
 
@@ -129,7 +129,9 @@ def _joint_deviation_l1(
     return total
 
 
-def _joint_deviation_l1_torch(joint_pos, default_joint_pos, joint_ids):
+def _joint_deviation_l1_torch(
+    joint_pos: torch.Tensor, default_joint_pos: torch.Tensor, joint_ids: torch.Tensor
+) -> torch.Tensor:
     deviation = joint_pos[:, joint_ids] - default_joint_pos[:, joint_ids]
     return deviation.abs().sum(-1)
 
@@ -172,7 +174,9 @@ def _joint_pos_limits(
     return total
 
 
-def _joint_pos_limits_torch(joint_pos, soft_joint_pos_limits, joint_ids):
+def _joint_pos_limits_torch(
+    joint_pos: torch.Tensor, soft_joint_pos_limits: torch.Tensor, joint_ids: torch.Tensor
+) -> torch.Tensor:
     position = joint_pos[:, joint_ids]
     limits = soft_joint_pos_limits[:, joint_ids]
 
@@ -197,7 +201,7 @@ def _lin_vel_z_l2(
     return velocity[2] * velocity[2]
 
 
-def _lin_vel_z_l2_torch(root_link_pose_w, root_com_vel_w):
+def _lin_vel_z_l2_torch(root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor) -> torch.Tensor:
     velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, :3])
     return velocity[:, 2].square()
 
@@ -215,7 +219,7 @@ def _ang_vel_xy_l2(
     return velocity[0] * velocity[0] + velocity[1] * velocity[1]
 
 
-def _ang_vel_xy_l2_torch(root_link_pose_w, root_com_vel_w):
+def _ang_vel_xy_l2_torch(root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor) -> torch.Tensor:
     velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, 3:6])
     return velocity[:, :2].square().sum(-1)
 
@@ -232,7 +236,7 @@ def _flat_orientation_l2(
     return gravity[0] * gravity[0] + gravity[1] * gravity[1]
 
 
-def _flat_orientation_l2_torch(root_link_pose_w, gravity_w):
+def _flat_orientation_l2_torch(root_link_pose_w: torch.Tensor, gravity_w: torch.Tensor) -> torch.Tensor:
     gravity = projected_gravity_torch(root_link_pose_w, gravity_w)
     return gravity[:, :2].square().sum(-1)
 
@@ -273,7 +277,9 @@ def _track_lin_vel_xy_exp(
     return wp.exp(-(error_x * error_x + error_y * error_y) / (std * std))
 
 
-def _track_lin_vel_xy_exp_torch(command, root_link_pose_w, root_com_vel_w, *, std):
+def _track_lin_vel_xy_exp_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor, *, std: float
+) -> torch.Tensor:
     velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, :3])
     error = (command[:, :2] - velocity[:, :2]).square().sum(-1)
     return torch.exp(-error / std**2)
@@ -298,7 +304,9 @@ def _track_ang_vel_z_exp(
     return wp.exp(-(error * error) / (std * std))
 
 
-def _track_ang_vel_z_exp_torch(command, root_link_pose_w, root_com_vel_w, *, std):
+def _track_ang_vel_z_exp_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor, *, std: float
+) -> torch.Tensor:
     velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, 3:6])
     return torch.exp(-(command[:, 2] - velocity[:, 2]).square() / std**2)
 
@@ -372,7 +380,9 @@ def contact_count(
     return count
 
 
-def contact_mask_torch(net_normal_forces_w_history, body_ids, threshold):
+def contact_mask_torch(
+    net_normal_forces_w_history: torch.Tensor, body_ids: torch.Tensor, threshold: float
+) -> torch.Tensor:
     """Return whether each body's normal contact force exceeded ``threshold`` in the sensor history."""
     return net_normal_forces_w_history[:, :, body_ids].norm(dim=-1).amax(dim=1) > threshold
 
@@ -387,7 +397,9 @@ def _undesired_contacts(
     return float(contact_count(world, net_normal_forces_w_history, body_ids, threshold))
 
 
-def _undesired_contact_mask_torch(net_normal_forces_w_history, body_ids, *, threshold):
+def _undesired_contact_mask_torch(
+    net_normal_forces_w_history: torch.Tensor, body_ids: torch.Tensor, *, threshold: float
+) -> torch.Tensor:
     return contact_mask_torch(net_normal_forces_w_history, body_ids, threshold).sum(-1).float()
 
 
@@ -417,7 +429,15 @@ def _feet_air_time(
     return total
 
 
-def _feet_air_time_torch(current_contact_time, last_air_time, command, body_ids, *, threshold, step_dt):
+def _feet_air_time_torch(
+    current_contact_time: torch.Tensor,
+    last_air_time: torch.Tensor,
+    command: torch.Tensor,
+    body_ids: torch.Tensor,
+    *,
+    threshold: float,
+    step_dt: float,
+) -> torch.Tensor:
     contact_time = current_contact_time[:, body_ids]
     first_contact = (contact_time > 0.0) & (contact_time < step_dt + FIRST_CONTACT_TOLERANCE)
 
@@ -426,7 +446,7 @@ def _feet_air_time_torch(current_contact_time, last_air_time, command, body_ids,
 
 
 feet_air_time = Term(torch=_feet_air_time_torch, warp=_feet_air_time)
-"""Sum over the ``body_ids`` feet that touched down this step of their air time minus ``threshold``.
+"""Sum over the ``body_ids`` feet that touched down this step of their air time minus ``threshold`` [s].
 
-Zero for worlds whose velocity ``command`` is at most 0.1. Bind ``step_dt`` to ``mdp2.step_dt``.
+Zero for worlds whose planar velocity ``command`` is at most 0.1 m/s. Bind ``step_dt`` [s] to ``mdp2.step_dt``.
 """

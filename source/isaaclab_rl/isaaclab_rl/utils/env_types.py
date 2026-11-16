@@ -35,11 +35,16 @@ def check_env_type(env: Any, *, allow_multi_agent: bool = False, allow_manager_b
     if allow_manager_based_env:
         allowed_types.append(ManagerBasedEnv)
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp, MDP2RLEnv
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
 
-        allowed_types += [ManagerBasedRLEnvWarp, DirectRLEnvWarp, MDP2RLEnv]
+        allowed_types += [ManagerBasedRLEnvWarp, DirectRLEnvWarp]
         if allow_manager_based_env:
             allowed_types.append(ManagerBasedEnvWarp)
+    # MDP2 needs Newton, which the Warp environments do not.
+    with contextlib.suppress(ImportError):
+        from isaaclab_experimental.envs import MDP2RLEnv
+
+        allowed_types.append(MDP2RLEnv)
 
     if not isinstance(env.unwrapped, tuple(allowed_types)):
         names = " / ".join(cls.__name__ for cls in allowed_types)

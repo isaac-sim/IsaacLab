@@ -134,7 +134,7 @@ class MDPBuilder:
     order.
     """
 
-    def __init__(self, schema: SceneSchema):
+    def __init__(self, schema: SceneSchema) -> None:
         self.schema = schema
         self._entries: dict[tuple[str, ...], ScheduleEntry] = {}
         self._world_configs: list[tuple[tuple[ScheduleEntry, ...], range]] = []  # Schedules of replicated builders
@@ -163,7 +163,7 @@ class MDPBuilder:
             if quantity is not None:
                 self.add_quantity(name, quantity)
         for group, observations in task.observations.items():
-            for name, observation in observations.terms.items():
+            for name, observation in observations.items():
                 if observation is not None:
                     self.add_observation(group, name, observation)
         for name, reward in task.rewards.items():

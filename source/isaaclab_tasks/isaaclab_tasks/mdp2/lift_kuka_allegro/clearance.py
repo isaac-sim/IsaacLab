@@ -11,15 +11,23 @@ keep Warp meshes, and only the prefill of the reset bank runs them, once, before
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_experimental.mdp2 import Term
+from isaaclab_experimental.mdp2 import Term, TermContext
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 
 from .point_cloud import sample_object_point_cloud
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.assets import Articulation, RigidObject
 
 FAR = wp.constant(1.0e6)
 """Clearance [m] of a world before any of its points is checked."""
@@ -142,7 +150,7 @@ def _robot_vertices_object_clearance(
     wp.atomic_min(clearance, world, distance)
 
 
-def _collision_meshes(root_prim, frame_of) -> dict:
+def _collision_meshes(root_prim: Usd.Prim, frame_of: Callable[[Usd.Prim], tuple[int, Usd.Prim] | None]) -> dict:
     """Return the enabled collision meshes under a prim, merged per owner and expressed in the owner's frame.
 
     ``frame_of(prim)`` returns the owner key and frame prim of a collision prim, or ``None`` to leave it out.
@@ -157,7 +165,7 @@ def _collision_meshes(root_prim, frame_of) -> dict:
         create_trimesh_from_geom_shape,
     )
 
-    def collides(prim) -> bool:
+    def collides(prim: Usd.Prim) -> bool:
         if prim.GetTypeName() not in [*PRIMITIVE_MESH_TYPES, "Mesh"] or not prim.HasAPI(UsdPhysics.CollisionAPI):
             return False
         return UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
@@ -181,11 +189,11 @@ def _collision_meshes(root_prim, frame_of) -> dict:
     return {owner: trimesh.util.concatenate(parts) for owner, parts in meshes.items()}
 
 
-def _robot_meshes(robot, body_ids: torch.Tensor) -> dict:
+def _robot_meshes(robot: Articulation, body_ids: torch.Tensor) -> dict:
     """Return the collision mesh of each of a robot's ``body_ids`` bodies that has one, in the body's frame."""
     body_id_of = {robot.body_names[index]: index for index in body_ids.tolist()}
 
-    def body_frame(prim):
+    def body_frame(prim: Usd.Prim) -> tuple[int, Usd.Prim] | None:
         # Links nest in converted assets: the nearest selected body above a collider owns it.
         node = prim.GetParent()
         while node.IsValid() and node.GetName() not in body_id_of:
@@ -195,7 +203,7 @@ def _robot_meshes(robot, body_ids: torch.Tensor) -> dict:
     return _collision_meshes(sim_utils.find_matching_prims(robot.cfg.prim_path)[0], body_frame)
 
 
-def _object_meshes(target) -> tuple[list, np.ndarray]:
+def _object_meshes(target: RigidObject) -> tuple[list, np.ndarray]:
     """Return the collision mesh of each object that a scene spawned, and the index of each world's mesh."""
     plan = sim_utils.SimulationContext.instance().get_clone_plan()
     source_paths = cloner.path.get_asset_prototype_paths(plan)
@@ -214,7 +222,7 @@ def _object_meshes(target) -> tuple[list, np.ndarray]:
     return meshes, world_mesh
 
 
-def _warp_meshes(meshes: list, device) -> dict:
+def _warp_meshes(meshes: list, device: str) -> dict:
     """Return Warp meshes that support signed distance queries, with their bounding spheres."""
     centers = [mesh.vertices.mean(axis=0) for mesh in meshes]
     radii = [np.linalg.norm(mesh.vertices - center, axis=1).max() for mesh, center in zip(meshes, centers)]
@@ -234,7 +242,7 @@ def _warp_meshes(meshes: list, device) -> dict:
     }
 
 
-def _geometry(ctx, num_object_points: int) -> dict:
+def _geometry(ctx: TermContext, num_object_points: int) -> dict:
     """Return the object's surface points and the robot's collision vertices, built on the first call."""
     cache = ctx.cache
     if cache:
@@ -258,7 +266,7 @@ def _geometry(ctx, num_object_points: int) -> dict:
     return cache
 
 
-def _mesh_clearance(ctx, *, min_clearance, num_object_points=64):
+def _mesh_clearance(ctx: TermContext, *, min_clearance: float, num_object_points: int = 64) -> None:
     cache = _geometry(ctx, num_object_points)
     device = cache["clearance"].device
     if "robot" not in cache:
@@ -318,7 +326,13 @@ robot's collision vertices to the object's collision mesh; the sign catches full
 """
 
 
-def _slab_clearance(ctx, *, obstacle_slabs, min_clearance, num_object_points=64):
+def _slab_clearance(
+    ctx: TermContext,
+    *,
+    obstacle_slabs: tuple[tuple[tuple[float, float] | None, tuple[float, float] | None, float], ...],
+    min_clearance: float,
+    num_object_points: int = 64,
+) -> None:
     cache = _geometry(ctx, num_object_points)
     device = cache["clearance"].device
     if "slabs" not in cache:

@@ -21,7 +21,6 @@ Terms and task configuration
    FieldSelector
    SubsetSelector
    TaskCfg
-   ObservationGroup
    DirectAction
    Observation
    Reward
@@ -62,7 +61,6 @@ Scene data
    SceneSchema
    EntitySchema
    FieldSchema
-   PointMassScene
 
 .. autoclass:: Term
 .. autoclass:: Implementation
@@ -74,7 +72,6 @@ Scene data
 .. autoclass:: FieldSelector
 .. autoclass:: SubsetSelector
 .. autoclass:: TaskCfg
-.. autoclass:: ObservationGroup
 .. autoclass:: DirectAction
 .. autoclass:: Observation
 .. autoclass:: Reward
@@ -106,5 +103,3 @@ Scene data
 .. autoclass:: SceneSchema
 .. autoclass:: EntitySchema
 .. autoclass:: FieldSchema
-.. autoclass:: PointMassScene
-   :members:

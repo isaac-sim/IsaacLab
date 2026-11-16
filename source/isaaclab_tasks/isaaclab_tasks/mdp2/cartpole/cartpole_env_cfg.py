@@ -76,8 +76,8 @@ def reset_joints(subset: mdp2.SubsetSelector, position_range: tuple, velocity_ra
 TASK = mdp2.TaskCfg(
     actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, subset=cart, scale=100.0)},
     observations={
-        "policy": mdp2.ObservationGroup(
-            joint_pos_rel=mdp2.Observation(
+        "policy": {
+            "joint_pos_rel": mdp2.Observation(
                 mdp.joint_pos_rel,
                 inputs={
                     "joint_pos": robot.joint_pos,
@@ -85,7 +85,7 @@ TASK = mdp2.TaskCfg(
                     "joint_ids": joints,
                 },
             ),
-            joint_vel_rel=mdp2.Observation(
+            "joint_vel_rel": mdp2.Observation(
                 mdp.joint_vel_rel,
                 inputs={
                     "joint_vel": robot.joint_vel,
@@ -93,7 +93,7 @@ TASK = mdp2.TaskCfg(
                     "joint_ids": joints,
                 },
             ),
-        )
+        }
     },
     rewards={
         "alive": mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}, weight=1.0),

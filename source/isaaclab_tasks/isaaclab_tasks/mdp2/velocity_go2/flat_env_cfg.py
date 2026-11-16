@@ -101,16 +101,18 @@ TASK = mdp2.TaskCfg(
         ),
     },
     observations={
-        "policy": mdp2.ObservationGroup(
-            base_lin_vel=mdp2.Observation(mdp.base_lin_vel, inputs=root_state, noise=mdp2.UniformNoise(-0.1, 0.1)),
-            base_ang_vel=mdp2.Observation(mdp.base_ang_vel, inputs=root_state, noise=mdp2.UniformNoise(-0.2, 0.2)),
-            projected_gravity=mdp2.Observation(
+        "policy": {
+            "base_lin_vel": mdp2.Observation(mdp.base_lin_vel, inputs=root_state, noise=mdp2.UniformNoise(-0.1, 0.1)),
+            "base_ang_vel": mdp2.Observation(mdp.base_ang_vel, inputs=root_state, noise=mdp2.UniformNoise(-0.2, 0.2)),
+            "projected_gravity": mdp2.Observation(
                 mdp.projected_gravity,
                 inputs={"root_link_pose_w": robot.root_link_pose_w, "gravity_w": scene.gravity_w},
                 noise=mdp2.UniformNoise(-0.05, 0.05),
             ),
-            velocity_commands=mdp2.Observation(mdp.generated_commands, inputs={"command": mdp2.commands.base_velocity}),
-            joint_pos=mdp2.Observation(
+            "velocity_commands": mdp2.Observation(
+                mdp.generated_commands, inputs={"command": mdp2.commands.base_velocity}
+            ),
+            "joint_pos": mdp2.Observation(
                 mdp.joint_pos_rel,
                 inputs={
                     "joint_pos": robot.joint_pos,
@@ -119,7 +121,7 @@ TASK = mdp2.TaskCfg(
                 },
                 noise=mdp2.UniformNoise(-0.01, 0.01),
             ),
-            joint_vel=mdp2.Observation(
+            "joint_vel": mdp2.Observation(
                 mdp.joint_vel_rel,
                 inputs={
                     "joint_vel": robot.joint_vel,
@@ -128,8 +130,8 @@ TASK = mdp2.TaskCfg(
                 },
                 noise=mdp2.UniformNoise(-1.5, 1.5),
             ),
-            actions=mdp2.Observation(mdp.last_action, inputs={"actions": mdp2.last_action}),
-        )
+            "actions": mdp2.Observation(mdp.last_action, inputs={"actions": mdp2.last_action}),
+        }
     },
     rewards={
         "track_lin_vel_xy_exp": mdp2.Reward(

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import torch
 import warp as wp
-from isaaclab_experimental.mdp2 import State, Term
+from isaaclab_experimental.mdp2 import State, Term, TermContext
 
 from isaaclab.utils import math as math_utils
 
@@ -31,7 +31,7 @@ def _contact_force(world: int, forces: wp.array3d(dtype=wp.vec3f), body: int) ->
     return wp.length(total)
 
 
-def _contact_forces_torch(forces, body_ids):
+def _contact_forces_torch(forces: torch.Tensor, body_ids: torch.Tensor) -> torch.Tensor:
     return forces[:, body_ids].sum(dim=2).norm(dim=-1)
 
 
@@ -45,7 +45,7 @@ def _max_contact_force(
     return force
 
 
-def _max_contact_force_torch(normal_force_matrix_w, body_ids):
+def _max_contact_force_torch(normal_force_matrix_w: torch.Tensor, body_ids: torch.Tensor) -> torch.Tensor:
     return _contact_forces_torch(normal_force_matrix_w, body_ids).amax(-1)
 
 
@@ -65,7 +65,7 @@ def _grasped(
     return thumb_force[world] > threshold and finger_force[world] > threshold
 
 
-def _grasped_torch(thumb_force, finger_force, threshold):
+def _grasped_torch(thumb_force: torch.Tensor, finger_force: torch.Tensor, threshold: float) -> torch.Tensor:
     return (thumb_force > threshold) & (finger_force > threshold)
 
 
@@ -76,7 +76,7 @@ def _contacts(
     return wp.where(_grasped(world, thumb_force, finger_force, threshold), 1.0, 0.0)
 
 
-def _contacts_torch(thumb_force, finger_force, *, threshold):
+def _contacts_torch(thumb_force: torch.Tensor, finger_force: torch.Tensor, *, threshold: float) -> torch.Tensor:
     return _grasped_torch(thumb_force, finger_force, threshold).float()
 
 
@@ -95,7 +95,9 @@ def _contact_count(
     return count / float(body_ids.shape[0])
 
 
-def _contact_count_torch(normal_force_matrix_w, body_ids, *, threshold):
+def _contact_count_torch(
+    normal_force_matrix_w: torch.Tensor, body_ids: torch.Tensor, *, threshold: float
+) -> torch.Tensor:
     return (_contact_forces_torch(normal_force_matrix_w, body_ids) > threshold).float().mean(-1)
 
 
@@ -119,7 +121,9 @@ def _goal_error(
     return wp.length(wp.transform_get_translation(object_pose_w[world]) - goal)
 
 
-def _goal_error_torch(command, root_link_pose_w, object_pose_w):
+def _goal_error_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, object_pose_w: torch.Tensor
+) -> torch.Tensor:
     goal, _ = math_utils.combine_frame_transforms(root_link_pose_w[:, :3], root_link_pose_w[:, 3:7], command[:, :3])
     return (object_pose_w[:, :3] - goal).norm(dim=-1)
 
@@ -143,7 +147,15 @@ def _succeeded(
     return succeeded[world]
 
 
-def _succeeded_torch(goal_error, thumb_force, finger_force, succeeded, *, distance, contact_threshold):
+def _succeeded_torch(
+    goal_error: torch.Tensor,
+    thumb_force: torch.Tensor,
+    finger_force: torch.Tensor,
+    succeeded: torch.Tensor,
+    *,
+    distance: float,
+    contact_threshold: float,
+) -> torch.Tensor:
     reached = (goal_error < distance) & _grasped_torch(thumb_force, finger_force, contact_threshold)
     succeeded.copy_(torch.where(reached, 1.0, succeeded))
     return succeeded
@@ -178,8 +190,15 @@ def _object_ee_distance(
 
 
 def _object_ee_distance_torch(
-    body_link_pose_w, body_ids, object_pose_w, thumb_force, finger_force, *, std, contact_threshold
-):
+    body_link_pose_w: torch.Tensor,
+    body_ids: torch.Tensor,
+    object_pose_w: torch.Tensor,
+    thumb_force: torch.Tensor,
+    finger_force: torch.Tensor,
+    *,
+    std: float,
+    contact_threshold: float,
+) -> torch.Tensor:
     distance = (body_link_pose_w[:, body_ids, :3] - object_pose_w[:, None, :3]).norm(dim=-1).amax(dim=-1)
     grasped = _grasped_torch(thumb_force, finger_force, contact_threshold)
     return (1.0 - torch.tanh(distance / std)) * torch.where(grasped, 1.0, 0.1)
@@ -223,8 +242,16 @@ def _position_command_progress(
 
 
 def _position_command_progress_torch(
-    command, goal_error, thumb_force, finger_force, best_error, last_command, *, min_improvement, contact_threshold
-):
+    command: torch.Tensor,
+    goal_error: torch.Tensor,
+    thumb_force: torch.Tensor,
+    finger_force: torch.Tensor,
+    best_error: torch.Tensor,
+    last_command: torch.Tensor,
+    *,
+    min_improvement: float,
+    contact_threshold: float,
+) -> torch.Tensor:
     restart = (command != last_command).any(-1) | best_error.isinf()
     best = torch.where(restart, goal_error, best_error)
     paid = _grasped_torch(thumb_force, finger_force, contact_threshold) & (goal_error < best - min_improvement)
@@ -261,7 +288,14 @@ def _success_reward(
     return closeness * closeness
 
 
-def _success_reward_torch(goal_error, thumb_force, finger_force, *, pos_std, contact_threshold):
+def _success_reward_torch(
+    goal_error: torch.Tensor,
+    thumb_force: torch.Tensor,
+    finger_force: torch.Tensor,
+    *,
+    pos_std: float,
+    contact_threshold: float,
+) -> torch.Tensor:
     closeness = 1.0 - torch.tanh(goal_error / pos_std)
     return closeness.square() * _grasped_torch(thumb_force, finger_force, contact_threshold)
 
@@ -287,7 +321,9 @@ def _abnormal_robot(
     return 0.0
 
 
-def _abnormal_robot_torch(joint_vel, soft_joint_vel_limits, joint_ids):
+def _abnormal_robot_torch(
+    joint_vel: torch.Tensor, soft_joint_vel_limits: torch.Tensor, joint_ids: torch.Tensor
+) -> torch.Tensor:
     return (joint_vel[:, joint_ids].abs() > soft_joint_vel_limits[:, joint_ids]).any(-1).float()
 
 
@@ -324,7 +360,15 @@ def _out_of_bound(
     return outside
 
 
-def _out_of_bound_torch(object_pose_w, object_vel_w, env_origins, progress, *, in_bound_range, final_in_bound_range):
+def _out_of_bound_torch(
+    object_pose_w: torch.Tensor,
+    object_vel_w: torch.Tensor,
+    env_origins: torch.Tensor,
+    progress: torch.Tensor,
+    *,
+    in_bound_range: tuple[tuple[float, float], ...],
+    final_in_bound_range: tuple[tuple[float, float], ...],
+) -> torch.Tensor:
     position = object_pose_w[:, :3] - env_origins
     outside = ~(object_pose_w.isfinite().all(-1) & object_vel_w.isfinite().all(-1))
 
@@ -358,7 +402,7 @@ def _object_quat_b(
     return quat[element]
 
 
-def _object_quat_b_torch(root_link_pose_w, object_pose_w):
+def _object_quat_b_torch(root_link_pose_w: torch.Tensor, object_pose_w: torch.Tensor) -> torch.Tensor:
     return math_utils.quat_mul(math_utils.quat_inv(root_link_pose_w[:, 3:7]), object_pose_w[:, 3:7])
 
 
@@ -381,7 +425,9 @@ def _body_state_b(
     return wp.transform_get_rotation(pose)[element - 3]
 
 
-def _body_state_b_torch(body_link_pose_w, root_link_pose_w, body_ids):
+def _body_state_b_torch(
+    body_link_pose_w: torch.Tensor, root_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
     body = body_link_pose_w[:, body_ids]
     root = root_link_pose_w[:, None].expand_as(body)
     position, quat = math_utils.subtract_frame_transforms(root[..., :3], root[..., 3:7], body[..., :3], body[..., 3:7])
@@ -407,7 +453,9 @@ def _fingers_contact_force_b(
     return wp.quat_rotate_inv(wp.transform_get_rotation(root_link_pose_w[world]), total)[axis]
 
 
-def _fingers_contact_force_b_torch(normal_force_matrix_w, root_link_pose_w, body_ids):
+def _fingers_contact_force_b_torch(
+    normal_force_matrix_w: torch.Tensor, root_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
     forces = normal_force_matrix_w[:, body_ids].sum(dim=2)
     root = root_link_pose_w[:, None, 3:7].expand(-1, forces.shape[1], -1)
     return math_utils.quat_apply_inverse(root, forces)
@@ -419,7 +467,7 @@ fingers_contact_force_b = Term(
 """Normal force of each of the ``body_ids`` fingertips against the object, in the robot's root frame."""
 
 
-def _sample_points(ctx, *, num_points):
+def _sample_points(ctx: TermContext, *, num_points: int) -> None:
     ctx.state["points"].copy_(sample_object_point_cloud(ctx.entity("object_pose_w"), num_points))
 
 
@@ -438,7 +486,9 @@ def _object_point_cloud_b(
     return wp.transform_point(wp.transform_inverse(root_link_pose_w[world]), position_w)[axis]
 
 
-def _object_point_cloud_b_torch(root_link_pose_w, object_pose_w, points, *, num_points):
+def _object_point_cloud_b_torch(
+    root_link_pose_w: torch.Tensor, object_pose_w: torch.Tensor, points: torch.Tensor, *, num_points: int
+) -> torch.Tensor:
     object_pose = object_pose_w[:, None].expand(-1, num_points, -1)
     position_w = math_utils.quat_apply(object_pose[..., 3:7], points) + object_pose[..., :3]
     root = root_link_pose_w[:, None].expand(-1, num_points, -1)
@@ -473,7 +523,14 @@ def _curriculum_gravity(
     gravity_w[world] = initial_gravity + (final_gravity - initial_gravity) * progress[world]
 
 
-def _curriculum_gravity_torch(mask, gravity_w, progress, *, initial_gravity, final_gravity):
+def _curriculum_gravity_torch(
+    mask: torch.Tensor,
+    gravity_w: torch.Tensor,
+    progress: torch.Tensor,
+    *,
+    initial_gravity: tuple[float, float, float],
+    final_gravity: tuple[float, float, float],
+) -> None:
     # Per axis from host floats: a host copy cannot be captured in a CUDA graph.
     for axis, (initial, final) in enumerate(zip(initial_gravity, final_gravity)):
         value = initial + (final - initial) * progress

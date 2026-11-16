@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import copy
 import functools
 import itertools
 import math
@@ -27,6 +28,7 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental import mdp2
+from isaaclab_experimental.mdp2 import rng
 from isaaclab_experimental.mdp2.capture import torch_in_warp_capture
 from isaaclab_experimental.mdp2.plan import Call
 
@@ -45,7 +47,7 @@ class MDP2Env:
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
 
-    def __init__(self, cfg: MDP2EnvCfg):
+    def __init__(self, cfg: MDP2EnvCfg) -> None:
         self.cfg = cfg
         if cfg.seed is not None:
             configure_seed(cfg.seed)
@@ -64,10 +66,12 @@ class MDP2Env:
         """Build the scene and the MDP; on failure, the caller clears the simulation context."""
         cfg, sim = self.cfg, self.sim
 
-        # Terms read sensor data in kernels, so sensors refresh every step rather than when their data is read.
-        cfg.scene.lazy_sensor_update = False
+        # Terms read sensor data in kernels, so sensors refresh every step rather than when their data is read. A
+        # shallow copy keeps the entities that were added to the config as attributes, and the caller's config.
+        scene_cfg = copy.copy(cfg.scene)
+        scene_cfg.lazy_sensor_update = False
         with use_stage(sim.stage):
-            self.scene = InteractiveScene(cfg.scene)
+            self.scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(self.scene)
         with use_stage(sim.stage):
             sim.reset()
@@ -77,7 +81,7 @@ class MDP2Env:
         # Newton-native actuators step all substeps in one call.
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
 
-        self.scene_data = InteractiveSceneData(self.scene, self.step_dt)
+        self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
         schema = self.scene_data.schema
         builder = mdp2.MDPBuilder(schema)
         if isinstance(cfg.task, mdp2.TaskCfg):
@@ -132,9 +136,11 @@ class MDP2Env:
         return {group: values.torch for group, values in self.transition.observations.items()}
 
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
-        """Reset every world and return their observations."""
+        """Reset every world and return their observations. A seed also reseeds the MDP's random streams."""
         if seed is not None:
             configure_seed(seed)
+            # In place: captured graphs hold the buffer's address.
+            self.state.rng.torch.copy_(rng.streams(seed, self.mdp.streams, self.num_envs, self.device))
         self._reset(self._all_envs)
         return self.observations, self.extras
 
@@ -146,7 +152,9 @@ class MDP2Env:
     def close(self) -> None:
         if not self._is_closed:
             self.sim.stop()
-            del self.scene
+            # The captured graphs, the MDP state, and the scene data all reference the scene's buffers.
+            self._runs = None
+            del self.state, self.transition, self.scene_data, self.scene
             self.sim.clear_instance()
             self._is_closed = True
 
@@ -163,6 +171,7 @@ class MDP2Env:
         else:
             self._simulate()
             mdp2.evaluate(self.mdp, self.state, self.transition)
+            self._after_evaluate()
             self._reset(self.transition.done)
 
         self._stepped = True
@@ -183,6 +192,7 @@ class MDP2Env:
 
         work = [(True, self._simulate)]
         work += [(launch.capturable, functools.partial(launch, evaluate)) for launch in launches.evaluate]
+        work += [(True, self._after_evaluate)]
         work += [(True, functools.partial(self._reset_scene, mask))]
         work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
         work += [(True, commit)]
@@ -195,7 +205,7 @@ class MDP2Env:
                 runs += steps
                 continue
 
-            def run_all(steps=steps):
+            def run_all(steps: list[Callable[[], None]] = steps) -> None:
                 for step in steps:
                     step()
 
@@ -206,6 +216,9 @@ class MDP2Env:
             self.num_graphs += 1
 
         return runs
+
+    def _after_evaluate(self) -> None:
+        """Read the step's results before the worlds that ended are reset. Part of the captured step."""
 
     def _simulate(self) -> None:
         """Apply the actions and step the physics ``decimation`` times."""
@@ -252,7 +265,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
 
     cfg: MDP2RLEnvCfg
 
-    def __init__(self, cfg: MDP2RLEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: MDP2RLEnvCfg, render_mode: str | None = None, **kwargs: Any) -> None:
         super().__init__(cfg)
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
@@ -339,25 +352,29 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             self.extras,
         )
 
+    def _after_evaluate(self) -> None:
+        """Keep the logged quantities of the worlds that ended, before their reset recomputes them."""
+        done = self.transition.done.torch
+        for value, last, _ in self._metrics.values():
+            torch.where(done, value, last, out=last)
+
     def _log_episodes(self) -> None:
         """Add the step's term rewards to the episode sums, and record the episodes that ended in ``extras["log"]``."""
         transition = self.transition
         ended = transition.done.torch[:, None]
         self._episode_rewards += transition.reward_terms.torch
 
-        self._last_episode_rewards = torch.where(ended, self._episode_rewards, self._last_episode_rewards)
+        torch.where(ended, self._episode_rewards, self._last_episode_rewards, out=self._last_episode_rewards)
         terminations = transition.termination_terms.torch.float()
-        self._last_terminations = torch.where(ended, terminations, self._last_terminations)
-        self._episode_rewards = torch.where(ended, 0.0, self._episode_rewards)
+        torch.where(ended, terminations, self._last_terminations, out=self._last_terminations)
+        self._episode_rewards.masked_fill_(ended, 0.0)
 
         rewards = self._last_episode_rewards.sum(dim=0) / self._active_worlds[mdp2.Phase.REWARDS]
         rewards /= self.max_episode_length_s
         terminations = self._last_terminations.sum(dim=0) / self._active_worlds[mdp2.Phase.TERMINATIONS]
         log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
         log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
-        # Quantities keep the values of the step that ended the episode until the next step.
         # A quantity that only some worlds compute is averaged over them.
-        for name, (value, last, worlds) in self._metrics.items():
-            last.copy_(torch.where(transition.done.torch, value, last))
+        for name, (_, last, worlds) in self._metrics.items():
             log[f"Metrics/{name}"] = last[worlds].mean()
         self.extras["log"] = log

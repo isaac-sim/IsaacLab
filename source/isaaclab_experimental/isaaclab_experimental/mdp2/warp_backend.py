@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Hashable, Iterable, Sequence
 
+import torch
 import warp as wp
 
 from .compiled import MDP
@@ -187,7 +188,9 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                 restart = f"{code.function(_restart)}({_timer(code, op)})"
                 code.world(*_under(active, restart), writes=[("timer", op.name)])
             case StepKind.RESET_STATE if op.reset is not None:
-                _run(code, mdp, op, op.reset, state, active, mask=_mask)
+                # A function hook gets the reset worlds where the op is active.
+                mask = _mask if op.worlds is None else lambda call, op=op: _selected(mdp, op, call)
+                _run(code, mdp, op, op.reset, state, active, mask=mask)
             case StepKind.RESET_STATE:
                 _reset_state(code, op, active)
             case StepKind.COMMIT:
@@ -345,26 +348,52 @@ def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
         return _call(code, op, op.compute, op.shape)
 
     if op.eager:
-        code.call(lambda call: call_eager(mdp, op, call.state), False, *_accesses(op))
+        code.call(_own_state(op, lambda call: call_eager(mdp, op, call.state)), False, *_accesses(op))
     elif op.torch_hooks:
         code.call(
-            lambda call: call.state.arrays["scratch", op.name].torch.copy_(
-                op.compute(**hook_arguments(op.compute, call.state.arguments[op.name]))
+            _own_state(
+                op,
+                lambda call: call.state.arrays["scratch", op.name].torch.copy_(
+                    op.compute(**hook_arguments(op.compute, call.state.arguments[op.name]))
+                ),
             ),
             op.capturable,
             *_accesses(op),
         )
     else:
         code.call(
-            lambda call: op.compute(
-                out=call.state.arrays["scratch", op.name].warp,
-                **hook_arguments(op.compute, call.state.arguments[op.name]),
+            _own_state(
+                op,
+                lambda call: op.compute(
+                    out=call.state.arrays["scratch", op.name].warp,
+                    **hook_arguments(op.compute, call.state.arguments[op.name]),
+                ),
             ),
             op.capturable,
             *_accesses(op),
         )
     scratch = _array(code, ("scratch", op.name), wp.array(dtype=op.dtype, ndim=1 + len(op.shape)))
     return f"{scratch}[{_index(op.shape)}]"
+
+
+def _own_state(op: TermOp, run: Callable[[Call], None]) -> Callable[[Call], None]:
+    """Wrap a compute hook that runs for every world, so that it keeps the state it writes in the op's worlds only.
+
+    The ops of different world configs may share the state of their use, as in the Torch backend.
+    """
+    if op.worlds is None or not op.state:
+        return run
+
+    def run_in_own_worlds(call: Call) -> None:
+        active = call.state.arrays["active", op.name].torch
+        states = [call.state.arrays[term_state(op.use, name)].torch for name in op.state]
+        states = [values for values in states if values.shape[:1] == active.shape]
+        before = [values.clone() for values in states]
+        run(call)
+        for values, kept in zip(states, before):
+            values.copy_(torch.where(active.view(-1, *[1] * (values.ndim - 1)), values, kept))
+
+    return run_in_own_worlds
 
 
 def _computed_state(op: TermOp) -> list[FieldSelector]:
