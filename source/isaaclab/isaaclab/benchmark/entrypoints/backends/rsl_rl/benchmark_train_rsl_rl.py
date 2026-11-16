@@ -138,7 +138,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.entrypoints.backends._rsl_rl import _configure_rsl_rl_env_cfg, _create_rsl_rl_runner
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
     from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
@@ -241,7 +241,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             env_cfg.log_dir = log_dir
             common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
-            _configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
+            configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
             env_t0 = time.perf_counter_ns()
             env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
@@ -249,7 +249,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-            runner = _create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
+            runner = create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
             _disable_code_state_capture(runner)
             if resume_path is not None:
                 runner.load(resume_path, map_location=agent_cfg.device)

@@ -228,7 +228,7 @@ def test_leapp_export_flow(
         ]
     )
     if policy_kind == "unsupported":
-        real_create_runner = module._create_rsl_rl_runner
+        real_create_runner = module.create_rsl_rl_runner
 
         def create_runner(*args, **kwargs):
             runner = real_create_runner(*args, **kwargs)
@@ -236,7 +236,7 @@ def test_leapp_export_flow(
             runner.get_inference_policy = lambda device=None: torch.nn.Identity()
             return runner
 
-        monkeypatch.setattr(module, "_create_rsl_rl_runner", create_runner)
+        monkeypatch.setattr(module, "create_rsl_rl_runner", create_runner)
         with pytest.raises(TypeError, match="LEAPP export requires an MLPModel policy"):
             module.export_rsl_rl_agent(args, env_cfg, agent_cfg)
         assert not (tmp_path / task / f"{task}.onnx").exists()

@@ -46,7 +46,7 @@ from ..common import (
     write_run_manifest,
 )
 from . import cli_args_rsl_rl as cli_args
-from ._rsl_rl import _configure_rsl_rl_env_cfg, _create_rsl_rl_runner, _rsl_rl_load_cfg
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, rsl_rl_load_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             env_cfg.log_dir = rank_dir
             apply_video_recording(env_cfg, rank_dir, args_cli)
 
-            _configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
+            configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -170,7 +170,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             report_activity(None)
             report_activity("Building policy")
-            runner = _create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
+            runner = create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
             report_activity(None)
 
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
@@ -183,7 +183,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(
                     resume_path,
-                    load_cfg=_rsl_rl_load_cfg(runner, args_cli.resume_optimizer_state),
+                    load_cfg=rsl_rl_load_cfg(runner, args_cli.resume_optimizer_state),
                     map_location=agent_cfg.device,
                 )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)

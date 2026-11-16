@@ -107,7 +107,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import create_rsl_rl_runner
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -186,7 +186,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             num_envs = env.unwrapped.num_envs
 
-            runner = _create_rsl_rl_runner(env, agent_cfg, inference=True)
+            runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             runner.load(resume_path, map_location=agent_cfg.device)
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 

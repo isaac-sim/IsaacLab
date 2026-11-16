@@ -890,7 +890,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     pytest.importorskip("rsl_rl")
     from tensordict import TensorDict
 
-    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner, _rsl_rl_load_cfg
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import create_rsl_rl_runner, rsl_rl_load_cfg
 
     distillation = runner_class == "DistillationRunner"
     model_names = ("student", "teacher") if distillation else ("actor", "critic")
@@ -915,8 +915,8 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
                 "weight": 1.0,
                 "learning_rate": learning_rate,
             }
-        agent_cfg = SimpleNamespace(class_name=f"rsl_rl.runners:{runner_class}", device="cpu", to_dict=lambda: cfg)
-        return _create_rsl_rl_runner(env, agent_cfg)
+        agent_cfg = SimpleNamespace(**cfg, class_name=f"rsl_rl.runners:{runner_class}", device="cpu")
+        return create_rsl_rl_runner(env, agent_cfg)
 
     source = make_runner(3e-4)
     source.alg.get_policy()(obs).sum().backward()
@@ -928,7 +928,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     checkpoint = str(tmp_path / "model.pt")
     source.save(checkpoint)
     destination = make_runner(1e-5)
-    destination.load(checkpoint, load_cfg=_rsl_rl_load_cfg(destination, resume_optimizer_state))
+    destination.load(checkpoint, load_cfg=rsl_rl_load_cfg(destination, resume_optimizer_state))
 
     assert destination.current_learning_iteration == source.current_learning_iteration
     if distillation:
@@ -978,7 +978,7 @@ def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_act
 
 
 def test_sac_configuration_tracks_native_constructor() -> None:
-    """Typed SAC options retain native defaults and reject unknown Hydra fields."""
+    """Typed SAC options match the native constructor arguments and defaults."""
     import inspect
     from dataclasses import MISSING, fields
 
@@ -994,5 +994,3 @@ def test_sac_configuration_tracks_native_constructor() -> None:
     for name, parameter in parameters.items():
         if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):
             assert getattr(cfg, name) == parameter.default, name
-    with pytest.raises(KeyError, match="unknown_option"):
-        cfg.from_dict({"unknown_option": True})

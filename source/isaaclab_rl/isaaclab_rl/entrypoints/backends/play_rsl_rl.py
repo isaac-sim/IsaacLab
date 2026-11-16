@@ -21,7 +21,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -41,7 +41,7 @@ from ..common import (
     startup_screen,
 )
 from . import cli_args_rsl_rl as cli_args
-from ._rsl_rl import _create_rsl_rl_runner
+from .runner_rsl_rl import create_rsl_rl_runner
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ def _resolve_checkpoint(
     if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
         return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint == "pretrained":
-        if agent_cfg.class_name == "OffPolicyRunner":
+        if isinstance(agent_cfg, RslRlSacRunnerCfg):
             raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -135,7 +135,7 @@ def run(argv: list[str]) -> None:
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             logger.info(f"Loading model checkpoint from: {resume_path}")
-            runner = _create_rsl_rl_runner(env, agent_cfg, inference=True)
+            runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)

@@ -109,7 +109,7 @@ class RslRlSacAlgorithmCfg:
     """Learning-rate ratio reached at the end of cosine annealing."""
 
     num_schedule_updates: int | None = None
-    """Number of critic updates in the cosine schedule; required for cosine annealing."""
+    """Number of critic updates in the cosine schedule; None spans max_iterations times num_updates."""
 
     use_mixed_precision: bool = False
     """Whether to use BF16 autocast during updates."""

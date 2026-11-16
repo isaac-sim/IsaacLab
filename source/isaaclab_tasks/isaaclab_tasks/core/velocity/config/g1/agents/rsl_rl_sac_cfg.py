@@ -75,7 +75,6 @@ class G1FlatSACRunnerCfg(RslRlSacRunnerCfg):
         max_noise_repeat_steps=16,
         learning_rate_schedule="cosine",
         final_learning_rate_ratio=0.5,
-        num_schedule_updates=96_000,
         use_mixed_precision=False,
         symmetry_cfg=None,
         use_cuda_graph=True,

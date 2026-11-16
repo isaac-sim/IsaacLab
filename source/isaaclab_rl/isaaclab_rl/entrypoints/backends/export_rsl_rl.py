@@ -27,9 +27,8 @@ from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
 from ..common import resolve_published_checkpoint, resolve_seed
-from ._rsl_rl import _create_rsl_rl_runner
 from .export_common import (
     add_common_export_args,
     finalize_export_args,
@@ -39,6 +38,7 @@ from .export_common import (
     resolve_export_save_path,
     run_export,
 )
+from .runner_rsl_rl import create_rsl_rl_runner
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -115,7 +115,7 @@ def _resolve_checkpoint(
 ) -> str | None:
     """Resolve the checkpoint to export, or None when no published checkpoint exists."""
     if args_cli.checkpoint == "pretrained":
-        if agent_cfg.class_name == "OffPolicyRunner":
+        if isinstance(agent_cfg, RslRlSacRunnerCfg):
             raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
@@ -157,7 +157,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     try:
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
         logger.info(f"Loading model checkpoint from: {resume_path}")
-        runner = _create_rsl_rl_runner(env, agent_cfg, inference=True)
+        runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
         runner.load(resume_path, map_location=agent_cfg.device)
         # Capture portable operators instead of device-specific fused inference kernels.
         policy = runner.get_inference_policy(device="cpu")

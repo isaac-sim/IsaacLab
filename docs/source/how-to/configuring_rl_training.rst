@@ -142,6 +142,8 @@ When continuing RSL-RL training with a different policy learning rate, use
 iteration count while keeping the newly configured policy optimizer and its learning rate.
 By default, ``--resume_optimizer_state`` restores the checkpoint's optimizer state as usual. RND models and their
 separate optimizer retain their checkpoint state.
+For distillation, this option requires a student checkpoint containing both student and teacher;
+omit it when initializing a new student from a PPO teacher checkpoint.
 
 Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
 Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,

@@ -45,7 +45,7 @@ def _wrap_env(library: str, env: Any, device: str | None = None) -> Any:
 
 
 @pytest.fixture
-def raw_env(task: str, finite_horizon: bool, compute_final_obs: bool, request: pytest.FixtureRequest) -> Iterator[Any]:
+def raw_env(library: str, task: str, finite_horizon: bool, compute_final_obs: bool) -> Iterator[Any]:
     import gymnasium as gym
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -60,10 +60,10 @@ def raw_env(task: str, finite_horizon: bool, compute_final_obs: bool, request: p
     cfg.seed = 42
     cfg.is_finite_horizon = finite_horizon
     cfg.compute_final_obs = compute_final_obs
-    if request.node.callspec.params.get("library") == "rsl_rl" and task == "Isaac-Cartpole" and not finite_horizon:
+    if library == "rsl_rl" and task == "Isaac-Cartpole" and not finite_horizon:
         from isaaclab.managers import TerminationTermCfg
 
-        def simultaneous_failure(env):
+        def simultaneous_failure(env: Any) -> torch.Tensor:
             return (env.episode_length_buf >= _EPISODE_STEPS) & (torch.arange(env.num_envs, device=env.device) == 0)
 
         cfg.terminations.simultaneous_failure = TerminationTermCfg(func=simultaneous_failure)
@@ -140,8 +140,6 @@ def test_wrapper_reset_step_and_timeout(
             if library == "rsl_rl":
                 _assert_observation_buffer(env)
                 if compute_final_obs and bool(dones.any()):
-                    from tensordict import TensorDict
-
                     assert isinstance(extras[0]["final_obs"], TensorDict)
                     assert extras[0]["final_obs"].batch_size == torch.Size([_NUM_ENVS])
                 assert ("time_outs" in extras[0]) is not finite_horizon
