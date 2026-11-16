@@ -118,7 +118,9 @@ class GraphedCallable:
       result of the recording call, so the callable returns buffers its owner keeps.
     * Calls that cannot be recorded go through :func:`eager`. A recording that meets one is abandoned without
       launching anything, and the callable runs plainly from then on, starting with this call; it records again after
-      :meth:`reset`.
+      :meth:`reset`. Known limitation: the host work the callable did before the :func:`eager` call, such as a Python
+      counter it advanced, ran once in the abandoned recording and runs again in the plain call, on that first call
+      only; its device work ran only in the plain call.
     * :attr:`enabled` turns recording off process-wide, to run every part eagerly; it is on by default. A callable on
       a CPU device always runs eagerly.
     * :attr:`generation` advances when the terms change or the physics backend rebinds its buffers or stops (see
