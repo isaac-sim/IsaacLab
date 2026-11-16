@@ -28,8 +28,12 @@ def populate_stage(
 ) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
-    Older builds expose a physics domain bit; newer 0.4 builds require the SDK physics description.
+    Older builds expose a physics domain bit; newer 0.4 builds use population descriptions.
     Detect the capability because both APIs shipped under the same release version.
+
+    Description-based population selects physics properties through the OvPhysX SDK
+    alongside the requested domains. Custom USD properties outside those selections
+    are not copied to the native stage; the source USD scene is unchanged.
 
     Args:
         stage: Native stage to populate.
@@ -54,7 +58,6 @@ def populate_stage(
 
 @cache
 def _physics_population_desc() -> "ovstage.population.Desc":
-    """Cache the SDK physics contract for selector-based population."""
     from ovphysx.population import physics_population_desc
 
     return physics_population_desc()

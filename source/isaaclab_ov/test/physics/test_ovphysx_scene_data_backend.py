@@ -504,7 +504,9 @@ def test_population_respects_physics_config_and_preserves_clone_data(
         UsdPhysics.RigidBodyAPI.Apply(body)
         UsdPhysics.CollisionAPI.Apply(body)
         body.AddAppliedSchema("PhysxRigidBodyAPI")
-        body.CreateAttribute("user:note", Sdf.ValueTypeNames.String).Set("unrelated metadata")
+    stage.GetPrimAtPath("/World/Prototype/Body").CreateAttribute("user:note", Sdf.ValueTypeNames.String).Set(
+        "unrelated metadata"
+    )
     stage.GetPrimAtPath("/World/Prototype/Other").CreateAttribute(
         "physxRigidBody:sleepThreshold", Sdf.ValueTypeNames.Float
     ).Set(0.123)
@@ -548,7 +550,6 @@ def test_population_respects_physics_config_and_preserves_clone_data(
             return
 
         if not hasattr(ovstage.PopulationDomain, "PHYSICS"):
-            # SDK physics selectors keep unrelated properties out of both originals and rendering clones.
             assert read("/World/Prototype/Body", "user:note") is None
             assert read("/World/Copy/Body", "user:note") is None
 
