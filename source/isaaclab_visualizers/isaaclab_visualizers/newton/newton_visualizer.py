@@ -1106,7 +1106,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 "What the window shows: an interactive Perspective camera, a Tracking Camera defined by the task, "
-                "or any scene camera with RGB data"
+                "or any scene camera sensor, whose RGB, depth, and other visual outputs can be viewed"
             )
         follower = self._followers.get(self._pose_source_view())
         if follower is None and self._track_env_only:
