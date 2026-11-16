@@ -215,7 +215,7 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         contact_data = pytest.importorskip("isaaclab_newton.sensors.contact_sensor.contact_sensor_data")
         data = contact_data.ContactSensorData()
         data.create_buffers(**common, num_filter_objects=1, generate_force_matrix=True)
-        pose_shape, friction_shape = (2,), (2, 2)
+        friction_shape = (2, 2)
     else:
         backend = "isaaclab_ov" if layout == "ovphysx" else "isaaclab_physx"
         contact_data = pytest.importorskip(f"{backend}.sensors.contact_sensor.contact_sensor_data")
@@ -237,28 +237,37 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         if layout == "physx-filtered"
         else nullcontext()
     )
-    with warning:
-        assert proxy.pos_w.torch.shape == (*pose_shape, 3)
-        assert proxy.quat_w.torch.shape == (*pose_shape, 4)
-        assert proxy.friction_forces_w.torch.shape == (*friction_shape, 3)
-    position, orientation, friction = [semantics for _, semantics in annotated_inputs]
-    pose_axes = [leapp.Axis(leapp.AxisKind.SYSTEM)]
-    if layout != "newton":
-        pose_axes.append(leapp.Axis(leapp.AxisKind.ELEMENT, names=["right_foot", "left_foot"]))
-    assert position.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
-    assert orientation.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
     if layout == "newton":
-        with pytest.raises(NotImplementedError, match="pose_w is not supported"):
-            _ = proxy.pose_w
-    else:
-        pose = proxy.pose_w.torch
-        torch.testing.assert_close(pose[..., :3], data.pos_w.torch)
-        torch.testing.assert_close(pose[..., 3:], data.quat_w.torch)
-        assert annotated_inputs[-1][1].axes == pose_axes + [
-            leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
-        ]
+        for property_name in ("pos_w", "quat_w", "pose_w"):
+            with pytest.raises(NotImplementedError, match=f"{property_name} is not supported"):
+                getattr(proxy, property_name)
+        data.create_buffers(**(common | {"track_pose": False}), num_filter_objects=1, generate_force_matrix=True)
+        assert proxy.pos_w is None
+        assert proxy.quat_w is None
+    with warning:
+        if layout != "newton":
+            assert proxy.pos_w.torch.shape == (*pose_shape, 3)
+            assert proxy.quat_w.torch.shape == (*pose_shape, 4)
+        assert proxy.friction_forces_w.torch.shape == (*friction_shape, 3)
+    friction = annotated_inputs[-1][1]
     assert friction.axes == [leapp.Axis(leapp.AxisKind.SYSTEM)] + [None] * (len(friction_shape) - 1) + [
         leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])
+    ]
+    if layout == "newton":
+        assert len(annotated_inputs) == 1
+        return
+    position, orientation = [semantics for _, semantics in annotated_inputs[:2]]
+    pose_axes = [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.ELEMENT, names=["right_foot", "left_foot"]),
+    ]
+    assert position.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert orientation.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
+    pose = proxy.pose_w.torch
+    torch.testing.assert_close(pose[..., :3], data.pos_w.torch)
+    torch.testing.assert_close(pose[..., 3:], data.quat_w.torch)
+    assert annotated_inputs[-1][1].axes == pose_axes + [
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
     ]
 
 
