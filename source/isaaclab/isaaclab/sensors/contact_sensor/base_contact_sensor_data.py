@@ -11,13 +11,13 @@ import warnings
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
-    XYZ_COMPONENT_AXIS,
     Axis,
     AxisKind,
     Kind,
     body_pose_axes_resolver,
     body_quat_axes_resolver,
     body_xyz_axes_resolver,
+    body_xyz_history_axes_resolver,
     leapp_tensor_semantics,
 )
 from ...utils.warp import ProxyArray
@@ -80,7 +80,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def net_normal_forces_w(self) -> ProxyArray | None:
         """The net normal contact forces [N] in world frame.
 
@@ -94,7 +94,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def net_normal_forces_w_history(self) -> ProxyArray | None:
         """History of net normal contact forces [N].
 
@@ -105,7 +105,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def normal_force_matrix_w(self) -> ProxyArray | None:
         """Normal contact forces [N] filtered between sensor and filtered bodies.
 
@@ -121,7 +121,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def normal_force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered normal contact forces [N].
 
@@ -134,7 +134,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points.
 
@@ -147,7 +147,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def net_friction_forces_w(self) -> ProxyArray | None:
         """The net friction contact forces [N] in world frame.
 
@@ -160,7 +160,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def net_friction_forces_w_history(self) -> ProxyArray | None:
         """History of net friction contact forces [N] in world frame.
 
@@ -173,7 +173,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def friction_force_matrix_w(self) -> ProxyArray | None:
         """Friction contact forces [N] filtered between sensor and filtered bodies.
 
@@ -186,7 +186,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def friction_force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered friction contact forces [N].
 
@@ -198,7 +198,7 @@ class BaseContactSensorData(ABC):
         raise NotImplementedError
 
     @property
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def net_forces_w(self) -> ProxyArray | None:
         """The net total contact forces [N] in world frame.
 
@@ -219,7 +219,7 @@ class BaseContactSensorData(ABC):
         return self.net_normal_forces_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def net_forces_w_history(self) -> ProxyArray | None:
         """History of net total contact forces [N] in world frame.
 
@@ -237,7 +237,7 @@ class BaseContactSensorData(ABC):
         return self.net_normal_forces_w_history
 
     @property
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def force_matrix_w(self) -> ProxyArray | None:
         """Total filtered contact forces [N] between sensor and filtered bodies.
 
@@ -260,7 +260,7 @@ class BaseContactSensorData(ABC):
         return self.normal_force_matrix_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), None, None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
     def force_matrix_w_history(self) -> ProxyArray | None:
         """History of total filtered contact forces [N].
 
@@ -280,10 +280,7 @@ class BaseContactSensorData(ABC):
         return self.normal_force_matrix_w_history
 
     @property
-    @leapp_tensor_semantics(
-        kind=Kind.VECTOR3D,
-        axes_resolver=lambda _data, ref: [Axis(AxisKind.SYSTEM)] + [None] * (ref.ndim - 2) + [XYZ_COMPONENT_AXIS],
-    )
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
     def friction_forces_w(self) -> ProxyArray | None:
         """The net total friction contact forces [N] in world frame.
 

@@ -155,14 +155,14 @@ def body_names_resolver(data_self) -> list[str] | None:
     )
 
 
-def _compound_axes_resolver(outer_fn: Callable, component_axis: Axis) -> Callable:
-    """Build axes for batched body/frame quantities with trailing components."""
+def _compound_axes_resolver(outer_fn: Callable, component_axis: Axis, *, element_axis: int = 1) -> Callable:
+    """Label systems, the body/frame dimension, and trailing components while retaining other dimensions."""
 
     def resolver(data_self, ref) -> list[Axis | None] | None:
-        if ref.ndim == 2:
-            return [Axis(AxisKind.SYSTEM), component_axis]
-        names = outer_fn(data_self)
-        return [Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=names), component_axis] if names else None
+        axes = [Axis(AxisKind.SYSTEM)] + [None] * (ref.ndim - 2) + [component_axis]
+        if ref.ndim > 2:
+            axes[element_axis] = Axis(AxisKind.ELEMENT, names=outer_fn(data_self))
+        return axes
 
     return resolver
 
@@ -173,6 +173,7 @@ def _target_frame_names(data_self) -> list[str] | None:
 
 
 body_xyz_axes_resolver = _compound_axes_resolver(body_names_resolver, XYZ_COMPONENT_AXIS)
+body_xyz_history_axes_resolver = _compound_axes_resolver(body_names_resolver, XYZ_COMPONENT_AXIS, element_axis=2)
 body_pose_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE7_COMPONENT_AXIS)
 body_pose6_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE6_COMPONENT_AXIS)
 body_linear_velocity_axes_resolver = _compound_axes_resolver(body_names_resolver, LINEAR_VELOCITY_COMPONENT_AXIS)

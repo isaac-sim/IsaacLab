@@ -200,16 +200,25 @@ def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPat
     assert orientation.extra == {"isaaclab_connection": "state:ray_caster:quat_w"}
 
 
-@pytest.mark.parametrize("layout", ["physx-aggregate", "physx-filtered", "ovphysx", "newton"])
-def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPatch, layout):
-    """Contact poses retain body order and backend layout; force aliases keep their component axes."""
+@pytest.mark.parametrize(
+    ("layout", "named"),
+    [
+        ("physx-aggregate", True),
+        ("physx-filtered", True),
+        ("ovphysx", True),
+        ("newton", True),
+        ("physx-aggregate", False),
+    ],
+)
+def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPatch, layout, named):
+    """Contact quantities retain body order and known component axes across backend layouts."""
     common = dict(
         num_envs=2,
         num_sensors=2,
         history_length=1,
         track_pose=True,
         track_air_time=False,
-        track_contact_points=False,
+        track_contact_points=True,
         track_friction_forces=True,
         device="cpu",
     )
@@ -228,10 +237,17 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
             data.create_buffers(
                 **common, num_filter_shapes=1, supports_total_contact_forces=layout == "physx-aggregate"
             )
-        data._body_names = ["right_foot", "left_foot"]
         pose_shape = (2, 2)
         friction_shape = (2, 2, 1) if layout == "physx-filtered" else (2, 2)
 
+    data._body_names = ["right_foot", "left_foot"] if named else None
+    system = leapp.Axis(leapp.AxisKind.SYSTEM)
+    body = leapp.Axis(leapp.AxisKind.ELEMENT, names=data._body_names)
+    xyz = leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])
+    vector_axes = [system, body, xyz]
+    history_axes = [system, None, body, xyz]
+    matrix_axes = [system, body, None, xyz]
+    matrix_history_axes = [system, None, body, None, xyz]
     annotated_inputs = _capture_leapp_inputs(monkeypatch)
     proxy = _DataProxy(data, "contact", "contact-task", {}, {}, lambda name: f"contact_{name}")
     warning = (
@@ -252,17 +268,39 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
             assert proxy.quat_w.torch.shape == (*pose_shape, 4)
         assert proxy.friction_forces_w.torch.shape == (*friction_shape, 3)
     friction = annotated_inputs[-1][1]
-    assert friction.axes == [leapp.Axis(leapp.AxisKind.SYSTEM)] + [None] * (len(friction_shape) - 1) + [
-        leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])
-    ]
+    assert friction.axes == (matrix_axes if layout == "physx-filtered" else vector_axes)
+    force_layouts = {
+        "net_normal_forces_w": vector_axes,
+        "net_normal_forces_w_history": history_axes,
+        "normal_force_matrix_w": matrix_axes,
+        "normal_force_matrix_w_history": matrix_history_axes,
+        "friction_force_matrix_w": matrix_axes,
+        "friction_force_matrix_w_history": matrix_history_axes,
+        "net_forces_w": vector_axes,
+        "net_forces_w_history": history_axes,
+        "force_matrix_w": matrix_axes,
+        "force_matrix_w_history": matrix_history_axes,
+        "contact_pos_w": matrix_axes,
+    }
+    if layout != "physx-filtered":
+        force_layouts.update(net_friction_forces_w=vector_axes, net_friction_forces_w_history=history_axes)
+    for property_name, axes in force_layouts.items():
+        legacy_warning = layout == "physx-filtered" and property_name in {
+            "net_forces_w",
+            "net_forces_w_history",
+            "force_matrix_w",
+            "force_matrix_w_history",
+        }
+        with pytest.warns(UserWarning) if legacy_warning else nullcontext():
+            value = getattr(proxy, property_name).torch
+        semantics = annotated_inputs[-1][1]
+        assert semantics.axes == axes
+        assert len(axes) == value.ndim
+        assert semantics.extra == {"isaaclab_connection": f"state:contact:{property_name}"}
     if layout == "newton":
-        assert len(annotated_inputs) == 1
         return
     position, orientation = [semantics for _, semantics in annotated_inputs[:2]]
-    pose_axes = [
-        leapp.Axis(leapp.AxisKind.SYSTEM),
-        leapp.Axis(leapp.AxisKind.ELEMENT, names=["right_foot", "left_foot"]),
-    ]
+    pose_axes = [system, body]
     assert position.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
     assert orientation.axes == pose_axes + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
     pose = proxy.pose_w.torch
