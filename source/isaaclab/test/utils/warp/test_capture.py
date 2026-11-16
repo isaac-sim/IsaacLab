@@ -17,7 +17,6 @@ import warp as wp
 from isaaclab.utils.warp.capture import (
     GraphedCallable,
     capturing,
-    eager,
     eager_method,
 )
 
@@ -51,6 +50,24 @@ class _Affine:
         shift = self.shift if shift is None else shift
         wp.launch(_affine, dim=values.shape[0], inputs=[values, self.scale, shift], device=values.device)
         return values
+
+
+class _EagerAffine(_Affine):
+    """An :class:`_Affine` whose call cannot be recorded: a method marked with :func:`eager_method`."""
+
+    __call__ = eager_method(_Affine.__call__)
+
+
+class _HostWork:
+    """Work that cannot be recorded, in methods marked with :func:`eager_method`."""
+
+    @eager_method
+    def total(self, values: torch.Tensor) -> float:
+        return _synchronizing_call(values)
+
+    @eager_method
+    def add(self, values: torch.Tensor, amount: int) -> None:
+        values.add_(amount)
 
 
 def _read(values: wp.array) -> list[int]:
@@ -155,11 +172,11 @@ def test_callable_runs_eagerly_when_disabled_or_on_cpu(monkeypatch):
 
 def test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly(caplog):
     """A recording that meets an eager call launches nothing; the call then runs plainly, now and on later calls."""
-    before, between, after = _Affine(2, 0), _Affine(1, 10), _Affine(3, 0)
+    before, between, after = _Affine(2, 0), _EagerAffine(1, 10), _Affine(3, 0)
 
     def body(values: wp.array) -> wp.array:
         before(values)
-        eager(between, values)
+        between(values)
         return after(values)
 
     graphed = GraphedCallable(body, DEVICE)
@@ -174,17 +191,17 @@ def test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly(capl
     assert (_read(values), before.calls, between.calls, after.calls, _num_graphs(graphed)) == ([246], 3, 2, 2, 0)
     assert [record.getMessage() for record in caplog.records] == [
         "'test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly.<locals>.body' calls"
-        " '_Affine', which cannot be recorded, so it runs without a CUDA graph."
+        " '_Affine.__call__', which cannot be recorded, so it runs without a CUDA graph."
     ]
 
 
 def test_an_eager_call_abandons_the_recording_through_an_exception_handler():
     """The code a recording calls cannot catch the abandonment by mistake."""
-    fn = _Affine(1, 10)
+    fn = _EagerAffine(1, 10)
 
     def body(values: wp.array):
         try:
-            eager(fn, values)
+            fn(values)
         except Exception:  # noqa: BLE001
             pytest.fail("the abandonment must pass an `except Exception` handler")
 
@@ -196,13 +213,13 @@ def test_an_eager_call_abandons_the_recording_through_an_exception_handler():
 
 def test_a_callable_that_ran_plainly_records_again_after_an_invalidation():
     """A term change can remove the eager call, so an invalidation lets the callable record again."""
-    fn, eager_fn = _Affine(2, 0), _Affine(1, 10)
+    fn, eager_fn = _Affine(2, 0), _EagerAffine(1, 10)
     uses_eager = [True]
 
     def body(values: wp.array):
         fn(values)
         if uses_eager[0]:
-            eager(eager_fn, values)
+            eager_fn(values)
 
     graphed = GraphedCallable(body, DEVICE)
     values = wp.ones(1, dtype=wp.int32, device=DEVICE)
@@ -215,8 +232,8 @@ def test_a_callable_that_ran_plainly_records_again_after_an_invalidation():
 
 
 def test_an_eager_call_of_a_nested_callable_makes_both_run_plainly():
-    eager_fn, inner_fn, outer_fn = _Affine(1, 10), _Affine(2, 0), _Affine(3, 0)
-    nested = GraphedCallable(lambda values: (eager(eager_fn, values), inner_fn(values)), DEVICE)
+    eager_fn, inner_fn, outer_fn = _EagerAffine(1, 10), _Affine(2, 0), _Affine(3, 0)
+    nested = GraphedCallable(lambda values: (eager_fn(values), inner_fn(values)), DEVICE)
     outer = GraphedCallable(lambda values: (outer_fn(values), nested(values)), DEVICE)
     values = wp.ones(1, dtype=wp.int32, device=DEVICE)
 
@@ -229,24 +246,24 @@ def test_an_eager_call_of_a_nested_callable_makes_both_run_plainly():
 
 def test_eager_call_raises_inside_a_capture_no_callable_started():
     """A call that cannot be recorded must not be captured silently into a foreign graph."""
-    fn = _Affine()
+    fn = _EagerAffine()
     values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
 
     with pytest.raises(RuntimeError, match="no GraphedCallable started"):
         with wp.ScopedDevice(DEVICE), wp.ScopedCapture():
-            eager(fn, values)
+            fn(values)
     assert fn.calls == 0
 
 
 def test_capturing_sees_a_cpu_capture():
     """Warp's CPU capture counts as a capture, so a call that cannot be recorded raises inside it as on CUDA."""
-    fn = _Affine()
+    fn = _EagerAffine()
     values = wp.zeros(1, dtype=wp.int32, device="cpu")
 
     with wp.ScopedDevice("cpu"), wp.ScopedCapture():
         assert capturing("cpu")
         with pytest.raises(RuntimeError, match="no GraphedCallable started"):
-            eager(fn, values)
+            fn(values)
     assert not capturing("cpu")
     assert fn.calls == 0
 
@@ -347,7 +364,7 @@ def test_a_host_synchronization_in_an_eager_call_runs_plainly_in_the_previous_mo
 
     def body():
         modes.append(torch.cuda.get_sync_debug_mode())
-        return eager(_synchronizing_call, values)
+        return _HostWork().total(values)
 
     graphed = GraphedCallable(body, DEVICE)
     assert graphed() == 4.0
@@ -381,7 +398,7 @@ def test_a_torch_operation_while_recording_raises_naming_the_call_and_the_operat
 
 def test_a_torch_operation_in_an_eager_call_runs():
     values = torch.ones(4, device=DEVICE)
-    graphed = GraphedCallable(lambda: eager(values.add_, 1), DEVICE)
+    graphed = GraphedCallable(lambda: _HostWork().add(values, 1), DEVICE)
     graphed()
     graphed()
     assert values.sum().item() == 12.0

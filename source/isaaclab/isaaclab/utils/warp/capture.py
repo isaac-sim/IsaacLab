@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """CUDA graph recording of the Warp frontend: :class:`GraphedCallable` records a call as a CUDA graph and replays it.
-A call that cannot be recorded goes through :func:`eager`; a recorded call that makes one runs plainly instead.
+A method that cannot be recorded is marked with :func:`eager_method`; a recorded call that calls one runs plainly
+instead.
 """
 
 from __future__ import annotations
@@ -49,36 +50,9 @@ def capture_in_progress() -> bool:
     return runtime is not None and bool(runtime.captures or runtime._apic_capture is not None)
 
 
-def eager(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-    """Call a function that cannot be recorded.
-
-    Outside a recording this is a plain call. A :class:`GraphedCallable` that meets it while recording abandons the
-    recording, which launches nothing, and runs plainly from then on, this call included.
-
-    Args:
-        fn: The function to call.
-        *args: Positional arguments of the call.
-        **kwargs: Keyword arguments of the call.
-
-    Returns:
-        The result of the call.
-
-    Raises:
-        RuntimeError: If the current device is capturing a graph that no :class:`GraphedCallable` records.
-    """
-    recording = GraphedCallable._recording
-    if recording is not None and recording.capturing:
-        raise _EagerCall(fn)
-    if capturing():
-        raise RuntimeError(
-            f"'{_name(fn)}' cannot be recorded, so it cannot run inside a graph capture that no GraphedCallable"
-            " started."
-        )
-    return fn(*args, **kwargs)
-
-
 class _EagerCall(BaseException):
-    """Raised by :func:`eager` inside a recording, which the :class:`GraphedCallable` abandons.
+    """Raised by an :func:`eager_method` method called inside a recording, which the :class:`GraphedCallable`
+    abandons.
 
     It derives from :class:`BaseException`, so the ``except Exception`` handlers of the recorded code let it through.
     """
@@ -92,20 +66,34 @@ def _name(fn: Callable[..., Any]) -> str:
 
 
 def eager_method(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Run a method that cannot be recorded through :func:`eager`.
+    """Mark a method that cannot be recorded, such as one that reads device data on the host or runs torch work.
 
-    A :class:`GraphedCallable` that calls the method runs plainly. An override in a subclass is decorated again.
+    Outside a recording the method runs as a plain call. A :class:`GraphedCallable` that calls it while recording
+    abandons the recording, which launches nothing, and runs plainly from then on, this call included. An override in a
+    subclass is decorated again.
 
     Args:
-        method: The method to wrap.
+        method: The method to mark.
 
     Returns:
         The wrapped method.
+
+    Raises:
+        RuntimeError: If the method is called while the current device captures a graph that no
+            :class:`GraphedCallable` records.
     """
 
     @functools.wraps(method)
     def wrapper(self, *args: Any, **kwargs: Any) -> Any:
-        return eager(method, self, *args, **kwargs)
+        recording = GraphedCallable._recording
+        if recording is not None and recording.capturing:
+            raise _EagerCall(method)
+        if capturing():
+            raise RuntimeError(
+                f"'{_name(method)}' cannot be recorded, so it cannot run inside a graph capture that no"
+                " GraphedCallable started."
+            )
+        return method(self, *args, **kwargs)
 
     return wrapper
 
@@ -116,9 +104,9 @@ class GraphedCallable:
     * The first call with a given argument layout records without an eager warm-up: the recording is its first
       execution. Later calls with the same array pointers and scalar values replay that recording and return the
       result of the recording call, so the callable returns buffers its owner keeps.
-    * Calls that cannot be recorded go through :func:`eager`. A recording that meets one is abandoned without
-      launching anything, and the callable runs plainly from then on, starting with this call; it records again after
-      :meth:`reset`. Known limitation: the host work the callable did before the :func:`eager` call, such as a Python
+    * Methods that cannot be recorded are marked with :func:`eager_method`. A recording that calls one is abandoned
+      without launching anything, and the callable runs plainly from then on, starting with this call; it records
+      again after :meth:`reset`. Known limitation: the host work the callable did before that call, such as a Python
       counter it advanced, ran once in the abandoned recording and runs again in the plain call, on that first call
       only; its device work ran only in the plain call.
     * :attr:`enabled` turns recording off process-wide, to run every part eagerly; it is on by default. A callable on
@@ -141,20 +129,21 @@ class GraphedCallable:
     """The watched physics backend's forward, run before each recording (see :meth:`watch`)."""
 
     _recording: ClassVar[_Recording | None] = None
-    """The recording in progress, which an :func:`eager` call abandons."""
+    """The recording in progress, which a call of an :func:`eager_method` method abandons."""
 
     def __init__(self, fn: Callable[..., Any], device: wp.DeviceLike):
         """Initialize the callable.
 
         Args:
-            fn: Callable to record. Its GPU work must be capturable; a call that is not goes through :func:`eager`.
+            fn: Callable to record. Its GPU work must be capturable; a method that is not is marked with
+                :func:`eager_method`.
             device: Warp device that runs the callable.
         """
         self._fn = fn
         self._device = wp.get_device(device)
         self._recordings: dict[tuple, tuple[wp.Graph, Any]] = {}
         self._plain = False
-        """Whether the callable met an :func:`eager` call while recording, so it runs plainly."""
+        """Whether the callable called an :func:`eager_method` method while recording, so it runs plainly."""
         self._generation = GraphedCallable.generation
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
@@ -230,7 +219,7 @@ class GraphedCallable:
         """Record the callable as its first run and return the graph and the result.
 
         Raises:
-            _EagerCall: If the callable makes an :func:`eager` call; the recording launched nothing.
+            _EagerCall: If the callable calls an :func:`eager_method` method; the recording launched nothing.
             RuntimeError: If the callable runs work the graph cannot hold while it records (see :class:`_Recording`).
         """
         try:
@@ -242,7 +231,7 @@ class GraphedCallable:
             raise RuntimeError(
                 f"'{_name(self._fn)}' synchronizes the host with the device or runs a torch CUDA operation outside the"
                 " graph while it records, so a replay would keep the value it read or skip the operation. Run the"
-                f" function through eager() or mark it with @eager_method. ({exc})"
+                f" work in a method marked with @eager_method. ({exc})"
             ) from exc
         return recording.graph, result
 
@@ -362,7 +351,7 @@ class _Recording:
         wp.capture_launch(self.graph, stream=self.stream)
 
     def abort(self) -> None:
-        """End the graph without launching it, after the callable raised or made an :func:`eager` call."""
+        """End the graph without launching it, after the callable raised or called an :func:`eager_method` method."""
         if self.capturing:
             self.capturing = False
             self._release()

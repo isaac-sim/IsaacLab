@@ -32,7 +32,7 @@ from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
-from ...utils.warp.capture import eager
+from ...utils.warp.capture import eager_method
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
@@ -333,12 +333,18 @@ class NewtonActuatorAdapter:
     @staticmethod
     def _reset_state_pair(act: Actuator, sa: Any, sb: Any, per_dof_mask: wp.array | None) -> None:
         """Reset both state buffers of an actuator; a torch state, such as a neural network drive's, cannot be
-        recorded, so a recording repeats its reset eagerly."""
+        recorded, so its reset goes through :meth:`_reset_unrecordable_state`."""
         for state in (sa, sb):
             if act.is_graphable():
                 state.reset(per_dof_mask)
             else:
-                eager(state.reset, per_dof_mask)
+                NewtonActuatorAdapter._reset_unrecordable_state(state, per_dof_mask)
+
+    @staticmethod
+    @eager_method
+    def _reset_unrecordable_state(state: Any, per_dof_mask: wp.array | None) -> None:
+        """Reset an actuator state that cannot be recorded, so a recorded call that resets it runs without a graph."""
+        state.reset(per_dof_mask)
 
 
 # ---------------------------------------------------------------------------
