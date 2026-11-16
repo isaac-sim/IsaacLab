@@ -1375,7 +1375,6 @@ def test_joint_armature_updates_mass_matrix_without_accumulating(scene: _Articul
             # Advancing the cache timestamp without stepping preserves the pose and must not add armature again.
             articulation.update(scene.sim.cfg.dt)
             torch.testing.assert_close(data.mass_matrix.torch, after)
-            torch.testing.assert_close(data.mass_matrix.torch, after)
         finally:
             articulation.write_joint_armature_to_sim_index(armature=original_armature)
 
