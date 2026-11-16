@@ -5,6 +5,8 @@
 
 import enum
 from collections import namedtuple
+from dataclasses import dataclass
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -169,6 +171,42 @@ def test_update_class_from_dict_restores_enums_from_values():
     assert all(isinstance(el, _Flavors) for el in cfg.scoops)
     assert cfg.cone == (_Flavors.STRAWBERRY,)
     assert all(isinstance(el, _Flavors) for el in cfg.cone)
+
+
+def test_update_class_from_dict_rebuilds_nested_frozen_dataclasses():
+    """Frozen members round-trip in attributes and containers without mutating shared defaults."""
+
+    @dataclass(frozen=True)
+    class Label:
+        kind: _Flavor = _Flavor.VANILLA
+        name: str = "original"
+
+    @dataclass(frozen=True)
+    class Descriptor:
+        label: Label
+        scale: float = 2.0
+
+    original = Descriptor(Label())
+    cfg = SimpleNamespace(direct=original, items=[original, None], pair=(original,), mapping={"named": original})
+    serialized = dict_utils.class_to_dict(cfg)
+    dict_utils.update_class_from_dict(cfg, serialized)
+
+    assert isinstance(cfg.items, list)
+    assert isinstance(cfg.pair, tuple)
+    for member in (cfg.direct, cfg.items[0], cfg.pair[0], cfg.mapping["named"]):
+        assert isinstance(member, Descriptor)
+        assert isinstance(member.label, Label)
+        assert member.label.kind is _Flavor.VANILLA
+        assert member == original
+        assert member is not original
+    assert cfg.items[1] is None
+
+    dict_utils.update_class_from_dict(cfg, {"direct": {"label": {"name": "updated"}}})
+    assert cfg.direct.label.name == "updated"
+    assert cfg.direct.scale == 2.0
+    assert original.label.name == "original"
+    with pytest.raises(KeyError, match="unknown"):
+        dict_utils.update_class_from_dict(cfg, {"direct": {"unknown": 1}})
 
 
 def test_nested_conversion_preserves_requested_backend():

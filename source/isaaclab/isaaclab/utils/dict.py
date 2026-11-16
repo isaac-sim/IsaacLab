@@ -6,6 +6,7 @@
 """Sub-module for utilities for working with dictionaries."""
 
 import collections.abc
+import dataclasses
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sized
@@ -76,12 +77,23 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     return data
 
 
+def _update_mapping_member(obj, data, _ns):
+    """Rebuild frozen dataclasses and update mutable members in place."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type) and obj.__dataclass_params__.frozen:
+        members = {field.name: getattr(obj, field.name) for field in dataclasses.fields(obj) if field.init}
+        update_class_from_dict(members, data, _ns=_ns)
+        return dataclasses.replace(obj, **members)
+    update_class_from_dict(obj, data, _ns=_ns)
+    return obj
+
+
 def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
     Sequences containing mappings are merged element by element, preserving existing nested
-    objects and the destination list or tuple type. Other elements are replaced. Such sequences
+    objects and the destination list or tuple type. Frozen dataclass members are rebuilt using
+    their constructors. Other elements are replaced. Such sequences
     must match the existing length; sequences without mappings may replace a different-length value.
     Scalar replacements are not checked against the stored value's type or field annotations.
     For configclasses, enforce domain constraints in ``validate_config`` hooks and call ``validate``
@@ -109,12 +121,12 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
             # -- 1) nested mapping → recurse ---------------------------
             if isinstance(value, Mapping):
-                # recursively call if it is a dictionary
-                update_class_from_dict(obj_mem, value, _ns=key_ns)
-                continue
+                value = _update_mapping_member(obj_mem, value, _ns=key_ns)
+                if value is obj_mem:
+                    continue
 
             # -- 2) iterable (list / tuple / etc.) ---------------------
-            if isinstance(value, Iterable) and not isinstance(value, str):
+            elif isinstance(value, Iterable) and not isinstance(value, str):
                 # ---- 2a) flat iterable → replace wholesale ----------
                 if all(not isinstance(el, Mapping) for el in value):
                     # class_to_dict serialized enum members as their values, so rebuild them
@@ -148,8 +160,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 merged_value = list(value)
                 for i, item in enumerate(merged_value):
                     if isinstance(item, Mapping):
-                        update_class_from_dict(obj_mem[i], item, _ns=f"{key_ns}/{i}")
-                        merged_value[i] = obj_mem[i]
+                        merged_value[i] = _update_mapping_member(obj_mem[i], item, _ns=f"{key_ns}/{i}")
                 if isinstance(obj_mem, list):
                     obj_mem[:] = merged_value
                     continue
