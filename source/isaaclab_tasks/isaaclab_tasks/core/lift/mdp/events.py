@@ -16,11 +16,11 @@ from tqdm import tqdm
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg, UniformScoreCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils import instantiate
+from isaaclab.utils import replace
 from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
-
-from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from .utils import (
     collect_body_collision_meshes,
@@ -28,14 +28,13 @@ from .utils import (
     farthest_point_sampling,
     get_reset_state,
     sample_object_point_cloud,
-    set_reset_state,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv
 
     from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg
 
@@ -265,6 +264,36 @@ def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
     raise ValueError(f"reset_to_grasp does not support shape {type(shape).__name__}.")
 
 
+@wp.kernel
+def _completed_reset_episodes(
+    mask: wp.array(dtype=wp.bool),
+    episode_length: wp.array(dtype=wp.int64),
+    completed: wp.array(dtype=wp.bool),
+    valid: wp.array(dtype=wp.bool),
+):
+    i = wp.tid()
+    valid[i] = mask[i] and episode_length[i] > 0 and completed[i]
+
+
+@wp.kernel
+def _restore_root_origin(
+    mask: wp.array(dtype=wp.bool),
+    origins: wp.array(dtype=wp.vec3f),
+    pose: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    if mask[i]:
+        pose[i] = wp.transformf(wp.transform_get_translation(pose[i]) + origins[i], wp.transform_get_rotation(pose[i]))
+
+
+@wp.kernel
+def _requested_restore_mask(
+    selected: wp.array(dtype=wp.bool), invalid: wp.array(dtype=wp.bool), restored: wp.array(dtype=wp.bool)
+):
+    i = wp.tid()
+    restored[i] = selected[i] and not invalid[i]
+
+
 class conditional_reset(ManagerTermBase):
     """Run wrapped reset terms and guarantee the resulting states satisfy a criterion.
 
@@ -281,22 +310,25 @@ class conditional_reset(ManagerTermBase):
     reset from that point restores a banked sample to the requested environments.
 
     Given a :paramref:`diversity_feature` the prefill keeps the most spread-out states rather
-    than the first valid ones, and given a :paramref:`success_monitor` the restore is drawn by
+    than the first valid ones, and given a :paramref:`reset_sampler` the restore is drawn by
     each state's measured success rate rather than uniformly.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self._prefilled = False
+        self._seed = env.cfg.seed or 0
         self._buffer = torch.empty(0, 0, device=env.device)
         self._descriptor = torch.empty(0, 0, device=env.device)
         self._reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
         self._group = torch.empty(0, dtype=torch.long, device=env.device)
         self._fill = torch.empty(0, dtype=torch.long, device=env.device)
-        self._monitor: SuccessMonitor | None = None
-        self._success_term = None
-        # bank row each environment is currently playing; -1 until its first restore
-        self._playing_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
+        self._sampler: ResetStateSampler | None = None
+        self._bank: ResetStateBuffer | None = None
+        self._all_mask = wp.ones(env.num_envs, dtype=wp.bool, device=env.device)
+        self._mask = wp.empty_like(self._all_mask)
+        self._valid = wp.empty_like(self._all_mask)
+        self._restore_mask = wp.empty_like(self._all_mask)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Log how well the policy does across the bank, once a monitor is tracking it.
@@ -305,8 +337,12 @@ class conditional_reset(ManagerTermBase):
         about: it covers every state the policy is being restarted from, not just the episodes that
         happen to be ending now.
         """
-        if self._monitor is not None:
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._monitor.get_mean_success_rate()
+        if self._sampler is not None and self._track_success:
+            measured = self._sampler.episode_counts.torch > 0
+            rates = self._sampler.success_rate.torch
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                rates * measured
+            ).sum() / measured.sum().clamp_min(1)
 
     def __call__(
         self,
@@ -318,7 +354,7 @@ class conditional_reset(ManagerTermBase):
         max_prefill_iters: int | None = None,
         diversity_feature: ManagerTermBaseCfg | None = None,
         oversample_factor: float = 2.0,
-        success_monitor: SuccessMonitorCfg | None = None,
+        reset_sampler: ResetStateSamplerCfg | None = None,
         success_reward_term: str = "success",
     ):
         """Restore banked criterion-valid states, prefilling the bank on the first reset.
@@ -349,12 +385,12 @@ class conditional_reset(ManagerTermBase):
             oversample_factor: Candidates to harvest per banked state. Higher values give the
                 farthest-point pass more to choose from at a proportional prefill cost. Ignored
                 without :paramref:`diversity_feature`.
-            success_monitor: Optional :class:`SuccessMonitorCfg`. When given, banked states are drawn
-                by success rate instead of uniformly, and each state's outcomes are recorded as the
-                episodes started from it end.
+            reset_sampler: Optional shared reset sampler configuration. When given, banked states are
+                drawn from the configured scores and completed outcomes are recorded against their starts.
+                None draws uniformly without monitoring outcomes.
             success_reward_term: Reward term supplying the episode outcome, which must keep a sticky
                 per-environment ``succeeded`` buffer like :class:`success_reward` does. Only read
-                with :paramref:`success_monitor`.
+                with :paramref:`reset_sampler`.
         """
 
         def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
@@ -431,9 +467,7 @@ class conditional_reset(ManagerTermBase):
                         progress.update(len(take))
             if diversity_feature is not None:
                 self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
-            if success_monitor is not None:
-                # one monitored slot per banked state, partitioned exactly like the bank
-                self._monitor = instantiate(success_monitor, num_groups, buffer_size_per_group, env.device)
+            self._initialize_replay(reset_sampler, num_groups, success_reward_term)
             self._prefilled = True
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()
@@ -442,17 +476,10 @@ class conditional_reset(ManagerTermBase):
             # banked state to all of them, not just the requested subset
             env_ids = all_ids
 
-        groups = self._group[env_ids]
-        if self._monitor is None:
-            # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
-            donor = (torch.rand(groups.shape[0], device=env.device) * self._fill[groups]).long()
-            rows = groups * buffer_size_per_group + donor
-        else:
-            # credit before drawing: the outcome belongs to the row these environments were playing
-            self._credit_episodes(env, env_ids, self._monitor, success_reward_term)
-            rows = self._monitor.sample_by_target_rate(groups)
-            self._playing_row[env_ids] = rows
-        set_reset_state(env, self._buffer[rows], env_ids, self._reset_assets, is_relative=True)
+        mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._mask)
+        # The viewer marks manual resets as terminated, but leaves this natural-outcome mask unchanged.
+        completed = wp.from_torch(env.reset_buf) if self._track_success else None
+        self.reset_mask(mask, completed=completed)
 
     def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
@@ -475,30 +502,124 @@ class conditional_reset(ManagerTermBase):
         self._fill.fill_(keep_size)
         self._descriptor = torch.empty(0, 0, device=self._descriptor.device)
 
-    def _credit_episodes(
-        self,
-        env: ManagerBasedRLEnv,
-        env_ids: torch.Tensor,
-        monitor: SuccessMonitor,
-        success_reward_term: str,
-    ):
-        """Record the outcome of the episode each environment just finished against the row it played.
+    def _initialize_replay(self, cfg: ResetStateSamplerCfg | None, num_groups: int, success_reward_term: str) -> None:
+        """Bind typed snapshots and full-environment scratch arrays before graph capture."""
+        env = self._env
+        self._track_success = cfg is not None
+        if cfg is None:
+            cfg = ResetStateSamplerCfg(history_length=1, scores=[UniformScoreCfg()])
+        cfg = replace(cfg, seed=(cfg.seed + self._seed) % 2**32)
+        self._sampler = ResetStateSampler(
+            cfg, env.num_envs, self._buffer.shape[0], env.device, group_ids=self._group, num_groups=num_groups
+        )
+        self._origins = wp.from_torch(env.scene.env_origins, dtype=wp.vec3f)
+        self._restore_states: dict[str, dict[str, wp.array]] = {}
+        self._articulations = []
+        self._rigid_objects = []
+        states: dict[str, dict[str, wp.array]] = {}
+        offset = 0
+        for assets, articulation in ((env.scene.articulations, True), (env.scene.rigid_objects, False)):
+            for name, asset in assets.items():
+                fields = {
+                    "root_pose": wp.from_torch(self._buffer[:, offset : offset + 7].contiguous(), dtype=wp.transformf),
+                    "root_velocity": wp.from_torch(
+                        self._buffer[:, offset + 7 : offset + 13].contiguous(), dtype=wp.spatial_vectorf
+                    ),
+                }
+                offset += 13
+                if articulation:
+                    fields["joint_position"] = wp.from_torch(
+                        self._buffer[:, offset : offset + asset.num_joints].contiguous()
+                    )
+                    offset += asset.num_joints
+                    fields["joint_velocity"] = wp.from_torch(
+                        self._buffer[:, offset : offset + asset.num_joints].contiguous()
+                    )
+                    offset += asset.num_joints
+                states[name] = fields
+                output = {
+                    field: wp.empty((env.num_envs, *value.shape[1:]), dtype=value.dtype, device=env.device)
+                    for field, value in fields.items()
+                }
+                self._restore_states[name] = output
+                if articulation:
+                    zero_velocity = wp.zeros((env.num_envs, asset.num_joints), dtype=wp.float32, device=env.device)
+                    self._articulations.append((asset, output, zero_velocity))
+                else:
+                    self._rigid_objects.append((asset, output))
+        self._bank = ResetStateBuffer(states)
+        if self._track_success:
+            success_term = env.reward_manager.get_term_cfg(success_reward_term).func
+            self._success = wp.from_torch(success_term.succeeded)
+            self._episode_length = wp.from_torch(env.episode_length_buf)
+        del self._buffer, self._descriptor, self._fill, self._group
 
-        Reads the success flag of the reward term rather than recomputing it, and must therefore run
-        while the flag still describes the finished episode: reset events fire before the reward
-        manager resets its terms.
+    def reseed(self, seed: int) -> None:
+        """Apply an explicit environment seed to the existing native streams."""
+        self._seed = seed
+        if self._sampler is not None:
+            cfg = self.cfg.params["reset_sampler"]
+            self._sampler.reseed((seed + (cfg.seed if cfg is not None else 0)) % 2**32)
+
+    def reset_mask(
+        self,
+        mask: wp.array | None = None,
+        *,
+        state_ids: wp.array | None = None,
+        completed: wp.array | None = None,
+    ) -> None:
+        """Restore selected environments using only native arrays and preallocated storage.
+
+        Prefill must complete through the ordinary event call before this method is captured.
+        The full-environment mask and optional explicit catalog IDs may change between graph
+        replays. Supply the full-environment ``completed`` mask for natural episode outcomes,
+        before the task's reward and episode buffers are cleared. None denotes a manual reset
+        and records no outcome. Zero-step episodes never contribute outcomes.
         """
-        if self._success_term is None:
-            self._success_term = env.reward_manager.get_term_cfg(success_reward_term).func
-            if not hasattr(self._success_term, "succeeded"):
-                raise TypeError(
-                    f"conditional_reset: reward term '{success_reward_term}' keeps no 'succeeded' buffer, so"
-                    " episode outcomes cannot be credited to the banked states. Point 'success_reward_term'"
-                    " at a term that keeps one, such as 'success_reward'."
-                )
-        played = self._playing_row[env_ids]
-        # an environment that has not been restored yet has no episode to credit
-        monitor.success_update(played, self._success_term.succeeded[env_ids], valid=played >= 0)
+        if self._bank is None:
+            raise RuntimeError("Initialize conditional_reset through its event call before capturing reset_mask.")
+        mask = resolve_1d_mask(mask=mask, all_mask=self._all_mask, scratch_mask=self._mask)
+        if self._track_success and completed is not None:
+            wp.launch(
+                _completed_reset_episodes,
+                self._env.num_envs,
+                [mask, self._episode_length, completed, self._valid],
+                device=self._env.device,
+            )
+            self._sampler.reset(mask, success=self._success, valid=self._valid, state_ids=state_ids)
+        else:
+            self._sampler.reset(mask, state_ids=state_ids)
+        if state_ids is not None:
+            wp.launch(
+                _requested_restore_mask,
+                self._env.num_envs,
+                [mask, self._sampler.invalid_requests.warp, self._restore_mask],
+                device=self._env.device,
+            )
+            mask = self._restore_mask
+        self._bank.get_state(self._sampler.state_ids, out=self._restore_states, mask=mask)
+        for asset, fields, zero_velocity in self._articulations:
+            wp.launch(
+                _restore_root_origin,
+                self._env.num_envs,
+                [mask, self._origins, fields["root_pose"]],
+                device=self._env.device,
+            )
+            asset.write_root_link_pose_to_sim_mask(root_pose=fields["root_pose"], env_mask=mask)
+            asset.write_root_com_velocity_to_sim_mask(root_velocity=fields["root_velocity"], env_mask=mask)
+            asset.write_joint_position_to_sim_mask(position=fields["joint_position"], env_mask=mask)
+            asset.write_joint_velocity_to_sim_mask(velocity=fields["joint_velocity"], env_mask=mask)
+            asset.actuators.target_command.set_position_mask(value=fields["joint_position"], env_mask=mask)
+            asset.actuators.target_command.set_velocity_mask(value=zero_velocity, env_mask=mask)
+        for asset, fields in self._rigid_objects:
+            wp.launch(
+                _restore_root_origin,
+                self._env.num_envs,
+                [mask, self._origins, fields["root_pose"]],
+                device=self._env.device,
+            )
+            asset.write_root_link_pose_to_sim_mask(root_pose=fields["root_pose"], env_mask=mask)
+            asset.write_root_com_velocity_to_sim_mask(root_velocity=fields["root_velocity"], env_mask=mask)
 
 
 class grasp_travel_distance(ManagerTermBase):

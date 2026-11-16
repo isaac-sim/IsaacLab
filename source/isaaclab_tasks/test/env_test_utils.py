@@ -20,7 +20,6 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils import ResetStateCollectionCfg
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
@@ -319,9 +318,6 @@ def _check_random_actions(
                 env_cfg.scene.num_envs = num_envs
         else:
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        reset_buffer_cfg = getattr(env_cfg, "reset_buffer", None)
-        if isinstance(reset_buffer_cfg, ResetStateCollectionCfg):
-            reset_buffer_cfg.size = min(32, reset_buffer_cfg.size)
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
             reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])

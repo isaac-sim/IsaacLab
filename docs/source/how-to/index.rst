@@ -206,23 +206,13 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Building validated reset-state buffers </source/how-to/reset_state_buffers>`
+         :doc:`Native reset-state buffers </source/how-to/reset_state_buffers>`
 
-         Collect valid starting states and sample useful practice for sparse-reward tasks.
+         Create native state banks and sample useful starts through the existing Lift reset event.
 
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
-
-      .. container:: guide-entry
-
-         :doc:`Learning sparse cube pickup </source/how-to/sparse_cube_pickup>`
-
-         Generate physical reset states, train with a terminal reward, and evaluate complete pickup attempts.
-
-         .. container:: guide-metadata
-
-            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 

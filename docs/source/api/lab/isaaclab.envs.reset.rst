@@ -1,22 +1,42 @@
+.. currentmodule:: isaaclab.envs.reset
+
 isaaclab.envs.reset
 ===================
 
-.. automodule:: isaaclab.envs.reset
-
-.. currentmodule:: isaaclab.envs.reset
+Native storage and mask-based selection for prepared reset catalogs. All shared
+reset utilities live here; tasks own collection criteria and physical restoration.
+See :doc:`/source/how-to/reset_state_buffers` for graph capture, default-state
+broadcasting, custom metrics, and the existing Lift event integration.
 
 .. autosummary::
 
    ResetStateBuffer
-
-:class:`ResetStateBuffer` owns a fixed tensor tree supplied at construction.
-It copies complete states through ``states`` or selected dense rows through
-``get_state``. Preparation, metadata, sampling, and physical restoration belong
-to the caller. Optional collection and selection helpers live in
-:mod:`isaaclab_tasks.utils`.
-
-See :doc:`/source/how-to/reset_state_buffers` for preparation, validation, loading
-compatible task artifacts, selection, and replay.
+   ResetStateSampler
+   ResetStateSamplerCfg
+   SamplingScoreCfg
+   TargetSuccessScoreCfg
+   UniformScoreCfg
 
 .. autoclass:: ResetStateBuffer
    :members:
+   :exclude-members: __init__
+
+.. autoclass:: ResetStateSampler
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: ResetStateSamplerCfg
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: SamplingScoreCfg
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: TargetSuccessScoreCfg
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: UniformScoreCfg
+   :members:
+   :exclude-members: __init__

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Storage for fixed reset-state snapshots."""
+"""Native state banks and outcome-guided reset selection."""
 
 from ...utils.module import lazy_export
 
