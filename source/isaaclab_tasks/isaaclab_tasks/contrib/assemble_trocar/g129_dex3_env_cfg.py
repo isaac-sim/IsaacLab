@@ -17,6 +17,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
@@ -398,6 +399,7 @@ class PhysicsCfg(PresetCfg):
     """Physics backend presets for the assemble_trocar task."""
 
     isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",
