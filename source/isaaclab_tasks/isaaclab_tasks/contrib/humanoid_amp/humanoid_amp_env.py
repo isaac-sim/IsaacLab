@@ -11,7 +11,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs import DirectRLEnv
-from isaaclab.utils.math import quat_apply
+from isaaclab.utils.math import convert_quat, quat_apply
 
 from .humanoid_amp_env_cfg import HumanoidAmpEnvCfg
 from .motions import MotionLoader
@@ -151,7 +151,8 @@ class HumanoidAmpEnv(DirectRLEnv):
         ).clone()
         root_state[:, 0:3] = body_positions[:, motion_torso_index] + self.scene.env_origins[env_ids]
         root_state[:, 2] += 0.15  # lift the humanoid slightly to avoid collisions with the ground
-        root_state[:, 3:7] = body_rotations[:, motion_torso_index]
+        # the motion file stores rotations as wxyz; the root pose write expects xyzw
+        root_state[:, 3:7] = convert_quat(body_rotations[:, motion_torso_index], to="xyzw")
         root_state[:, 7:10] = body_linear_velocities[:, motion_torso_index]
         root_state[:, 10:13] = body_angular_velocities[:, motion_torso_index]
         # get DOFs state
@@ -188,7 +189,8 @@ class HumanoidAmpEnv(DirectRLEnv):
             dof_positions[:, self.motion_dof_indexes],
             dof_velocities[:, self.motion_dof_indexes],
             body_positions[:, self.motion_ref_body_index],
-            body_rotations[:, self.motion_ref_body_index],
+            # the motion file stores rotations as wxyz; the observation math expects xyzw
+            convert_quat(body_rotations[:, self.motion_ref_body_index], to="xyzw"),
             body_linear_velocities[:, self.motion_ref_body_index],
             body_angular_velocities[:, self.motion_ref_body_index],
             body_positions[:, self.motion_key_body_indexes],
