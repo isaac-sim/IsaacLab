@@ -36,50 +36,54 @@ class randomize_rigid_body_material(ManagerTermBase):
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
-        """Sample material buckets and bind the asset shapes.
-
-        Args:
-            cfg: Event configuration.
-            env: Environment owning this term.
-        """
+        """Sample buckets and resolve the asset's selected shapes."""
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-        static_friction_range = cfg.params["static_friction_range"]
-        dynamic_friction_range = cfg.params["dynamic_friction_range"]
-        restitution_range = cfg.params["restitution_range"]
-        num_buckets = int(cfg.params["num_buckets"])
+        # obtain parameters for sampling friction and restitution values
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
 
+        # sample material properties from the given ranges
+        # note: we only sample the materials once during initialization
+        #   afterwards these are randomly assigned to the geometries of the asset
+        self._contact_ranges = [cfg.params.get("contact_stiffness_range"), cfg.params.get("contact_damping_range")]
         range_list = [static_friction_range, dynamic_friction_range, restitution_range]
+        if any(value is not None for value in self._contact_ranges):
+            range_list.extend(value if value is not None else (0.0, 0.0) for value in self._contact_ranges)
         ranges = torch.tensor(range_list, device="cpu")
-        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+        self.material_buckets = math_utils.sample_uniform(
+            ranges[:, 0], ranges[:, 1], (num_buckets, len(range_list)), device="cpu"
+        )
 
-        make_consistent = cfg.params["make_consistent"]
+        # ensure dynamic friction is always less than static friction
+        make_consistent = cfg.params.get("make_consistent", False)
         if make_consistent:
             self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
 
         self.asset = asset
         self.asset_cfg = asset_cfg
 
-        # The articulation view does not expose per-body shape counts; query each link.
+        self._shape_indices = slice(None)
         if isinstance(asset, assets.BaseArticulation) and asset_cfg.body_ids != slice(None):
-            self.num_shapes_per_body = []
-            for link_path in asset.root_view.link_paths[0]:
-                link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
-                self.num_shapes_per_body.append(link_physx_view.max_shapes)
-            # ``body_ids`` are public IDs; convert once before deriving backend-ordered shape ranges.
-            self._backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
-            num_shapes = sum(self.num_shapes_per_body)
+            num_shapes_per_body = [
+                asset._physics_sim_view.create_rigid_body_view(path).max_shapes
+                for path in asset.root_view.link_paths[0]
+            ]
+            num_shapes = sum(num_shapes_per_body)
             expected_shapes = asset.root_view.max_shapes
             if num_shapes != expected_shapes:
                 raise ValueError(
                     "Randomization term 'randomize_rigid_body_material' failed to parse the number of shapes per body."
                     f" Expected total shapes: {expected_shapes}, but got: {num_shapes}."
                 )
-        else:
-            self.num_shapes_per_body = None
-            self._backend_body_ids = None
+            self._shape_indices = []
+            for body_id in asset.map_body_ids_to_backend(asset_cfg.body_ids):
+                start_idx = sum(num_shapes_per_body[:body_id])
+                self._shape_indices.extend(range(start_idx, start_idx + num_shapes_per_body[body_id]))
 
     def __call__(
         self,
@@ -92,18 +96,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ) -> None:
-        """Assign material buckets to the selected shapes.
-
-        Args:
-            env: Environment owning this term.
-            env_ids: Environment selection; None selects all environments.
-            static_friction_range: Static friction bounds used to construct the material buckets.
-            dynamic_friction_range: Dynamic friction bounds used to construct the material buckets.
-            restitution_range: Restitution bounds; bucket-based backends use the construction-time range.
-            num_buckets: Number of material buckets; must match the construction-time value.
-            asset_cfg: Asset and body selection resolved at construction.
-            make_consistent: Whether construction constrained dynamic friction to static friction.
-        """
+        """Assign bucketed material properties to the selected environments and shapes."""
+        # resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
         elif isinstance(env_ids, slice):
@@ -111,24 +105,54 @@ class randomize_rigid_body_material(ManagerTermBase):
         else:
             env_ids = env_ids.to(device="cpu", dtype=torch.int32)
 
+        # randomly assign material IDs to the geometries
         total_num_shapes = self.asset.root_view.max_shapes
         bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device="cpu")
         material_samples = self.material_buckets[bucket_ids]
 
-        materials = wp.to_torch(self.asset.root_view.get_material_properties())
+        view = self.asset.root_view
+        materials = wp.to_torch(view.get_material_properties())
         # Negative restitution encodes compliant stiffness, not bounce.
         restitution = materials[env_ids, :, 2]
         material_samples[..., 2] = torch.where(restitution < 0.0, restitution, material_samples[..., 2])
-        if self.num_shapes_per_body is not None:
-            for body_id in self._backend_body_ids:
-                start_idx = sum(self.num_shapes_per_body[:body_id])
-                end_idx = start_idx + self.num_shapes_per_body[body_id]
-                materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
-        else:
-            materials[env_ids] = material_samples[:]
+        if self._contact_ranges[0] is not None:
+            material_samples[..., 2] = -material_samples[..., 3]
+        shape_ids = self._shape_indices
+        if len(env_ids) == 0 or shape_ids == []:
+            return
+        rows = env_ids[:, None]
+        materials[rows, shape_ids] = material_samples[:, shape_ids, :3]
 
-        self.asset.root_view.set_material_properties(
-            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+        indices = wp.from_torch(env_ids, dtype=wp.int32)
+        if self._contact_ranges[1] is not None:
+            compliant, combine_modes = view.get_compliant_material_properties()
+            compliant = wp.to_torch(compliant).clone()
+            compliant[..., 0] = (-materials[..., 2]).clamp_min(0)
+            compliant[rows, shape_ids, 1] = material_samples[:, shape_ids, 4]
+            from pxr import UsdPhysics, UsdShade
+
+            # The tensor getter omits friction combine modes; preserve the authored mode.
+            friction_modes = set()
+            for prim, _ in sim_utils.resolve_matching_prims_from_source(
+                self.asset.cfg.prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.CollisionAPI)
+            ):
+                material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(UsdPhysics.Tokens.physics)
+                mode = material.GetPrim().GetAttribute("physxMaterial:frictionCombineMode").Get() if material else None
+                friction_modes.add(mode or "average")
+            if len(friction_modes) != 1:
+                raise NotImplementedError("PhysX damping updates require one authored friction combine mode per asset.")
+            friction_mode = {"average": 0, "min": 1, "multiply": 2, "max": 3}[friction_modes.pop()]
+            combine_modes = wp.to_torch(combine_modes)
+            modes = torch.cat((torch.full_like(combine_modes[..., :1], friction_mode), combine_modes), dim=-1)
+            data = torch.cat((materials[..., :2], compliant), dim=-1)
+            view.set_compliant_material_properties(
+                wp.from_torch(data, dtype=wp.float32),
+                wp.from_torch(modes, dtype=wp.uint8),
+                indices,
+            )
+        view.set_material_properties(
+            wp.from_torch(materials.contiguous(), dtype=wp.float32),
+            indices,
         )
 
 

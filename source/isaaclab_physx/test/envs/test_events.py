@@ -142,6 +142,27 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
         for key, view in views.items():
             torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected[key])
 
+        expected_compliance = {
+            key: wp.to_torch(view.get_compliant_material_properties()[0]).clone() for key, view in views.items()
+        }
+        params.update(contact_stiffness_range=(2500.0, 2500.0), contact_damping_range=(100.0, 100.0))
+        term = mdp.randomize_rigid_body_material(
+            EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env
+        )
+        term(env, selection, **params)
+        expected[selected, body_name][..., 2] = -2500.0
+        expected_compliance[selected, body_name][..., 0] = 2500.0
+        expected_compliance[selected, body_name][..., 1] = 100.0
+        for key, view in views.items():
+            torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected[key])
+            torch.testing.assert_close(
+                wp.to_torch(view.get_compliant_material_properties()[0]), expected_compliance[key]
+            )
+
+    params["contact_stiffness_range"] = (0.0, 0.0)
+    with pytest.raises(ValueError, match="custom event"):
+        mdp.randomize_rigid_body_material(EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env)
+
 
 def test_gravity_distribution(env: ManagerBasedEnv) -> None:
     """The configured Gaussian distribution changes acceleration in every environment."""
