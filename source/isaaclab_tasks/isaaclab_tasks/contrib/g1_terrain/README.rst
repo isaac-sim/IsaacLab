@@ -39,22 +39,3 @@ materials. PhysX still switches to host state buffers after the launcher selects
 the CUDA device.
 The granular demo's existing sky-light configuration is separate from these
 texture-free terrain assets.
-
-To regenerate the three static assets from the repository root::
-
-    uv run python tools/terrains/export_g1_courses.py --output /tmp/g1-assets/Isaac/IsaacLab/Contrib/G1Terrain
-
-To regenerate the PhysX particle asset without launching Kit or a simulator::
-
-    uv run --with physx-usd-schemas==25.11.2.72696984 python tools/terrains/export_g1_particles.py --output /tmp/g1-assets/Isaac/IsaacLab/Contrib/G1Terrain
-
-Both exporters are offline tools. The runtime task does not import them and
-does not require PIL or temporary texture directories for terrain.
-The particle exporter regenerates ``granular.usdc`` before creating
-``granular_physx.usdc`` so the tray and particles use the same course dimensions.
-
-Publish all four ``.usdc`` files under ``Isaac/IsaacLab/Contrib/G1Terrain/``
-in the asset root. No texture directory or robot USD needs to be uploaded.
-For offline asset validation, set ``ISAACSIM_ASSET_ROOT=/tmp/g1-assets``.
-For demos, use a complete asset mirror or override only the terrain USD path
-so robot and policy assets still resolve from the configured server.

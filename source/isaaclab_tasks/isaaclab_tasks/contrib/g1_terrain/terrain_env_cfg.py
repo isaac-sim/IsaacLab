@@ -29,10 +29,10 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.string import resolve_matching_names
 
 from ...utils import PresetCfg, preset
-from .course_parameters import GRANULAR_TOP
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
 TERRAIN_ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/G1Terrain"
+GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
 
 
 def _sonic_actuators(actuators: dict[str, ImplicitActuatorCfg]) -> dict[str, ImplicitActuatorCfg]:
