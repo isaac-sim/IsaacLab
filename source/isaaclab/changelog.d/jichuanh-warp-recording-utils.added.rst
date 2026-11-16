@@ -11,3 +11,5 @@
   :attr:`~isaaclab.utils.buffers.TimestampedBuffer.timestamp` now reads as stale until the buffer is updated in that
   recording, so a lazily cached value read in a recording is recomputed on every replay; ``update_in_graph=False``
   keeps the plain timestamp rule, as does any other CUDA graph capture.
+* Added :func:`~isaaclab.utils.warp.capture.repeat_before_eager_call`, with which an
+  :func:`~isaaclab.utils.warp.capture.eager` call of a recording adds a call that every replay runs right before it.

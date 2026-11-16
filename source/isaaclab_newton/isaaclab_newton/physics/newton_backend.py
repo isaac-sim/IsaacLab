@@ -346,10 +346,15 @@ class NewtonBackend:
             device=self.device,
         )
 
-    def forward(self) -> None:
-        """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags."""
+    def forward(self, force: bool = False) -> None:
+        """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags.
+
+        Args:
+            force: Whether to evaluate even when the host flags report no pending work, for a replay whose recorded
+                writes flagged worlds on the device only. Defaults to False.
+        """
         self.notify_model_changes()
-        if not (self.kinematics_dirty or self.fk_on_every_step):
+        if not (force or self.kinematics_dirty or self.fk_on_every_step):
             return
         ops, state = self.solver_ops, self.state_0
         if ops is None:

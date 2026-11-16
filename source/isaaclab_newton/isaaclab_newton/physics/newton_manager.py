@@ -27,7 +27,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
-from isaaclab.utils.warp.capture import capturing, eager, is_recording, record_at_end
+from isaaclab.utils.warp.capture import capturing, eager, is_recording, record_at_end, repeat_before_eager_call
 
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
@@ -166,9 +166,23 @@ class NewtonManager(PhysicsManager):
         SimulationContext.instance().close_backend(backend)
 
     def forward(self) -> None:
-        """Update articulation kinematics without stepping physics; see :meth:`NewtonBackend.forward`."""
+        """Update articulation kinematics without stepping physics; see :meth:`NewtonBackend.forward`.
+
+        An :func:`~isaaclab.utils.warp.capture.eager` call of a recording that consumes pending FK here clears the host
+        flag the recorded write set, so the FK the recording would add at its end is not recorded and a replay, whose
+        write sets no host flag, would skip it: every replay then evaluates FK right before that eager call.
+        """
+        backend = self.backend
+        if backend is None:
+            return
+        if backend.kinematics_dirty and not backend.device.is_capturing:
+            repeat_before_eager_call(self._forward_on_replay)
+        backend.forward()
+
+    def _forward_on_replay(self) -> None:
+        """Evaluate FK for the worlds the replayed writes flagged on the device."""
         if self.backend is not None:
-            self.backend.forward()
+            self.backend.forward(force=True)
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""

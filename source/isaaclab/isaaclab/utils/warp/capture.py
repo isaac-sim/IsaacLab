@@ -58,6 +58,24 @@ def record_at_end(fn: Callable[[], None]) -> bool:
     return True
 
 
+def repeat_before_eager_call(fn: Callable[[], None]) -> bool:
+    """From inside an :func:`eager` call of a :class:`GraphedCallable` recording, run ``fn`` on every replay right
+    before that call.
+
+    An eager call repeats on each replay with only its own arguments; work it does conditionally on host state that a
+    replay does not restore, such as a flag a recorded write set, must be added to the replays this way.
+
+    Returns:
+        Whether an eager call of a recording is running; otherwise nothing is added.
+    """
+    recording = GraphedCallable._recording
+    if recording is None or recording.capturing:
+        return False
+    # the eager call is added to the recording after it returns, so this step comes before it
+    recording.steps.append((fn, (), {}))
+    return True
+
+
 def eager(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """Call a function that cannot be recorded from inside a :class:`GraphedCallable`.
 

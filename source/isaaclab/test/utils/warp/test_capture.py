@@ -12,7 +12,13 @@ from types import SimpleNamespace
 import pytest
 import warp as wp
 
-from isaaclab.utils.warp.capture import GraphedCallable, capturing, eager, eager_method
+from isaaclab.utils.warp.capture import (
+    GraphedCallable,
+    capturing,
+    eager,
+    eager_method,
+    repeat_before_eager_call,
+)
 
 wp.init()
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")]
@@ -163,6 +169,33 @@ def test_eager_call_runs_between_its_graphs_on_every_call():
     assert _read(values) == [36]
     graphed(values)
     assert (_read(values), between.calls, before.calls, after.calls, _num_graphs(graphed)) == ([246], 2, 1, 1, 2)
+
+
+def test_an_eager_call_adds_a_call_that_every_replay_runs_right_before_it():
+    """Work an eager call does only while recording, such as consuming a flag a recorded write set on the host, repeats
+    on every replay right before the eager call."""
+    before, added, after = _Affine(2, 0), _Affine(1, 10), _Affine(3, 0)
+    added_outside_a_recording = []
+
+    def eager_call(values: wp.array):
+        # on replays no recording runs, so the call is not added again
+        if not repeat_before_eager_call(lambda: added(values)):
+            added_outside_a_recording.append(True)
+        after(values)
+
+    def body(values: wp.array):
+        before(values)
+        eager(eager_call, values)
+
+    graphed = GraphedCallable(body, DEVICE)
+    values = wp.ones(1, dtype=wp.int32, device=DEVICE)
+    graphed(values)
+    # the recording ran only the eager call: 1 * 2 = 2 -> 6
+    assert _read(values) == [6]
+    graphed(values)
+    # the replay adds 10 between the recorded scale and the eager call: (6 * 2 + 10) * 3 = 66
+    assert (_read(values), added.calls, len(added_outside_a_recording)) == ([66], 1, 1)
+    assert not repeat_before_eager_call(lambda: None), "outside a recording nothing is added"
 
 
 def test_eager_call_first_runs_before_the_recorded_work():
