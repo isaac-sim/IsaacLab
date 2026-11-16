@@ -14,7 +14,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 
 def _fake_display(monkeypatch: pytest.MonkeyPatch, width: int = 1920, height: int = 1080) -> None:
@@ -31,7 +31,7 @@ def _fake_display(monkeypatch: pytest.MonkeyPatch, width: int = 1920, height: in
 def test_oversized_window_shrinks_to_fit_the_display_keeping_its_aspect(monkeypatch: pytest.MonkeyPatch) -> None:
     _fake_display(monkeypatch)
 
-    width, height = sim_launcher._fit_window_to_display((1920, 1080))
+    width, height = WindowCfg(size=(1920, 1080)).fit_to_display()
 
     assert width <= 0.92 * 1920 and height <= 0.92 * 1080
     assert abs(width / height - 1920 / 1080) < 0.01
@@ -40,14 +40,14 @@ def test_oversized_window_shrinks_to_fit_the_display_keeping_its_aspect(monkeypa
 def test_window_that_already_fits_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     _fake_display(monkeypatch)
 
-    assert sim_launcher._fit_window_to_display((1280, 720)) == (1280, 720)
+    assert WindowCfg(size=(1280, 720)).fit_to_display() == (1280, 720)
 
 
 def test_window_size_is_unchanged_without_a_display_to_query(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.delenv("DISPLAY", raising=False)
 
-    assert sim_launcher._fit_window_to_display((1920, 1080)) == (1920, 1080)
+    assert WindowCfg(size=(1920, 1080)).fit_to_display() == (1920, 1080)
 
 
 @pytest.mark.parametrize(

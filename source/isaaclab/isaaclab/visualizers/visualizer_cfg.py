@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import math
+import os
+import sys
 import warnings
 from copy import deepcopy
 from dataclasses import MISSING, fields
@@ -185,6 +187,26 @@ class WindowCfg:
             raise ValueError("WindowCfg.size must contain positive integer width and height.")
         if not math.isfinite(self.fps) or self.fps <= 0:
             raise ValueError("WindowCfg.fps must be finite and positive.")
+
+    def fit_to_display(self, margin: float = 0.92) -> tuple[int, int]:
+        """Shrink :attr:`size`, keeping its aspect ratio, so the window fits the display with room for decorations.
+
+        Args:
+            margin: Fraction of the display the window may occupy.
+
+        Returns:
+            :attr:`size`, or a proportionally smaller size; unchanged when the display size is unknown.
+        """
+        if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+            return self.size
+        try:
+            import pyglet  # noqa: PLC0415
+
+            screen = pyglet.display.get_display().get_default_screen()
+            scale = min(1.0, margin * screen.width / self.size[0], margin * screen.height / self.size[1])
+        except Exception:
+            return self.size
+        return (max(1, int(self.size[0] * scale)), max(1, int(self.size[1] * scale)))
 
 
 @configclass

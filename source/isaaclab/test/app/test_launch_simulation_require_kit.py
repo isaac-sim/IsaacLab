@@ -139,11 +139,12 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
 
 def test_kit_run_drops_the_implicit_ovrtx_viewer_camera(monkeypatch: pytest.MonkeyPatch):
     """A Kit run cannot load the OVRTX runtime, so its Newton GL window keeps the OpenGL view only."""
-    monkeypatch.setattr(sim_launcher, "_fit_window_to_display", lambda size: (640, 360))  # As on a small display.
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.visualizers import VisualizerCfg, WindowCfg
+
+    monkeypatch.setattr(WindowCfg, "fit_to_display", lambda self: (640, 360))  # As on a small display.
 
     visualizer = VisualizerCfg(window=WindowCfg(size=(5000, 3000)), backend=NewtonGLBackendCfg(rtx_camera=True))
     cfg = types.SimpleNamespace(
