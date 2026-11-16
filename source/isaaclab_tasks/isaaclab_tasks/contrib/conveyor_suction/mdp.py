@@ -85,7 +85,7 @@ def initialize_outfeed_layouts(env: ManagerBasedRLEnv, env_ids: torch.Tensor | N
 
 def parcel_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Observe the active package in the tool frame, with dimensions and relative velocities."""
-    state = _active_state(env)
+    state = _parcel_states(env)[env.scene._ALL_INDICES, env.active_ids]
     position, rotation = end_effector_pose(env)
     inverse = math_utils.quat_conjugate(rotation)
     velocity = state[:, 7:13] - tool_velocity(env)
@@ -348,9 +348,8 @@ class SizeSortCommand(CommandTerm):
         self._reset_term.reset_sampler.success_monitor.success_update(
             self._reset_term.reset_sampler.row_ids[first], completed[first, initial[first]]
         )
-        env.episode_success |= self.new_success > 0
         count = self.delivered.sum(dim=-1)
-        self.metrics["success_rate"][:] = env.episode_success.float()
+        self.metrics["success_rate"][:] = (count > 0).float()
         self.metrics["correct_deliveries"][:] = count.float()
         self.metrics["later_deliveries"][:] = (count - 1).clamp_min(0).float()
         self.metrics["wrong_deliveries"][changed & wrong.any(dim=-1)] = 1.0
@@ -683,7 +682,6 @@ class ResetParcels(ManagerTermBase):
         state = self.reset_buffer.get_state(rows)
         active = state["parcel_ids"]
         env.active_ids[ids] = active
-        env.episode_success[ids] = False
         env.gripper.reset(ids)
         phase = state["phase_ids"]
         self.held_rows[ids] = phase < 2
@@ -724,12 +722,6 @@ class ResetParcels(ManagerTermBase):
         robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
         robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
-
-
-def _active_state(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Gather the selected physical parcel without changing its catalog identity."""
-    states = _parcel_states(env)
-    return states[env.scene._ALL_INDICES, env.active_ids]
 
 
 def _parcel_states(env: ManagerBasedRLEnv) -> torch.Tensor:

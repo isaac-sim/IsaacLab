@@ -268,10 +268,10 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._finger_joint_ids = self._robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)[0]
         if len(self._arm_joint_ids) != 7 or len(self._finger_joint_ids) != 2:
             raise ValueError("Conveyor transfer requires seven Panda arm joints and two finger joints.")
+        rows = build_reset_rows()
         candidates: ResetStateBuffer.State = {}
 
         def generate(row_ids: torch.Tensor) -> None:
-            rows = build_reset_rows()
             candidates.update(
                 robot={
                     "arm_positions": torch.tensor(
@@ -311,7 +311,7 @@ class ConveyorResetStateTable(ManagerTermBase):
 
         # Candidate indices name canonical recipes, not scene environments. Collection
         # validates procedural parameters; the calibrated states are replayed below.
-        self.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=len(build_reset_rows()), max_batches=1))
+        self.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=len(rows), max_batches=1))
         self.reset_buffer.collect(
             torch.arange(self.reset_buffer.cfg.size, device=env.device),
             generate,

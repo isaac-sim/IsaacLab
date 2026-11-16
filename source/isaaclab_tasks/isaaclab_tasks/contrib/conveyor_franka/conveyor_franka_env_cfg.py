@@ -100,14 +100,12 @@ class ActionsCfg:
         joint_names=list(_ARM_JOINT_NAMES),
         preserve_order=True,
         scale=0.12,
-        max_delta=0.12,
     )
     gripper_action = mdp.ResetBufferedGripperActionCfg(
         asset_name="robot",
         joint_names=list(_FINGER_JOINT_NAMES),
         open_command_expr={"panda_finger_joint.*": 0.04},
         close_command_expr={"panda_finger_joint.*": 0.0},
-        force_close_steps=5,
     )
 
 
@@ -115,15 +113,7 @@ class ActionsCfg:
 class CommandsCfg:
     """Success-driven cube-transfer command."""
 
-    transfer = mdp.ConveyorTransferCommandCfg(
-        reset_event_name="reset_from_state_table",
-        minimum_subgoal_steps=2,
-        hold_steps=3,
-        lateral_tolerance=0.055,
-        maximum_cube_speed=0.65,
-        minimum_finger_position=0.027,
-        minimum_tool_clearance=0.055,
-    )
+    transfer = mdp.ConveyorTransferCommandCfg()
 
 
 @configclass

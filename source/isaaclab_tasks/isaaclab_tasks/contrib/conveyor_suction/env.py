@@ -55,7 +55,6 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
     def load_managers(self) -> None:
         self.parcels = tuple(self.scene[f"parcel_{index}"] for index in range(self.cfg.parcel_count))
         self.active_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self.episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         super().load_managers()
         self._conveyor_tool_offset = torch.tensor(TOOL_OFFSET, device=self.device).expand(self.num_envs, -1)
 
