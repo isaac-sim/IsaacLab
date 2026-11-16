@@ -112,7 +112,7 @@ uses a scripted controller. Each scene also offers Manual end-effector control.
    :physics: rigid
 
 Unitree H2 velocity tracking
----------------------------
+----------------------------
 
 The H2 flat and rough tasks train all 31 joints with RSL-RL PPO using the published H2 asset's
 ``Colliders=minimal`` variant. The rough task includes terrain height observations and a terrain
