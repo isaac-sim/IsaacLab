@@ -108,16 +108,12 @@ class GraphedCallable:
       again after :meth:`reset`. Known limitation: the host work the callable did before that call, such as a Python
       counter it advanced, ran once in the abandoned recording and runs again in the plain call, on that first call
       only; its device work ran only in the plain call.
-    * :attr:`enabled` turns recording off process-wide, to run every part eagerly; it is on by default. A callable on
-      a CPU device always runs eagerly.
+    * A callable on a CPU device always runs eagerly.
     * :attr:`generation` advances when the terms change or the physics backend rebinds its buffers or stops (see
       :meth:`watch`), and every callable records again on its next call.
     * Called inside a graph capture that something else started, it runs inline, so its kernels become part of that
       capture.
     """
-
-    enabled: ClassVar[bool] = True
-    """Whether callables record CUDA graphs. Turn it off to run every recorded part eagerly."""
 
     generation: ClassVar[int] = 0
     """Counter of term changes, physics rebinds and stops; a callable recorded under an older value records again."""
@@ -149,7 +145,7 @@ class GraphedCallable:
         """Run the callable and return its result."""
         if capturing(self._device):
             return self._fn(*args, **kwargs)
-        if not (GraphedCallable.enabled and self._device.is_cuda):
+        if not self._device.is_cuda:
             return self._fn(*args, **kwargs)
         if self._generation != GraphedCallable.generation:
             self.reset()

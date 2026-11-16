@@ -96,10 +96,9 @@ def test_a_capture_commits_no_freshness(device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_an_abandoned_recording_leaves_the_next_plain_read_correct(device, monkeypatch):
+def test_an_abandoned_recording_leaves_the_next_plain_read_correct(device):
     """A :class:`GraphedCallable` that reads the data and raises while recording launches nothing, so the next plain
     read updates the data."""
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
     value = _LazyValue(device)
     value.read()
 

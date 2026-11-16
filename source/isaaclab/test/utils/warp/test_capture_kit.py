@@ -22,8 +22,7 @@ pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device 
 DEVICE = "cuda:0"
 
 
-def test_a_torch_operation_while_recording_under_kit_raises(monkeypatch):
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
+def test_a_torch_operation_while_recording_under_kit_raises():
     assert has_kit(), "this test checks the relaxed capture Kit uses"
     values = torch.ones(4, device=DEVICE)
     graphed = GraphedCallable(lambda: values.add_(1), DEVICE)

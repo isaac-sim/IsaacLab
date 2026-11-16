@@ -439,7 +439,6 @@ def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda
 
     The joint acceleration finite difference advances only in :meth:`update`, so the recording leaves it alone.
     """
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
     # a previous velocity apart from the current one gives the step a nonzero acceleration, which a recorded
     # finite difference would overwrite
@@ -473,7 +472,6 @@ def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, b
 
     The recording writes the root pose in place and invalidates the heading as the root pose writers do.
     """
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
     rotated = _payload((N,), 7, wp.transformf, cuda_device)
     art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))

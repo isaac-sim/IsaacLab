@@ -257,10 +257,9 @@ class _Reader:
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_recorded_parts_reading_a_sensor_refresh_it_each_step(device, monkeypatch):
+def test_recorded_parts_reading_a_sensor_refresh_it_each_step(device):
     """The data of a sensor that recorded parts read refreshes once per step, also when a step skips the part that
     refreshed it first: each recording holds the refresh of the environments still outdated."""
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
     sensor = _DeviceRefreshSensor(device)
     reader = _Reader(sensor)
     for _ in range(4):  # the first step records both parts, the others replay them

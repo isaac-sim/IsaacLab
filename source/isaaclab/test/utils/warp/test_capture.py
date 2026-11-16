@@ -75,11 +75,6 @@ def _read(values: wp.array) -> list[int]:
     return values.numpy().tolist()
 
 
-@pytest.fixture(autouse=True)
-def enabled(monkeypatch):
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
-
-
 def test_first_call_records_and_runs_the_callable_once():
     """Recording has no eager warm-up: a stateful callable advances once per call, including the first."""
     fn = _Affine()
@@ -152,22 +147,14 @@ def test_physics_rebind_records_the_callable_again():
     assert (fn.calls, _read(values), _num_graphs(graphed)) == (2, [3], 1)
 
 
-def test_callable_runs_eagerly_when_disabled_or_on_cpu(monkeypatch):
+def test_callable_runs_eagerly_on_cpu():
     on_cpu = _Affine()
     cpu_graphed = GraphedCallable(on_cpu, "cpu")
     cpu_values = wp.zeros(1, dtype=wp.int32, device="cpu")
     cpu_graphed(cpu_values)
     cpu_graphed(cpu_values)
 
-    monkeypatch.setattr(GraphedCallable, "enabled", False)
-    disabled = _Affine()
-    graphed = GraphedCallable(disabled, DEVICE)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-    graphed(values)
-    graphed(values)
-
     assert (on_cpu.calls, _read(cpu_values), _num_graphs(cpu_graphed)) == (2, [2], 0)
-    assert (disabled.calls, _read(values), _num_graphs(graphed)) == (2, [2], 0)
 
 
 def test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly(caplog):

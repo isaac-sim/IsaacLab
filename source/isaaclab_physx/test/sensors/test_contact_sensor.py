@@ -279,9 +279,8 @@ def test_contact_sensor_refuses_update_inside_outer_graph_capture():
     assert fetch_call_count == 0
 
 
-def test_contact_sensor_update_repeats_eagerly_on_every_replay_of_a_recording(monkeypatch):
+def test_contact_sensor_update_repeats_eagerly_on_every_replay_of_a_recording():
     """A GraphedCallable recording that updates the sensor runs the PhysX reads and the update on every replay."""
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
     device = "cuda:0"
     env_mask = wp.ones(1, dtype=wp.bool, device=device)
     source = wp.ones(1, dtype=wp.int32, device=device)

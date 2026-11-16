@@ -174,7 +174,6 @@ def test_the_step_after_a_replayed_state_write_resolves_it_as_after_an_eager_wri
             articulation.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
 
         reset = GraphedCallable(reset_env_0, device)
-        enabled, GraphedCallable.enabled = GraphedCallable.enabled, True
         try:
             with patch.object(NewtonBackend, "_run_solver_substeps", _no_substeps):
                 backend.invalidate_graph()
@@ -195,7 +194,6 @@ def test_the_step_after_a_replayed_state_write_resolves_it_as_after_an_eager_wri
                     torch.testing.assert_close(body_q, wp.to_torch(backend.state_0.body_q), msg=f"offset {offset}")
                 assert bool(backend.graphs) == use_cuda_graph
         finally:
-            GraphedCallable.enabled = enabled
             reset.reset()
 
 
@@ -219,7 +217,6 @@ def test_a_recorded_read_after_a_recorded_write_sees_its_forward_kinematics_on_e
             wp.copy(poses, articulation.data.body_link_pose_w.warp)
 
         reset, read = GraphedCallable(reset_env_0, device), GraphedCallable(read_body_poses, device)
-        enabled, GraphedCallable.enabled = GraphedCallable.enabled, True
         try:
             for offset in (0.25, 0.5, 1.0):  # the first calls record, the others replay
                 wp.to_torch(joint_pos).copy_(default_joint_pos + offset)
@@ -233,6 +230,5 @@ def test_a_recorded_read_after_a_recorded_write_sees_its_forward_kinematics_on_e
                 expected = articulation.data.body_link_pose_w.torch
                 torch.testing.assert_close(wp.to_torch(poses), expected, msg=f"offset {offset}")
         finally:
-            GraphedCallable.enabled = enabled
             reset.reset()
             read.reset()
