@@ -3,6 +3,60 @@ Changelog
 
 .. towncrier release notes start
 
+13.0.2 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the :class:`~isaaclab_physx.assets.Articulation` fixed and spatial tendon mask setters to write the
+  tendon buffers through the masks instead of converting them to indices, removing a host wait per call.
+
+Fixed
+^^^^^
+
+* Initialized the joint-limit clamping counter in mocked PhysX articulation benchmarks so joint position limit writes completed.
+
+
+13.0.1 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the PhysX assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`. Any integer sequence and slices with a negative step are accepted,
+  ids on another device are moved to the asset's device, and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected
+  with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the PhysX assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`, as the env selection does, so slices other than ``slice(None)`` are
+  accepted.
+* Changed the PhysX assets to use ``env_ids`` when both ``env_ids`` and ``env_mask`` are given: their views take
+  indices, so the mask is converted only when no ids are given.
+
+Fixed
+^^^^^
+
+* Fixed the ``write_nodal_*_to_sim_mask`` methods of :class:`~isaaclab_physx.assets.DeformableObject` raising a
+  :class:`RuntimeError` whenever ``env_mask`` was given.
+
+
+13.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.assets.SurfaceGripper.reset` now takes ``env_ids`` and ``env_mask``
+  instead of ``indices``.
+
+Fixed
+^^^^^
+
+* Fixed articulation and rigid-object resets with only ``env_mask`` resetting the actuator state or external
+  wrenches of every environment instead of the masked ones.
+
+
 12.0.0 (2026-11-07)
 ~~~~~~~~~~~~~~~~~~~
 

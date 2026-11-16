@@ -124,15 +124,15 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
         """Normal distribution ranges for the velocity commands."""
 
         mean_vel: tuple[float, float, float] = MISSING
-        """Mean velocity for the normal distribution (in m/s).
+        """Mean velocity for the normal distribution.
 
-        The tuple contains the mean linear-x, linear-y, and angular-z velocity.
+        The tuple contains the mean linear-x, linear-y, and angular-z velocity, in (m/s, m/s, rad/s).
         """
 
         std_vel: tuple[float, float, float] = MISSING
-        """Standard deviation for the normal distribution (in m/s).
+        """Standard deviation for the normal distribution.
 
-        The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.
+        The tuple contains the standard deviations of linear-x, linear-y, and angular-z velocity, in (m/s, m/s, rad/s).
         """
 
         zero_prob: tuple[float, float, float] = MISSING

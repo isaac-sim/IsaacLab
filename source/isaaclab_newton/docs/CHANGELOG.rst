@@ -3,6 +3,87 @@ Changelog
 
 .. towncrier release notes start
 
+17.2.3 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Allocated mocked Newton manager buffers on the benchmark device and removed timed callback call histories that distorted latency measurements.
+* Initialized the joint-limit clamping counter in mocked Newton articulation benchmarks so joint position limit writes completed.
+* Kept mocked rigid-object root and body kinematics consistent when refreshing benchmark data.
+
+
+17.2.2 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the Newton assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`. Any integer sequence and slices with a negative step are accepted,
+  ids on another device are moved to the asset's device, and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected
+  with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the Newton assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids`, as the env selection does, so slices other than ``slice(None)`` are
+  accepted.
+* Changed the joint-coordinate writes of :class:`~isaaclab_newton.assets.Articulation` to write env ids into a
+  scratch mask of the articulation instead of allocating a mask on every call.
+* Changed the fixed-tendon mask setters of :class:`~isaaclab_newton.assets.Articulation` to write through the masks,
+  as the other Newton mask writers do, instead of converting the masks to indices, which synchronized the host with
+  the GPU on every call.
+* Changed the mask writers of :class:`~isaaclab_newton.assets.RigidObjectCollection` to launch over the mask lengths,
+  as the other Newton mask writers do, so a mask shorter than the asset dimension writes only the rows it covers.
+
+Fixed
+^^^^^
+
+* Fixed the fixed-tendon mask setters of :class:`~isaaclab_newton.assets.Articulation` accepting data whose shape
+  does not match the articulation.
+* Fixed model-property writes recorded into a graph capture refreshing the solver only on the first replay:
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change` now records the solver refresh of that change, so
+  every replay applies it.
+
+
+17.2.1 (2026-11-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Warp CPU graph capture of the Newton physics step when
+  :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph` is set, which is the default. It removes Python
+  kernel-launch overhead on ``device="cpu"`` for every solver whose
+  :meth:`~isaaclab_newton.physics.NewtonSolver.supports_capture` holds there. MPM and Kamino P-ADMM with an iterative
+  linear solver keep stepping eagerly on the CPU. Step callbacks registered on the manager must then issue only Warp
+  work, because Warp's CPU capture does not replay torch operations or host reads; set ``use_cuda_graph=False`` to keep
+  stepping eagerly on the CPU.
+
+Fixed
+^^^^^
+
+* Aligned explicit Newton collision-pipeline contact capacity with solver scratch allocated at construction, and
+  rejected conflicting Kamino capacity settings.
+
+
+17.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``SteelSolverCfg`` and ``SteelSolver`` to select Newton's experimental Steel rigid-body solver through the existing Newton physics composition root, with point friction as the default.
+* Exposed Steel's ``use_parallel_streams`` option so task presets can select its specialized CUDA paths.
+* Added Steel options for parallel tree traversal and fixed-root contact filtering.
+
+Fixed
+^^^^^
+
+* Fixed articulation and rigid-object resets with only ``env_mask`` resetting the actuator state or external
+  wrenches of every environment instead of the masked ones.
+
+
 17.1.0 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

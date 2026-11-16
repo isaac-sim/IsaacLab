@@ -172,7 +172,8 @@ class WarpFrontend:
         Idempotent: re-running on an already-adapted cfg is a no-op (the steps
         below skip warp-origin symbols and already-promoted entities).
 
-        Three steps, each independently testable:
+        Four steps, each independently testable (the fourth, :meth:`_swap_noise_cfgs`, replaces
+        stable observation-noise cfgs with their warp-native twins):
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
            is :class:`~isaaclab_newton.physics.NewtonCfg`.

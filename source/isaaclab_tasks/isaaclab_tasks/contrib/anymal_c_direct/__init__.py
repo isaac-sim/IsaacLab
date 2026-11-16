@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Ant locomotion environment.
+ANYmal-C velocity-tracking locomotion environments.
 """
 
 import gymnasium as gym

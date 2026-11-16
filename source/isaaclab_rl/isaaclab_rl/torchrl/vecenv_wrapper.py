@@ -32,8 +32,9 @@ class IsaacLabTorchRLWrapper(EnvBase):
     The wrapper implements :class:`~torchrl.envs.EnvBase` directly on the batched Isaac Lab environment
     instead of going through :class:`torchrl.envs.libs.gym.GymWrapper`, so it also accepts the Warp-based
     environments (which are not ``gymnasium`` subclasses) and keeps the tensordicts on the simulation device
-    by default. Observation groups (e.g. ``"policy"``, ``"critic"``) become one :class:`~torchrl.data.Composite`
-    each, and ``done``, ``terminated``, and ``truncated`` are separate spec keys.
+    by default. Observation groups (e.g. ``"policy"``, ``"critic"``) become one entry each of the observation
+    :class:`~torchrl.data.Composite` (a nested Composite only for dictionary groups), and ``done``,
+    ``terminated``, and ``truncated`` are separate spec keys.
 
     Isaac Lab resets finished environments inside :meth:`step` and returns the first observation of their new
     episodes. The ``"next"`` observation of a done transition is therefore taken from ``extras["final_obs"]``
