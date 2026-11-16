@@ -160,6 +160,7 @@ class NewtonRecordingPanel:
                 imgui.end_disabled()
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip("Keep the stopped video in the output folder")
+        imgui.same_line()
         _c, self.video_include_hud = imgui.checkbox("Include HUD##video", self.video_include_hud)
         hover_tooltip(imgui, "Draw the HUD panels into the recorded frames")
         elapsed = f"{self._video_frames / max(self._video_rate, 1):.2f} s ({self._video_frames} frames)"
