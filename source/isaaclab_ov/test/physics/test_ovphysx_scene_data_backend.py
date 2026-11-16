@@ -479,7 +479,9 @@ def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypa
     [(True, False), (True, True), (False, True)],
     ids=["eager-physics", "deferred-physics", "deferred-rendering-only"],
 )
-def test_population_respects_physics_config_and_preserves_clone_data(populate_physics, defer_render_copies):
+def test_population_respects_physics_config_and_preserves_clone_data(
+    populate_physics: bool, defer_render_copies: bool
+) -> None:
     """Import physics only when requested, retaining resolved values and clone data with either copy timing."""
     import numpy as np
     import ovstage
@@ -502,6 +504,7 @@ def test_population_respects_physics_config_and_preserves_clone_data(populate_ph
         UsdPhysics.RigidBodyAPI.Apply(body)
         UsdPhysics.CollisionAPI.Apply(body)
         body.AddAppliedSchema("PhysxRigidBodyAPI")
+        body.CreateAttribute("user:note", Sdf.ValueTypeNames.String).Set("unrelated metadata")
     stage.GetPrimAtPath("/World/Prototype/Other").CreateAttribute(
         "physxRigidBody:sleepThreshold", Sdf.ValueTypeNames.Float
     ).Set(0.123)
@@ -543,6 +546,11 @@ def test_population_respects_physics_config_and_preserves_clone_data(populate_ph
             for path in ("/World/Prototype/Other", "/World/Copy/Other"):
                 assert read(path, "physxRigidBody:sleepThreshold") is None
             return
+
+        if not hasattr(ovstage.PopulationDomain, "PHYSICS"):
+            # SDK physics selectors keep unrelated properties out of both originals and rendering clones.
+            assert read("/World/Prototype/Body", "user:note") is None
+            assert read("/World/Copy/Body", "user:note") is None
 
         np.testing.assert_allclose(read("/", "usd-metadata:metersPerUnit"), [0.01])
         np.testing.assert_allclose(read("/", "usd-metadata:kilogramsPerUnit"), [0.001])
