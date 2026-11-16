@@ -11,7 +11,6 @@ import argparse
 import contextlib
 import logging
 import os
-import shutil
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -37,7 +36,6 @@ from ..common import (
     describe_run,
     enable_cameras_for_video,
     normalize_task_name,
-    offer_checkpoint_saver,
     pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_published_checkpoint,
@@ -149,7 +147,6 @@ def run(argv: list[str]) -> None:
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             runner.load(resume_path)
-            offer_checkpoint_saver(env, lambda path: shutil.copy2(resume_path, path))
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
             export_model_dir = os.path.join(log_dir, "exported")

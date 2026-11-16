@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class NewtonRecordingCfg:
     """Output settings of the Recording section in the Newton GL HUD.
 
-    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video``, ``screenshot``, or ``checkpoint``.
+    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video`` or ``screenshot``.
     The HUD edits a copy of these values while the window is open.
     """
 

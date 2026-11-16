@@ -654,8 +654,8 @@ streaming views, and renderer-based sensor data capture.
 Newton Window Recording
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The **Recording** section of the Newton visualizer saves three things: an ``mp4`` video of the window, a ``.png``
-screenshot of the window, and a ``.pt`` checkpoint of the policy being played. Files go to the output
+The **Recording** section of the Newton visualizer saves two things: an ``mp4`` video of the window and a ``.png``
+screenshot of the window. Files go to the output
 folder set by :class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`. Video and screenshots can include the HUD
 panels with their **Include HUD** options.
 

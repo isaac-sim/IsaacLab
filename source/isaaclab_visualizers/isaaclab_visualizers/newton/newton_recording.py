@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recording section of the Newton GL HUD: video, screenshots, and policy checkpoints."""
+"""Recording section of the Newton GL HUD: video and screenshots."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -65,7 +64,6 @@ class NewtonRecordingPanel:
     """Records the Newton GL window while the HUD asks for it.
 
     * **Video** streams the displayed frames (OpenGL or RTX) to an ``mp4`` through ffmpeg, like ``--video``.
-    * **Checkpoint** saves the policy being played or trained to a ``.pt`` file with one button press.
     """
 
     def __init__(self, owner: NewtonGLVisualizer):
@@ -84,11 +82,10 @@ class NewtonRecordingPanel:
         """Encoded frame rate [Hz]; ``0`` follows the window update rate."""
         self.video_length = cfg.video_length or 0.0
         """Video duration [s] after which recording stops by itself; ``0`` records until stopped."""
-        self.video_path = self.checkpoint_path = ""
-        """Files written by the latest recording of each kind."""
+        self.video_path = ""
+        """File written by the latest video recording."""
         self._video_rate = 0
         self._video_limit: int | None = None
-        self._checkpoint_saver: Callable[[str], None] | None = None
         self._video_temp: Path | None = None
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
@@ -127,14 +124,13 @@ class NewtonRecordingPanel:
             imgui.pop_style_color()
         hover_tooltip(
             imgui,
-            "Record a video, take a screenshot, or save a policy checkpoint",
+            "Record a video or take a screenshot",
         )
         if not expanded:
             return
         imgui.separator()
         self._draw_video(imgui)
         self._draw_screenshot(imgui)
-        self._draw_checkpoint(imgui)
         self._draw_output(imgui)
         self._draw_message(imgui)
 
@@ -181,24 +177,6 @@ class NewtonRecordingPanel:
         hover_tooltip(imgui, "Draw the HUD panels into the screenshot")
         imgui.separator()
 
-    def _draw_checkpoint(self, imgui: Any) -> None:
-        """Draw the policy checkpoint group."""
-        imgui.text("Checkpoint (.pt)")
-        available = self._checkpoint_saver is not None
-        if not available:
-            imgui.begin_disabled()
-        if imgui.button("Save##checkpoint"):
-            self.save_checkpoint()
-        if not available:
-            imgui.end_disabled()
-        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-            imgui.set_tooltip(
-                "Save the policy being played or trained to the output folder"
-                if available
-                else "Not available in this run: it has no policy to save"
-            )
-        imgui.separator()
-
     def _draw_output(self, imgui: Any) -> None:
         """Draw the output folder, file prefix, and numbering options."""
         imgui.text("Output")
@@ -206,7 +184,7 @@ class NewtonRecordingPanel:
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 f"Root folder, currently {resolve_output_dir(self.output_dir)}."
-                " Files go to <folder>/video, <folder>/screenshot, and <folder>/checkpoint"
+                " Files go to <folder>/video and <folder>/screenshot"
             )
         _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
         _c, self.auto_increment = imgui.checkbox("Auto-number", self.auto_increment)
@@ -347,33 +325,6 @@ class NewtonRecordingPanel:
         temp, self._video_unsaved = self._video_unsaved, None
         if temp is not None:
             temp.unlink(missing_ok=True)
-
-    # ------------------------------------------------------------------
-    # Checkpoint
-    # ------------------------------------------------------------------
-
-    def set_checkpoint_saver(self, save: Callable[[str], None] | None) -> None:
-        """Offer the policy of this run to the Checkpoint button.
-
-        Args:
-            save: Callable that writes the policy checkpoint to the given path, or None when the run has no policy.
-        """
-        self._checkpoint_saver = save
-
-    def save_checkpoint(self) -> None:
-        """Write the run's policy checkpoint to a numbered file in the output folder."""
-        if self._checkpoint_saver is None:
-            self._message = "This run has no policy to save."
-            return
-        try:
-            path = self._output_path("checkpoint", ".pt")
-            self._checkpoint_saver(str(path))
-        except Exception as exc:
-            logger.exception("[NewtonRecording] Could not save the policy checkpoint.")
-            self._message = f"Checkpoint failed: {exc}"
-            return
-        self.checkpoint_path = str(path)
-        self._message = f"Saved policy checkpoint to {self.checkpoint_path}"
 
     # ------------------------------------------------------------------
     # Per-frame capture
