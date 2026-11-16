@@ -59,7 +59,8 @@ def task_done_pick_place_table_frame(
         min_y: Minimum y position of the object relative to the table for task completion.
         max_y: Maximum y position of the object relative to the table for task completion.
         max_height: Maximum height (z) of the object relative to the table for task completion.
-        min_vel: Maximum velocity magnitude of the object for task completion.
+        min_vel: Maximum absolute world-frame linear velocity component [m/s] of the
+            object for task completion. Each axis is checked separately.
         debug: If True, print debug info for the first environment each step.
 
     Returns:

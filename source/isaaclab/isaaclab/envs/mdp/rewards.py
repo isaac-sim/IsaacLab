@@ -285,7 +285,8 @@ def joint_vel_limits(
 ) -> torch.Tensor:
     """Penalize joint velocities if they cross the soft limits.
 
-    This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
+    For each joint, the excess is ``abs(joint_velocity) - soft_joint_velocity_limit * soft_ratio``.
+    Each excess is clipped to [0, 1] before summing over the selected joints, so the penalty is at most 1 per joint.
 
     Args:
         soft_ratio: The ratio of the soft limits to be used.
@@ -429,7 +430,7 @@ def position_command_error_tanh(
     """Reward tracking of the position error using the tanh kernel.
 
     The position error [m] is computed as in :func:`position_command_error` and mapped through a tanh
-    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``[0, 1)``.
+    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``(0, 1]``.
     """
     distance = position_command_error(env, command_name, asset_cfg)
     return 1 - torch.tanh(distance / std)

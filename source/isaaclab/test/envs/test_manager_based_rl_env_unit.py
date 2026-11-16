@@ -153,6 +153,7 @@ def test_final_observations_precede_resets_and_events(env_kind):
     env.has_rtx_sensors = False
     env.video_recorders = []
     env._physics_handles_decimation = False
+    env._physics_handles_actions = False
     env._sim_step_counter = env.common_step_counter = 0
     env.episode_length_buf = torch.zeros(2, dtype=torch.long)
     env.reset_buf = torch.zeros(2, dtype=torch.bool)

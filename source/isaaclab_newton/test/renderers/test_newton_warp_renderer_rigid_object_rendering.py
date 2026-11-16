@@ -35,12 +35,13 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacs
 
 
 def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
-    """Kinematic PhysX transforms and root scale must reach Newton Warp."""
+    """Kinematic PhysX transforms and root scale must reach two Newton Warp cameras sharing one renderer."""
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
             name="newton_warp (PhysX)",
             simulation_context_factory=lambda: build_simulation_context(device="cuda:0", gravity_enabled=False),
             renderer_cfg=NewtonWarpRendererCfg(),
+            with_second_camera=True,
         )
     )
 

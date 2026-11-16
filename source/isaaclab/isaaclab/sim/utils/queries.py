@@ -153,7 +153,7 @@ def get_first_matching_child_prim(
 ) -> Usd.Prim | None:
     """Recursively get the first USD Prim at the path string that passes the predicate function.
 
-    This function performs a depth-first traversal of the prim hierarchy starting from
+    This function performs a breadth-first traversal of the prim hierarchy starting from
     :attr:`prim_path`, returning the first prim that satisfies the provided :attr:`predicate`.
     It optionally supports traversal through instance prims, which are normally skipped in standard USD
     traversals.
@@ -214,7 +214,7 @@ def get_all_matching_child_prims(
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
 
-    This function performs a depth-first traversal of the prim hierarchy starting from
+    This function performs a breadth-first traversal of the prim hierarchy starting from
     :attr:`prim_path`, returning all prims that satisfy the provided :attr:`predicate`. It optionally
     supports traversal through instance prims, which are normally skipped in standard USD traversals.
 

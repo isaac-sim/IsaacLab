@@ -106,6 +106,11 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        # per-DOF reset masks of the stateful actuators, rewritten by every partial reset so a reset does not allocate
+        self._reset_dof_masks = [
+            None if state is None else wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device)
+            for act, state in zip(actuators, self._states_a)
+        ]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
         # its raw drive output to ``sim_control.joint_computed_f`` when
@@ -172,7 +177,9 @@ class NewtonActuatorAdapter:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
         self._states_a, self._states_b = self._states_b, self._states_a
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
+    def reset(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: wp.array | None = None
+    ) -> None:
         """Reset actuator states for the given environments.
 
         Args:
@@ -180,6 +187,8 @@ class NewtonActuatorAdapter:
                 ``slice(None)``, which IsaacLab callers sometimes pass)
                 resets all environments. Otherwise expects a torch tensor
                 or sequence of int indices.
+            env_mask: Boolean environment mask. Shape is (num_envs,). Takes
+                precedence over ``env_ids`` and does not synchronize the device.
 
         Newton's :meth:`Actuator.State.reset` expects a per-DOF boolean
         mask of length ``num_actuators`` (= ``num_envs * dofs_per_actuator``),
@@ -188,6 +197,9 @@ class NewtonActuatorAdapter:
         etc.). We therefore build a per-actuator per-DOF mask from the
         env mask before delegating to each state.
         """
+        if env_mask is not None:
+            self._reset_states(env_mask)
+            return
         if env_ids is None or env_ids == slice(None):
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
@@ -210,19 +222,7 @@ class NewtonActuatorAdapter:
                 else wp.array(env_ids, dtype=wp.int32, device=self._device)
             )
             wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
-
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
-            wp.launch(
-                build_per_dof_env_mask_kernel,
-                dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
-                device=self._device,
-            )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+        self._reset_states(env_mask)
 
     def bind_articulation(
         self,
@@ -317,6 +317,20 @@ class NewtonActuatorAdapter:
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+
+    def _reset_states(self, env_mask: wp.array) -> None:
+        """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+            if per_dof_mask is None:
+                continue
+            wp.launch(
+                build_per_dof_env_mask_kernel,
+                dim=act.indices.shape[0],
+                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                device=self._device,
+            )
+            sa.reset(per_dof_mask)
+            sb.reset(per_dof_mask)
 
 
 # ---------------------------------------------------------------------------

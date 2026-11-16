@@ -497,6 +497,8 @@ class ExportPatcher:
             action_manager: Action manager whose instance methods should be
                 wrapped.
         """
+        # the patched apply_action runs Python, so it stays in the environment's loop
+        action_manager.is_graphable = False
         original_process = action_manager.process_action
         original_apply = action_manager.apply_action
         task_name = self.task_name

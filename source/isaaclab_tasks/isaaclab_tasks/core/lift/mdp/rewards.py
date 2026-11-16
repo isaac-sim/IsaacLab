@@ -83,7 +83,7 @@ def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[s
         sensor_names: Names of the contact sensors in the scene.
 
     Returns:
-        Tensor of shape (num_envs,) with the count of sensors in contact per environment.
+        Tensor of shape (num_envs,) with the fraction of sensors in contact per environment.
     """
     count = (_contact_force_mag(env, sensor_names) > threshold).float().sum(dim=1)
     return count / len(sensor_names)

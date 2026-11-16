@@ -38,12 +38,13 @@ def task_done_pick_place(
 
     This function checks whether all success conditions for the task have been met:
     1. object is within the target x/y range
-    2. object is below a minimum height
+    2. object is below a maximum height
     3. object velocity is below threshold
     4. Right robot wrist is retracted back towards body (past a given x pos threshold)
 
     Args:
         env: The RL environment instance.
+        task_link_name: Required nonempty name of the robot's right wrist/end-effector body.
         object_cfg: Configuration for the object entity.
         right_wrist_max_x: Maximum x position of the right wrist for task completion.
         min_x: Minimum x position of the object for task completion.
@@ -51,10 +52,14 @@ def task_done_pick_place(
         min_y: Minimum y position of the object for task completion.
         max_y: Maximum y position of the object for task completion.
         max_height: Maximum height (z position) of the object for task completion.
-        min_vel: Minimum velocity magnitude of the object for task completion.
+        min_vel: Maximum absolute world-frame linear velocity component [m/s] of the
+            object for task completion. Each axis is checked separately.
 
     Returns:
         Boolean tensor indicating which environments have completed the task.
+
+    Raises:
+        ValueError: If task_link_name is empty.
     """
     if task_link_name == "":
         raise ValueError("task_link_name must be provided to task_done_pick_place")
@@ -195,6 +200,8 @@ def task_done_exhaust_pipe(
             relative to the blue sorting bin for task completion.
         max_blue_exhaust_to_bin_y: Maximum y position of the blue exhaust pipe
             relative to the blue sorting bin for task completion.
+        min_blue_exhaust_to_bin_y: Minimum signed y offset [m] of the blue exhaust pipe
+            relative to the blue sorting bin for task completion. Defaults to -0.090.
         max_blue_exhaust_to_bin_z: Maximum z position of the blue exhaust pipe
             relative to the blue sorting bin for task completion.
 

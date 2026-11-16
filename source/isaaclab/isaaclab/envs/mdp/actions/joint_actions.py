@@ -169,8 +169,8 @@ class JointAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # apply the affine transformations
-        self._processed_actions = self._raw_actions * self._scale
+        # apply the affine transformations in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = self._raw_actions * self._scale
         self._processed_actions.add_(self._offset)
         # clip actions
         if self.cfg.clip is not None:
@@ -182,6 +182,8 @@ class JointAction(ActionTerm):
 
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
+
+    is_graphable = True
 
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
@@ -234,6 +236,8 @@ class RelativeJointPositionAction(JointAction):
 class JointVelocityAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as velocity commands."""
 
+    is_graphable = True
+
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
@@ -251,6 +255,8 @@ class JointVelocityAction(JointAction):
 
 class JointEffortAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
+
+    is_graphable = True
 
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""

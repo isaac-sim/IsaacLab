@@ -125,11 +125,18 @@ The Step
 --------
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
-decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks
--> Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
+decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: the step handles the environment's
+actions, or an articulation runs its Newton actuators in the step), and one physics step otherwise. Every physics step
+runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``, and post-step
+callbacks and sensors run once at the end.
 Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
 around each physics step's substeps.
+
+:meth:`~isaaclab_newton.physics.NewtonManager.handle_actions` makes the action manager's ``apply_action`` and the
+scene's ``write_data_to_sim`` pre-actuator callbacks, so they run before every physics step as in the environment's
+own loop, and the step stages the body forces they write. Post-step callbacks still run once at the end of the step,
+so articulations republish the reordered state they read before writing. It does so only when both report
+``is_graphable``. The first wrench written to an asset captures the step again with the wrench work.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with
