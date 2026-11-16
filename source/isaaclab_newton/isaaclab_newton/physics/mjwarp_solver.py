@@ -29,6 +29,8 @@ _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent
 class MJWarpSolver(NewtonSolver):
     """Newton's MuJoCo Warp solver, which steps in place on one state."""
 
+    cfg: MJWarpSolverCfg
+
     solver_class = SolverMuJoCo
     single_state = True
     deterministic = True
@@ -52,10 +54,7 @@ class MJWarpSolver(NewtonSolver):
             )
         return None
 
-    @classmethod
-    def build(
-        cls, cfg: MJWarpSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverMuJoCo:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverMuJoCo:
         """Construct MuJoCo Warp; a determinism guarantee disables its sensor stage, which cannot honor it."""
         deterministic = mode != wp.DeterministicMode.NOT_GUARANTEED
         blocked = set(model.get_requested_state_attributes()) & _SENSORS_BY_STATE_ATTRIBUTE.keys()
@@ -68,24 +67,22 @@ class MJWarpSolver(NewtonSolver):
                 " values would never be refreshed. Remove the sensors, or drop the determinism request"
                 f" (deterministic_mode={mode.name})."
             )
-        kwargs = solver_kwargs(cls.solver_class, cfg, mode)
+        kwargs = solver_kwargs(self.solver_class, self.cfg, mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
-        return cls.solver_class(model, **kwargs)
+        return self.solver_class(model, **kwargs)
 
-    @classmethod
-    def supports_capture(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo) -> bool:
-        return not cfg.use_mujoco_cpu
+    def supports_capture(self) -> bool:
+        return not self.cfg.use_mujoco_cpu
 
-    @classmethod
-    def uses_collision_pipeline(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo) -> bool:
-        return not cfg.use_mujoco_contacts
+    def uses_collision_pipeline(self) -> bool:
+        return not self.cfg.use_mujoco_contacts
 
-    @classmethod
-    def create_contacts(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo) -> Contacts:
-        """Allocate contacts sized to MuJoCo's contact buffer; ``update_contacts`` fills them for sensors."""
+    def create_contacts(self) -> Contacts:
+        """Allocate contacts sized to MuJoCo's contact buffer for sensor contact indexing."""
+        solver = self.native
         model = solver.model
         return Contacts(
             rigid_contact_max=solver.get_max_contact_count(),
@@ -94,24 +91,30 @@ class MJWarpSolver(NewtonSolver):
             requested_attributes=model.get_requested_contact_attributes(),
         )
 
-    @classmethod
-    def reset(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, state: State, world_mask: wp.array) -> None:
-        """Clear MuJoCo Warp warm-start and applied-force buffers for masked worlds.
+    def reset(self, state: State, world_mask: wp.array) -> None:
+        """Clear solver history and synchronize authored joint state for masked worlds.
 
         With ``flags=0`` MuJoCo zeroes only solver-owned buffers that persist across steps, leaving the authored joint
         state untouched; otherwise a NaN from one solve persists across resets through the warm start
-        (https://github.com/newton-physics/newton/issues/1266). The CPU backend's one global ``MjData`` resets every
-        world, so it resets only when a world is flagged.
+        (https://github.com/newton-physics/newton/issues/1266). Sparse or disabled imports require an explicit
+        synchronization before the next substep can overwrite the authored state. The native CPU backend owns
+        one ``MjData`` for template world 0, so other worlds' resets must leave its state and history untouched.
         """
-        if solver.use_mujoco_cpu and not world_mask.numpy().any():
+        solver = self.native
+        if solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         solver.reset(state, world_mask=world_mask, flags=0)
+        if solver.update_data_interval != 1:
+            # Newton has no public masked import. With sleeping disabled,
+            # reset(flags=0) skips it, so reuse the pinned solver's conversion.
+            data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data
+            solver._update_mjc_data(data, solver.model, state, world_mask=world_mask)
 
-    @classmethod
-    def check_step(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, captured: bool, debug: bool) -> None:
+    def check_step(self, captured: bool, debug: bool) -> None:
         """Log MuJoCo solver convergence statistics in debug mode."""
         if not debug:
             return
+        solver = self.native
         niter = solver.mjw_data.solver_niter.numpy()
         data = {"max": np.max(niter), "mean": np.mean(niter), "min": np.min(niter), "std": np.std(niter)}
         logger.info(f"Solver convergence data: {data}")

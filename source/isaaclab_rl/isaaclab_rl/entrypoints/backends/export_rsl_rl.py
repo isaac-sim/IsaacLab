@@ -154,10 +154,11 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
 
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     try:
-        # only the observation groups consumed by the actor are exported; critic and teacher groups are dropped
+        # Export only the inference model inputs, excluding privileged and augmentation-only groups.
         obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
         if isinstance(obs_groups_cfg, Mapping):
-            required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+            model_group = "student" if agent_cfg.class_name == "DistillationRunner" else "actor"
+            required_obs_groups = set(obs_groups_cfg.get(model_group, ["policy"]))
         else:
             required_obs_groups = {"policy"}
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)

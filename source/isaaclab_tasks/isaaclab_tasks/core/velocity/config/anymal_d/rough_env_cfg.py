@@ -19,6 +19,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
+        self.sim.physics.newton_steel.solver_cfg.iterations = 16
         # scene
         self.scene.robot = replace(
             ANYMAL_D_CFG,

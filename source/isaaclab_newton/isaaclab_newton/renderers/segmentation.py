@@ -214,7 +214,7 @@ def _remap_shape_index_to_color_kernel(
 class NewtonSegmentationMapping:
     """Device lookup tables and host metadata for one segmentation output.
 
-    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.mapping` and reused across frames
+    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.build_mapping` and reused across frames
     since the scene geometry and semantics are static after construction.
     """
 
@@ -226,12 +226,12 @@ class NewtonSegmentationMapping:
     info: dict[str, dict]
 
     def convert_shape_index_to_output(self, shape_index: wp.array, out_view: wp.array) -> None:
-        """Generate the segmentation output into ``out_view`` (colorized RGBA or raw uint32 ids).
+        """Generate the segmentation output into ``out_view`` (colorized packed RGBA or raw int32 ids).
 
         Args:
             shape_index: Newton ``shape_index_image`` scratch, ``(world_count, 1, H, W)`` uint32.
             out_view: Destination view aliasing the camera output buffer as ``(world_count, 1, H, W)``,
-                dtype uint32 (both colorized and non-colorized).
+                dtype uint32 when colorized and int32 otherwise.
         """
         if self.shape_count == 0:
             out_view.zero_()

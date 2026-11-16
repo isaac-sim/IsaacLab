@@ -124,16 +124,20 @@ class NewtonCollisionPipelineCfg:
     2. Else if ``model.rigid_contact_max > 0``, use the model value.
     3. Else estimate automatically from model shape and pair metadata.
 
+    An explicit value is also set on the model before solver construction, so solvers that
+    size contact scratch at construction use the same capacity as the collision pipeline.
+
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
-    max_triangle_pairs: int = 1_000_000
+    max_triangle_pairs: int | None = None
     """Maximum number of triangle pairs allocated by narrow phase for mesh and heightfield collisions.
 
-    Increase this when scenes with large/complex meshes or heightfields report
-    triangle-pair overflow warnings.
+    Also sizes the global contact-reduction buffer and hashtable, which all worlds share.
+    If ``None``, Newton estimates it from the model, so it grows with the number of worlds.
+    Set it explicitly to choose the memory budget, or when overflow warnings appear.
 
-    Defaults to ``1_000_000`` (same as Newton's default).
+    Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
     soft_contact_max: int | None = None

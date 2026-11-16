@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics import HydroelasticSDFCfg, NewtonCfg, NewtonCollisionPipelineCfg
-
-from isaaclab_contrib.coupling import CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_newton.physics.coupling import CouplerProxyCfg, CouplerProxyMappingCfg
 
 if TYPE_CHECKING:
     import newton

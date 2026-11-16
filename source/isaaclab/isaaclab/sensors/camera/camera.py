@@ -26,6 +26,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
+from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
@@ -186,7 +187,6 @@ class Camera(SensorBase):
     .. note::
         Currently the following sensor types are not supported in a "view" format:
 
-        - ``"instance_segmentation"``: The instance segmentation data. Please use the fast counterparts instead.
         - ``"instance_id_segmentation"``: The instance id segmentation data. Please use the fast counterparts instead.
         - ``"bounding_box_2d_tight"``: The tight 2D bounding box data (only contains non-occluded regions).
         - ``"bounding_box_2d_tight_fast"``: The tight 2D bounding box data (only contains non-occluded regions).
@@ -270,30 +270,6 @@ class Camera(SensorBase):
         # it is here rather than in ``_initialize_impl``.
         sim_ctx = sim_utils.SimulationContext.instance()
         sim_ctx.require_visual_shapes()
-
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
-
-        # Rendering policy is read before the first reset, so configure it during camera construction.
-        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
-
-            settings = get_settings_manager()
-            settings.set("/isaaclab/render/rtx_sensors", True)
-            settings.set("/physics/fabricUpdateTransformations", True)
-            if require_hdr_output:
-                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif self.cfg.renderer_cfg.renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
@@ -550,8 +526,11 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`isaaclab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details
+        See :func:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
+
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
 
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
@@ -560,9 +539,6 @@ class Camera(SensorBase):
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         pos_wp = None
         if positions is not None:
@@ -587,14 +563,16 @@ class Camera(SensorBase):
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
-            NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If the stage up-axis is not "Y" or "Z".
             ValueError: If every eye position equals its target (look-at direction undefined for the
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
@@ -664,7 +642,7 @@ class Camera(SensorBase):
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
-            self._update_poses(env_mask=env_mask, frame_op=2)
+            self._update_poses(env_mask=reset_mask, frame_op=2)
         elif env_ids is None:
             self._update_poses(frame_op=2)
         else:
@@ -942,9 +920,6 @@ class Camera(SensorBase):
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
-
-        Returns:
-            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
@@ -1028,27 +1003,7 @@ class Camera(SensorBase):
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
             return None
-        if isinstance(env_ids, wp.array):
-            if env_ids.dtype != wp.int32:
-                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
-            if env_ids.ndim != 1:
-                raise ValueError("Warp camera indices must be a one-dimensional array.")
-            if str(env_ids.device) == str(self._device):
-                return env_ids
-            return env_ids.to(self._device)
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
-            if not env_ids.is_contiguous():
-                env_ids = env_ids.contiguous()
-            return wp.from_torch(env_ids, dtype=wp.int32)
-        elif isinstance(env_ids, slice) and (env_ids.step or 1) > 0:
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        elif isinstance(env_ids, slice):
-            # Torch cannot slice with a negative step.
-            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
-        else:
-            env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
-        return wp.array(env_ids, dtype=wp.int32, device=self._device)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""

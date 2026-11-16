@@ -13,3 +13,4 @@ The guides below cover task-specific configuration and deployment tools.
     04_reach/reach_policy
     05_leapp/exporting_policies_with_leapp
     06_so101_typing/so101_typing_policy
+    07_g1_sim2real/training_and_deploying_a_g1_visual_locomotion_policy

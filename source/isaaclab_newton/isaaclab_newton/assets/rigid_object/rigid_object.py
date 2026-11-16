@@ -21,6 +21,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -50,6 +51,8 @@ class RigidObject(BaseRigidObject):
 
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object."""
+
+    is_graphable = True
 
     def __init__(self, cfg: RigidObjectCfg):
         """Initialize the rigid object.
@@ -129,8 +132,8 @@ class RigidObject(BaseRigidObject):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -140,8 +143,8 @@ class RigidObject(BaseRigidObject):
             This ensures that the external wrench is applied at every simulation step.
         """
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -347,8 +350,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -359,21 +362,17 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -410,20 +409,16 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -435,7 +430,8 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -448,8 +444,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -462,23 +458,16 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                self.data.body_com_pos_b,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data.body_com_pos_b, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -490,7 +479,8 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -515,23 +505,16 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                self.data.body_com_pos_b,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data.body_com_pos_b, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask, from_link=False)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -571,20 +554,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_velocity,
-                env_ids,
-                1,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_ids, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -623,20 +600,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
-            inputs=[
-                root_velocity,
-                env_mask,
-                1,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_mask, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -664,8 +635,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             root_velocity: Root frame velocities in simulation world frame.
-                Shape is (len(env_ids), 6) or (num_instances, 6),
-                or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -677,24 +647,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_velocity,
-                self.data.body_com_pos_b,
-                self.data.root_link_pose_w,
-                env_ids,
-                1,
-            ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, self.data.body_com_pos_b, self.data._sim_bind_root_link_pose_w, env_ids, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -733,24 +693,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
-            inputs=[
-                root_velocity,
-                self.data.body_com_pos_b,
-                self.data.root_link_pose_w,
-                env_mask,
-                1,
-            ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, self.data.body_com_pos_b, self.data._sim_bind_root_link_pose_w, env_mask, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask, from_com=False)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     """
     Operations - Setters.
@@ -1068,12 +1018,15 @@ class RigidObject(BaseRigidObject):
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
@@ -1090,6 +1043,13 @@ class RigidObject(BaseRigidObject):
         self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self.device)
         self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
 
+    def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
+        """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
+        )
+
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.
 
@@ -1099,13 +1059,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of environment indices or a tensor of environment indices.
         """
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
@@ -1116,13 +1070,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     """
     Internal simulation callbacks.

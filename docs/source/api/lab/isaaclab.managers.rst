@@ -228,8 +228,39 @@ Curriculum Manager
     :members:
     :exclude-members: __init__
 
+.. _recorder-capture:
+
 Recorder Manager
 ----------------
+
+Tasks configure recorder terms to capture the state, controls and other fields their consumers need.
+Terms run at pre/post step and reset callbacks; reset callbacks receive slices or indices directly.
+Consumers own subsequent processing, replay and learning.
+
+Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples.
+For online use without retention, publish the batch on the term and return ``(None, None)``.
+Consumers access it through ``env.recorder_manager.get_term(name)`` and copy data before the next capture.
+``EXPORT_NONE`` disables file export only; disabling the term removes capture itself.
+
+Fields may have different sample rates. ``buffer_initial_capacity`` sets the initial samples per world
+and field; choose it with payload size and episode length in mind. Storage grows without dropping
+samples and is reused across resets.
+
+**Observation migration:** RL post-step callbacks run after rewards and terminations, before reset
+and observation updates. ``env.obs_buf`` still contains the preceding policy input. Read physical
+state from the scene or call ``env.observation_manager.compute_group("recording", update_history=False)``
+for current observations. Use a separate noiseless group without history or delay to avoid stale
+measurements and additional policy noise draws. History is not advanced, but noise and modifiers still
+run. Non-RL environments update their normal observations before post-step capture.
+
+**Storage migration:** ``get_episode(env_id)`` returns an owned tensor snapshot with a leading sample
+dimension; reading copies data and may synchronize the device. Modify live recording through
+``add_to_episodes`` and ``set_success_to_episodes``, not the snapshot. ``EpisodeData.add()`` and
+``pre_export()`` are removed: collect through the manager, or assign completed tensors to
+``episode.data``. HDF5 loading and playback keep the same tensor format.
+
+The unused ``RecorderTerm.close(file_path)`` hook is removed. Dataset handlers finalize files;
+applications explicitly close any additional resources they own.
 
 .. autoclass:: RecorderManager
     :members:

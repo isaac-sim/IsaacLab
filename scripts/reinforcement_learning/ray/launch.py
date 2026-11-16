@@ -105,7 +105,7 @@ def parse_args() -> argparse.Namespace:
         default="google_cloud",
         choices=["google_cloud"],
         help=(
-            "In the cluster_configs directory, the name of the folder where a tune.yaml.jinja"
+            "In the cluster_configs directory, the name of the folder where a kuberay.yaml.jinja"
             "file exists defining the KubeRay config. Currently only google_cloud is supported."
         ),
     )

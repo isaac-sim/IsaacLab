@@ -12,7 +12,7 @@ This guide shows how to record ``mp4`` clips from a visualizer or a scene sensor
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
    </video>
    <p class="viz-cap" style="text-align:center; font-style:italic;">Recorded clip of the
    Shadow Hand cube-reorientation task, recording the streaming view of the Rerun
@@ -108,7 +108,7 @@ Example 1: Kit viewport
 
    <div class="viz-clip-crop viz-clip-crop-lg">
      <video autoplay loop muted playsinline controls preload="auto">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_kit_viewport.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_kit_viewport.mp4" type="video/mp4">
      </video>
    </div>
    <p class="viz-cap">Kit visualizer</p>
@@ -128,7 +128,7 @@ Example 2: Scene sensor, headless
      <div>
        <div class="viz-clip-sensor">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_sensor.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_sensor.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Scene sensor</p>
@@ -169,7 +169,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
      <div>
        <div class="viz-clip-crop">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_newton_viewport.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_newton_viewport.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Newton GL visualizer</p>
@@ -177,7 +177,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
      <div>
        <div class="viz-clip-square">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_tiled_kit_viewport.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_tiled_kit_viewport.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Kit visualizer tiled streaming</p>

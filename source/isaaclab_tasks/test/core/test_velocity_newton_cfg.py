@@ -5,11 +5,11 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg
 
-from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughTeacherEnvCfg
 
 
 def test_g1_rough_newton_has_sufficient_constraint_capacity():
-    env_cfg = G1RoughEnvCfg()
+    env_cfg = G1RoughTeacherEnvCfg()
 
     solver_cfg = env_cfg.sim.physics.newton_mjwarp.solver_cfg
 

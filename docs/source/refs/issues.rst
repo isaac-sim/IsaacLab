@@ -13,6 +13,23 @@ apply to the others unless it says so.
    :depth: 2
 
 
+Kit runtime
+-----------
+
+Threading-related abort during shutdown
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** Isaac Sim 6.2.0 / Isaac Lab workflows using the Kit runtime,
+independent of the physics backend.
+
+The process can abort during shutdown with ``std::terminate`` in
+``carb::thread::recursive_shared_mutex::unlock``, called from
+``omni::usd::UsdContext::Impl::render``. This is a Kit threading issue.
+
+Keep Kit application initialization, updates, and shutdown on the same main thread;
+avoid pumping Kit updates or closing the application from a worker thread.
+
+
 PhysX backends
 --------------
 
@@ -168,6 +185,25 @@ its pose:
     # note: the number of steps might vary depending on how complicated the scene is.
     for _ in range(12):
         sim.render()
+
+.. _known-issues-ovrtx-gaussian-cold-cache:
+
+Gaussian scenes can return near-black images with a cold OVRTX cache
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``renderer=ovrtx`` with OVRTX 0.6 / OVStage 0.3 on both scene readers.
+This issue is fixed in OVRTX 0.7.
+
+The Valiant Gaussian-splat scene can return near-black images when OVRTX's ``DerivedDataCache``
+is empty, even though the render product requests ``AllLoadingFinished`` and ``OnlyOnFirstRequest``.
+Rerunning with the populated cache can produce a valid image. Clearing only the downloaded asset
+or driver shader cache did not reproduce this failure when the derived-data cache remained warm.
+
+On Linux, this cache is under
+``${XDG_CACHE_HOME:-$HOME/.cache}/ovrtx/<ovrtx-version>/DerivedDataCache``; for example, OVRTX 0.6
+uses the ``0.6.0`` directory. Isaac Lab currently pins OVRTX 0.6, so the Valiant rendering tests
+remain marked as expected failures. There is no supported Isaac Lab configuration workaround
+for the affected version.
 
 .. _known-issues-scene-partition-count-cap:
 

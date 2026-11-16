@@ -113,7 +113,7 @@ class modify_env_param(ManagerTermBase):
                         "static_friction_range": [0.5, 1.0],
                         "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
-                        "num_step": 120000,
+                        "num_steps": 120000,
                     },
                 },
             )
@@ -289,6 +289,13 @@ class modify_term_cfg(modify_env_param):
         super().__init__(cfg, env)
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
+
+
+def set_value_after_steps(env: ManagerBasedRLEnv, env_ids: Sequence[int], data: Any, value: Any, num_steps: int) -> Any:
+    """Set a term parameter on the first reset at or after ``num_steps`` global environment steps."""
+    if env.common_step_counter >= num_steps:
+        return value
+    return modify_term_cfg.NO_CHANGE
 
 
 class DifficultyScheduler(ManagerTermBase):

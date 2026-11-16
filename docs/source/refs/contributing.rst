@@ -125,34 +125,25 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo runtime archives are distributed through the permanent
-`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
-Upload reviewed, commit-named archives to that same release. Keep earlier release assets,
-then update the reviewed archive URL and SHA-256 together in
-``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
-The current archive contains the generated gallery, physics bundles, policy assets, and licenses.
-Exporter sources remain in the private browser-demo project and are not included in this archive.
-The docs workflow downloads the archive, verifies its checksum, and stages only its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. This contains one current gallery under
-``interactive/``; earlier gallery entry points redirect there without retaining older physics builds.
-The documentation source tree contains the staging script, documentation links, and thumbnails used on
-the Demos page. Gallery thumbnails stay in the runtime archive.
-Run the staging step from the repository root:
+The `interactive gallery <https://isaac-sim.github.io/IsaacLab-Web-Demos/>`_ is hosted separately
+from the documentation. Documentation builds include pages, small thumbnails, and redirects for
+earlier demo URLs; WebAssembly, policies, and scene geometry are served by the gallery host.
+
+After building the docs, write the compatibility redirects from the repository root:
 
 .. code-block:: bash
 
-   bash .github/actions/_lib/stage-browser-demos.sh
+   bash .github/actions/_lib/write-browser-demo-redirects.sh
 
-To preview the complete site locally, serve ``docs/_build`` over HTTP:
+To preview the documentation locally, serve ``docs/_build`` over HTTP:
 
 .. code-block:: bash
 
    uv run --no-project python -m http.server 8000 --directory docs/_build
 
-Open ``http://localhost:8000/current/index.html`` for the docs or
-``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
-``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
-The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+Open ``http://localhost:8000/current/index.html``. Embedded demos require internet access to the
+gallery host. Downloaded ``docs-html`` artifacts include ``PREVIEW.txt`` with the equivalent
+command to run from the extracted artifact's root directory.
 
 Use ``isaaclab-demos`` to embed the gallery in a guide without copying its catalog or simulator bundles
 into the documentation sources:
@@ -168,10 +159,10 @@ Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``p
 (``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
 The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
 It follows the documentation theme and provides a link to open the same selection in a separate tab.
-By default, embeds use the staged gallery on the documentation's own host, with links relative to
-each documentation page. To use a separate gallery host, set the Sphinx ``isaaclab_demo_base_url``
-configuration value to an absolute HTTP or HTTPS URL. For a local development server, pass
-``-D isaaclab_demo_base_url=http://localhost:8805/lab/`` to Sphinx.
+By default, embeds use ``https://isaac-sim.github.io/IsaacLab-Web-Demos/``. To preview another
+gallery, set the Sphinx ``isaaclab_demo_base_url`` configuration value to an absolute HTTP or
+HTTPS URL. For a local development server, pass
+``-D isaaclab_demo_base_url=http://localhost:8805/`` to Sphinx.
 
 .. caution::
 
@@ -418,6 +409,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Preserve observable behavior unless the change explicitly requires otherwise. Check ordering, shapes,
   dtype, device, input mutation, and failure behavior as well as return values. Public API removals and
   renames require a deprecation and migration path.
+* Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
+  Keep public base classes, backend data classes, and factories available through a deprecation release
+  when the broader consolidation is not part of the same change.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
@@ -649,7 +643,6 @@ Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a devic
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
-
 Shared Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -684,6 +677,22 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
+
+Shared sensor capabilities and storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Shared concepts have one owner, but backend capabilities can differ. Validate requested features
+before allocating resources. Keep optional measurements in coherent groups with explicit absence;
+never substitute zero measurements for unsupported features. A backend may extend a common data
+container with its own fields and lifecycle. Use the existing sensor factory and initialization
+root, not another capability registry or backend-specific copies of shared storage.
+
+Fused domain kernels retain gravity bias and lifecycle defaults while calling common equations.
+Name factories ``make_<operation>`` and cache optional PVA updates on demand. Isolate generated
+kernels with ``module="unique"``, keeping reset independent. Selecting one subset must not construct
+or compile other subsets, invalidate reset, or compile another backend's update path.
+Check cold compilation and warm execution separately.
+PVA shares pose/component storage and optional spatial outputs; backends own acquisition.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
@@ -1097,6 +1106,11 @@ or pruning tests. It maintains the detailed criteria for deciding whether a test
   and retry with ``uv run --extra <extra> python -m pytest ...``.
   For changes intended to reduce test time, measure before and after on the same machine and separate
   kernel compilation from execution time.
+* Mark tests for the CI selections they belong to: ``kitless`` when the test passes without Isaac Sim,
+  and ``ov`` when it runs or imports ``ovphysx``, ``ovrtx`` or ``ovstage``. Mark the whole file through
+  ``pytestmark`` when every test qualifies; otherwise mark the qualifying tests or parameters. CI selects
+  test files by searching their text for ``pytest.mark.<marker>``, so a mark applied by a shared helper
+  must also be named in the test file.
 
 Use the same commands on Linux and Windows:
 

@@ -281,8 +281,8 @@ class BaseVisualizer(ABC):
     ) -> None:
         """Register environment managers and direct scalars as live-plot data sources.
 
-        Creates one :class:`~isaaclab.ui.live_plots.ManagerLivePlots` per manager and one
-        :class:`~isaaclab.ui.live_plots.DirectScalarLivePlots` per scalar group, storing all
+        Creates one :class:`~isaaclab.ui.live_plots.manager_live_plots.ManagerLivePlots` per manager and one
+        :class:`~isaaclab.ui.live_plots.manager_live_plots.DirectScalarLivePlots` per scalar group, storing all
         sources for use inside :meth:`_render_live_plots`.  Does nothing when
         :meth:`supports_live_plots` returns ``False`` or ``cfg.enable_live_plots`` is ``False``.
 

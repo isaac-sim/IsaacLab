@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_contrib.coupling import CouplerSolver
+from isaaclab_newton.physics.coupling import CouplerSolver
 from newton import BodyFlags, GeoType, StateFlags
 from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.spatial import ConvexHull
@@ -159,6 +159,5 @@ class TeapotSolver(CouplerSolver):
         repair_teapot_hulls(builder)
         super().prepare_builder(cfg, builder)
 
-    @classmethod
-    def build_coupled(cls, cfg, model, entries, proxies, mode):
+    def build_coupled(self, model, entries, proxies, mode):
         return TeapotColliderSyncSolver(model=model, entries=entries)

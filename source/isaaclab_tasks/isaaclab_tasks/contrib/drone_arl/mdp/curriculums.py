@@ -80,8 +80,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
             env_ids: Environment indices to update.
             asset_cfg: Scene entity configuration for the robot. Defaults to SceneEntityCfg("robot").
             command_name: Name of the command to track. Defaults to "target_pose".
-            max_difficulty: Maximum difficulty level. Defaults to 10.
-            min_difficulty: Minimum difficulty level. Defaults to 2.
+            min_difficulty: Unused. The minimum difficulty level is read from ``cfg.params`` in :meth:`__init__`.
+            max_difficulty: Unused. The maximum difficulty level is read from ``cfg.params`` in :meth:`__init__`.
 
         Returns:
             Mean difficulty level across all environments (for logging).

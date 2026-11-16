@@ -196,7 +196,7 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
    :align: center
    :figwidth: 100%
    :alt: RGB camera output
@@ -315,7 +315,7 @@ The field accepts:
 * ``None`` to disable post-render ISP.
 * :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
   camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+* :class:`~isaaclab.sensors.camera.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
 
 .. code-block:: python
 

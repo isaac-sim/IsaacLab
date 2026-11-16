@@ -38,7 +38,7 @@ class TerrainImporter:
     sampling the sub-terrain origins.
 
     If a curriculum is used, it is possible to update the environment origins to terrain origins that correspond
-    to a harder difficulty. This is done by calling :func:`update_terrain_levels`. The idea comes from game-based
+    to a harder difficulty. This is done by calling :meth:`update_env_origins`. The idea comes from game-based
     curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.
     """
 
@@ -302,9 +302,8 @@ class TerrainImporter:
     def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.
 
-        This function imports a USD file into the simulator as a terrain. It parses the USD file and
-        stores the mesh under the prim path ``cfg.prim_path/{key}``. If multiple meshes are present in
-        the USD file, only the first mesh is imported.
+        This function imports a USD file into the simulator as a terrain. It references the whole USD
+        file under the prim path ``cfg.prim_path/{name}``.
 
         The function doe not apply any material properties to the mesh. The material properties should
         be defined in the USD file.

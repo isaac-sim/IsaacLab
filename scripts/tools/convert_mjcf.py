@@ -17,7 +17,8 @@ https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset
 
 positional arguments:
   input               The path to the input MJCF file.
-  output              The path to store the USD file.
+  output              A path whose parent directory stores the USD output; the file name is derived
+                      from the MJCF file name.
 
 optional arguments:
   -h, --help                Show this help message and exit

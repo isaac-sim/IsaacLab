@@ -538,7 +538,7 @@ If you don't see the expected performance, **always test policies from various e
 to find the best-performing model. Model performance can vary substantially across training, and the final epoch
 is not always optimal.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/franka_cube_stack_robomimic_mimic_bcrnn.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/franka_cube_stack_robomimic_mimic_bcrnn.gif
    :width: 100%
    :align: center
    :alt: Robomimic BCRNN policy performing the cube stacking task
@@ -598,7 +598,7 @@ Subtasks, among other configuration settings for Isaac Lab Mimic, are defined in
 
 All Mimic required config parameters are specified in the :class:`~isaaclab.envs.MimicEnvCfg` class.
 
-The config class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg` serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.
+The config class :class:`~isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg` serves as an example of creating a Mimic compatible environment config class for the Franka stacking task that was used in the examples above.
 
 The ``DataGenConfig`` member contains various parameters that influence how data is generated. It is initially sufficient to just set the ``name`` parameter, and revise the rest later.
 
@@ -636,7 +636,7 @@ Helpers needed for Isaac Lab Mimic are defined in the environment. All tasks tha
 
 * ``get_subtask_term_signals``: Returns a dictionary of binary flags for each subtask in a task. The flag of true is set when the subtask has been completed and false otherwise.
 
-The class :class:`~isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
+The class :class:`~isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
 
 Registering the environment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -660,7 +660,7 @@ The comparison below places a boundary just after grasping (left) or after lifti
 the object (right). The first choice makes the interpolated path collide with the
 table; the second leaves room for a smooth transition.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/lagging_subtask.gif
    :width: 99%
    :align: center
    :alt: Subtask splitting example
@@ -684,15 +684,15 @@ Below, the right arm interpolates between the left-hand grasp and right-hand
 placement. Zero steps produces a jump, 20 steps adds lag, and 5 steps gives a
 smooth transition in this example.
 
-.. |0_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/0_interpolation_steps.gif
+.. |0_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/0_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 0 interpolation steps
 
-.. |5_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/5_interpolation_steps.gif
+.. |5_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/5_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 5 interpolation steps
 
-.. |20_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/20_interpolation_steps.gif
+.. |20_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/20_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 20 interpolation steps
 

@@ -56,8 +56,6 @@ def test_implicit_actuator_init_minimum(device, usd_default):
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
     torch.testing.assert_close(actuator.joint_effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
-    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-        torch.testing.assert_close(actuator.effort_limit, actuator.joint_effort_limit)
     torch.testing.assert_close(
         actuator.actuator_velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)
     )
@@ -107,31 +105,6 @@ def test_implicit_actuator_init_limits(cfg_limit, limit_name):
     torch.testing.assert_close(
         getattr(actuator, limit_name), limit_expected * torch.ones(num_envs, num_joints, device=device)
     )
-
-
-def test_implicit_actuator_deprecated_effort_aliases_resolve_rated_and_solver():
-    """Deprecated ``effort_limit``/``effort_limit_sim`` map to the rated and solver limits."""
-    device = "cpu"
-    joint_names = ["joint_0"]
-    actuator_cfg = ImplicitActuatorCfg(
-        joint_names_expr=joint_names,
-        stiffness=200,
-        damping=10,
-        effort_limit=87.0,
-        effort_limit_sim=870.0,
-    )
-    with pytest.warns(DeprecationWarning):
-        actuator = instantiate(
-            actuator_cfg,
-            joint_names=joint_names,
-            joint_ids=[0],
-            num_envs=2,
-            device=device,
-            stiffness=actuator_cfg.stiffness,
-            damping=actuator_cfg.damping,
-        )
-    torch.testing.assert_close(actuator.actuator_effort_limit, 87.0 * torch.ones(2, 1, device=device))
-    torch.testing.assert_close(actuator.joint_effort_limit, 870.0 * torch.ones(2, 1, device=device))
 
 
 if __name__ == "__main__":

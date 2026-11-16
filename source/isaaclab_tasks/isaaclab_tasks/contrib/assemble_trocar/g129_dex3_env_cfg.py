@@ -480,8 +480,8 @@ class EventCfgFixTrayRotation(EventCfg):
 class G1AssembleTrocarEvalEnvCfg(G1AssembleTrocarEnvCfg):
     """Eval-friendly env cfg.
 
-    This is currently an alias of `G1AssembleTrocarEnvCfg`, but registered under a
-    separate Gym id for compatibility with RLinf configs.
+    This is `G1AssembleTrocarEnvCfg` with a deterministic per-env tray yaw on reset,
+    registered under a separate Gym id for compatibility with RLinf configs.
     """
 
     # Override events to enforce deterministic per-env tray yaw on every reset.

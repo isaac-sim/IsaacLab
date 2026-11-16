@@ -105,6 +105,14 @@ def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntity
     return torch.square(asset.data.root_lin_vel_b.torch[:, 2])
 
 
+def root_downward_speed_l2(
+    env: ManagerBasedRLEnv, speed_limit: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize world-frame downward root speed exceeding the limit [m/s]."""
+    velocity_z = env.scene[asset_cfg.name].data.root_lin_vel_w.torch[:, 2]
+    return torch.clamp(-velocity_z - speed_limit, min=0.0).square()
+
+
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -152,6 +160,28 @@ def base_height_l2(
         adjusted_target_height = target_height
     # Compute the L2 squared penalty
     return torch.square(asset.data.root_pos_w.torch[:, 2] - adjusted_target_height)
+
+
+def pelvis_height_deficit_l2(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("height_scanner"),
+) -> torch.Tensor:
+    """Squared shortfall of the root below ``target_height`` above the ground beneath it."""
+    asset = env.scene[asset_cfg.name]
+    sensor = env.scene[sensor_cfg.name]
+    hits = sensor.data.ray_hits_w.torch[..., 2]
+    ground = torch.nan_to_num(hits, nan=0.0, posinf=0.0, neginf=0.0).median(dim=1).values
+    clearance = asset.data.root_pos_w.torch[:, 2] - ground
+    return torch.clamp(target_height - clearance, min=0.0).square()
+
+
+def body_ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Squared world-frame roll/pitch angular velocity of a named body."""
+    asset = env.scene[asset_cfg.name]
+    omega = asset.data.body_ang_vel_w.torch[:, asset_cfg.body_ids, :].squeeze(1)
+    return torch.sum(torch.square(omega[:, :2]), dim=1)
 
 
 def body_lin_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -214,6 +244,15 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     return torch.sum(torch.abs(angle), dim=1)
 
 
+def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Squared deviation of the selected joints from their default angles."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    angle = (
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+    )
+    return torch.sum(torch.square(angle), dim=1)
+
+
 def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize joint positions that deviate from a target value using an L2 squared kernel.
 
@@ -246,7 +285,8 @@ def joint_vel_limits(
 ) -> torch.Tensor:
     """Penalize joint velocities if they cross the soft limits.
 
-    This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
+    For each joint, the excess is ``abs(joint_velocity) - soft_joint_velocity_limit * soft_ratio``.
+    Each excess is clipped to [0, 1] before summing over the selected joints, so the penalty is at most 1 per joint.
 
     Args:
         soft_ratio: The ratio of the soft limits to be used.
@@ -390,7 +430,7 @@ def position_command_error_tanh(
     """Reward tracking of the position error using the tanh kernel.
 
     The position error [m] is computed as in :func:`position_command_error` and mapped through a tanh
-    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``[0, 1)``.
+    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``(0, 1]``.
     """
     distance = position_command_error(env, command_name, asset_cfg)
     return 1 - torch.tanh(distance / std)

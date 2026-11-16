@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 class VBDSolver(NewtonSolver):
     """Newton's Vertex Block Descent solver."""
 
+    cfg: VBDSolverCfg
+
     solver_class = SolverVBD
 
     @classmethod
@@ -29,30 +31,24 @@ class VBDSolver(NewtonSolver):
         """Color the completed builder before allocating the model."""
         builder.color(include_bending=True, balance_colors=False)
 
-    @classmethod
-    def build(
-        cls, cfg: VBDSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverVBD:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverVBD:
         """Construct VBD, leaving :attr:`~VBDSolverCfg.rigid_compliant_alm` to Newton's default when unset."""
-        kwargs = solver_kwargs(cls.solver_class, cfg, mode)
-        if cfg.rigid_compliant_alm is None:
+        kwargs = solver_kwargs(self.solver_class, self.cfg, mode)
+        if self.cfg.rigid_compliant_alm is None:
             kwargs.pop("rigid_compliant_alm", None)
-        return cls.solver_class(model, **kwargs)
+        return self.solver_class(model, **kwargs)
 
-    @classmethod
-    def applies_body_forces(cls, cfg: VBDSolverCfg, solver: SolverVBD) -> bool:
-        return not cfg.integrate_with_external_rigid_solver
+    def applies_body_forces(self) -> bool:
+        return not self.cfg.integrate_with_external_rigid_solver
 
-    @classmethod
-    def pre_step(cls, cfg: VBDSolverCfg, solver: SolverVBD, state: State) -> None:
+    def pre_step(self, state: State) -> None:
         """Rebuild the particle BVH before each physics step."""
-        if solver.model.particle_count > 0:
-            solver.rebuild_bvh(state)
+        if self.native.model.particle_count > 0:
+            self.native.rebuild_bvh(state)
 
-    @classmethod
-    def post_step(cls, cfg: VBDSolverCfg, solver: SolverVBD, state: State) -> None:
+    def post_step(self, state: State) -> None:
         """Publish standalone VBD joint state without changing coupled-solver ownership."""
-        model = solver.model
+        cfg, model = self.cfg, self.native.model
         if (
             cfg.update_joint_state
             and not cfg.integrate_with_external_rigid_solver

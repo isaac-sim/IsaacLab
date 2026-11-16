@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from . import noise_cfg
@@ -108,7 +109,7 @@ class NoiseModel:
         self._num_envs = num_envs
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method can be implemented by derived classes to reset the noise model.
@@ -117,6 +118,8 @@ class NoiseModel:
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
         pass
 
@@ -146,10 +149,12 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         # store the bias noise configuration
         self._bias_noise_cfg = noise_model_cfg.bias_noise_cfg
         self._bias = torch.zeros((num_envs, 1), device=self._device)
+        # zeros that the bias noise is applied to on reset; the noise functions never modify their input
+        self._zero_bias = torch.zeros_like(self._bias)
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method resets the bias term for the specified environments.
@@ -157,12 +162,19 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
+        if env_mask is not None:
+            # sample every bias and keep the selected ones, so the mask is never compacted on the host
+            bias = self._bias_noise_cfg.func(self._zero_bias, self._bias_noise_cfg)
+            torch.where(wp.to_torch(env_mask)[:, None], bias, self._bias, out=self._bias)
+            return
         # resolve the environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # reset the bias term
-        self._bias[env_ids] = self._bias_noise_cfg.func(self._bias[env_ids], self._bias_noise_cfg)
+        # sample a fresh bias; applying the noise to the previous bias would accumulate it for the "add" operation
+        self._bias[env_ids] = self._bias_noise_cfg.func(self._zero_bias[env_ids], self._bias_noise_cfg)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply bias noise to the data.
@@ -176,6 +188,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         if self._sample_bias_per_component and self._num_components is None:
             self._num_components = math.prod(data.shape[1:])
             self._bias = self._bias.repeat(1, self._num_components)
+            self._zero_bias = torch.zeros_like(self._bias)
             self.reset()
         # Keep the environment axis fixed while broadcasting over observation components.
         bias_shape = data.shape if self._sample_bias_per_component else (self._num_envs,) + (1,) * (data.ndim - 1)
