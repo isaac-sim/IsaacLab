@@ -27,7 +27,7 @@ from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.warp.capture import GraphedCallable, eager
+from isaaclab.utils.warp.capture import GraphedCallable
 
 
 def _generate_single_joint_articulations(num_articulations: int, device: str) -> Articulation:
@@ -190,7 +190,7 @@ def test_the_step_after_a_replayed_state_write_resolves_it_as_after_an_eager_wri
                     body_q = wp.to_torch(backend.state_0.body_q).clone()
                     # the same write made eagerly, resolved by the forward boundary
                     articulation.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-                    backend.forward(force=True)
+                    backend.forward()
                     wp.synchronize_device(device)
                     torch.testing.assert_close(body_q, wp.to_torch(backend.state_0.body_q), msg=f"offset {offset}")
                 assert bool(backend.graphs) == use_cuda_graph
@@ -236,48 +236,3 @@ def test_a_recorded_read_after_a_recorded_write_sees_its_forward_kinematics_on_e
             GraphedCallable.enabled = enabled
             reset.reset()
             read.reset()
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_an_eager_read_after_a_recorded_write_sees_its_forward_kinematics_on_every_replay(device):
-    """An eager call that reads body poses after a recorded joint write consumes the write's pending FK while
-    recording; every replay still evaluates FK for the replayed write before that call, so it reads the new poses."""
-    sim_cfg = SimulationCfg(
-        dt=1 / 120,
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(njmax=20, nconmax=20, integrator="implicitfast"),
-            num_substeps=1,
-            use_cuda_graph=False,
-        ),
-    )
-    with build_simulation_context(sim_cfg=sim_cfg, device=device) as sim:
-        sim._app_control_on_stop_handle = None
-        articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
-        sim.reset()
-        env_mask = wp.array([True, False], dtype=wp.bool, device=device)
-        default_joint_pos = articulation.data.default_joint_pos.torch.clone()
-        joint_pos = wp.from_torch(default_joint_pos.clone())
-        reads: list[torch.Tensor] = []
-
-        def read_body_poses():
-            reads.append(articulation.data.body_link_pose_w.torch.clone())
-
-        def reset_env_0():
-            articulation.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-            eager(read_body_poses)
-
-        reset = GraphedCallable(reset_env_0, device)
-        enabled, GraphedCallable.enabled = GraphedCallable.enabled, True
-        try:
-            for offset in (0.25, 0.5, 1.0):  # the first call records, the others replay
-                wp.to_torch(joint_pos).copy_(default_joint_pos + offset)
-                reset()
-                wp.synchronize_device(device)
-                # the same write and read without a recording
-                articulation.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-                expected = articulation.data.body_link_pose_w.torch.clone()
-                torch.testing.assert_close(reads[-1], expected, msg=f"offset {offset}")
-            assert not torch.allclose(reads[0][0], reads[-1][0]), "the joint write must move env 0's bodies"
-        finally:
-            GraphedCallable.enabled = enabled
-            reset.reset()

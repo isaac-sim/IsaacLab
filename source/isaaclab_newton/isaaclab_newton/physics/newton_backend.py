@@ -343,15 +343,10 @@ class NewtonBackend:
             device=self.device,
         )
 
-    def forward(self, force: bool = False) -> None:
-        """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags.
-
-        Args:
-            force: Whether to evaluate even when the host flags report no pending work, for a replay whose recorded
-                writes flagged worlds on the device only. Defaults to False.
-        """
+    def forward(self) -> None:
+        """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags."""
         self.notify_model_changes()
-        if not (force or self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
+        if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
         if self.solver_ops is None:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")

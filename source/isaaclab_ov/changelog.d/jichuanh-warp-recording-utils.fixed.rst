@@ -2,4 +2,4 @@
   graph that :class:`~isaaclab.utils.warp.capture.GraphedCallable` recorded while they were current. A recording
   now holds their update, so every replay recomputes them. The accelerations taken by finite differencing, which
   ``update`` advances once per physics step, are read as they are. The OVPhysX sensors read through host calls, so
-  each sensor refresh runs eagerly at its place on every replay.
+  a recorded call that refreshes one runs without a CUDA graph.

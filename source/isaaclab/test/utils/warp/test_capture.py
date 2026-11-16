@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -17,7 +18,6 @@ from isaaclab.utils.warp.capture import (
     capturing,
     eager,
     eager_method,
-    repeat_before_eager_call,
 )
 
 wp.init()
@@ -33,7 +33,7 @@ def _affine(values: wp.array(dtype=wp.int32), scale: wp.int32, shift: wp.int32):
 
 def _num_graphs(graphed: GraphedCallable) -> int:
     """Number of graphs recorded for a callable."""
-    return sum(isinstance(step, wp.Graph) for steps, _ in graphed._recordings.values() for step in steps)
+    return len(graphed._recordings)
 
 
 class _Affine:
@@ -152,8 +152,8 @@ def test_callable_runs_eagerly_when_disabled_or_on_cpu(monkeypatch):
     assert (disabled.calls, _read(values), _num_graphs(graphed)) == (2, [2], 0)
 
 
-def test_eager_call_runs_between_its_graphs_on_every_call():
-    """The recording runs the graph before an eager call first, and every replay keeps that order."""
+def test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly(caplog):
+    """A recording that meets an eager call launches nothing; the call then runs plainly, now and on later calls."""
     before, between, after = _Affine(2, 0), _Affine(1, 10), _Affine(3, 0)
 
     def body(values: wp.array) -> wp.array:
@@ -164,58 +164,56 @@ def test_eager_call_runs_between_its_graphs_on_every_call():
     graphed = GraphedCallable(body, DEVICE)
     values = wp.ones(1, dtype=wp.int32, device=DEVICE)
 
-    graphed(values)
-    # the non-commuting steps only give these values in order: 1 * 2 + 10 = 12 -> 36, then 36 * 2 + 10 = 82 -> 246
+    with caplog.at_level(logging.WARNING, logger="isaaclab.utils.warp.capture"):
+        graphed(values)
+    # only the plain run reached the device: 1 * 2 + 10 = 12 -> 36
     assert _read(values) == [36]
     graphed(values)
-    assert (_read(values), between.calls, before.calls, after.calls, _num_graphs(graphed)) == ([246], 2, 1, 1, 2)
+    # 36 * 2 + 10 = 82 -> 246; the abandoned recording ran the Python of `before` once more
+    assert (_read(values), before.calls, between.calls, after.calls, _num_graphs(graphed)) == ([246], 3, 2, 2, 0)
+    assert [record.getMessage() for record in caplog.records] == [
+        "'test_an_eager_call_abandons_the_recording_and_the_callable_runs_plainly.<locals>.body' calls"
+        " '_Affine', which cannot be recorded, so it runs without a CUDA graph."
+    ]
 
 
-def test_an_eager_call_adds_a_call_that_every_replay_runs_right_before_it():
-    """Work an eager call does only while recording, such as consuming a flag a recorded write set on the host, repeats
-    on every replay right before the eager call."""
-    before, added, after = _Affine(2, 0), _Affine(1, 10), _Affine(3, 0)
-    added_outside_a_recording = []
-
-    def eager_call(values: wp.array):
-        # on replays no recording runs, so the call is not added again
-        if not repeat_before_eager_call(lambda: added(values)):
-            added_outside_a_recording.append(True)
-        after(values)
+def test_an_eager_call_abandons_the_recording_through_an_exception_handler():
+    """The code a recording calls cannot catch the abandonment by mistake."""
+    fn = _Affine(1, 10)
 
     def body(values: wp.array):
-        before(values)
-        eager(eager_call, values)
+        try:
+            eager(fn, values)
+        except Exception:  # noqa: BLE001
+            pytest.fail("the abandonment must pass an `except Exception` handler")
+
+    graphed = GraphedCallable(body, DEVICE)
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    graphed(values)
+    assert (_read(values), fn.calls, _num_graphs(graphed)) == ([10], 1, 0)
+
+
+def test_a_callable_that_ran_plainly_records_again_after_an_invalidation():
+    """A term change can remove the eager call, so an invalidation lets the callable record again."""
+    fn, eager_fn = _Affine(2, 0), _Affine(1, 10)
+    uses_eager = [True]
+
+    def body(values: wp.array):
+        fn(values)
+        if uses_eager[0]:
+            eager(eager_fn, values)
 
     graphed = GraphedCallable(body, DEVICE)
     values = wp.ones(1, dtype=wp.int32, device=DEVICE)
-    graphed(values)
-    # the recording ran only the eager call: 1 * 2 = 2 -> 6
-    assert _read(values) == [6]
-    graphed(values)
-    # the replay adds 10 between the recorded scale and the eager call: (6 * 2 + 10) * 3 = 66
-    assert (_read(values), added.calls, len(added_outside_a_recording)) == ([66], 1, 1)
-    assert not repeat_before_eager_call(lambda: None), "outside a recording nothing is added"
+    graphed(values)  # abandoned, then plain: 1 * 2 + 10 = 12
+    uses_eager[0] = False
+    GraphedCallable.invalidate()
+    graphed(values)  # records: 24
+    graphed(values)  # replays: 48
+    assert (_read(values), fn.calls, _num_graphs(graphed)) == ([48], 3, 1)
 
 
-def test_eager_call_first_runs_before_the_recorded_work():
-    """A callable making its eager call first runs it before its recorded work, also when it replays the recording."""
-    eager_fn, first, second = _Affine(1, 10), _Affine(2, 0), _Affine(3, 0)
-
-    def body(values: wp.array) -> wp.array:
-        eager(eager_fn, values)
-        first(values)
-        return second(values)
-
-    graphed = GraphedCallable(body, DEVICE)
-    values = wp.ones(1, dtype=wp.int32, device=DEVICE)
-    graphed(values)
-    graphed(values)
-
-    assert _read(values) == [((1 + 10) * 6 + 10) * 6]
-
-
-def test_eager_call_of_a_nested_callable_splits_the_enclosing_recording():
+def test_an_eager_call_of_a_nested_callable_makes_both_run_plainly():
     eager_fn, inner_fn, outer_fn = _Affine(1, 10), _Affine(2, 0), _Affine(3, 0)
     nested = GraphedCallable(lambda values: (eager(eager_fn, values), inner_fn(values)), DEVICE)
     outer = GraphedCallable(lambda values: (outer_fn(values), nested(values)), DEVICE)
@@ -223,9 +221,9 @@ def test_eager_call_of_a_nested_callable_splits_the_enclosing_recording():
 
     outer(values)
     outer(values)
-    # 1 * 3 + 10 = 13 -> 26, then 26 * 3 + 10 = 88 -> 176: the nested eager call runs between the outer graphs
-    assert (_read(values), eager_fn.calls, inner_fn.calls, outer_fn.calls) == ([176], 2, 1, 1)
-    assert (_num_graphs(outer), _num_graphs(nested)) == (2, 0)
+    # 1 * 3 + 10 = 13 -> 26, then 26 * 3 + 10 = 88 -> 176
+    assert (_read(values), eager_fn.calls, inner_fn.calls) == ([176], 2, 2)
+    assert (_num_graphs(outer), _num_graphs(nested), outer._plain, nested._plain) == (0, 0, True, True)
 
 
 def test_eager_call_raises_inside_a_capture_no_callable_started():
@@ -253,12 +251,11 @@ def test_capturing_sees_a_cpu_capture():
 
 
 def test_callable_raising_while_recording_ends_the_capture():
-    """A failed recording must not leave the device capturing; the next call records again."""
-    recorded, eager_fn = _Affine(2, 0), _Affine(1, 10)
+    """A failed recording launches nothing and must not leave the device capturing; the next call records again."""
+    recorded = _Affine(2, 0)
 
     def body(values: wp.array) -> wp.array:
         recorded(values)
-        eager(eager_fn, values)
         if recorded.calls == 1:
             raise ValueError("first recording fails")
         return values
@@ -269,9 +266,9 @@ def test_callable_raising_while_recording_ends_the_capture():
     with pytest.raises(ValueError, match="first recording fails"):
         graphed(values)
     assert not wp.get_device(DEVICE).is_capturing
+    assert _read(values) == [1]
     graphed(values)
-    # the failed recording ran its first graph and the eager call: 1 * 2 + 10 = 12, then 12 * 2 + 10 = 34
-    assert (_read(values), _num_graphs(graphed)) == ([34], 2)
+    assert (_read(values), _num_graphs(graphed)) == ([2], 1)
 
 
 class _ChangeRegistry:
@@ -285,8 +282,8 @@ class _ChangeRegistry:
         self.changes.append(change)
 
 
-def test_eager_method_repeats_host_work_on_every_replay():
-    """A recorded writer's host registration runs on the recording and on each replay, after the recorded kernel."""
+def test_an_eager_method_makes_its_recorded_caller_run_plainly():
+    """A writer whose host registration cannot be recorded runs plainly, so the registration happens on every call."""
     registry = _ChangeRegistry()
     values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
     fn = _Affine()
@@ -298,7 +295,7 @@ def test_eager_method_repeats_host_work_on_every_replay():
     graphed = GraphedCallable(writer, DEVICE)
     for _ in range(3):
         graphed()
-    assert (registry.changes, _read(values), fn.calls) == ([7, 7, 7], [3], 1)
+    assert (registry.changes, _read(values), _num_graphs(graphed)) == ([7, 7, 7], [3], 0)
 
 
 def test_recording_settles_the_watched_backend_first():
