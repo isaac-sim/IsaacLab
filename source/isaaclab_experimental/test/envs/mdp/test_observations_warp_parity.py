@@ -198,9 +198,10 @@ def all_joints_cfg():
     return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), NUM_JOINTS, DEVICE)
 
 
-@pytest.fixture()
-def subset_cfg():
-    return MockSceneEntityCfg("robot", [0, 2, 5, 8], NUM_JOINTS, DEVICE)
+@pytest.fixture(params=[[0, 2, 5, 8], [8, 0, 5, 2]], ids=["sorted", "reordered"])
+def subset_cfg(request):
+    """A joint subset in asset order, and the same joints reordered as ``preserve_order=True`` resolves them."""
+    return MockSceneEntityCfg("robot", request.param, NUM_JOINTS, DEVICE)
 
 
 # ============================================================================
