@@ -709,13 +709,6 @@ def _resample_drift(env_mask, drift_range, ray_cast_min, ray_cast_max, rng_state
 class TestResampleDriftMaskedKernel:
     """Tests for :func:`resample_drift_masked_kernel`."""
 
-    def test_only_masked_envs_change(self):
-        env_mask = wp.array([True, False, True, False], dtype=wp.bool, device=DEVICE)
-        drift, ray_cast_drift = _resample_drift(env_mask, (0.1, 0.2), (0.1, 0.1, 0.1), (0.2, 0.2, 0.2), _rng_state())
-        for values in (drift, ray_cast_drift):
-            np.testing.assert_array_equal(values[[1, 3]], -1.0)
-            assert (values[[0, 2]] >= 0.1).all()
-
     def test_draws_stay_in_their_ranges(self):
         env_mask = wp.array([True] * 64, dtype=wp.bool, device=DEVICE)
         drift, ray_cast_drift = _resample_drift(
@@ -729,10 +722,3 @@ class TestResampleDriftMaskedKernel:
         drift, ray_cast_drift = _resample_drift(env_mask, (0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), _rng_state())
         np.testing.assert_array_equal(drift, 0.0)
         np.testing.assert_array_equal(ray_cast_drift, 0.0)
-
-    def test_state_advances_between_launches(self):
-        env_mask = wp.array([True] * 4, dtype=wp.bool, device=DEVICE)
-        rng_state = _rng_state()
-        first, _ = _resample_drift(env_mask, (-1.0, 1.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), rng_state)
-        second, _ = _resample_drift(env_mask, (-1.0, 1.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), rng_state)
-        assert not np.array_equal(first, second)

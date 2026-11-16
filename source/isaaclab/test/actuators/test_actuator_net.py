@@ -126,31 +126,3 @@ def test_mlp_history_keeps_its_address_and_window(tmp_path, device):
     assert (actuator._joint_pos_error_history.data_ptr(), actuator._joint_vel_history.data_ptr()) == addresses
     expected = torch.tensor([4.0, 3.0, 2.0], device=device).view(1, 3, 1).expand(3, 3, 2)
     torch.testing.assert_close(actuator._joint_vel_history, expected)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_masked_reset_accepts_a_host_mask(tmp_path, device):
-    """A host mask resets the same environments of a CUDA network actuator as a mask on its device."""
-    host_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
-    lstm = _actuator(ActuatorNetLSTMCfg, _ZeroTorqueLSTM(), tmp_path, device)
-    lstm.sea_hidden_state.fill_(1.0)
-    lstm.sea_cell_state.fill_(1.0)
-    lstm.reset(env_mask=host_mask)
-    _assert_masked_zero(lstm.sea_hidden_state_per_env, env_dim=1)
-    _assert_masked_zero(lstm.sea_cell_state_per_env, env_dim=1)
-    mlp = _actuator(
-        ActuatorNetMLPCfg,
-        _ZeroTorqueMLP(),
-        tmp_path,
-        device,
-        input_idx=[0, 1, 2],
-        pos_scale=1.0,
-        vel_scale=1.0,
-        torque_scale=1.0,
-        input_order="pos_vel",
-    )
-    mlp._joint_pos_error_history.fill_(1.0)
-    mlp._joint_vel_history.fill_(1.0)
-    mlp.reset(env_mask=host_mask)
-    _assert_masked_zero(mlp._joint_pos_error_history, env_dim=0)
-    _assert_masked_zero(mlp._joint_vel_history, env_dim=0)

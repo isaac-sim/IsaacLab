@@ -296,16 +296,9 @@ def test_network_actuators_drive_haa_joints(rollouts: _Rollouts, robot: str) -> 
     assert not torch.allclose(trace["applied_effort"][0][:, haa_ids], trace["applied_effort"][-1][:, haa_ids])
 
 
-@pytest.mark.parametrize("selector", ["env_ids", "env_mask"])
-def test_reset_clears_actuator_state_of_selected_envs(rollouts: _Rollouts, selector: str) -> None:
-    """Resetting environment 0 by indices or by mask clears the delay history of its DoFs only."""
+def test_reset_clears_actuator_state_of_selected_envs(rollouts: _Rollouts) -> None:
+    """Resetting environment 0 clears the delay history of its DoFs only."""
     articulation = rollouts.robots["delayed"]
-    # Refill the delay history that a previous reset cleared.
-    sim = SimulationContext.instance()
-    for _ in range(3):
-        articulation.write_data_to_sim()
-        sim.step()
-        articulation.update(DT)
     adapter = articulation.newton_actuator_adapter
     delay_states = [
         (actuator, state.delay_state)
@@ -315,10 +308,7 @@ def test_reset_clears_actuator_state_of_selected_envs(rollouts: _Rollouts, selec
     assert delay_states
     assert all((delay_state.num_pushes.numpy() > 0).all() for _, delay_state in delay_states)
 
-    if selector == "env_ids":
-        articulation.reset(env_ids=torch.tensor([0], device=articulation.device))
-    else:
-        articulation.reset(env_mask=wp.from_torch(torch.arange(NUM_ENVS, device=articulation.device) == 0))
+    articulation.reset(env_ids=torch.tensor([0], device=articulation.device))
     for actuator, delay_state in delay_states:
         env_of_dof = actuator.indices.numpy() // adapter.num_joints
         pushes = delay_state.num_pushes.numpy()

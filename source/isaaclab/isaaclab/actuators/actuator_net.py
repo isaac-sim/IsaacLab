@@ -72,9 +72,6 @@ class ActuatorNetLSTM(DCMotor):
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         if env_mask is not None:
-            if env_mask.device != wp.get_device(self._device):
-                # a mask from another device (e.g. the host) is copied once; a mask on this device is used as given
-                env_mask = env_mask.to(self._device)
             # a mask resets with a Warp launch, which a CUDA graph recording of the reset holds
             for state in (self.sea_hidden_state_per_env, self.sea_cell_state_per_env):
                 for layer in state:
@@ -162,9 +159,6 @@ class ActuatorNetMLP(DCMotor):
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         if env_mask is not None:
-            if env_mask.device != wp.get_device(self._device):
-                # a mask from another device (e.g. the host) is copied once; a mask on this device is used as given
-                env_mask = env_mask.to(self._device)
             # a mask resets with a Warp launch, which a CUDA graph recording of the reset holds
             for history in (self._joint_pos_error_history, self._joint_vel_history):
                 values = wp.from_torch(history.view(self._num_envs, -1))
