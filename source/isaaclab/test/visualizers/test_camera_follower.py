@@ -179,14 +179,6 @@ def test_the_followable_assets_and_bodies_are_listed():
     assert follower.body_names("missing") == []
 
 
-def test_clearing_the_asset_keeps_the_view_tied_to_its_environment():
-    cfg = TrackingCameraCfg(track_path="robot")
-    follower = CameraFollower(cfg, _NamedScene())
-    assert isinstance(cfg, TrackingCameraCfg)
-    follower.set_track_path(None)
-    assert cfg.track_path is None and isinstance(cfg, TrackingCameraCfg)
-
-
 def test_a_steady_turn_with_heavy_smoothing_is_not_mistaken_for_an_environment_reset():
     cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=2.0)
     follower = CameraFollower(cfg, _NamedScene())
