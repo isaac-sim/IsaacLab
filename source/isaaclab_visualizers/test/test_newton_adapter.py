@@ -1459,6 +1459,7 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
 def test_a_window_with_an_explicit_view_still_gets_the_launch_declared_viewer_camera():
     visualizer = _make_newton_visualizer(_Viewer())
     visualizer.cfg.window.size = (960, 540)
+    visualizer.cfg.streaming_gt_types = ("depth",)  # The scene cameras' channels do not apply to the viewer camera.
     sensor = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx"))
     other = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera"))
     provider = SimpleNamespace(get_camera_sensors=lambda: {s.cfg.prim_path: s for s in (other, sensor)})
@@ -1474,6 +1475,7 @@ def test_a_window_with_an_explicit_view_still_gets_the_launch_declared_viewer_ca
     visualizer._add_viewer_camera(sim)
 
     assert [cfg.source for cfg in created] == ["/World/viewer_camera_0_rtx"]
+    assert created[0].channels == ("rgb",)  # Launch declares the viewer camera with RGBA only.
     assert visualizer.rtx_view_index == 1 and visualizer._image_views[1].aspect == pytest.approx(960 / 540)
 
 

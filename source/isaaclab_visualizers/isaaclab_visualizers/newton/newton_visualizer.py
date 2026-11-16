@@ -1091,9 +1091,12 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self._image_views.index(pose_view)
                 if pose_view is not None
                 else next(
-                    i
-                    for i in indices
-                    if self._image_views[i].camera is None and not self._is_task_view(self._image_views[i])
+                    (
+                        i
+                        for i in indices
+                        if self._image_views[i].camera is None and not self._is_task_view(self._image_views[i])
+                    ),
+                    indices[0],  # No free perspective view: show the first source
                 )
             )
         position = indices.index(current)
@@ -2155,7 +2158,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._overlay_publisher is not None:
                 self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
-            self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
+            fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            self._select_camera(self._image_views.index(back) if back is not None else fallback, keep_pose=True)
 
     def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
         """Name the run in the HUD header.
@@ -2219,10 +2223,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         camera = next((sensor for sensor in sensors.values() if self._is_viewer_camera(sensor.cfg.prim_path)), None)
         if camera is None:
             return
-        view_cfg = ImageViewCfg(
-            source=camera.cfg.prim_path, envs=(0,), channels=tuple(self.cfg.streaming_gt_types),
-            depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
-        )  # fmt: skip
+        # Launch declares this camera with RGBA only, whatever channels the window's scene cameras show.
+        view_cfg = ImageViewCfg(source=camera.cfg.prim_path, envs=(0,), channels=("rgb",))
         view = sim.get_or_create_backend(view_cfg, camera=camera)
         view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
         self._image_views.append(view)

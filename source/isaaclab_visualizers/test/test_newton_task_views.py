@@ -185,6 +185,17 @@ def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
     assert viz.hidden == [("ovrtx",)]  # The overlay meshes are hidden when OVRTX stops drawing.
 
 
+def test_leaving_rtx_without_a_free_perspective_view_shows_the_first_other_source():
+    sensor = _View("sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera")))
+    rtx = _rtx_view()
+    viz = _switchable([sensor, rtx])
+    viz.current_image_view = rtx
+
+    viz.set_rtx_rendering(False)
+
+    assert viz.current_image_view is sensor
+
+
 def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
     viz = _switchable([_view(PerspectiveCameraCfg())])
 
