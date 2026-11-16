@@ -490,7 +490,7 @@ class MockActionManagerTorch:
 class MockSceneEntityCfg:
     """Unified cfg that works for both stable (joint_ids) and Warp (joint_ids_wp) terms."""
 
-    def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
+    def __init__(self, name: str, joint_ids: list[int], device: str):
         self.name = name
         self.joint_ids = joint_ids
 

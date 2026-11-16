@@ -210,13 +210,13 @@ def stable_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, c
 
 @pytest.fixture()
 def all_joints_cfg():
-    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), NUM_JOINTS, DEVICE)
+    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), DEVICE)
 
 
 @pytest.fixture()
 def subset_cfg():
     """Non-identity joint subset, so the masked kernels' false branch is exercised."""
-    return MockSceneEntityCfg("robot", [0, 2, 5, 8], NUM_JOINTS, DEVICE)
+    return MockSceneEntityCfg("robot", [0, 2, 5, 8], DEVICE)
 
 
 @pytest.fixture()

@@ -108,7 +108,7 @@ def warp_env(scene, action_wp, episode_length_buf):
 
 @pytest.fixture()
 def all_joints_cfg():
-    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), NUM_JOINTS, DEVICE)
+    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), DEVICE)
 
 
 # ============================================================================
