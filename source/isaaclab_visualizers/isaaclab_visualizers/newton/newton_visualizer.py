@@ -330,7 +330,7 @@ class NewtonViewerGL(ViewerGL):
         2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Recording** (closed) — video, screenshot, policy checkpoint, and their output settings.
+        4. **Recording** (closed) — video, screenshot, and their output settings.
         5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
         6. **Articulation Inspector** (closed) — Newton's articulation selection panel.
         7. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
@@ -2180,15 +2180,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """
         if self._viewer is not None:
             self._viewer.set_run_info(task, mode, run)
-
-    def attach_checkpoint_saver(self, save: Callable[[str], None]) -> None:
-        """Enable the HUD's Checkpoint button for a run that has a policy.
-
-        Args:
-            save: Callable that writes the policy checkpoint to the given path.
-        """
-        if self._recording is not None:
-            self._recording.set_checkpoint_saver(save)
 
     @property
     def visible_env_limit(self) -> int:

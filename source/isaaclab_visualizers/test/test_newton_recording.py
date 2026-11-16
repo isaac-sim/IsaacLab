@@ -6,7 +6,6 @@
 """Tests for the Newton GL HUD recording panel without a window."""
 
 import re
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -38,32 +37,6 @@ def _owner(frames=(), **recording):
             window=SimpleNamespace(fps=10.0), backend=SimpleNamespace(recording=NewtonRecordingCfg(**recording))
         ),
     )
-
-
-def test_checkpoint_writes_through_the_runs_saver_into_numbered_files(tmp_path):
-    panel = NewtonRecordingPanel(_owner(output_dir=str(tmp_path)))
-    panel.save_checkpoint()
-    assert "no policy" in panel._message  # Nothing is written until the run offers a saver.
-
-    panel.set_checkpoint_saver(lambda path: Path(path).write_text("policy"))
-    panel.save_checkpoint()
-    panel.save_checkpoint()
-
-    folder = tmp_path / "checkpoint"
-    assert sorted(file.name for file in folder.iterdir()) == ["newton_0001.pt", "newton_0002.pt"]
-    assert panel.checkpoint_path == str(folder / "newton_0002.pt")
-
-
-def test_checkpoint_failure_is_reported_without_raising(tmp_path):
-    def broken(path):
-        raise OSError("disk full")
-
-    panel = NewtonRecordingPanel(_owner(output_dir=str(tmp_path)))
-    panel.set_checkpoint_saver(broken)
-
-    panel.save_checkpoint()
-
-    assert "disk full" in panel._message and not panel.checkpoint_path
 
 
 def test_output_paths_number_stamp_or_overwrite(tmp_path):
@@ -286,10 +259,6 @@ def test_an_unwritable_output_folder_is_reported_instead_of_raised(tmp_path):
     panel.request_screenshot()
     panel.capture()
     assert "Screenshot failed" in panel._message
-
-    panel.set_checkpoint_saver(lambda path: None)
-    panel.save_checkpoint()
-    assert "Checkpoint failed" in panel._message
 
 
 def test_each_panel_encodes_to_its_own_temporary_file_and_a_prefix_cannot_leave_the_folder(tmp_path, monkeypatch):
