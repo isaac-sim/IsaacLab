@@ -529,6 +529,7 @@ _RIGID_PROPERTIES = tuple(
             "body_com_pose_w",
             "body_com_quat_b",
             "body_com_quat_w",
+            "body_com_state_w",
             "body_com_vel_w",
             "body_inertia",
             "body_link_ang_vel_w",
@@ -536,9 +537,12 @@ _RIGID_PROPERTIES = tuple(
             "body_link_pos_w",
             "body_link_pose_w",
             "body_link_quat_w",
+            "body_link_state_w",
             "body_link_vel_w",
             "body_mass",
+            "body_state_w",
             "default_root_pose",
+            "default_root_state",
             "default_root_vel",
             "heading_w",
             "projected_gravity_b",
@@ -549,6 +553,7 @@ _RIGID_PROPERTIES = tuple(
             "root_com_pos_w",
             "root_com_pose_w",
             "root_com_quat_w",
+            "root_com_state_w",
             "root_com_vel_w",
             "root_link_ang_vel_b",
             "root_link_ang_vel_w",
@@ -557,7 +562,9 @@ _RIGID_PROPERTIES = tuple(
             "root_link_pos_w",
             "root_link_pose_w",
             "root_link_quat_w",
+            "root_link_state_w",
             "root_link_vel_w",
+            "root_state_w",
         }
     )
 )
