@@ -45,6 +45,7 @@ def create_mock_newton_manager(
     num_bodies: int = 1,
     num_joints: int = 0,
     is_fixed_base: bool = False,
+    device: str = "cpu",
 ):
     """Create a mock NewtonManager instance for testing.
 
@@ -54,6 +55,7 @@ def create_mock_newton_manager(
         num_bodies: Number of bodies in each mock articulation.
         num_joints: Number of joint degrees of freedom in each mock articulation.
         is_fixed_base: Whether the mock articulation has a fixed base.
+        device: Device for the mock model's buffers.
 
     Returns:
         A mock manager to pass as an asset's or data container's ``backend_manager``.
@@ -64,6 +66,7 @@ def create_mock_newton_manager(
         num_bodies=num_bodies,
         num_joints=num_joints,
         is_fixed_base=is_fixed_base,
+        device=device,
     )
     mock_state = MagicMock()
     mock_control = MagicMock()

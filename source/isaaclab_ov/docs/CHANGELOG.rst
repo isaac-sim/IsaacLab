@@ -3,6 +3,35 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the OVPhysX assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`. Any integer sequence and slices with a negative step are accepted,
+  and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the OVPhysX assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`, as the env
+  selection does, so slices other than ``slice(None)`` are accepted.
+* Reduced shared OVStage initialization work and host memory by attaching and cloning physics originals
+  before acquiring bindings and completing render copies. This order is selected automatically with
+  ``ISAAC_LAB_SHARE_OVSTAGE=1``; shared stages remain experimental and opt-in.
+* Completed shared-stage bindings and render copies before public physics-readiness callbacks, preserving
+  startup gravity edits. Failed render copies remained pending and required a stage rebuild before retry.
+* Preserved full-stage physics import and world placement for CPU simulations using a shared OVStage.
+* Respected ``populate_physics`` when deferring render copies, preserving rendering-only population.
+* Restricted early binding initialization to shared stages, preserving non-shared callback priorities
+  during startup, resets, and forced reinitialization.
+* Preserved joints and authored physics properties when selecting clone recipes and original worlds,
+  and rejected unsupported physics-only native clone roots before attachment instead of dropping them.
+  Reused source classifications within each export to avoid repeated USD traversal.
+* Exposed the OVPhysX binding phase through ``binding_init_event`` and ``initialize_event`` attributes,
+  removing asset and contact-sensor dependencies on private event selection.
+
+
 9.0.3 (2026-11-11)
 ~~~~~~~~~~~~~~~~~~
 
