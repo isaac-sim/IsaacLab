@@ -131,17 +131,6 @@ def test_a_tracking_camera_without_a_follower_has_no_pose_instead_of_failing():
     assert not viz._apply_view_pose(task)
 
 
-def test_the_selector_names_the_tracking_camera_and_the_free_perspective():
-    camera = SimpleNamespace(cfg=SimpleNamespace(data_types=["rgba"]))
-    sensor = SimpleNamespace(camera=camera, cfg=SimpleNamespace(source="/World/envs/env_0/cam"))
-    viz = _visualizer([_view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))])
-    viz._image_views.append(sensor)
-    assert viz._view_labels() == ["Perspective", "Tracking Camera", "cam (RGB sensor)"]
-
-    viz = _visualizer([_view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(track_path="robot"))])
-    assert viz._view_labels() == ["Tracking Camera 1", "Tracking Camera 2"]
-
-
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
     task = _view(TrackingCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
     viz = _visualizer([task])

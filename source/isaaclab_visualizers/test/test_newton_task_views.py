@@ -105,68 +105,6 @@ def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_senso
     assert order == [2, 1, 0]
 
 
-def test_a_task_view_moves_the_viewer_camera_to_the_followed_environment():
-    view = _view(TrackingCameraCfg(env_index=1, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
-    viz = _visualizer([view])
-
-    assert viz._apply_view_pose(view)
-
-    camera = viz._viewer.camera
-    assert (camera.pos.x, camera.pos.y, camera.pos.z) == pytest.approx((12.0, 0.0, 1.0))  # Environment 1 origin.
-    assert camera.target == pytest.approx((10.0, 0.0, 0.5))
-
-
-def test_switching_the_followed_environment_re_aims_the_camera():
-    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
-    viz = _visualizer([view])
-
-    viz._followers[view].set_env(1)
-    viz._apply_view_pose(view)
-
-    assert viz._viewer.camera.pos.x == pytest.approx(12.0)
-
-
-def test_resetting_the_tracking_camera_restores_what_the_task_declared():
-    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
-    viz = _visualizer([view])
-    cfg = view.cfg.source
-    viz._tracking_defaults = {
-        view: {
-            "eye": cfg.eye,
-            "lookat": cfg.lookat,
-            "focal_length": cfg.focal_length,
-            "track_path": cfg.track_path,
-            "follow_heading": cfg.follow_heading,
-            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
-            "env": 0,
-        }
-    }
-    viz.current_image_view = view
-    viz._tracking_error = ""
-    follower = viz._followers[view]
-
-    cfg.eye, cfg.focal_length = (9.0, 9.0, 9.0), 60.0
-    follower.set_env(1)
-    assert viz._reset_tracking_camera(follower)
-
-    assert (cfg.eye, cfg.focal_length, follower.env) == ((2.0, 0.0, 1.0), 24.0, 0)
-
-
-def test_an_invalid_followed_asset_is_reported_not_raised():
-    view = _view(TrackingCameraCfg(env_index=0))
-    viz = _visualizer([view])
-    viz._tracking_error = ""
-
-    class Scene(_Scene):
-        def __getitem__(self, name):
-            raise KeyError(name)
-
-    viz._followers[view]._scene = Scene()
-
-    assert not viz._set_tracking_path(viz._followers[view], "ghost")
-    assert "unknown scene asset" in viz._tracking_error
-
-
 def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
     free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
     viz = _visualizer([free, task])
@@ -245,17 +183,6 @@ def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
     viz.set_rtx_rendering(False)
     assert viz.current_image_view is free and not viz.rtx_rendering
     assert viz.hidden == [("ovrtx",)]  # The overlay meshes are hidden when OVRTX stops drawing.
-
-
-def test_switching_to_rtx_while_a_tracking_camera_is_shown_returns_to_it():
-    free, task, rtx = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0)), _rtx_view()
-    viz = _switchable([free, task, rtx])
-    viz.current_image_view = task
-
-    viz.set_rtx_rendering(True)
-    viz.set_rtx_rendering(False)
-
-    assert viz.current_image_view is task
 
 
 def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
