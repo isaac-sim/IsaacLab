@@ -267,6 +267,8 @@ class AbsBinaryJointPositionActionCfg(ActionTermCfg):
 class NonHolonomicActionCfg(ActionTermCfg):
     """Configuration for the non-holonomic action term with dummy joints at the base.
 
+    The :attr:`clip` ranges are matched against the action names ``lin_vel_x`` and ``ang_vel_z``.
+
     See :class:`NonHolonomicAction` for more details.
     """
 

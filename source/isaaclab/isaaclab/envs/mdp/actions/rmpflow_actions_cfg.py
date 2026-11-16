@@ -18,6 +18,15 @@ if TYPE_CHECKING:
 
 @configclass
 class RMPFlowActionCfg(ActionTermCfg):
+    """Configuration for the RMPFlow task-space action term.
+
+    The :attr:`clip` ranges are matched against the task-space action names ``pos_x``, ``pos_y``,
+    ``pos_z`` and, in relative mode, ``rot_x``, ``rot_y``, ``rot_z``. The quaternion components
+    of absolute pose commands cannot be clipped.
+
+    See :class:`RMPFlowAction` for more details.
+    """
+
     @configclass
     class OffsetCfg:
         """The offset pose from parent frame to child frame.
