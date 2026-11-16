@@ -907,6 +907,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
             **{name: {"class_name": "MLPModel", "hidden_dims": [4]} for name in model_names},
         }
         if not distillation:
+            cfg["actor"]["distribution_cfg"] = {"class_name": "GaussianDistribution", "init_std": 1.0}
             cfg["algorithm"]["rnd_cfg"] = {
                 "num_outputs": 2,
                 "predictor_hidden_dims": [4],
