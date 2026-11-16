@@ -33,7 +33,7 @@ SIMREADY_OBJECTS = json.loads((pathlib.Path(__file__).parent / "simready_objects
 """SimReady props of the ``simready`` object preset, relative to the SimReady asset folder.
 
 The 100 single-body PhysX props of 2 to 15 cm and 5 g to 3 kg that the SimReady search service returns first,
-recorded by ``scripts/tools/find_simready_props.py``.
+recorded by ``scripts/tools/search_simready.py``.
 """
 
 
