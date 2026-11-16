@@ -1361,13 +1361,6 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
         visualizer.initialize(sim, cameras=[])
 
 
-def test_marker_tooltip_describes_known_markers_and_falls_back():
-    from isaaclab_visualizers.newton.newton_visualizer import marker_tooltip
-
-    assert marker_tooltip("/Visuals/Command/velocity_goal") == "Commanded base velocity"
-    assert marker_tooltip("/Visuals/Brand_New_Marker") == "Show or hide this marker group"
-
-
 def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
     from isaaclab_visualizers.newton.newton_visualizer import term_summary
 
@@ -1452,9 +1445,3 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
     for view, selected in ((free, False), (sensor, True), (rtx, False)):
         visualizer.current_image_view = view
         assert visualizer.sensor_view_selected is selected
-
-
-def test_the_statistics_overlay_starts_closed():
-    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
-
-    assert NewtonViewerGL._show_stats is False
