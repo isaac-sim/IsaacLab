@@ -312,7 +312,8 @@ def test_reset_keeps_cleared_cache_and_pending_peer_updates(create_dummy_sensor,
 
 @pytest.mark.parametrize("device", ("cuda",))
 def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
-    """Test that CUDA graph capture records one backend refresh for repeated reads."""
+    """Test that each read in a CUDA graph capture records a backend refresh, and that a replay refreshes the data
+    once: the first refresh clears the outdated environments the later ones would update."""
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor = DummySensor(cfg=sensor_cfg)
     sim.step()
@@ -328,8 +329,10 @@ def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
         _ = sensor.data
         _ = sensor.data
 
-    assert sensor.backend_update_count == backend_update_count + 1
+    assert sensor.backend_update_count == backend_update_count + 2
+    count = sensor._data.count.clone()
     wp.capture_launch(capture.graph)
+    assert torch.equal(sensor._data.count, count + 1)
 
 
 @pytest.mark.parametrize("device", ("cpu",))

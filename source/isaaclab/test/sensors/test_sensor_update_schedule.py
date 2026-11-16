@@ -218,6 +218,21 @@ def test_captured_read_refreshes_on_every_replay(device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_repeated_reads_in_a_capture_refresh_the_data_once_per_replay(device):
+    """Each read in a capture records the refresh, since no read can know what a replay finds outdated; the first
+    refresh a replay runs clears the outdated environments, so the later ones update none."""
+    sensor = _DeviceRefreshSensor(device)
+    sensor.update(0.005)
+    _ = sensor.data
+    graph = _capture(device, lambda: (sensor.data, sensor.data))
+    for _ in range(3):
+        sensor.update(0.005)
+        wp.capture_launch(graph)
+    # one eager refresh, then one per replay
+    assert sensor.device_refreshes.numpy().tolist() == [4, 4]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_an_abandoned_capture_leaves_the_sensor_due_for_the_next_read(device):
     """A capture that reads the sensor and is abandoned launches no refresh, so the next plain read refreshes."""
     sensor = _DeviceRefreshSensor(device)
