@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
+from isaaclab.controllers import ConveyorSurfaceCfg
 
 BELT_COLOR = (0.09, 0.09, 0.09)
 """Dark-rubber color used by Newton's conveyor example."""
@@ -82,7 +82,7 @@ class ConveyorSectionSpec:
     """Task geometry paired with its backend-neutral conveyor description."""
 
     geometry: MeshSpec | CuboidSpec
-    belt: SurfaceVelocitySpec
+    belt: ConveyorSurfaceCfg
 
 
 def belt_direction(side: str) -> float:
@@ -262,7 +262,7 @@ def belt_collision_section_specs(
     ) -> ConveyorSectionSpec:
         return ConveyorSectionSpec(
             geometry=geometry,
-            belt=SurfaceVelocitySpec(
+            belt=ConveyorSurfaceCfg(
                 prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
                 velocity=velocity,
                 direction=travel_direction,

@@ -13,8 +13,8 @@ from collections.abc import Sequence
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
+from isaaclab.envs.mdp.actions.surface_gripper_actions import SurfaceGripperBinaryAction
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
-from isaaclab.managers import ActionTerm
 
 from ..conveyor_franka.mdp.reset_events import franka_tool_position
 from .actions_cfg import (
@@ -65,40 +65,26 @@ class CartesianSuctionArm(DifferentialInverseKinematicsAction):
         self._needs_reference[slice(None) if env_ids is None else env_ids] = True
 
 
-class VacuumAction(ActionTerm):
+class VacuumAction(SurfaceGripperBinaryAction):
     """Signed binary command: negative seals, nonnegative releases."""
 
     def __init__(self, cfg: VacuumActionCfg, env: ManagerBasedEnv) -> None:
         super().__init__(cfg, env)
-        self._raw_actions = torch.zeros(self.num_envs, 1, device=self.device)
-        self._processed_actions = torch.zeros_like(self._raw_actions)
         self.invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-
-    @property
-    def action_dim(self) -> int:
-        return 1
-
-    @property
-    def raw_actions(self) -> torch.Tensor:
-        return self._raw_actions
-
-    @property
-    def processed_actions(self) -> torch.Tensor:
-        return self._processed_actions
 
     def process_actions(self, actions: torch.Tensor) -> None:
         self.invalid_actions[:] = ~torch.isfinite(actions).all(dim=-1)
-        self._raw_actions[:] = torch.nan_to_num(actions).clamp(-1.0, 1.0)
-        self._processed_actions[:] = torch.where(self._raw_actions < 0.0, -1.0, 1.0)
-        self._env.command_manager.get_term("sort").record_release(self._processed_actions[:, 0] > 0.0)
+        super().process_actions(torch.nan_to_num(actions).clamp(-1.0, 1.0))
+        self._env.command_manager.get_term("sort").record_release(self._raw_actions[:, 0] >= 0.0)
 
     def apply_actions(self) -> None:
-        self._env.gripper.set_command(self._processed_actions[:, 0] < 0.0, self._env.active_ids)
+        self._asset.set_target_ids(self._env.active_ids)
+        super().apply_actions()
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         ids = slice(None) if env_ids is None else env_ids
-        self._raw_actions[ids] = 0.0
-        self._processed_actions[ids] = 1.0
+        super().reset(env_ids)
+        self._processed_actions[ids] = self.cfg.open_command
         self.invalid_actions[ids] = False
 
 

@@ -29,6 +29,7 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
     cfg.sim.visualizer_cfgs = []
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41
+    cfg.scene.clone_cfg.clone_template = "/World/cells/cell_{}"
     cfg.events.reset_parcels.params["samples_per_path"] = 2
     cfg.commands.sort.goal_radial_range = cfg.commands.sort.goal_lateral_range = (0.0, 0.0)
     angles = tuple(math.radians(value) for value in (10, 35, 60, 85, 110))

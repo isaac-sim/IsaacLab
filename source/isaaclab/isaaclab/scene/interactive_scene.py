@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
-
+    from ..assets import SurfaceGripper
     from ..terrains.terrain_importer import TerrainImporter
 
 import torch
@@ -428,6 +427,11 @@ class InteractiveScene:
     Operations.
     """
 
+    def close(self) -> None:
+        """Release scene-owned surface-gripper callbacks before stopping the simulation."""
+        for gripper in self._surface_grippers.values():
+            gripper.close()
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the scene entities.
 
@@ -747,7 +751,7 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
+        from isaaclab.assets import SurfaceGripperCfg  # noqa: PLC0415
 
         from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 
@@ -786,7 +790,7 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                self._surface_grippers[asset_name] = instantiate(asset_cfg)
+                self._surface_grippers[asset_name] = instantiate(asset_cfg, sim=self.sim)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

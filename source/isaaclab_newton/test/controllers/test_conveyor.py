@@ -3,18 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Native transport, reset, and callback-lifetime contracts for the Newton adapter."""
+"""Public conveyor commands, native transport, and reset/teardown contracts."""
 
 import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
 
+from isaaclab.controllers import Conveyor, ConveyorCfg, ConveyorSurfaceCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
-
-from isaaclab_contrib.conveyors.newton import SurfaceVelocity
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
 pytestmark = pytest.mark.kitless
 
@@ -51,39 +49,52 @@ def test_transport_reset_rebind_and_close(device):
                 builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1, cfg=builder.ShapeConfig(mu=1.1e-5))
                 builder.add_articulation([builder.add_joint_free(body)])
             builder.end_world()
-        driver = SurfaceVelocity(
-            2,
-            (
-                SurfaceVelocitySpec("{ENV_REGEX_NS}/BeltA", velocity=0.2),
-                SurfaceVelocitySpec(
-                    "{ENV_REGEX_NS}/BeltB",
-                    velocity=0.2,
-                    curved=True,
-                    direction=(0, 0, 1),
-                    pivot_point=(-0.5, 0, 0),
-                    radius=0.5,
+        driver = Conveyor(
+            ConveyorCfg(
+                surface_specs=(
+                    ConveyorSurfaceCfg("{ENV_REGEX_NS}/BeltA", velocity=0.2),
+                    ConveyorSurfaceCfg(
+                        "{ENV_REGEX_NS}/BeltB",
+                        velocity=0.2,
+                        curved=True,
+                        direction=(0, 0, 1),
+                        pivot_point=(-0.5, 0, 0),
+                        radius=0.5,
+                    ),
                 ),
+                body_pattern="/Cube$",
+                body_count_per_env=1,
             ),
-            manager=manager,
-            body_pattern="/Cube$",
-            body_count_per_env=1,
+            2,
+            sim=sim,
         )
-        try:
-            for _ in range(2):
-                sim.reset()
-                before = manager.backend.state_0.body_q.numpy().copy()
-                for _ in range(120):
-                    sim.step(render=False)
-                after = manager.backend.state_0.body_q.numpy()
-                assert after[0, 0] - before[0, 0] > 0.025  # Straight belt in world 0.
-                assert after[2, 1] - before[2, 1] > 0.025  # Pivot belt in world 1.
-                np.testing.assert_allclose(after[[1, 3], :2], before[[1, 3], :2], atol=0.002)
 
-            driver.close()
-            sim.reset()
+        def transport():
             before = manager.backend.state_0.body_q.numpy().copy()
             for _ in range(120):
                 sim.step(render=False)
-            np.testing.assert_allclose(manager.backend.state_0.body_q.numpy()[:, :2], before[:, :2], atol=0.002)
+            return manager.backend.state_0.body_q.numpy() - before
+
+        try:
+            sim.reset()
+            motion = transport()
+            assert motion[0, 0] > 0.025  # Straight belt in world 0.
+            assert motion[2, 1] > 0.025  # Pivot belt in world 1.
+            np.testing.assert_allclose(motion[[1, 3], :2], 0.0, atol=0.002)
+
+            driver.set_speed_scale(-1.0, env_ids=(0,))
+            driver.stop(env_ids=[1])
+            sim.reset()  # Rebind the model while preserving both selected-world commands.
+            assert driver.speed_scale.tolist() == [-1.0, 0.0]
+            motion = transport()
+            assert motion[0, 0] < -0.025
+            np.testing.assert_allclose(motion[1:, :2], 0.0, atol=0.002)
+
+            driver.start(env_ids=[1])
+            assert driver.speed_scale.tolist() == [-1.0, 1.0]
+            assert transport()[2, 1] > 0.025
+            driver.close()
+            sim.reset()
+            np.testing.assert_allclose(transport()[:, :2], 0.0, atol=0.002)
         finally:
             driver.close()

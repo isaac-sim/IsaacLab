@@ -18,12 +18,11 @@ import torch
 from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, SurfaceGripperCfg
+from isaaclab.controllers import ConveyorSurfaceCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg
 from isaaclab.utils import configclass
-
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
 from ..conveyor_franka.conveyor_franka_env_cfg import _ROBOT_INITIAL_STATE, _collision_properties, _conveyor_asset
 from ..conveyor_franka.conveyor_geometry import ConveyorSectionSpec, CuboidSpec, MeshSpec, _prism_faces
@@ -213,6 +212,13 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=_ROBOT_INITIAL_STATE,
     )
+    surface_gripper = SurfaceGripperCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*/panda_hand",
+        target_prim_path="{ENV_REGEX_NS}/Cube[0-9]+",
+        tool_offset=TOOL_OFFSET,
+        pad_radius=SUCTION_PAD_RADIUS,
+        pad_spacing=SUCTION_PAD_SPACING,
+    )
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.80)),
@@ -315,7 +321,7 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
             ):
                 _add_box(self, f"CellCorner{index}{axis}", size, position, (0.75, 0.49, 0.045), colliding=False)
 
-    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
+    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[ConveyorSurfaceCfg, ...]:
         """Return prescribed surface velocities in the authored collision frames."""
         sections = (
             *_conveyor_sections(**kwargs),
@@ -340,7 +346,7 @@ def _conveyor_sections(
         sections.append(
             ConveyorSectionSpec(
                 geometry,
-                SurfaceVelocitySpec(
+                ConveyorSurfaceCfg(
                     prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
                     velocity=velocity,
                     direction=direction,
@@ -384,7 +390,7 @@ def _outfeed_sections(
         sections.append(
             ConveyorSectionSpec(
                 _flat_deck(name, *bounds),
-                SurfaceVelocitySpec(
+                ConveyorSurfaceCfg(
                     prim_path=f"{{ENV_REGEX_NS}}/Outfeeds/{name}",
                     velocity=velocity,
                     direction=(1.0, 0.0, 0.0),

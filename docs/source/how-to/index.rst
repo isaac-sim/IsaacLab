@@ -120,6 +120,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Conveyors and surface grippers </source/how-to/conveyors_and_surface_grippers>`
+
+         Configure batched conveyor controls and scene-owned suction tools through the Isaac Lab APIs.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton` :guide-tag:`PhysX`
+
+      .. container:: guide-entry
+
          :doc:`Importing a new asset </source/how-to/import_new_asset>`
 
          Convert URDF, MJCF, or mesh assets into USD for use in Isaac Lab.

@@ -3,4 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Experimental Newton suction support; import the backend explicitly from :mod:`.newton`."""
+"""Surface-gripper assets and configuration."""
+
+from ...utils.module import lazy_export
+
+lazy_export()

@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.controllers import ConveyorSurfaceCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd
@@ -316,7 +315,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
                     _conveyor_asset(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard),
                 )
 
-    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
+    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[ConveyorSurfaceCfg, ...]:
         """Describe the linked warehouse surfaces to the existing Newton conveyor driver."""
         return tuple(section.belt for side in ("Left", "Right") for section in warehouse_belt_sections(side, **kwargs))
 

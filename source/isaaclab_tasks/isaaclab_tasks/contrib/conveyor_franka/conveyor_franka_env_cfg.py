@@ -15,6 +15,7 @@ from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg, 
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.controllers import ConveyorSurfaceCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -29,8 +30,6 @@ from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg, UsdP
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
 from isaaclab_tasks.utils import ResetStateSamplerCfg
 
@@ -431,7 +430,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                     ),
                 )
 
-    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
+    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[ConveyorSurfaceCfg, ...]:
         """Describe the velocity field on each authored collision section."""
         return tuple(
             section.belt for side in ("Left", "Right") for section in belt_collision_section_specs(side, **kwargs)

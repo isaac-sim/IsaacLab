@@ -11,9 +11,8 @@ from collections.abc import Sequence
 
 import torch
 
+from isaaclab.controllers import Conveyor, ConveyorCfg
 from isaaclab.envs import ManagerBasedRLEnv
-
-from isaaclab_contrib.conveyors.newton import SurfaceVelocity
 
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 
@@ -24,7 +23,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
     cfg: ConveyorFrankaEnvCfg
 
     def __init__(self, cfg: ConveyorFrankaEnvCfg, render_mode: str | None = None, **kwargs) -> None:
-        self._conveyor_driver: SurfaceVelocity | None = None
+        self.conveyor: Conveyor | None = None
         super().__init__(cfg, render_mode=render_mode, **kwargs)
 
     def load_managers(self) -> None:
@@ -40,17 +39,15 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
 
     def close(self) -> None:
         """Release conveyor callbacks before the physics scene is destroyed."""
-        conveyor_driver = self._conveyor_driver
+        conveyor_driver = self.conveyor
         if conveyor_driver is not None:
             conveyor_driver.close()
-            self._conveyor_driver = None
+            self.conveyor = None
         super().close()
 
     def _init_sim(self) -> None:
         """Register solved-contact hooks before the first reset captures the solver."""
-        driver = SurfaceVelocity(
-            manager=self.sim.backend_manager,
-            num_envs=self.cfg.scene.num_envs,
+        controller_cfg = ConveyorCfg(
             surface_specs=self.cfg.scene.build_conveyor_belt_specs(
                 velocity=self.cfg.conveyor_force.speed,
                 friction_coefficient=self.cfg.conveyor_force.friction,
@@ -61,12 +58,13 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             body_pattern=self.cfg.conveyor_force.transported_body_pattern,
             body_count_per_env=self.cfg.conveyor_force.transported_body_count_per_env,
         )
-        self._conveyor_driver = driver
+        driver = Conveyor(controller_cfg, self.cfg.scene.num_envs, sim=self.sim)
+        self.conveyor = driver
         try:
             super()._init_sim()
         except Exception:
             driver.close()
-            self._conveyor_driver = None
+            self.conveyor = None
             raise
 
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
@@ -75,6 +73,6 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             env_ids = self.scene._ALL_INDICES[env_ids]
         super()._reset_idx(env_ids)
 
-        conveyor_driver = self._conveyor_driver
+        conveyor_driver = self.conveyor
         if conveyor_driver is not None:
             conveyor_driver.reset(env_ids)

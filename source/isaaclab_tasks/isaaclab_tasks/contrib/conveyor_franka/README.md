@@ -7,8 +7,8 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 ![Racetrack transfer](../../../../../docs/source/_static/tasks/conveyor/racetrack_transfer.jpg)
 
 Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
-reporting. `isaaclab_contrib.conveyors.newton` adapts replicated surfaces, parcel selection,
-configured belt speeds, and reset lifecycle; the task owns its geometry, commands, and reset recipes.
+reporting. The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
+reset lifecycle; the task owns its geometry, transfer commands, and reset recipes.
 
 ## Run
 

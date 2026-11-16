@@ -9,19 +9,20 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
 from newton.solvers import SolverBase
 
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from isaaclab.controllers.conveyor import BaseConveyor
+from isaaclab.controllers.conveyor_cfg import ConveyorCfg, ConveyorSurfaceCfg
 from isaaclab.physics import PhysicsEvent
 
-from .surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
+if TYPE_CHECKING:
+    from isaaclab.sim import SimulationContext
 
 
 @wp.kernel
@@ -49,6 +50,46 @@ def _clear_selected_body_forces(
         body_force[body_id] = wp.spatial_vector()
 
 
+@wp.kernel
+def _set_surface_speed(
+    surface_worlds: wp.array[wp.int32],
+    speed_scale: wp.array[wp.float32],
+    default_linear: wp.array[wp.vec3],
+    default_angular: wp.array[wp.vec3],
+    linear: wp.array[wp.vec3],
+    angular: wp.array[wp.vec3],
+):
+    surface = wp.tid()
+    scale = speed_scale[surface_worlds[surface]]
+    linear[surface] = default_linear[surface] * scale
+    angular[surface] = default_angular[surface] * scale
+
+
+def _resolve_surface_paths(
+    num_envs: int,
+    surface_specs: Sequence[ConveyorSurfaceCfg],
+    env_path_format: str,
+) -> tuple[str, ...]:
+    """Resolve conveyor templates to exact environment-major prim paths."""
+    if not surface_specs:
+        raise ValueError("At least one ConveyorSurfaceCfg is required.")
+    namespace = "{ENV_REGEX_NS}"
+    templates = tuple(spec.prim_path for spec in surface_specs)
+    ordered_templates = sorted(templates)
+    if any(
+        right == left or right.startswith(f"{left}/") for left, right in zip(ordered_templates, ordered_templates[1:])
+    ):
+        raise ValueError("Conveyor prim paths must be unique and must not be ancestors of one another.")
+    if env_path_format.count("{}") != 1:
+        raise ValueError("Conveyor env_path_format must contain exactly one '{}'.")
+    env_paths = tuple(env_path_format.format(env_id) for env_id in range(num_envs))
+    if any(
+        not path.startswith("/") or not all(part.isidentifier() for part in path[1:].split("/")) for path in env_paths
+    ):
+        raise ValueError("Conveyor env_path_format must produce concrete absolute prim paths.")
+    return tuple(template.replace(namespace, env_path) for env_path in env_paths for template in templates)
+
+
 def _world_vector(transform: wp.transform, vector: tuple[float, float, float]) -> wp.vec3:
     """Rotate and normalize an authored direction or surface normal."""
     rotated = wp.transform_vector(transform, wp.vec3(*vector))
@@ -57,8 +98,8 @@ def _world_vector(transform: wp.transform, vector: tuple[float, float, float]) -
     return wp.vec3(*(float(value) for value in values))
 
 
-class SurfaceVelocity:
-    """Own replicated conveyor bindings from model initialization through graph teardown.
+class Conveyor(BaseConveyor):
+    """Newton implementation of :class:`isaaclab.controllers.Conveyor`.
 
     Register after the simulation context is created and before its first reset.
     Speeds come from the authored surface descriptions. Newton computes traction
@@ -66,45 +107,24 @@ class SurfaceVelocity:
     the binding before CUDA graph capture; episode resets clear selected-world forces.
     """
 
-    def __init__(
-        self,
-        num_envs: int,
-        surface_specs: Sequence[SurfaceVelocitySpec],
-        *,
-        manager: NewtonManager,
-        body_pattern: str,
-        body_count_per_env: int,
-        startup_duration_s: float = 1.0,
-        env_path_format: str = DEFAULT_ENV_TEMPLATE,
-    ) -> None:
-        """Register model and solver callbacks for the authored surfaces.
-
-        Args:
-            num_envs: Number of replicated simulation environments.
-            surface_specs: Surface descriptions in within-environment order.
-            manager: Newton backend manager owned by the simulation context.
-            body_pattern: Regular expression selecting transported bodies.
-            body_count_per_env: Expected transported-body count.
-            startup_duration_s: Initial traction ramp duration [s].
-            env_path_format: Clone-template format resolving environment roots.
-        """
-        self._surface_specs = tuple(surface_specs)
-        self._prim_paths = resolve_surface_velocity_paths(num_envs, self._surface_specs, env_path_format)
-        self._body_pattern = re.compile(body_pattern)
-        if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
-            raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
-        self._num_envs = num_envs
-        self._manager = manager
-        self._body_count_per_env = body_count_per_env
-        self._startup_duration_s = startup_duration_s
+    def __init__(self, cfg: ConveyorCfg, num_envs: int, *, sim: SimulationContext) -> None:
+        """Bind configured surfaces before the first simulation reset."""
+        super().__init__(cfg, num_envs, sim=sim)
+        self._surface_specs = tuple(self.cfg.surface_specs)
+        self._prim_paths = _resolve_surface_paths(num_envs, self._surface_specs, self.cfg.env_path_format)
+        self._manager = sim.backend_manager
+        self._body_pattern = re.compile(self.cfg.body_pattern)
+        if not np.isfinite(self.cfg.startup_duration_s) or self.cfg.startup_duration_s <= 0.0:
+            raise ValueError(f"Conveyor startup duration must be positive, got {self.cfg.startup_duration_s}.")
         self._conveyor: ConveyorForceModel | None = None
-        manager.request_solver_observables(SolverBase.ObservableKind.CONTACT_F)
-        self._physics_ready_handle = manager.register_callback(
+        self._manager.request_solver_observables(SolverBase.ObservableKind.CONTACT_F)
+        self._physics_ready_handle = self._manager.register_callback(
             self._queue_solver_binding, PhysicsEvent.PHYSICS_READY, name="surface_velocity_solver_init"
         )
 
     def _queue_solver_binding(self, _event: Any) -> None:
         """Bind after solver allocation on initial construction and every hard reset."""
+        self._is_initialized = False
         self._manager.register_solver_init_callback(self._bind_solver)
 
     def _bind_solver(self) -> None:
@@ -115,15 +135,15 @@ class SurfaceVelocity:
         observables = self._manager.get_solver_observables()
         if contacts is None or observables is None or observables.contact_f is None:
             raise RuntimeError("The conveyor requires solved per-contact force observables.")
-        if model.world_count != self._num_envs:
-            raise RuntimeError(f"Newton model has {model.world_count} worlds, expected {self._num_envs}.")
+        if model.world_count != self.num_envs:
+            raise RuntimeError(f"Newton model has {model.world_count} worlds, expected {self.num_envs}.")
 
         surfaces_per_env = len(self._surface_specs)
         surface_shapes = [-1] * len(self._prim_paths)
         shape_world = model.shape_world.numpy()
         for shape_id, label in enumerate(model.shape_label):
             world_id = int(shape_world[shape_id])
-            if not 0 <= world_id < self._num_envs:
+            if not 0 <= world_id < self.num_envs:
                 continue
             for spec_id in range(surfaces_per_env):
                 surface_id = world_id * surfaces_per_env + spec_id
@@ -142,19 +162,19 @@ class SurfaceVelocity:
             raise RuntimeError(f"Missing {len(missing)} conveyor collision sections: {missing[:8]}.")
 
         body_is_tracked = np.zeros(model.body_count, dtype=np.int32)
-        tracked_counts = np.zeros(self._num_envs, dtype=np.int32)
+        tracked_counts = np.zeros(self.num_envs, dtype=np.int32)
         body_world = model.body_world.numpy()
         for body_id, label in enumerate(model.body_label):
             if self._body_pattern.search(label) is None:
                 continue
             world_id = int(body_world[body_id])
-            if not 0 <= world_id < self._num_envs:
+            if not 0 <= world_id < self.num_envs:
                 raise RuntimeError(f"Transported body {label!r} belongs to invalid world {world_id}.")
             body_is_tracked[body_id] = 1
             tracked_counts[world_id] += 1
-        if np.any(tracked_counts != self._body_count_per_env):
+        if np.any(tracked_counts != self.cfg.body_count_per_env):
             raise RuntimeError(
-                f"Body pattern {self._body_pattern.pattern!r} expected {self._body_count_per_env} bodies per world, "
+                f"Body pattern {self._body_pattern.pattern!r} expected {self.cfg.body_count_per_env} bodies per world, "
                 f"got {tracked_counts.tolist()}."
             )
         if not np.any(body_is_tracked):
@@ -162,10 +182,12 @@ class SurfaceVelocity:
 
         conveyor = ConveyorForceModel(model, solver_type="mujoco")
         transforms = model.shape_transform.numpy()
+        surface_worlds = []
         for surface_id, shape_id in enumerate(surface_shapes):
             if shape_id < 0:
                 continue
             spec = self._surface_specs[surface_id % surfaces_per_env]
+            surface_worlds.append(surface_id // surfaces_per_env)
             values = transforms[shape_id]
             transform = wp.transform(wp.vec3(*values[:3]), wp.quat(*values[3:]))
             direction = np.asarray(_world_vector(transform, spec.direction), dtype=np.float32)
@@ -188,12 +210,17 @@ class SurfaceVelocity:
         conveyor.set_speed_scale(0.0)
 
         self._conveyor = conveyor
+        self._surface_worlds = wp.array(surface_worlds, dtype=wp.int32, device=model.device)
+        self._default_linear_velocity = wp.clone(conveyor.conv_const_vel)
+        self._default_angular_velocity = wp.clone(conveyor.conv_pivot_angvel)
+        self._speed_scale_wp = wp.from_torch(self._speed_scale)
         self._body_is_tracked = wp.array(body_is_tracked, dtype=wp.int32, device=model.device)
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=model.device)
-        self._world_mask_host = np.zeros(self._num_envs, dtype=np.bool_)
-        self._world_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=model.device)
+        self._world_mask_host = np.zeros(self.num_envs, dtype=np.bool_)
+        self._world_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=model.device)
         self._manager.register_state_force_callback(self._apply)
         self._manager.register_post_solver_substep_callback(self._update)
+        self._is_initialized = True
 
     def _apply(self, state) -> None:
         """Apply the wrench from the preceding solve."""
@@ -203,9 +230,21 @@ class SurfaceVelocity:
         """Compute the next wrench using Newton's upstream traction model."""
         model = self._conveyor.model
         wp.launch(
+            _set_surface_speed,
+            dim=self._conveyor.conv_const_vel.shape[0],
+            inputs=[
+                self._surface_worlds,
+                self._speed_scale_wp,
+                self._default_linear_velocity,
+                self._default_angular_velocity,
+            ],
+            outputs=[self._conveyor.conv_const_vel, self._conveyor.conv_pivot_angvel],
+            device=model.device,
+        )
+        wp.launch(
             _advance_startup_scale,
             dim=1,
-            inputs=[dt, self._startup_duration_s],
+            inputs=[dt, self.cfg.startup_duration_s],
             outputs=[self._elapsed_time, self._conveyor.global_velocity_scale],
             device=model.device,
         )
@@ -219,7 +258,10 @@ class SurfaceVelocity:
         )
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
-        """Clear selected-world forces; a full reset also restarts the startup ramp."""
+        """Clear selected-world forces while preserving commanded speed scales.
+
+        A full reset also restarts the startup traction ramp.
+        """
         if self._conveyor is None:
             raise RuntimeError("Surface velocity is not bound to an initialized Newton solver.")
         if env_ids is None:
@@ -231,7 +273,7 @@ class SurfaceVelocity:
         if not np.issubdtype(ids.dtype, np.integer):
             raise IndexError(f"Surface reset environment indices must be integers, got {env_ids!r}.")
         ids = ids.reshape(-1)
-        if np.any((ids < 0) | (ids >= self._num_envs)):
+        if np.any((ids < 0) | (ids >= self.num_envs)):
             raise IndexError(f"Conveyor reset environment indices are out of range: {ids.tolist()}.")
         self._world_mask_host.fill(False)
         self._world_mask_host[ids] = True
@@ -255,3 +297,4 @@ class SurfaceVelocity:
         self._manager.unregister_state_force_callback(self._apply)
         self._manager.unregister_post_solver_substep_callback(self._update)
         self._conveyor = None
+        self._is_initialized = False

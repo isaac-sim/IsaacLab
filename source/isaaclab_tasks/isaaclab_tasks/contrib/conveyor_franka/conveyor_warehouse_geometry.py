@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
+from isaaclab.controllers import ConveyorSurfaceCfg
 
 from .conveyor_geometry import (
     BELT_CENTER_X,
@@ -185,7 +185,7 @@ def warehouse_belt_sections(side: str, **kwargs: float) -> tuple[ConveyorSection
         sections.append(
             ConveyorSectionSpec(
                 geometry,
-                SurfaceVelocitySpec(
+                ConveyorSurfaceCfg(
                     prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
                     direction=segment.direction,
                     surface_normal=(0.0, 0.0, 1.0)

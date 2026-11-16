@@ -16,8 +16,6 @@ from .actions_cfg import TOOL_OFFSET
 from .scene import (
     PARCEL_CLASS_IDS,
     PARCEL_SIZES,
-    SUCTION_PAD_RADIUS,
-    SUCTION_PAD_SPACING,
 )
 
 
@@ -25,8 +23,6 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
     """Share conveyor/contact hooks and keep suction attachment state explicit."""
 
     def _init_sim(self) -> None:
-        from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
-
         for index in range(self.cfg.parcel_count, len(PARCEL_SIZES)):
             setattr(self.cfg.scene, f"parcel_{index}", None)
             setattr(self.cfg.events, f"parcel_{index}_mass", None)
@@ -36,23 +32,10 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
         self.parcel_classes = torch.tensor(
             PARCEL_CLASS_IDS[: self.cfg.parcel_count], dtype=torch.long, device=self.device
         )
-        self.gripper = SurfaceGripper(
-            self.cfg.scene.num_envs,
-            manager=self.sim.backend_manager,
-            tool_body_pattern=r".*/panda_hand",
-            target_body_pattern=r".*/Cube[0-9]+",
-            target_count_per_env=self.cfg.parcel_count,
-            tool_offset=TOOL_OFFSET,
-            pad_radius=SUCTION_PAD_RADIUS,
-            pad_spacing=SUCTION_PAD_SPACING,
-        )
-        try:
-            super()._init_sim()
-        except Exception:
-            self.gripper.close()
-            raise
+        super()._init_sim()
 
     def load_managers(self) -> None:
+        self.gripper = self.scene["surface_gripper"]
         self.parcels = tuple(self.scene[f"parcel_{index}"] for index in range(self.cfg.parcel_count))
         self.active_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         super().load_managers()
@@ -64,7 +47,3 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
         ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         self.gripper.set_command(reset.held_rows[ids], self.active_ids[ids], env_ids=ids)
         self.gripper.refresh(env_ids=ids)
-
-    def close(self) -> None:
-        self.gripper.close()
-        super().close()

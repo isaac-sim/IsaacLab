@@ -5,8 +5,10 @@
 
 """Suction action configuration without importing robot runtime views before Kit."""
 
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.managers import ActionTermCfg
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    DifferentialInverseKinematicsActionCfg,
+    SurfaceGripperBinaryActionCfg,
+)
 from isaaclab.utils import configclass
 
 TOOL_OFFSET = (0.0, 0.0, 0.105)
@@ -27,8 +29,8 @@ class CartesianSuctionArmCfg(DifferentialInverseKinematicsActionCfg):
 
 
 @configclass
-class VacuumActionCfg(ActionTermCfg):
+class VacuumActionCfg(SurfaceGripperBinaryActionCfg):
     """One binary action for a Newton suction tool."""
 
     class_type: type | str = "{DIR}.actions:VacuumAction"
-    asset_name: str = "robot"
+    asset_name: str = "surface_gripper"
