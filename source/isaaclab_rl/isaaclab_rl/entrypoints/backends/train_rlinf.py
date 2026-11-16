@@ -28,7 +28,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     cli_args.add_rlinf_args(parser)
     parser.add_argument("--max_iterations", type=int, default=None, help="RL policy training iterations.")
     parser.add_argument("--list_tasks", action="store_true", default=False, help="List all available tasks and exit.")
-    # remaining KEY=VALUE tokens are Hydra env overrides, applied by each RLinf env worker
     args_cli, env_overrides = setup_preset_cli(parser, argv)
     args_cli.env_overrides = env_overrides
     if not args_cli.list_tasks and not args_cli.config_name:

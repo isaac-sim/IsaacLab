@@ -48,7 +48,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
     )
-    # remaining KEY=VALUE tokens are Hydra env overrides, applied by each RLinf env worker
     args_cli, env_overrides = setup_preset_cli(parser, argv)
     args_cli.env_overrides = env_overrides
     if not args_cli.config_name:
