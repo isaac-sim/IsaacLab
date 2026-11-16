@@ -44,7 +44,7 @@ else:
 
 
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One opted-in OVStage clone supplies physics and rendered poses, scale and calibration."""
+    """One shared OVStage supplies native physics clones and rendered poses, scale and calibration."""
     import ovphysx
     import ovrtx
     import ovstage
@@ -70,10 +70,9 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
         return attach_renderer(renderer, stage)
 
     def reject_duplicate_scene(*args, **kwargs):
-        pytest.fail("The shared scene must be exported and cloned only once")
+        pytest.fail("The renderer must borrow the populated shared stage")
 
     monkeypatch.setattr(ovstage.Stage, "clone", record_clone)
-    monkeypatch.setattr(ovphysx.PhysX, "clone", reject_duplicate_scene)
     monkeypatch.setattr(ovrtx.Renderer, "clone_usd", reject_duplicate_scene)
     monkeypatch.setattr(ovrtx_renderer, "export_stage_to_string", reject_duplicate_scene)
     monkeypatch.setattr(ovphysx.PhysX, "attach_ovstage", attach_physx)
@@ -86,8 +85,8 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
             yield sim
             from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
 
-            assert OvstageReplicateContext in sim.clone_contexts
-            assert not {OvPhysxReplicateContext, OvrtxReplicateContext}.intersection(sim.clone_contexts)
+            assert {OvPhysxReplicateContext, OvstageReplicateContext}.issubset(sim.clone_contexts)
+            assert OvrtxReplicateContext not in sim.clone_contexts
 
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
@@ -105,12 +104,14 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     import numpy as np
     import ovrtx
     import torch
+    from isaaclab_ov.sensors import ContactSensorCfg
     from isaaclab_ppisp import PpispCfg
 
     from pxr import UsdPhysics
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+    from isaaclab.physics import PhysicsEvent
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass, instantiate, replace
@@ -131,6 +132,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
                 collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 mass_props=sim_utils.MassCfg(mass=1.0),
+                activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 3.5)),
         )
@@ -158,6 +160,12 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             isp_cfg=PpispCfg(),
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
+        # Cameras can register their initialization callbacks before contact sensors.
+        contact = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Body",
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Floor"],
+            history_length=1,
+        )
 
     submissions = []
     native_step = ovrtx.Renderer.step
@@ -167,11 +175,15 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
         return native_step(renderer, **kwargs)
 
     monkeypatch.setattr(ovrtx.Renderer, "step", record_products)
-    cfg = SimulationCfg(device="cuda:0", dt=1 / 60, gravity=(0.0, 0.0, -10.0), physics=OvPhysxCfg())
+    cfg = SimulationCfg(device="cuda:0", dt=1 / 60, gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
     with build_simulation_context(sim_cfg=cfg) as sim:
         sim._app_control_on_stop_handle = None
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True))
         sim.register_interactive_scene(scene)
+        # Default-priority user callbacks run before cameras, including after forced reinitialization.
+        sim.backend_manager.register_callback(
+            lambda _: sim.backend_manager.set_gravity((0.0, 0.0, -10.0)), PhysicsEvent.PHYSICS_READY
+        )
         try:
             # PPISP owns exposure before physics imports the camera into the shared scene.
             for prim in sim_utils.find_matching_prims(scene["other_camera"].cfg.prim_path, sim.stage):
@@ -245,11 +257,23 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                     assert torch.isfinite(camera.data.output["depth"].torch[:, 16, 16]).all()
             expected = torch.tensor([[0.0, 0.0, 1.5], [0.0, 0.0, 2.5]], device="cuda:0")
             torch.testing.assert_close(scene["body"].data.root_link_pos_w.torch, expected, atol=0.02, rtol=0.0)
+
+            def check_supporting_forces(mass: float) -> None:
+                sensor = scene["contact"]
+                assert sensor.contact_view.sensor_count == 2
+                forces = torch.tensor([[[0.0, 0.0, mass * 10.0]]], device=sim.device).expand(2, -1, -1)
+                torch.testing.assert_close(sensor.data.net_normal_forces_w.torch, forces, atol=0.5, rtol=0.0)
+                torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, :, 0], forces, atol=0.5, rtol=0.0)
+
+            check_supporting_forces(1.0)
             products = {sensor._render_data.render_product_path for sensor in (camera, other)}
             assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
                 torch.testing.assert_close(depth, sensor.cfg.offset.pos[2] - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)
+            # An ordinary non-soft reset retains the existing bindings and independent contacts.
+            sim.reset()
+            check_supporting_forces(1.0)
             for soft in (True, False):
                 if not soft:
                     UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)
@@ -281,6 +305,11 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                             atol=0.02,
                             rtol=0.0,
                         )
+                sim.backend_manager.set_gravity((0.0, 0.0, -10.0))
+                for _ in range(120):
+                    sim.step(render=False)
+                    scene.update(cfg.dt)
+                check_supporting_forces(1.0 if soft else 2.0)
         finally:
             sim.register_interactive_scene(None)
             scene["camera"]._invalidate_initialize_callback(None)
