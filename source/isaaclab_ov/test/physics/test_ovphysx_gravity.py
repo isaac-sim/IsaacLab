@@ -13,7 +13,7 @@ import torch
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject
-from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -27,8 +27,8 @@ pytestmark = pytest.mark.ov
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_gravity_event_changes_rigid_body_motion(device):
-    """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
+def test_gravity_event_changes_rigid_body_motion(device, monkeypatch):
+    """Gravity events must change motion without resealing unchanged values or hiding failed updates."""
     sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device=device, dt=1.0 / 60.0)
     with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
         cube = RigidObject(
@@ -73,11 +73,18 @@ def test_gravity_event_changes_rigid_body_motion(device):
             )
 
         set_gravity((0.0, 0.0, 0.0))
+        ordinal = sim.backend_manager.backend.scene.ordinal
+        set_gravity((0.0, 0.0, 0.0))
+        assert sim.backend_manager.backend.scene.ordinal == ordinal
         initial_height = cube.data.root_pos_w.torch[0, 2].item()
         step(30)
         zero_gravity_height = cube.data.root_pos_w.torch[0, 2].item()
 
         set_gravity((0.0, 0.0, -9.81))
+        # Normalize Python floats to the native float32 value before comparing.
+        ordinal = sim.backend_manager.backend.scene.ordinal
+        set_gravity((0.0, 0.0, -9.81))
+        assert sim.backend_manager.backend.scene.ordinal == ordinal
         # Changing scene gravity does not wake sleeping PhysX actors. Reset terms
         # write body state after gravity randomization, so mirror that wake-up here.
         root_velocity = torch.zeros((1, 6), device=sim.device)
@@ -88,4 +95,21 @@ def test_gravity_event_changes_rigid_body_motion(device):
 
         assert zero_gravity_height == pytest.approx(initial_height, abs=1.0e-4)
         assert earth_gravity_height - zero_gravity_height < -0.5
+        assert cube.data.root_lin_vel_w.torch[0, 2].item() == pytest.approx(0.001 - 9.81 * 30 * dt, abs=0.02)
+
+        # A failed update may already have changed native gravity. Re-requesting
+        # the last successful value must restore it rather than hit the cache.
+        finish_stage_operation = ovphysx_compat.finish_stage_operation
+
+        def finish_then_fail(*args):
+            finish_stage_operation(*args)
+            raise RuntimeError("control completion failed")
+
+        with monkeypatch.context() as failed_update:
+            failed_update.setattr(ovphysx_compat, "finish_stage_operation", finish_then_fail)
+            with pytest.raises(RuntimeError, match="control completion failed"):
+                set_gravity((0.0, 0.0, 0.0))
+        set_gravity((0.0, 0.0, -9.81))
+        cube.write_root_velocity_to_sim_index(root_velocity=root_velocity)
+        step(30)
         assert cube.data.root_lin_vel_w.torch[0, 2].item() == pytest.approx(0.001 - 9.81 * 30 * dt, abs=0.02)
