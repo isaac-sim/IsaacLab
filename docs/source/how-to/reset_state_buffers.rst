@@ -101,9 +101,9 @@ environments receive new row assignments.
 
 The sampler reuses the shared success monitor and sampling strategies from
 :mod:`isaaclab_tasks.utils.sampling`. Configure row selection through
-``ResetStateSamplerCfg.sampling``; the monitor config controls outcome history.
-Non-default monitor sampling controls are rejected. For a uniform baseline,
-configure the existing uniform strategy:
+``ResetStateSamplerCfg.sampling`` and outcome history through
+``ResetStateSamplerCfg.monitored_history_len``. For a uniform baseline, configure
+the existing uniform strategy:
 
 .. code-block:: python
 
@@ -143,44 +143,11 @@ These integrations do not change existing public task registrations or stored
 dataset formats. Selecting rows and validating an artifact's compatibility are
 different responsibilities from constructing physically valid starts.
 
-Evaluate complete task starts
-----------------------------------------
+Learn sparse pickup
+-------------------
 
-Use the cube pickup reference to compare sparse-reward training with ordinary and
-buffered starts. Generate grasp starts by physically approaching and closing the
-fingers. Starts captured after grasping must remain outside the goal region.
-The example succeeds as soon as a grasped cube reaches the commanded
-point ``(0.5, 0.0, 0.15)`` [m] in the robot root frame, within a radius of
-``0.04`` [m]. The reward is a terminal ``+1`` on that transition.
-
-The registered ``IsaacContrib-Cube-Pickup-Franka`` task collects table, approach,
-pregrasp, and physical grasp starts. It uses relative Cartesian actions and a
-binary pickup-to-point reward. Generate and inspect a small buffer first:
-
-.. code-block:: bash
-
-   uv run python scripts/environments/cube_pickup.py --mode generate \
-       --num_envs 64 --bank_size 256 --output outputs/pickup/reset_states.json
-
-Train with the existing RSL-RL runner. ``--num_envs`` is the number of environments
-per GPU in distributed training. Training runs without a viewer when no visualizer
-is requested:
-
-.. code-block:: bash
-
-   uv run isaaclab train_multigpu --num_gpus 4 --rl_library rsl_rl \
-       --task IsaacContrib-Cube-Pickup-Franka --num_envs 1024
-
-The task saves its generated reset states alongside the training logs. Evaluate a
-saved checkpoint from ordinary table starts using a separate seed:
-
-.. code-block:: bash
-
-   uv run python scripts/environments/cube_pickup.py --mode evaluate \
-       --checkpoint /path/to/model.pt --num_envs 64 --episodes 512 \
-       --seed 10000 --output outputs/pickup/evaluation.json
-
-Evaluate the learned policy separately from ordinary table starts using held-out
-positions and seeds. Report that result separately from success under the adaptive
-training mixture. Success on already-grasped starts alone does not establish that
-the policy learned to pick up the cube from the table.
+The :doc:`sparse cube-pickup walkthrough <sparse_cube_pickup>` applies these APIs
+to a Newton MJWarp Franka task. It illustrates the four reset groups, the terminal
+reward, and the feedback loop that chooses useful starts. Follow it to generate
+and inspect a catalog, compare sampling modes, train a policy, and evaluate from
+ordinary table starts with held-out seeds.

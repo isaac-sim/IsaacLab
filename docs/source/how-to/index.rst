@@ -216,6 +216,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Learning sparse cube pickup </source/how-to/sparse_cube_pickup>`
+
+         Generate physical reset states, train with a terminal reward, and evaluate complete pickup attempts.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.

@@ -21,11 +21,13 @@ from isaaclab.managers import (
     ObservationManager,
     RecorderManager,
     RewardManager,
+    SceneEntityCfg,
     TerminationManager,
     TerminationTermCfg,
 )
 from isaaclab.utils import update_from_dict
 
+from isaaclab_tasks.contrib.cube_pickup import mdp
 from isaaclab_tasks.contrib.cube_pickup.cube_pickup_env import CubePickupEnv
 from isaaclab_tasks.contrib.cube_pickup.cube_pickup_env_cfg import CubePickupEnvCfg
 from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg
@@ -35,6 +37,60 @@ pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 def _success(env) -> torch.Tensor:
     return env.success_flags
+
+
+def test_goal_requires_a_grasp_at_the_transformed_target() -> None:
+    """Root-frame goals and rotated TCP offsets use the selected hand and both selected fingers."""
+    quarter_turn = torch.tensor([0.0, 0.0, 2**-0.5, 2**-0.5])
+    body_positions = torch.tensor(
+        [
+            [[9.0, 9.0, 9.0], [1.0, 2.4, 0.10]],
+            [[9.0, 9.0, 9.0], [1.0, 2.4, 0.10]],
+            [[9.0, 9.0, 9.0], [1.0, 2.2, 0.10]],
+            [[9.0, 9.0, 9.0], [1.0, 2.6, 0.10]],
+        ]
+    )
+    body_orientations = torch.zeros(4, 2, 4)
+    body_orientations[:, 0, 3] = 1.0
+    body_orientations[:, 1] = quarter_turn
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.tensor([1.0, 2.0, 0.0]).expand(4, -1)),
+            root_quat_w=SimpleNamespace(torch=quarter_turn.expand(4, -1)),
+            body_link_pos_w=SimpleNamespace(torch=body_positions),
+            body_link_quat_w=SimpleNamespace(torch=body_orientations),
+            joint_pos=SimpleNamespace(
+                torch=torch.tensor(
+                    [[0.0, 0.02, 0.0, 0.02], [0.0, 0.02, 0.0, 0.04], [0.0, 0.02, 0.0, 0.02], [0.0, 0.02, 0.0, 0.02]]
+                )
+            ),
+        )
+    )
+    cube = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(
+                torch=torch.tensor([[1.0, 2.5, 0.15], [1.0, 2.5, 0.15], [1.0, 2.5, 0.15], [1.0, 2.7, 0.15]])
+            )
+        )
+    )
+    env = SimpleNamespace(
+        scene={"robot": robot, "object": cube},
+        command_manager=SimpleNamespace(
+            get_command=lambda _name: torch.tensor([0.5, 0.0, 0.15, 0.0, 0.0, 0.0, 1.0]).expand(4, -1)
+        ),
+        _tcp_offset_pos=torch.tensor([0.10, 0.0, 0.05]).expand(4, -1),
+    )
+    # A 90-degree root turn places the goal at (1, 2.5, .15). The hand's same turn
+    # maps its TCP offset to (0, .10, .05), independently of the decoy body at index 0.
+    reached = mdp.goal_reached(
+        env,
+        command_name="object_pose",
+        threshold=0.04,
+        hand_cfg=SceneEntityCfg("robot", body_ids=[1]),
+        gripper_cfg=SceneEntityCfg("robot", joint_ids=[1, 3]),
+    )
+    # Valid grasp, one open finger, distant hand, and a grasp outside the goal.
+    torch.testing.assert_close(reached, torch.tensor([True, False, False, False]))
 
 
 def test_terminal_reward_stays_binary_after_timing_overrides() -> None:

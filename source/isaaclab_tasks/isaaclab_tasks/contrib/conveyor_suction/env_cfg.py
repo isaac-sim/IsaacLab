@@ -18,7 +18,6 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import ResetStateSamplerCfg
 from isaaclab_tasks.utils.sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
-from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from ..conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg, ConveyorFrankaEnvCfg
 from ..conveyor_franka.mdp.rewards import transfer_success_reward
@@ -82,7 +81,6 @@ class EventsCfg:
         mode="reset",
         params={
             "sampling": ResetStateSamplerCfg(
-                success_monitor=SuccessMonitorCfg(monitored_history_len=50),
                 sampling=SamplerCfg(
                     strategies=[
                         BetaSamplingStrategyCfg(target=0.5, kappa=2.0),

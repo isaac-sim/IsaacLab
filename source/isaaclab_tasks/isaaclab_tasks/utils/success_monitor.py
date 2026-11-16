@@ -9,7 +9,27 @@ from __future__ import annotations
 
 import torch
 
-from .success_monitor_cfg import SuccessMonitorCfg
+from isaaclab.utils import configclass
+
+
+@configclass
+class SuccessMonitorCfg:
+    """Configuration for :class:`SuccessMonitor`."""
+
+    class_type: type[SuccessMonitor] | str = "{DIR}.success_monitor:SuccessMonitor"
+    """Monitor implementation, resolved when the environment starts."""
+
+    monitored_history_len: int = 10
+    """Episodes remembered per slot."""
+
+    target_success_rate: float = 0.5
+    """Success rate favored by sampling, in ``[0, 1]``."""
+
+    kappa: float = 1.0
+    """Concentration around :attr:`target_success_rate`; zero is uniform."""
+
+    temperature: float = 1.0
+    """Sampling-weight temperature, at or above ``1.0``."""
 
 
 class SuccessMonitor:

@@ -10,7 +10,6 @@ from __future__ import annotations
 from isaaclab.utils import configclass
 
 from .sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
-from .success_monitor_cfg import SuccessMonitorCfg
 
 
 @configclass
@@ -20,12 +19,8 @@ class ResetStateSamplerCfg:
     class_type: type | str = "{DIR}.reset_states:ResetStateSampler"
     """Runtime sampler implementation."""
 
-    success_monitor: SuccessMonitorCfg = SuccessMonitorCfg(monitored_history_len=50)
-    """Rolling episode history for each reset row.
-
-    Leave the monitor's target, concentration, and temperature at their defaults;
-    :attr:`sampling` owns reset-row selection.
-    """
+    monitored_history_len: int = 50
+    """Episodes remembered for each reset row."""
 
     sampling: SamplerCfg = SamplerCfg(
         strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0), UniformSamplingStrategyCfg(weight=0.05)],
