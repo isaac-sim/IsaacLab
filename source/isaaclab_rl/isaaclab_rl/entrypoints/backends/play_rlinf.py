@@ -28,6 +28,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from isaaclab_tasks.utils import setup_preset_cli
+
 from . import cli_args_rlinf as cli_args
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
     )
-    args_cli = parser.parse_intermixed_args(argv)
+    # remaining KEY=VALUE tokens are Hydra env overrides, applied by each RLinf env worker
+    args_cli, env_overrides = setup_preset_cli(parser, argv)
+    args_cli.env_overrides = env_overrides
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
     return args_cli
@@ -111,8 +115,8 @@ def run(argv: list[str]) -> None:
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
-        if args_cli.env_overrides:
-            cli_args.set_env_overrides(cfg, args_cli.env_overrides)
+        for split in ("train", "eval"):
+            cfg.env[split].init_params.env_overrides = args_cli.env_overrides
         cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
         # Ray workers may launch from a different working directory.
         for model in (cfg.actor.model, cfg.rollout.model):
