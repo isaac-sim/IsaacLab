@@ -88,7 +88,7 @@ class RMPFlowAction(ActionTerm):
         else:
             self._offset_pos, self._offset_rot = None, None
 
-        # parse clip against the task-space action names (not the joint names)
+        # parse clip
         if self.cfg.clip is not None:
             self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
@@ -107,9 +107,9 @@ class RMPFlowAction(ActionTerm):
     def action_names(self) -> list[str]:
         """Names of the action components, in the order of the action vector.
 
-        ``pos_x``, ``pos_y``, ``pos_z`` for the position, followed by ``rot_x``, ``rot_y``, ``rot_z``
-        (axis-angle) in relative mode or ``quat_x``, ``quat_y``, ``quat_z``, ``quat_w`` in absolute mode.
-        :attr:`cfg.clip` is matched against these names.
+        ``pos_x``, ``pos_y``, ``pos_z`` for the position [m], followed by ``rot_x``, ``rot_y``, ``rot_z``
+        (axis-angle) [rad] in relative mode or ``quat_x``, ``quat_y``, ``quat_z``, ``quat_w`` in absolute mode.
+        :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against these names.
         """
         return list(_POSITION_NAMES + (_ROTATION_NAMES if self.cfg.use_relative_mode else _QUATERNION_NAMES))
 

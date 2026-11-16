@@ -110,7 +110,7 @@ class NonHolonomicAction(ActionTerm):
         # save the scale and offset as tensors
         self._scale = torch.tensor(self.cfg.scale, device=self.device).unsqueeze(0)
         self._offset = torch.tensor(self.cfg.offset, device=self.device).unsqueeze(0)
-        # parse clip against the action names (not the dummy joint names)
+        # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
@@ -133,8 +133,8 @@ class NonHolonomicAction(ActionTerm):
     def action_names(self) -> list[str]:
         """Names of the action components, in the order of the action vector.
 
-        ``lin_vel_x`` (forward velocity) and ``ang_vel_z`` (turning rate), both in the base frame.
-        :attr:`cfg.clip` is matched against these names.
+        ``lin_vel_x`` (forward velocity) [m/s] and ``ang_vel_z`` (turning rate) [rad/s], both in the base
+        frame. :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against these names.
         """
         return ["lin_vel_x", "ang_vel_z"]
 
