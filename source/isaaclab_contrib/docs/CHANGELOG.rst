@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.2 (2026-11-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Lee controller inertia aggregation for bodies with principal axes rotated relative to their link frames.
+
+
 7.0.1 (2026-11-11)
 ~~~~~~~~~~~~~~~~~~
 

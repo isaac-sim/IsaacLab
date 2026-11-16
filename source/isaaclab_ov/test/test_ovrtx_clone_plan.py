@@ -517,6 +517,51 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 
 
+def test_deferred_render_copy_failure_requires_stage_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject a wrong ordinal before copying; a failed commit requires reset before replay."""
+    import ovstage
+    from isaaclab_ov import stage as stage_module
+
+    native, paths = Mock(), Mock()
+    monkeypatch.setattr(stage_module, "create_ovstage", lambda _: contextlib.nullcontext(native))
+    monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
+    monkeypatch.setattr(stage_module, "populate_stage", lambda *args, **kwargs: None)
+    source = Usd.Stage.CreateInMemory()
+    UsdGeom.Cube.Define(source, "/World/env_0/Body")
+    backend = stage_module.OvstageBackend(stage_module.OvstageBackendCfg(defer_render_copies=True))
+    backend.clone_copies = [("/World/env_0", ["/World/env_1"])]
+    try:
+        backend.populate(source.ExportToString())
+        backend.commit()
+        with pytest.raises(RuntimeError, match="reserved render-copy ordinal"):
+            backend.complete_render_copies()
+        native.clone.assert_not_called()
+
+        backend.reset()
+        backend.populate(source.ExportToString())
+        native.advance_write_floor.return_value.wait.side_effect = RuntimeError("injected commit failure")
+        with pytest.raises(RuntimeError, match="injected commit failure"):
+            backend.complete_render_copies()
+        native.clone.assert_called_once()
+        assert backend.render_copies_pending
+        native.advance_write_floor.return_value.wait.side_effect = None
+        calls = list(native.mock_calls)
+        with pytest.raises(RuntimeError, match="reset"):
+            backend.complete_render_copies()
+        assert native.mock_calls == calls, "A failed copy must not be replayed onto partial native state"
+
+        backend.reset()
+        backend.populate(source.ExportToString())
+        backend.complete_render_copies()
+        assert not backend.render_copies_pending
+        assert backend.ordinal == 3
+        calls = list(native.mock_calls)
+        backend.complete_render_copies()
+        assert native.mock_calls == calls
+    finally:
+        backend.close()
+
+
 def test_clone_dependency_boundaries():
     """Contexts select routes without importing consumers; consumers do not reinterpret topology."""
     import isaaclab_ov.cloner.replicate as clone_module

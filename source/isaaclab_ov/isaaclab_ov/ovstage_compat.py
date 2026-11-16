@@ -147,7 +147,8 @@ def _physics_population_desc() -> "ovstage.population.Desc":
         selectors=(
             Selector(
                 prim_predicate=PrimPredicate.all(),
-                property_predicate=PropertyPredicate.all(),
+                # Exclude exposure to avoid overriding RTX settings
+                property_predicate=PropertyPredicate.not_(PropertyPredicate.in_namespace("exposure")),
                 prim_metadata_paths=("customData:physics:localSpaceVelocities", "inactiveIds"),
                 property_metadata_paths=("bindMaterialAs",),
                 derived_properties=derived,

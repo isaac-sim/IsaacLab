@@ -783,6 +783,35 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_fixed_tendon_mask_writer_reaches_solver_on_every_replay(device: str) -> None:
+    """Each replay of a captured fixed-tendon mask write updates the masked cells and the solver's copy of them.
+
+    The values are filled only after capture, so each replay must read them at launch time; the solver keeps its own
+    copy of the tendon properties, so a refresh queued only while capturing would leave it on the first replay's.
+    """
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
+        articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
+        sim.reset()
+        env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        tendon_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        stiffness = torch.zeros(articulation.num_instances, articulation.num_fixed_tendons, device=device)
+        expected = articulation.data.fixed_tendon_stiffness.torch.clone()
+        with wp.ScopedCapture(device) as capture:
+            articulation.set_fixed_tendon_stiffness_mask(
+                stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+            )
+            articulation.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+        solver_model = sim.backend_manager.backend.solver.mjw_model
+        for value in (12.0, 34.0):
+            stiffness.fill_(value)
+            wp.capture_launch(capture.graph)
+            sim.step()
+            expected[1, 1] = value
+            torch.testing.assert_close(articulation.data.fixed_tendon_stiffness.torch, expected)
+            np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), expected.cpu().numpy())
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) -> None:
     """Republish the user-order state shadows from inside a captured CUDA graph.
 
