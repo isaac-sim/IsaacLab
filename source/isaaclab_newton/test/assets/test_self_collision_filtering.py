@@ -60,6 +60,8 @@ def test_self_collision_groups_survive_import_and_cloning() -> None:
         sim.set_clone_plan(plan)
         Asset(cfg)
         Asset(other_cfg)
+        # An env0 view must not apply B's exclusions to A's source (worlds 1/3).
+        Asset(replace(other_cfg, spawn=None, prim_path="/World/envs/env_0/Robot", articulation_root_prim_path=None))
         invalid_cfg = replace(
             cfg, spawn=None, self_collision_filter_pairs=[("Link_2", "Link_4"), ("missing", "Link_0")]
         )

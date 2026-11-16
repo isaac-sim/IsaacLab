@@ -635,7 +635,9 @@ def _apply_articulation_collision_filters(
         raise ValueError(f"No asset prims found for self-collision filters matching {prim_path_exprs!r}.")
 
     # Joints and other links can be siblings of an asset path that selects its root body or joint.
-    descriptors = UsdPhysics.UsdPhysicsLoadStageFromPrimRange(stage, [Sdf.Path.absoluteRootPath])
+    # Isaac Sim's USD exposes the older loader name; pip USD also provides the new name.
+    load_physics = getattr(UsdPhysics, "UsdPhysicsLoadStageFromPrimRange", None) or UsdPhysics.LoadUsdPhysicsFromRange
+    descriptors = load_physics(stage, [Sdf.Path.absoluteRootPath])
     paths, articulations = descriptors.get(UsdPhysics.ObjectType.Articulation, ([], []))
     pairs: set[tuple[Sdf.Path, Sdf.Path]] = set()
     for root_path in roots:

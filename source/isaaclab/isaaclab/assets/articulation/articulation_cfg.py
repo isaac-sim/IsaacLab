@@ -171,8 +171,7 @@ class ArticulationCfg(AssetBaseCfg):
 
     def _resolve_self_collision_filter_paths(self) -> list[str]:
         """Resolve source prim-path expressions for this asset's collision exclusions."""
-        from ...cloner import path as cloner_path  # noqa: PLC0415
-        from ...sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext  # noqa: PLC0415
+        from ...sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, resolve_matching_prims_from_source  # noqa: PLC0415
 
         if self.spawn is not None:
             # Destination expressions can be shared by distinct asset prototypes. Only edit
@@ -183,24 +182,4 @@ class ArticulationCfg(AssetBaseCfg):
                 return [re.escape(self.spawn.spawn_path)]
             return [self.prim_path]
 
-        expressions = [self.prim_path]
-
-        sim = SimulationContext.instance()
-        plan = sim.get_clone_plan() if sim is not None else None
-        if plan is not None:
-            sources = cloner_path.get_asset_prototype_paths(plan)
-            expressions.extend(
-                re.escape(sources[index])
-                for index in cloner_path.get_asset_prototypes(plan, self.prim_path)
-                if sources[index] is not None
-            )
-            # A non-spawning articulation may be owned by a larger scene source.
-            templates, _ = cloner_path.get_world_prototype_asset_templates(plan)
-            for asset, template in zip(plan.topology.world_prototypes, templates, strict=True):
-                source = sources[asset]
-                if source is None or "{}" not in template:
-                    continue
-                matched = cloner_path.match(self.prim_path, template)
-                if matched is not None:
-                    expressions.append(re.escape(source) + matched.suffix)
-        return expressions
+        return [re.escape(str(prim.GetPath())) for prim, _ in resolve_matching_prims_from_source(self.prim_path)]
