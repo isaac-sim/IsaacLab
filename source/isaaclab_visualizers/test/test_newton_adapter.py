@@ -1478,6 +1478,28 @@ def test_a_window_with_an_explicit_view_still_gets_the_launch_declared_viewer_ca
     assert visualizer.rtx_view_index == 1 and visualizer._image_views[1].aspect == pytest.approx(960 / 540)
 
 
+def test_each_window_binds_the_viewer_camera_launch_declared_for_it():
+    visualizer = _make_newton_visualizer(_Viewer())
+    visualizer._rtx_camera_path = "/World/viewer_camera_1_rtx"
+    first = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx"))
+    second = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_1_rtx"))
+    provider = SimpleNamespace(get_camera_sensors=lambda: {s.cfg.prim_path: s for s in (first, second)})
+    created = []
+
+    def get_or_create_backend(cfg, camera=None):
+        created.append(cfg)
+        return SimpleNamespace(camera=camera, aspect=None)
+
+    sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_or_create_backend=get_or_create_backend)
+    visualizer._image_views = [SimpleNamespace(camera=first)]  # Another window's camera is not this window's view.
+
+    assert visualizer.rtx_view_index is None
+    visualizer._add_viewer_camera(sim)
+
+    assert [cfg.source for cfg in created] == ["/World/viewer_camera_1_rtx"]
+    assert visualizer.rtx_view_index == 1
+
+
 def test_switching_camera_source_refreshes_the_visible_environment():
     visualizer = _make_newton_visualizer(_Viewer())
     visualizer._image_views = [SimpleNamespace(camera=None)]

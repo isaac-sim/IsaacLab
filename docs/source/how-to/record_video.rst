@@ -304,7 +304,7 @@ visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz
 headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
 
 ``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
-deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton``. Bare visualizer
+``newton_gl`` type (``"viz:newton_gl"``) is still accepted as an alias for ``newton``. Bare visualizer
 types are accepted here too, e.g. ``VideoRecorderCfg(source="newton")`` is equivalent to
 ``VideoRecorderCfg(source="viz:newton")``.
 

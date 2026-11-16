@@ -90,8 +90,11 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     backend is not PhysX; ``False`` disables it.
     """
 
-    rtx_camera_prim_path: str | None = None
-    """Prim path of this window's OVRTX viewer camera. Set at launch when the camera is declared."""
+    rtx_camera_path: str | None = None
+    """Prim path of the OVRTX viewer camera that launch declared for this window; launch sets it, not users.
+
+    None means the window shows the first scene camera whose prim path starts with ``/World/viewer_camera_``.
+    """
 
     initial_renderer: Literal["opengl", "rtx"] = "opengl"
     """Renderer the window opens with: the Newton OpenGL view or the OVRTX viewer camera.

@@ -883,6 +883,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
     _overlay_publisher: OverlayMeshPublisher | None = None
+    _rtx_camera_path: str | None = None
+    """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -1938,8 +1940,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
+        self._rtx_camera_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         super().initialize(sim, cameras=cameras)
-        if self.cfg.view is not None and self.rtx_view_index is None:
+        if self.rtx_view_index is None:
             self._add_viewer_camera(sim)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
@@ -2141,15 +2144,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     @property
     def rtx_view_index(self) -> int | None:
-        """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
-        declared = getattr(getattr(getattr(self, "cfg", None), "backend", None), "rtx_camera_prim_path", None)
+        """Index of this window's OVRTX viewer camera among the image views, or None when the scene has none."""
         for index, view in enumerate(self._image_views):
-            if view.camera is None:
-                continue
-            prim_path = getattr(view.camera.cfg, "prim_path", "")
-            if prim_path == declared if declared is not None else prim_path.startswith("/World/viewer_camera_"):
+            if view.camera is not None and self._is_viewer_camera(getattr(view.camera.cfg, "prim_path", "")):
                 return index
         return None
+
+    def _is_viewer_camera(self, prim_path: str) -> bool:
+        """Whether *prim_path* is the viewer camera launch declared for this window, or any viewer camera if none."""
+        declared = self._rtx_camera_path
+        return prim_path == declared if declared else prim_path.startswith("/World/viewer_camera_")
 
     @property
     def sensor_view_selected(self) -> bool:
@@ -2245,11 +2249,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             del objects[key]
 
     def _add_viewer_camera(self, sim: SimulationContext) -> None:
-        """Add the OVRTX viewer camera that launch declared to a window showing an explicit view, so RTX can start."""
+        """Add the OVRTX viewer camera launch declared for this window when its explicit view or cameras omit it."""
         sensors = sim.get_scene_data_provider().get_camera_sensors()
-        camera = next(
-            (sensor for sensor in sensors.values() if sensor.cfg.prim_path.startswith("/World/viewer_camera_")), None
-        )
+        camera = next((sensor for sensor in sensors.values() if self._is_viewer_camera(sensor.cfg.prim_path)), None)
         if camera is None:
             return
         view_cfg = ImageViewCfg(

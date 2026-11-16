@@ -803,7 +803,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
                 stable_checks = 0
                 newton_gl_path = None
                 while time.time() < deadline and stable_checks < 3:
-                    candidates = sorted(newton_gl_video_dir.glob("newton_gl_*.mp4"))
+                    candidates = sorted(newton_gl_video_dir.glob("newton_*.mp4"))
                     if candidates:
                         newton_gl_path = candidates[-1]
                         size = newton_gl_path.stat().st_size
