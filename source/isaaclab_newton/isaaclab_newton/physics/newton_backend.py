@@ -197,10 +197,7 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer graph capture, so reads refresh derived state."""
-        self.fk_on_every_step = False
-        """Whether a raw graph capture replays state writes without their forward kinematics; :meth:`forward`
-        then always runs."""
+        """Whether state was written inside an outer graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -354,16 +351,23 @@ class NewtonBackend:
                 writes flagged worlds on the device only. Defaults to False.
         """
         self.notify_model_changes()
-        if not (force or self.kinematics_dirty or self.fk_on_every_step):
+        if not (force or self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
-        ops, state = self.solver_ops, self.state_0
-        if ops is None:
+        if self.solver_ops is None:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
+        self._resolve_flagged()
+        if not self.device.is_capturing:
+            # a capture records the work without running it
+            self.kinematics_dirty = False
+
+    def _resolve_flagged(self) -> None:
+        """Reset solver internals and evaluate FK for the worlds and articulations flagged on the device, then clear
+        the device flags."""
+        ops, state = self.solver_ops, self.state_0
         ops.reset(state, self.world_mask)
         ops.eval_fk(state, self.world_mask, self.fk_mask)
         self.fk_mask.zero_()
         self.world_mask.zero_()
-        self.kinematics_dirty = False
         self.state_version += 1
 
     def notify_model_changes(self) -> None:
@@ -501,12 +505,15 @@ class NewtonBackend:
         steps = self.decimation if self.handles_decimation() else 1
         actuators = self.actuators
         with wp.ScopedDevice(self.device):
-            self.forward()
             if actuators is None or actuators.is_all_graphable:
+                self.notify_model_changes()
                 self._launch(("simulate", steps), partial(self._simulate, steps))
+                if not self.device.is_capturing:
+                    self.kinematics_dirty = False
             else:
                 if self.device.is_capturing:
                     raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
+                self.forward()
                 self._stage_body_forces()
                 for i in range(steps):
                     self._launch("before_actuators", self._before_actuators)
@@ -617,7 +624,14 @@ class NewtonBackend:
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
-        """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
+        """Resolve the flagged state writes, run ``steps`` physics steps with the Newton actuators, then finish the
+        step.
+
+        A captured step resolves the flags on every replay, since replayed writes flag worlds on the device only; with
+        nothing flagged the masked kernels do no work.
+        """
+        if self.device.is_capturing or self.kinematics_dirty or self.transforms_may_change_on_graph_replay:
+            self._resolve_flagged()
         actuators = self.actuators
         self._stage_body_forces()
         for i in range(steps):

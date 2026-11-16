@@ -4,8 +4,6 @@
 * Added :func:`~isaaclab.utils.warp.capture.eager` for calls that cannot be recorded inside a recorded part. While
   the part records, the call ends the current CUDA graph and runs eagerly before the next graph starts. Every replay
   repeats the call at the same place with the same arguments.
-* Added :func:`~isaaclab.utils.warp.capture.record_at_end` to record a call once at the end of the
-  :class:`~isaaclab.utils.warp.capture.GraphedCallable` being recorded.
 * Added the ``update_in_graph`` argument to :class:`~isaaclab.utils.buffers.TimestampedBuffer`. Inside any CUDA
   graph capture a buffer's :attr:`~isaaclab.utils.buffers.TimestampedBuffer.timestamp` now reads as stale and an
   update does not mark it fresh, so a lazily cached value read in a capture is recomputed on every replay, and the

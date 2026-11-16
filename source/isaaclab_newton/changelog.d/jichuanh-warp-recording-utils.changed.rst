@@ -1,7 +1,3 @@
-* Changed Newton to reset the solver and evaluate forward kinematics once after a state write recorded in a Warp
-  stage, inside that stage's CUDA graph, instead of before every physics step once any write was recorded. State
-  written inside a raw graph capture still evaluates them before every physics step
-  (:attr:`~isaaclab_newton.physics.NewtonBackend.fk_on_every_step`).
-* Changed :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change` inside a recording of
-  :class:`~isaaclab.utils.warp.capture.GraphedCallable` to register the change again on each replay, so the next step
-  refreshes the solver once for all changes; any other capture still records the refresh of that change.
+* Changed Newton to reset the solver and evaluate forward kinematics for the worlds flagged by state writes at the
+  start of each physics step, inside the step's CUDA graph, instead of eagerly before every step once a write was
+  recorded in a graph. Without flagged worlds the masked kernels do no work.

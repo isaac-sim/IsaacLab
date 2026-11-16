@@ -143,7 +143,6 @@ def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(mon
         assert isinstance(sim.backend_manager.backend.solver, SolverMuJoCo)
         # as a write during graph capture does
         sim.backend_manager.backend.transforms_may_change_on_graph_replay = True
-        sim.backend_manager.backend.fk_on_every_step = True
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2
@@ -325,7 +324,6 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        fk_on_every_step=False,
         state_version=0,
         model_changes=set(),
         warned_model_changes=set(),
@@ -607,6 +605,55 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
 # ----- Reset masks -------------------------------------------------------------------------
 
 
+@wp.kernel
+def _count_flagged(flags: wp.array(dtype=wp.bool), counts: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    if flags[i]:
+        counts[i] += 1
+
+
+def test_a_captured_step_resolves_the_worlds_a_replayed_write_flagged():
+    """A replayed state write flags worlds on the device only; each replay of the captured step resets the solver and
+    evaluates FK for exactly those worlds and articulations, then clears the flags."""
+    backend = _recording_backend([], captures=True)
+    resets = wp.zeros(2, dtype=wp.int32, device="cpu")
+    fks = wp.zeros(1, dtype=wp.int32, device="cpu")
+    ops = backend.solver_ops
+    ops.reset = lambda state, worlds: wp.launch(_count_flagged, 2, inputs=[worlds, resets], device="cpu")
+    ops.eval_fk = lambda state, worlds, articulations: wp.launch(
+        _count_flagged, 1, inputs=[articulations, fks], device="cpu"
+    )
+
+    backend.step()  # runs eagerly with nothing flagged, then captures the step
+    assert backend.graphs
+    for _ in range(2):
+        # as a replayed write flags them, with no host flag
+        backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+        backend.fk_mask.fill_(True)
+        backend.step()
+
+    assert (resets.numpy().tolist(), fks.numpy().tolist()) == ([2, 0], [2])
+    assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
+
+
+def test_forward_recorded_in_an_abandoned_capture_leaves_the_flags_pending():
+    """FK recorded in a capture runs only when the graph is launched, so a capture that is abandoned leaves the host
+    flag and the device flags pending for the next eager forward."""
+    backend = _recording_backend([])
+    resets = wp.zeros(2, dtype=wp.int32, device="cpu")
+    backend.solver_ops.reset = lambda state, worlds: wp.launch(_count_flagged, 2, inputs=[worlds, resets], device="cpu")
+    backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+    backend.kinematics_dirty = True
+
+    with wp.ScopedDevice("cpu"), wp.ScopedCapture():  # never launched
+        backend.forward()
+    assert backend.kinematics_dirty
+    backend.forward()
+
+    assert resets.numpy().tolist() == [1, 0]
+    assert not backend.kinematics_dirty and not backend.world_mask.numpy().any()
+
+
 def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_records_the_read():
     """Reading published state resolves pending FK once; a raw read during capture leaves it pending."""
     resets, fks = [], []
@@ -635,7 +682,6 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         fk_mask=fk_mask,
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
-        fk_on_every_step=False,
         model_changes=set(),
         state_version=0,
     )
@@ -664,7 +710,6 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
         fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        fk_on_every_step=False,
     )
     articulation_ids = wp.array([[0, 1], [2, 3], [4, 5]], dtype=wp.int32, device="cpu")
     env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")

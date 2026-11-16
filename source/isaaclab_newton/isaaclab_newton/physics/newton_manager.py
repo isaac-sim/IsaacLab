@@ -27,7 +27,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
-from isaaclab.utils.warp.capture import capturing, eager, is_recording, record_at_end, repeat_before_eager_call
+from isaaclab.utils.warp.capture import repeat_before_eager_call
 
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
@@ -169,8 +169,8 @@ class NewtonManager(PhysicsManager):
         """Update articulation kinematics without stepping physics; see :meth:`NewtonBackend.forward`.
 
         An :func:`~isaaclab.utils.warp.capture.eager` call of a recording that consumes pending FK here clears the host
-        flag the recorded write set, so the FK the recording would add at its end is not recorded and a replay, whose
-        write sets no host flag, would skip it: every replay then evaluates FK right before that eager call.
+        flag the recorded write set, and a replay, whose write sets no host flag, would skip it: every replay then
+        evaluates FK right before that eager call.
         """
         backend = self.backend
         if backend is None:
@@ -200,17 +200,9 @@ class NewtonManager(PhysicsManager):
         self._flag_outer_capture()
 
     def _flag_outer_capture(self) -> None:
-        """Flag writes recorded into an outer graph capture.
-
-        A :class:`~isaaclab.utils.warp.capture.GraphedCallable` recording the write also records :meth:`forward` at
-        its end, so each replay resets the solver and evaluates FK once after the write; a raw capture cannot, so FK
-        then runs before every physics step.
-        """
-        backend = self.backend
-        if backend.device.is_capturing:
-            backend.transforms_may_change_on_graph_replay = True
-            if not record_at_end(backend.forward):
-                backend.fk_on_every_step = True
+        """Flag writes recorded into an outer graph capture."""
+        if self.backend.device.is_capturing:
+            self.backend.transforms_may_change_on_graph_replay = True
 
     def step(self) -> None:
         """Advance physics by one environment step, or one physics step when the environment runs decimation."""
@@ -373,19 +365,18 @@ class NewtonManager(PhysicsManager):
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver at the next step.
 
-        The registration is host work: a recorded part of the step that writes registers it again on each replay. A
-        capture that no :class:`~isaaclab.utils.warp.capture.GraphedCallable` records cannot repeat host work, so it
-        records the refresh of this change alone instead; changes queued before the capture stay queued.
+        Inside a graph capture, the refresh of this change alone is recorded instead, so every replay applies it;
+        changes queued before the capture stay queued for the next step.
         """
         backend = self.backend
-        if capturing(backend.device) and not is_recording():
+        if wp.get_device(backend.device).is_capturing:
             queued, backend.model_changes = backend.model_changes, {change}
             try:
                 backend.notify_model_changes()
             finally:
                 backend.model_changes = queued
         else:
-            eager(backend.model_changes.add, change)
+            backend.model_changes.add(change)
 
     def invalidate_fk(
         self,

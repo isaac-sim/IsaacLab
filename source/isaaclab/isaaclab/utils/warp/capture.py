@@ -49,20 +49,6 @@ def is_recording() -> bool:
     return recording is not None and recording.capturing
 
 
-def record_at_end(fn: Callable[[], None]) -> bool:
-    """Record ``fn`` at the end of the :class:`GraphedCallable` being recorded, once however often it is requested.
-
-    Returns:
-        Whether a :class:`GraphedCallable` records; without one, the caller handles the replays itself.
-    """
-    recording = GraphedCallable._recording
-    if recording is None:
-        return False
-    if fn not in recording.end_calls:
-        recording.end_calls.append(fn)
-    return True
-
-
 def repeat_before_eager_call(fn: Callable[[], None]) -> bool:
     """From inside an :func:`eager` call of a :class:`GraphedCallable` recording, run ``fn`` on every replay right
     before that call.
@@ -254,8 +240,6 @@ def _record_calls(device: wp.Device):
             recording.begin()
             try:
                 yield recording
-                for fn in recording.end_calls:
-                    fn()
             except BaseException:
                 recording.abort()
                 raise
@@ -287,8 +271,6 @@ class _Recording:
             self.capture_stream = wp.stream_from_torch(torch.cuda.Stream(device=device.alias))
             self.mode = wp.CaptureMode.RELAXED
         self.steps: list = []
-        # calls recorded after the recorded function (see record_at_end)
-        self.end_calls: list = []
         self.capturing = False
 
     def begin(self) -> None:
