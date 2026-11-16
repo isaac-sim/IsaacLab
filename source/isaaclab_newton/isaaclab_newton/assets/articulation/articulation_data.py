@@ -162,7 +162,10 @@ class ArticulationData(BaseArticulationData):
         # a zero step (the update at initialization) has no difference to take, so they keep their values
         if dt == 0.0:
             return
-        wp.launch(
+        # recorded launches: the update runs once per physics step outside the recorded parts of the step
+        self._read_launch_cache.launch(
+            "joint_acc",
+            wp.launch,
             articulation_kernels.get_joint_acc_from_joint_vel,
             dim=(self._num_instances, self._num_joints),
             inputs=[
@@ -173,14 +176,14 @@ class ArticulationData(BaseArticulationData):
             outputs=[
                 self._joint_acc.data,
             ],
-            device=self.device,
         )
         self._joint_acc.timestamp = self._sim_timestamp
         body_ordering = self.body_ordering
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_com_acc_w",
+            wp.launch,
             articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
             dim=(self._num_instances, self._num_bodies),
-            device=self.device,
             inputs=[
                 self._sim_bind_body_com_vel_w,
                 self._previous_body_com_vel,

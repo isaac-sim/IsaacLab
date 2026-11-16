@@ -23,6 +23,7 @@ import warp._src.context as _warp_context
 from torch.utils._python_dispatch import TorchDispatchMode
 
 from ..version import has_kit
+from .launch_cache import _WarpLaunchCache
 
 if TYPE_CHECKING:
     from ...physics import PhysicsManager
@@ -191,9 +192,9 @@ class GraphedCallable:
 
     @classmethod
     def watch(cls, backend_manager: PhysicsManager) -> None:
-        """Record every callable again after the physics backend rebinds its buffers or stops, and settle the backend
-        before each recording: work it queued before (model changes, kinematics) runs then, once, so a recording holds
-        only the work of its own calls.
+        """Record every callable and every cached launch again after the physics backend rebinds its buffers or stops,
+        and settle the backend before each recording: work it queued before (model changes, kinematics) runs then,
+        once, so a recording holds only the work of its own calls.
 
         Args:
             backend_manager: Physics manager that dispatches the lifecycle events.
@@ -204,8 +205,10 @@ class GraphedCallable:
         cls.unwatch()
         cls._settle = backend_manager.forward
         cls._callback_handles = [
-            backend_manager.register_callback(cls.invalidate, event)
+            backend_manager.register_callback(callback, event)
             for event in (PhysicsEvent.PHYSICS_READY, PhysicsEvent.STOP)
+            # the recorded launches of the code outside the graphs read the same buffers
+            for callback in (cls.invalidate, _WarpLaunchCache.clear_all)
         ]
 
     @classmethod

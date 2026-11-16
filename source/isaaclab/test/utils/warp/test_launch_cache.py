@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from types import SimpleNamespace
+
+import pytest
+import warp as wp
+
 import isaaclab.utils.warp.launch_cache as launch_cache
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.warp.capture import GraphedCallable
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 
@@ -61,3 +68,94 @@ def test_warp_launch_cache(monkeypatch):
     cache.launch("empty", launch, kernel, dim=0, inputs=[], outputs=[])
     cache.launch("empty", launch, kernel, dim=0, inputs=[], outputs=[])
     assert len(calls) == 8
+
+
+def test_another_operation_records_again_when_an_array_or_scalar_argument_changes(monkeypatch):
+    """An operation other than ``wp.launch`` cannot take an argument in place, so the call site records it again."""
+
+    class Device:
+        is_cuda = True
+        is_capturing = False
+
+    calls = []
+
+    def operation(values, scale, device, record_cmd=False):
+        calls.append((values, scale))
+        return SimpleNamespace(launch=lambda: None)
+
+    monkeypatch.setattr(launch_cache.wp, "get_device", lambda _: Device())
+    cache = _WarpLaunchCache("cuda:0")
+    first, second = wp.zeros(2, dtype=wp.float32, device="cpu"), wp.zeros(2, dtype=wp.float32, device="cpu")
+    for values, scale in ((first, 1.0), (first, 1.0), (second, 1.0), (second, 2.0), (second, 2.0)):
+        cache.launch("site", operation, values, scale)
+    assert calls == [(first, 1.0), (second, 1.0), (second, 2.0)]
+    assert len(cache._commands) == 1
+
+
+def test_a_physics_rebind_or_stop_clears_every_cache(monkeypatch):
+    """The recording of the environment step clears the recorded launches with its own recordings."""
+
+    class Device:
+        is_cuda = True
+        is_capturing = False
+
+    class BackendManager:
+        def __init__(self):
+            self.callbacks = []
+
+        def register_callback(self, fn, event):
+            self.callbacks.append(fn)
+            return SimpleNamespace(deregister=lambda: None)
+
+        def forward(self):
+            pass
+
+    monkeypatch.setattr(launch_cache.wp, "get_device", lambda _: Device())
+    caches = [_WarpLaunchCache("cuda:0") for _ in range(2)]
+    for cache in caches:
+        cache.launch("site", lambda device, record_cmd=False: SimpleNamespace(launch=lambda: None))
+    manager = BackendManager()
+    GraphedCallable.watch(manager)
+    try:
+        assert _WarpLaunchCache.clear_all in manager.callbacks
+        for callback in manager.callbacks:
+            callback(None)
+    finally:
+        GraphedCallable.unwatch()
+    assert [len(cache._commands) for cache in caches] == [0, 0]
+
+
+@wp.kernel
+def _scale_into(values: wp.array(dtype=wp.float32), scale: wp.float32, out: wp.array(dtype=wp.float32)):
+    i = wp.tid()
+    out[i] = values[i] * scale
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_a_cached_launch_takes_changed_arguments_in_place(device, monkeypatch):
+    """A call site keeps one recorded launch: a reallocated array, a changed scalar and a changed dimension are set on
+    it in place, without recording a new launch."""
+    recorded = []
+    launch = wp.launch
+
+    def counting_launch(*args, **kwargs):
+        if kwargs.get("record_cmd"):
+            recorded.append(True)
+        return launch(*args, **kwargs)
+
+    monkeypatch.setattr(launch_cache.wp, "launch", counting_launch)
+    cache = _WarpLaunchCache(device)
+    out = wp.zeros(4, dtype=wp.float32, device=device)
+
+    def scale(values: wp.array, factor: float, dim: int = 4):
+        cache.launch("scale", counting_launch, _scale_into, dim=dim, inputs=[values, factor], outputs=[out])
+        return out.numpy().tolist()
+
+    assert scale(wp.full(4, 1.0, dtype=wp.float32, device=device), 2.0) == [2.0] * 4
+    reallocated = wp.full(4, 3.0, dtype=wp.float32, device=device)
+    assert scale(reallocated, 5.0) == [15.0] * 4
+    assert scale(reallocated, 1.0, dim=2) == [3.0, 3.0, 15.0, 15.0]
+    assert (len(recorded), len(cache._commands)) == (1, 1)
+    _WarpLaunchCache.clear_all()
+    assert scale(reallocated, 2.0) == [6.0] * 4
+    assert len(recorded) == 2

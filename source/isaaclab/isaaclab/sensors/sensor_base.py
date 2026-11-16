@@ -31,6 +31,7 @@ from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
 from ..utils.warp.capture import capturing
+from ..utils.warp.launch_cache import _WarpLaunchCache
 from ..utils.warp.memory import resolve_1d_mask
 from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -227,8 +228,11 @@ class SensorBase(ABC):
         if not self._is_initialized:
             return
         self._data_dirty |= dt > 0.0
-        # Update the timestamp for the sensors
-        wp.launch(
+        # Update the timestamp for the sensors, through a recorded launch: the update runs once per physics step
+        # outside the recorded parts of the step
+        self._launch_cache.launch(
+            "update_timestamp",
+            wp.launch,
             update_timestamp_kernel,
             dim=self._num_envs,
             inputs=[
@@ -239,7 +243,6 @@ class SensorBase(ABC):
                 dt,
                 self.cfg.update_period - 1e-6,
             ],
-            device=self._device,
         )
         # Update the buffers; debug visualization refreshes lazily from its callback.
         if force_recompute:
@@ -466,6 +469,7 @@ class SensorBase(ABC):
         # A negative timestamp means no backend sample has been read since initialization/reset.
         self._timestamp_last_update = wp.full(self._num_envs, -1.0, dtype=wp.float32, device=self._device)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+        self._launch_cache = _WarpLaunchCache(self._device)
 
     def _invalidate_buffers(self, env_mask: wp.array | None = None) -> None:
         """Invalidate selected results without advancing sampling clocks; None selects all environments."""

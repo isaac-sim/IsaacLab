@@ -132,10 +132,12 @@ class RigidObjectData(BaseRigidObjectData):
         # a zero step (the update at initialization) has no difference to take, so they keep their values
         if dt == 0.0:
             return
-        wp.launch(
+        # a recorded launch: the update runs once per physics step outside the recorded parts of the step
+        self._read_launch_cache.launch(
+            "body_com_acc_w",
+            wp.launch,
             shared_kernels.derive_body_acceleration_from_body_com_velocities,
             dim=(self._num_instances, 1),
-            device=self.device,
             inputs=[
                 self._sim_bind_body_com_vel_w,
                 dt,
