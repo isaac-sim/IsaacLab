@@ -11,6 +11,7 @@ import logging
 from types import SimpleNamespace
 
 import pytest
+import torch
 import warp as wp
 
 from isaaclab.utils.warp.capture import (
@@ -322,3 +323,65 @@ def test_recording_settles_the_watched_backend_first():
     finally:
         GraphedCallable.unwatch()
     assert _read(values) == [1]
+
+
+def _synchronizing_call(values: torch.Tensor) -> float:
+    """A torch host synchronization, whose value a replay would keep."""
+    return values.sum().item()
+
+
+def test_a_host_synchronization_while_recording_raises_naming_the_call():
+    """A torch operation that synchronizes the host inside a recorded graph raises instead of baking its value."""
+    values = torch.ones(4, device=DEVICE)
+    previous = torch.cuda.get_sync_debug_mode()
+    graphed = GraphedCallable(lambda: _synchronizing_call(values), DEVICE)
+    with pytest.raises(RuntimeError, match="<lambda>' synchronizes the host with the device or runs a torch CUDA"):
+        graphed()
+    assert torch.cuda.get_sync_debug_mode() == previous, "the sync debug mode must be restored after a raise"
+
+
+def test_a_host_synchronization_in_an_eager_call_runs_plainly_in_the_previous_mode():
+    values = torch.ones(4, device=DEVICE)
+    previous = torch.cuda.get_sync_debug_mode()
+    modes = []
+
+    def body():
+        modes.append(torch.cuda.get_sync_debug_mode())
+        return eager(_synchronizing_call, values)
+
+    graphed = GraphedCallable(body, DEVICE)
+    assert graphed() == 4.0
+    assert graphed() == 4.0
+    # the abandoned recording ran in mode "error" (2), the plain runs in the previous mode
+    assert modes == [2, previous, previous]
+    assert torch.cuda.get_sync_debug_mode() == previous
+
+
+def test_the_sync_debug_mode_is_restored_when_the_recording_raises():
+    previous = torch.cuda.get_sync_debug_mode()
+
+    def body():
+        raise ValueError("term failed")
+
+    with pytest.raises(ValueError, match="term failed"):
+        GraphedCallable(body, DEVICE)()
+    assert torch.cuda.get_sync_debug_mode() == previous
+
+
+def test_a_torch_operation_while_recording_raises_naming_the_call_and_the_operation():
+    """A torch operation on the recording's device would run once at recording time; the guard raises, with and
+    without Kit, before CUDA would."""
+    values = torch.ones(4, device=DEVICE)
+    graphed = GraphedCallable(lambda: values.add_(1), DEVICE)
+    with pytest.raises(RuntimeError, match=r"(?s)<lambda>' .*while it records.*aten\.add_"):
+        graphed()
+    # the operation did not run, and the guard is released after the raise
+    assert values.add(1).sum().item() == 8.0
+
+
+def test_a_torch_operation_in_an_eager_call_runs():
+    values = torch.ones(4, device=DEVICE)
+    graphed = GraphedCallable(lambda: eager(values.add_, 1), DEVICE)
+    graphed()
+    graphed()
+    assert values.sum().item() == 12.0

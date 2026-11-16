@@ -9,3 +9,7 @@
   graph capture a buffer's :attr:`~isaaclab.utils.buffers.TimestampedBuffer.timestamp` now reads as stale and an
   update does not mark it fresh, so a lazily cached value read in a capture is recomputed on every replay, and the
   first read after an abandoned capture recomputes it; ``update_in_graph=False`` keeps the plain timestamp rule.
+* Added checks to :class:`~isaaclab.utils.warp.capture.GraphedCallable` recordings, with and without Kit: a torch
+  operation on the recording's device that is not a view, or a host synchronization, while the graph records raises a
+  :class:`RuntimeError` naming the recorded call and the operation, since a replay would skip it or keep the value it
+  read. The checks end with the graph, also when the recording raises or is abandoned.
