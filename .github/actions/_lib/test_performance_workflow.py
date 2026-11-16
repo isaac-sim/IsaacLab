@@ -70,7 +70,8 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     }
     const needs = {changes: {outputs: {activated: outputs.activated, should_run: 'true'}}};
     const event = {event_name: eventName, event: context.payload};
-    const evaluate = code => new Function('needs', 'github', 'fromJSON', `return (${code})`)(needs, event, JSON.parse);
+    const evaluate = code => new Function('needs', 'github', 'fromJSON', 'contains', `return (${code})`)(
+      needs, event, JSON.parse, (values, value) => values.includes(value));
     assert.deepEqual(
       [evaluate(input.runner), evaluate(input.curobo), evaluate(input.stop.if), evaluate(input.cancel)],
       [activated ? ['self-hosted', 'gpu'] : ['ubuntu-latest'],
@@ -175,3 +176,95 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
+
+
+def test_test_only_suite_routing() -> None:
+    """Exercise API selection and workflow gates together, including fail-open paths."""
+    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    data = {
+        "selector": str(_WORKFLOW.parent.parent / "actions/_lib/select-test-jobs.cjs"),
+        "gates": {
+            name: job["if"]
+            for name, job in jobs.items()
+            if "if" in job and isinstance(job.get("runs-on"), list) and "self-hosted" in job["runs-on"]
+        },
+        "subsets": [
+            step["with"]["test-node-ids-file"]
+            for job in jobs.values()
+            for step in job.get("steps", [])
+            if step.get("with", {}).get("test-node-ids-file", "").startswith("${{")
+        ],
+    }
+    runner = r"""
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const assert = require('node:assert/strict');
+const select = require(input.selector);
+const coreTest = 'source/isaaclab/test/utils/test_math.py';
+const coreJobs = ['test-isaaclab-core', 'test-isaaclab-core-2', 'test-isaaclab-core-3'];
+const cases = [
+  {paths: [coreTest], jobs: coreJobs},
+  {paths: [coreTest, 'source/isaaclab/changelog.d/math.skip'], jobs: coreJobs},
+  {paths: ['source/isaaclab_newton/test/sim/test_manager.py'], jobs: ['test-isaaclab-newton']},
+  {paths: [coreTest, 'source/isaaclab_newton/test/sim/test_manager.py'],
+   jobs: [...coreJobs, 'test-isaaclab-newton']},
+  {paths: ['source/isaaclab/test/app/test_standalone_scripts.py'],
+   jobs: [...coreJobs, 'test-standalone-demos-kit', 'test-standalone-demos-non-kit']},
+  {paths: ['source/isaaclab_mimic/test/test_curobo_planner_franka.py'],
+   jobs: ['build-curobo', 'test-curobo', 'test-isaaclab-assets']},
+  {paths: ['source/_isaaclab_testing/test/rendering/test_rendering_kit.py'], jobs: [
+    'test-isaaclab-visualizers', 'test-rendering-correctness',
+    'test-rendering-correctness-kitless-legacy']},
+  {paths: [coreTest, 'source/isaaclab/isaaclab/utils/math.py']},
+  {paths: [coreTest, 'source/isaaclab/test/conftest.py']},
+  {paths: ['source/isaaclab_tasks/test/core/env_test_utils.py']},
+  {paths: ['source/future_package/test/test_feature.py']},
+  {paths: ['source/isaaclab/changelog.d/math.skip']},
+  {paths: []},
+  {paths: [coreTest], previous: 'source/isaaclab/isaaclab/utils/old.py'},
+  {paths: Array(3000).fill(coreTest)},
+  {paths: [coreTest], error: true},
+  {paths: [coreTest], event: 'workflow_dispatch'},
+];
+function evaluate(code, event, lanes) {
+  const needs = new Proxy({changes: {outputs: {lanes, activated: 'true', should_run: 'true'}}}, {
+    get: (target, key) => target[key] || {result: 'success'},
+  });
+  const github = {event_name: event, ref_name: 'main', event: {repository: {default_branch: 'main'}}};
+  code = code.replace(/^\$\{\{/, '').replace(/\}\}$/, '')
+    .replace(/needs\.([\w-]+)/g, (_, key) => `needs[${JSON.stringify(key)}]`);
+  return new Function('needs', 'github', 'fromJSON', 'contains', `return (${code})`)(
+    needs, github, JSON.parse, (values, value) => values.includes(value));
+}
+function running(event, lanes) {
+  return Object.entries(input.gates).filter(([name, gate]) => evaluate(gate, event, lanes))
+    .map(([name]) => name).sort();
+}
+(async () => {
+  for (const item of cases) {
+    let lanes;
+    const event = item.event || 'pull_request';
+    await select({
+      context: {eventName: event, repo: {owner: 'owner', repo: 'lab'}, payload: {pull_request: {number: 1}}},
+      github: {rest: {pulls: {listFiles: 'files'}}, paginate: async () => {
+        if (item.error) throw new Error('API unavailable');
+        return item.paths.map(filename => ({filename, previous_filename: item.previous}));
+      }},
+      core: {setOutput: (key, value) => lanes = value, info: () => {}, warning: () => {}},
+    });
+    if (item.jobs) {
+      assert.deepEqual(running(event, lanes), item.jobs.sort(), JSON.stringify(item));
+    } else {
+      assert.deepEqual(JSON.parse(lanes), ['all'], JSON.stringify(item));
+    }
+  }
+  // A scheduled reusable call must keep the same bounded integration lanes and
+  // exact-node rendering subsets as the previous post-merge push invocation.
+  assert.deepEqual(running('schedule', '["all"]'), running('push', '["all"]'));
+  for (const subset of input.subsets) {
+    assert.equal(evaluate(subset, 'schedule', '["all"]'), evaluate(subset, 'push', '["all"]'));
+  }
+})();
+"""
+    result = subprocess.run(["node", "-e", runner], input=json.dumps(data), capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

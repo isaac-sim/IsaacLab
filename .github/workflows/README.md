@@ -36,3 +36,40 @@ prepared environments, so keep the suite out of the general test orchestrator.
 When retiring the workflow, remove `Installation Tests (x86)`,
 `Installation Tests (ARM)`, and `Installation Tests (Windows)` from any required
 status-check rules that reference them.
+
+## Multi-GPU training smoke routing
+
+The multi-GPU pytest workflow matches runtime package directories and package
+manifests for its training smoke jobs. Core and backend test-only or documentation
+changes still run the applicable unit-test lane, but do not start the unrelated
+Cartpole training smoke lanes. Changes to the smoke tests themselves, their
+conftest hooks, runtime test helpers, training entry points, dependencies, and
+shared actions retain training coverage.
+
+For a core/backend unit-test-only change, this avoids three multi-GPU runner
+allocations: the kit-less image builder and both training smoke jobs. The Kit
+image builder and unit-test job remain. This reduces total runner work without
+serializing independent tests or dropping any training configuration.
+
+## Test-only Docker PRs
+
+Docker + Tests selects owning suites when every changed executable file is a
+recognized package test. Core test edits run the three core shards; backend test
+edits run their backend suite. Mixed test edits take the union. Shared fixtures,
+runtime changes, unknown paths, incomplete file lists, and API errors retain the
+full suite. Required job names remain present and unrelated jobs report skipped.
+This selection changes neither the cases within a suite nor post-merge coverage.
+
+## Compatibility cadence and runner reuse
+
+Latest Released Isaac Sim Compatibility runs daily at 07:23 UTC and on manual
+dispatch, rather than provisioning a second integration pipeline on every main
+merge. The current runtime still receives post-merge validation. Released-runtime
+regressions are detected on the next daily run; manual dispatch is available for
+release-sensitive changes. Scheduled runs retain the post-merge job selection and
+rendering subsets.
+
+The kit-less multi-GPU training job builds or pulls its own image, eliminating a
+separate builder runner for a single consumer. Both training smoke jobs restore
+the shared compatible Warp kernel cache. ARM configuration loading shares the
+change detector's hosted runner instead of provisioning another one.

@@ -41,15 +41,8 @@ PEND_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
 
 
 @configclass
-class MySceneCfg(InteractiveSceneCfg):
-    """Example scene configuration."""
-
-    # terrain - flat terrain plane
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        max_init_terrain_level=None,
-    )
+class BallSceneCfg(InteractiveSceneCfg):
+    """Airborne ball for force and velocity-write sensor checks."""
 
     # rigid objects - balls
     balls = RigidObjectCfg(
@@ -62,6 +55,20 @@ class MySceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
+    )
+
+    pva_ball: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/ball")
+
+
+@configclass
+class MySceneCfg(BallSceneCfg):
+    """Example scene configuration."""
+
+    # terrain - flat terrain plane
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        max_init_terrain_level=None,
     )
 
     cube = RigidObjectCfg(
@@ -109,7 +116,6 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # sensors - pva (filled inside unit test)
-    pva_ball: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/ball")
     pva_cube: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/cube")
     pva_robot_imu_link: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link")
     pva_robot_base: PvaCfg = PvaCfg(
@@ -162,7 +168,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @pytest.fixture
-def setup_sim():
+def setup_sim(request):
     """Create a simulation context and scene."""
     sim_cfg = sim_utils.SimulationCfg(
         dt=0.001, physics=PhysxCfg(solver_type=0)
@@ -170,16 +176,17 @@ def setup_sim():
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # construct scene
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg = getattr(request, "param", MySceneCfg)(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
         scene = InteractiveScene(scene_cfg)
         # The pendulum uses merge_fixed_joints=True, so the fixed-joint child link
         # imu_link is removed from the URDF before USD conversion.  Recreate it as a
         # plain Xform (no RigidBodyAPI) under link_1 for every environment.  The PVA
         # sensor must then resolve the rigid-body ancestor (link_1) and cache the
         # fixed offset — exercising the "indirect attachment" code path.
-        for i in range(scene_cfg.num_envs):
-            prim_path = f"/World/envs/env_{i}/pendulum/Geometry/world/link_1/imu_link"
-            sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
+        if isinstance(scene_cfg, MySceneCfg):
+            for i in range(scene_cfg.num_envs):
+                prim_path = f"/World/envs/env_{i}/pendulum/Geometry/world/link_1/imu_link"
+                sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
         # Play the simulator
         sim.reset()
         yield sim, scene
@@ -187,6 +194,7 @@ def setup_sim():
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("setup_sim", [BallSceneCfg], indirect=True)
 def test_constant_acceleration(setup_sim):
     """A constant applied force yields the solver acceleration F/m on top of free fall."""
     sim, scene = setup_sim
@@ -563,6 +571,7 @@ def test_no_stale_data_after_scene_reset():
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
+@pytest.mark.parametrize("setup_sim", [BallSceneCfg], indirect=True)
 def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_mode):
     """Directly written (teleported) velocities do not show up as fake accelerations.
 
