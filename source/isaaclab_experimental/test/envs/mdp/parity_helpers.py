@@ -393,9 +393,13 @@ class MockScene:
         self.articulations = dict(assets)
         self.rigid_objects = {}
         self.num_envs = NUM_ENVS
+        self.device = DEVICE
 
     def __getitem__(self, name: str):
         return self._assets[name]
+
+    def keys(self):
+        return self._assets.keys()
 
 
 # ---------------------------------------------------------------------------
