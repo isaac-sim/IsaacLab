@@ -78,7 +78,9 @@ def _leapp_ema_process_actions(term, task_name: str, state_name: str):
             original_process(actions)
             return
 
-        term._prev_applied_actions = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
+        previous = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
+        # Keep the registered feedback input unchanged during the native in-place EMA update.
+        term._prev_applied_actions = previous.clone()
         original_process(actions)
         term._prev_applied_actions = annotate.update_state(task_name, {state_name: term.processed_actions})
 

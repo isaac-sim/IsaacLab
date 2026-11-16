@@ -9,7 +9,8 @@
   yaw-only planar references unspecified.
 * Removed the RGB export observation proxy by tracing destination writes directly in the
   normalization function patch.
-* Removed redundant export-only clones from EMA state registration and processed-action fallback outputs.
+* Removed the redundant processed-action fallback clone and kept the EMA state-input clone
+  to preserve registered feedback during in-place action processing.
 * **Breaking:** Replaced decorator ``element_names`` and ``element_names_resolver`` with
   explicit LEAPP ``axes`` and ``axes_resolver`` declarations. Replaced component-label constants
   with ``*_COMPONENT_AXIS`` descriptors and body/joint resolvers with axis resolvers. Command

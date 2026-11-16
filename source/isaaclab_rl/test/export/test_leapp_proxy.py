@@ -29,6 +29,8 @@ from isaaclab.utils.leapp.leapp_semantics import Kind
 from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy
 from isaaclab.utils.warp import ProxyArray
 
+pytestmark = pytest.mark.kitless
+
 
 class _TestScene(dict):
     """Minimal scene mapping for LEAPP proxy tests."""
@@ -492,6 +494,69 @@ def test_rgb_observation_export_keeps_live_camera_input(
                 expected = expected.movedim(-1, 1)
             actual = manager.run_policy({input_name: frame.clone()})["camera-task/observation"]
             torch.testing.assert_close(actual, expected)
+
+
+def test_ema_action_export_replays_and_resets(tmp_path: Path):
+    """EMA feedback matches eager action targets across unseen inputs and inference resets."""
+    from leapp import InferenceManager, annotate
+    from leapp_tensor_env import _ActionCfg, _TensorScene
+
+    from isaaclab.managers import ActionManager
+
+    def make_env():
+        scene = _TensorScene(3)
+        limits = torch.tensor([[[-1.0, 1.0], [-0.5, 0.8], [-2.0, 2.0]]])
+        scene["robot"].data.soft_joint_pos_limits = ProxyArray(wp.from_torch(limits))
+        env = SimpleNamespace(scene=scene, num_envs=1, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
+        env.action_manager = ActionManager(
+            _ActionCfg(
+                joints=mdp.EMAJointPositionToLimitsActionCfg(
+                    asset_name="robot", joint_names=[".*"], scale=1.5, alpha=0.35
+                )
+            ),
+            env,
+        )
+        env.action_manager.reset()
+        return env
+
+    capture_env, eager_env = make_env(), make_env()
+    patcher = ExportPatcher("onnx")
+    patcher.task_name = "ema"
+    patcher._patch_action_manager(capture_env.action_manager, patcher._annotated_tensor_cache)
+    generator = torch.Generator().manual_seed(41)
+    actions = torch.rand((13, 1, 3), generator=generator) * 3.0 - 1.5
+    expected_capture = []
+    for action in actions[:5]:
+        eager_env.action_manager.process_action(action)
+        eager_env.action_manager.apply_action()
+        expected_capture.append(eager_env.scene["robot"].targets[-1]["value"].clone())
+    leapp.start("ema", save_path=str(tmp_path), max_cached_io=5, patching=export_function_patches())
+    try:
+        for index, action in enumerate(actions[:5]):
+            traced = annotate.input_tensors("ema", {"actions": action.clone()})
+            capture_env.action_manager.process_action(traced)
+            capture_env.action_manager.apply_action()
+            torch.testing.assert_close(
+                capture_env.scene["robot"].targets[-1]["value"],
+                expected_capture[index],
+                msg=lambda error: f"capture step {index}: {error}",
+            )
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True, strict=True)
+
+    pipeline = tmp_path / "ema" / "ema.yaml"
+    description = yaml.safe_load(pipeline.read_text())
+    assert any("joints_previous_applied_actions" in name for name in description["pipeline"]["feedback_flow"])
+    runtime = InferenceManager(str(pipeline))
+    for sequence in (actions[5:9], actions[9:]):
+        runtime.reset()
+        eager_env.action_manager.reset()
+        for action in sequence:
+            eager_env.action_manager.process_action(action)
+            eager_env.action_manager.apply_action()
+            actual = runtime.run_policy({"ema/actions": action})["ema/joints"]
+            torch.testing.assert_close(actual, eager_env.scene["robot"].targets[-1]["value"])
 
 
 def test_rgb_function_patch_preserves_destination(tmp_path: Path):
