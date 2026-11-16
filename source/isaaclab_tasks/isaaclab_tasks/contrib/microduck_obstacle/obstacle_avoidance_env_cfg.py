@@ -412,3 +412,16 @@ class MicroDuckObstacleAvoidanceEnvCfg(MicroDuckVelocityFlatEnvCfg):
         # Mesh contacts at 16k environments exceed the primitive task buffers.
         self.sim.physics.collision_cfg.max_triangle_pairs = 320_000_000
         self.sim.physics.collision_cfg.rigid_contact_max = 16_000_000
+
+    def play_mode(self):
+        """Show a scattered obstacle course while preserving training dynamics."""
+        self.events.obstacle_field.params.update(layout="scattered", layout_weights=None)
+        self.events.reset_base.params["pose_range"]["yaw"] = (0.0, 0.0)
+        self.commands.base_velocity.debug_vis = True
+
+        visualizers = self.sim.visualizer_cfgs
+        if not isinstance(visualizers, list):
+            visualizers = [visualizers]
+        for visualizer in visualizers:
+            visualizer.eye = (1.3, -3.5, 3.5)
+            visualizer.lookat = (1.3, 0.0, 0.1)
