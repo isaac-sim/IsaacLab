@@ -6,10 +6,9 @@
   repeats the call at the same place with the same arguments.
 * Added :func:`~isaaclab.utils.warp.capture.record_at_end` to record a call once at the end of the
   :class:`~isaaclab.utils.warp.capture.GraphedCallable` being recorded.
-* Added the ``update_in_graph`` argument to :class:`~isaaclab.utils.buffers.TimestampedBuffer`. While a
-  :class:`~isaaclab.utils.warp.capture.GraphedCallable` records, a buffer's
-  :attr:`~isaaclab.utils.buffers.TimestampedBuffer.timestamp` now reads as stale until the buffer is updated in that
-  recording, so a lazily cached value read in a recording is recomputed on every replay; ``update_in_graph=False``
-  keeps the plain timestamp rule, as does any other CUDA graph capture.
+* Added the ``update_in_graph`` argument to :class:`~isaaclab.utils.buffers.TimestampedBuffer`. Inside any CUDA
+  graph capture a buffer's :attr:`~isaaclab.utils.buffers.TimestampedBuffer.timestamp` now reads as stale and an
+  update does not mark it fresh, so a lazily cached value read in a capture is recomputed on every replay, and the
+  first read after an abandoned capture recomputes it; ``update_in_graph=False`` keeps the plain timestamp rule.
 * Added :func:`~isaaclab.utils.warp.capture.repeat_before_eager_call`, with which an
   :func:`~isaaclab.utils.warp.capture.eager` call of a recording adds a call that every replay runs right before it.

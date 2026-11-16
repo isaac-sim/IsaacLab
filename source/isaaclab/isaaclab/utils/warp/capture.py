@@ -32,10 +32,15 @@ def capturing(device: wp.Device | str | None = None) -> bool:
     outside a recording the check spares the CUDA query; every recording in Isaac Lab starts through Warp. Warp's CPU
     capture is not in its CUDA capture table and is read from the runtime's private ``_apic_capture``.
     """
-    runtime = _warp_context.runtime
-    if runtime is None or not (runtime.captures or runtime._apic_capture is not None):
+    if not capture_in_progress():
         return False
     return wp.get_device(device).is_capturing
+
+
+def capture_in_progress() -> bool:
+    """Whether Warp records a graph on any device, a CUDA graph or its CPU one."""
+    runtime = _warp_context.runtime
+    return runtime is not None and bool(runtime.captures or runtime._apic_capture is not None)
 
 
 def is_recording() -> bool:
@@ -285,8 +290,6 @@ class _Recording:
         # calls recorded after the recorded function (see record_at_end)
         self.end_calls: list = []
         self.capturing = False
-        # identifies the recording to the buffers it refreshes, without keeping its graphs alive
-        self.token = object()
 
     def begin(self) -> None:
         """Start the next graph."""

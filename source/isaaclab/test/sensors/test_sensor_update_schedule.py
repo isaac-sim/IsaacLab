@@ -12,6 +12,7 @@ the ``1e-6`` due tolerance.
 from __future__ import annotations
 
 import ast
+import contextlib
 
 import numpy as np
 import pytest
@@ -196,20 +197,36 @@ class _DeviceRefreshSensor(_RefreshLogSensor):
         wp.launch(_count_refresh, dim=self._num_envs, inputs=[env_mask, self.device_refreshes], device=self._device)
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_recorded_read_refreshes_on_every_replay(device, monkeypatch):
-    """A read recorded while the sensor is not dirty, as after a reset, still refreshes the sensor on each replay."""
-    monkeypatch.setattr(GraphedCallable, "enabled", True)
+def _capture(device: str, fn) -> wp.Graph:
+    with wp.ScopedDevice(device), wp.ScopedCapture() as capture:
+        fn()
+    return capture.graph
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_captured_read_refreshes_on_every_replay(device):
+    """A read captured while the sensor is not dirty, as after a reset, still refreshes the sensor on each replay."""
     sensor = _DeviceRefreshSensor(device)
     sensor.update(0.005)
-    _ = sensor.data  # the sensor is clean when the read is recorded
-    read = GraphedCallable(lambda: sensor.data, device)
-    read()  # records the refresh of the outdated environments, none yet
+    _ = sensor.data  # the sensor is clean when the read is captured
+    graph = _capture(device, lambda: sensor.data)
     for _ in range(3):
         sensor.update(0.005)
-        read()
+        wp.capture_launch(graph)
     # one eager refresh, then one per replay
     assert sensor.device_refreshes.numpy().tolist() == [4, 4]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_an_abandoned_capture_leaves_the_sensor_due_for_the_next_read(device):
+    """A capture that reads the sensor and is abandoned launches no refresh, so the next plain read refreshes."""
+    sensor = _DeviceRefreshSensor(device)
+    sensor.update(0.005)
+    with contextlib.suppress(RuntimeError), wp.ScopedDevice(device), wp.ScopedCapture():
+        _ = sensor.data
+        raise RuntimeError("abandon the capture")
+    _ = sensor.data
+    assert sensor.device_refreshes.numpy().tolist() == [1, 1]
 
 
 class _Reader:
