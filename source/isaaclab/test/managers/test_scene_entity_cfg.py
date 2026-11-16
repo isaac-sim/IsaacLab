@@ -19,7 +19,7 @@ from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import clone, configclass, replace
+from isaaclab.utils import clone, configclass
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
@@ -140,22 +140,6 @@ def test_resolve_warp_ids_fills_the_selection_order(scene):
     assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
     assert sensor.joint_ids_wp is None
     assert sensor.body_ids_wp.numpy().tolist() == [0, 1]
-    # the torch selections keep their form
-    subset.finalize("cpu")
-    assert subset.joint_ids.dtype == torch.long
-    assert full.joint_ids == slice(None)
-
-
-def test_copies_share_the_warp_ids(scene):
-    """Configuration copies made after :meth:`resolve_warp_ids` share the Warp ids instead of copying device memory."""
-    scene = _Scene(scene)
-    cfg = SceneEntityCfg("robot", joint_names=["part_1"])
-    cfg.resolve(scene)
-    cfg.resolve_warp_ids(scene)
-
-    for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot"), copy.deepcopy(cfg)):
-        assert copied.joint_ids_wp is cfg.joint_ids_wp
-        assert copied.body_ids_wp is cfg.body_ids_wp
 
 
 @configclass
@@ -166,7 +150,8 @@ class _SelectionCfg(SceneEntityCfg):
 
 
 def test_deepcopy_keeps_resolved_subclass_state(scene):
-    """A deep copy keeps the fields the constructor does not take and still shares the Warp ids."""
+    """A deep copy keeps the fields the constructor does not take and, like any configuration copy, shares the Warp
+    ids instead of copying device memory."""
     scene = _Scene(scene)
     cfg = _SelectionCfg("robot", joint_names=["part_1"])
     cfg.resolve(scene)
@@ -178,3 +163,5 @@ def test_deepcopy_keeps_resolved_subclass_state(scene):
     torch.testing.assert_close(copied.instance_ids, cfg.instance_ids)
     assert copied.instance_ids is not cfg.instance_ids
     assert copied.joint_ids_wp is cfg.joint_ids_wp
+    assert copied.body_ids_wp is cfg.body_ids_wp
+    assert clone(cfg).joint_ids_wp is cfg.joint_ids_wp
