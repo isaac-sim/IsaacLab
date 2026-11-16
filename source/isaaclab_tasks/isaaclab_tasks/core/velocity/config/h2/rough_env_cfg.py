@@ -199,6 +199,7 @@ class H2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = replace(H2_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants["Colliders"] = "minimal"
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         for terrain in self.scene.terrain.terrain_generator.sub_terrains.values():
             terrain.convert_to_heightfield = False

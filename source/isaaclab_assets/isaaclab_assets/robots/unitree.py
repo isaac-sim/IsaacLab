@@ -294,10 +294,7 @@ This configuration removes most collision meshes to speed up simulation.
 
 H2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=(
-            "https://media.githubusercontent.com/media/unitreerobotics/unitree_model/"
-            "b6a8942b0803b6c137e58cef12beb4b03e4a2fa7/H2/H2_dae.usd"
-        ),
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2/h2.usd",
         activate_contact_sensors=True,
         variants={"Sensor": "None"},
         rigid_props=PhysxRigidBodyCfg(

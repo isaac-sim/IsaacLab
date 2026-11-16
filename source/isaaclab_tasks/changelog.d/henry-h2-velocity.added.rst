@@ -4,3 +4,4 @@
 * Added foot-flight, foot-separation, contact-conditioned knee-flexion, and walking yaw-momentum
   penalties for humanoid locomotion.
 * The biped air-time reward optionally penalizes ongoing swings beyond its duration threshold.
+* Enabled minimal collision geometry for H2 velocity tasks.
