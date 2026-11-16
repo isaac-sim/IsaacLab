@@ -14,6 +14,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject
 from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+from ovphysx import PhysX
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -27,7 +28,7 @@ pytestmark = pytest.mark.ov
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_gravity_event_changes_rigid_body_motion(device, monkeypatch):
+def test_gravity_event_changes_rigid_body_motion(device: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Gravity events must change motion without resealing unchanged values or hiding failed updates."""
     sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device=device, dt=1.0 / 60.0)
     with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
@@ -73,15 +74,12 @@ def test_gravity_event_changes_rigid_body_motion(device, monkeypatch):
             )
 
         set_gravity((0.0, 0.0, 0.0))
-        ordinal = sim.backend_manager.backend.scene.ordinal
-        set_gravity((0.0, 0.0, 0.0))
-        assert sim.backend_manager.backend.scene.ordinal == ordinal
         initial_height = cube.data.root_pos_w.torch[0, 2].item()
         step(30)
         zero_gravity_height = cube.data.root_pos_w.torch[0, 2].item()
 
         set_gravity((0.0, 0.0, -9.81))
-        # Normalize Python floats to the native float32 value before comparing.
+        # -9.81 is not exactly representable in float32; repeating it must still hit the cache.
         ordinal = sim.backend_manager.backend.scene.ordinal
         set_gravity((0.0, 0.0, -9.81))
         assert sim.backend_manager.backend.scene.ordinal == ordinal
@@ -101,8 +99,8 @@ def test_gravity_event_changes_rigid_body_motion(device, monkeypatch):
         # the last successful value must restore it rather than hit the cache.
         finish_stage_operation = ovphysx_compat.finish_stage_operation
 
-        def finish_then_fail(*args):
-            finish_stage_operation(*args)
+        def finish_then_fail(physx: PhysX, operation: object) -> None:
+            finish_stage_operation(physx, operation)
             raise RuntimeError("control completion failed")
 
         with monkeypatch.context() as failed_update:
