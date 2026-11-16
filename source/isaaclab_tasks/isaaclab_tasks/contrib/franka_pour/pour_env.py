@@ -13,8 +13,8 @@ particle-only spill floor.
 A Newton :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` advances the robot and both cups
 in the ``arm`` MJWarp entry and the particles and spill floor in the implicit ``media`` entry. Proxy
 coupling makes both cups' particle colliders available to MPM without assigning one body to two
-entries. The policy commands arm joint positions and a continuous symmetric finger target; all
-observable and reset state flows through the scene assets' public APIs.
+entries. The policy commands filtered relative arm joint-position deltas and a filtered binary
+symmetric finger command; all observable and reset state flows through the scene assets' public APIs.
 """
 
 from __future__ import annotations

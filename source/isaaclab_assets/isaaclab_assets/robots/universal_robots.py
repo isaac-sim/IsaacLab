@@ -9,7 +9,7 @@
 The following configuration parameters are available:
 
 * :obj:`UR10_CFG`: The UR10 arm without a gripper.
-* :obj:`UR10E_ROBOTIQ_GRIPPER_CFG`: The UR10E arm with Robotiq_2f_140 gripper.
+* :obj:`UR10e_ROBOTIQ_GRIPPER_CFG`: The UR10E arm with Robotiq_2f_140 gripper.
 * :obj:`UR10e_ROBOTIQ_2F_85_CFG`: The UR10E arm with Robotiq 2F-85 gripper.
 
 Reference: https://github.com/ros-industrial/universal_robot
@@ -167,7 +167,7 @@ UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_passive"] = ImplicitActuatorCfg(
 
 
 UR10e_ROBOTIQ_2F_85_CFG = clone(UR10e_CFG)
-"""Configuration of UR-10E arm with Robotiq_2f_140 gripper."""
+"""Configuration of UR-10E arm with Robotiq 2F-85 gripper."""
 UR10e_ROBOTIQ_2F_85_CFG.spawn.variants = {"Gripper": "Robotiq_2f_85"}
 UR10e_ROBOTIQ_2F_85_CFG.spawn.rigid_props.disable_gravity = True
 UR10e_ROBOTIQ_2F_85_CFG.init_state.joint_pos["finger_joint"] = 0.0

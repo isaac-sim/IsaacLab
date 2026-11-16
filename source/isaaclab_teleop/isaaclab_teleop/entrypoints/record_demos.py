@@ -290,7 +290,7 @@ def create_environment_config(
             - teleop_cfg: The resolved Capture or native device configuration
 
     Raises:
-        Exception: If parsing the environment configuration fails
+        SystemExit: If parsing the environment configuration fails (the error is logged and the process exits).
     """
     # Resolve the task configuration through Hydra so CLI presets are applied.
     try:

@@ -216,6 +216,9 @@ Use ``play`` with one of the following checkpoint selectors:
      - Downloads a published checkpoint for a supported task and backend.
    * - ``/path/to/checkpoint``
      - Loads a specific checkpoint.
+   * - ``wandb:<entity>/<project>/<run_id>``
+     - Downloads the latest checkpoint of a W&B run (RSL-RL only). A run URL also works; append
+       ``?checkpoint=<iteration>`` to choose an iteration.
 
 For example, play the best local checkpoint and record a short video:
 
@@ -264,6 +267,13 @@ Resume from the latest compatible checkpoint:
 
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
        --checkpoint latest
+
+With RSL-RL, you can also resume from a W&B run, for example one trained on a cluster:
+
+.. code-block:: bash
+
+   uv run --extra wandb isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
+       --checkpoint wandb:<entity>/<project>/<run_id>
 
 When loading a checkpoint, match the original task, agent, ML framework, and
 observation/action presets.

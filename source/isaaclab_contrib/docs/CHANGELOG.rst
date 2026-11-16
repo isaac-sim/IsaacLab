@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.2 (2026-11-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Lee controller inertia aggregation for bodies with principal axes rotated relative to their link frames.
+
+
+7.0.1 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_contrib.actuators.Thruster` and :class:`~isaaclab_contrib.assets.Multirotor` resets to
+  take ``env_mask`` and reset the masked environments without synchronizing the device.
+
+
 7.0.0 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~
 

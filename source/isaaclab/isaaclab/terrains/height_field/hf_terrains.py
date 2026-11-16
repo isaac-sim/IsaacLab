@@ -320,7 +320,7 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> tu
         The discretized height field with shape (width, length) and its origin [m] with shape (3,).
 
     Raises:
-        ValueError: When the number of waves is non-positive.
+        ValueError: When the number of waves is negative.
     """
     # check number of waves
     if cfg.num_waves < 0:

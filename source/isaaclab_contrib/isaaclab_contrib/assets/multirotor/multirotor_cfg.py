@@ -45,7 +45,7 @@ class MultirotorCfg(ArticulationCfg):
             from isaaclab_contrib.actuators import ThrusterCfg
             import isaaclab.sim as sim_utils
 
-            # Quadcopter configuration
+            # Illustrative coefficients; match them and dt to the asset and update rate.
             quadcopter_cfg = MultirotorCfg(
                 prim_path="{ENV_REGEX_NS}/Quadcopter",
                 spawn=sim_utils.UsdFileCfg(
@@ -53,20 +53,23 @@ class MultirotorCfg(ArticulationCfg):
                 ),
                 init_state=MultirotorCfg.InitialStateCfg(
                     pos=(0.0, 0.0, 1.0),  # Start 1m above ground
-                    rps={".*": 110.0},  # All thrusters at 110 RPS (hover)
+                    rps={".*": 110.0},  # Initial speed of all thrusters [rps]
                 ),
                 actuators={
                     "thrusters": ThrusterCfg(
-                        thruster_names_expr=["rotor_[0-3]"],
+                        thruster_names_expr=["rotor_0", "rotor_1", "rotor_2", "rotor_3"],
+                        dt=1 / 120,
                         thrust_range=(0.0, 12.0),  # 0-12N per thruster
-                        rise_time_constant=0.12,
-                        fall_time_constant=0.25,
+                        thrust_const_range=(1.0e-5, 1.0e-5),
+                        torque_to_thrust_ratio=0.01,
+                        tau_inc_range=(0.12, 0.12),
+                        tau_dec_range=(0.25, 0.25),
                     ),
                 },
                 allocation_matrix=[
-                    [1.0, 1.0, 1.0, 1.0],  # Vertical thrust
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force X
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force Y
+                    [0.0, 0.0, 0.0, 0.0],  # Force X
+                    [0.0, 0.0, 0.0, 0.0],  # Force Y
+                    [1.0, 1.0, 1.0, 1.0],  # Force Z (vertical thrust)
                     [0.0, 0.13, 0.0, -0.13],  # Roll torque
                     [-0.13, 0.0, 0.13, 0.0],  # Pitch torque
                     [0.01, -0.01, 0.01, -0.01],  # Yaw torque
@@ -139,12 +142,16 @@ class MultirotorCfg(ArticulationCfg):
     Example:
         .. code-block:: python
 
+            # Illustrative coefficients; match them and dt to the asset and update rate.
             actuators = {
                 "thrusters": ThrusterCfg(
-                    thruster_names_expr=["rotor_.*"],  # Regex to match thruster bodies
+                    thruster_names_expr=["rotor_0", "rotor_1", "rotor_2", "rotor_3"],
+                    dt=1 / 120,
                     thrust_range=(0.0, 10.0),
-                    rise_time_constant=0.1,
-                    fall_time_constant=0.2,
+                    thrust_const_range=(1.0e-5, 1.0e-5),
+                    torque_to_thrust_ratio=0.01,
+                    tau_inc_range=(0.1, 0.1),
+                    tau_dec_range=(0.2, 0.2),
                 )
             }
 
@@ -165,8 +172,8 @@ class MultirotorCfg(ArticulationCfg):
     - ``(0.0, 0.0, -1.0)``: Thrusters push downward
     - ``(1.0, 0.0, 0.0)``: Thrusters push forward (X-axis)
 
-    This is used in conjunction with the allocation matrix to compute the wrench
-    produced by each thruster.
+    It is currently informational only; the wrench produced by the thrusters is
+    computed solely from :attr:`allocation_matrix`.
 
     Default: ``(0.0, 0.0, 1.0)`` (upward along Z-axis)
     """
@@ -188,9 +195,9 @@ class MultirotorCfg(ArticulationCfg):
         .. code-block:: python
 
             allocation_matrix = [
-                [1.0,  1.0,  1.0,  1.0],     # Total vertical thrust
-                [0.0,  0.0,  0.0,  0.0],     # No lateral force
-                [0.0,  0.0,  0.0,  0.0],     # No lateral force
+                [0.0,  0.0,  0.0,  0.0],     # Force X
+                [0.0,  0.0,  0.0,  0.0],     # Force Y
+                [1.0,  1.0,  1.0,  1.0],     # Force Z (vertical thrust)
                 [0.0,  0.13, 0.0, -0.13],    # Roll moment (left/right)
                 [-0.13, 0.0, 0.13, 0.0],     # Pitch moment (forward/back)
                 [0.01,-0.01, 0.01,-0.01],    # Yaw moment (rotation)

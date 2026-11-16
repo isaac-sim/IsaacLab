@@ -491,7 +491,7 @@ class ManagerBasedEnvWarp:
         Args:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
-            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            env_ids: The environment ids to reset. If None, all environments are reset.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.

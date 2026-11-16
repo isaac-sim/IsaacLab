@@ -31,7 +31,7 @@ class NullSpacePostureTask(Task):
 
     .. math::
 
-        \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+        \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q} - \mathbf{q}^*)
 
     where:
         - :math:`\mathbf{q}^*` is the target joint configuration
@@ -74,7 +74,7 @@ class NullSpacePostureTask(Task):
     .. math::
 
         \left\|
-            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q} - \mathbf{q}^*)
         \right\|_{W_{\text{posture}}}^2
 
     This formulation allows the robot to maintain a desired posture while respecting the constraints
@@ -102,8 +102,8 @@ class NullSpacePostureTask(Task):
                 - ``gain`` -- Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.
                 - ``controlled_frames`` -- Frame names whose Jacobians define the primary
                   tasks for null space projection. If empty, no projection is applied.
-                - ``controlled_joints`` -- Joint names to control. If empty, all actuated
-                  joints are controlled.
+                - ``controlled_joints`` -- Joint names to control. If empty, no joints are
+                  controlled (the posture error is zero).
         """
         super().__init__(cost=float(cfg.cost), gain=float(cfg.gain), lm_damping=float(cfg.lm_damping))
         self.target_q: np.ndarray | None = None
@@ -169,9 +169,9 @@ class NullSpacePostureTask(Task):
 
         .. math::
 
-            \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+            \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q} - \mathbf{q}^*)
 
-        where :math:`\mathbf{M}` is the joint selection mask and :math:`\mathbf{q}^* - \mathbf{q}`
+        where :math:`\mathbf{M}` is the joint selection mask and :math:`\mathbf{q} - \mathbf{q}^*`
         is computed using Pinocchio's difference function to handle joint angle wrapping.
 
         Args:

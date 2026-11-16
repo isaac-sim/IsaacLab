@@ -81,15 +81,20 @@ class Multirotor(Articulation):
         .. code-block:: python
 
             import isaaclab.sim as sim_utils
+            from isaaclab.utils import instantiate
             from isaaclab_contrib.assets import MultirotorCfg
             from isaaclab_contrib.actuators import ThrusterCfg
 
             # Define thruster actuator configuration
+            # Illustrative coefficients; match them and dt to the asset and update rate.
             thruster_cfg = ThrusterCfg(
-                thruster_names_expr=["rotor_[0-3]"],  # Match rotors 0-3
+                thruster_names_expr=["rotor_0", "rotor_1", "rotor_2", "rotor_3"],
+                dt=1 / 120,
                 thrust_range=(0.0, 10.0),  # Min and max thrust in Newtons
-                rise_time_constant=0.1,  # Time constant for thrust increase
-                fall_time_constant=0.2,  # Time constant for thrust decrease
+                thrust_const_range=(1.0e-5, 1.0e-5),
+                torque_to_thrust_ratio=0.01,
+                tau_inc_range=(0.1, 0.1),  # Time constant range for thrust increase [s]
+                tau_dec_range=(0.2, 0.2),  # Time constant range for thrust decrease [s]
             )
 
             # Create multirotor configuration
@@ -98,9 +103,9 @@ class Multirotor(Articulation):
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)
-                    [1.0, 1.0, 1.0, 1.0],  # Total vertical force
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (x)
-                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (y)
+                    [0.0, 0.0, 0.0, 0.0],  # Force X
+                    [0.0, 0.0, 0.0, 0.0],  # Force Y
+                    [1.0, 1.0, 1.0, 1.0],  # Force Z (vertical thrust)
                     [0.0, 0.1, 0.0, -0.1],  # Roll torque
                     [-0.1, 0.0, 0.1, 0.0],  # Pitch torque
                     [0.01, -0.01, 0.01, -0.01],  # Yaw torque

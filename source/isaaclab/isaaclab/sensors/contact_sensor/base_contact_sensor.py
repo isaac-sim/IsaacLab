@@ -28,7 +28,7 @@ class BaseContactSensor(SensorBase):
     It relies on the physics engine's contact reporting API to be activated on the rigid bodies.
 
     To enable the contact reporter on a rigid body, please make sure to enable the
-    :attr:`isaaclab.sim.spawner.RigidObjectSpawnerCfg.activate_contact_sensors` on your
+    :attr:`isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors` on your
     asset spawner configuration. This will enable the contact reporter on all the rigid bodies
     in the asset.
 
