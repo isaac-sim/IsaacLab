@@ -369,6 +369,16 @@ class EventCfg:
         mode="startup",
         params={"asset_cfg": SceneEntityCfg("trocar_1"), "source_mu": 1.2, "target_mu": 0.65},
     )
+    # Newton only: stiffen the hand-trocar_2 contact so the closed left fingers do not hook trocar_2 and block
+    # its release in the placement stage. Both sides use the same solref, so their mixed pair value is unchanged.
+    newton_hand_contact = EventTermCfg(
+        func=mdp.set_newton_shape_solref,
+        mode="startup",
+        params={
+            "shape_label_pattern": r"env_\d+/(Robot/(left|right)_hand_\w+_link/collisions|trocar_2/.*/Collisions)/",
+            "solref": (0.01, 1.0),
+        },
+    )
 
     # Random rotation for tray and trocars
     reset_tray_random_rotation = EventTermCfg(

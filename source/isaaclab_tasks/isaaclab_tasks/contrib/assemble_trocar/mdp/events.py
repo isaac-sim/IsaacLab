@@ -28,6 +28,7 @@ __all__ = [
     "reset_tray_with_random_rotation",
     "reset_robot_to_default_joint_positions",
     "reset_task_stage",
+    "set_newton_shape_solref",
 ]
 
 
@@ -308,3 +309,48 @@ class remap_newton_shape_friction(ManagerTermBase):
         current = mu[rows]
         mu[rows] = torch.where((current - source_mu).abs() < 1e-4, torch.full_like(current, target_mu), current)
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+
+
+# Value of ``model.mujoco.solref_mode`` that passes ``model.mujoco.solref`` to MuJoCo unchanged.
+_SOLREF_MODE_RAW = 1
+
+
+def set_newton_shape_solref(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    shape_label_pattern: str,
+    solref: tuple[float, float],
+) -> None:
+    """Set the MuJoCo contact ``solref`` of matching Newton shapes. Other backends are left unchanged.
+
+    MuJoCo's soft contacts let closed fingers sink a few millimeters into a held object, deep enough to hook it so the
+    hand cannot let go. A shorter contact time constant on both sides of the pair limits that penetration without
+    changing friction or contact priority.
+
+    Args:
+        env: Environment owning this term.
+        env_ids: Unused; shapes of all environments are matched by label.
+        shape_label_pattern: Regular expression searched in each Newton shape label.
+        solref: MuJoCo ``(time_constant [s], damping_ratio [dimensionless])`` written to the matching shapes.
+    """
+    import re
+
+    physics_modules = {cls.__module__.split(".")[0] for cls in type(env.sim.cfg.physics).__mro__}
+    if "isaaclab_newton" not in physics_modules:
+        return
+    from newton import ModelFlags
+
+    model = env.sim.backend_manager.backend.model
+    pattern = re.compile(shape_label_pattern)
+    shape_ids = [i for i, label in enumerate(model.shape_label) if pattern.search(label)]
+    if not shape_ids:
+        logger.warning("set_newton_shape_solref: no Newton shape label matches '%s'.", shape_label_pattern)
+        return
+    shape_solref = model.mujoco.solref.numpy()
+    shape_solref_mode = model.mujoco.solref_mode.numpy()
+    shape_solref[shape_ids] = solref
+    shape_solref_mode[shape_ids] = _SOLREF_MODE_RAW
+    model.mujoco.solref.assign(shape_solref)
+    model.mujoco.solref_mode.assign(shape_solref_mode)
+    env.sim.backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+    logger.info("set_newton_shape_solref: set solref=%s on %d shapes.", solref, len(shape_ids))
