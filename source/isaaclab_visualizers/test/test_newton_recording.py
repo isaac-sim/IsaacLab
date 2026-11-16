@@ -120,25 +120,18 @@ def test_closing_keeps_a_running_video(tmp_path):
     assert (tmp_path / "video" / "newton_0001.mp4").exists()
 
 
-def test_relative_output_folder_lands_in_the_repository_not_the_working_directory(tmp_path, monkeypatch):
-    repo, elsewhere = tmp_path / "repo", tmp_path / "elsewhere"
-    (repo / "source").mkdir(parents=True)
-    elsewhere.mkdir()
-    monkeypatch.setattr(newton_recording, "ISAACLAB_ROOT", repo)
-    monkeypatch.chdir(elsewhere)
-
-    assert resolve_output_dir("recording") == repo / "recording"
-    assert resolve_output_dir(str(tmp_path / "absolute")) == tmp_path / "absolute"
-
-
-def test_relative_output_folder_uses_the_working_directory_without_a_source_checkout(tmp_path, monkeypatch):
-    package, cwd = tmp_path / "site-packages" / "isaaclab", tmp_path / "cwd"
-    package.mkdir(parents=True)
+@pytest.mark.parametrize("source_checkout", [True, False])
+def test_relative_output_folder_follows_the_repository_only_in_a_source_checkout(
+    tmp_path, monkeypatch, source_checkout
+):
+    root, cwd = tmp_path / "root", tmp_path / "cwd"
+    (root / "source" if source_checkout else root).mkdir(parents=True)
     cwd.mkdir()
-    monkeypatch.setattr(newton_recording, "ISAACLAB_ROOT", package)
+    monkeypatch.setattr(newton_recording, "ISAACLAB_ROOT", root)
     monkeypatch.chdir(cwd)
 
-    assert resolve_output_dir("recording") == cwd / "recording"
+    assert resolve_output_dir("recording") == (root if source_checkout else cwd) / "recording"
+    assert resolve_output_dir(str(tmp_path / "absolute")) == tmp_path / "absolute"
 
 
 class _StrictImgui:
