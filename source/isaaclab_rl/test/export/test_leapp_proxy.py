@@ -714,7 +714,15 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
 
 @pytest.mark.parametrize(
     ("command_type", "custom_axes"),
-    [("velocity", False), ("pose", False), ("planar", False), ("velocity", True), ("velocity", "duplicates")],
+    [
+        ("velocity", False),
+        ("pose", False),
+        ("selected_pose", False),
+        ("selected_rigid_pose", False),
+        ("planar", False),
+        ("velocity", True),
+        ("velocity", "duplicates"),
+    ],
 )
 def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type, custom_axes):
     """Command annotations use the backend root and leave yaw-only references unspecified."""
@@ -761,6 +769,28 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             ),
         )
         command = UniformPoseCommand(cfg, env)
+    elif command_type in ("selected_pose", "selected_rigid_pose"):
+        from isaaclab_tasks.contrib.multitask_manipulation.mdp.commands import SelectedUniformPoseCommand
+        from isaaclab_tasks.contrib.multitask_manipulation.mdp.commands_cfg import SelectedUniformPoseCommandCfg
+        from isaaclab_tasks.contrib.multitask_manipulation.selection_utils import SceneEntitySelectionCfg
+
+        if command_type == "selected_rigid_pose":
+            del robot.backend_body_names
+            robot.body_names = ["rigid_root"]
+        robot.device, robot.num_instances = "cpu", 1
+        robot.root_view = SimpleNamespace(prim_paths=["/World/envs/env_0/Robot"])
+        env.scene = _TestScene(env.scene)
+        env.scene.num_envs = 1
+        env.scene.cloner_cfg = SimpleNamespace(clone_template="/World/envs/env_{}")
+        cfg = SelectedUniformPoseCommandCfg(
+            resampling_time_range=(1.0, 1.0),
+            reference_cfg=SceneEntitySelectionCfg("robot"),
+            tracked_cfg=SceneEntitySelectionCfg("robot"),
+            ranges=SelectedUniformPoseCommandCfg.Ranges(
+                pos_x=(0.0, 0.0), pos_y=(0.0, 0.0), pos_z=(0.0, 0.0), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            ),
+        )
+        command = SelectedUniformPoseCommand(cfg, env)
     else:
         cfg = UniformPose2dCommandCfg(
             **common,
@@ -785,6 +815,8 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         == {
             "velocity": leapp.Kind.FRAME_TWIST,
             "pose": leapp.Kind.FRAME_POSE,
+            "selected_pose": leapp.Kind.FRAME_POSE,
+            "selected_rigid_pose": leapp.Kind.FRAME_POSE,
             "planar": "command/body/pose",
         }[command_type]
     )
@@ -794,8 +826,12 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         names = {
             "velocity": ["x", "y", "angular_z"],
             "pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
+            "selected_pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
+            "selected_rigid_pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
             "planar": ["x", "y", "z", "heading"],
         }[command_type]
         assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), leapp.Axis(leapp.AxisKind.COMPONENT, names=names)]
     assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
-    assert semantics.reference == ("base" if command_type == "pose" else None)
+    assert semantics.reference == {"pose": "base", "selected_pose": "base", "selected_rigid_pose": "rigid_root"}.get(
+        command_type
+    )

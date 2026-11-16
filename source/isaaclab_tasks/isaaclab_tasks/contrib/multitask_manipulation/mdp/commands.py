@@ -39,6 +39,9 @@ class SelectedUniformPoseCommand(CommandTerm):
         self._reference_cfg.resolve(env.scene)
         self._tracked_cfg.resolve(env.scene)
         self._reference = env.scene[self._reference_cfg.name]
+        self.cfg.cmd_reference = (
+            self.cfg.cmd_reference or getattr(self._reference, "backend_body_names", self._reference.body_names)[0]
+        )
         self._tracked = env.scene[self._tracked_cfg.name]
 
     @property
