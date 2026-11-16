@@ -156,6 +156,7 @@ Table of Contents
    source/developer-tools/benchmarking/index
    source/developer-tools/agent_skills
    source/developer-tools/add_physics_backend
+   source/developer-tools/real_backend_rfc
    source/developer-tools/extending_newton_solvers
 
 
