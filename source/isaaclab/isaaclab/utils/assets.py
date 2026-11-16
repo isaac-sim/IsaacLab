@@ -653,7 +653,8 @@ def search_simready_usd_paths(
     validate assets under other physics backends before training on them.
 
     Args:
-        query: Short description of the assets, matched on text and image embeddings. Defaults to None.
+        query: Short description of the assets, matched on their names, paths, properties and generated
+            descriptions. Defaults to None.
         size_range: Minimum and maximum extent [m] of the asset's bounding box along every axis.
         mass_range: Minimum and maximum mass [kg] authored in the asset's SimReady metadata.
         features: SimReady feature names that every match must have passed (e.g. ``FET003_BASE_PHYSX``).
@@ -671,12 +672,11 @@ def search_simready_usd_paths(
     import requests  # noqa: PLC0415
 
     feature = "*validation__validated_features__*__{}__passed=~True"
-    request = {"file_extension_include": "usd*", "limit": limit, **params}
+    # the service indexes the whole Isaac asset bucket: search its SimReady folder, so limit counts SimReady assets
+    request = {"file_extension_include": "usd*", "search_path": "/Isaac/SimReady/", "limit": limit, **params}
     if query:
+        # text search only: in the SimReady folder the image-embedding search ranks unrelated assets first
         request["hybrid_text_query"] = query
-        request["vector_queries"] = [
-            {"field_name": "siglip2-embedding.embedding", "query_type": "text", "query": query}
-        ]
     if size_range:
         for axis in "xyz":
             request[f"min_bbox_{axis}"], request[f"max_bbox_{axis}"] = size_range
@@ -690,7 +690,7 @@ def search_simready_usd_paths(
         request["exclude_filter_by_properties"] = ",".join(feature.format(name) for name in exclude_features)
     response = requests.post(f"{service_endpoint.rstrip('/')}/search_hybrid", json=request, timeout=60)
     response.raise_for_status()
-    # the service indexes the public Isaac asset bucket; keep the part under SimReady/ and use the configured root
+    # keep the part under SimReady/ and use the configured root
     relative = [hit["source"]["path"].partition("/Isaac/SimReady/")[2] for hit in response.json()["hits"]]
     return [f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}" for path in relative if path]
 
