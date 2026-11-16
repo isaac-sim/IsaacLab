@@ -12,7 +12,7 @@ import pytest
 import torch
 
 from isaaclab.benchmark.metrics import SuccessRateTracker
-from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
+from isaaclab.envs.reset import ResetStateBuffer
 from isaaclab.managers import (
     ActionManager,
     CommandManager,
@@ -110,8 +110,9 @@ def test_terminal_reward_stays_binary_after_timing_overrides() -> None:
     torch.testing.assert_close(rewards, torch.tensor([1.0, 0.0]))
 
 
-def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
-    """Only natural outcomes reach row history and the benchmark success tracker."""
+@pytest.fixture
+def reset_env() -> CubePickupEnv:
+    """Use real managers and catalogs without creating a physics scene."""
     env = CubePickupEnv.__new__(CubePickupEnv)
     env._is_closed = True
     env.cfg = CubePickupEnvCfg()
@@ -131,10 +132,16 @@ def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
         write_data_to_sim=lambda: None,
         update=lambda dt: None,
     )
-    env._restore_reset_state = lambda state, env_ids: None
+    env.restored_rows = torch.full((2,), -1)
+    env._restore_reset_state = lambda state, env_ids: env.restored_rows.index_copy_(
+        0, env_ids.long(), state["row"][:, 0]
+    )
+    env._step_outcome_counts = None
+    env._requested_reset_state_ids = None
     env.extras = {}
     env.episode_length_buf = torch.zeros(2, dtype=torch.long)
     env.success_flags = torch.zeros(2, dtype=torch.bool)
+    env.failure_flags = torch.zeros(2, dtype=torch.bool)
     env.reset_buf = torch.zeros(2, dtype=torch.bool)
     env.common_step_counter = 0
     env._sim_step_counter = 0
@@ -143,7 +150,13 @@ def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
     env.render_enabled = False
     env.has_rtx_sensors = False
     env.video_recorders = []
-    env.termination_manager = TerminationManager({"success": TerminationTermCfg(func=_success)}, env)
+    env.termination_manager = TerminationManager(
+        {
+            "success": TerminationTermCfg(func=_success),
+            "dropped": TerminationTermCfg(func=lambda env: env.failure_flags),
+        },
+        env,
+    )
     for name, manager in (
         ("action_manager", ActionManager),
         ("command_manager", CommandManager),
@@ -154,37 +167,144 @@ def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
         ("reward_manager", RewardManager),
     ):
         setattr(env, name, manager(SimpleNamespace(), env))
-    env.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=2))
-    env.reset_buffer.collect(torch.arange(2), lambda ids: None, lambda ids: {"row": ids[:, None]})
-    env._reset_group_ids = env.reset_buffer.group_ids
-    env.reset_sampler = ResetStateSampler(ResetStateSamplerCfg(), 2, 2, "cpu")
+    env.reset_buffer = ResetStateBuffer({"row": torch.tensor([[10], [20], [30], [40]])})
+    env.reset_group_names = ("table", "grasp")
+    env.reset_group_ids = torch.tensor([0, 0, 1, 1])
+    env.reset_sampler = ResetStateSampler(ResetStateSamplerCfg(), 2, 4, "cpu")
+    return env
+
+
+def test_viewer_reset_does_not_record_an_unfinished_episode(reset_env: CubePickupEnv) -> None:
+    """Natural outcomes survive manual resets and the RSL logger retaining log dictionaries."""
+    from rsl_rl.utils.logger import Logger
+
+    env = reset_env
+    logger = Logger(
+        log_dir=None,
+        cfg={"algorithm": {}, "num_steps_per_env": 4},
+        env_cfg=env.cfg,
+        num_envs=2,
+        is_distributed=False,
+        gpu_world_size=1,
+        gpu_global_rank=0,
+        device="cpu",
+    )
+    logged = {}
+    logger.writer = SimpleNamespace(add_scalar=lambda key, value, iteration: logged.__setitem__(key, float(value)))
     tracker = SuccessRateTracker(threshold=0.5, window=1, num_steps_per_env=1)
-    _, extras = env.reset()
+    _, extras = env.reset(options={"reset_state_ids": torch.tensor([0, 2])})
     tracker.record_step(extras)
     observations = [tracker.end_iteration()]
-    env.reset_sampler.row_ids[:] = torch.tensor([0, 1])
-    env.reset_sampler.success_monitor.success_update(torch.tensor([1]), torch.tensor([True]))
+    env.reset_sampler.success_monitor.success_update(torch.tensor([2]), torch.tensor([True]))
+
+    def record_step() -> dict:
+        _, rewards, terminated, truncated, extras = env.step(torch.empty(2, 0))
+        logger.process_env_step(rewards, terminated | truncated, extras)
+        tracker.record_step(extras)
+        observations.append(tracker.end_iteration())
+        return extras["log"]
 
     env.episode_length_buf[:] = 5
     env.success_flags[0] = True
     env.sim.manual_reset = True
-    tracker.record_step(env.step(torch.empty(2, 0))[4])
-    observations.append(tracker.end_iteration())
+    first_log = record_step()
+    assert float(first_log["Reset/table_success"]) == 1.0
+    assert "Reset/grasp_success" not in first_log
+    torch.testing.assert_close(env.reset_sampler.success_monitor.get_success_rate(), torch.tensor([1.0, 0.0, 1.0, 0.0]))
+    probabilities = env.reset_sampler.probabilities
+    torch.testing.assert_close(first_log["Reset/table_probability"], probabilities[:2].sum())
+    torch.testing.assert_close(first_log["Reset/grasp_probability"], probabilities[2:].sum())
 
-    torch.testing.assert_close(env.reset_sampler.success_monitor.get_success_rate(), torch.tensor([1.0, 1.0]))
     env.success_flags.zero_()
     for manual_reset in (False, True):
         env.sim.manual_reset = manual_reset
-        tracker.record_step(env.step(torch.empty(2, 0))[4])
-        observations.append(tracker.end_iteration())
-    assert observations == [None, 1.0, None, None]
+        log = record_step()
+        assert "Metrics/success_rate" not in log
+        assert "Reset/table_success" not in log
+        assert "Reset/grasp_success" not in log
+    assert float(first_log["Metrics/success_rate"]) == 1.0
+    assert float(first_log["Reset/table_success"]) == 1.0
+
+    env.reset(env_ids=torch.tensor([1]), options={"reset_state_ids": torch.tensor([3])})
+    env.sim.manual_reset = False
+    env.failure_flags[1] = True
+    last_log = record_step()
+    assert "Reset/table_success" not in last_log
+    assert float(last_log["Reset/grasp_success"]) == 0.0
+    assert observations == [None, 1.0, None, None, 0.0]
+    logger.log(
+        it=0,
+        start_it=0,
+        total_it=1,
+        collect_time=1.0,
+        learn_time=1.0,
+        loss_dict={},
+        learning_rate=0.0,
+        action_std=torch.ones(1),
+        rnd_weight=None,
+    )
+    assert logged["Reset/table_success"] == 1.0
+    assert logged["Reset/grasp_success"] == 0.0
+    assert logged["Metrics/success_rate"] == 0.5
+
+
+def test_explicit_reset_restores_selected_rows_and_attributes_their_outcomes(reset_env: CubePickupEnv) -> None:
+    """Requested rows determine both the restored physical state and subsequent row history."""
+    env = reset_env
+    env.reset(env_ids=torch.tensor([1, 0]), options={"reset_state_ids": torch.tensor([3, 1])})
+    torch.testing.assert_close(env.restored_rows, torch.tensor([20, 40]))
+    torch.testing.assert_close(env.reset_sampler.get_state_ids(torch.arange(2)), torch.tensor([1, 3]))
+    env.success_flags[1] = True
+    env.step(torch.empty(2, 0))
+    torch.testing.assert_close(env.reset_sampler.success_monitor.get_success_rate(), torch.tensor([0.0, 0.0, 0.0, 1.0]))
+    torch.testing.assert_close(env.reset_sampler.success_monitor.success_size, torch.tensor([0, 0, 0, 1]))
+    other_row = env.reset_sampler.get_state_ids(torch.tensor([1]))
+    other_state = env.restored_rows[1].clone()
+    env.reset(env_ids=slice(0, 1), options={"reset_state_ids": torch.tensor([2])})
+    assert int(env.restored_rows[0]) == 30
+    torch.testing.assert_close(env.restored_rows[1], other_state)
+    torch.testing.assert_close(env.reset_sampler.get_state_ids(torch.tensor([1])), other_row)
+
+
+def test_collection_seed_uses_global_rank_once_and_preserves_saved_metadata(
+    reset_env: CubePickupEnv, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ranks get reproducible independent catalogs without mutating the supplied collection config."""
+    env = reset_env
+    env.cfg.reset_buffer.size = 8
+    env.cfg.reset_buffer.max_batches = 1
+    env.cfg.reset_buffer.seed = 2**32 - 1
+    env.cfg.reset_mode = "uniform"
+    env._generate = lambda ids, stage: None
+    env._capture = lambda ids: {"random": torch.rand(ids.numel(), 2)}
+    monkeypatch.setenv("RANK", "0")
+    env.cfg.seed = 1000
+    env._collect_reset_states()
+    rank_zero = env.reset_buffer.states["random"]
+    monkeypatch.setenv("RANK", "1")
+    env.cfg.seed = 1001  # RSL offsets the environment seed before construction.
+    env._collect_reset_states()
+    rank_one = env.reset_buffer.states["random"]
+    assert env.generation_report["seed"] == 0
+    torch.testing.assert_close(env.reset_sampler.probabilities, torch.full((8,), 0.125))
+    assert env.cfg.reset_buffer.seed == 2**32 - 1
+    assert not torch.equal(rank_zero, rank_one)
+    env._collect_reset_states()
+    torch.testing.assert_close(env.reset_buffer.states["random"], rank_one)
+    path = tmp_path / "bank.pt"
+    env.save_reset_buffer(path)
+    saved = torch.load(path, weights_only=True)
+    torch.testing.assert_close(saved["state"]["random"], rank_one)
+    assert saved["group_names"] == ("table", "approach", "pregrasp", "grasp")
+    torch.testing.assert_close(saved["group_ids"], torch.tensor([0, 0, 1, 1, 2, 2, 3, 3]))
+    assert saved["report"]["seed"] == 0
 
 
 def test_saving_reset_bank_rejects_its_json_report_path(tmp_path: Path) -> None:
     """Reject an output collision before replacing an existing catalog."""
     env = CubePickupEnv.__new__(CubePickupEnv)
     env._is_closed = True
-    env.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=1))
+    env.reset_buffer = ResetStateBuffer({"row": torch.zeros(1, 1)})
     env.generation_report = {}
     path = tmp_path / "bank.json"
     path.write_bytes(b"existing catalog")

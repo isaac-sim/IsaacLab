@@ -3,145 +3,168 @@
 Building validated reset-state buffers
 ======================================
 
-A reset-state buffer collects valid starting conditions once and reuses them
-during training. Expensive inverse kinematics, scripted grasps, and settling can
-then run during collection rather than on every episode reset.
+Reset-state storage, preparation, selection, and physical restoration are separate
+operations. :class:`~isaaclab.envs.reset.ResetStateBuffer` stores a fixed tensor
+tree. Tasks can prepare those tensors through simulation, load compatible data,
+or select procedural recipes without using a tensor buffer at all.
 
-:mod:`isaaclab.envs.reset` separates collection from sampling and physical
-restoration. The buffer stores a nested dictionary of tensors with one leading
-row per start. The task decides which physical state and metadata those tensors
-represent. The same utilities work with manager-based and Direct environments.
+The optional helpers in :mod:`isaaclab_tasks.utils` collect candidate states and
+track outcomes for sampled reset IDs. The task owns validation rules, catalog
+metadata, and restoration through its normal reset lifecycle. These utilities
+work with manager-based and Direct environments.
 
-Collect starts
---------------
+Store prepared states
+---------------------
 
-Use :class:`~isaaclab.envs.reset.ResetStateBufferCfg` to configure the buffer size,
-collection budget, and seed. Supply ordinary callbacks for generation, capture,
-and named acceptance checks:
+Construct a buffer from a non-empty nested dictionary of tensors. Every leaf has
+one leading row per state and shares the same row count and device:
 
 .. code-block:: python
 
-   from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
+   from isaaclab.envs.reset import ResetStateBuffer
 
-   buffer = ResetStateBuffer(ResetStateBufferCfg(size=4096, max_batches=100, seed=42))
-   buffer.collect(
+   buffer = ResetStateBuffer(prepared_states)
+   selected = buffer.get_state(row_ids)
+   all_states = buffer.states
+
+Construction detaches and copies the tensors. Both accessors return copies;
+``get_state`` copies only the requested rows, while ``states`` copies the whole
+tree. Buffer IDs are dense row indices from zero to ``buffer.num_states - 1``.
+The buffer has no collection configuration, random generator, group metadata,
+acceptance checks, or file-loading policy.
+
+Existing task artifacts can supply the tensors directly. For example, the cube
+pickup artifact retains its ``state`` payload key:
+
+.. code-block:: python
+
+   import torch
+
+   payload = torch.load("reset_states.pt", map_location=device, weights_only=True)
+   buffer = ResetStateBuffer(payload["state"])
+
+The task must first establish compatibility with its assets, state fields,
+backend, and reset procedure. Restoring associated metadata remains its
+responsibility. This example does not add an automatic artifact loader to the
+cube pickup training workflow.
+
+Optionally collect physical starts
+----------------------------------
+
+Use :func:`~isaaclab_tasks.utils.collect_reset_states` when preparing starts needs
+bounded simulation and acceptance checks:
+
+.. code-block:: python
+
+   from isaaclab_tasks.utils import ResetStateCollectionCfg, collect_reset_states
+
+   generators = {"table": generate_table_starts, "grasped": generate_grasped_starts}
+   states, group_ids, report = collect_reset_states(
+       ResetStateCollectionCfg(size=4096, max_batches=100, seed=42),
        env_ids,
-       generate={"table": generate_table_starts, "grasped": generate_grasped_starts},
+       generate=generators,
        capture=capture_reset_state,
        checks={"joint_limits": check_joint_limits, "stable": check_stability},
    )
+   buffer = ResetStateBuffer(states)
+   group_names = tuple(generators)
 
-Each generator receives the selected environment indices, places the candidates,
-and can return a Boolean validity mask. Named checks also return one Boolean per
-candidate. Generation must synchronize the scene before checks read derived body
-poses or contacts. Capture returns tensors for the accepted environments in the
-order supplied to the callback.
+Each generator places candidates for the supplied environment indices and may
+return a Boolean validity mask. Named checks return additional masks. Generation
+must synchronize the scene before checks read derived poses or contacts. Capture
+returns tensors for accepted environments in the supplied order.
 
-A single generator is sufficient for ordinary randomized starts. Named generators
-collect balanced groups, which prevents an easily generated reset category from
-filling the entire buffer. When the collection budget is exhausted, construction
-fails with the number of accepted starts and rejected checks instead of waiting
-indefinitely.
+A single generator is sufficient. Named generators receive balanced quotas;
+returned group IDs follow the mapping's iteration order. The caller owns group
+names, IDs, and diagnostic reports. An exhausted batch budget raises an error
+with collection counts. The helper restores the caller's Torch, NumPy, and Python
+random states on success or failure.
 
-Run collection during controlled initialization or in an offline script. A
-generator that advances physics also advances other worlds in the simulation.
-It must not run while unrelated training episodes are in progress. Reset the
-environment normally after collection before starting the policy.
+Collect during controlled initialization or offline: a generator that advances
+physics also advances other worlds in the simulation. Reset normally after
+collection before starting the policy. Validate finite state, limits, workspace,
+allowed contacts, and grasp stability as appropriate. Also restore and briefly
+simulate snapshots to check reconstructed contacts and exclude initial success.
+The buffer does not certify backend compatibility; constrained mechanisms must
+use their backend's constraint-consistent reset and forward-kinematics path.
 
-Validate the intended start
----------------------------
+Select IDs and record outcomes
+------------------------------
 
-Acceptance rules belong to the task. Useful checks include finite state, joint
-limits, workspace bounds, successful IK, allowed contacts, and a brief grasp or
-settling check. A valid grasp may intentionally contain contact; rejecting all
-contact is not an appropriate general default.
-
-Validate restored starts as well as generated starts. Restoring poses can rebuild
-contacts and controller targets differently from the original rollout. A short
-replay test should check that the restored start remains usable and that it does
-not already satisfy the task's success condition.
-
-The buffer does not certify solver compatibility. In particular, constrained
-Kamino mechanisms must use the backend's normal constraint-consistent reset and
-forward-kinematics path. Task callbacks can check the resulting state without
-putting solver internals into the buffer implementation.
-
-Sample and restore
-------------------
-
-:class:`~isaaclab_tasks.utils.ResetStateSampler` tracks the starting row assigned
-to each parallel environment and learns a rolling success rate for each row.
-Its default favors starts near 50 percent success and retains uniform exploration.
-This targets useful practice rather than enforcing a fixed overall success rate.
+:class:`~isaaclab_tasks.utils.ResetStateSampler` tracks each environment's assigned
+ID and recent outcomes. Its default favors IDs near 50 percent success while
+retaining coverage of all entries. This is a per-entry practice target, not a
+fixed overall success rate.
 
 .. code-block:: python
 
    from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg
 
-   sampler = ResetStateSampler(
-       ResetStateSamplerCfg(), num_envs, buffer.num_states, device
-   )
+   sampler = ResetStateSampler(ResetStateSamplerCfg(), num_envs, buffer.num_states, device)
    rows = sampler.reset(
        env_ids,
        success=episode_success[env_ids],
        valid=completed_episode[env_ids],
    )
-   state = buffer.get_state(rows)
-   # Restore the task's physical state and associated metadata here.
+   selected = buffer.get_state(rows)
 
 Record outcomes before clearing the previous episode's success flags. Omit
-outcomes for the initial draw and mask manual or zero-step resets. Only resetting
-environments receive new row assignments.
+outcomes on the initial draw and mask manual or zero-step resets. Pass
+``state_ids=requested_ids`` to ``sampler.reset`` for an explicit choice: it records
+the previous outcome before assigning the requested IDs, so the next outcome is
+credited correctly. ``sampler.get_state_ids(env_ids)`` returns current assignments.
 
-The sampler reuses the shared success monitor and sampling strategies from
-:mod:`isaaclab_tasks.utils.sampling`. Configure row selection through
-``ResetStateSamplerCfg.sampling`` and outcome history through
-``ResetStateSamplerCfg.monitored_history_len``. For a uniform baseline, configure
-the existing uniform strategy:
+For procedural or cached providers, constructor argument ``state_ids`` can supply
+unique, noncontiguous integer IDs such as recipe seeds. History and metric tensors
+follow that catalog's order. The task resolves selected IDs to recipes or cached
+data; these IDs do not change the tensor buffer's dense indexing contract.
+
+Configure selection independently
+---------------------------------
+
+The generic :class:`~isaaclab_tasks.utils.sampling.Sampler` accepts
+``(cfg, num_items, device)`` and computes ``probabilities(metrics)`` from named
+per-item tensors of shape ``[num_items]`` on the sampler's device.
+:class:`~isaaclab_tasks.utils.sampling.TargetSuccessScoreCfg`
+selects a metric (``success_rate`` by default), target, concentration, and weight.
+Its analytic peak is one, so changing concentration narrows the score without
+changing its peak contribution. :class:`~isaaclab_tasks.utils.sampling.UniformScoreCfg`
+needs no metrics. Weighted scores and ``eps`` are added before normalization;
+a uniform weight of ``0.05`` does not mean a fixed five-percent mixture.
+
+For uniform reset selection:
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils.sampling import SamplerCfg, UniformSamplingStrategyCfg
+   from isaaclab_tasks.utils.sampling import SamplerCfg, UniformScoreCfg
 
    uniform_cfg = ResetStateSamplerCfg(
-       sampling=SamplerCfg(strategies=[UniformSamplingStrategyCfg()], eps=0.0)
+       sampling=SamplerCfg(strategies=[UniformScoreCfg()], eps=0.0)
    )
 
-For physical scene states, reuse
+Custom scorers extend :class:`~isaaclab_tasks.utils.sampling.SamplingScoreCfg`,
+accept their configuration at construction, and implement ``score(metrics, out)``
+without changing the metrics. Supply additional metric tensors through
+``ResetStateSampler(..., metrics=metrics)`` and update those borrowed tensors in
+place. ``success_rate`` is reserved for the sampler's outcome monitor. Legacy
+Beta/uniform strategy names and success-rate-bound sampler calls remain supported
+for existing NIST configurations.
+
+Restore through the task
+------------------------
+
+For physical snapshots, use
 :meth:`~isaaclab.scene.InteractiveScene.get_state` and
-:meth:`~isaaclab.scene.InteractiveScene.reset_to`, with ``is_relative=True`` on
-both sides. Capture callbacks must select the requested rows from the scene
-state. Task-specific tensor recipes can instead use the public asset writers.
-Keep positions relative to environment origins so starts transfer between worlds.
+:meth:`~isaaclab.scene.InteractiveScene.reset_to` with ``is_relative=True`` on
+both sides. Capture only requested rows and keep positions relative to environment
+origins. Procedural recipes can instead use public asset writers.
 
-Scene state is not a complete environment checkpoint. Restore commands, action
-targets, attachment state, and other task metadata through the appropriate task
-reset hooks. Account for the existing manager reset order: values restored by an
-event can be overwritten by subsequent command or action manager resets. Solver
-caches should be cleared through the backend reset lifecycle.
+Scene state is not a complete environment checkpoint. Restore commands, controller
+targets, attachments, and task metadata through the appropriate reset hooks;
+later manager resets can overwrite earlier restoration. Clear solver caches
+through the backend reset lifecycle. Existing conveyor, stacking, NIST, and Franka
+Pour workflows can retain their task-specific serializers and compatibility checks.
 
-Using existing task reset data
-----------------------------------------
-
-The buffer accepts task-specific tensor trees rather than prescribing a new asset
-serializer. Existing reset workflows can therefore adopt collection independently
-of their scene geometry and state representation:
-
-* Conveyor recipes can store robot poses, parcel layouts, and transfer metadata.
-* Stacking can generate starts along a scripted approach, grasp, and placement.
-* NIST can retain its collision checks and explicitly capture assembly variant IDs.
-* Franka Pour can retain dataset compatibility checks and particle-layout IDs;
-  large particle layouts can remain separate from the per-row recipe tensors.
-
-These integrations do not change existing public task registrations or stored
-dataset formats. Selecting rows and validating an artifact's compatibility are
-different responsibilities from constructing physically valid starts.
-
-Learn sparse pickup
--------------------
-
-The :doc:`sparse cube-pickup walkthrough <sparse_cube_pickup>` applies these APIs
-to a Newton MJWarp Franka task. It illustrates the four reset groups, the terminal
-reward, and the feedback loop that chooses useful starts. Follow it to generate
-and inspect a catalog, compare sampling modes, train a policy, and evaluate from
-ordinary table starts with held-out seeds.
+The :doc:`sparse cube-pickup walkthrough <sparse_cube_pickup>` applies these pieces
+to physical approach and grasp starts, training comparisons, explicit replay, and
+evaluation from ordinary table starts with held-out seeds.

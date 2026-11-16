@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass
 
-from .sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
+from .sampling import SamplerCfg, TargetSuccessScoreCfg, UniformScoreCfg
 
 
 @configclass
@@ -23,7 +23,7 @@ class ResetStateSamplerCfg:
     """Episodes remembered for each reset row."""
 
     sampling: SamplerCfg = SamplerCfg(
-        strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0), UniformSamplingStrategyCfg(weight=0.05)],
+        strategies=[TargetSuccessScoreCfg(target=0.5, kappa=2.0, weight=0.25), UniformScoreCfg(weight=0.05)],
         eps=1.0e-4,
     )
     """Sampling strategies; the default favors intermediate success while retaining all rows."""

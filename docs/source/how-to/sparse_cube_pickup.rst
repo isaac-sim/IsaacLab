@@ -6,14 +6,12 @@ Learning sparse cube pickup from reset states
 =============================================
 
 The ``IsaacContrib-Cube-Pickup-Franka`` example uses generated reset states to
-make a sparse manipulation reward easier to discover. A Franka must carry a
-grasped 40 mm cube to a fixed point. Starting every attempt with the hand at home
-requires an initially random policy to discover reaching, closing, and lifting
-before it receives any reward. Intermediate physical starts shorten that search:
-an established grasp lets the policy first explore motions that can reach the goal.
+make a sparse reward easier to discover. A Franka must carry a grasped 40 mm cube
+to a fixed point. Home starts require an initially random policy to discover
+reaching, closing, and lifting before any reward. Intermediate physical starts
+shorten that search: an established grasp lets it explore goal-reaching motions.
 
-This walkthrough follows the task's collection, replay, training, and evaluation
-workflow. It currently supports Newton MJWarp. For the reusable buffer API and
+This workflow currently supports Newton MJWarp. For reusable buffer APIs and
 integration with other tasks, see :doc:`reset_state_buffers`.
 
 The task lives in ``source/isaaclab_tasks/isaaclab_tasks/contrib/cube_pickup/``:
@@ -32,11 +30,11 @@ Success ends the episode immediately, with no holding interval. Other transition
 receive zero reward: there are no reaching, grasping, or progress terms. Attempts
 also end after 12 seconds or when the cube leaves the workspace.
 
-The action contains six relative Cartesian pose increments and a binary gripper
-command: values above ``0.5`` open the gripper, and other values close it. State
-observations include the joints, cube, hand, commanded goal, and previous action.
-The policy receives neither reset-row identities nor scripted actions. Reset
-states change where reinforcement learning starts; they add no demonstration loss.
+Actions contain six relative Cartesian pose increments and a binary gripper
+command: above ``0.5`` opens, otherwise closes. Observations include joint state,
+cube, hand, goal, and previous action. Neither reset IDs nor scripted actions are
+observed. Reset states change the initial-state distribution without adding a
+demonstration loss.
 
 .. figure:: ../_static/how-to/reset_states/pickup_stages.jpg
    :width: 100%
@@ -58,8 +56,10 @@ Run these commands from the repository root in the configured uv environment:
        --bank_output outputs/pickup/reset_states.pt \
        --output outputs/pickup/generation.json
 
-In ``cube_pickup_env.py``, ``_collect_reset_states`` connects ``_generate``
-callbacks and ``_capture`` to the buffer. It collects four balanced groups:
+In ``cube_pickup_env.py``, ``_collect_reset_states`` passes ``_generate`` callbacks
+and ``_capture`` to the optional ``collect_reset_states`` helper. It wraps the
+returned tensors in ``ResetStateBuffer`` and owns their group metadata. The four
+balanced groups are:
 
 * ``table``: the arm at home, with a randomized cube on the table.
 * ``approach``: open-hand targets interpolated from home toward 0.10 m above the cube.
@@ -78,14 +78,23 @@ The capture callback stores scene tensors in environment-relative coordinates,
 including physical velocities. Collection has a finite batch budget and reports
 accepted and rejected candidates. The script then exercises partial replay,
 checks that untouched environments retain their state, rejects initial success,
-and checks finite observations and rewards through five environment steps.
-``_restore_reset_state`` preserves physical velocities while clearing desired
-joint velocities for the position-controlled arm.
+and checks finite observations and rewards through five environment steps. Replay
+preserves physical velocities while clearing desired joint velocities.
 
 Inspect ``generation.json`` for the collection and replay results.
 ``reset_states.pt`` contains the bank, group metadata, and collection report;
 ``reset_states.json`` is its report sidecar. This probe does not install a bank
 for subsequent training: each training run generates its own fresh bank.
+
+To inspect bank rows from an instantiated task, request one dense index per selected
+environment. This updates sampler assignments without recording unfinished episodes:
+
+.. code-block:: python
+
+   import torch
+
+   env_ids = torch.tensor([0, 1], device=task.device)
+   task.reset(env_ids, options={"reset_state_ids": torch.tensor([3, 7], device=task.device)})
 
 .. figure:: ../_static/how-to/reset_states/reset_lifecycle.jpg
    :width: 100%
@@ -103,8 +112,8 @@ Before training, check that scripted control can complete ordinary table starts:
        --num_envs 32 --episodes 64 --seed 10000 \
        --output outputs/pickup/scripted.json
 
-This checks the task and control path; it does not measure a learned policy.
-Append ``--viz newton_gl`` to watch the scripted controller.
+This checks scripted control, not policy learning. Append ``--viz newton_gl`` to
+watch the controller.
 
 Train and compare reset distributions
 -------------------------------------
@@ -117,9 +126,9 @@ Start with one GPU using the registered RSL-RL configuration:
        --num_envs 1024 --max_iterations 3000 --seed 0
 
 The default bank has 1024 states. Training saves ``reset_states.pt`` and its JSON
-report in the run directory. Set ``env.reset_buffer.size`` and
-``env.reset_buffer.seed`` to control its size and generation seed. Append one of
-these overrides to compare starting distributions under the same sparse reward:
+report in the run directory. ``env.reset_buffer`` configures the task's
+``ResetStateCollectionCfg``: set ``size`` and ``seed`` independently of the
+training seed. Append one override to compare starting distributions:
 
 .. list-table::
    :header-rows: 1
@@ -147,14 +156,15 @@ overall training success stay at 50%.
    :width: 100%
    :alt: Illustrative sampling probabilities for five hypothetical rows with success rates 0, 0.25, 0.5, 0.75, and 1: approximately 5.72, 27.14, 34.28, 27.14, and 5.72 percent.
 
-   Default scores are ``p(1-p) + 0.05 + 0.0001``, normalized across rows. These
-   five hypothetical rows illustrate the sampler; they are not a measured learning
-   curve. Rows near 50% success receive more practice, with nonzero coverage at
-   both extremes.
+   Combined default scores are ``p(1-p) + 0.05 + 0.0001``, normalized across rows.
+   These hypothetical rows illustrate the sampler, not a measured learning curve.
+   The unit-peak target score has weight ``0.25``; uniform weight ``0.05`` adds
+   coverage rather than a fixed five-percent mixture.
 
 For four GPUs, use the same configuration with ``train_multigpu --num_gpus 4``
 in place of ``train``. ``--num_envs`` then counts environments per GPU, and each
-rank saves its generated bank with a rank-specific filename.
+rank saves its bank separately. Its effective collection seed is the configured
+bank seed plus global rank, modulo ``2**32``; the report records that seed.
 
 Evaluate complete pickup attempts
 ---------------------------------

@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["ResetStateBuffer", "ResetStateBufferCfg"]
+__all__ = ["ResetStateBuffer"]
 
 from .reset_state_buffer import ResetStateBuffer
-from .reset_state_buffer_cfg import ResetStateBufferCfg

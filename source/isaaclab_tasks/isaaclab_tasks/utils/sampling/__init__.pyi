@@ -8,17 +8,33 @@ __all__ = [
     "BetaSamplingStrategyCfg",
     "Sampler",
     "SamplerCfg",
+    "SamplingScore",
+    "SamplingScoreCfg",
     "SamplingStrategy",
     "SamplingStrategyCfg",
+    "TargetSuccessScore",
+    "TargetSuccessScoreCfg",
+    "UniformScore",
+    "UniformScoreCfg",
     "UniformSamplingStrategy",
     "UniformSamplingStrategyCfg",
 ]
 
 from .sampler import Sampler
 from .sampler_cfg import SamplerCfg
-from .sampling_strategies import BetaSamplingStrategy, SamplingStrategy, UniformSamplingStrategy
+from .sampling_strategies import (
+    BetaSamplingStrategy,
+    SamplingScore,
+    SamplingStrategy,
+    TargetSuccessScore,
+    UniformSamplingStrategy,
+    UniformScore,
+)
 from .sampling_strategies_cfg import (
     BetaSamplingStrategyCfg,
+    SamplingScoreCfg,
     SamplingStrategyCfg,
+    TargetSuccessScoreCfg,
     UniformSamplingStrategyCfg,
+    UniformScoreCfg,
 )

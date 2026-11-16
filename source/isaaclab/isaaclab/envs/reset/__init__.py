@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for collecting validated reset states."""
+"""Storage for fixed reset-state snapshots."""
 
 from ...utils.module import lazy_export
 

@@ -16,14 +16,14 @@ import torch
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.envs.common import VecEnvStepReturn
+from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.reset import ResetStateBuffer
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import clone, instantiate
 from isaaclab.utils.math import compute_pose_error, quat_apply_inverse
 
-from ...utils import ResetStateSampler
-from ...utils.sampling import UniformSamplingStrategyCfg
+from ...utils import ResetStateSampler, collect_reset_states
+from ...utils.sampling import UniformScoreCfg
 from . import mdp as pickup_mdp
 from .cube_pickup_env_cfg import CubePickupEnvCfg
 
@@ -36,7 +36,10 @@ class CubePickupEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: CubePickupEnvCfg, **kwargs) -> None:
         self.reset_buffer: ResetStateBuffer | None = None
         self.reset_sampler: ResetStateSampler | None = None
-        self._step_success_rate: torch.Tensor | None = None
+        self.reset_group_names: tuple[str, ...] = ()
+        self.reset_group_ids = torch.empty(0, dtype=torch.long, device=cfg.sim.device)
+        self._step_outcome_counts: torch.Tensor | None = None
+        self._requested_reset_state_ids: torch.Tensor | None = None
         self._arm_scale = torch.tensor(cfg.actions.arm.scale, dtype=torch.float32, device=cfg.sim.device).expand(6)
         self._arm_offset = torch.tensor(cfg.actions.arm.offset, dtype=torch.float32, device=cfg.sim.device).expand(6)
         offset = cfg.actions.arm.body_offset
@@ -58,15 +61,52 @@ class CubePickupEnv(ManagerBasedRLEnv):
         if cfg.reset_mode != "table":
             self._collect_reset_states()
 
+    def reset(
+        self,
+        env_ids: torch.Tensor | slice | None = None,
+        *,
+        seed: int | None = None,
+        options: dict | None = None,
+    ) -> tuple[VecEnvObs, dict]:
+        """Reset selected environments, optionally to explicit rows of the generated catalog.
+
+        Args:
+            env_ids: Environment indices or a slice. None resets all environments.
+            seed: Random seed for the reset. None leaves the random state unchanged.
+            options: Optional ``reset_state_ids`` tensor with one catalog row per selected
+                environment, in the same order as ``env_ids``. Requires a generated catalog.
+
+        Returns:
+            Observations and reset information.
+        """
+        state_ids = options.get("reset_state_ids") if options is not None else None
+        if state_ids is not None and self.reset_sampler is None:
+            raise ValueError("Explicit reset_state_ids require a generated reset catalog.")
+        self._requested_reset_state_ids = state_ids
+        self._step_outcome_counts = None
+        try:
+            return super().reset(env_ids, seed=seed, options=options)
+        finally:
+            self._requested_reset_state_ids = None
+            self._step_outcome_counts = None
+
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Publish success only for natural outcomes observed during this step."""
-        self._step_success_rate = None
-        result = super().step(action)
-        if self._step_success_rate is None:
-            self.extras.get("log", {}).pop("Metrics/success_rate", None)
-        else:
-            self.extras["log"]["Metrics/success_rate"] = self._step_success_rate
-        return result
+        """Publish fresh metrics for natural outcomes observed during this step."""
+        self.extras["log"] = {}
+        self._step_outcome_counts = None
+        try:
+            result = super().step(action)
+            if self._step_outcome_counts is not None:
+                counts = self._step_outcome_counts[0].cpu().tolist()
+                rates = self._step_outcome_counts[1] / self._step_outcome_counts[0].clamp_min(1)
+                if counts[0]:
+                    self.extras["log"]["Metrics/success_rate"] = rates[0]
+                for group_id, name in enumerate(self.reset_group_names):
+                    if counts[1 + group_id]:
+                        self.extras["log"][f"Reset/{name}_success"] = rates[1 + group_id]
+            return result
+        finally:
+            self._step_outcome_counts = None
 
     def scripted_action(self, target: torch.Tensor, *, close: bool) -> torch.Tensor:
         """Create normalized relative IK actions for target grasp-center poses.
@@ -110,9 +150,9 @@ class CubePickupEnv(ManagerBasedRLEnv):
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
-                "state": self.reset_buffer.state,
-                "group_names": self.reset_buffer.group_names,
-                "group_ids": self.reset_buffer.group_ids,
+                "state": self.reset_buffer.states,
+                "group_names": self.reset_group_names,
+                "group_ids": self.reset_group_ids,
                 "report": self.generation_report,
             },
             path,
@@ -125,24 +165,23 @@ class CubePickupEnv(ManagerBasedRLEnv):
         valid = (self.episode_length_buf[ids] > 0) & self.reset_buf[ids]
         metrics: dict[str, torch.Tensor] = {}
         rows = None
+        if self._step_outcome_counts is None:
+            self._step_outcome_counts = torch.zeros((2, 1 + len(self.reset_group_names)), device=self.device)
+        self._step_outcome_counts[0, 0] += valid.sum()
+        self._step_outcome_counts[1, 0] += (success & valid).sum()
         if self.reset_sampler is not None:
-            previous_rows = self.reset_sampler.row_ids[ids]
-            previous_groups = self._reset_group_ids[previous_rows]
-            counts = torch.zeros(len(self.reset_buffer.group_names), device=self.device)
-            counts.scatter_add_(0, previous_groups, valid.float())
-            successes = torch.zeros_like(counts).scatter_add_(0, previous_groups, (success & valid).float())
-            rates = successes / counts.clamp_min(1)
-            for group_id, name in enumerate(self.reset_buffer.group_names):
-                metrics[f"Reset/{name}_success"] = rates[group_id]
-            rows = self.reset_sampler.reset(ids, success=success, valid=valid)
-            probabilities = torch.zeros_like(counts).scatter_add_(
-                0, self._reset_group_ids, self.reset_sampler.probabilities
+            previous_rows = self.reset_sampler.get_state_ids(ids)
+            previous_groups = self.reset_group_ids[previous_rows]
+            self._step_outcome_counts[0, 1:].scatter_add_(0, previous_groups, valid.float())
+            self._step_outcome_counts[1, 1:].scatter_add_(0, previous_groups, (success & valid).float())
+            rows = self.reset_sampler.reset(
+                ids, success=success, valid=valid, state_ids=self._requested_reset_state_ids
             )
-            for group_id, name in enumerate(self.reset_buffer.group_names):
+            probabilities = torch.zeros(len(self.reset_group_names), device=self.device).scatter_add_(
+                0, self.reset_group_ids, self.reset_sampler.probabilities
+            )
+            for group_id, name in enumerate(self.reset_group_names):
                 metrics[f"Reset/{name}_probability"] = probabilities[group_id]
-        if valid.any():
-            self._step_success_rate = (success & valid).float().sum() / valid.sum()
-            metrics["Metrics/success_rate"] = self._step_success_rate
         super()._reset_idx(env_ids)
         if rows is None:
             self._reset_table(ids)
@@ -268,22 +307,26 @@ class CubePickupEnv(ManagerBasedRLEnv):
         self.scene.update(0.0)
 
     def _collect_reset_states(self) -> None:
-        self.reset_buffer = ResetStateBuffer(self.cfg.reset_buffer)
+        collection_cfg = clone(self.cfg.reset_buffer)
+        collection_cfg.seed = (collection_cfg.seed + int(os.getenv("RANK", "0"))) % 2**32
         generators = {
             stage: (lambda env_ids, stage=stage: self._generate(env_ids, stage))
             for stage in ("table", "approach", "pregrasp", "grasp")
         }
-        self.reset_buffer.collect(self.scene._ALL_INDICES, generators, self._capture)
-        self._reset_group_ids = self.reset_buffer.group_ids
+        states, self.reset_group_ids, report = collect_reset_states(
+            collection_cfg, self.scene._ALL_INDICES, generators, self._capture
+        )
+        self.reset_buffer = ResetStateBuffer(states)
+        self.reset_group_names = tuple(generators)
         sampler_cfg = clone(self.cfg.reset_sampler)
         if self.cfg.reset_mode == "uniform":
-            sampler_cfg.sampling.strategies = [UniformSamplingStrategyCfg()]
+            sampler_cfg.sampling.strategies = [UniformScoreCfg()]
         self.reset_sampler = instantiate(sampler_cfg, self.num_envs, self.reset_buffer.num_states, self.device)
         self.generation_report = {
-            "seed": self.cfg.reset_buffer.seed,
+            "seed": collection_cfg.seed,
             "num_states": self.reset_buffer.num_states,
-            "stages": {name: report["accepted"] for name, report in self.reset_buffer.collection_report.items()},
-            "collection": self.reset_buffer.collection_report,
+            "stages": {name: group["accepted"] for name, group in report.items()},
+            "collection": report,
             "validation": "Finite state, low velocity, replayed physical grasp; no initial goal success.",
         }
         if self.cfg.log_dir:

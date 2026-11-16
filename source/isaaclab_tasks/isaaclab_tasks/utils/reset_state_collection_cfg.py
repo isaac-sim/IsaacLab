@@ -5,15 +5,15 @@
 
 """Reset-state collection limits and seed settings."""
 
-from ...utils import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
-class ResetStateBufferCfg:
+class ResetStateCollectionCfg:
     """Configuration for bounded reset-state collection."""
 
     size: int = 4096
-    """Number of accepted states to collect, shared approximately equally across named generators."""
+    """Number of accepted states, shared approximately equally across named generators."""
 
     max_batches: int = 100
     """Maximum candidate batches per generator before collection fails."""

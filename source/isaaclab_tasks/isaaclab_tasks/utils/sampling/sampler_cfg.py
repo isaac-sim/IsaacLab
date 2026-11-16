@@ -11,7 +11,7 @@ from dataclasses import field
 
 from isaaclab.utils import configclass
 
-from .sampling_strategies_cfg import SamplingStrategyCfg
+from .sampling_strategies_cfg import SamplingScoreCfg
 
 
 @configclass
@@ -20,7 +20,7 @@ class SamplerCfg:
 
     class_type: type | str = "{DIR}.sampler:Sampler"
     """Runtime sampler class."""
-    strategies: list[SamplingStrategyCfg] = field(default_factory=list)
-    """Weighted sampling-strategy cfgs composed by the sampler."""
+    strategies: list[SamplingScoreCfg] = field(default_factory=list)
+    """Weighted score configurations; custom scorers implement ``score(metrics, out)``."""
     eps: float = 1e-3
-    """Soft floor on per-item probability before normalization."""
+    """Additive floor on each item's weighted score before probability normalization."""

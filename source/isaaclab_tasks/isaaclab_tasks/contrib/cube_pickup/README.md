@@ -1,8 +1,9 @@
 # Generated reset states for sparse cube pickup
 
-This reference example exercises `isaaclab.envs.reset.ResetStateBuffer`: task callbacks
-generate candidate states through simulation, reject invalid candidates, and freeze the
-accepted states before reinforcement learning. The example currently supports Newton MJWarp.
+This reference example stores fixed tensor snapshots in `isaaclab.envs.reset.ResetStateBuffer`.
+Task callbacks use the optional `isaaclab_tasks.utils.collect_reset_states` helper to generate
+and validate candidates before reinforcement learning. The task owns group names, assignments,
+and reports. The example currently supports Newton MJWarp.
 
 See [Learning sparse cube pickup](../../../../../docs/source/how-to/sparse_cube_pickup.rst)
 for an illustrated walkthrough of the reward, reset creation, training, and evaluation.
@@ -20,7 +21,8 @@ The gripper opens for actions above 0.5 and closes otherwise.
 
 The buffer contains four stages from physical scripted rollouts: home with the cube on
 the table, approach targets interpolated from home to 0.10 m above the cube, open-finger
-pregrasps spanning 0–0.10 m above it, and established grasps lifted by 0.025–0.098 m.
+pregrasps spanning 0–0.10 m above it, and established grasps after a commanded hand
+lift of 0.025–0.098 m.
 These continuous starts connect the pickup path without already satisfying the goal.
 The generator closes the real fingers and performs a short lift; it
 never places a cube into a closed hand. A grasp must survive state restoration and
@@ -34,6 +36,14 @@ Training records completed-episode outcomes against the previous reset row befor
 clearing task state. Sampling targets rows with approximately 50% recent success, with
 uniform coverage retained. The policy observes neither reset-row IDs nor teacher actions.
 The buffer changes the initial-state distribution; it supplies no demonstration loss.
+The default unit-peak target-success score has weight 0.25, the uniform score has weight
+0.05, and the additive score floor is 0.0001. After normalization, these are adaptive
+probabilities rather than a fixed five-percent uniform mixture.
+
+For an instantiated task with a generated bank, `task.reset(env_ids,
+options={"reset_state_ids": requested_rows})` restores explicit dense bank indices, one
+per selected environment. Manual resets do not record unfinished outcomes, and the next
+completed episode is attributed to the selected row.
 
 ```bash
 # Prove bank generation, partial replay isolation, and finite stepping.
@@ -56,8 +66,11 @@ uv run python scripts/environments/cube_pickup.py --mode evaluate \
 
 Set `env.reset_mode=uniform` when training to compare fixed uniform bank sampling, or
 `env.reset_mode=table` to train from ordinary table starts without a bank. Change
-`env.reset_buffer.size` to control collection size and `env.reset_buffer.seed` to vary
-the generated bank independently of the training seed.
+`env.reset_buffer.size` and `env.reset_buffer.seed` in the task's `ResetStateCollectionCfg`
+to control collection independently of the training seed. Distributed collection uses
+`(bank_seed + global_rank) % 2**32`; reports record the effective seed and each rank saves
+its own bank. Training generates a fresh bank on each run; saving a generation probe does
+not configure a training cache or automatic loader.
 
 Training success on the reset mixture does not establish full pickup learning. The
 evaluation runner always resets the arm home and the cube onto the table, reports

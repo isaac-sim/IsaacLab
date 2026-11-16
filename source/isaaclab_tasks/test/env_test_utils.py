@@ -15,12 +15,12 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
-from isaaclab.envs.reset import ResetStateBufferCfg
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
+from isaaclab_tasks.utils import ResetStateCollectionCfg
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
@@ -320,7 +320,7 @@ def _check_random_actions(
         else:
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         reset_buffer_cfg = getattr(env_cfg, "reset_buffer", None)
-        if isinstance(reset_buffer_cfg, ResetStateBufferCfg):
+        if isinstance(reset_buffer_cfg, ResetStateCollectionCfg):
             reset_buffer_cfg.size = min(32, reset_buffer_cfg.size)
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:

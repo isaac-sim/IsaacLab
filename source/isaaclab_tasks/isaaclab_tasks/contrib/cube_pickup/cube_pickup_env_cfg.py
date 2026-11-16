@@ -17,7 +17,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.reset import ResetStateBufferCfg
 from isaaclab.managers import (
     ObservationGroupCfg,
     ObservationTermCfg,
@@ -32,7 +31,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_assets.robots import FRANKA_PANDA_HIGH_PD_CFG
 
 from ...core.lift.mdp import ObjectUniformPoseCommandCfg
-from ...utils import ResetStateSamplerCfg, preset
+from ...utils import ResetStateCollectionCfg, ResetStateSamplerCfg, preset
 from . import mdp as pickup_mdp
 
 
@@ -183,7 +182,7 @@ class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     events: dict = {}
     commands: CommandsCfg = CommandsCfg()
     curriculum = None
-    reset_buffer: ResetStateBufferCfg = ResetStateBufferCfg(size=1024, max_batches=512, seed=0)
+    reset_buffer: ResetStateCollectionCfg = ResetStateCollectionCfg(size=1024, max_batches=512, seed=0)
     reset_sampler: ResetStateSamplerCfg = ResetStateSamplerCfg()
     reset_mode: Literal["adaptive", "uniform", "table"] = "adaptive"
     """Training distribution, or ordinary home/table starts for evaluation."""
