@@ -204,7 +204,7 @@ class NewtonViewerGL(ViewerGL):
     image_matches_camera = False
     """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
     _overlay_capture = None
-    """Publisher that also receives the line and arrow overlays, while the OVRTX view draws them."""
+    """Publisher that also receives the drag arrow, while the OVRTX view draws it."""
     _view_controls = None
     _run_info: dict = {}
     _steps_per_second = 0.0
@@ -582,8 +582,8 @@ class NewtonViewerGL(ViewerGL):
                     marker.set_visibility(False)
             hover_tooltip(imgui, "Hide every marker group")
 
-    def _draw_model_overlays(self, imgui, rtx: bool = False) -> None:
-        """Draw Newton's per-overlay toggles; the OVRTX view draws only the line and arrow overlays."""
+    def _draw_model_overlays(self, imgui) -> None:
+        """Draw Newton's per-overlay toggles, which apply to the OpenGL view."""
         renderer = self.renderer
 
         def tip(text: str) -> None:
@@ -613,20 +613,6 @@ class NewtonViewerGL(ViewerGL):
         _model = self.model
         _has_particles = _model.particle_count > 0
         _has_springs = _model.spring_count > 0
-        if rtx:
-            self.show_springs = _imgui_optional_checkbox(
-                imgui,
-                "Show Springs",
-                self.show_springs,
-                _has_springs,
-                "No spring constraints in this environment",
-                "Draw spring constraints",
-            )
-            _c, self.show_com = imgui.checkbox("Show Center of Mass", self.show_com)
-            tip("Draw each body's center of mass")
-            _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
-            tip("Draw each body's inertia as a box")
-            return
         _has_cloth = _model.tri_count > 0
         self.show_particles = _imgui_optional_checkbox(
             imgui,
@@ -2081,7 +2067,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self.current_image_view.invalidate()
 
     def _log_rtx_overlays(self) -> bool:
-        """Draw the line and arrow overlays the HUD enables, and the drag arrow, as meshes in OVRTX.
+        """Draw the drag arrow as meshes in OVRTX; Newton's model overlays are drawn in OpenGL only.
 
         Returns:
             Whether the drag arrow is being drawn, which an OVRTX view that is not stepping must render again.
@@ -2090,9 +2076,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if publisher is None or not self.rtx_rendering:
             return False
         renderers = self._rtx_renderers
-        overlays = False  # The HUD offers the model overlays in OpenGL only; the OVRTX view draws just the arrows.
         dragging = viewer.picking_enabled and viewer.picking is not None and viewer.picking.is_picking()
-        if not overlays and not dragging:
+        if not dragging:
             publisher.hide_all(renderers)
             return False
         if viewer.is_paused():
@@ -2101,25 +2086,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if state.body_q is not None and not len(state.body_q):
             return False
         viewer._overlay_capture = publisher
-        # Contact disks are instanced meshes that only the OpenGL view draws, and they dominate the contact cost.
-        disks = viewer.show_contact_disks
-        viewer.show_contact_disks = False
         try:
-            if overlays:
-                # Only the overlays are needed, not the per-shape instances that log_state also updates for OpenGL.
-                getattr(viewer, "_log_non_shape_state", viewer.log_state)(state)
-                contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
-                if contacts is not None:
-                    viewer.log_contacts(contacts, state)
-                else:
-                    self._log_scene_contact_sensor_arrows()
-            else:
-                viewer._render_picking_line(state)
+            viewer._render_picking_line(state)
         finally:
             viewer._overlay_capture = None
-            viewer.show_contact_disks = disks
         publisher.publish(renderers)
-        return bool(dragging)
+        return True
 
     def _refresh_rtx_markers(self) -> None:
         """Render the OVRTX cameras again when a marker group is shown, hidden, or moved, which OVRTX draws as prims."""
