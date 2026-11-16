@@ -3,6 +3,21 @@ Changelog
 
 .. towncrier release notes start
 
+13.0.2 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the :class:`~isaaclab_physx.assets.Articulation` fixed and spatial tendon mask setters to write the
+  tendon buffers through the masks instead of converting them to indices, removing a host wait per call.
+
+Fixed
+^^^^^
+
+* Initialized the joint-limit clamping counter in mocked PhysX articulation benchmarks so joint position limit writes completed.
+
+
 13.0.1 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
