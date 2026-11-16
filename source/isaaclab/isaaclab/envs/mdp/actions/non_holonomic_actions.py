@@ -131,11 +131,7 @@ class NonHolonomicAction(ActionTerm):
 
     @property
     def action_names(self) -> list[str]:
-        """Names of the action components, in the order of the action vector.
-
-        ``lin_vel_x`` (forward velocity) [m/s] and ``ang_vel_z`` (turning rate) [rad/s], both in the base
-        frame. :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against these names.
-        """
+        """Action component names matched by the clip keys: ``lin_vel_x`` [m/s] and ``ang_vel_z`` [rad/s]."""
         return ["lin_vel_x", "ang_vel_z"]
 
     @property

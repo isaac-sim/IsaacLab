@@ -105,12 +105,7 @@ class RMPFlowAction(ActionTerm):
 
     @property
     def action_names(self) -> list[str]:
-        """Names of the action components, in the order of the action vector.
-
-        ``pos_x``, ``pos_y``, ``pos_z`` for the position [m], followed by ``rot_x``, ``rot_y``, ``rot_z``
-        (axis-angle) [rad] in relative mode or ``quat_x``, ``quat_y``, ``quat_z``, ``quat_w`` in absolute mode.
-        :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against these names.
-        """
+        """Action component names matched by the clip keys: ``pos_*`` [m], then ``rot_*`` [rad] or ``quat_*``."""
         return list(_POSITION_NAMES + (_ROTATION_NAMES if self.cfg.use_relative_mode else _QUATERNION_NAMES))
 
     @property
