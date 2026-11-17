@@ -6,6 +6,7 @@
 """Scene selections resolve on the host, then finalize to device indices used without synchronization."""
 
 import copy
+import pickle
 from dataclasses import field
 from functools import partial
 from types import SimpleNamespace
@@ -140,6 +141,22 @@ def test_resolve_warp_ids_fills_the_selection_order(scene):
     assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
     assert sensor.joint_ids_wp is None
     assert sensor.body_ids_wp.numpy().tolist() == [0, 1]
+
+
+def test_a_cfg_with_warp_ids_serializes(scene):
+    """With Warp ids, a configuration converts to a dictionary with the ids as lists and validates; it pickles
+    without them, and resolving the Warp ids again fills them."""
+    scene = _Scene(scene)
+    cfg = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True)
+    cfg.resolve(scene)
+    cfg.resolve_warp_ids(scene)
+
+    assert cfg.to_dict()["joint_ids_wp"] == [2, 0]
+    cfg.validate()
+    restored = pickle.loads(pickle.dumps(cfg))
+    assert restored.joint_ids == [2, 0] and restored.joint_ids_wp is None and restored.body_ids_wp is None
+    restored.resolve_warp_ids(scene)
+    assert restored.joint_ids_wp.numpy().tolist() == [2, 0]
 
 
 @configclass

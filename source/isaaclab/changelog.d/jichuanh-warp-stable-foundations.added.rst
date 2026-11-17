@@ -3,4 +3,5 @@
   The new :meth:`~isaaclab.managers.SceneEntityCfg.resolve_warp_ids`, which the Warp managers call after
   :meth:`~isaaclab.managers.SceneEntityCfg.resolve`, fills them; :meth:`~isaaclab.managers.SceneEntityCfg.resolve`,
   ``joint_ids`` and ``body_ids`` are unchanged. Copies of the configuration, :func:`copy.deepcopy` included, share
-  them.
+  them; ``to_dict`` stores them as lists, and a pickled configuration leaves them out (``None``) until
+  :meth:`~isaaclab.managers.SceneEntityCfg.resolve_warp_ids` runs again.

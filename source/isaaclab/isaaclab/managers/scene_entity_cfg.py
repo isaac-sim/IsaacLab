@@ -221,6 +221,17 @@ class SceneEntityCfg:
                 setattr(copied, name, copy.deepcopy(value, memo))
         return copied
 
+    def __copy__(self) -> SceneEntityCfg:
+        """Copy every field; the copy shares the Warp ids."""
+        copied = object.__new__(type(self))
+        copied.__dict__.update(vars(self))
+        return copied
+
+    def __getstate__(self) -> dict:
+        """Pickle without the Warp ids, which a Warp array cannot be: they unpickle as None, and
+        :meth:`resolve_warp_ids` fills them again."""
+        return {**vars(self), "joint_ids_wp": None, "body_ids_wp": None}
+
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
         if self.joint_names is not None or self.joint_ids != slice(None):

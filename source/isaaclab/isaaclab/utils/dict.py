@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Any
 
 import torch
+import warp as wp
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import ResolvableString, callable_to_string, string_to_slice
@@ -48,6 +49,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # dict, which would mean that a torch.tensor would be stored as an empty dict. Instead we
         # want to store it directly as the tensor.
         return obj
+    elif isinstance(obj, wp.array):
+        # a Warp array (such as the Warp ids of a SceneEntityCfg) is stored as the list of its values
+        return obj.numpy().tolist()
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
     else:
