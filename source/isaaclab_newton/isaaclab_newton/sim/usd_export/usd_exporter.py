@@ -184,12 +184,14 @@ class UsdExporter(BaseUsdExporter):
                 f"USD does not state the settings of {type(solver_cfg).__name__} beyond Kamino's constraint gains; an"
                 " import runs the solver its consumer builds, with that solver's defaults."
             )
-        # MuJoCo's and Kamino's own contacts are found every solver step; Newton's pipeline once per physics step.
+        # Isaac Lab runs Newton's collision pipeline and Newton actuators once per physics step; MuJoCo's and Kamino's
+        # own contacts are found every solver step.
         pipeline = not getattr(solver_cfg, "use_mujoco_contacts", getattr(solver_cfg, "use_collision_detector", False))
-        if physics_cfg.num_substeps > 1 and pipeline:
+        once = [name for name, runs in (("collisions", pipeline), ("actuators", bool(model.actuators))) if runs]
+        if physics_cfg.num_substeps > 1 and once:
             logger.warning(
-                "The file states the solver step rate; an import running Newton's collision pipeline collides every"
-                " solver step, while Isaac Lab collides once per physics step."
+                f"The file states the solver step rate; Isaac Lab runs its {' and '.join(once)} once per physics step,"
+                " an import every solver step."
             )
         return edits
 

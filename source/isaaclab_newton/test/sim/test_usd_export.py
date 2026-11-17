@@ -546,9 +546,9 @@ def test_a_joint_actuated_without_a_usd_drive_gets_one(tmp_path):
     assert _capture(model, model.body_q)[key] == live[key]
 
 
-def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
+def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path, caplog):
     """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive, a force drive as
-    the actuator's PD law is."""
+    the actuator's PD law is. With substeps, the export warns that Isaac Lab runs the actuator once per physics step."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
     from isaaclab.actuators import IdealPDActuatorCfg
@@ -558,7 +558,11 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
         drive.CreateTypeAttr().Set(UsdPhysics.Tokens.acceleration)
 
     actuator = IdealPDActuatorCfg(joint_names_expr=["Hinge"], stiffness=83.0, damping=4.5, actuator_effort_limit=12.0)
-    output, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=acceleration_drive)
+    output, _ = _export(
+        tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, num_substeps=2, edit_robot=acceleration_drive
+    )
+
+    assert "Isaac Lab runs its collisions and actuators once per physics step" in caplog.text
 
     stage = Usd.Stage.Open(output)
     hinge = UsdPhysics.DriveAPI(stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge"), "angular")

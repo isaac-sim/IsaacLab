@@ -119,7 +119,8 @@ What is not exported
 * The export warns where Newton's import cannot reproduce a value:
 
   * settings of solvers other than MuJoCo, beyond Kamino's constraint gains;
-  * collisions every solver step instead of once per physics step, when the physics step has substeps;
+  * collisions and actuators every solver step instead of once per physics step, when the physics step has
+    substeps;
   * joint target modes that the gains cannot tell apart;
   * the initial joint state of articulations with ball joints;
   * values of the joints, bodies and shapes Newton's import generates, such as cable segments.
