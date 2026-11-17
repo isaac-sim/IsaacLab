@@ -525,15 +525,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                     raise ValueError("A tracking camera needs an interactive scene to follow.")
                 # fail at initialization, not on a frame: a bad env_index or track_path raises here
                 self._followers[view] = follower = CameraFollower(source, scene, self._env_ids)
-                self._tracking_defaults[view] = {
-                    "eye": source.eye,
-                    "lookat": source.lookat,
-                    "focal_length": source.focal_length,
-                    "track_path": source.track_path,
-                    "follow_heading": source.follow_heading,
-                    "heading_smoothing_time_constant": source.heading_smoothing_time_constant,
-                    "env": follower.env,
-                }
+                self._remember_tracking_defaults(view, follower)
                 if self._env_ids is not None and follower.env not in self._env_ids:
                     logger.warning(
                         "[NewtonVisualizer] A tracking camera frames environment %d, which is not among the visible "
@@ -784,6 +776,19 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._set_tracking_path(follower, defaults["track_path"])
         return True
 
+    def _remember_tracking_defaults(self, view, follower: CameraFollower) -> None:
+        """Keep what the task declared for a tracking *view*, which its reset control restores."""
+        source = view.cfg.source
+        self._tracking_defaults[view] = {
+            "eye": source.eye,
+            "lookat": source.lookat,
+            "focal_length": source.focal_length,
+            "track_path": source.track_path,
+            "follow_heading": source.follow_heading,
+            "heading_smoothing_time_constant": source.heading_smoothing_time_constant,
+            "env": follower.env,
+        }
+
     def _apply_view_pose(self, view) -> bool:
         """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
 
@@ -809,14 +814,14 @@ class NewtonVisualizerBase(BaseVisualizer):
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
-        self.current_image_view = view
-        if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
-            source = view.cfg.source
-            camera.pos = PygletVec3(*source.eye)
-            camera.look_at(source.lookat)
-            self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
-            camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
         try:
+            self.current_image_view = view
+            if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
+                source = view.cfg.source
+                camera.pos = PygletVec3(*source.eye)
+                camera.look_at(source.lookat)
+                self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+                camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:

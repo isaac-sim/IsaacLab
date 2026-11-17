@@ -60,6 +60,11 @@ class CameraFollower:
         if cfg.track_path:
             self.set_track_path(cfg.track_path)
 
+    @property
+    def env(self) -> int:
+        """Environment whose origin or asset the view follows."""
+        return self._env
+
     def set_track_path(self, track_path: str | None) -> None:
         """Follow another asset or body, or only the environment origin when *track_path* is empty.
 
@@ -99,11 +104,6 @@ class CameraFollower:
         except KeyError:
             return []
 
-    @property
-    def env(self) -> int:
-        """Environment whose origin or asset the view follows."""
-        return self._env
-
     def set_env(self, index: int) -> None:
         """Follow environment *index* from now on, with the heading filter starting afresh.
 
@@ -113,6 +113,7 @@ class CameraFollower:
         if not 0 <= index < self._scene.num_envs:
             raise ValueError(f"env_index {index} is outside the {self._scene.num_envs} environments of the scene.")
         self._env = int(index)
+        self.cfg.env_index = self._env
         self._yaw = self._raw_yaw = self._last_position = self._time = None
 
     def pose(self, time: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:

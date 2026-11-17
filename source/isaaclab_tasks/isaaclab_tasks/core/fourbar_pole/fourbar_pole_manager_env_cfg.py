@@ -239,7 +239,6 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # Declare the tracking camera that --video viz:newton:tracking records.
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(12.0, 0.0, 4.0),
             cameras=[

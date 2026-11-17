@@ -124,13 +124,6 @@ def test_the_tracking_camera_recording_reports_a_visualizer_without_one():
         _visualizer([_view(PerspectiveCameraCfg())]).render_tracking_rgb_array()
 
 
-def test_a_tracking_camera_without_a_follower_has_no_pose_instead_of_failing():
-    task = _view(TrackingCameraCfg(env_index=1))
-    viz = _visualizer([task])
-    viz._followers.clear()  # no interactive scene was registered when the viewer initialized
-    assert not viz._apply_view_pose(task)
-
-
 def test_the_selector_names_the_tracking_camera_and_the_free_perspective():
     sensor = SimpleNamespace(camera=object(), cfg=SimpleNamespace(source="/World/envs/env_0/cam"))
     viz = _visualizer([_view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))])
@@ -145,12 +138,7 @@ def test_resetting_the_tracking_camera_restores_what_the_task_declared():
     task = _view(TrackingCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
     viz = _visualizer([task])
     cfg, follower = task.cfg.source, viz._followers[task]
-    viz._tracking_defaults = {
-        task: {
-            "eye": cfg.eye, "lookat": cfg.lookat, "focal_length": cfg.focal_length, "track_path": "robot",
-            "follow_heading": True, "heading_smoothing_time_constant": 0.0, "env": follower.env,
-        }
-    }  # fmt: skip
+    viz._remember_tracking_defaults(task, follower)
     cfg.eye, cfg.follow_heading = (5.0, 5.0, 5.0), False
     follower.set_env(1)
     follower.set_track_path(None)

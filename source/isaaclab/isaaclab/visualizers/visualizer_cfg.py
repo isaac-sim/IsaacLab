@@ -80,7 +80,7 @@ class TrackingCameraCfg(PerspectiveCameraCfg):
 
     env_index: int | None = None
     """Environment to frame, or the one holding the tracked asset; None picks the middle one of the visible
-    environments, which has neighbors on every side."""
+    environments."""
 
     track_path: str | None = None
     """Scene asset to follow, or None for a view fixed relative to the environment origin.

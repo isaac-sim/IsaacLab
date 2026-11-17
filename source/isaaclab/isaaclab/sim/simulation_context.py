@@ -482,8 +482,6 @@ class SimulationContext:
                             f"Declare a CameraCfg in the scene; available paths: {available_paths}."
                         )
                     cameras[index] = camera
-            # tracking cameras come last, after the free view and the scene cameras
-            cameras.sort(key=lambda camera: isinstance(camera, TrackingCameraCfg))
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)

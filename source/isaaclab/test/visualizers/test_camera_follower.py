@@ -66,7 +66,7 @@ def test_a_tracked_view_follows_the_asset_and_rotates_with_its_heading():
     torch.testing.assert_close(_eye(follower), torch.tensor([7.0, 0.0, 1.5]))
 
 
-def test_smoothing_lags_a_turn_but_not_the_first_sample_or_a_reset():
+def test_smoothing_lags_a_turn_but_not_a_reset():
     def run(jump: float) -> torch.Tensor:
         scene = _Scene()
         cfg = TrackingCameraCfg(track_path="robot", eye=(-3.0, 0.0, 1.0), follow_heading=True)
@@ -93,7 +93,7 @@ def test_a_reset_in_place_with_a_new_heading_is_not_smoothed_but_a_real_turn_is(
         return torch.tensor(follower.pose(0.02)[0])
 
     torch.testing.assert_close(run(math.pi / 2)[1], torch.tensor(-3.0), atol=1e-4, rtol=0)  # 78 rad/s: a reset
-    assert run(0.05)[1] > -0.2  # 2.5 rad/s: a turn, filtered toward the new heading
+    assert run(0.05)[1] > -0.05  # 2.5 rad/s: a turn; unfiltered it would be -0.15
 
 
 def test_a_view_waits_for_its_asset_and_rejects_bad_targets():
