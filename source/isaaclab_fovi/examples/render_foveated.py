@@ -46,6 +46,10 @@ def main() -> None:
     from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 
     import isaaclab.sim as sim_utils
+    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.terrains import TerrainImporterCfg
+    from isaaclab.utils.configclass import configclass
 
     if args.backend == "newton":
         from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
@@ -61,45 +65,55 @@ def main() -> None:
         physics = PhysxCfg()
         renderer = IsaacRtxRendererCfg()
 
-    sim_utils.create_new_stage()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args.device, physics=physics))
-    sim_utils.create_prim("/World/envs", "Xform")
-    sim_utils.create_prim("/World/envs/env_0", "Xform")
-    cube = sim_utils.CuboidCfg(
-        size=(0.5, 0.5, 0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.1)),
-    )
-    cube.func("/World/envs/env_0/Cube", cube, translation=(0.0, 2.0, 0.0))
-    light = sim_utils.DistantLightCfg(intensity=2000.0)
-    light.func("/World/Light", light)
-
-    cfg = FoveatedCameraCfg(
-        prim_path="/World/envs/env_.*/Eye",
+    camera_cfg = FoveatedCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Eye",
         data_types=["rgb"],
         renderer_cfg=renderer,
         foveated_res=args.resolution,
         pool_enabled=args.pool,
         # A 60 degree horizontal field of view, used by planar sampling.
         spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=27.713),
-        # OpenGL camera looking along +Y with +Z up.
-        offset=FoveatedCameraCfg.OffsetCfg(rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"),
+        # OpenGL camera half a metre above the ground, looking along +Y with +Z up.
+        offset=FoveatedCameraCfg.OffsetCfg(
+            pos=(0.0, 0.0, 0.5), rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"
+        ),
     )
     if args.planar:
-        cfg.field_geometry = "planar"
+        camera_cfg.field_geometry = "planar"
     else:
         # The physical camera the retina looks through: a 640x480 pinhole.
-        cfg.camera_calibration = {
+        camera_cfg.camera_calibration = {
             "model": "pinhole",
             "image_size": (480, 640),
             "intrinsics": (550.0, 550.0, 319.5, 239.5),
         }
-        cfg.mask_to_sensor_fov = True
+        camera_cfg.mask_to_sensor_fov = True
     if args.cmf_a_deg is not None:
-        cfg.cmf_a_deg = args.cmf_a_deg
-    camera = FoveatedCamera(cfg)
+        camera_cfg.cmf_a_deg = args.cmf_a_deg
+
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        """A red cube on the ground in front of the camera."""
+
+        ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=500.0))
+        cube = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.5),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.1)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 2.0, 0.25)),
+        )
+        eye = camera_cfg
+
+    sim_utils.create_new_stage()
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args.device, physics=physics))
+    scene = InteractiveScene(SceneCfg(num_envs=1, env_spacing=4.0))
+    camera: FoveatedCamera = scene["eye"]
     sim.reset()
 
     frame_seconds: list[float] = []
