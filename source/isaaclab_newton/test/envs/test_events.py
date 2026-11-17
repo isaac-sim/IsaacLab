@@ -172,10 +172,14 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     torch.testing.assert_close(restitution, expected_restitution)
 
 
+@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2))], indirect=True)
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model
+    shape_bodies = wp.to_torch(model.shape_body)
     worlds = wp.to_torch(model.shape_world)
+    selected = (shape_bodies >= 0) & (worlds == 1)
+    first = (shape_bodies >= 0) & (worlds == 0)
     margin = wp.to_torch(model.shape_margin)
     gap = wp.to_torch(model.shape_gap)
     expected_margin = margin.clone()
@@ -185,16 +189,16 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
         EventTermCfg(func=randomize_rigid_body_collider_offsets, params={"asset_cfg": asset_cfg}), env
     )
     term(env, torch.tensor([1], device=env.device), asset_cfg, (0.3, 0.3), (0.4, 0.4))
-    expected_margin[worlds == 1] = 0.3
-    expected_gap[worlds == 1] = 0.1
+    expected_margin[selected] = 0.3
+    expected_gap[selected] = 0.1
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
     term(env, slice(0, 1), asset_cfg, contact_offset_distribution_params=(0.6, 0.6))
-    expected_gap[worlds == 0] = 0.6 - expected_margin[worlds == 0]
+    expected_gap[first] = 0.6 - expected_margin[first]
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
     term(env, torch.tensor([1], device=env.device), asset_cfg, contact_offset_distribution_params=(0.2, 0.2))
-    expected_gap[worlds == 1] = 0.0
+    expected_gap[selected] = 0.0
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
 
@@ -270,6 +274,7 @@ def test_joint_friction_preserves_unselected_joints_and_environments(event_env: 
 
 
 @pytest.mark.parametrize("consumer", ["visualizer", "renderer"])
+@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2))], indirect=True)
 def test_visual_colors_select_bodies_and_rebind(
     event_env: ManagerBasedEnv, monkeypatch: pytest.MonkeyPatch, consumer: str
 ):
@@ -293,7 +298,7 @@ def test_visual_colors_select_bodies_and_rebind(
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()
     shape_bodies = wp.to_torch(model.shape_body).tolist()
-    body_paths = [model.body_label[body] for body in shape_bodies]
+    body_paths = [model.body_label[body] if body >= 0 else "" for body in shape_bodies]
     for selector, rows in (
         (torch.tensor([3, 1], device=env.device), [3, 1]),
         (slice(None), [0, 1, 2, 3]),

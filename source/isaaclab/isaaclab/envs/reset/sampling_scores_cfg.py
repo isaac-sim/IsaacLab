@@ -31,10 +31,3 @@ class TargetSuccessScoreCfg(SamplingScoreCfg):
     """Success rate where the score is one."""
     kappa: float = 2.0
     """Concentration; zero gives a constant score, larger values narrow its unit-height peak."""
-
-
-@configclass
-class UniformScoreCfg(SamplingScoreCfg):
-    """Configure a score of one, requiring no metric."""
-
-    class_type: type | str = "{DIR}.sampling_scores:UniformScore"

@@ -3,5 +3,5 @@
   use ``history_length`` for outcome history and ``scores`` for the selection policy.
 * **Breaking:** Migrated NIST to ``ResetStateSamplerCfg`` and removed its legacy sampling
   classes and import aliases. Replace ``SamplerCfg(strategies=...)`` with
-  ``ResetStateSamplerCfg(scores=...)`` using core ``TargetSuccessScoreCfg`` or
-  ``UniformScoreCfg``. Set ``history_length`` instead of passing ``success_monitor_cfg``.
+  ``ResetStateSamplerCfg(scores=...)`` using core ``TargetSuccessScoreCfg``.
+  Use ``scores=[]`` for uniform sampling and ``history_length`` in place of ``success_monitor_cfg``.

@@ -75,7 +75,8 @@ retains its latest ``history_length`` outcomes.
 
 Pass a full-environment ``state_ids`` array to ``sampler.reset`` for explicit starts.
 Optional constructor ``state_ids`` gives entries stable integer labels, such as
-procedural recipe seeds; ``indices`` always contains their dense storage positions.
+procedural recipe seeds. ``sampler.indices`` gives dense storage positions for
+``buffer.get_state`` and ``sampler.state_ids`` gives the corresponding labels.
 Catalog labels reserve ``-1`` for an unassigned environment. Assignments, rates, counts, and probabilities
 are borrowed ``ProxyArray`` outputs: treat them as read-only and use explicit requests
 to change assignments. Invalid requested IDs are reported in ``invalid_requests``
@@ -96,8 +97,8 @@ Capture the runtime
 -------------------
 
 Warm the configured path before capturing it. Capture reset selection, gathering, and
-native asset writes together; masks, outcomes, and requested IDs can then change in
-place between replays:
+native asset writes together. The values in the bound arrays can change between
+replays. The choice to provide outcomes or explicit IDs is fixed at capture time:
 
 .. code-block:: python
 
@@ -127,34 +128,42 @@ Lift and NIST samplers, including terms nested inside reset combinators.
 Configure useful practice
 --------------------------
 
-The default combines an analytic unit-peak score around 50 percent recent success
-with uniform coverage and an additive floor. This favors intermediate starts;
-it does not constrain overall training success to 50 percent. Concentration changes
-the score's width without shrinking its peak relative to other terms.
+The default adds uniform weight to a score that peaks at 50 percent recent success.
+This favors starts of intermediate difficulty while giving every entry a chance to
+be drawn. Concentration narrows the score's peak while keeping its height fixed.
+When all success rates are zero, the default draws uniformly. Include valid starts
+the policy can solve early so that the scores can begin to distinguish entries.
 
 .. code-block:: python
 
-   from isaaclab.envs.reset import TargetSuccessScoreCfg, UniformScoreCfg
+   from isaaclab.envs.reset import TargetSuccessScoreCfg
 
    adaptive = ResetStateSamplerCfg(
        history_length=50,
-       scores=[TargetSuccessScoreCfg(target=0.5, kappa=2.0, weight=0.25), UniformScoreCfg(weight=0.05)],
-       eps=0.0001,
+       scores=[TargetSuccessScoreCfg(target=0.5, kappa=2.0, weight=0.25)],
+       uniform_weight=0.0501,
    )
-   uniform = ResetStateSamplerCfg(scores=[UniformScoreCfg()], eps=0.0)
+   uniform = ResetStateSamplerCfg(scores=[])
 
 .. figure:: ../_static/how-to/reset_states/success_sampling.jpg
    :width: 100%
    :alt: An illustrative five-entry bank gives its largest sampling probability to the entry with 50 percent success, retaining coverage at both extremes.
 
-   An illustrative probability snapshot, not a training curve. A uniform weight of
-   ``0.05`` is an additive score, not a fixed five-percent mixture.
+   Example probabilities for five states with different success rates. The sampler
+   adds ``0.0501`` to each score, then normalizes the weights within each asset group.
 
 Custom configurations derive from :class:`~isaaclab.envs.reset.SamplingScoreCfg`.
 Their scorer implements ``score(metrics, out)`` with Warp operations on preallocated
 storage. Borrow additional per-entry metric arrays through ``metrics=`` at sampler
-construction and update them in place. This supports visit counts, staleness, or loss
-summaries without changing selection bookkeeping; ``success_rate`` is reserved.
+construction and update them in place. The sampler supplies ``success_rate`` and
+``episode_counts`` so a score can account for both difficulty and how much evidence
+it has. Tasks can supply other signals, such as learning progress or staleness.
+
+The sampler uses a fixed catalog and weighted draws with replacement. Tasks that
+generate new entries during training or require scheduled coverage, such as visiting
+each row once per cycle, own that scheduling policy.
+The assignment must match the state actually played. When restoring a snapshot from
+outside the catalog, exclude the resulting episode from catalog outcome tracking.
 
 Use the existing Lift reset event
 ---------------------------------
@@ -175,7 +184,9 @@ Configure its existing ``events.conditional_reset.params`` entries:
 
 After ordinary initialization, the event's ``reset_mask(mask, state_ids=ids)`` method
 is its native manual-replay entry. Supply ``completed=natural_episode_mask`` to
-record natural outcomes inside a captured runner. It restores root-link poses, COM velocities, joints, and
+record natural outcomes inside a captured runner. The caller sets this mask only
+for completed episodes and excludes unfinished or zero-step resets. The event
+restores root-link poses, COM velocities, joints, and
 controller targets through public mask writers. It credits the existing success
 reward's sticky flag before the reward manager clears it and excludes unfinished
 manual resets. The existing Lift observations, rewards, registrations, and agent

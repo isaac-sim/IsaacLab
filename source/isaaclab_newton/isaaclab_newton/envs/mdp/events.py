@@ -166,17 +166,8 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         """
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
-        asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-
-        self.asset = asset
+        self.asset: RigidObject | Articulation = env.scene[asset_cfg.name]
         self._newton_manager = env.sim.backend_manager
-
-        model = self._newton_manager.backend.model
-        self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
-        self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]  # type: ignore
-
-        self.default_margin = wp.to_torch(self._sim_bind_shape_margin).clone()
-        self.default_gap = wp.to_torch(self._sim_bind_shape_gap).clone()
 
     def __call__(
         self,
@@ -197,40 +188,41 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             contact_offset_distribution_params: Contact offset distribution parameters [m].
             distribution: Sampling distribution for the offsets.
         """
+        if rest_offset_distribution_params is None and contact_offset_distribution_params is None:
+            return
         if env_ids is None:
             env_ids = slice(None)
 
-        margin_view = wp.to_torch(self._sim_bind_shape_margin)
+        model = self._newton_manager.backend.model
+        view = self.asset._root_view
+        margin_binding = view.get_attribute("shape_margin", model)
+        margin_view = wp.to_torch(margin_binding)[:, 0]
 
         if rest_offset_distribution_params is not None:
-            margin = self.default_margin.clone()
             margin = _randomize_prop_by_op(
-                margin,
+                torch.empty_like(margin_view),
                 rest_offset_distribution_params,
                 None,
                 slice(None),
                 operation="abs",
                 distribution=distribution,
             )
-            self.default_margin[env_ids] = margin[env_ids]
             margin_view[env_ids] = margin[env_ids]
+            view.set_attribute("shape_margin", model, margin_binding)
         if contact_offset_distribution_params is not None:
-            current_margin = self.default_margin
-            contact_offset = torch.zeros_like(self.default_gap)
+            gap_binding = view.get_attribute("shape_gap", model)
+            gap_view = wp.to_torch(gap_binding)[:, 0]
             contact_offset = _randomize_prop_by_op(
-                contact_offset,
+                torch.empty_like(gap_view),
                 contact_offset_distribution_params,
                 None,
                 slice(None),
                 operation="abs",
                 distribution=distribution,
             )
-            gap = torch.clamp(contact_offset - current_margin, min=0.0)
-            self.default_gap[env_ids] = gap[env_ids]
-            gap_view = wp.to_torch(self._sim_bind_shape_gap)
-            gap_view[env_ids] = gap[env_ids]
-        if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
-            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+            gap_view[env_ids] = (contact_offset[env_ids] - margin_view[env_ids]).clamp_min(0.0)
+            view.set_attribute("shape_gap", model, gap_binding)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 class randomize_physics_scene_gravity(_GravityRandomization):

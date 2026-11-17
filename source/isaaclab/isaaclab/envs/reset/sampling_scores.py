@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 import warp as wp
 
-from .sampling_scores_cfg import TargetSuccessScoreCfg, UniformScoreCfg
+from .sampling_scores_cfg import TargetSuccessScoreCfg
 
 
 @wp.func
@@ -40,9 +40,7 @@ def _target_success(metric: wp.array(dtype=Any), target: float, kappa: float, ou
 
 
 class SamplingScore(Protocol):
-    """Write non-negative scores into caller-provided Warp storage without changing metric inputs."""
-
-    name: str
+    """Write finite non-negative scores into caller-owned Warp storage without mutating metrics."""
 
     def score(self, metrics: Mapping[str, wp.array], out: wp.array) -> None:
         """Write one score per catalog entry; all storage is allocated before capture."""
@@ -51,8 +49,6 @@ class SamplingScore(Protocol):
 
 class TargetSuccessScore:
     """Score current success rates through :func:`target_success_score`."""
-
-    name = "target_success"
 
     def __init__(self, cfg: TargetSuccessScoreCfg) -> None:
         if not math.isfinite(cfg.target) or not 0.0 <= cfg.target <= 1.0:
@@ -69,16 +65,3 @@ class TargetSuccessScore:
             [metrics[self.cfg.metric], self.cfg.target, self.cfg.kappa, out],
             device=out.device,
         )
-
-
-class UniformScore:
-    """Fill caller-provided storage with one."""
-
-    name = "uniform"
-
-    def __init__(self, cfg: UniformScoreCfg) -> None:
-        del cfg
-
-    def score(self, metrics: Mapping[str, wp.array], out: wp.array) -> None:
-        """Write constant scores without reading metrics."""
-        out.fill_(1.0)

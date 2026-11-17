@@ -39,12 +39,6 @@ class ResetStateSampler:
     the one-group default shares the whole catalog. Optional opaque integer IDs identify procedural recipes
     or cached states, while history and metric arrays follow catalog order.
 
-    ``indices`` and ``state_ids`` are borrowed full-environment assignments, initially -1.
-    ``success_rate`` and ``episode_counts`` describe catalog entries; ``probabilities`` sums
-    to one within each partition. ``score_values`` has shape [num_scores, num_states], in
-    ``score_names`` order. Treat these outputs as read-only and change assignments through
-    :meth:`reset`. ``invalid_requests`` flags rejected explicit requests without a host read.
-
     Args:
         cfg: History, scoring, and random-stream configuration.
         num_envs: Number of environments.
@@ -54,7 +48,8 @@ class ResetStateSampler:
         num_groups: Number of equal catalog partitions.
         state_ids: Unique signed integer catalog labels, shape [num_states]; -1 is reserved for unassigned
             environments. Defaults to dense indices.
-        metrics: Additional borrowed per-entry arrays. Update their values in place. ``success_rate`` is reserved.
+        metrics: Additional borrowed per-entry arrays. Update them in place. ``success_rate``
+            and ``episode_counts`` are supplied by the sampler.
 
     Attributes:
         state_ids: Borrowed catalog labels, shape [num_envs], with -1 for environments not yet assigned.
@@ -63,8 +58,6 @@ class ResetStateSampler:
         episode_counts: Borrowed lifetime counts of completed outcomes, shape [num_states].
         probabilities: Borrowed probabilities, shape [num_states]; each partition sums to one.
         invalid_requests: Borrowed flags for rejected explicit requests in the latest reset, shape [num_envs].
-        score_values: Borrowed unweighted scores, shape [num_scores, num_states].
-        score_names: Names corresponding to the score rows.
 
     Treat output arrays as read-only. Their storage is reused by subsequent resets.
     """
@@ -85,8 +78,8 @@ class ResetStateSampler:
             raise ValueError("Environment, state, group, and history counts must be positive integers.")
         if num_states % num_groups:
             raise ValueError("num_states must be divisible by num_groups.")
-        if not math.isfinite(cfg.eps) or cfg.eps < 0.0:
-            raise ValueError("eps must be finite and non-negative.")
+        if not math.isfinite(cfg.uniform_weight) or cfg.uniform_weight < 0.0:
+            raise ValueError("uniform_weight must be finite and non-negative.")
         self.cfg = cfg
         self.num_envs, self.num_states = num_envs, num_states
         self.device = wp.get_device(str(device))
@@ -131,21 +124,19 @@ class ResetStateSampler:
         self._state_outcome_end = wp.zeros_like(self._state_outcome_start)
         self._rng = wp.empty(num_envs, dtype=wp.uint32, device=self.device)
         self.reseed(cfg.seed)
-        self._metrics = {"success_rate": self.success_rate.warp}
+        self._metrics = {"success_rate": self.success_rate.warp, "episode_counts": self.episode_counts.warp}
         if metrics is not None:
-            if "success_rate" in metrics:
-                raise ValueError("success_rate is supplied by the sampler.")
+            if self._metrics.keys() & metrics.keys():
+                raise ValueError("success_rate and episode_counts are supplied by the sampler.")
             self._metrics.update({name: self._input(value, num_states) for name, value in metrics.items()})
         self._scores: list[SamplingScore] = [instantiate(score) for score in cfg.scores]
-        self.score_names = tuple(score.name for score in self._scores)
         weights = [float(score.weight) for score in cfg.scores]
         if any(not math.isfinite(weight) or weight < 0 for weight in weights):
             raise ValueError("Score weights must be finite and non-negative.")
-        self._score_weights = wp.array(weights, dtype=float, device=self.device)
-        self.score_values = ProxyArray(wp.empty((len(self._scores), num_states), dtype=float, device=self.device))
-        # A global prefix sum is shared by partitions; double precision keeps small later weights
-        # from disappearing when their partition's large prefix is subtracted.
+        self._score_weights = wp.array(weights, dtype=wp.float64, device=self.device)
+        self._score_values = wp.empty((len(self._scores), num_states), dtype=float, device=self.device)
         self._weights = wp.empty(num_states, dtype=wp.float64, device=self.device)
+        self._group_max_weights = wp.zeros(num_groups, dtype=wp.float64, device=self.device) if num_groups > 1 else None
         self._cdf = wp.empty_like(self._weights)
         self.probabilities = ProxyArray(wp.empty(num_states, dtype=float, device=self.device))
         self._update_probabilities()
@@ -169,13 +160,20 @@ class ResetStateSampler:
     ) -> ProxyArray:
         """Record previous outcomes and assign starts for selected environments.
 
-        All outcome, validity, and requested-ID inputs have shape [num_envs]. Omit outcomes at startup;
-        mask unfinished/manual episodes with ``valid``. Assignments and random streams of untouched
-        environments are preserved. Simultaneous outcomes for a state are ordered by environment index.
+        Assignments and random streams of untouched environments are preserved. Simultaneous
+        outcomes for a state are ordered by environment index.
 
         Explicit requested IDs must belong to each selected environment's group. Invalid requests set
         ``invalid_requests`` and leave both the assignment and its outcome history unchanged; there is
         no synchronizing device-value validation. Inspect that flag outside the captured region.
+
+        Args:
+            mask: Boolean selection with shape [num_envs]. Selects all environments when
+                both selection arguments are omitted.
+            env_ids: Alternative selection using environment indices or a slice.
+            success: Previous episode success flags, shape [num_envs]. Omit at startup.
+            valid: Completed-episode mask, shape [num_envs]. Exclude unfinished manual resets.
+            state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores.
 
         Returns:
             Borrowed persistent full-environment ID assignments. Initially unassigned environments contain -1.
@@ -184,13 +182,15 @@ class ResetStateSampler:
             mask = mask.warp
         selection = resolve_1d_mask(ids=env_ids, mask=mask, all_mask=self._all_mask, scratch_mask=self._scratch_mask)
         # Resolve selection and explicit labels before touching the previous episode.
-        self.invalid_requests.warp.zero_()
-        if state_ids is not None:
+        if state_ids is None:
+            self.invalid_requests.warp.zero_()
+        else:
             self._resolve_requested_indices(selection, state_ids)
         # Credit the old assignments, then score and select their replacements.
         if success is not None:
             self._record_completed_outcomes(selection, success, valid)
-        self._update_probabilities()
+        if self._scores:
+            self._update_probabilities()
         wp.launch(
             _assign_reset_states,
             self.num_envs,
@@ -288,13 +288,31 @@ class ResetStateSampler:
 
     def _update_probabilities(self) -> None:
         for i, score in enumerate(self._scores):
-            score.score(self._metrics, self.score_values.warp[i])
+            score.score(self._metrics, self._score_values[i])
+        if self._group_max_weights is not None:
+            self._group_max_weights.zero_()
         wp.launch(
             _combine_scores,
             self.num_states,
-            [self.score_values.warp, self._score_weights, self.cfg.eps, self._weights],
+            [
+                self._score_values,
+                self._score_weights,
+                self.cfg.uniform_weight,
+                self._group_size,
+                self._weights,
+                self._group_max_weights,
+            ],
             device=self.device,
         )
+        if self._group_max_weights is not None:
+            # Keep every nonzero group's largest weight at one before the shared prefix sum.
+            # Otherwise a large earlier group can erase small later groups through rounding.
+            wp.launch(
+                _scale_group_weights,
+                self.num_states,
+                [self._weights, self._group_max_weights, self._group_size],
+                device=self.device,
+            )
         wp.utils.array_scan(self._weights, self._cdf)
         wp.launch(
             _probabilities,
@@ -417,15 +435,29 @@ def _append_success_history(
 @wp.kernel
 def _combine_scores(
     scores: wp.array2d(dtype=float),
-    weights: wp.array(dtype=float),
-    eps: float,
+    weights: wp.array(dtype=wp.float64),
+    uniform_weight: wp.float64,
+    group_size: int,
     out: wp.array(dtype=wp.float64),
+    group_max_weights: wp.array(dtype=wp.float64),
 ):
     state_index = wp.tid()
-    value = eps
+    value = uniform_weight
     for term in range(weights.shape[0]):
-        value += weights[term] * scores[term, state_index]
-    out[state_index] = wp.float64(value)
+        value += weights[term] * wp.float64(scores[term, state_index])
+    out[state_index] = value
+    if group_max_weights:
+        wp.atomic_max(group_max_weights, state_index // group_size, value)
+
+
+@wp.kernel
+def _scale_group_weights(
+    weights: wp.array(dtype=wp.float64), group_max_weights: wp.array(dtype=wp.float64), group_size: int
+):
+    state_index = wp.tid()
+    maximum = group_max_weights[state_index // group_size]
+    if maximum > wp.float64(0.0):
+        weights[state_index] /= maximum
 
 
 @wp.kernel
