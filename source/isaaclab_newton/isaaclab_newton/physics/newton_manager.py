@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import Axis, ModelBuilder, ModelFlags, State
+from newton import Axis, Contacts, ModelBuilder, ModelFlags, State
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact, SensorIMU
+from newton.solvers import SolverBase
 
 from pxr import UsdGeom
 
@@ -233,6 +234,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
+        self._requested_solver_observables: set[str] = set()
         self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
@@ -504,7 +506,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+            backend.init_solver(
+                None if plan is None else plan.env_template,
+                relaxed_capture=self._relaxed_capture,
+                observable_kinds=self._requested_solver_observables,
+            )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()
@@ -538,6 +544,14 @@ class NewtonManager(PhysicsManager):
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
 
+    def request_solver_observables(self, *kinds: str) -> None:
+        """Request solver outputs before initialization; requests survive hard resets."""
+        self._requested_solver_observables.update(kinds)
+
+    def get_solver_observables(self) -> SolverBase.Observables | None:
+        """Return the outputs populated by each solver substep, or ``None`` when unrequested."""
+        return self.backend.solver_observables if self.backend is not None else None
+
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the active scene data provider."""
         return SimulationContext.instance().get_scene_data_provider()
@@ -549,6 +563,11 @@ class NewtonManager(PhysicsManager):
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
         self.backend.solver_init_callbacks.append(callback)
+
+    def unregister_solver_init_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a pending one-shot solver initialization hook, if still registered."""
+        if self.backend is not None and callback in self.backend.solver_init_callbacks:
+            self.backend.solver_init_callbacks.remove(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked before the Newton actuators of every physics step.
@@ -583,6 +602,36 @@ class NewtonManager(PhysicsManager):
         if callback not in self.backend.state_force_callbacks:
             self.backend.state_force_callbacks.append(callback)
             self.backend.invalidate_graph()
+
+    def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
+        """Detach a force callback and recapture an active graph without it."""
+        backend = self.backend
+        if backend is not None and callback in backend.state_force_callbacks:
+            backend.state_force_callbacks.remove(callback)
+            backend.invalidate_graph()
+
+    def register_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Register a graph-safe hook after each solve, before state swapping and force clearing.
+
+        Hard resets discard these hooks; register them again when the new model is ready.
+
+        Args:
+            callback: Function receiving contacts, observables, output state and substep duration [s].
+        """
+        if callback not in self.backend.post_solver_substep_callbacks:
+            self.backend.post_solver_substep_callbacks.append(callback)
+            self.backend.invalidate_graph()
+
+    def unregister_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Detach a post-solve callback and recapture an active graph without it."""
+        backend = self.backend
+        if backend is not None and callback in backend.post_solver_substep_callbacks:
+            backend.post_solver_substep_callbacks.remove(callback)
+            backend.invalidate_graph()
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.

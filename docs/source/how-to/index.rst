@@ -120,6 +120,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Importing a new asset </source/how-to/import_new_asset>`
 
          Convert URDF, MJCF, or mesh assets into USD for use in Isaac Lab.
