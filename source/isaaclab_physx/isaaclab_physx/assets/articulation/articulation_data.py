@@ -1690,8 +1690,14 @@ class ArticulationData(BaseArticulationData):
         self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
         self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
         # -- joint state
-        self._joint_pos = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
-        self._joint_vel = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
+        # refreshed by PhysX tensor reads, which no graph can hold: a capture reads them as they are, as the host
+        # actuator runtime's captured graphs do
+        self._joint_pos = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
+        )
+        self._joint_vel = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
+        )
         self._joint_pos_backend: TimestampedBuffer | None = None
         self._joint_vel_backend: TimestampedBuffer | None = None
         # update() advances the finite difference once per physics step, so a recording reads it as it is
