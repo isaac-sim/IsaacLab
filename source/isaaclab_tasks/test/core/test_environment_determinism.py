@@ -62,7 +62,7 @@ def test_newton_cartpole_env_determinism():
         "cuda",
         num_steps=25,
         physics_preset_name="newton_mjwarp",
-        deterministic_mode="gpu_to_gpu",
+        deterministic_mode="run_to_run",
     )
 
 

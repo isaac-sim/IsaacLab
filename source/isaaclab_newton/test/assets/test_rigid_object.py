@@ -125,7 +125,6 @@ def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) ->
         physics=NewtonCfg(
             solver_cfg=VBDSolverCfg(
                 iterations=5,
-                rigid_compliant_alm=True,
                 update_joint_state=state_owner != "body-only",
                 integrate_with_external_rigid_solver=state_owner == "external",
             )
