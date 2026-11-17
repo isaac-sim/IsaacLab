@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared rendering and software calibration contracts without launching a simulator."""
+"""Rendering, gaze and software-sampling contracts, without launching a simulator."""
 
 from dataclasses import asdict
 from types import SimpleNamespace
@@ -20,7 +20,7 @@ from isaaclab_fovi.sensors.calibrated_geometry import (
 )
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
-from isaaclab_fovi.sensors.virtual_gaze import CalibratedVirtualGaze
+from isaaclab_fovi.sensors.virtual_gaze import VirtualGaze
 
 from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_matrix
 
@@ -38,7 +38,7 @@ def tf32_enabled():
 def camera_config() -> SimpleNamespace:
     camera = CameraModel("fisheye", (80, 120), (55, 55, 59.5, 39.5), (0.02, -0.003, 0, 0))
     return SimpleNamespace(
-        camera_calibration=asdict(camera),
+        camera_model=asdict(camera),
         cmf_a_deg=2.5,
         spawn=None,
         retinal_window_reference_side="long",
@@ -55,7 +55,7 @@ def camera_config() -> SimpleNamespace:
 def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
     cfg = camera_config()
     fov, a = sampling_geometry(cfg)
-    camera = CameraModel(**cfg.camera_calibration)
+    camera = CameraModel(**cfg.camera_model)
     assert fov == pytest.approx(camera.field_of_view("long", 0.75))
     assert a == 2.5
     coords, _ = build_lowres_coords(cfg, "cpu")
@@ -74,46 +74,55 @@ def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
     assert torch.isfinite(actual).all()
 
 
-class GazeHarness(CalibratedVirtualGaze):
+class GazeHarness(VirtualGaze):
     def __init__(self) -> None:
         self.cfg = camera_config()
         self._sampling_coords, _ = build_lowres_coords(self.cfg, "cpu")
         self._sampling_coords_highres = None
-        self._calibrated_rotation = None
+        self._gaze_rotation = None
         self._data = SimpleNamespace(
             quat_w_world=torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1), pos_w=torch.zeros(2, 3)
         )
-        self._initialize_calibrated_gaze()
+        self._initialize_gaze()
 
 
-@pytest.mark.parametrize("command", ["fixation", "angles"])
-@pytest.mark.parametrize("fixation", [(0.5, 1.0), (1.0, 0.5), (0.5, 1.01), (-0.01, 0.5)])
-def test_edge_gaze_preserves_visible_rays(command: str, fixation: tuple[float, float]) -> None:
+def gaze_direction(angles: torch.Tensor) -> torch.Tensor:
+    """OpenCV camera-frame unit direction of (tilt, pan) gaze angles [rad]: up and left are positive."""
+    tilt, pan = angles.unbind(-1)
+    return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
+
+
+def angles_toward(camera: CameraModel, pixel: tuple[float, float]) -> torch.Tensor:
+    """(tilt, pan) gaze angles [rad] that look along the ray through a source pixel (x, y)."""
+    direction, _ = camera.unproject(torch.tensor([pixel]))
+    x, y, z = direction.unbind(-1)
+    return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1)
+
+
+@pytest.mark.parametrize("pixel", [(119.5, 39.5), (59.5, 79.5), (120.5, 39.5), (59.5, -1.3)])
+def test_edge_gaze_preserves_visible_rays(pixel: tuple[float, float]) -> None:
+    """Looking at, or just past, an image edge keeps the part of the retina the camera still sees."""
     camera = GazeHarness()
-    target = torch.tensor([fixation])
-    if command == "fixation":
-        camera.set_calibrated_fixation(target)
-    else:
-        camera.set_calibrated_angles(camera.calibrated_mount_angles(target))
+    camera.set_gaze_angles(angles_toward(camera._camera_model, pixel))
 
     # An edge-centered receptive field straddles the physical sensor boundary.
     # Its visible part must survive even when the center lies outside the image.
-    valid = camera._calibrated_validity(1)
+    valid = camera._gaze_validity(1)
     assert valid.any()
     assert not valid.all()
 
 
 def test_gaze_away_from_sensor_masks_all_rays() -> None:
     camera = GazeHarness()
-    camera.set_calibrated_angles(torch.tensor([[0.0, torch.pi]]))
-    assert not camera._calibrated_validity(1).any()
+    camera.set_gaze_angles(torch.tensor([[0.0, torch.pi]]))
+    assert not camera._gaze_validity(1).any()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("batch_size", [48, 256])
 @pytest.mark.parametrize("autocast", [False, True])
 @pytest.mark.parametrize("mode", ["spherical", "spherical_ids", "spherical_mask"])
-def test_calibrated_gaze_preserves_camera_rotation_with_tf32(
+def test_gaze_preserves_camera_rotation_with_tf32(
     device: str, batch_size: int, autocast: bool, mode: str, tf32_enabled
 ) -> None:
     if device == "cuda" and not torch.cuda.is_available():
@@ -127,18 +136,18 @@ def test_calibrated_gaze_preserves_camera_rotation_with_tf32(
     expected = matrix_from_quat(source.double()) @ conversion
     camera = GazeHarness()
     camera._data.quat_w_world = source
-    camera._calibrated_basis = camera._calibrated_basis.to(device)
-    camera.set_calibrated_angles(angles)
-    basis = camera._calibrated_basis.double()
-    expected = expected @ basis @ camera._calibrated_rotation.double() @ basis.T @ conversion.T
+    camera._gaze_basis = camera._gaze_basis.to(device)
+    camera.set_gaze_angles(angles)
+    basis = camera._gaze_basis.double()
+    expected = expected @ basis @ camera._gaze_rotation.double() @ basis.T @ conversion.T
     selected = torch.arange(batch_size, device=device) % 2 == 0
     with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
         if mode == "spherical_ids":
-            camera._apply_calibrated_pose(torch.nonzero(selected).flatten())
+            camera._apply_gaze_pose(torch.nonzero(selected).flatten())
         elif mode == "spherical_mask":
-            camera._apply_calibrated_pose(env_mask=wp.from_torch(selected))
+            camera._apply_gaze_pose(env_mask=wp.from_torch(selected))
         else:
-            camera._apply_calibrated_pose()
+            camera._apply_gaze_pose()
     if mode in ("spherical_ids", "spherical_mask"):
         torch.testing.assert_close(source[~selected], original[~selected], atol=0, rtol=0)
         source = source[selected]
@@ -152,25 +161,25 @@ def test_calibrated_gaze_preserves_camera_rotation_with_tf32(
 
 def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pose() -> None:
     camera = GazeHarness()
-    fixation = torch.tensor([[0.4, 0.7], [0.6, 0.3]])
-    camera.set_calibrated_fixation(fixation)
-    camera._apply_calibrated_pose()
+    angles = torch.tensor([[0.1, -0.2], [-0.15, 0.3]])
+    camera.set_gaze_angles(angles)
+    camera._apply_gaze_pose()
     forward = quat_apply(camera._data.quat_w_world, torch.tensor([[1.0, 0.0, 0.0]]).expand(2, -1))
-    source = CameraModel(**camera.cfg.camera_calibration)
-    pixels = torch.stack((fixation[:, 1] * 120 - 0.5, fixation[:, 0] * 80 - 0.5), -1)
-    directions, _ = source.unproject(pixels)
+    source = CameraModel(**camera.cfg.camera_model)
+    # The world camera frame looks along +X with +Z up; OpenCV looks along +Z with +Y down.
+    directions = gaze_direction(angles)
     expected = torch.stack((directions[:, 2], -directions[:, 0], -directions[:, 1]), -1)
     torch.testing.assert_close(forward, expected, atol=1e-6, rtol=1e-6)
     assert torch.count_nonzero(camera._data.pos_w) == 0
     untouched = camera._data.quat_w_world[1].clone()
     camera._data.quat_w_world[0] = torch.tensor([0.0, 0.0, 0.0, 1.0])
-    camera._apply_calibrated_pose([0])
+    camera._apply_gaze_pose([0])
     torch.testing.assert_close(camera._data.quat_w_world[1], untouched)
     torch.testing.assert_close(
-        camera._calibrated_validity(2),
+        camera._gaze_validity(2),
         source.project(
             angular_directions(camera._sampling_coords.cartesian, camera._sampling_coords.fov)
-            @ camera._calibrated_rotation.transpose(-1, -2)
+            @ camera._gaze_rotation.transpose(-1, -2)
         )[1],
     )
 
@@ -182,40 +191,37 @@ def test_renderer_ray_frame_matches_cv_frame() -> None:
     torch.testing.assert_close(rendered, cv * torch.tensor([1, -1, -1]))
 
 
-@pytest.mark.parametrize("command", ["angles", "fixation"])
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_calibrated_pose_is_stable_inside_model_autocast(command: str, device: str) -> None:
+def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
     cameras = [GazeHarness(), GazeHarness()]
     for camera in cameras:
         camera._data.quat_w_world = torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1)
-        camera._calibrated_basis = camera._calibrated_basis.to(device)
-        camera._calibrated_rays = camera._calibrated_rays.to(device)
-        camera._calibrated_identity = camera._calibrated_identity.to(device)
+        camera._gaze_basis = camera._gaze_basis.to(device)
+        camera._gaze_rays = camera._gaze_rays.to(device)
+        camera._gaze_identity = camera._gaze_identity.to(device)
     target = torch.tensor([[0.002, 0.003], [-0.1, 0.2]], device=device)
-    if command == "fixation":
-        target = target + 0.5
     for camera, enabled in zip(cameras, [False, True], strict=True):
         with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
-            getattr(camera, f"set_calibrated_{command}")(target)
-            camera._apply_calibrated_pose()
-            camera._test_validity = camera._calibrated_validity(2)
+            camera.set_gaze_angles(target)
+            camera._apply_gaze_pose()
+            camera._test_validity = camera._gaze_validity(2)
     assert torch.isfinite(cameras[1]._data.quat_w_world).all()
     torch.testing.assert_close(cameras[1]._data.quat_w_world, cameras[0]._data.quat_w_world)
-    torch.testing.assert_close(cameras[1]._calibrated_rotation, cameras[0]._calibrated_rotation)
+    torch.testing.assert_close(cameras[1]._gaze_rotation, cameras[0]._gaze_rotation)
 
     torch.testing.assert_close(cameras[1]._data.quat_w_world.norm(dim=-1), torch.ones(2, device=device))
     torch.testing.assert_close(cameras[1]._test_validity, cameras[0]._test_validity)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_rtx_calibrated_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
+def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
     camera = GazeHarness()
-    camera._calibrated_basis = camera._calibrated_basis.to(device)
-    camera._calibrated_base_local_orientation = matrix_from_quat(
+    camera._gaze_basis = camera._gaze_basis.to(device)
+    camera._base_local_orientation = matrix_from_quat(
         torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(48, 1)
     )
     written = []
@@ -226,8 +232,8 @@ def test_rtx_calibrated_pose_writer_is_stable_inside_model_autocast(device: str,
     angles = torch.tensor([[-0.006677, -0.010717]], device=device, dtype=torch.bfloat16).repeat(48, 1)
     for enabled in [False, True]:
         with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
-            camera.set_calibrated_angles(angles)
-            FoveatedRTXCamera._write_calibrated_local_pose(camera)
+            camera.set_gaze_angles(angles)
+            FoveatedRTXCamera._write_gaze_local_pose(camera)
     assert torch.isfinite(written[1]).all()
     assert written[1].dtype == torch.float32
     torch.testing.assert_close(written[1].norm(dim=-1), torch.ones(48, device=device))

@@ -89,7 +89,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         return self._renderer
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        self._calibrated_rotation = None
+        self._gaze_rotation = None
         # Texture buffers are owned by the parent ``Camera`` (allocated in
         # ``_create_buffers`` and bound to the renderer via ``set_outputs``).
         # Foveated / pooled buffers are allocated in ``_initialize_impl``
@@ -265,9 +265,9 @@ class FoveatedRTXCamera(FoveatedCamera):
         if self._sampling_coords_highres is not None:
             self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
-        self._initialize_calibrated_gaze()
+        self._initialize_gaze()
         _, local_orientation = self._view.get_local_poses()
-        self._calibrated_base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
+        self._base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
 
         # Build the pooler on the sensor device (so knn tensors live there).
         # A second max-mode pooler is built inside ``_allocate_foveated_buffers``
@@ -364,29 +364,19 @@ class FoveatedRTXCamera(FoveatedCamera):
     #  Per-frame overrides
     # ------------------------------------------------------------------
 
-    def set_calibrated_fixation(self, fixation: torch.Tensor, env_ids: torch.Tensor | None = None) -> None:
-        super().set_calibrated_fixation(fixation, env_ids=env_ids)
-        self._write_calibrated_local_pose(env_ids)
+    def set_gaze_angles(self, angles: torch.Tensor) -> None:
+        super().set_gaze_angles(angles)
+        self._write_gaze_local_pose()
 
-    def set_calibrated_angles(self, angles: torch.Tensor) -> None:
-        super().set_calibrated_angles(angles)
-        self._write_calibrated_local_pose()
-
-    def _write_calibrated_local_pose(self, env_ids: torch.Tensor | None = None) -> None:
+    def _write_gaze_local_pose(self) -> None:
         # Replicator reads camera prims, not update_camera's pose arguments.
         # Write when the command arrives, before a visualizer can render the step.
         # The saved local base prevents accumulation and preserves parent motion.
-        basis = self._calibrated_basis
+        basis = self._gaze_basis
         with torch.autocast(basis.device.type, enabled=False):
-            relative = compose_rotations(compose_rotations(basis, self._calibrated_rotation), basis.T)
-            local_orientation = quat_from_matrix(compose_rotations(self._calibrated_base_local_orientation, relative))
-            if env_ids is None:
-                self._view.set_local_poses(orientations=wp.from_torch(local_orientation.contiguous(), dtype=wp.vec4f))
-            else:
-                self._view.set_local_poses(
-                    orientations=wp.from_torch(local_orientation[env_ids].contiguous(), dtype=wp.vec4f),
-                    indices=wp.from_torch(env_ids.to(dtype=torch.int32).contiguous()),
-                )
+            relative = compose_rotations(compose_rotations(basis, self._gaze_rotation), basis.T)
+            local_orientation = quat_from_matrix(compose_rotations(self._base_local_orientation, relative))
+            self._view.set_local_poses(orientations=wp.from_torch(local_orientation.contiguous(), dtype=wp.vec4f))
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
@@ -452,11 +442,11 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._foveated_output["rgb"] = self._foveated_output["rgba"][:, :, :, :3]
 
     def _apply_sensor_fov_mask(self) -> None:
-        """Zero the samples that fall outside the calibrated camera at the current gaze."""
+        """Zero the samples that fall outside the physical camera at the current gaze."""
         if not self.cfg.mask_to_sensor_fov:
             return
         batch_size = next(iter(self._foveated_output.values())).shape[0]
-        valid = self._calibrated_validity(batch_size)
+        valid = self._gaze_validity(batch_size)
         invalid = ~valid[:, :, None, None]
         has_rgba_alias = "rgba" in self._foveated_output
         for name, output in self._foveated_output.items():
@@ -487,5 +477,5 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     @property
     def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
-        """Per-environment fraction of samples inside the calibrated camera, or None before the first masked frame."""
+        """Per-environment fraction of samples inside the physical camera, or None before the first masked frame."""
         return getattr(self, "_sensor_fov_valid_fraction", None)

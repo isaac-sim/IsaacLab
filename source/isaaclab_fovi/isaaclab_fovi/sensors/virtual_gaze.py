@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Virtual gaze with a static physical camera and a static rendering ray bundle."""
+"""Virtual gaze: the retina turns inside a fixed physical camera."""
 
 from __future__ import annotations
 
@@ -17,61 +17,48 @@ from fovi.sensing.projection import angular_directions, gaze_rotation
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 from .calibrated_geometry import (
-    calibrated_fixation_rotation,
-    calibrated_mount_angles,
-    calibrated_visibility,
-    camera_model,
     compose_rotations,
     convert_camera_frame_quaternion,
+    resolve_camera_model,
+    sensor_visibility,
 )
 from .native_grid import GRID_STYLE, native_grid_directions
 
 
-class CalibratedVirtualGaze:
-    """Calibrated virtual-gaze operations shared by the foveated camera backends."""
+class VirtualGaze:
+    """Gaze shared by the foveated camera backends.
 
-    def calibrated_fov_sample_mask(self) -> torch.Tensor:
-        """Return the physical-sensor visibility mask in canonical ray order (B,N)."""
-        if self._calibrated_rotation is None:
-            raise RuntimeError("Set calibrated gaze before requesting its physical-FoV mask")
-        return self._calibrated_validity(len(self._calibrated_rotation))
+    The camera prim stays where the scene puts it. Gaze turns the retina relative
+    to the optical axis of the physical camera it looks through.
+    """
 
-    def set_calibrated_fixation(self, fixation: torch.Tensor, env_ids: torch.Tensor | None = None) -> None:
-        """Set full-batch image fixation, optionally changing only selected environments."""
-        with torch.autocast(fixation.device.type, enabled=False):
-            rotation, _ = calibrated_fixation_rotation(self._calibrated_camera, fixation.float())
-            if env_ids is None:
-                self._calibrated_rotation = rotation
-            else:
-                if self._calibrated_rotation is None:
-                    self._calibrated_rotation = self._calibrated_identity.expand_as(rotation).clone()
-                self._calibrated_rotation[env_ids] = rotation[env_ids]
+    def set_gaze_angles(self, angles: torch.Tensor) -> None:
+        """Turn the retina to (tilt, pan) [rad] from the physical camera's optical axis.
 
-    def calibrated_mount_angles(self, fixation: torch.Tensor) -> torch.Tensor:
-        """Convert upright image gaze to mount (tilt, pan) radians."""
-        with torch.autocast(fixation.device.type, enabled=False):
-            return calibrated_mount_angles(self._calibrated_camera, fixation.float())
+        Positive tilt looks up and positive pan looks left. Zero looks along the
+        optical axis.
 
-    def set_calibrated_angles(self, angles: torch.Tensor) -> None:
-        """Set virtual gaze from the mount's (tilt, pan) radians."""
+        Args:
+            angles: Gaze angles for every environment, shape (num_envs, 2).
+        """
         # Geometry must remain float32 even when the policy runs under AMP.
         with torch.autocast(angles.device.type, enabled=False):
             tilt, pan = angles.float().unbind(-1)
             direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
-            self._calibrated_rotation = gaze_rotation(direction, "pan_tilt")
+            self._gaze_rotation = gaze_rotation(direction, "pan_tilt")
 
-    def _apply_calibrated_pose(
+    def _apply_gaze_pose(
         self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None
     ) -> None:
-        if self._calibrated_rotation is None:
+        if self._gaze_rotation is None:
             return
         stored = self._data.quat_w_world
         quat = stored.torch if hasattr(stored, "torch") else stored
         with torch.autocast(quat.device.type, enabled=False):
             base = convert_camera_frame_quaternion(quat, origin="world", target="opengl")
-            # Calibration uses the upright image frame; rays include mount roll.
-            basis = self._calibrated_basis
-            relative = compose_rotations(compose_rotations(basis, self._calibrated_rotation), basis.T)
+            # Gaze is defined in the upright image frame; rays include mount roll.
+            basis = self._gaze_basis
+            relative = compose_rotations(compose_rotations(basis, self._gaze_rotation), basis.T)
             composed = quat_from_matrix(compose_rotations(matrix_from_quat(base), relative))
             updated = convert_camera_frame_quaternion(composed, origin="opengl", target="world")
             if env_mask is not None:
@@ -82,23 +69,24 @@ class CalibratedVirtualGaze:
             else:
                 quat.copy_(updated)
 
-    def _calibrated_validity(self, batch_size: int) -> torch.Tensor:
-        rays = self._calibrated_rays
+    def _gaze_validity(self, batch_size: int) -> torch.Tensor:
+        """Return which samples the physical camera sees at the current gaze, shape (batch_size, num_samples)."""
+        rays = self._gaze_rays
         with torch.autocast(rays.device.type, enabled=False):
-            rotation = self._calibrated_rotation
+            rotation = self._gaze_rotation
             if rotation is None:
-                rotation = self._calibrated_identity.expand(batch_size, -1, -1)
+                rotation = self._gaze_identity.expand(batch_size, -1, -1)
             # A receptive field can overlap the sensor even when its center is outside it.
-            return calibrated_visibility(self._calibrated_camera, rays, rotation)
+            return sensor_visibility(self._camera_model, rays, rotation)
 
-    def _initialize_calibrated_gaze(self) -> None:
-        self._calibrated_camera = camera_model(self.cfg)
+    def _initialize_gaze(self) -> None:
+        self._camera_model = resolve_camera_model(self.cfg)
         coords = self._sampling_coords_highres or self._sampling_coords
         if coords.style == GRID_STYLE:
-            self._calibrated_rays = native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))
+            self._gaze_rays = native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))
         else:
-            self._calibrated_rays = angular_directions(coords.cartesian, coords.fov)
-        self._calibrated_identity = torch.eye(3, device=coords.device)
+            self._gaze_rays = angular_directions(coords.cartesian, coords.fov)
+        self._gaze_identity = torch.eye(3, device=coords.device)
         angle = math.radians(self.cfg.image_rotation_deg)
         c, s = math.cos(angle), math.sin(angle)
-        self._calibrated_basis = self._calibrated_rays.new_tensor(((c, s, 0), (s, -c, 0), (0, 0, -1)))
+        self._gaze_basis = self._gaze_rays.new_tensor(((c, s, 0), (s, -c, 0), (0, 0, -1)))

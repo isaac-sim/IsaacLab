@@ -15,12 +15,12 @@ FoveatedCameraCfg(
 ```
 
 `fovi` owns the concentric-square mapping and its analytic inverse. The lens
-lookup textures and the calibrated gaze use that geometry. The published image
+lookup textures and the gaze use that geometry. The published image
 is upright, `(num_envs, height, width, channels)`, and RGB, depth and
 segmentation keep their usual dtypes.
 
 No cell is masked by the sensor footprint. With `mask_to_sensor_fov=True`,
-samples outside the calibrated camera's image are still zeroed.
+samples outside the physical camera's image are still zeroed.
 
 The mode works in both field geometries. The grid keeps its two-dimensional
 topology; "square" refers to the region of the visual field the grid covers.

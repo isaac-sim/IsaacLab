@@ -43,9 +43,9 @@ With the default grid style the sensor publishes an upright image of shape
 
 The retina looks through a physical camera. It places its samples by visual
 angle inside that camera's field of view, and its rays are cast directly at
-those angles, so no pinhole image is resampled. The physical camera sets the
-retinal window, the image that fixations are given in, and the edge that
-`mask_to_sensor_fov` masks against.
+those angles, so no pinhole image is resampled. The retinal window spans the
+physical camera's image, and `mask_to_sensor_fov` masks against its edge. On a
+real camera, fovi's software sampler takes the same `camera_model` fields.
 
 By default it is the camera that `spawn` creates:
 
@@ -64,11 +64,11 @@ By default it is the camera that `spawn` creates:
   ```
 
 To describe any other calibrated camera, or a prim without spawn
-configuration, set `camera_calibration` to
+configuration, set `camera_model` to
 [`fovi.sensing.projection.CameraModel`](https://pypi.org/project/fovi/) fields:
 
 ```python
-camera_calibration={
+camera_model={
     "model": "pinhole",  # or "fisheye"
     "image_size": (480, 640),  # (height, width)
     "intrinsics": (550.0, 550.0, 319.5, 239.5),  # fx, fy, cx, cy [px]
@@ -89,14 +89,16 @@ env.scene.eye.cmf_a_deg=1000
 
 ### Gaze
 
-The fixation can move while the camera prim stays in place:
+The retina can turn while the camera prim stays in place:
 
 ```python
-# Normalized (row, column) position in the physical camera's image, shape (num_envs, 2).
-camera.set_calibrated_fixation(fixation)
-# Or mount angles (tilt, pan) in radians, shape (num_envs, 2).
-camera.set_calibrated_angles(angles)
+# (tilt, pan) [rad] from the physical camera's optical axis, shape (num_envs, 2).
+# Positive tilt looks up and positive pan looks left.
+camera.set_gaze_angles(angles)
 ```
+
+How a policy drives the gaze, for example as per-step changes normalized to
+the retinal window, belongs to the task's action term.
 
 Set `mask_to_sensor_fov=True` to zero the samples that fall outside the
 physical camera's image at the current gaze.

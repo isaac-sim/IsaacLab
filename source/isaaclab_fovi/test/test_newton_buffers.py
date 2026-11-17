@@ -57,7 +57,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
     monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (pooler, 4))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_calibrated_gaze", lambda self: None)
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", lambda self: None)
 
     def initialize_renderer(camera):
         # Newton launches image tiles; a vector-shaped width of one is not valid.

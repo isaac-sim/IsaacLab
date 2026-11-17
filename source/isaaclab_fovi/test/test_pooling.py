@@ -29,7 +29,7 @@ class SamplingConfig:
     # A 90 degree pinhole window (focal length 1, aperture 2) with a CMF constant of a tenth of it.
     cmf_a_deg: float = 9.0
     spawn: PinholeCameraCfg = field(default_factory=lambda: PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0))
-    camera_calibration: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
+    camera_model: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
     retinal_window_reference_side: str = "short"
     retinal_window_short_side_fraction: float = 1.0
     foveated_res: int = 8

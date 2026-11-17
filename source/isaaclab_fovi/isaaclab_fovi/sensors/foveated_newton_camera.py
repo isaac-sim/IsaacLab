@@ -76,7 +76,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
     cfg: FoveatedCameraCfg
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        self._calibrated_rotation = None
+        self._gaze_rotation = None
         super().__init__(cfg)
 
     # ------------------------------------------------------------------
@@ -138,7 +138,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
         else:
             ray_coords_device = self._sampling_coords
         self._ray_coords = ray_coords_device
-        self._initialize_calibrated_gaze()
+        self._initialize_gaze()
 
         # 6. Build the pooler(s) on the sensor device.  A second max-mode
         #    pooler is materialised lazily below if any integer-valued outputs
@@ -281,14 +281,14 @@ class FoveatedNewtonCamera(FoveatedCamera):
         env_mask: wp.array | None = None,
         frame_op: int = 0,
     ) -> None:
-        """Read base poses, apply the calibrated gaze, update renderer, inject rays.
+        """Read base poses, apply the gaze, update renderer, inject rays.
 
         The scene pose is read even without a gaze: the camera may inherit
         motion from a parent body.
         """
-        # 1. Read base camera poses, then rotate them by the calibrated gaze if one is set.
+        # 1. Read base camera poses, then rotate them by the gaze if one is set.
         Camera._update_poses(self, env_ids, env_mask=env_mask, frame_op=frame_op)
-        self._apply_calibrated_pose(env_ids, env_mask)
+        self._apply_gaze_pose(env_ids, env_mask)
 
         # 2. Update camera_transforms
         # The renderer maintains persistent transform buffers and updates
@@ -347,12 +347,12 @@ class FoveatedNewtonCamera(FoveatedCamera):
         self._data.output.update(self._public_output)
 
     def _apply_sensor_fov_mask(self, outputs: dict[str, torch.Tensor]) -> None:
-        """Zero the samples that fall outside the calibrated camera at the current gaze."""
+        """Zero the samples that fall outside the physical camera at the current gaze."""
         if not self.cfg.mask_to_sensor_fov:
             return
         first_output = next(iter(outputs.values()))
         first_tensor = first_output.torch if hasattr(first_output, "torch") else first_output
-        valid = self._calibrated_validity(first_tensor.shape[0])
+        valid = self._gaze_validity(first_tensor.shape[0])
         invalid = ~valid[:, :, None, None]
         has_rgba_alias = "rgba" in outputs
         for name, output in outputs.items():
@@ -384,5 +384,5 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     @property
     def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
-        """Per-environment fraction of samples inside the calibrated camera, or None before the first masked frame."""
+        """Per-environment fraction of samples inside the physical camera, or None before the first masked frame."""
         return getattr(self, "_sensor_fov_valid_fraction", None)

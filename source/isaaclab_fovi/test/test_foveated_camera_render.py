@@ -13,6 +13,8 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(enable_cameras=True)
 
+import math
+
 import numpy as np
 import pytest
 import torch
@@ -46,14 +48,14 @@ RESOLUTION = 32
 WIDTH, HEIGHT = 640, 480
 FOCAL, CX, CY = 550.0, 319.5, 239.5
 CLIPPING_RANGE = (0.001, 20.0)
-CALIBRATION = {"model": "pinhole", "image_size": (HEIGHT, WIDTH), "intrinsics": (FOCAL, FOCAL, CX, CY)}
+CAMERA_MODEL = {"model": "pinhole", "image_size": (HEIGHT, WIDTH), "intrinsics": (FOCAL, FOCAL, CX, CY)}
 
-# The same camera given in either supported way: as a fovi calibration, or as the spawned camera's
-# OpenCV model, from which the foveated camera derives its calibration.
+# The same camera given in either supported way: as fovi camera-model fields, or as the spawned
+# camera's OpenCV model, from which the foveated camera derives them.
 CAMERA_SOURCES = {
-    "calibration": dict(camera_calibration=CALIBRATION),
+    "camera_model": dict(camera_model=CAMERA_MODEL),
     "spawn": dict(
-        camera_calibration=None,
+        camera_model=None,
         spawn=sim_utils.PinholeCameraCfg(
             clipping_range=CLIPPING_RANGE,
             distortion=sim_utils.OpenCvPinholeDistortionCfg(
@@ -92,16 +94,16 @@ class _GroundSceneCfg(InteractiveSceneCfg):
         update_period=0.0,
         data_types=["distance_to_camera"],
         spawn=sim_utils.PinholeCameraCfg(clipping_range=CLIPPING_RANGE),
-        camera_calibration=CALIBRATION,
+        camera_model=CAMERA_MODEL,
         foveated_res=RESOLUTION,
         mask_to_sensor_fov=True,
     )
 
 
-def _ground_distance_through_pixel(u: float, v: float) -> float:
-    """Distance [m] from the camera to the ground along the pinhole ray through calibrated pixel ``(u, v)``."""
-    ray_camera = np.array(((u - CX) / FOCAL, -(v - CY) / FOCAL, -1.0))
-    ray_camera /= np.linalg.norm(ray_camera)
+def _ground_distance_along_gaze(tilt: float, pan: float) -> float:
+    """Distance [m] from the camera to the ground along the gaze (tilt, pan) [rad]; up and left are positive."""
+    # OpenGL camera frame: +X right, +Y up, looking along -Z.
+    ray_camera = np.array((-math.cos(tilt) * math.sin(pan), math.sin(tilt), -math.cos(tilt) * math.cos(pan)))
     eye = np.asarray(CAM_EYE)
     forward = np.asarray(CAM_TARGET) - eye
     z_axis = -forward / np.linalg.norm(forward)
@@ -112,8 +114,8 @@ def _ground_distance_through_pixel(u: float, v: float) -> float:
     return float(-eye[2] / ray_world[2])
 
 
-def _render(backend: str, fixation: torch.Tensor, **camera_overrides) -> tuple[torch.Tensor, torch.Tensor]:
-    """Render ground distance for one environment per fixation row.
+def _render(backend: str, gaze: torch.Tensor, **camera_overrides) -> tuple[torch.Tensor, torch.Tensor]:
+    """Render ground distance for one environment per row of gaze angles (tilt, pan) [rad].
 
     Returns:
         The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
@@ -128,7 +130,7 @@ def _render(backend: str, fixation: torch.Tensor, **camera_overrides) -> tuple[t
                 create_rotation_matrix_from_view(torch.tensor([CAM_EYE]), torch.tensor([CAM_TARGET]), up_axis="Z")
             )[0].tolist()
         )
-        scene_cfg = _GroundSceneCfg(num_envs=len(fixation), env_spacing=20.0)
+        scene_cfg = _GroundSceneCfg(num_envs=len(gaze), env_spacing=20.0)
         scene_cfg.camera.renderer_cfg = renderer_cfg()
         scene_cfg.camera.offset = FoveatedCameraCfg.OffsetCfg(pos=CAM_EYE, rot=rot, convention="opengl")
         for name, value in camera_overrides.items():
@@ -137,7 +139,7 @@ def _render(backend: str, fixation: torch.Tensor, **camera_overrides) -> tuple[t
         camera: FoveatedCamera = scene["camera"]
         assert isinstance(camera, camera_class)
         sim.reset()
-        camera.set_calibrated_fixation(fixation.to(sim.device))
+        camera.set_gaze_angles(gaze.to(sim.device))
         for _ in range(WARMUP_STEPS):
             sim.step()
             camera.update(sim.get_physics_dt(), force_recompute=True)
@@ -149,24 +151,22 @@ def _render(backend: str, fixation: torch.Tensor, **camera_overrides) -> tuple[t
 
 @pytest.mark.parametrize("source", CAMERA_SOURCES)
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_foveated_camera_follows_calibrated_gaze(backend, source):
-    """The retina's centre sees the ground along the pinhole ray through the fixated pixel.
+def test_foveated_camera_follows_gaze(backend, source):
+    """The retina's centre sees the ground along the gaze direction.
 
-    One environment fixates the image centre and one a point to the right. The reference is the
-    analytic ground distance of the calibrated pinhole ray through each fixated pixel.
+    One environment looks along the optical axis and one 16 degrees to the right. The reference is
+    the analytic ground distance along each gaze direction.
     """
-    # Fixations are normalized (row, column) positions in the calibrated image.
-    fixation = torch.tensor([[0.5, 0.5], [0.5, 0.75]])
-    distance, field = _render(backend, fixation, **CAMERA_SOURCES[source])
+    gaze = torch.tensor([[0.0, 0.0], [0.0, -math.radians(16.0)]])
+    distance, field = _render(backend, gaze, **CAMERA_SOURCES[source])
 
     assert distance.shape == (2, RESOLUTION, RESOLUTION)
     assert torch.isfinite(distance).all()
 
     # The grid cell closest to the centre of the visual field.
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
-    for env, (row_fraction, column_fraction) in enumerate(fixation.tolist()):
-        expected = _ground_distance_through_pixel(column_fraction * WIDTH - 0.5, row_fraction * HEIGHT - 0.5)
-        assert float(distance[env, row, column]) == pytest.approx(expected, rel=0.01)
+    for env, (tilt, pan) in enumerate(gaze.tolist()):
+        assert float(distance[env, row, column]) == pytest.approx(_ground_distance_along_gaze(tilt, pan), rel=0.01)
 
     # The image is upright: the top looks farther along the ground than the bottom.
     centred = distance[0]
@@ -179,7 +179,7 @@ def test_foveated_camera_follows_calibrated_gaze(backend, source):
     right = centred[:, RESOLUTION // 2 :][seen[:, RESOLUTION // 2 :]].mean()
     assert float(left) == pytest.approx(float(right), rel=0.01)
 
-    # Looking right moves part of the retina past the edge of the calibrated camera, and those samples are zeroed.
+    # Looking right moves part of the retina past the edge of the physical camera, and those samples are zeroed.
     assert (distance[1] == 0).sum() > (distance[0] == 0).sum()
 
 
@@ -191,9 +191,9 @@ def test_foveated_camera_samples_densest_at_the_fixation(backend):
         steps = field[RESOLUTION // 2, :, 0].diff()
         return float(steps[len(steps) // 2] / steps[-1])
 
-    fixation = torch.tensor([[0.5, 0.5]])
-    foveated_distance, foveated_field = _render(backend, fixation)
-    uniform_distance, uniform_field = _render(backend, fixation, cmf_a_deg=1000.0)
+    gaze = torch.zeros(1, 2)
+    foveated_distance, foveated_field = _render(backend, gaze)
+    uniform_distance, uniform_field = _render(backend, gaze, cmf_a_deg=1000.0)
 
     assert central_to_edge_spacing(foveated_field) < 0.2
     assert central_to_edge_spacing(uniform_field) > 0.9

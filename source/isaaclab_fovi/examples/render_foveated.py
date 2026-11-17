@@ -7,7 +7,7 @@
 
 Run with ``--backend newton`` or ``--backend rtx``. The retina looks through
 the spawned camera, an ideal pinhole or, with ``--lens fisheye``, an ideal
-equidistant fisheye, and its fixation moves inside that camera's field of view.
+equidistant fisheye, and its gaze moves inside that camera's field of view.
 ``--pool`` renders a denser photoreceptor grid and pools it to the output grid.
 """
 
@@ -40,7 +40,7 @@ launcher = AppLauncher(args)
 
 
 def main() -> None:
-    """Render RGB of a static cube while the fixation moves."""
+    """Render RGB of a static cube while the gaze moves."""
     # Isaac Sim plugins must be available before importing simulator-bound types.
     import torch
     import warp as wp
@@ -122,9 +122,9 @@ def main() -> None:
     frame_seconds: list[float] = []
     frames: list[torch.Tensor] = []
     for step in range(args.steps):
-        # Fixation in normalized image coordinates (row, column) of the spawned camera.
-        fixation = torch.tensor([[0.5, (0.5, 0.58, 0.58, 0.5)[step % 4]]], device=sim.device)
-        camera.set_calibrated_fixation(fixation)
+        # Gaze (tilt, pan) [rad] from the optical axis: look ahead, then 8 degrees to the right.
+        pan = (0.0, -math.radians(8.0), -math.radians(8.0), 0.0)[step % 4]
+        camera.set_gaze_angles(torch.tensor([[0.0, pan]], device=sim.device))
         wp.synchronize_device(sim.device)
         start = time.perf_counter()
         sim.step()
