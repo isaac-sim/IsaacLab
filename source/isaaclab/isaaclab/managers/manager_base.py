@@ -99,6 +99,17 @@ class ManagerTermBase(ABC):
         """
         pass
 
+    def reseed(self, seed: int) -> None:
+        """Reseed term-owned random streams before an explicitly seeded environment reset.
+
+        Terms using the global generators need no override. Native streams should update
+        their existing arrays in place to preserve captured graph bindings.
+
+        Args:
+            seed: The seed selected by the environment.
+        """
+        pass
+
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
         return {"cfg": to_dict(self.cfg)}
