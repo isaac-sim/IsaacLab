@@ -31,7 +31,9 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
         cube.data.default_root_pose.torch = torch.zeros(num_envs, 7)
     entities = {"robot": robot, **{f"cube_{i}": cube for i, cube in enumerate(cubes, start=1)}}
     # The asset mocks record backend writes. The event and curriculum are the real manager terms.
-    scene = _Scene(entities, torch.zeros(num_envs, 3))
+    origins = torch.zeros(num_envs, 3)
+    origins[:, 0] = torch.arange(num_envs)
+    scene = _Scene(entities, origins)
     outcome = SimpleNamespace(ever_success=torch.tensor([True, False, False, True]))
     env = SimpleNamespace(
         num_envs=num_envs,
@@ -82,6 +84,14 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
     assert state.row_ids[-1] == old_row
     assert (state.recipes[env_ids] == StackResetRecipe.TABLE).all()
     assert torch.equal(robot.write_joint_position_to_sim_index.call_args.kwargs["env_ids"], env_ids)
+    root_write = robot.write_root_pose_to_sim_index.call_args.kwargs
+    assert torch.equal(root_write["env_ids"], env_ids)
+    assert torch.equal(root_write["root_pose"][:, :3], origins[env_ids])
+
+    curriculum.cfg["reset_sampling"].params["table_sampling_probability"] = 0.60
+    curriculum.compute(slice(0, 0))
+    updated = curriculum.reset(slice(0, 0))
+    assert updated["Curriculum/reset_sampling/table_probability"].item() == pytest.approx(0.60)
 
 
 class _Scene(dict):
