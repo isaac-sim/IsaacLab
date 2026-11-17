@@ -39,14 +39,14 @@ From a script, set it before creating the environment:
    env_cfg.scene.export_usd_path = "/tmp/anymal_d.usda"
    env = gym.make("Isaac-Velocity-Flat-AnymalD", cfg=env_cfg)
 
-Assets keep the path Isaac Lab loaded them from, a URL by default. Newton's import opens local files only; for
-it, export with a local asset root (see :ref:`manage-asset-downloads`).
+Assets keep the path Isaac Lab loaded them from, a URL by default. Isaac Sim and OVPhysX fetch URLs; Newton opens
+the file with OpenUSD's asset resolver, which in plain OpenUSD reads local files only. For it, export with a local
+asset root (see :ref:`manage-asset-downloads`).
 
 Loading the file
 ^^^^^^^^^^^^^^^^
 
-Each engine imports the file from its path. ``dt`` is the physics step the file states: for PhysX and OVPhysX,
-``1 / physxScene:timeStepsPerSecond`` of the physics scene.
+Each engine imports the file from its path:
 
 .. tab-set::
 
@@ -58,16 +58,11 @@ Each engine imports the file from its path. ``dt`` is the physics step the file 
 
          app = SimulationApp({"headless": True})
 
-         import omni.physx
          import omni.usd
+         from isaacsim.core.simulation_manager import SimulationManager
 
          omni.usd.get_context().open_stage(path)
-         physx = omni.physx.get_physx_interface()
-         physx.force_load_physics_from_usd()
-         physx.start_simulation()
-         simulation = omni.physx.get_physx_simulation_interface()
-         simulation.simulate(dt, 0.0)
-         simulation.fetch_results()
+         SimulationManager.initialize_physics()
 
    .. tab-item:: OVPhysX
 
@@ -83,7 +78,6 @@ Each engine imports the file from its path. ``dt`` is the physics step the file 
          ovstage.population.open_usd(stage, path, ordinal=1, domains=ovstage.PopulationDomain.ALL)
          stage.advance_write_floor(ordinal=1).wait()
          physx.wait_task(physx.attach_ovstage(stage, read_ordinal=1))
-         physx.step_sync(dt)
 
    .. tab-item:: Newton
 
@@ -100,12 +94,19 @@ Each engine imports the file from its path. ``dt`` is the physics step the file 
              allow_unsafe_torch_checkpoints=True,  # network actuators, such as ANYmal-D's LSTM
          )
          model = builder.finalize()
-         solver = newton.solvers.SolverMuJoCo(model)  # with the solver options the file states
-         dt = result["physics_dt"]
-         state_0, state_1 = model.state(), model.state()
-         solver.step(state_0, state_1, model.control(), None, dt)
 
       For Kamino, register ``newton.solvers.SolverKamino``'s attributes instead and leave out ``SchemaResolverMjc``.
+
+To simulate it as Isaac Lab did:
+
+* Step at the file's physics step. Isaac Sim reads it from the file; on OVPhysX it is
+  ``1 / physxScene:timeStepsPerSecond`` of the physics scene; Newton's import returns it as
+  ``result["physics_dt"]``.
+* On Newton, create the solver from the model, such as ``newton.solvers.SolverMuJoCo(model)``, which reads the
+  solver options from the file. Kamino takes contacts from Newton's collision pipeline, as Isaac Lab does by
+  default.
+* On Newton, step the actuators in ``model.actuators``, such as networks, before the solver; see
+  `Newton's actuators <https://newton-physics.github.io/newton/latest/concepts/actuators.html>`__.
 
 What is not exported
 ^^^^^^^^^^^^^^^^^^^^
