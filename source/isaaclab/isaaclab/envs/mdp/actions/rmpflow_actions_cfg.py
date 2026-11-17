@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 @configclass
 class RMPFlowActionCfg(ActionTermCfg):
+    """Configuration for the RMPFlow task-space action term."""
+
     @configclass
     class OffsetCfg:
         """The offset pose from parent frame to child frame.
