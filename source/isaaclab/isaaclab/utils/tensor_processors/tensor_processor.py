@@ -29,8 +29,8 @@ TensorProcessorData = Union[  # noqa: UP007
 
 
 @dataclass(frozen=True)
-class TensorProcessorCallInfo:
-    """Information about one processor call that is not data to process. Every field is optional."""
+class TensorProcessorArgs:
+    """Arguments of one processor call besides the data to process. Every field is optional."""
 
     env_mask: wp.array | None = None
     """Boolean mask of the environments due in this call. Shape is (num_envs,). Defaults to None, meaning the caller
@@ -84,12 +84,12 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData, info: TensorProcessorCallInfo | None = None) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, args: TensorProcessorArgs | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
-            info: Information about this call, such as the environments due for a camera capture. Camera
+            args: Arguments of this call besides ``data``, such as the environments due for a camera capture. Camera
                 implementations must accept this keyword. Observation-only implementations may omit it; the
                 observation manager passes only ``data``.
 
