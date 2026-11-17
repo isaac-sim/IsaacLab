@@ -122,8 +122,8 @@ def main() -> None:
     frame_seconds: list[float] = []
     frames: list[torch.Tensor] = []
     for step in range(args.steps):
-        # Gaze (tilt, pan) [rad] from the optical axis: look ahead, then 8 degrees to the right.
-        pan = (0.0, -math.radians(8.0), -math.radians(8.0), 0.0)[step % 4]
+        # Gaze (tilt, pan) [deg] from the optical axis: look ahead, then 8 degrees to the right.
+        pan = (0.0, -8.0, -8.0, 0.0)[step % 4]
         camera.set_gaze_angles(torch.tensor([[0.0, pan]], device=sim.device))
         wp.synchronize_device(sim.device)
         start = time.perf_counter()

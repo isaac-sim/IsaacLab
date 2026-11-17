@@ -100,8 +100,9 @@ class _GroundSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _ground_distance_along_gaze(tilt: float, pan: float) -> float:
-    """Distance [m] from the camera to the ground along the gaze (tilt, pan) [rad]; up and left are positive."""
+def _ground_distance_along_gaze(tilt_deg: float, pan_deg: float) -> float:
+    """Distance [m] from the camera to the ground along the gaze (tilt, pan) [deg]; up and left are positive."""
+    tilt, pan = math.radians(tilt_deg), math.radians(pan_deg)
     # OpenGL camera frame: +X right, +Y up, looking along -Z.
     ray_camera = np.array((-math.cos(tilt) * math.sin(pan), math.sin(tilt), -math.cos(tilt) * math.cos(pan)))
     eye = np.asarray(CAM_EYE)
@@ -115,7 +116,7 @@ def _ground_distance_along_gaze(tilt: float, pan: float) -> float:
 
 
 def _render(backend: str, gaze: torch.Tensor, **camera_overrides) -> tuple[torch.Tensor, torch.Tensor]:
-    """Render ground distance for one environment per row of gaze angles (tilt, pan) [rad].
+    """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
 
     Returns:
         The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
@@ -157,7 +158,7 @@ def test_foveated_camera_follows_gaze(backend, source):
     One environment looks along the optical axis and one 16 degrees to the right. The reference is
     the analytic ground distance along each gaze direction.
     """
-    gaze = torch.tensor([[0.0, 0.0], [0.0, -math.radians(16.0)]])
+    gaze = torch.tensor([[0.0, 0.0], [0.0, -16.0]])
     distance, field = _render(backend, gaze, **CAMERA_SOURCES[source])
 
     assert distance.shape == (2, RESOLUTION, RESOLUTION)
