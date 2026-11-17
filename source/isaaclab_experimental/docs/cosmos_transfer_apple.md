@@ -49,12 +49,13 @@ directories.
 
 ## 2. Clone the repositories
 
-Clone Isaac Lab, Cosmos Framework, and the GR00T runtime at the revision the policy was
+Clone Isaac Lab, then Cosmos Framework and the GR00T runtime at the commits this demo was
 tested with. GR00T uses git submodules:
 
 ```bash
 git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
 git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
+git -C "$COSMOS_FRAMEWORK" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
 git clone --recurse-submodules https://github.com/nvidia-isaac/gr00t-leapp-export "$GR00T_ROOT"
 git -C "$GR00T_ROOT" checkout 072c98dcdc5acf471aabb0e4df1b256da8608831
 git -C "$GR00T_ROOT" submodule update --init --recursive
