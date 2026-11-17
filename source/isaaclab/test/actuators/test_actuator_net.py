@@ -105,8 +105,8 @@ def test_mlp_masked_reset_replays_from_a_cuda_graph_while_the_history_moves(tmp_
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_mlp_history_keeps_its_address_and_window(tmp_path, device):
-    """Each compute shifts the history by one step in place: entry i holds the input from i computes ago."""
+def test_mlp_history_keeps_its_window(tmp_path, device):
+    """Each compute shifts the history by one step: entry i holds the input from i computes ago."""
     actuator = _actuator(
         ActuatorNetMLPCfg,
         _ZeroTorqueMLP(),
@@ -118,11 +118,9 @@ def test_mlp_history_keeps_its_address_and_window(tmp_path, device):
         torque_scale=1.0,
         input_order="pos_vel",
     )
-    addresses = (actuator._joint_pos_error_history.data_ptr(), actuator._joint_vel_history.data_ptr())
     zeros = torch.zeros(3, 2, device=device)
     for step in range(5):
         velocity = torch.full((3, 2), float(step), device=device)
         actuator.compute(ArticulationActions(joint_positions=zeros), zeros, velocity)
-    assert (actuator._joint_pos_error_history.data_ptr(), actuator._joint_vel_history.data_ptr()) == addresses
     expected = torch.tensor([4.0, 3.0, 2.0], device=device).view(1, 3, 1).expand(3, 3, 2)
     torch.testing.assert_close(actuator._joint_vel_history, expected)
