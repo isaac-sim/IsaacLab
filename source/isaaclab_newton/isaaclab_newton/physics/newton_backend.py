@@ -501,8 +501,14 @@ class NewtonBackend:
         actuators = self.actuators
         with wp.ScopedDevice(self.device):
             if actuators is None or actuators.is_all_graphable:
-                self.notify_model_changes()
-                self._launch(("simulate", steps), partial(self._simulate, steps))
+                # A solver reset may read the world mask on the host, so it stays outside the step graph until writes
+                # were recorded into a graph; their replays flag worlds on the device only.
+                replay_writes = self.transforms_may_change_on_graph_replay
+                if replay_writes:
+                    self.notify_model_changes()
+                else:
+                    self.forward()
+                self._launch(("simulate", steps, replay_writes), partial(self._simulate, steps))
                 if not self.device.is_capturing:
                     self.kinematics_dirty = False
             else:
@@ -619,13 +625,13 @@ class NewtonBackend:
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
-        """Resolve the flagged state writes, run ``steps`` physics steps with the Newton actuators, then finish the
-        step.
+        """Resolve the flagged state writes once writes were recorded into a graph, run ``steps`` physics steps with
+        the Newton actuators, then finish the step.
 
-        A captured step resolves the flags on every replay, since replayed writes flag worlds on the device only; with
-        nothing flagged the masked kernels do no work.
+        A captured step then resolves the flags on every replay, since replayed writes flag worlds on the device only;
+        with nothing flagged the masked kernels do no work.
         """
-        if self.device.is_capturing or self.kinematics_dirty or self.transforms_may_change_on_graph_replay:
+        if self.transforms_may_change_on_graph_replay:
             self._resolve_flagged()
         actuators = self.actuators
         self._stage_body_forces()
