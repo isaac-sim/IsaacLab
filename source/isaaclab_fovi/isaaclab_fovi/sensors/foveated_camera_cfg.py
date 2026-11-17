@@ -91,32 +91,18 @@ class FoveatedCameraCfg(CameraCfg):
         * ``180.0``  — flip vertically + horizontally (upside-down sensor).
         * Other angles work in principle but are untested."""
 
-    projection: str = "pinhole"
-    """Projection model for mapping normalized coords to ray directions.
-    ``"pinhole"`` (rectilinear) or ``"fisheye_equidistant"`` (linear angle
-    mapping, suitable for wide FOV)."""
+    mask_to_sensor_fov: bool = False
+    """Zero the samples that fall outside the calibrated camera's image at the current gaze.
 
-    camera_fov_deg: float | None = None
-    """If set, use this as the camera HFOV (in degrees) instead of deriving
-    from ``spawn.focal_length`` and ``spawn.horizontal_aperture``.  When this
-    is not None, ``spawn.focal_length`` and ``spawn.horizontal_aperture``
-    must be left at their defaults (they will be back-computed automatically
-    for USD prim compatibility)."""
-
-    fixed_software_fov: bool = False
-    """Mask pose-steered rays against a fixed dense pinhole camera frustum."""
-
-    software_fov_image_height: int | None = None
-    """Dense camera image height used by the deployment software sampler."""
-
-    software_fov_image_width: int | None = None
-    """Dense camera image width used by the deployment software sampler."""
+    With calibrated gaze the retina can look past the edge of the physical
+    camera; this keeps what the sensor reports to what that camera could have
+    seen. Requires spherical geometry."""
 
     retinal_window_short_side_fraction: float = 1.0
-    """Diameter scale applied to the selected image reference side."""
+    """Diameter of the retinal window as a fraction of the reference image side. Spherical geometry only."""
 
     retinal_window_reference_side: str = "short"
-    """Image side defining the circular retinal diameter: ``short`` or ``long``."""
+    """Image side defining the retinal window diameter: ``short`` or ``long``. Spherical geometry only."""
 
     # -- Optional retinal pooling (photoreceptor -> RGC two-layer sampling) --
 
@@ -182,6 +168,8 @@ class FoveatedCameraCfg(CameraCfg):
         super().__post_init__()
         if self.field_geometry not in ("spherical", "planar"):
             raise ValueError(f"Unknown field_geometry={self.field_geometry!r}; use 'spherical' or 'planar'.")
+        if self.mask_to_sensor_fov and self.field_geometry != "spherical":
+            raise ValueError("mask_to_sensor_fov requires field_geometry='spherical'.")
         validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
         # ``spawn`` is a ``PinholeCameraCfg`` / ``FisheyeCameraCfg`` whose
         # ``lock_camera`` field defaults to True.  That writes

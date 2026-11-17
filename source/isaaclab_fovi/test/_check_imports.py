@@ -41,7 +41,6 @@ sys.meta_path.insert(0, BlockResearchImports())
 for module in (
     "isaaclab_fovi",
     "isaaclab_fovi.sensors",
-    "isaaclab_fovi.sensors.fixed_software_fov",
     "isaaclab_fovi.sensors.foveated_rays",
     "isaaclab_fovi.sensors.pooling",
     "fovi.sensing.coords",

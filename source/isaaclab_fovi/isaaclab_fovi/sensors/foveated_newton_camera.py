@@ -22,16 +22,9 @@ import torch
 import warp as wp
 
 from isaaclab.sensors.camera.camera import Camera
-from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 from isaaclab.utils.warp import ProxyArray
 
-from .calibrated_geometry import convert_camera_frame_quaternion, retinal_directions
-from .fixed_software_fov import (
-    FIXED_FOV_ANGLE_MODELS,
-    fixed_frustum_validity,
-    retinal_ray_directions,
-    validate_fixed_software_fov,
-)
+from .calibrated_geometry import retinal_directions
 from .foveated_camera import FoveatedCamera
 from .foveated_rays import compute_explicit_ray_array, compute_foveated_ray_array
 from .native_grid import (
@@ -76,26 +69,17 @@ class FoveatedNewtonCamera(FoveatedCamera):
     and injected into Newton's Warp renderer. Vector sensors publish
     ``(B, N, 1, C)``; native grid sensors publish upright ``(B, H, W, C)``.
 
-    The camera's physical FOV (from the ``spawn`` optics) is used as the
-    ``SamplingCoords.fov`` parameter so that the foveated sampling covers the
-    full scene.  Fixation is applied as a per-environment camera rotation.
+    In planar geometry the samples cover the horizontal field of view of the
+    ``spawn`` optics. In spherical geometry they cover the calibrated retinal
+    window, and gaze is applied as a per-environment rotation of the rays.
     """
 
     cfg: FoveatedCameraCfg
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        if cfg.field_geometry == "spherical":
-            cfg.update_latest_camera_pose = True
-        if cfg.camera_fov_deg is not None:
-            # Back-compute spawn optics from desired FOV for USD prim compat.
-            hfov_rad = math.radians(cfg.camera_fov_deg)
-            aperture = cfg.spawn.horizontal_aperture  # keep default aperture
-            cfg.spawn.focal_length = aperture / (2.0 * math.tan(hfov_rad / 2.0))
-        self._spawn_focal_length: float = cfg.spawn.focal_length
-        self._spawn_horizontal_aperture: float = cfg.spawn.horizontal_aperture
-        self._fixation: torch.Tensor | None = None
-        self._fixed_fov_fixation: torch.Tensor | None = None
-        self._fixed_fov_angle_model = "camera_xyz"
+        # Spawn optics are only needed for planar geometry; an existing prim has none.
+        self._spawn_focal_length: float | None = None if cfg.spawn is None else cfg.spawn.focal_length
+        self._spawn_horizontal_aperture: float | None = None if cfg.spawn is None else cfg.spawn.horizontal_aperture
         self._calibrated_rotation = None
         super().__init__(cfg)
 
@@ -105,7 +89,9 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     def _initialize_impl(self):
         # 1. Derive camera physical FOV for ray generation.
-        self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
+        self._camera_hfov_rad: float | None = None
+        if self._spawn_focal_length is not None:
+            self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
 
         # 2. Build coords on CPU so we know N_lo (and N_hi when pooling) before
         #    the parent allocates buffers.  The pooler is constructed later,
@@ -121,33 +107,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
         )
         self._num_valid_samples = len(self._sampling_coords)  # public / RGC count
         self._num_ray_samples = len(self._sampling_coords_highres or self._sampling_coords)
-        self._camera_hfov_deg = math.degrees(self._camera_hfov_rad)
-        self._fixed_fov_focal_length_px: float | None = None
-        self._fixed_fov_image_height: int | None = None
-        self._fixed_fov_image_width: int | None = None
-        if self.cfg.fixed_software_fov:
-            if self.cfg.projection != "pinhole" and self.cfg.field_geometry != "spherical":
-                raise ValueError(
-                    f"fixed_software_fov currently requires projection='pinhole', got {self.cfg.projection!r}."
-                )
-            image_height = self.cfg.software_fov_image_height
-            image_width = self.cfg.software_fov_image_width
-            if image_height is None or image_width is None:
-                raise ValueError(
-                    "fixed_software_fov=True requires software_fov_image_height and software_fov_image_width."
-                )
-            focal_length_px = image_width * self._spawn_focal_length / self._spawn_horizontal_aperture
-            validate_fixed_software_fov(
-                image_height=image_height,
-                image_width=image_width,
-                focal_length_px=focal_length_px,
-                principal_point=(image_width * 0.5, image_height * 0.5),
-                retinal_window_short_side_fraction=(self.cfg.retinal_window_short_side_fraction),
-                retinal_window_reference_side=self.cfg.retinal_window_reference_side,
-            )
-            self._fixed_fov_focal_length_px = focal_length_px
-            self._fixed_fov_image_height = image_height
-            self._fixed_fov_image_width = image_width
         logger.info(
             "FoveatedNewtonCamera: %d samples (%d rendered), style=%s, cmf_a=%.4g deg, field of view=%.1f deg",
             self._num_valid_samples,
@@ -213,43 +172,18 @@ class FoveatedNewtonCamera(FoveatedCamera):
         # mapping; this rotation does not.
         ray_cart = ray_coords_device.cartesian
         if self._native_grid:
-            tangent_scale = math.tan(self._camera_hfov_rad / 2)
-            if self.cfg.fixed_software_fov:
-                reference = (
-                    max(self._fixed_fov_image_height, self._fixed_fov_image_width)
-                    if self.cfg.retinal_window_reference_side == "long"
-                    else min(self._fixed_fov_image_height, self._fixed_fov_image_width)
-                )
-                tangent_scale = (
-                    reference * self.cfg.retinal_window_short_side_fraction / (2 * self._fixed_fov_focal_length_px)
-                )
-            self._fixed_fov_ray_directions = native_grid_directions(
+            # Spherical grids take their extent from the sampling coordinates and ignore the tangent scale.
+            tangent_scale = 1.0 if self._camera_hfov_rad is None else math.tan(self._camera_hfov_rad / 2)
+            self._ray_directions = native_grid_directions(
                 ray_coords_device,
                 tangent_scale=tangent_scale,
                 image_rotation_deg=self.cfg.image_rotation_deg,
-                projection=self.cfg.projection,
                 camera_fov_rad=self._camera_hfov_rad,
             )
-            self._foveated_rays = compute_explicit_ray_array(self._fixed_fov_ray_directions, device=str(self._device))
+            self._foveated_rays = compute_explicit_ray_array(self._ray_directions, device=str(self._device))
         elif self.cfg.field_geometry == "spherical":
-            self._fixed_fov_ray_directions = retinal_directions(
-                ray_cart, self._sampling_coords.fov, self.cfg.image_rotation_deg
-            )
-            self._foveated_rays = compute_explicit_ray_array(self._fixed_fov_ray_directions, device=str(self._device))
-        elif self.cfg.fixed_software_fov:
-            self._fixed_fov_ray_directions = retinal_ray_directions(
-                ray_cart,
-                image_height=self._fixed_fov_image_height,
-                image_width=self._fixed_fov_image_width,
-                focal_length_px=self._fixed_fov_focal_length_px,
-                retinal_window_short_side_fraction=(self.cfg.retinal_window_short_side_fraction),
-                retinal_window_reference_side=self.cfg.retinal_window_reference_side,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-            )
-            self._foveated_rays = compute_explicit_ray_array(
-                self._fixed_fov_ray_directions,
-                device=str(self._device),
-            )
+            self._ray_directions = retinal_directions(ray_cart, ray_coords_device.fov, self.cfg.image_rotation_deg)
+            self._foveated_rays = compute_explicit_ray_array(self._ray_directions, device=str(self._device))
         elif self.cfg.image_rotation_deg:
             theta = math.radians(float(self.cfg.image_rotation_deg))
             cos_t = math.cos(theta)
@@ -264,14 +198,12 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 sampling_coords_cartesian=ray_cart,
                 camera_fov_rad=self._camera_hfov_rad,
                 device=str(self._device),
-                projection=self.cfg.projection,
             )
         else:
             self._foveated_rays = compute_foveated_ray_array(
                 sampling_coords_cartesian=ray_cart,
                 camera_fov_rad=self._camera_hfov_rad,
                 device=str(self._device),
-                projection=self.cfg.projection,
             )
 
         render_samples = self.cfg.height * self.cfg.width
@@ -357,11 +289,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
                     mode=self.cfg.pool_int_mode,
                 )
             dtypes_summary = {n: str(t.dtype).removeprefix("torch.") for n, t in self._highres_output.items()}
-            print(
-                f"[FoveatedNewtonCamera] pool outputs={dtypes_summary} "
-                f"pool_mode={self.cfg.pool_mode!r} int_mode={self.cfg.pool_int_mode!r} "
-                f"int_pooler_built={self._pooler_int is not None}"
-            )
             logger.info(
                 "FoveatedNewtonCamera: KNN pooling enabled "
                 "(mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) "
@@ -377,62 +304,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
             )
 
     # ------------------------------------------------------------------
-    #  Fixation
-    # ------------------------------------------------------------------
-
-    def set_fixation(self, fixation_angles: torch.Tensor):
-        """Set per-environment fixation as camera rotation angles.
-
-        Args:
-            fixation_angles: ``(B, 2)`` tensor in radians.
-                ``[:, 0]`` = θ_x (X-axis rotation, positive = look up),
-                ``[:, 1]`` = θ_y (Y-axis rotation, positive = look left).
-                ``(0, 0)`` = center (no rotation).
-        """
-        self._fixation = fixation_angles
-
-    def set_fixed_fov_fixation(
-        self,
-        fixation_angles: torch.Tensor,
-        *,
-        angle_model: str,
-    ) -> None:
-        """Update fixed-frustum masking without rotating the camera twice."""
-        if not self.cfg.fixed_software_fov:
-            raise RuntimeError("set_fixed_fov_fixation requires fixed_software_fov=True.")
-        if angle_model not in FIXED_FOV_ANGLE_MODELS:
-            raise ValueError(f"angle_model must be one of {FIXED_FOV_ANGLE_MODELS}, got {angle_model!r}.")
-        self._fixed_fov_fixation = fixation_angles
-        self._fixed_fov_angle_model = angle_model
-
-    def _apply_fixation_rotation(self):
-        """Rotate camera orientations based on the current fixation angles.
-
-        Composes fixation rotation (in angle-space) with the base camera
-        orientations in the OpenGL frame.
-        """
-        fix = self._fixation.float()  # (B, 2): [θ_x, θ_y] in radians
-        look_roll = fix[:, 0]  # X-axis rotation (directly in radians)
-        look_pitch = fix[:, 1]  # Y-axis rotation (directly in radians)
-        zeros = torch.zeros_like(look_roll)
-
-        fix_quat = quat_from_euler_xyz(look_roll, look_pitch, zeros)  # (B, 4)
-
-        # Apply rotation in OpenGL camera frame:
-        # 1. Convert stored world-convention quaternions to OpenGL
-        quat_world = self._quat_w_world_torch()
-        quat_gl = convert_camera_frame_quaternion(quat_world, origin="world", target="opengl")
-        # 2. Compose: base rotation * fixation rotation (local frame)
-        quat_gl_rotated = quat_mul(quat_gl, fix_quat)
-        # 3. Convert back to world convention for storage
-        quat_world[:] = convert_camera_frame_quaternion(quat_gl_rotated, origin="opengl", target="world")
-
-    def _quat_w_world_torch(self) -> torch.Tensor:
-        """Return the camera world quaternion as a Torch tensor view."""
-        quat_world = self._data.quat_w_world
-        return quat_world.torch if hasattr(quat_world, "torch") else quat_world
-
-    # ------------------------------------------------------------------
     #  Per-frame overrides
     # ------------------------------------------------------------------
 
@@ -442,16 +313,13 @@ class FoveatedNewtonCamera(FoveatedCamera):
         env_mask: wp.array | None = None,
         frame_op: int = 0,
     ) -> None:
-        """Read base poses, apply fixation rotation, update renderer, inject rays.
+        """Read base poses, apply the calibrated gaze, update renderer, inject rays.
 
-        Read the scene pose even without a sensor-level fixation: the camera
-        may inherit motion from a parent articulation.
+        The scene pose is read even without a gaze: the camera may inherit
+        motion from a parent body.
         """
-        # 1. Read base camera poses + apply fixation (only when fixation active)
+        # 1. Read base camera poses, then rotate them by the calibrated gaze if one is set.
         Camera._update_poses(self, env_ids, env_mask=env_mask, frame_op=frame_op)
-        if self._fixation is not None:
-            self._apply_fixation_rotation()
-
         self._apply_calibrated_pose(env_ids, env_mask)
 
         # 2. Update camera_transforms
@@ -476,7 +344,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
             super()._update_buffers_impl(env_mask)
             output = self._flat_render_output
             mask_grid_samples(output, self._ray_coords)
-            self._apply_fixed_fov_mask(output)
+            self._apply_sensor_fov_mask(output)
             if self._native_grid:
                 copy_grid_outputs(output, self._grid_output, self._grid_indices)
             self._data.output.clear()
@@ -488,7 +356,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
         self._data.output.update(self._render_output)
         super()._update_buffers_impl(env_mask)
         mask_grid_samples(self._highres_output, self._ray_coords)
-        self._apply_fixed_fov_mask(self._highres_output)
+        self._apply_sensor_fov_mask(self._highres_output)
 
         # Pool each output channel (B, N_hi, 1, C) -> (B, N_lo, 1, C).
         # Cast to float for pooling (KNN ops need real-valued NaN semantics),
@@ -514,38 +382,13 @@ class FoveatedNewtonCamera(FoveatedCamera):
         else:
             self._data.output.update(self._pooled_output)
 
-    def _apply_fixed_fov_mask(self, outputs: dict[str, torch.Tensor]) -> None:
-        if not self.cfg.fixed_software_fov:
+    def _apply_sensor_fov_mask(self, outputs: dict[str, torch.Tensor]) -> None:
+        """Zero the samples that fall outside the calibrated camera at the current gaze."""
+        if not self.cfg.mask_to_sensor_fov:
             return
         first_output = next(iter(outputs.values()))
         first_tensor = first_output.torch if hasattr(first_output, "torch") else first_output
-        batch_size = first_tensor.shape[0]
-        fixation = self._fixed_fov_fixation
-        if fixation is None:
-            fixation = self._fixation
-        if fixation is None:
-            fixation = torch.zeros(
-                batch_size,
-                2,
-                device=self._fixed_fov_ray_directions.device,
-                dtype=self._fixed_fov_ray_directions.dtype,
-            )
-        if self.cfg.field_geometry == "spherical":
-            valid = self._calibrated_validity(batch_size)
-        else:
-            valid = fixed_frustum_validity(
-                self._fixed_fov_ray_directions,
-                fixation,
-                image_height=self._fixed_fov_image_height,
-                image_width=self._fixed_fov_image_width,
-                focal_length_px=self._fixed_fov_focal_length_px,
-                principal_point=(
-                    self._fixed_fov_image_width * 0.5,
-                    self._fixed_fov_image_height * 0.5,
-                ),
-                angle_model=self._fixed_fov_angle_model,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-            )
+        valid = self._calibrated_validity(first_tensor.shape[0])
         invalid = ~valid[:, :, None, None]
         has_rgba_alias = "rgba" in outputs
         for name, output in outputs.items():
@@ -553,7 +396,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 continue
             tensor = output.torch if hasattr(output, "torch") else output
             tensor.masked_fill_(invalid, 0)
-        self._fixed_fov_valid_fraction = valid.float().mean(dim=1)
+        self._sensor_fov_valid_fraction = valid.float().mean(dim=1)
 
     # ------------------------------------------------------------------
     #  Output helpers
@@ -581,6 +424,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
         return self._num_valid_samples
 
     @property
-    def fixed_fov_valid_fraction(self) -> torch.Tensor | None:
-        """Per-environment fraction of rays inside the fixed dense frustum."""
-        return getattr(self, "_fixed_fov_valid_fraction", None)
+    def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
+        """Per-environment fraction of samples inside the calibrated camera, or None before the first masked frame."""
+        return getattr(self, "_sensor_fov_valid_fraction", None)
