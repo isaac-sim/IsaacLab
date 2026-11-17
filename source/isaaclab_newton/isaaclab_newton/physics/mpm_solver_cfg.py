@@ -102,21 +102,6 @@ class MPMSolverCfg(NewtonSolverCfg):
     solver_type: str = "implicit_mpm"
     """Solver type. Can be "implicit_mpm"."""
 
-    sleeping: MPMSleepingCfg | None = None
-    """Deferred native activity settings; None leaves sleeping unconfigured.
-
-    Call :func:`~isaaclab_newton.physics.configure_mpm_sleeping` after scene preparation. These runtime settings are
-    intentionally not applied by solver construction or authored to USD.
-    """
-
-    working_set: MPMWorkingSetCfg | None = None
-    """Deferred bounded evaluation settings; None leaves the solver unchanged.
-
-    Call :func:`~isaaclab_newton.physics.configure_mpm_working_set` after classification and before final capture.
-    A new solver starts with Newton's full evaluation pool.
-    Initial settling and resets can wake more particles than the configured capacity.
-    """
-
     reuse_grid_topology: bool = False
     """Enable guarded sparse execution and reuse unchanged grid structure where supported.
 

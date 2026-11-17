@@ -317,24 +317,24 @@ Use :class:`~isaaclab_newton.physics.MPMSleepingCfg` and
        grid_type="sparse",
        max_active_cell_count=65_536,
        reuse_grid_topology=True,
-       sleeping=MPMSleepingCfg(velocity_threshold=0.01, sleep_time=0.5),
-       working_set=MPMWorkingSetCfg(particle_capacity=32_768, page_size=32, max_active_cell_count=8192),
    )
+   sleeping_cfg = MPMSleepingCfg(velocity_threshold=0.01, sleep_time=0.5)
+   working_set_cfg = MPMWorkingSetCfg(particle_capacity=32_768, page_size=32, max_active_cell_count=8192)
 
-These fields are optional and are not automatically applied when the backend
-builds. The caller owns settling and classification: settle the full bed,
-enable sleeping, then advance the current controller long enough to classify
-quiet material before configuring a smaller pool. Neither helper advances
-physics or resets state. For a standalone MPM backend, after settling:
+``MPMSolverCfg`` owns solver construction; the caller applies sleeping and
+working-set settings at the preparation boundary. Settle the full bed, enable
+sleeping, then advance the current controller long enough to classify quiet
+material before configuring a smaller pool. Neither helper advances physics
+or resets state. For a standalone MPM backend, after settling:
 
 .. code-block:: python
 
    manager = sim.backend_manager
-   configure_mpm_sleeping(manager, mpm_cfg.sleeping)
+   configure_mpm_sleeping(manager, sleeping_cfg)
    for _ in range(classification_steps):
        sim.step(render=False)
        scene.update(sim.get_physics_dt())
-   configure_mpm_working_set(manager, mpm_cfg.working_set)
+   configure_mpm_working_set(manager, working_set_cfg)
    sim.step(render=False)
    scene.update(sim.get_physics_dt())
 
@@ -362,11 +362,11 @@ entry input state. The helpers cannot substitute the coupled parent state:
 
    coupled = manager.backend.solver
    sand = coupled.solver("sand")
-   configure_mpm_sleeping(manager, mpm_cfg.sleeping, solver=sand)
+   configure_mpm_sleeping(manager, sleeping_cfg, solver=sand)
    # Advance the coupled controller to classify quiet material here.
    configure_mpm_working_set(
        manager,
-       mpm_cfg.working_set,
+       working_set_cfg,
        solver=sand,
        state=coupled.entry_state("sand", phase="input"),
    )

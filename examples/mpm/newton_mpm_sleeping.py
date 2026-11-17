@@ -76,7 +76,7 @@ def _move_ball(
 
 def create_sim_cfg():
     """Keep the kinematic controller inside the solver's captured substep."""
-    from isaaclab_newton.physics import MPMSleepingCfg, MPMSolver, MPMSolverCfg, MPMWorkingSetCfg, NewtonCfg
+    from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, NewtonCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     import isaaclab.sim as sim_utils
@@ -131,10 +131,6 @@ def create_sim_cfg():
                 strain_basis="P0",
                 collider_basis="S2",
                 collider_velocity_mode="forward",
-                sleeping=MPMSleepingCfg(stress_filter_time=0.1) if args_cli.sleeping else None,
-                working_set=MPMWorkingSetCfg(particle_capacity=16384, page_size=32 if args_cli.paging else 0)
-                if args_cli.sleeping
-                else None,
             ),
         ),
     )
@@ -192,18 +188,23 @@ def create_scene_cfg():
     return SleepingSceneCfg(num_envs=1, env_spacing=0.0)
 
 
-def run_simulator(sim, scene):
+def prepare_simulation(sim, scene) -> None:
     """Settle with full buffers, classify activity, then capture the bounded layout."""
-    from isaaclab_newton.physics import configure_mpm_sleeping, configure_mpm_working_set, defer_mpm_status_checks
+    from isaaclab_newton.physics import (
+        MPMSleepingCfg,
+        MPMWorkingSetCfg,
+        configure_mpm_sleeping,
+        configure_mpm_working_set,
+    )
 
     manager = sim.backend_manager
     backend = manager.backend
-    cfg = sim.cfg.physics.solver_cfg
     dt = sim.get_physics_dt()
     for _ in range(math.ceil(args_cli.settle_time / dt)):
         sim.step(render=False)
         scene.update(dt)
-    configure_mpm_sleeping(manager, cfg.sleeping)
+    sleeping_cfg = MPMSleepingCfg(stress_filter_time=0.1) if args_cli.sleeping else None
+    configure_mpm_sleeping(manager, sleeping_cfg)
     for _ in range(math.ceil(0.6 / dt)):
         sim.step(render=False)
         scene.update(dt)
@@ -211,11 +212,23 @@ def run_simulator(sim, scene):
     surface_height = float(np.quantile(backend.state_0.particle_q.numpy()[:, 2], 0.99))
     backend.solver_ops.motion_height = surface_height + BALL_RADIUS - 0.02
     backend.invalidate_graph()  # The controller height is captured by value, including in the full reference.
-    configure_mpm_working_set(manager, cfg.working_set)
+    working_set_cfg = (
+        MPMWorkingSetCfg(particle_capacity=16384, page_size=32 if args_cli.paging else 0) if args_cli.sleeping else None
+    )
+    configure_mpm_working_set(manager, working_set_cfg)
     sim.step(render=False)  # Warm and capture the final layout with the controller disabled.
     scene.update(dt)
     backend.solver_ops.motion_enabled.fill_(1)
     logger.info("Setup complete. Particle activity and sphere motion now replay on GPU.")
+
+
+def run_simulator(sim, scene):
+    """Replay the prepared simulation and validate its final state."""
+    from isaaclab_newton.physics import defer_mpm_status_checks
+
+    manager = sim.backend_manager
+    backend = manager.backend
+    dt = sim.get_physics_dt()
     with defer_mpm_status_checks(manager):
         frames = 0
         while sim.is_running() and (args_cli.max_steps < 0 or frames < args_cli.max_steps):
@@ -244,6 +257,7 @@ def main():
         sim.set_camera_view(eye=(3.0, -4.0, 2.5), target=(0.0, 0.0, 0.1))
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
+        prepare_simulation(sim, scene)
         run_simulator(sim, scene)
 
 

@@ -5,6 +5,8 @@
 
 """Protect native MPM reconfiguration and rollout-validation boundaries."""
 
+import copy
+
 import newton
 import numpy as np
 import pytest
@@ -172,7 +174,7 @@ def test_captured_deferred_validation_restores_checks_and_rejects_real_overflow(
     try:
         with pytest.raises(RuntimeError, match="backend changed"):
             with defer_mpm_status_checks(manager):
-                manager.backend = None
+                manager.backend = copy.copy(backend)
     finally:
         manager.backend = backend
     driver.check_step(captured=True, debug=False)

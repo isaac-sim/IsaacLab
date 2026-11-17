@@ -310,7 +310,10 @@ def defer_mpm_status_checks(manager: NewtonManager, *, solvers: Sequence[SolverI
         RuntimeError: No guarded MPM solver is available, capture is active, or final validation fails.
         ValueError: A selected solver is not owned by this manager.
     """
-    root_solver = getattr(manager.backend, "solver", None)
+    backend = manager.backend
+    if backend is None:
+        raise RuntimeError("Deferred validation requires an initialized guarded MPM solver.")
+    root_solver = backend.solver
     selected = implicit_mpm_solvers(root_solver) if solvers is None else tuple(dict.fromkeys(solvers))
     if not selected:
         raise RuntimeError("Deferred validation requires an initialized guarded MPM solver.")
@@ -322,7 +325,7 @@ def defer_mpm_status_checks(manager: NewtonManager, *, solvers: Sequence[SolverI
     token = _deferred_status_checks.set(_deferred_status_checks.get() + selected)
     try:
         yield
-        if getattr(manager.backend, "solver", None) is not root_solver:
+        if manager.backend is not backend or backend.solver is not root_solver:
             raise RuntimeError("The Newton backend changed during deferred collection; discard the rollout.")
         for solver in selected:
             solver.check_sparse_grid_rebuild_status()
