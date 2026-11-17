@@ -19,9 +19,14 @@ from fovi.sensing.projection import (
     gaze_rotation,
 )
 
+IDEAL_IMAGE_WIDTH = 1024
+"""Pixel width [px] of the image assigned to a camera derived from ideal spawn optics.
+
+The scale is arbitrary: fixations are normalized image positions and the retinal
+window is an angle, so neither depends on it."""
+
 
 class SamplingGeometryConfig(Protocol):
-    field_geometry: str
     camera_calibration: CameraCalibration | None
     cmf_a_deg: float
     retinal_window_reference_side: str
@@ -29,31 +34,77 @@ class SamplingGeometryConfig(Protocol):
     spawn: Any
 
 
+def calibration_from_spawn(spawn: Any) -> CameraCalibration:
+    """Describe the camera that the spawn configuration creates as a fovi calibration.
+
+    * An OpenCV model in ``spawn.distortion`` gives that calibrated camera. A fisheye
+      model with zero coefficients is an ideal equidistant fisheye.
+    * Plain pinhole optics give an ideal pinhole with the same field of view. Without
+      a vertical aperture, the image is square.
+
+    Raises:
+        ValueError: The spawn configuration describes a camera fovi cannot model: a USD
+            fisheye projection, thin-prism distortion, or an aperture offset.
+    """
+    distortion = getattr(spawn, "distortion", None)
+    if distortion is not None:
+        width, height = distortion.image_size
+        intrinsics = (distortion.fx, distortion.fy, distortion.cx, distortion.cy)
+        if distortion.model == "opencvFisheye":
+            calibration = CameraCalibration(model="fisheye", max_angle_deg=math.degrees(distortion.max_fov) / 2)
+            coefficients = (distortion.k1, distortion.k2, distortion.k3, distortion.k4)
+        elif distortion.model == "opencvPinhole":
+            calibration = CameraCalibration(model="pinhole")
+            coefficients = tuple(getattr(distortion, name) for name in ("k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"))
+            thin_prism = (distortion.s1, distortion.s2, distortion.s3, distortion.s4)
+            if distortion.apply_lens_distortion and any(thin_prism):
+                raise ValueError("Thin-prism distortion (s1-s4) is not supported; set camera_calibration instead.")
+        else:
+            raise ValueError(f"Unsupported lens distortion model {distortion.model!r}.")
+        calibration.update(image_size=(height, width), intrinsics=tuple(float(value) for value in intrinsics))
+        if distortion.apply_lens_distortion and any(coefficients):
+            calibration["distortion"] = tuple(float(value) for value in coefficients)
+        return calibration
+    if getattr(spawn, "projection_type", None) != "pinhole":
+        raise ValueError(
+            "Only pinhole spawn optics describe a camera; for a fisheye, set spawn.distortion to an "
+            "OpenCvFisheyeDistortionCfg or set camera_calibration."
+        )
+    if spawn.horizontal_aperture_offset or spawn.vertical_aperture_offset:
+        raise ValueError("Aperture offsets are not supported; set camera_calibration instead.")
+    vertical_aperture = spawn.vertical_aperture or spawn.horizontal_aperture
+    width = IDEAL_IMAGE_WIDTH
+    height = round(width * vertical_aperture / spawn.horizontal_aperture)
+    focal = spawn.focal_length / spawn.horizontal_aperture * width
+    return CameraCalibration(
+        model="pinhole", image_size=(height, width), intrinsics=(focal, focal, (width - 1) / 2, (height - 1) / 2)
+    )
+
+
+def camera_model(cfg: SamplingGeometryConfig) -> CameraModel:
+    """Return the physical camera the retina looks through.
+
+    This is ``cfg.camera_calibration`` when set, otherwise the camera that ``cfg.spawn``
+    creates (see :func:`calibration_from_spawn`).
+
+    Raises:
+        ValueError: Neither a calibration nor spawn optics describe the camera.
+    """
+    if cfg.camera_calibration is not None:
+        return CameraModel(**cfg.camera_calibration)
+    if cfg.spawn is None:
+        raise ValueError("A foveated camera on an existing prim needs camera_calibration.")
+    return CameraModel(**calibration_from_spawn(cfg.spawn))
+
+
 def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
     """Return the retinal field of view and the CMF constant, both in degrees.
 
-    These are the units :class:`fovi.sensing.coords.SamplingCoords` takes in either
-    field geometry, so neither value is converted here.
-
-    * Spherical: the field of view is the calibrated retinal window.
-    * Planar: the field of view is the horizontal field of view of the spawn optics.
-
-    Raises:
-        ValueError: The geometry is unknown, or the configuration lacks the
-            calibration (spherical) or spawn optics (planar) that define the window.
+    The field of view is the angular span of the retinal window in the physical
+    camera. Both values are in the units :class:`fovi.sensing.coords.SamplingCoords` takes.
     """
-    if cfg.field_geometry == "spherical":
-        if cfg.camera_calibration is None:
-            raise ValueError("Spherical sensing requires camera_calibration")
-        camera = CameraModel(**cfg.camera_calibration)
-        fov = camera.field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_short_side_fraction)
-        return fov, cfg.cmf_a_deg
-    if cfg.field_geometry == "planar":
-        if cfg.spawn is None:
-            raise ValueError("Planar sensing requires spawn optics to define its field of view")
-        fov = math.degrees(2.0 * math.atan(cfg.spawn.horizontal_aperture / (2.0 * cfg.spawn.focal_length)))
-        return fov, cfg.cmf_a_deg
-    raise ValueError(f"Unknown field geometry {cfg.field_geometry!r}; use 'spherical' or 'planar'.")
+    fov = camera_model(cfg).field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_short_side_fraction)
+    return fov, cfg.cmf_a_deg
 
 
 def retinal_directions(cartesian: torch.Tensor, fov_deg: float, image_rotation_deg: float = 0.0) -> torch.Tensor:

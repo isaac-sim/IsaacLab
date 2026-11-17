@@ -19,10 +19,11 @@ from isaaclab_fovi.sensors.native_grid import validate_radius_norm
 class FoveatedCameraCfg(CameraCfg):
     """Configuration for a foveated camera sensor.
 
-    Extends :class:`CameraCfg` with CMF-based foveation parameters.
-    The sensor generates non-uniform foveated rays from
-    :class:`fovi.sensing.coords.SamplingCoords`.  ``height`` and ``width``
-    are auto-computed from the number of sampling coordinates.
+    Extends :class:`CameraCfg` with CMF-based foveation parameters. The retina
+    looks through a physical camera and places its samples by visual angle
+    inside that camera's field of view, densest at the fixation. The rays come
+    from :class:`fovi.sensing.coords.SamplingCoords`; ``height`` and ``width``
+    are computed from the number of samples.
 
     :class:`~isaaclab_fovi.sensors.FoveatedCamera` selects its Newton or RTX
     implementation from ``renderer_cfg.renderer_type``.
@@ -37,18 +38,20 @@ class FoveatedCameraCfg(CameraCfg):
 
     Smaller values give stronger foveation; a value much larger than the field
     of view gives nearly uniform sampling. The default is an estimate from human
-    data. It is passed to :class:`fovi.sensing.coords.SamplingCoords` unchanged
-    in both field geometries."""
-
-    field_geometry: str = "spherical"
-    """Coordinates the samples are laid out in: ``"spherical"`` or ``"planar"``.
-
-    Spherical sampling places samples by visual angle inside the calibrated
-    camera's field of view and needs :attr:`camera_calibration`. Planar sampling
-    places them on the image plane of the spawn optics."""
+    data. It is passed to :class:`fovi.sensing.coords.SamplingCoords` unchanged."""
 
     camera_calibration: CameraCalibration | None = None
-    """CameraModel fields for the physical source image; required for spherical geometry."""
+    """The physical camera the retina looks through, as :class:`fovi.sensing.projection.CameraModel` fields.
+
+    It defines the retinal window, the image that fixations are given in, and
+    the edge that :attr:`mask_to_sensor_fov` masks against. Any calibrated
+    pinhole or fisheye camera works.
+
+    If None, the camera that :attr:`spawn` creates is used: an OpenCV model in
+    ``spawn.distortion`` (an :class:`~isaaclab.sim.OpenCvFisheyeDistortionCfg` with
+    zero coefficients is an ideal equidistant fisheye), otherwise an ideal pinhole
+    with the spawn's focal length and apertures. A prim without spawn
+    configuration needs a calibration."""
 
     foveated_res: int = 60
     """Resolution parameter passed to :class:`SamplingCoords`.  For isotropic
@@ -92,17 +95,16 @@ class FoveatedCameraCfg(CameraCfg):
         * Other angles work in principle but are untested."""
 
     mask_to_sensor_fov: bool = False
-    """Zero the samples that fall outside the calibrated camera's image at the current gaze.
+    """Zero the samples that fall outside the physical camera's image at the current gaze.
 
-    With calibrated gaze the retina can look past the edge of the physical
-    camera; this keeps what the sensor reports to what that camera could have
-    seen. Requires spherical geometry."""
+    With gaze the retina can look past the edge of the physical camera; this
+    keeps what the sensor reports to what that camera could have seen."""
 
     retinal_window_short_side_fraction: float = 1.0
-    """Diameter of the retinal window as a fraction of the reference image side. Spherical geometry only."""
+    """Diameter of the retinal window as a fraction of the reference image side."""
 
     retinal_window_reference_side: str = "short"
-    """Image side defining the retinal window diameter: ``short`` or ``long``. Spherical geometry only."""
+    """Image side defining the retinal window diameter: ``short`` or ``long``."""
 
     # -- Optional retinal pooling (photoreceptor -> RGC two-layer sampling) --
 
@@ -166,10 +168,6 @@ class FoveatedCameraCfg(CameraCfg):
     def __post_init__(self):
         # Resolves the default renderer and forwards deprecated renderer fields.
         super().__post_init__()
-        if self.field_geometry not in ("spherical", "planar"):
-            raise ValueError(f"Unknown field_geometry={self.field_geometry!r}; use 'spherical' or 'planar'.")
-        if self.mask_to_sensor_fov and self.field_geometry != "spherical":
-            raise ValueError("mask_to_sensor_fov requires field_geometry='spherical'.")
         validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
         # ``spawn`` is a ``PinholeCameraCfg`` / ``FisheyeCameraCfg`` whose
         # ``lock_camera`` field defaults to True.  That writes

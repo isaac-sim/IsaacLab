@@ -60,7 +60,7 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
         quiet=True,
         fov_type=cfg.fov_type,
         radius_norm=cfg.radius_norm,
-        field_geometry=cfg.field_geometry,
+        field_geometry="spherical",
     )
     lowres = SamplingCoords(
         fov=fov,
@@ -71,7 +71,7 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
         isotropic_plotting_type=cfg.isotropic_plotting_type,
         fov_type=cfg.fov_type,
         radius_norm=cfg.radius_norm,
-        field_geometry=cfg.field_geometry,
+        field_geometry="spherical",
     )
     return lowres, matched_res
 
@@ -96,7 +96,7 @@ def build_highres_coords(cfg: FoveatedCameraCfg, matched_res: int, device: str) 
         isotropic_plotting_type=cfg.isotropic_plotting_type,
         fov_type=cfg.fov_type,
         radius_norm=cfg.radius_norm,
-        field_geometry=cfg.field_geometry,
+        field_geometry="spherical",
     )
 
 

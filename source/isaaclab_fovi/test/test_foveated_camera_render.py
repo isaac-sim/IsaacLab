@@ -45,7 +45,23 @@ RESOLUTION = 32
 # The physical camera the retina looks through: a 640x480 pinhole.
 WIDTH, HEIGHT = 640, 480
 FOCAL, CX, CY = 550.0, 319.5, 239.5
+CLIPPING_RANGE = (0.001, 20.0)
 CALIBRATION = {"model": "pinhole", "image_size": (HEIGHT, WIDTH), "intrinsics": (FOCAL, FOCAL, CX, CY)}
+
+# The same camera given in either supported way: as a fovi calibration, or as the spawned camera's
+# OpenCV model, from which the foveated camera derives its calibration.
+CAMERA_SOURCES = {
+    "calibration": dict(camera_calibration=CALIBRATION),
+    "spawn": dict(
+        camera_calibration=None,
+        spawn=sim_utils.PinholeCameraCfg(
+            clipping_range=CLIPPING_RANGE,
+            distortion=sim_utils.OpenCvPinholeDistortionCfg(
+                fx=FOCAL, fy=FOCAL, cx=CX, cy=CY, image_size=(WIDTH, HEIGHT)
+            ),
+        ),
+    ),
+}
 
 # The camera looks down at the ground plane; its optical axis meets the ground at the target.
 CAM_EYE = (0.0, 0.0, 2.5)
@@ -75,7 +91,7 @@ class _GroundSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Camera",
         update_period=0.0,
         data_types=["distance_to_camera"],
-        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.001, 20.0)),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=CLIPPING_RANGE),
         camera_calibration=CALIBRATION,
         foveated_res=RESOLUTION,
         mask_to_sensor_fov=True,
@@ -131,8 +147,9 @@ def _render(backend: str, fixation: torch.Tensor, **camera_overrides) -> tuple[t
         return distance, field
 
 
+@pytest.mark.parametrize("source", CAMERA_SOURCES)
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_foveated_camera_follows_calibrated_gaze(backend):
+def test_foveated_camera_follows_calibrated_gaze(backend, source):
     """The retina's centre sees the ground along the pinhole ray through the fixated pixel.
 
     One environment fixates the image centre and one a point to the right. The reference is the
@@ -140,7 +157,7 @@ def test_foveated_camera_follows_calibrated_gaze(backend):
     """
     # Fixations are normalized (row, column) positions in the calibrated image.
     fixation = torch.tensor([[0.5, 0.5], [0.5, 0.75]])
-    distance, field = _render(backend, fixation)
+    distance, field = _render(backend, fixation, **CAMERA_SOURCES[source])
 
     assert distance.shape == (2, RESOLUTION, RESOLUTION)
     assert torch.isfinite(distance).all()

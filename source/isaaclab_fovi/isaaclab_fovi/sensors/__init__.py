@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Foveated camera sensors and simulator-independent projection helpers.
+"""Foveated camera sensors.
 
-Names are imported on first access, so reading the configuration or the geometry
-helpers does not load a renderer runtime.
+Names are imported on first access, so reading the configuration does not load
+a renderer runtime.
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ _LAZY_EXPORTS = {
     "FoveatedCameraCfg": "foveated_camera_cfg",
     "FoveatedNewtonCamera": "foveated_newton_camera",
     "FoveatedRTXCamera": "foveated_rtx_camera",
-    "compute_foveated_ray_array": "foveated_rays",
 }
 
 __all__ = list(_LAZY_EXPORTS)

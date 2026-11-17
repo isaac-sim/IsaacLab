@@ -179,31 +179,14 @@ def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tens
 
 
 def build_native_grid_textures(
-    coords: SamplingCoords,
-    *,
-    tangent_scale: float,
-    image_rotation_deg: float,
-    exit_size: int,
-    projection: str = "pinhole",
-    camera_fov_rad: float | None = None,
+    coords: SamplingCoords, *, image_rotation_deg: float, exit_size: int
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Build native direction texels and an analytic octahedral inverse map."""
-    directions = native_grid_directions(
-        coords,
-        tangent_scale=tangent_scale,
-        image_rotation_deg=image_rotation_deg,
-        projection=projection,
-        camera_fov_rad=camera_fov_rad,
-    ).reshape(coords.resolution, coords.resolution, 3)
-    decoded = torch.stack(_octahedral_decode(exit_size, exit_size, device=coords.device), -1)
-    uv, valid = native_grid_exit_uv(
-        decoded,
-        coords,
-        tangent_scale=tangent_scale,
-        image_rotation_deg=image_rotation_deg,
-        projection=projection,
-        camera_fov_rad=camera_fov_rad,
+    directions = native_grid_directions(coords, image_rotation_deg=image_rotation_deg).reshape(
+        coords.resolution, coords.resolution, 3
     )
+    decoded = torch.stack(_octahedral_decode(exit_size, exit_size, device=coords.device), -1)
+    uv, valid = native_grid_exit_uv(decoded, coords, image_rotation_deg=image_rotation_deg)
     # Out-of-sensor rays must not be projected into the fovea by the inverse LUT.
     exit_texture = torch.where(valid[..., None], uv, torch.full_like(uv, -1))
     return directions, exit_texture
@@ -342,38 +325,6 @@ def apply_generalized_projection_to_prim(
     prim.CreateAttribute("omni:lensdistortion:lut:rayExitPositionTexture", Sdf.ValueTypeNames.Asset).Set(
         exit_texture_path
     )
-
-
-# =============================================================================
-# Ray direction models
-# =============================================================================
-
-
-def ray_directions_rectilinear(
-    r_deg,
-    theta_rad,
-    device="cuda",
-) -> torch.Tensor:
-    """Unit ray directions for the rectilinear (pinhole) projection model.
-
-    ``d = normalize(tan(r°)·cosθ, tan(r°)·sinθ, -1)``
-
-    Args:
-        r_deg:     ``(N,)`` eccentricities in degrees.
-        theta_rad: ``(N,)`` polar angles in radians.
-        device:    Torch device.
-
-    Returns:
-        ``(N, 3)`` float32 unit directions, ``dz < 0``.
-    """
-    r = _t(r_deg, torch.float64, device)
-    th = _t(theta_rad, torch.float64, device)
-    t = torch.tan(r * (math.pi / 180.0))
-    dx = t * th.cos()
-    dy = t * th.sin()
-    dz = torch.full_like(dx, -1.0)
-    n = (dx**2 + dy**2 + dz**2).sqrt().clamp(min=1e-20)
-    return torch.stack([dx / n, dy / n, dz / n], dim=-1).float()
 
 
 # =============================================================================

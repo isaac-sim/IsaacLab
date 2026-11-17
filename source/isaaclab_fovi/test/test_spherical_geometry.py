@@ -38,7 +38,6 @@ def tf32_enabled():
 def camera_config() -> SimpleNamespace:
     camera = CameraModel("fisheye", (80, 120), (55, 55, 59.5, 39.5), (0.02, -0.003, 0, 0))
     return SimpleNamespace(
-        field_geometry="spherical",
         camera_calibration=asdict(camera),
         cmf_a_deg=2.5,
         spawn=None,

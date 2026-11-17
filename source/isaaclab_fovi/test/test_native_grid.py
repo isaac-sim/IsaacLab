@@ -24,8 +24,8 @@ from isaaclab_fovi.sensors.native_grid import (
 )
 
 
-def make_coords(field: str, resolution: int = 64, coverage: str = "circular") -> SamplingCoords:
-    fov = (80.0 if coverage == "wang" else 170.0) if field == "spherical" else 1.0
+def make_coords(resolution: int = 64, coverage: str = "circular", field: str = "spherical") -> SamplingCoords:
+    fov = 80.0 if coverage == "wang" else 170.0
     return SamplingCoords(
         fov=fov,
         cmf_a=0.036021 * fov,
@@ -37,14 +37,13 @@ def make_coords(field: str, resolution: int = 64, coverage: str = "circular") ->
     )
 
 
-@pytest.mark.parametrize("field", ["planar", "spherical"])
 @pytest.mark.parametrize("resolution", [64, 128])
 @pytest.mark.parametrize("rotation", [0.0, 180.0, 37.0])
 @pytest.mark.parametrize("coverage", ["circular", "square", "wang"])
-def test_analytic_inverse_returns_every_native_texel(field, resolution, rotation, coverage):
-    coords = make_coords(field, resolution, coverage)
-    rays = native_grid_directions(coords, tangent_scale=0.7, image_rotation_deg=rotation)
-    uv, valid = native_grid_exit_uv(rays, coords, tangent_scale=0.7, image_rotation_deg=rotation)
+def test_analytic_inverse_returns_every_native_texel(resolution, rotation, coverage):
+    coords = make_coords(resolution, coverage)
+    rays = native_grid_directions(coords, image_rotation_deg=rotation)
+    uv, valid = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)
     axis = (torch.arange(resolution) + 0.5) / resolution
     row, col = torch.meshgrid(axis, axis, indexing="ij")
     expected = torch.stack((col, row), -1).reshape(-1, 2)
@@ -57,33 +56,18 @@ def test_analytic_inverse_returns_every_native_texel(field, resolution, rotation
 def test_spherical_valid_samples_match_calibrated_software_rays(coverage):
     from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 
-    coords = make_coords("spherical", coverage=coverage)
-    actual = native_grid_directions(coords, tangent_scale=0.7)
+    coords = make_coords(coverage=coverage)
+    actual = native_grid_directions(coords)
     expected = retinal_directions(coords.cartesian[coords.valid_mask], coords.fov)
     torch.testing.assert_close(actual[coords.valid_mask], expected, atol=3e-7, rtol=0)
 
 
-def test_planar_equidistant_preserves_lens_projection():
-    from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
-
-    coords = make_coords("planar")
-    rays = native_grid_directions(
-        coords,
-        tangent_scale=0.7,
-        projection="fisheye_equidistant",
-        camera_fov_rad=math.radians(150),
-    )
-    expected = retinal_directions(coords.cartesian[coords.valid_mask], 150)
-    torch.testing.assert_close(rays[coords.valid_mask], expected, atol=3e-7, rtol=0)
-    uv, valid = native_grid_exit_uv(
-        rays,
-        coords,
-        tangent_scale=0.7,
-        projection="fisheye_equidistant",
-        camera_fov_rad=math.radians(150),
-    )
-    torch.testing.assert_close(uv, (coords.cortical.flip(-1) + 1) / 2, atol=2e-6, rtol=0)
-    assert valid.all()
+def test_planar_coordinates_are_rejected():
+    coords = make_coords(16, field="planar")
+    with pytest.raises(ValueError, match="spherical"):
+        native_grid_directions(coords)
+    with pytest.raises(ValueError, match="spherical"):
+        native_grid_exit_uv(torch.tensor([[0.0, 0.0, -1.0]]), coords)
 
 
 def test_spherical_padding_matches_rim_slope_and_does_not_wrap():
@@ -98,11 +82,10 @@ def test_spherical_padding_matches_rim_slope_and_does_not_wrap():
     torch.testing.assert_close(unbounded_angular_radius(angles, half_fov), radius, atol=1e-10, rtol=0)
 
 
-@pytest.mark.parametrize("field", ["planar", "spherical"])
-def test_direction_texture_is_native_rays_without_assignment(field):
-    coords = make_coords(field, 64)
-    direction, inverse = build_native_grid_textures(coords, tangent_scale=0.7, image_rotation_deg=0, exit_size=256)
-    expected = native_grid_directions(coords, tangent_scale=0.7)
+def test_direction_texture_is_native_rays_without_assignment():
+    coords = make_coords(64)
+    direction, inverse = build_native_grid_textures(coords, image_rotation_deg=0, exit_size=256)
+    expected = native_grid_directions(coords)
     torch.testing.assert_close(direction.reshape(-1, 3), expected, atol=0, rtol=0)
     assert direction.shape == (64, 64, 3)
     assert inverse.shape == (256, 256, 2)
@@ -111,7 +94,7 @@ def test_direction_texture_is_native_rays_without_assignment(field):
 
 
 def test_upright_grid_masks_and_channel_aliases():
-    coords = make_coords("planar", 16)
+    coords = make_coords(16)
     # Coordinate channels make rotation/transposition failures observable.
     values = torch.cat((coords.cartesian, torch.ones(len(coords), 2)), -1)[None, :, None]
     source = {"rgba": values.clone(), "rgb": values[..., :3]}
@@ -133,7 +116,7 @@ def test_upright_grid_masks_and_channel_aliases():
 def test_output_permutation_preserves_dtype_and_captures(dtype, channels, device):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA required")
-    coords = make_coords("planar", 16).to(device=device)
+    coords = make_coords(16).to(device=device)
     source = {
         "value": torch.arange(3 * len(coords) * channels, device=device).to(dtype).reshape(3, len(coords), 1, channels)
     }
