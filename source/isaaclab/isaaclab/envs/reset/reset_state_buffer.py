@@ -87,16 +87,18 @@ class ResetStateBuffer:
 
     def get_state(
         self,
-        state_ids: wp.array | ProxyArray | torch.Tensor,
+        state_indices: wp.array | ProxyArray | torch.Tensor,
         *,
         out: ResetStateBuffer.State | None = None,
         mask: wp.array | ProxyArray | torch.Tensor | None = None,
     ) -> ResetStateBuffer.State:
         """Copy selected states into the output rows enabled by ``mask``.
 
+        Invalid indices leave the corresponding output rows untouched, or zero-filled if allocating.
+
         Args:
-            state_ids: Valid int32 or int64 catalog indices, shape [N], on the buffer device.
-                Only IDs of enabled output rows are read.
+            state_indices: Dense int32 or int64 row positions, shape [N], on the buffer device.
+                Only indices of enabled output rows are read.
             out: Preallocated tree with the stored schema and N leading rows. None allocates
                 a new :class:`ProxyArray` tree and requires ``mask`` to be None.
             mask: Boolean selection, shape [N]. None copies every output row.
@@ -104,42 +106,48 @@ class ResetStateBuffer:
         Returns:
             The supplied output tree, or a new tree when ``out`` is None.
         """
-        state_ids = _as_array(state_ids)
-        if state_ids.ndim != 1 or state_ids.dtype not in (wp.int32, wp.int64):
-            raise ValueError("state_ids must be a one-dimensional int32 or int64 array.")
+        state_indices = _as_array(state_indices)
+        if state_indices.ndim != 1 or state_indices.dtype not in (wp.int32, wp.int64):
+            raise ValueError("state_indices must be a one-dimensional int32 or int64 array.")
         if mask is not None:
             mask = _as_array(mask)
-            if mask.shape != state_ids.shape or mask.dtype != wp.bool or mask.device != state_ids.device:
-                raise ValueError("mask must be a boolean array matching state_ids shape and device.")
+            if mask.shape != state_indices.shape or mask.dtype != wp.bool or mask.device != state_indices.device:
+                raise ValueError("mask must be a boolean array matching state_indices shape and device.")
             if out is None:
                 raise ValueError("Masked reads require a preallocated out tree.")
-        if self.num_states == 0 and state_ids.shape[0]:
+        num_rows = state_indices.shape[0]
+        if self.num_states == 0 and num_rows:
             raise ValueError("Cannot read states from an empty buffer.")
 
-        def read(states, target):
-            allocate = target is None
-            if allocate:
-                target = {}
-            elif not isinstance(target, dict) or target.keys() != states.keys():
+        if out is None:
+            out = _map_state(
+                self._states,
+                lambda value: ProxyArray(
+                    wp.zeros((num_rows, *value.shape[1:]), dtype=value.dtype, device=value.device)
+                ),
+            )
+
+        fields: list[tuple[wp.array, wp.array]] = []
+
+        def collect_fields(states, target):
+            if not isinstance(target, dict) or target.keys() != states.keys():
                 raise ValueError("out must match the stored state tree.")
             for name, value in states.items():
                 if isinstance(value, dict):
-                    target[name] = read(value, None if allocate else target[name])
+                    collect_fields(value, target[name])
                     continue
-                shape = (state_ids.shape[0], *value.shape[1:])
-                if allocate:
-                    result = wp.empty(shape, dtype=value.dtype, device=value.device)
-                    target[name] = ProxyArray(result)
-                else:
-                    result = _as_array(target[name], dtype=value.dtype)
+                shape = (num_rows, *value.shape[1:])
+                result = _as_array(target[name], dtype=value.dtype)
                 if (result.shape, result.dtype, result.device) != (shape, value.dtype, value.device):
                     raise ValueError(f"out field {name!r} must match the stored trailing shape, dtype, and device.")
-                if state_ids.device != value.device:
-                    raise ValueError("state_ids and stored states must share a device.")
-                _gather(value, state_ids, mask, result)
-            return target
+                if state_indices.device != value.device:
+                    raise ValueError("state_indices and stored states must share a device.")
+                fields.append((value, result))
 
-        return read(self._states, out)
+        collect_fields(self._states, out)
+        for source, target in fields:
+            _gather(source, state_indices, mask, target)
+        return out
 
 
 def _map_state(states: ResetStateBuffer.State, function: Callable) -> ResetStateBuffer.State:
@@ -191,7 +199,10 @@ def _gather_kernel(
         i, j, k, component = wp.tid()
     if mask and not mask[i]:
         return
-    row = int(ids[i])
+    index = wp.int64(ids[i])
+    if index < wp.int64(0) or index >= wp.int64(source.shape[0]):
+        return
+    row = int(index)
     if wp.static(len(source.shape) == 1):
         target[i] = source[row]
     elif wp.static(len(source.shape) == 2):

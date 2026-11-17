@@ -7,7 +7,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
-from isaaclab.envs.reset import ResetStateSamplerCfg, UniformScoreCfg
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -342,7 +342,7 @@ class FactoryEnvCfg(ManagerBasedRLEnvCfg):
         # default is sized for throughput, not for watching a policy.
         self.scene.num_envs = 128
 
-        uniform = ResetStateSamplerCfg(scores=[UniformScoreCfg()], eps=0.0)
+        uniform = ResetStateSamplerCfg(scores=[])
 
         reset = self.events.reset_strategies.params
 

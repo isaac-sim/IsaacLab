@@ -230,7 +230,7 @@ SCENE_RESET = EventTerm(
                     "sampling": ResetStateSamplerCfg(
                         history_length=100,
                         scores=[TargetSuccessScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
-                        eps=1e-4,
+                        uniform_weight=1e-4,
                     ),
                     "report": preset(accumulator=False, choice=True, default=False),
                 },
@@ -271,7 +271,7 @@ ACCUMULATOR_RESET = EventTerm(
         "sampling": ResetStateSamplerCfg(
             history_length=50,
             scores=[TargetSuccessScoreCfg(target=0.66, kappa=1.0, weight=0.66**0.66 * 0.34**0.34)],
-            eps=1e-4,
+            uniform_weight=1e-4,
         ),
         "reset_term": SCENE_RESET,
         "report": True,

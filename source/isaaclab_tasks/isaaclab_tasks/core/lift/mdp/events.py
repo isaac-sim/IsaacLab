@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg, UniformScoreCfg
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils import replace
 from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
@@ -265,17 +265,6 @@ def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
 
 
 @wp.kernel
-def _completed_reset_episodes(
-    mask: wp.array(dtype=wp.bool),
-    episode_length: wp.array(dtype=wp.int64),
-    completed: wp.array(dtype=wp.bool),
-    valid: wp.array(dtype=wp.bool),
-):
-    i = wp.tid()
-    valid[i] = mask[i] and episode_length[i] > 0 and completed[i]
-
-
-@wp.kernel
 def _restore_root_origin(
     mask: wp.array(dtype=wp.bool),
     origins: wp.array(dtype=wp.vec3f),
@@ -316,18 +305,12 @@ class conditional_reset(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._prefilled = False
         self._seed = env.cfg.seed or 0
-        self._buffer = torch.empty(0, 0, device=env.device)
-        self._descriptor = torch.empty(0, 0, device=env.device)
-        self._reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
-        self._group = torch.empty(0, dtype=torch.long, device=env.device)
-        self._fill = torch.empty(0, dtype=torch.long, device=env.device)
         self._sampler: ResetStateSampler | None = None
         self._bank: ResetStateBuffer | None = None
+        self._success: wp.array | None = None
         self._all_mask = wp.ones(env.num_envs, dtype=wp.bool, device=env.device)
         self._mask = wp.empty_like(self._all_mask)
-        self._valid = wp.empty_like(self._all_mask)
         self._restore_mask = wp.empty_like(self._all_mask)
 
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -337,7 +320,7 @@ class conditional_reset(ManagerTermBase):
         about: it covers every state the policy is being restarted from, not just the episodes that
         happen to be ending now.
         """
-        if self._sampler is not None and self._track_success:
+        if self._success is not None:
             measured = self._sampler.episode_counts.torch > 0
             rates = self._sampler.success_rate.torch
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
@@ -393,7 +376,7 @@ class conditional_reset(ManagerTermBase):
                 with :paramref:`reset_sampler`.
         """
 
-        if not self._prefilled:
+        if self._bank is None:
             env_ids = self._prefill(
                 env,
                 terms=terms,
@@ -408,7 +391,7 @@ class conditional_reset(ManagerTermBase):
 
         mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._mask)
         # The viewer marks manual resets as terminated, but leaves this natural-outcome mask unchanged.
-        completed = wp.from_torch(env.reset_buf) if self._track_success else None
+        completed = wp.from_torch(env.reset_buf & (env.episode_length_buf > 0)) if self._success is not None else None
         self.reset_mask(mask, completed=completed)
 
     def _prefill(
@@ -441,14 +424,20 @@ class conditional_reset(ManagerTermBase):
             return ok
 
         # The plan already identifies the world prototype selected by each environment.
-        _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
-        self._group = torch.as_tensor(group, device=env.device)
-        num_groups = int(self._group.max().item()) + 1
+        prototypes, group_ids = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
+        groups = torch.as_tensor(group_ids, device=env.device)
+        num_groups = len(prototypes)
         # without a descriptor there is nothing to spread over, so harvesting extra is waste
         harvest_size = buffer_size_per_group
         if diversity_feature is not None:
             harvest_size = round(buffer_size_per_group * oversample_factor)
-        self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
+        if buffer_size_per_group < 1 or harvest_size < buffer_size_per_group:
+            raise ValueError("Each group must harvest at least as many states as it retains, with at least one kept.")
+        capacity = num_groups * harvest_size
+        filled = [0] * num_groups
+        buffer = None
+        descriptor = None
+        reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
         iteration = 0
 
         # prefill ignores env_ids and rolls every environment: a partial first reset may
@@ -456,15 +445,14 @@ class conditional_reset(ManagerTermBase):
         all_ids = torch.arange(env.num_envs, device=env.device)
 
         with tqdm(
-            total=num_groups * harvest_size,
+            total=capacity,
             desc="Prefilling reset buffer",
             unit="state",
             dynamic_ncols=True,
         ) as progress:
-            while not bool((self._fill >= harvest_size).all()):
+            while min(filled) < harvest_size:
                 if max_prefill_iters is not None and iteration >= max_prefill_iters:
-                    short = torch.nonzero(self._fill < harvest_size).view(-1)
-                    counts = {int(group): int(self._fill[group]) for group in short}
+                    counts = {group: count for group, count in enumerate(filled) if count < harvest_size}
                     raise RuntimeError(
                         "conditional_reset: could not fill the reset-state buffer for every asset-combination "
                         f"group. Required {harvest_size} valid states per group, got {counts} after "
@@ -472,37 +460,28 @@ class conditional_reset(ManagerTermBase):
                     )
                 iteration += 1
                 valid_ids = all_ids[roll_once(all_ids)]
-                for group in torch.unique(self._group[valid_ids]).tolist():
-                    filled = int(self._fill[group])
-                    remaining = harvest_size - filled
-                    if remaining <= 0:
+                valid_groups = groups[valid_ids]
+                for group in valid_groups.unique().tolist():
+                    remaining = harvest_size - filled[group]
+                    if remaining == 0:
                         continue
-                    take = valid_ids[self._group[valid_ids] == group][:remaining]
-                    if len(take) == 0:
-                        continue
-                    state = get_reset_state(env, take, self._reset_assets, is_relative=True)
-                    if self._buffer.numel() == 0:
-                        capacity = num_groups * harvest_size
-                        self._buffer = torch.empty(capacity, state.shape[-1], device=state.device, dtype=state.dtype)
-                    row = group * harvest_size + filled
-                    self._buffer[row : row + len(take)] = state
+                    take = valid_ids[valid_groups == group][:remaining]
+                    state = get_reset_state(env, take, reset_assets, is_relative=True)
+                    if buffer is None:
+                        buffer = state.new_empty((capacity, state.shape[-1]))
+                    row = group * harvest_size + filled[group]
+                    buffer[row : row + len(take)] = state
                     if diversity_feature is not None:
                         # measured now: the next roll overwrites the states these describe
                         feature = diversity_feature.func(env, take, **diversity_feature.params)
-                        if self._descriptor.numel() == 0:
-                            self._descriptor = torch.empty(
-                                num_groups * harvest_size,
-                                feature.shape[-1],
-                                device=feature.device,
-                                dtype=feature.dtype,
-                            )
-                        self._descriptor[row : row + len(take)] = feature
-                    self._fill[group] += len(take)
+                        if descriptor is None:
+                            descriptor = feature.new_empty((capacity, feature.shape[-1]))
+                        descriptor[row : row + len(take)] = feature
+                    filled[group] += len(take)
                     progress.update(len(take))
-        if diversity_feature is not None:
-            self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
-        self._initialize_replay(reset_sampler, num_groups, success_reward_term)
-        self._prefilled = True
+        if descriptor is not None:
+            buffer = self._keep_most_spread(buffer, descriptor, num_groups, harvest_size, buffer_size_per_group)
+        self._initialize_replay(buffer, groups, num_groups, reset_sampler, success_reward_term)
         # drop the prefill-only terms/criteria so their device memory is freed
         terms.clear()
         valid_criteria.clear()
@@ -510,36 +489,44 @@ class conditional_reset(ManagerTermBase):
         # banked state to all of them, not just the requested subset
         return all_ids
 
-    def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
+    @staticmethod
+    def _keep_most_spread(
+        buffer: torch.Tensor, descriptor: torch.Tensor, num_groups: int, harvest_size: int, keep_size: int
+    ) -> torch.Tensor:
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
 
-        Rewrites the buffer with a ``keep_size`` stride so the draw at the end of :meth:`__call__`
-        addresses it unchanged, and frees the descriptors, which are prefill-only.
+        The returned buffer has a ``keep_size`` stride so each group stays contiguous.
         """
-        kept = torch.empty(
-            num_groups * keep_size, self._buffer.shape[-1], device=self._buffer.device, dtype=self._buffer.dtype
-        )
+        kept = buffer.new_empty((num_groups * keep_size, buffer.shape[-1]))
         for group in range(num_groups):
             start = group * harvest_size
-            feature = self._descriptor[start : start + harvest_size]
+            feature = descriptor[start : start + harvest_size]
             # rescale to unit span per axis, otherwise the axis with the widest numbers decides the
             # spread on its own and the others are covered only incidentally
             feature = feature / (feature.amax(dim=0) - feature.amin(dim=0)).clamp(min=1e-6)
             picked = start + farthest_point_sampling(feature, keep_size)
-            kept[group * keep_size : (group + 1) * keep_size] = self._buffer[picked]
-        self._buffer = kept
-        self._fill.fill_(keep_size)
-        self._descriptor = torch.empty(0, 0, device=self._descriptor.device)
+            kept[group * keep_size : (group + 1) * keep_size] = buffer[picked]
+        return kept
 
-    def _initialize_replay(self, cfg: ResetStateSamplerCfg | None, num_groups: int, success_reward_term: str) -> None:
+    def _initialize_replay(
+        self,
+        buffer: torch.Tensor,
+        groups: torch.Tensor,
+        num_groups: int,
+        cfg: ResetStateSamplerCfg | None,
+        success_reward_term: str,
+    ) -> None:
         """Bind typed snapshots and full-environment scratch arrays before graph capture."""
         env = self._env
-        self._track_success = cfg is not None
+        success = None
         if cfg is None:
-            cfg = ResetStateSamplerCfg(history_length=1, scores=[UniformScoreCfg()])
+            cfg = ResetStateSamplerCfg(history_length=1, scores=[])
+        else:
+            success_term = env.reward_manager.get_term_cfg(success_reward_term).func
+            success = wp.from_torch(success_term.succeeded)
         cfg = replace(cfg, seed=(cfg.seed + self._seed) % 2**32)
         self._sampler = ResetStateSampler(
-            cfg, env.num_envs, self._buffer.shape[0], env.device, group_ids=self._group, num_groups=num_groups
+            cfg, env.num_envs, buffer.shape[0], env.device, group_ids=groups, num_groups=num_groups
         )
         self._origins = wp.from_torch(env.scene.env_origins, dtype=wp.vec3f)
         self._restore_states: dict[str, dict[str, wp.array]] = {}
@@ -550,20 +537,16 @@ class conditional_reset(ManagerTermBase):
         for assets, articulation in ((env.scene.articulations, True), (env.scene.rigid_objects, False)):
             for name, asset in assets.items():
                 fields = {
-                    "root_pose": wp.from_torch(self._buffer[:, offset : offset + 7].contiguous(), dtype=wp.transformf),
+                    "root_pose": wp.from_torch(buffer[:, offset : offset + 7].contiguous(), dtype=wp.transformf),
                     "root_velocity": wp.from_torch(
-                        self._buffer[:, offset + 7 : offset + 13].contiguous(), dtype=wp.spatial_vectorf
+                        buffer[:, offset + 7 : offset + 13].contiguous(), dtype=wp.spatial_vectorf
                     ),
                 }
                 offset += 13
                 if articulation:
-                    fields["joint_position"] = wp.from_torch(
-                        self._buffer[:, offset : offset + asset.num_joints].contiguous()
-                    )
+                    fields["joint_position"] = wp.from_torch(buffer[:, offset : offset + asset.num_joints].contiguous())
                     offset += asset.num_joints
-                    fields["joint_velocity"] = wp.from_torch(
-                        self._buffer[:, offset : offset + asset.num_joints].contiguous()
-                    )
+                    fields["joint_velocity"] = wp.from_torch(buffer[:, offset : offset + asset.num_joints].contiguous())
                     offset += asset.num_joints
                 states[name] = fields
                 output = {
@@ -577,11 +560,7 @@ class conditional_reset(ManagerTermBase):
                 else:
                     self._rigid_objects.append((asset, output))
         self._bank = ResetStateBuffer(states)
-        if self._track_success:
-            success_term = env.reward_manager.get_term_cfg(success_reward_term).func
-            self._success = wp.from_torch(success_term.succeeded)
-            self._episode_length = wp.from_torch(env.episode_length_buf)
-        del self._buffer, self._descriptor, self._fill, self._group
+        self._success = success
 
     def reseed(self, seed: int) -> None:
         """Apply an explicit environment seed to the existing native streams."""
@@ -601,21 +580,15 @@ class conditional_reset(ManagerTermBase):
 
         Prefill must complete through the ordinary event call before this method is captured.
         The full-environment mask and optional explicit catalog IDs may change between graph
-        replays. Supply the full-environment ``completed`` mask for natural episode outcomes,
-        before the task's reward and episode buffers are cleared. None denotes a manual reset
-        and records no outcome. Zero-step episodes never contribute outcomes.
+        replays. Supply the full-environment ``completed`` mask for natural episode outcomes
+        before the task's reward buffer is cleared. Exclude zero-step and unfinished episodes
+        from this mask. None records no episode outcomes.
         """
         if self._bank is None:
             raise RuntimeError("Initialize conditional_reset through its event call before capturing reset_mask.")
         mask = resolve_1d_mask(mask=mask, all_mask=self._all_mask, scratch_mask=self._mask)
-        if self._track_success and completed is not None:
-            wp.launch(
-                _completed_reset_episodes,
-                self._env.num_envs,
-                [mask, self._episode_length, completed, self._valid],
-                device=self._env.device,
-            )
-            self._sampler.reset(mask, success=self._success, valid=self._valid, state_ids=state_ids)
+        if self._success is not None and completed is not None:
+            self._sampler.reset(mask, success=self._success, valid=completed, state_ids=state_ids)
         else:
             self._sampler.reset(mask, state_ids=state_ids)
         if state_ids is not None:
@@ -626,7 +599,7 @@ class conditional_reset(ManagerTermBase):
                 device=self._env.device,
             )
             mask = self._restore_mask
-        self._bank.get_state(self._sampler.state_ids, out=self._restore_states, mask=mask)
+        self._bank.get_state(self._sampler.indices, out=self._restore_states, mask=mask)
         for asset, fields, zero_velocity in self._articulations:
             wp.launch(
                 _restore_root_origin,
