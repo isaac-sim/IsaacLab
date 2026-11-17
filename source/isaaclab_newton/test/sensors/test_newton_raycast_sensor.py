@@ -260,10 +260,12 @@ def test_drift_follows_the_environment_seed(sim):
     """An explicit seed, as ``env.reset(seed=...)`` sets, restarts the drift sequence; unseeded resets advance it.
 
     Resets do not draw from torch's generator, and new storage, as after a simulation stop and play, starts the
-    drift sequence of the current seed again.
+    drift sequence of the current seed again. Two ray casters with the same drift ranges draw different drift:
+    each mixes its prim path into the seed.
     """
     scene_cfg = RaycastTestSceneCfg(num_envs=2)
     scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene_cfg.raycast_box = replace(scene_cfg.raycast, prim_path="{ENV_REGEX_NS}/Box")
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     sensor: NewtonRaycastSensor = scene["raycast"]
@@ -271,6 +273,8 @@ def test_drift_follows_the_environment_seed(sim):
     configure_seed(123)
     sensor.reset()
     first = sensor.drift.torch.clone()
+    scene["raycast_box"].reset()
+    assert not torch.allclose(scene["raycast_box"].drift.torch, first)
     sensor.reset()
     assert not torch.allclose(sensor.drift.torch, first)
     configure_seed(123)
@@ -454,15 +458,3 @@ def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
         assert camera._renderer.backend is raycast.backend is sim.backend_manager.backend
         assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
         assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph
-
-
-@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
-def test_ray_casters_draw_independent_drift(sim):
-    """Two ray casters with the same drift ranges draw different drift: each mixes its prim path into the seed."""
-    scene_cfg = RaycastTestSceneCfg(num_envs=2)
-    scene_cfg.raycast.drift_range = (0.01, 0.05)
-    scene_cfg.raycast_box = replace(scene_cfg.raycast, prim_path="{ENV_REGEX_NS}/Box")
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-    scene.reset()
-    assert not torch.allclose(scene["raycast"].drift.torch, scene["raycast_box"].drift.torch)
