@@ -29,12 +29,6 @@ from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 from . import generalized_projection as gp
 from .calibrated_geometry import compose_rotations, retinal_directions
-from .fixed_software_fov import (
-    FIXED_FOV_ANGLE_MODELS,
-    fixed_frustum_validity,
-    retinal_ray_directions,
-    validate_fixed_software_fov,
-)
 from .foveated_camera import FoveatedCamera
 from .native_grid import (
     GRID_STYLE,
@@ -69,9 +63,10 @@ class FoveatedRTXCamera(FoveatedCamera):
     which is then sampled at pre-computed UV positions to extract per-sample
     values, producing ``(B, N, 1, C)`` output buffers.
 
-    The cortical disc layout (default) ensures spatial coherence for DLSS
-    denoising. Camera motion comes from its parent articulation, using
-    a physical or idealized actuator.
+    Grid styles render straight into their native grid. Sample-set styles are
+    packed onto a cortical disc, which keeps neighbouring samples adjacent for
+    DLSS denoising. Camera motion comes from the prim's parent, and in spherical
+    geometry from the calibrated gaze.
     """
 
     cfg: FoveatedCameraCfg
@@ -94,16 +89,9 @@ class FoveatedRTXCamera(FoveatedCamera):
         return self._renderer
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        if cfg.field_geometry == "spherical":
-            cfg.update_latest_camera_pose = True
-        if cfg.camera_fov_deg is not None:
-            hfov_rad = math.radians(cfg.camera_fov_deg)
-            aperture = cfg.spawn.horizontal_aperture
-            cfg.spawn.focal_length = aperture / (2.0 * math.tan(hfov_rad / 2.0))
-        self._spawn_focal_length: float = cfg.spawn.focal_length
-        self._spawn_horizontal_aperture: float = cfg.spawn.horizontal_aperture
-        self._fixed_fov_fixation: torch.Tensor | None = None
-        self._fixed_fov_angle_model = "pan_tilt"
+        # Spawn optics are only needed for planar geometry; an existing prim has none.
+        self._spawn_focal_length: float | None = None if cfg.spawn is None else cfg.spawn.focal_length
+        self._spawn_horizontal_aperture: float | None = None if cfg.spawn is None else cfg.spawn.horizontal_aperture
         self._calibrated_rotation = None
         # Texture buffers are owned by the parent ``Camera`` (allocated in
         # ``_create_buffers`` and bound to the renderer via ``set_outputs``).
@@ -126,34 +114,9 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def _prepare_projection(self) -> None:
         # 1. Derive camera physical FOV.
-        self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
-        self._camera_hfov_deg = math.degrees(self._camera_hfov_rad)
-        self._fixed_fov_focal_length_px: float | None = None
-        self._fixed_fov_image_height: int | None = None
-        self._fixed_fov_image_width: int | None = None
-        if self.cfg.fixed_software_fov:
-            if self.cfg.projection != "pinhole" and self.cfg.field_geometry != "spherical":
-                raise ValueError(
-                    f"fixed_software_fov currently requires projection='pinhole', got {self.cfg.projection!r}."
-                )
-            image_height = self.cfg.software_fov_image_height
-            image_width = self.cfg.software_fov_image_width
-            if image_height is None or image_width is None:
-                raise ValueError(
-                    "fixed_software_fov=True requires software_fov_image_height and software_fov_image_width."
-                )
-            focal_length_px = image_width * self._spawn_focal_length / self._spawn_horizontal_aperture
-            validate_fixed_software_fov(
-                image_height=image_height,
-                image_width=image_width,
-                focal_length_px=focal_length_px,
-                principal_point=(image_width * 0.5, image_height * 0.5),
-                retinal_window_short_side_fraction=(self.cfg.retinal_window_short_side_fraction),
-                retinal_window_reference_side=self.cfg.retinal_window_reference_side,
-            )
-            self._fixed_fov_focal_length_px = focal_length_px
-            self._fixed_fov_image_height = image_height
-            self._fixed_fov_image_width = image_width
+        self._camera_hfov_rad: float | None = None
+        if self._spawn_focal_length is not None:
+            self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
 
         # 2. Build coords on CPU.  The LUT textures + UV extraction use the
         #    *rendered* grid (highres when pooling, else lowres).  The
@@ -187,41 +150,19 @@ class FoveatedRTXCamera(FoveatedCamera):
         if self.cfg.image_rotation_deg:
             theta_rad = theta_rad + math.radians(float(self.cfg.image_rotation_deg))
         if self._native_grid:
-            tangent_scale = math.tan(self._camera_hfov_rad / 2)
-            if self.cfg.fixed_software_fov:
-                reference = (
-                    max(self._fixed_fov_image_height, self._fixed_fov_image_width)
-                    if self.cfg.retinal_window_reference_side == "long"
-                    else min(self._fixed_fov_image_height, self._fixed_fov_image_width)
-                )
-                tangent_scale = (
-                    reference * self.cfg.retinal_window_short_side_fraction / (2 * self._fixed_fov_focal_length_px)
-                )
+            # Spherical grids take their extent from the sampling coordinates and ignore the tangent scale.
+            tangent_scale = 1.0 if self._camera_hfov_rad is None else math.tan(self._camera_hfov_rad / 2)
             self._native_tangent_scale = tangent_scale
             dirs = native_grid_directions(
                 ray_coords,
                 tangent_scale=tangent_scale,
                 image_rotation_deg=self.cfg.image_rotation_deg,
-                projection=self.cfg.projection,
                 camera_fov_rad=self._camera_hfov_rad,
             )
-            self._fixed_fov_ray_directions_cpu = dirs
         elif self.cfg.field_geometry == "spherical":
             dirs = retinal_directions(ray_coords.cartesian, ray_coords.fov, self.cfg.image_rotation_deg)
-            self._fixed_fov_ray_directions_cpu = dirs
-        elif self.cfg.fixed_software_fov:
-            dirs = retinal_ray_directions(
-                ray_coords.cartesian,
-                image_height=self._fixed_fov_image_height,
-                image_width=self._fixed_fov_image_width,
-                focal_length_px=self._fixed_fov_focal_length_px,
-                retinal_window_short_side_fraction=(self.cfg.retinal_window_short_side_fraction),
-                retinal_window_reference_side=self.cfg.retinal_window_reference_side,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-            )
-            self._fixed_fov_ray_directions_cpu = dirs
         else:
-            r_deg = ray_coords.polar[:, 0].to(torch.float64) * (self._camera_hfov_deg / 2.0)
+            r_deg = ray_coords.polar[:, 0].to(torch.float64) * (ray_coords.fov / 2.0)
             dirs = gp.ray_directions_rectilinear(r_deg, theta_rad, device="cpu")
 
         # 4. Texture dimensions and UV layout. Grid styles render straight into their
@@ -266,7 +207,6 @@ class FoveatedRTXCamera(FoveatedCamera):
                 tangent_scale=self._native_tangent_scale,
                 image_rotation_deg=self.cfg.image_rotation_deg,
                 exit_size=EW,
-                projection=self.cfg.projection,
                 camera_fov_rad=self._camera_hfov_rad,
             )
         else:
@@ -345,8 +285,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         #     point ``self._data.output`` at the foveated/pooled dict so
         #     downstream consumers see the per-sample buffers.
         self._sampling_coords = self._sampling_coords.to(device=self._device)
-        if self.cfg.fixed_software_fov:
-            self._fixed_fov_ray_directions = self._fixed_fov_ray_directions_cpu.to(self._device)
         if self._sampling_coords_highres is not None:
             self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
@@ -484,20 +422,6 @@ class FoveatedRTXCamera(FoveatedCamera):
                     indices=wp.from_torch(env_ids.to(dtype=torch.int32).contiguous()),
                 )
 
-    def set_fixed_fov_fixation(
-        self,
-        fixation_angles: torch.Tensor,
-        *,
-        angle_model: str,
-    ) -> None:
-        """Update fixed-frustum masking without changing the camera pose."""
-        if not self.cfg.fixed_software_fov:
-            raise RuntimeError("set_fixed_fov_fixation requires fixed_software_fov=True.")
-        if angle_model not in FIXED_FOV_ANGLE_MODELS:
-            raise ValueError(f"angle_model must be one of {FIXED_FOV_ANGLE_MODELS}, got {angle_model!r}.")
-        self._fixed_fov_fixation = fixation_angles
-        self._fixed_fov_angle_model = angle_model
-
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return
@@ -522,7 +446,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             # OVRTX's LUT range AOV measures from the near-clipped ray origin.
             self._foveated_output["distance_to_camera"].add_(self.cfg.spawn.clipping_range[0])
         mask_grid_samples(self._foveated_output, self._ray_coords)
-        self._apply_fixed_fov_mask()
+        self._apply_sensor_fov_mask()
 
         # Optionally KNN-pool highres -> lowres samples.  Integer-dtype
         # outputs (segmentation class IDs) use the dedicated max-mode
@@ -553,49 +477,27 @@ class FoveatedRTXCamera(FoveatedCamera):
                 continue  # handled via rgba alias below
             tex = self._texture_output[name]  # (B, th, tw, C)
             fov = self._foveated_output[name]  # (B, N, 1, C)
+            tensor = tex.torch if hasattr(tex, "torch") else tex
             if self._native_grid:
-                tensor = tex.torch if hasattr(tex, "torch") else tex
                 fov.copy_(tensor.reshape_as(fov))
             else:
-                fov[:, :, 0, :] = tex[:, py, px, :]
+                fov[:, :, 0, :] = tensor[:, py, px, :]
         if "rgba" in self._foveated_output and "rgb" in self.cfg.data_types:
             self._foveated_output["rgb"] = self._foveated_output["rgba"][:, :, :, :3]
 
-    def _apply_fixed_fov_mask(self) -> None:
-        if not self.cfg.fixed_software_fov:
+    def _apply_sensor_fov_mask(self) -> None:
+        """Zero the samples that fall outside the calibrated camera at the current gaze."""
+        if not self.cfg.mask_to_sensor_fov:
             return
         batch_size = next(iter(self._foveated_output.values())).shape[0]
-        fixation = self._fixed_fov_fixation
-        if fixation is None:
-            fixation = torch.zeros(
-                batch_size,
-                2,
-                device=self._fixed_fov_ray_directions.device,
-                dtype=self._fixed_fov_ray_directions.dtype,
-            )
-        if self.cfg.field_geometry == "spherical":
-            valid = self._calibrated_validity(batch_size)
-        else:
-            valid = fixed_frustum_validity(
-                self._fixed_fov_ray_directions,
-                fixation,
-                image_height=self._fixed_fov_image_height,
-                image_width=self._fixed_fov_image_width,
-                focal_length_px=self._fixed_fov_focal_length_px,
-                principal_point=(
-                    self._fixed_fov_image_width * 0.5,
-                    self._fixed_fov_image_height * 0.5,
-                ),
-                angle_model=self._fixed_fov_angle_model,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-            )
+        valid = self._calibrated_validity(batch_size)
         invalid = ~valid[:, :, None, None]
         has_rgba_alias = "rgba" in self._foveated_output
         for name, output in self._foveated_output.items():
             if name == "rgb" and has_rgba_alias:
                 continue
             output.masked_fill_(invalid, 0)
-        self._fixed_fov_valid_fraction = valid.float().mean(dim=1)
+        self._sensor_fov_valid_fraction = valid.float().mean(dim=1)
 
     # ------------------------------------------------------------------
     #  Output helpers
@@ -623,6 +525,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         return self._num_valid_samples
 
     @property
-    def fixed_fov_valid_fraction(self) -> torch.Tensor | None:
-        """Per-environment fraction of rays inside the fixed dense frustum."""
-        return getattr(self, "_fixed_fov_valid_fraction", None)
+    def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
+        """Per-environment fraction of samples inside the calibrated camera, or None before the first masked frame."""
+        return getattr(self, "_sensor_fov_valid_fraction", None)

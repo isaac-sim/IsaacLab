@@ -94,13 +94,12 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     camera._spawn_focal_length = 1.0
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
-        fixed_software_fov=False,
+        mask_to_sensor_fov=False,
         cmf_a_deg=0.591,
         pool_enabled=pooled,
         pool_mode="avg",
         pool_int_mode="avg",
         pool_sample_cortex=False,
-        projection="pinhole",
         field_geometry="planar",
         image_rotation_deg=0,
         data_types=["rgba", "rgb"],
@@ -110,7 +109,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 
     rays = wp.to_torch(camera._foveated_rays)
     assert rays.shape == (1, ray_coords.resolution, ray_coords.resolution, 2, 3)
-    torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], camera._fixed_fov_ray_directions)
+    torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], camera._ray_directions)
     public_rgba = camera._data.output["rgba"]
     camera._update_buffers_impl(None)
     expected = camera.renderer_rgba.reshape(2, len(ray_coords), 1, 4).clone()

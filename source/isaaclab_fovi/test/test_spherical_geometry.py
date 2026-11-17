@@ -18,12 +18,11 @@ from isaaclab_fovi.sensors.calibrated_geometry import (
     rotate_camera_rays,
     sampling_geometry,
 )
-from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 from isaaclab_fovi.sensors.virtual_gaze import CalibratedVirtualGaze
 
-from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_euler_xyz, quat_from_matrix
+from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_matrix
 
 
 @pytest.fixture
@@ -114,8 +113,8 @@ def test_gaze_away_from_sensor_masks_all_rays() -> None:
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("batch_size", [48, 256])
 @pytest.mark.parametrize("autocast", [False, True])
-@pytest.mark.parametrize("mode", ["planar", "spherical", "spherical_ids", "spherical_mask"])
-def test_newton_fixation_preserves_camera_rotation_with_tf32(
+@pytest.mark.parametrize("mode", ["spherical", "spherical_ids", "spherical_mask"])
+def test_calibrated_gaze_preserves_camera_rotation_with_tf32(
     device: str, batch_size: int, autocast: bool, mode: str, tf32_enabled
 ) -> None:
     if device == "cuda" and not torch.cuda.is_available():
@@ -127,44 +126,24 @@ def test_newton_fixation_preserves_camera_rotation_with_tf32(
     angles = torch.tensor([[0.13, -0.21]], device=device).repeat(batch_size, 1)
     angles[1::2] = 0
     expected = matrix_from_quat(source.double()) @ conversion
-    if mode == "planar":
-        camera = object.__new__(FoveatedNewtonCamera)
-        camera._data = SimpleNamespace(quat_w_world=SimpleNamespace(torch=source))
-        camera._fixation = angles
-        camera._renderer = None
-        camera._view = None
-        camera._initialize_handle = None
-        camera._invalidate_initialize_handle = None
-        camera._prim_deletion_handle = None
-        camera._debug_vis_handle = None
-        expected = (
-            expected
-            @ matrix_from_quat(
-                quat_from_euler_xyz(angles[:, 0].double(), angles[:, 1].double(), angles[:, 0].double() * 0)
-            )
-            @ conversion.T
-        )
-        with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
-            camera._apply_fixation_rotation()
-    else:
-        camera = GazeHarness()
-        camera._data.quat_w_world = source
-        camera._calibrated_basis = camera._calibrated_basis.to(device)
-        camera.set_calibrated_angles(angles)
-        basis = camera._calibrated_basis.double()
-        expected = expected @ basis @ camera._calibrated_rotation.double() @ basis.T @ conversion.T
-        selected = torch.arange(batch_size, device=device) % 2 == 0
-        with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
-            if mode == "spherical_ids":
-                camera._apply_calibrated_pose(torch.nonzero(selected).flatten())
-            elif mode == "spherical_mask":
-                camera._apply_calibrated_pose(env_mask=wp.from_torch(selected))
-            else:
-                camera._apply_calibrated_pose()
-        if mode in ("spherical_ids", "spherical_mask"):
-            torch.testing.assert_close(source[~selected], original[~selected], atol=0, rtol=0)
-            source = source[selected]
-            expected = expected[selected]
+    camera = GazeHarness()
+    camera._data.quat_w_world = source
+    camera._calibrated_basis = camera._calibrated_basis.to(device)
+    camera.set_calibrated_angles(angles)
+    basis = camera._calibrated_basis.double()
+    expected = expected @ basis @ camera._calibrated_rotation.double() @ basis.T @ conversion.T
+    selected = torch.arange(batch_size, device=device) % 2 == 0
+    with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
+        if mode == "spherical_ids":
+            camera._apply_calibrated_pose(torch.nonzero(selected).flatten())
+        elif mode == "spherical_mask":
+            camera._apply_calibrated_pose(env_mask=wp.from_torch(selected))
+        else:
+            camera._apply_calibrated_pose()
+    if mode in ("spherical_ids", "spherical_mask"):
+        torch.testing.assert_close(source[~selected], original[~selected], atol=0, rtol=0)
+        source = source[selected]
+        expected = expected[selected]
     assert source.dtype == torch.float32
     assert torch.isfinite(source).all()
     torch.testing.assert_close(source.norm(dim=-1), torch.ones(len(source), device=device), atol=1e-6, rtol=0)
