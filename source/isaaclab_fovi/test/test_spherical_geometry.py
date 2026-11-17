@@ -41,8 +41,8 @@ def camera_config() -> SimpleNamespace:
     return SimpleNamespace(
         field_geometry="spherical",
         camera_calibration=asdict(camera),
-        cmf_a=0.03,
-        cmf_a_frac=None,
+        cmf_a_deg=2.5,
+        spawn=None,
         retinal_window_reference_side="long",
         retinal_window_short_side_fraction=0.75,
         foveated_res=12,
@@ -59,7 +59,7 @@ def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
     fov, a = sampling_geometry(cfg)
     camera = CameraModel(**cfg.camera_calibration)
     assert fov == pytest.approx(camera.field_of_view("long", 0.75))
-    assert a / fov == pytest.approx(0.03)
+    assert a == 2.5
     coords, _ = build_lowres_coords(cfg, "cpu")
     retina = RetinalTransform(
         fov=fov,

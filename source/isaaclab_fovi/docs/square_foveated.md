@@ -10,7 +10,6 @@ FoveatedCameraCfg(
     fov_type="square",
     ndc_layout="native_grid",
     foveated_res=64,
-    cmf_a=0.036021,
 )
 ```
 

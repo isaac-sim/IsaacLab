@@ -225,9 +225,6 @@ class FoveatedRTXCamera(FoveatedCamera):
             dirs = gp.ray_directions_rectilinear(r_deg, theta_rad, device="cpu")
 
         # 4. Texture dimensions and UV layout.
-        #    UV mapping uses fov=1 normalized space (matching the profiling
-        #    script and SamplingCoords convention).  Ray directions use
-        #    physical degrees for correct pinhole projection.
         if self.cfg.ndc_layout == "native_grid":
             tw = th = ray_coords.resolution
             axis = (torch.arange(tw, dtype=torch.float32) + 0.5) / tw
@@ -235,12 +232,14 @@ class FoveatedRTXCamera(FoveatedCamera):
             uv = torch.stack((col, row), -1).reshape(-1, 2)
         elif self.cfg.ndc_layout == "cortical_disc":
             tw = th = max(64, math.ceil(math.sqrt(4 * N / math.pi)))
-            r_norm = ray_coords.polar[:, 0].to(torch.float64) * 0.5
+            # Eccentricity [deg] of each sample; the disc is laid out with the same
+            # field of view and CMF constant the samples were generated with.
+            eccentricity = ray_coords.polar[:, 0].to(torch.float64) * (ray_coords.fov / 2.0)
             uv = gp.samples_uv_cortical_disc(
-                r_norm,
+                eccentricity,
                 theta_rad,
-                1.0,
-                self.cfg.cmf_a,
+                ray_coords.fov,
+                ray_coords.cmf_a,
                 device="cpu",
             )
         else:
@@ -288,25 +287,20 @@ class FoveatedRTXCamera(FoveatedCamera):
             "foveated",
         )
 
-        pool_line = (
-            f"    Pool:       mode={self.cfg.pool_mode} "
-            f"N_hi={self._num_ray_samples} -> N_lo={self._num_valid_samples}\n"
-            if self.cfg.pool_enabled
-            else ""
-        )
-        print(
-            f"\n{'=' * 60}\n"
-            f"  FoveatedRTXCamera\n"
-            f"    HFOV:       {self._camera_hfov_deg:.1f}°\n"
-            f"    Samples:    N={self._num_valid_samples}\n"
-            f"    Texture:    {tw}x{th}\n"
-            f"    Exit LUT:   {EW}x{EH}\n"
-            f"    Layout:     {self.cfg.ndc_layout}\n"
-            f"    cmf_a_frac: {self.cfg.cmf_a}\n"
-            f"    Style:      {self.cfg.foveated_style}\n"
-            f"{pool_line}"
-            f"    LUT dir:    {self._lut_tmpdir}\n"
-            f"{'=' * 60}\n"
+        logger.info(
+            "FoveatedRTXCamera: %d samples (%d rendered), style=%s, cmf_a=%.4g deg, field of view=%.1f deg, "
+            "texture %dx%d, exit lookup %dx%d, layout=%s, lookup textures in %s",
+            self._num_valid_samples,
+            self._num_ray_samples,
+            self.cfg.foveated_style,
+            ray_coords.cmf_a,
+            ray_coords.fov,
+            tw,
+            th,
+            EW,
+            EH,
+            self.cfg.ndc_layout,
+            self._lut_tmpdir,
         )
 
         # 6. Set texture dimensions so parent allocates (B, th, tw, C) buffers.

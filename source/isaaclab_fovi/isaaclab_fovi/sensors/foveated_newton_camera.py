@@ -112,7 +112,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
         #    after the sensor device is available, because its knn indices /
         #    distances / gaussian weights are plain tensor attributes that
         #    nn.Module.to() does not move.
-        # cfg.cmf_a is already cmf_a_frac after resolve_cmf_a_frac runs
         self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
         self._native_grid = self.cfg.foveated_style == GRID_STYLE
         self._sampling_coords_highres = build_highres_coords(
@@ -149,22 +148,13 @@ class FoveatedNewtonCamera(FoveatedCamera):
             self._fixed_fov_focal_length_px = focal_length_px
             self._fixed_fov_image_height = image_height
             self._fixed_fov_image_width = image_width
-        pool_line = (
-            f"    Pool:       mode={self.cfg.pool_mode} "
-            f"N_hi={self._num_ray_samples} -> N_lo={self._num_valid_samples}\n"
-            if self.cfg.pool_enabled
-            else ""
-        )
-        print(
-            f"\n{'=' * 60}\n"
-            f"  FoveatedNewtonCamera\n"
-            f"    HFOV:       {self._camera_hfov_deg:.1f}°\n"
-            f"    Projection: {self.cfg.projection}\n"
-            f"    Samples:    N={self._num_valid_samples}\n"
-            f"    cmf_a_frac: {self.cfg.cmf_a}\n"
-            f"    Style:      {self.cfg.foveated_style}\n"
-            f"{pool_line}"
-            f"{'=' * 60}\n"
+        logger.info(
+            "FoveatedNewtonCamera: %d samples (%d rendered), style=%s, cmf_a=%.4g deg, field of view=%.1f deg",
+            self._num_valid_samples,
+            self._num_ray_samples,
+            self.cfg.foveated_style,
+            self._sampling_coords.cmf_a,
+            self._sampling_coords.fov,
         )
 
         # 3. Size the parent's render buffers to the *rendered* ray count.
