@@ -30,11 +30,11 @@ TensorProcessorData = Union[  # noqa: UP007
 
 @dataclass(frozen=True)
 class TensorProcessorArgs:
-    """Arguments of one processor call besides the data to process. Every field is optional."""
+    """Arguments of one processor call besides the data to process.
 
-    env_mask: wp.array | None = None
-    """Boolean mask of the environments due in this call. Shape is (num_envs,). Defaults to None, meaning the caller
-    does not identify them."""
+    This base defines no fields. Callers pass a subclass with the fields they provide, for example
+    :class:`~isaaclab.sensors.SensorTensorProcessorArgs`.
+    """
 
 
 class TensorProcessor(ABC):
@@ -89,7 +89,7 @@ class TensorProcessor(ABC):
 
         Args:
             data: Tensor or nested collection supported by the implementation.
-            args: Arguments of this call besides ``data``, such as the environments due for a camera capture. Camera
+            args: Arguments of this call besides ``data``, as a subclass defined by the caller. Camera
                 implementations must accept this keyword. Observation-only implementations may omit it; the
                 observation manager passes only ``data``.
 

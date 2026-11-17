@@ -354,7 +354,7 @@ remove the processor.
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
 capture renders every environment. The camera calls each processor with ``args``, a
-:class:`~utils.tensor_processors.TensorProcessorArgs` whose ``env_mask`` is a boolean mask of the environments
+:class:`~sensors.SensorTensorProcessorArgs` whose ``env_mask`` is a boolean mask of the environments
 due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal filters, video
 generation) use it to advance only those rows.
 

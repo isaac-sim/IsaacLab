@@ -6,6 +6,7 @@
 __all__ = [
     "SensorBase",
     "SensorBaseCfg",
+    "SensorTensorProcessorArgs",
     "Camera",
     "CameraCfg",
     "CameraData",
@@ -58,7 +59,7 @@ __all__ = [
     "patterns",
 ]
 
-from .sensor_base import SensorBase
+from .sensor_base import SensorBase, SensorTensorProcessorArgs
 from .sensor_base_cfg import SensorBaseCfg
 from .camera import (
     Camera,

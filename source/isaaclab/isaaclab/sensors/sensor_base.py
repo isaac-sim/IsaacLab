@@ -17,6 +17,7 @@ import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,7 @@ from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
+from ..utils.tensor_processors import TensorProcessorArgs
 from ..utils.warp.memory import resolve_1d_mask
 from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -37,6 +39,15 @@ if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SensorTensorProcessorArgs(TensorProcessorArgs):
+    """Arguments that a sensor passes to its tensor processors."""
+
+    env_mask: wp.array | None = None
+    """Boolean mask of the environments due in this update. Shape is (num_envs,). Defaults to None, meaning the
+    sensor does not identify them."""
 
 
 class SensorBase(ABC):
