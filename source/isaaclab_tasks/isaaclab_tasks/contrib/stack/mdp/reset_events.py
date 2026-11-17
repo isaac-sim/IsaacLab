@@ -363,10 +363,10 @@ class StackResetStateTable(ManagerTermBase):
             device=env.device,
         )
         self._build_table(
-            closed_finger_position=float(cfg.params.get("closed_finger_position", 0.020)),
-            placed_finger_position=float(cfg.params.get("placed_finger_position", 0.021)),
-            open_finger_position=float(cfg.params.get("open_finger_position", 0.040)),
-            table_rows_per_layout=int(cfg.params.get("table_rows_per_layout", self._TABLE_ROWS_PER_LAYOUT)),
+            closed_finger_position=float(cfg.params["closed_finger_position"]),
+            placed_finger_position=float(cfg.params["placed_finger_position"]),
+            open_finger_position=float(cfg.params["open_finger_position"]),
+            table_rows_per_layout=int(cfg.params["table_rows_per_layout"]),
         )
         self._validate_table()
         self._rows_by_recipe = tuple(
