@@ -11,8 +11,8 @@ cleanly; other scripts must print their readiness marker and survive a soak.
 GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
 may be used to tune the default five-second soak and five-minute time limit.
-Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix, or ``default`` for the
-launches without ``--viz``.
+Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix, ``default`` for the
+launches without ``--viz``, or ``none`` for the launches that pass ``--viz none``.
 Set ``ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP`` to ``kit`` or ``non-kit`` to
 run the corresponding backend-runtime group.
 ``ISAACLAB_STANDALONE_SCREENSHOT_DIR`` captures a screenshot of soaked visual
@@ -53,7 +53,7 @@ CASES = build_cases(SELECTED_SPECS)
 VISUALIZER = os.environ.get("ISAACLAB_STANDALONE_VISUALIZER")
 if VISUALIZER:
     selected_visualizer = None if VISUALIZER == "default" else VISUALIZER
-    if selected_visualizer not in script_cases.VISUALIZERS:
+    if selected_visualizer not in (*script_cases.VISUALIZERS, "none"):
         raise ValueError(f"unsupported ISAACLAB_STANDALONE_VISUALIZER: {VISUALIZER!r}")
     CASES = [case for case in CASES if case.visualizer == selected_visualizer]
 RUNTIME_GROUP = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP")
