@@ -271,10 +271,10 @@ class NewtonBackend:
             observable_kinds: Solver output kinds to allocate before solver-init callbacks bind their consumers.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
-        if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.class_type.deterministic:
+        if mode > (max_mode := solver_cfg.class_type.max_deterministic_mode):
             raise ValueError(
-                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
-                " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
+                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}, which"
+                f" supports at most {max_mode.name}. Request a weaker mode or select a solver that supports it."
             )
         if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
             # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
