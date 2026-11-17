@@ -83,6 +83,11 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
     assert (state.recipes[env_ids] == StackResetRecipe.TABLE).all()
     assert torch.equal(robot.write_joint_position_to_sim_index.call_args.kwargs["env_ids"], env_ids)
 
+    curriculum.cfg["reset_sampling"].params["table_sampling_probability"] = 0.60
+    curriculum.compute(slice(0, 0))
+    updated = curriculum.reset(slice(0, 0))
+    assert updated["Curriculum/reset_sampling/table_probability"].item() == pytest.approx(0.60)
+
 
 class _Scene(dict):
     def __init__(self, entities: dict[str, Mock], origins: torch.Tensor) -> None:

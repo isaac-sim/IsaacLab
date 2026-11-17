@@ -45,9 +45,6 @@ class StackResetTableCurriculum(ManagerTermBase):
         )
         self._attempts = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
         self._progress_successes = torch.zeros_like(self._attempts)
-        self._table_sampling_probability = float(cfg.params["table_sampling_probability"])
-        if not 0.0 < self._table_sampling_probability < 1.0:
-            raise ValueError("table_sampling_probability must lie strictly between zero and one.")
         self._table_rows = reset_term.recipe_ids == StackResetRecipe.TABLE
         if not bool(torch.any(self._table_rows)) or bool(torch.all(self._table_rows)):
             raise RuntimeError("The stack reset table must contain both table and intermediate rows.")
@@ -59,7 +56,7 @@ class StackResetTableCurriculum(ManagerTermBase):
         }
         self._full_task_successes_by_row = torch.zeros_like(self._attempts)
 
-    def _sampling_distribution(self) -> torch.Tensor:
+    def _sampling_distribution(self, table_sampling_probability: float) -> torch.Tensor:
         """Mix uniform table starts with layout-balanced intermediate starts."""
         adaptive = self._progress_monitor.target_weights()
         adaptive[self._table_rows] = 0.0
@@ -70,7 +67,7 @@ class StackResetTableCurriculum(ManagerTermBase):
         adaptive /= adaptive.sum()
         table = self._table_rows.to(dtype=adaptive.dtype)
         table /= table.sum()
-        probabilities = (1.0 - self._table_sampling_probability) * adaptive + self._table_sampling_probability * table
+        probabilities = (1.0 - table_sampling_probability) * adaptive + table_sampling_probability * table
         return probabilities
 
     def __call__(
@@ -83,10 +80,9 @@ class StackResetTableCurriculum(ManagerTermBase):
         table_sampling_probability: float = 0.35,
     ) -> dict[str, torch.Tensor]:
         """Credit completed episodes and update the reset event's distribution."""
-        del (
-            success_monitor,
-            table_sampling_probability,
-        )
+        del success_monitor
+        if not 0.0 < table_sampling_probability < 1.0:
+            raise ValueError("table_sampling_probability must lie strictly between zero and one.")
         if env_ids is None or isinstance(env_ids, slice):
             env_ids = torch.arange(env.num_envs, device=env.device)[env_ids if env_ids is not None else slice(None)]
         ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
@@ -119,7 +115,7 @@ class StackResetTableCurriculum(ManagerTermBase):
                     torch.bincount(completed_rows[final_succeeded], minlength=self._reset_term.row_count)
                 )
 
-        probabilities = self._sampling_distribution()
+        probabilities = self._sampling_distribution(table_sampling_probability)
         self._reset_term.update_sampling_probabilities(probabilities)
 
         attempts = self._attempts
