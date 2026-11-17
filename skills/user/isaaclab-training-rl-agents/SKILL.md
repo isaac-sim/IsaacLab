@@ -4,6 +4,7 @@ description: Provisions and launches Isaac Lab RL training jobs. Use when select
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [reinforcement-learning, training, rl-frameworks]
 audience: user
 status: experimental
 owners:
@@ -16,16 +17,16 @@ owners:
 
 Use this skill when a user wants to provision a new RL training job: select an RL framework, wire agent configs, write the launch command, run a smoke test, submit a first run, or resume from a checkpoint.
 
-Do not use this skill to design task architecture from scratch. Use `isaaclab-building-environments` (`skills/user/isaaclab-building-environments/`) for scene composition, MDP term wiring, and environment registration. Use `isaaclab-debugging-rl-training` only after a job has produced results and those results show a pathology. Use `isaaclab-training-multi-gpu` for multi-GPU or multi-node job provisioning and for distributed runs that hang or fail inside NCCL.
+Do not use this skill to design task architecture from scratch. Use `isaaclab-building-environments` (isaaclab-building-environments package) for scene composition, MDP term wiring, and environment registration. Use `isaaclab-debugging-rl-training` only after a job has produced results and those results show a pathology. Use `isaaclab-training-multi-gpu` for multi-GPU or multi-node job provisioning and for distributed runs that hang or fail inside NCCL.
 
 ## Workflow
 
 1. Identify the registered task name, workflow type, action space, observation space, target backend, device, and desired RL framework.
 2. Read the RL training guide and the training tutorial before writing commands or configs.
-3. Start from an existing agent config under `source/isaaclab_tasks/isaaclab_tasks/` that matches the framework and task family.
+3. Start from an existing agent config under isaaclab tasks package that matches the framework and task family.
 4. Keep framework-specific config formats separate. Do not mix RSL-RL Python configs with RL-Games, SKRL, or SB3 YAML/config files.
 5. Use suffixless task names in commands, for example `Isaac-Cartpole`.
-6. From the Isaac Lab checkout, use `uv run isaaclab train` and `uv run isaaclab play` rather than the deprecated per-library scripts under `scripts/reinforcement_learning/`.
+6. From the Isaac Lab checkout, use `uv run isaaclab train` and `uv run isaaclab play` rather than the deprecated per-library scripts under reinforcement learning directory.
    If `--rl_library` is omitted, the command loads the task's registered `default_agent`; pass `--rl_library` to select a different library.
    To drive train/play from Python instead, use the `train`/`play` functions with `TrainingRequest`/`PlaybackRequest` from `isaaclab_rl` (see [Examples](examples.md)).
    `play` applies the environment config's `play_mode()` method (caps environments at 50 and disables observation noise or corruption, depending on the workflow); override that method on a task config for custom playback.
@@ -34,6 +35,13 @@ Do not use this skill to design task architecture from scratch. Use `isaaclab-bu
 9. For visual observations, confirm the sensor pipeline and renderer requirements before enabling large environment counts.
 10. For multi-backend tasks, validate training on one backend before introducing backend presets.
 11. Record the exact task, framework, backend, seed, and config overrides needed to reproduce the result.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "I have a new locomotion task. Should I train it with RSL-RL, RL-Games, SKRL, or SB3?"
+- "How do I train Cartpole with RSL-RL?"
 
 ## Validation
 
@@ -45,15 +53,11 @@ Use this checklist:
 4. Resume or load a checkpoint only after the initial run writes expected artifacts.
 5. Check logs for device, observation shape, action shape, and backend errors.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/reinforcement_learning.rst`, `docs/source/isaaclab/installation.rst`, RL training tutorials under `docs/source/how-to/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
+Keep this skill synchronized with [reinforcement learning](../../../docs/source/concepts/reinforcement_learning.rst), [installation](../../../docs/source/isaaclab/installation.rst), the RL training how-to tutorials, and agent configs in the Isaac Lab tasks package. If framework commands or config formats change, update the official training docs or maintained examples first.
 
 ## References
 

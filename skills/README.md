@@ -82,11 +82,17 @@ Every skill directory must contain a `SKILL.md` file with frontmatter:
 ```yaml
 name: isaaclab-example-skill
 description: Does a specific Isaac Lab task. Use when the user mentions the task or related trigger terms.
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [example, workflow]
 audience: user
 status: stable
 owners:
   - isaaclab-maintainers
 ```
+
+`license` and `metadata.tags` (one to five categorization tags) follow the NVIDIA skills catalog spec and are not checked by the repository validator.
 
 Directory slugs are stable canonical file paths for humans and reviewers. The frontmatter `name` is the agent discovery identifier, must match the aliases under `.agents/skills/`, and should be used when one skill routes to another. `.claude/skills` exposes the same aliases to Claude.
 

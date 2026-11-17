@@ -4,6 +4,7 @@ description: Plans Isaac Lab manipulation tasks through phase gates for reaching
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [manipulation, grasping, rewards, environments]
 audience: user
 status: experimental
 owners:
@@ -30,6 +31,13 @@ Do not use this skill as a replacement for environment construction details. Pai
 8. Run a training smoke only after scene, reset, action, observation, and reward checks pass.
 9. Validate behavior using deterministic rollout state metrics, not just total reward.
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Help me create a grasp-and-place task for a new gripper."
+- "My insertion policy reaches the hole but never inserts."
+
 ## Validation
 
 Use these gates before calling a manipulation task ready:
@@ -42,15 +50,11 @@ Use these gates before calling a manipulation task ready:
 6. Reward, termination, and metric geometry agree.
 7. A deterministic rollout or scripted probe satisfies the current phase.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with manipulation examples such as `source/isaaclab_tasks/isaaclab_tasks/core/lift/` and `source/isaaclab_tasks/isaaclab_tasks/contrib/stack/`, environment authoring docs, and RL debugging guidance. Put project-specific history and experiment logs in the project, not in this public skill.
+Keep this skill synchronized with manipulation examples such as the Lift and Stack manipulation tasks, environment authoring docs, and RL debugging guidance. Put project-specific history and experiment logs in the project, not in this public skill.
 
 ## References
 

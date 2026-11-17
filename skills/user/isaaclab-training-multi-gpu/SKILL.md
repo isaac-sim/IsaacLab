@@ -4,6 +4,7 @@ description: Launches and debugs Isaac Lab multi-GPU and multi-node RL training,
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [multi-gpu, distributed-training, nccl, reinforcement-learning]
 audience: user
 status: experimental
 owners:
@@ -47,6 +48,14 @@ completion but the reward curves or metrics look wrong.
     `--master_addr`/`--master_port` or the `--rdzv_*` options, and verify a two-node job before
     scaling further.
 
+## Examples
+
+Representative requests this skill handles (details in [reference.md](reference.md)):
+
+- "How do I train Isaac-Cartpole across all my GPUs?"
+- "My 2-GPU training run just hangs after 'Synchronizing parameters' and never prints anything else."
+- "NCCL_P2P_DISABLE=1 fixed my hang. Should I add it to the repo so nobody else hits this?"
+
 ## Validation
 
 Use this checklist:
@@ -58,17 +67,13 @@ Use this checklist:
 5. When a NCCL workaround is applied, confirm the run also fails without it, so the workaround is
    known to be the cause of the fix.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/features/multi_gpu.rst`,
-`docs/source/refs/troubleshooting.rst`, and the launcher at
-`scripts/reinforcement_learning/train_multigpu.py`. The NCCL workaround list is maintained in the
+Keep this skill synchronized with [multi gpu](../../../docs/source/features/multi_gpu.rst),
+[troubleshooting](../../../docs/source/refs/troubleshooting.rst), and the launcher at
+[train multigpu](../../../scripts/reinforcement_learning/train_multigpu.py). The NCCL workaround list is maintained in the
 multi-GPU feature doc. Add new workarounds there first and keep this skill as a router.
 
 ## References

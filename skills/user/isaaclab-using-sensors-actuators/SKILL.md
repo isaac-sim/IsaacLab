@@ -4,6 +4,7 @@ description: Configures Isaac Lab sensor signal pipelines, hardware abstraction 
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [sensors, actuators, cameras, contact-sensors]
 audience: user
 status: experimental
 owners:
@@ -32,8 +33,16 @@ Do not use this skill as a complete sensor or actuator catalog. Point to the API
 8. For contact-heavy tasks, verify body name patterns, history length, and whether `track_air_time=True` is required. Reuse maintained terms such as `mdp.feet_air_time` when they match the task.
 9. For ray-cast terrain perception, verify mesh paths and terrain import setup.
 10. For camera-based RL, start with small environment counts and confirm renderer memory behavior.
-11. For multi-backend contact, ray, frame, IMU, PVA, or joint-wrench sensors, use the common config from `isaaclab.sensors`; the active physics backend selects the implementation automatically. Use backend-specific fields or configs only when the current API or maintained source example requires them.
+11. For multi-backend contact, ray, frame, IMU, PVA, or joint-wrench sensors, use the common config from the `sensors` module of the `isaaclab` package; the active physics backend selects the implementation automatically. Use backend-specific fields or configs only when the current API or maintained source example requires them.
 12. For actuator changes, compare default joint names, limits, stiffness, damping, effort limits, and backend differences.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Add foot contact observations and air-time rewards to my quadruped task."
+- "Add height measurements for rough terrain locomotion."
+- "Replace ideal position control with a learned actuator model."
 
 ## Validation
 
@@ -45,18 +54,12 @@ Use this checklist:
 4. Confirm observations include the intended data and no stale values.
 5. Run a short rollout or training smoke test after shape validation.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with actuator docs under `docs/source/concepts/`, sensor docs under
-`docs/source/concepts/sensors/`, sensor tutorials under
-`docs/source/how-to/`, API docs under `docs/source/api/`, and maintained task examples
-under `source/isaaclab_tasks/isaaclab_tasks/`. If sensor support changes for PhysX, Newton, or
+Keep this skill synchronized with the actuator concept docs, the sensor docs, the sensor how-to tutorials, the API
+reference, and maintained task examples in the Isaac Lab tasks package. If sensor support changes for PhysX, Newton, or
 renderers, update the docs or source examples first.
 
 ## References

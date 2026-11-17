@@ -4,6 +4,7 @@ description: Investigates post-launch RL pathologies in Isaac Lab tasks. Use whe
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [reinforcement-learning, debugging, rewards, checkpoints]
 audience: user
 status: experimental
 owners:
@@ -30,6 +31,13 @@ Do not use this skill for first-time job provisioning or framework selection. Us
 8. For contact-rich tasks, collect state traces for controlled-frame pose, object pose, contacts, gripper state, per-term rewards, and termination flags.
 9. Select checkpoints by task metrics, rollout behavior, and stability, not reward alone.
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "My reward goes up, but the robot never completes the task."
+- "My old checkpoint no longer loads after I changed observations."
+
 ## Validation
 
 Use this checklist:
@@ -41,15 +49,11 @@ Use this checklist:
 5. A deterministic rollout or state trace confirms the behavior change.
 6. Any recommended next run changes only one variable.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `skills/user/isaaclab-training-rl-agents/`, `docs/source/concepts/reinforcement_learning.rst`, the uv-based `train` and `play` entry points, and task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If recurring reward or checkpoint guidance belongs in user docs, update `docs/source/` first.
+Keep this skill synchronized with isaaclab-training-rl-agents skill, [reinforcement learning](../../../docs/source/concepts/reinforcement_learning.rst), the uv-based `train` and `play` entry points, and task examples under isaaclab tasks package. If recurring reward or checkpoint guidance belongs in user docs, update the documentation under `docs/source` first.
 
 ## References
 

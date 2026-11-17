@@ -1,9 +1,10 @@
 ---
 name: isaaclab-randomizing-with-events
-description: Implements Isaac Lab domain randomization with event terms and success-driven ADR curricula. Use when randomizing physics or observations, porting reset randomization, or configuring Automatic or Adaptive Domain Randomization (ADR).
+description: Implements Isaac Lab domain randomization with event terms and success-driven ADR curricula. Use when randomizing physics or observations, for example initial joint positions each episode, random pushes during training, or friction and restitution on PhysX and Newton, when porting reset randomization, or when configuring Automatic or Adaptive Domain Randomization (ADR).
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [domain-randomization, events, curriculum, adr]
 audience: user
 status: stable
 owners:
@@ -23,7 +24,7 @@ Do not use this skill for unrelated curriculum, command sampling, or reward shap
 1. Identify what should vary: assets, physics properties, observations, initial state, external disturbances, or rendering.
 2. Identify the task workflow: direct (`DirectRLEnv` or `DirectMARLEnv`) or manager-based. Both can use `EventManager` through an `events` config.
 3. Identify the active target backend: PhysX, Newton, or both through `PresetCfg`.
-4. Check whether the randomization function has backend-specific behavior or unsupported backends in `source/isaaclab/isaaclab/envs/mdp/events.py`.
+4. Check whether the randomization function has backend-specific behavior or unsupported backends in [events](../../../source/isaaclab/isaaclab/envs/mdp/events.py).
 5. Choose the event mode:
    - Use prestartup events for USD-level properties that must be authored before simulation starts.
    - Use startup events for one-time setup randomization after simulation starts.
@@ -38,6 +39,14 @@ Do not use this skill for unrelated curriculum, command sampling, or reward shap
 12. Expand ranges only after the baseline randomized task is stable.
 13. For manager-based ADR, validate the final range as a fixed event, then use a task-owned scheduler and `modify_term_cfg` to interpolate it; see the [gravity example](examples.md#success-driven-adr).
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Randomize initial joint positions every episode."
+- "Apply random pushes to the robot during training."
+- "Randomize friction and restitution for both PhysX and Newton."
+
 ## Validation
 
 Use the plan-validate-execute loop:
@@ -49,15 +58,11 @@ Use the plan-validate-execute loop:
 5. Fix shape, device, backend, and entity-name errors before scaling.
 6. For ADR, test the exact endpoints and confirm policy success changes the next reset's range within its bounds.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `source/isaaclab/isaaclab/managers/event_manager.py`, `source/isaaclab/isaaclab/envs/direct_rl_env.py`, `source/isaaclab/isaaclab/envs/direct_marl_env.py`, the direct and manager-based environment tutorials, and the managers API docs. For ADR, follow the curriculum guide and Core Lift example.
+Keep this skill synchronized with [event manager](../../../source/isaaclab/isaaclab/managers/event_manager.py), [direct rl env](../../../source/isaaclab/isaaclab/envs/direct_rl_env.py), [direct marl env](../../../source/isaaclab/isaaclab/envs/direct_marl_env.py), the direct and manager-based environment tutorials, and the managers API docs. For ADR, follow the curriculum guide and Core Lift example.
 
 ## References
 

@@ -4,6 +4,7 @@ description: Migrates PhysX-compatible robot, object, and scene assets to Isaac 
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [newton, mjwarp, assets, physics]
 audience: user
 status: experimental
 owners:
@@ -31,6 +32,14 @@ Implicit MPM particle assets and rigid-MPM coupling are also out of scope; see t
 7. **Retune damping with armature.** Increasing armature changes effective inertia and damping ratio. Tune armature, stiffness, and damping together from a step response, use conservative action scales, and keep targets away from hard stops to prevent bang-bang control.
 8. **Choose an MJWarp starting profile.** Do not translate PhysX parameters numerically. Start from the nearest profile on the MJWarp solver page, keep the documented convergence defaults initially, enable `NewtonCfg.debug_mode`, and use MuJoCo contacts unless the task requires `NewtonCfg.collision_cfg`. Then run zero and random agents in PhysX and MJWarp through multiple resets. Check non-finite state, first-step impulses, saturation, excessive angular velocity, contact loss, and warnings. Reject penetrations, impossible mimic states, and invalid randomized geometry before stepping.
 9. **Diagnose MJWarp-only failures.** Reproduce the first bad step with one environment, a fixed state, no randomization, and identical actions. Classify initialization/model, contact/capacity, control, or dense-scene failures before tuning. Raise overflowing capacity first; change convergence settings only after the asset, reset, controller, contact model, and capacities are valid.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Will Isaac Lab's existing assets work in MJWarp, and how should I convert a new URDF?"
+- "Why does the object slip from my gripper in MJWarp but not PhysX?"
+- "MJWarp produces NaNs, but the same scene runs in PhysX. Which solver value should I change?"
 
 ## Validation
 

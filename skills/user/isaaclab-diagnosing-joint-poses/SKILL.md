@@ -1,9 +1,10 @@
 ---
 name: isaaclab-diagnosing-joint-poses
-description: Diagnoses and validates Isaac Lab robot initial joint poses from semantic or visual requests. Use when a robot starts with the wrong wrist, gripper, tool, camera, or end-effector orientation and the fix should be measured from articulation state instead of guessed from screenshots.
+description: Diagnoses and validates Isaac Lab robot initial joint poses from semantic or visual requests. Use when a robot starts with the wrong wrist, gripper, tool, camera, or end-effector orientation, or when asked to set a pose such as gripper fingers pointing down or a tool facing forward, and the fix should be measured from articulation state instead of guessed from screenshots.
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [robots, joint-poses, articulation, debugging]
 audience: user
 status: experimental
 owners:
@@ -27,6 +28,13 @@ Use this skill when a user asks to set, fix, or validate an initial robot pose f
 7. Validate with compile checks and a one-env reset or zero-action smoke.
 8. Report the measured before/after axis alignment, not just visual appearance.
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Set the initial gripper pose so the fingers point downward."
+- "Make the tool face forward."
+
 ## Validation
 
 Use these acceptance checks:
@@ -38,15 +46,11 @@ Use these acceptance checks:
 5. The pose remains reachable for the task target.
 6. Observation and action dimensions remain unchanged unless the user requested a contract change.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with robot and articulation APIs under `source/isaaclab/isaaclab/assets/`, environment smoke-test patterns, and examples that use `ArticulationCfg.InitialStateCfg`. Do not include generated screenshots, private assets, or local machine paths in the skill.
+Keep this skill synchronized with the robot and articulation asset APIs, environment smoke-test patterns, and examples that use `ArticulationCfg.InitialStateCfg`. Do not include generated screenshots, private assets, or local machine paths in the skill.
 
 ## References
 

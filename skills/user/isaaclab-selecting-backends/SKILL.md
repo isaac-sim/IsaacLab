@@ -1,9 +1,10 @@
 ---
 name: isaaclab-selecting-backends
-description: Selects and validates Isaac Lab physics and rendering backends. Use when choosing PhysX, Newton, or OvPhysX, adding backend presets, comparing backend behavior, or debugging backend-specific simulation, randomization, sensor, or renderer issues.
+description: Selects and validates Isaac Lab physics and rendering backends. Use when choosing PhysX, Newton, or OvPhysX, deciding which backend to start a port on, adding Newton support to a task that already works on PhysX, running a quick check that a task runs on Newton before training, adding backend presets, comparing backend behavior, or debugging backend-specific simulation, randomization, sensor, or renderer issues.
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [physx, newton, backends, rendering]
 audience: user
 status: experimental
 owners:
@@ -26,7 +27,7 @@ Do not use this skill to duplicate backend reference material. Link to the backe
    selector, and schema cfg docs before editing backend configs.
 3. Start with the backend that best matches the source task or current maintained example. Use PhysX first when matching Isaac Gym behavior.
 4. Add backend presets only after the task runs on one backend.
-5. Map simulation parameters through public cfg schemas instead of copying old simulator-specific keys. Import universal schema fragments and base cfgs from `isaaclab.sim.schemas`, PhysX-specific cfgs from `isaaclab_physx.sim.schemas`, and Newton or MuJoCo cfgs from `isaaclab_newton.sim.schemas`.
+5. Map simulation parameters through public cfg schemas instead of copying old simulator-specific keys. Import universal schema fragments and base cfgs from the `schemas` module under `sim` in `isaaclab`, PhysX-specific cfgs from the same module in `isaaclab_physx`, and Newton or MuJoCo cfgs from the same module in `isaaclab_newton`.
 6. Check backend support for sensors, randomization events, terrain, contacts, and actuators before enabling them.
 7. Separate backend-specific differences using `PresetCfg` or existing preset helpers rather than runtime conditionals scattered through task code.
 8. Use suffixless task names in backend smoke-test and training commands.
@@ -34,6 +35,14 @@ Do not use this skill to duplicate backend reference material. Link to the backe
 10. For backend architecture changes, resolve shared native runtimes through
     `SimulationContext.get_or_create_backend(...)` instead of copying state between consumers.
 11. Document intentional behavior differences, especially around contacts, randomization timing, CPU/GPU data paths, and renderer requirements.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "I am porting an Isaac Gym task. Should I start with PhysX or Newton?"
+- "My task works on PhysX. Add Newton support too."
+- "Give me a command to check whether my Ant task runs on Newton before training."
 
 ## Validation
 
@@ -45,15 +54,11 @@ Use this checklist:
 4. Check randomization events for backend-specific support and device assumptions.
 5. Run short training only after each selected backend passes its smoke test.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/physics_backends.rst`, `docs/source/concepts/backends_and_presets.rst`, `docs/source/concepts/schema_cfgs.rst`, and backend-aware task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If backend docs are incomplete, improve the docs rather than expanding this skill into a backend reference.
+Keep this skill synchronized with [physics backends](../../../docs/source/concepts/physics_backends.rst), [backends and presets](../../../docs/source/concepts/backends_and_presets.rst), [schema cfgs](../../../docs/source/concepts/schema_cfgs.rst), and backend-aware task examples under isaaclab tasks package. If backend docs are incomplete, improve the docs rather than expanding this skill into a backend reference.
 
 ## References
 

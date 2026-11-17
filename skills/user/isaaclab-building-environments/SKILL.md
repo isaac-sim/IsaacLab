@@ -4,6 +4,7 @@ description: Designs and registers complete Isaac Lab task architectures from sc
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [environments, manager-based, direct-workflow, task-registration]
 audience: user
 status: experimental
 owners:
@@ -37,31 +38,36 @@ uv run isaaclab --new
 `-n` is equivalent. Use a terminal for the prompts; do not invent non-interactive flags. Choose:
 
 - **External** for a standalone project; supply a parent directory outside Isaac Lab, a Python-compatible project name, task family, and robot/config name. The generator appends the project name and initializes a Git repository with an initial commit. Leave the optional Isaac Sim UI extension off unless needed.
-- **Internal** for a contribution under `source/isaaclab_tasks`; this option requires a source checkout and is unavailable in installed wheels.
+- **Internal** for a contribution under isaaclab tasks package; this option requires a source checkout and is unavailable in installed wheels.
 - The chosen workflow and only the RL libraries/algorithms needed. Direct multi-agent tasks use the supported multi-agent choices shown by the prompts.
 
 For an existing project, preserve its layout and registration. If a scaffold is useful, generate into a fresh location and integrate the needed pieces instead of generating over existing work.
 
-External projects use `src/<project>/tasks/<family>/config/<robot>/` with shared family terms under `mdp/`. Their root `pyproject.toml` provides an `isaaclab.tasks` entry point for CLI discovery. Do not recreate the legacy extension layout or add registration callbacks to a normally installed generated project. Source-generated projects record editable checkout paths; preserve those paths or update `[tool.uv.sources]` if directories move.
+External projects use a `src` layout: tasks live under `<project>/tasks/<family>/config/<robot>`, with shared family terms in an `mdp` package. The root project metadata provides an `isaaclab` tasks entry point for CLI discovery. Do not recreate the legacy extension layout or add registration callbacks to a normally installed generated project. Source-generated projects record editable checkout paths; preserve those paths or update the uv sources table in the project metadata if directories move.
 
-From the generated project root:
+From the generated project root, sync dependencies and run a random-action smoke test. Then use the generated list-envs script with `--show_presets` and the generated registration test to confirm discovery:
 
 ```bash
 uv sync
-uv run python scripts/list_envs.py --show_presets
-uv run pytest tests/test_registration.py
 uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
 ```
 
 Use the task ID listed by the project, rather than guessing its spelling or suffix. Default dependencies provide Newton without Isaac Sim. For a PhysX target, use `uv run --extra isaacsim isaaclab random_agent --task <TASK_NAME> physics=isaacsim_physx --num_envs 16`; keep the extra on subsequent commands that need it. See the generator guide for other backend extras.
 
-For internal tasks, run commands from the Isaac Lab root and list tasks with `uv run python scripts/environments/list_envs.py --show_presets`.
+For internal tasks, run commands from the Isaac Lab root and list tasks by running the [list envs script](../../../scripts/environments/list_envs.py) through `uv run python` with `--show_presets`.
 
 ### Implement the task
 
-Use the generated Cartpole as a packaging and execution baseline, then adapt the closest maintained task under `source/isaaclab_tasks/isaaclab_tasks/`; see [examples](examples.md) for starting points. Read the relevant workflow tutorial before changing environment interfaces.
+Use the generated Cartpole as a packaging and execution baseline, then adapt the closest maintained task under isaaclab tasks package; see [examples](examples.md) for starting points. Read the relevant workflow tutorial before changing environment interfaces.
 
 Define the scene and assets, then implement actions, observations, resets, rewards, and terminations using existing MDP terms where appropriate. Add commands, curricula, and backend presets when the task requires them. Keep agent configuration consistent with the chosen RL library.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "I want to build a quadruped locomotion task with custom command sampling and custom rewards."
+- "I created a new environment config and need to train it with Gym registration."
 
 ## Validation
 
@@ -71,7 +77,7 @@ For internal task registrations or preset changes, use `isaaclab-updating-enviro
 
 ## Maintenance
 
-Keep generator instructions aligned with `tools/template/cli.py`, its templates, and the maintained generator guide. Validate skill edits with `uv run --no-project python tools/skills/cli.py check`.
+Keep generator instructions aligned with [cli](../../../tools/template/cli.py), its templates, and the maintained generator guide. Validate skill edits with the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## References
 

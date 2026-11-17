@@ -1,9 +1,10 @@
 ---
 name: isaaclab-using-presets
-description: Defines and uses Isaac Lab preset configurations for multi-backend tasks. Use when adding PhysX/Newton variants, renderer variants, domain presets, or deciding whether a task needs PresetCfg.
+description: Defines and uses Isaac Lab preset configurations for multi-backend tasks. Use when adding PhysX/Newton variants, renderer variants, or domain presets, when making a task run on both PhysX and Newton MJWarp, when listing which preset names a task accepts, or when deciding whether a task needs PresetCfg at all or a plain config is enough.
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [presets, backends, configuration]
 audience: user
 status: experimental
 owners:
@@ -35,6 +36,14 @@ Do not use presets for simple one-backend tasks with no meaningful configuration
 8. List available preset names before using them in commands.
 9. Smoke-test every preset with a small random-agent rollout before training.
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "I have a simple direct task that only runs on PhysX. Should I add PresetCfg?"
+- "Make this locomotion environment support PhysX and Newton MJWarp."
+- "What preset names can I pass for this task?"
+
 ## Validation
 
 Use this checklist:
@@ -46,15 +55,11 @@ Use this checklist:
 5. Run a small reset/step smoke test for every new preset.
 6. Run training only after preset-specific shape, device, backend, and renderer behavior is stable.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst`, `source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py`, the environment catalog, and maintained preset examples under `source/isaaclab_tasks/isaaclab_tasks/`. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
+Keep this skill synchronized with [backends and presets](../../../docs/source/concepts/backends_and_presets.rst), [hydra](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py), the environment catalog, and maintained preset examples under isaaclab tasks package. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
 
 ## References
 

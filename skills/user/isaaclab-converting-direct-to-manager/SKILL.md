@@ -4,6 +4,7 @@ description: Converts validated Isaac Lab direct workflow environments into mana
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [environments, manager-based, refactoring]
 audience: user
 status: experimental
 owners:
@@ -34,6 +35,13 @@ Do not use this skill when the direct environment still fails to construct, rese
 11. Register the manager-based task under the suffixless task name when it is intended as the canonical task, and keep direct variants with a `-Direct` suffix.
 12. Validate import, reset, random actions, and a short training run before removing or de-emphasizing the direct baseline.
 
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "My direct Ant task runs now. Convert it to the manager workflow so rewards and observations are reusable."
+- "My direct environment still has shape errors, but I want it manager-based."
+
 ## Validation
 
 Use the same gates as the direct baseline:
@@ -44,15 +52,11 @@ Use the same gates as the direct baseline:
 4. Compare observation shape, reward signs, termination rates, and reset behavior against the direct baseline.
 5. Run a short training command after random-agent validation passes.
 
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+For skill changes, run the repository skill validator; the exact `check` command is in the [Skills README](../../README.md#authoring-rules).
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, `docs/source/how-to/create_manager_rl_env.rst`, direct/manager paired examples under `source/isaaclab_tasks/isaaclab_tasks/core/`, and shared MDP terms under task-specific `mdp/` packages.
+Keep this skill synchronized with [task workflows guide](../../../docs/source/concepts/task_workflows.rst), [manager-based RL environment guide](../../../docs/source/how-to/create_manager_rl_env.rst), direct/manager paired examples under the core `isaaclab_tasks` task packages, and shared MDP terms in each task pack's mdp package.
 
 ## References
 
