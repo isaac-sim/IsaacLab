@@ -299,6 +299,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof.usd",
+            variants={"Colliders": "minimal"},
             activate_contact_sensors=True,
             rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=False,
