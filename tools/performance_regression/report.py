@@ -123,6 +123,123 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_build_comparison(report: dict) -> str:
+    """Render exact-build FPS observations within the existing Performance regression summary."""
+    selection = report.get("selection", {})
+    identities = {side: report.get(side) for side in ("baseline", "candidate")}
+    unavailable_side = selection.get("unavailable_side")
+    if unavailable_side in identities and not identities[unavailable_side]:
+        identities[unavailable_side] = selection.get("unavailable_evidence")
+    a_label = "A — PR base"
+    b_label = "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
+    if (identities["candidate"] or {}).get("source_provenance") == "github_run_metadata":
+        b_label = "B — PR revision (not verified)"
+    a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
+    b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
+    rows = report.get("rows", [])
+    labels = _build_labels(rows)
+    results = Counter(_build_result(row) for row in rows)
+    counts = [f"{status} {results[status]}" for status in ("🟢 Improved", "🔴 Regressed", "⚪ Not comparable")]
+    if results["⚪ Unchanged"]:
+        counts.append(f"⚪ Unchanged {results['⚪ Unchanged']}")
+    lines = [
+        "### PR performance comparison",
+        "",
+        "**" + (" · ".join(counts) if rows else "⚪ Not comparable: no workload results available") + "**",
+        "",
+    ]
+    if selection.get("reason_code") or not report.get("baseline") or not rows:
+        missing_reason = (
+            "No baseline results were available." if rows else "No readable workload results were recorded."
+        )
+        lines += [
+            "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
+            "",
+        ]
+    if rows and (
+        not selection.get("paired_failure")
+        or any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate"))
+    ):
+        lines += [
+            "| Status | Workload | Baseline FPS | PR FPS | Change % |",
+            "| --- | --- | ---: | ---: | ---: |",
+        ]
+        for label, row in zip(labels, rows):
+            percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
+            if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
+                percent = "N/A (baseline is zero)"
+            lines.append(
+                f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
+                f"{_build_fps(row['candidate']['median'])} | {percent} |"
+            )
+        lines += [
+            "",
+            "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
+            "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
+            "",
+        ]
+    lines += [
+        "<details>",
+        "<summary>Sources and comparison details</summary>",
+        "",
+        _build_identity(a_label, identities["baseline"]),
+        "",
+        _build_identity(b_label, identities["candidate"]),
+        "",
+        "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
+        "",
+    ]
+    if isinstance(selection.get("baseline_reused"), bool):
+        measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
+        lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
+    measurement_sources = report.get("measurement_sources", {})
+    if measurement_sources:
+        lines += ["Measurement sources (commit · SHA-256):", ""]
+        for side, label in (("baseline", "A"), ("candidate", "B")):
+            measurement = measurement_sources.get(side)
+            if measurement:
+                repository = (identities[side] or {}).get("repository", report.get("repository", ""))
+                lines.append(
+                    f"- {label}: {_build_commit(repository, measurement.get('commit'))} · "
+                    f"`{_build_text(measurement.get('digest'))}`"
+                )
+        lines.append("")
+    lines += _build_source_diagnostics(report)
+    candidate = report.get("candidate") or {}
+    if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
+        lines += [
+            f"Measurements: attempt {_build_text(candidate['run_attempt'])}; "
+            f"report: attempt {_build_text(report.get('report_attempt'))}.",
+            "",
+        ]
+    for issue in selection.get("issues", []):
+        lines.append("- Selection note: " + _build_text(issue))
+    if rows:
+        lines += ["", "**Workloads — samples A / B (valid/expected):**", ""]
+    for label, row in zip(labels, rows):
+        counts = []
+        for side in ("baseline", "candidate"):
+            item = row[side]
+            expected = item.get("expected_count")
+            counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
+        details = dict.fromkeys([*row.get("reasons", []), *row.get("notes", [])])
+        lines.append(
+            f"- **{_build_text(label)}:** {' / '.join(counts)} · {_build_text(row['label'])}. "
+            + " ".join(_build_text(detail) for detail in details)
+        )
+    lines.append("")
+    for note in dict.fromkeys(report.get("notes", [])):
+        lines.append("- " + _build_text(note))
+    lines += [
+        "",
+        "Full samples, environment differences and provenance are in `build-comparison.json`.",
+        "",
+        "</details>",
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def write_json(report: Report, path: Path) -> None:
     """Write the comparison as JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,120 +358,3 @@ def _build_source_diagnostics(report: dict) -> list[str]:
             lines.append(f"- Checkout parents: {parents}")
         lines.append("")
     return lines
-
-
-def render_build_comparison(report: dict) -> str:
-    """Render exact-build FPS observations within the existing Performance regression summary."""
-    selection = report.get("selection", {})
-    identities = {side: report.get(side) for side in ("baseline", "candidate")}
-    unavailable_side = selection.get("unavailable_side")
-    if unavailable_side in identities and not identities[unavailable_side]:
-        identities[unavailable_side] = selection.get("unavailable_evidence")
-    a_label = "A — PR base"
-    b_label = "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
-    if (identities["candidate"] or {}).get("source_provenance") == "github_run_metadata":
-        b_label = "B — PR revision (not verified)"
-    a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
-    b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
-    rows = report.get("rows", [])
-    labels = _build_labels(rows)
-    results = Counter(_build_result(row) for row in rows)
-    counts = [f"{status} {results[status]}" for status in ("🟢 Improved", "🔴 Regressed", "⚪ Not comparable")]
-    if results["⚪ Unchanged"]:
-        counts.append(f"⚪ Unchanged {results['⚪ Unchanged']}")
-    lines = [
-        "### PR performance comparison",
-        "",
-        "**" + (" · ".join(counts) if rows else "⚪ Not comparable: no workload results available") + "**",
-        "",
-    ]
-    if selection.get("reason_code") or not report.get("baseline") or not rows:
-        missing_reason = (
-            "No baseline results were available." if rows else "No readable workload results were recorded."
-        )
-        lines += [
-            "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
-            "",
-        ]
-    if rows and (
-        not selection.get("paired_failure")
-        or any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate"))
-    ):
-        lines += [
-            "| Status | Workload | Baseline FPS | PR FPS | Change % |",
-            "| --- | --- | ---: | ---: | ---: |",
-        ]
-        for label, row in zip(labels, rows):
-            percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
-            if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
-                percent = "N/A (baseline is zero)"
-            lines.append(
-                f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
-                f"{_build_fps(row['candidate']['median'])} | {percent} |"
-            )
-        lines += [
-            "",
-            "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
-            "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
-            "",
-        ]
-    lines += [
-        "<details>",
-        "<summary>Sources and comparison details</summary>",
-        "",
-        _build_identity(a_label, identities["baseline"]),
-        "",
-        _build_identity(b_label, identities["candidate"]),
-        "",
-        "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
-        "",
-    ]
-    if isinstance(selection.get("baseline_reused"), bool):
-        measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
-        lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
-    measurement_sources = report.get("measurement_sources", {})
-    if measurement_sources:
-        lines += ["Measurement sources (commit · SHA-256):", ""]
-        for side, label in (("baseline", "A"), ("candidate", "B")):
-            measurement = measurement_sources.get(side)
-            if measurement:
-                repository = (identities[side] or {}).get("repository", report.get("repository", ""))
-                lines.append(
-                    f"- {label}: {_build_commit(repository, measurement.get('commit'))} · "
-                    f"`{_build_text(measurement.get('digest'))}`"
-                )
-        lines.append("")
-    lines += _build_source_diagnostics(report)
-    candidate = report.get("candidate") or {}
-    if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
-        lines += [
-            f"Measurements: attempt {_build_text(candidate['run_attempt'])}; "
-            f"report: attempt {_build_text(report.get('report_attempt'))}.",
-            "",
-        ]
-    for issue in selection.get("issues", []):
-        lines.append("- Selection note: " + _build_text(issue))
-    if rows:
-        lines += ["", "**Workloads — samples A / B (valid/expected):**", ""]
-    for label, row in zip(labels, rows):
-        counts = []
-        for side in ("baseline", "candidate"):
-            item = row[side]
-            expected = item.get("expected_count")
-            counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
-        details = dict.fromkeys([*row.get("reasons", []), *row.get("notes", [])])
-        lines.append(
-            f"- **{_build_text(label)}:** {' / '.join(counts)} · {_build_text(row['label'])}. "
-            + " ".join(_build_text(detail) for detail in details)
-        )
-    lines.append("")
-    for note in dict.fromkeys(report.get("notes", [])):
-        lines.append("- " + _build_text(note))
-    lines += [
-        "",
-        "Full samples, environment differences and provenance are in `build-comparison.json`.",
-        "",
-        "</details>",
-        "",
-    ]
-    return "\n".join(lines) + "\n"
