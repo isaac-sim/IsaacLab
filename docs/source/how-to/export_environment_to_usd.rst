@@ -38,28 +38,75 @@ simulation is reset and before the first step. On PhysX and OVPhysX the scene mu
 Loading the file
 ^^^^^^^^^^^^^^^^
 
-Isaac Sim and OVPhysX open the file as any USD stage. Newton imports it with the solver's custom attributes and
-schema resolvers:
+Each engine reads the file with its own USD import. Isaac Sim fetches the remote assets the file references; for
+OVPhysX and Newton, :meth:`~isaaclab.sim.usd_export.BaseUsdExporter.open_stage` downloads them as Isaac Lab does
+when spawning them. Files the export copied, such as re-saved actuator networks, are next to the file in
+``<name>_files/``.
 
-.. code-block:: python
+.. tab-set::
 
-   import newton
-   from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
+   .. tab-item:: Isaac Sim
 
-   from isaaclab.sim.usd_export import BaseUsdExporter
+      Open the file (**File > Open**) and press **Play**, or from a script:
 
-   builder = newton.ModelBuilder()
-   register_builder_attributes(builder, solver_cfg)
-   builder.add_usd(
-       BaseUsdExporter.open_stage(path),
-       schema_resolvers=usd_schema_resolvers(solver_cfg),
-       allow_unsafe_torch_checkpoints=True,  # network actuators, such as ANYmal-D's LSTM
-   )
-   model = builder.finalize()
+      .. code-block:: python
 
-:meth:`~isaaclab.sim.usd_export.BaseUsdExporter.open_stage` downloads referenced remote assets as Isaac Lab does
-when spawning them; a plain ``Usd.Stage.Open`` needs a resolver that fetches them. Files the export copied, such
-as re-saved actuator networks, are next to the file in ``<name>_files/``.
+         from isaacsim import SimulationApp
+
+         app = SimulationApp({"headless": True})
+
+         import omni.timeline
+         import omni.usd
+
+         omni.usd.get_context().open_stage(path)
+         omni.timeline.get_timeline_interface().play()
+         app.update()
+
+   .. tab-item:: OVPhysX
+
+      .. code-block:: python
+
+         import ovphysx
+         import ovstage
+         from ovphysx.samples.python_samples.schema_support import physx_schema_paths
+         from pxr import UsdPhysics
+
+         from isaaclab.sim.usd_export import BaseUsdExporter
+
+         usd = BaseUsdExporter.open_stage(path)
+         scene = next(prim for prim in usd.Traverse() if prim.IsA(UsdPhysics.Scene))
+         dt = 1 / scene.GetAttribute("physxScene:timeStepsPerSecond").Get()
+
+         ovstage.population.register_usd_schemas([*map(str, physx_schema_paths()), str(ovphysx.newton_schema_root())])
+         physx = ovphysx.PhysX()
+         stage = ovstage.Stage("export")
+         source = usd.Flatten().ExportToString()
+         ovstage.population.open_usd_from_string(stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
+         stage.advance_write_floor(ordinal=1).wait()
+         physx.wait_task(physx.attach_ovstage(stage, read_ordinal=1))
+         physx.step_sync(dt)
+
+   .. tab-item:: Newton
+
+      .. code-block:: python
+
+         import newton
+         from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
+
+         from isaaclab.sim.usd_export import BaseUsdExporter
+
+         builder = newton.ModelBuilder()
+         newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
+         result = builder.add_usd(
+             BaseUsdExporter.open_stage(path),
+             schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()],
+             allow_unsafe_torch_checkpoints=True,  # network actuators, such as ANYmal-D's LSTM
+         )
+         model = builder.finalize()
+         solver = newton.solvers.SolverMuJoCo(model)  # with the solver options the file states
+         dt = result["physics_dt"]
+
+      For Kamino, register ``newton.solvers.SolverKamino``'s attributes instead and leave out ``SchemaResolverMjc``.
 
 What is not exported
 ^^^^^^^^^^^^^^^^^^^^
