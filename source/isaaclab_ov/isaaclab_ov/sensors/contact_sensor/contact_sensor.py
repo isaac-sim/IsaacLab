@@ -22,7 +22,6 @@ from isaaclab import cloner
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.capture import eager_method
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov._clone import ordered_clone_paths
@@ -387,7 +386,6 @@ class ContactSensor(BaseContactSensor):
             assert self._poses_flat_buf is not None
             self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
 
-    @eager_method  # OVPhysX binding reads are host calls, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
         """Read contact data from ovphysx and update sensor buffers."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)

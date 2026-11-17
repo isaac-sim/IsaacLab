@@ -19,7 +19,6 @@ from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
-from isaaclab.utils.warp.capture import eager_method
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -383,7 +382,6 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    @eager_method  # OVPhysX binding reads are host calls, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)

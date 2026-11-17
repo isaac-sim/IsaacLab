@@ -23,7 +23,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.utils.math import quat_apply, quat_inv
-from isaaclab.utils.warp.capture import eager_method
 
 from .visuotactile_render import GelsightRender
 from .visuotactile_sensor_data import VisuoTactileSensorData
@@ -490,7 +489,6 @@ class VisuoTactileSensor(SensorBase):
         if self.cfg.visualizer_cfg:
             self._visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-    @eager_method  # refreshes its camera and renders the tactile image on the host, so it cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data.
 

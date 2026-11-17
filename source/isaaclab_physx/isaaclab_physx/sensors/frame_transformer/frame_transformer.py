@@ -21,7 +21,6 @@ from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
-from isaaclab.utils.warp.capture import eager_method
 
 from .frame_transformer_data import FrameTransformerData
 
@@ -374,7 +373,6 @@ class FrameTransformer(BaseFrameTransformer):
         )
         self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
-    @eager_method  # PhysX tensor reads run on the legacy CUDA stream, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         # Resolve mask

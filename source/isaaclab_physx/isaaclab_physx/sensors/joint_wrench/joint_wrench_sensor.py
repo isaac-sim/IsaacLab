@@ -18,7 +18,6 @@ from pxr import UsdPhysics
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import memory as memory_kernels
-from isaaclab.utils.warp.capture import eager_method
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
 
@@ -145,7 +144,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_bodies} bodies")
 
-    @eager_method  # PhysX tensor reads run on the legacy CUDA stream, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Read PhysX incoming joint wrenches and split them into force / torque buffers.
 

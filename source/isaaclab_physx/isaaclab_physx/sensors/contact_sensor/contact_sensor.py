@@ -24,7 +24,6 @@ from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.capture import eager_method
 
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
@@ -446,7 +445,6 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    @eager_method  # PhysX tensor reads run on the legacy CUDA stream, so they cannot be recorded
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data.
 

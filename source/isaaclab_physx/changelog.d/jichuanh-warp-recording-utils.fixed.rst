@@ -4,5 +4,3 @@
   :meth:`~isaaclab_physx.assets.ArticulationData.update` advances once per physics step, the body COM poses,
   masses and inertias, which PhysX serves from CPU-only views, and the joint positions and velocities, which a
   graph cannot refresh from PhysX, are read as they are, so the host actuator runtime still captures its graphs.
-* Fixed the PhysX sensors raising inside a :class:`~isaaclab.utils.warp.capture.GraphedCallable` recording: their
-  PhysX tensor reads cannot be recorded, so a recorded call that refreshes one runs without a CUDA graph.
