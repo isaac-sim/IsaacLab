@@ -322,7 +322,7 @@ captions reach the model unchanged. In code, `read_prompt_files([...])` returns 
 
 ## Runtime and resets
 
-Cosmos requires synchronous camera rendering. Its processor rejects calls whose `info.env_mask` is None before
+Cosmos requires synchronous camera rendering. Its processor rejects calls whose `args.env_mask` is None before
 queuing controls or generating images; asynchronous cameras supply `None`. This also protects cameras configured
 directly or changed by later overrides. Use `renderer_cfg.async_rendering=False` for OVRTX. Direct processor callers
 must supply a boolean Warp mask identifying the captured views, including an all-true mask when all views are fresh.

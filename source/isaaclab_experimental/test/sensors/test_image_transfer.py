@@ -19,7 +19,7 @@ from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.tensor_processors import TensorProcessorCallInfo
+from isaaclab.utils.tensor_processors import TensorProcessorArgs
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -85,8 +85,8 @@ def _processor(**kwargs):
 
 
 def _rgb(processor, value, mask=None):
-    info = None if mask is None else TensorProcessorCallInfo(env_mask=wp.array(mask, dtype=wp.bool, device="cpu"))
-    return processor(_buffers(_controls(value)), info=info)["rgb"].torch
+    args = None if mask is None else TensorProcessorArgs(env_mask=wp.array(mask, dtype=wp.bool, device="cpu"))
+    return processor(_buffers(_controls(value)), args=args)["rgb"].torch
 
 
 def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
