@@ -26,6 +26,7 @@ from ...utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from ...utils.tensor_processors import TensorProcessorCallInfo
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_cfg import _render_data_types
@@ -794,12 +795,13 @@ class Camera(SensorBase):
         # The current mask cannot describe an earlier asynchronous request's image.
         if getattr(self.cfg.renderer_cfg, "async_rendering", False):
             env_mask = None
+        info = TensorProcessorCallInfo(env_mask=env_mask)
         buffers = dict(self._render_outputs)
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
                 self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
-            outputs = self._tensor_processors[index](buffers, env_mask=env_mask)
+            outputs = self._tensor_processors[index](buffers, info=info)
             # The renderer is asked for inputs according to the listed outputs, so the two must agree.
             if outputs.keys() != set(processor_cfg.outputs):
                 raise ValueError(
