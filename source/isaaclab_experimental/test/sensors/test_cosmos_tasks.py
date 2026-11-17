@@ -248,7 +248,7 @@ APPLE_TASK = "IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos"
 
 
 def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
-    from isaaclab_experimental.cosmos import CosmosTransferProcessorCfg
+    from isaaclab_experimental.cosmos import CosmosTransferProcessorCfg, read_prompt_files
     from isaaclab_experimental.cosmos.tasks.apple_pick_place_cosmos_env_cfg import G1ApplePickPlaceCosmosEnvCfg
 
     cfg = parse_env_cfg(APPLE_TASK, overrides=())
@@ -260,20 +260,17 @@ def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
     assert camera.tensor_processors[-1].outputs == ["rgb"]
     assert cfg.observations.policy.ego_view.params["sensor_cfg"].name == "head_camera"
     model = next(p.backend for p in camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg))
-    # Cosmos gets depth every 4 steps of 30 Hz (7.5 Hz) and is told 12.5 fps, as in the earlier evaluation.
-    assert camera.update_period == pytest.approx(4 / 30) and model.fps == 12.5
-    # 150 captures in a 20 s episode, plus the first frame, in the service's 1 + 4*k budget.
-    assert model.max_episode_frames >= 151 and (model.max_episode_frames - 1) % 4 == 0
+    # One frame per 30 Hz step for a 20 s episode, plus the first frame, in the service's 1 + 4*k budget.
+    assert model.max_episode_frames >= 601 and (model.max_episode_frames - 1) % 4 == 0
     # A longer episode gets a larger budget.
     longer = parse_env_cfg(APPLE_TASK, overrides=("env.episode_length_s=30.0",))
     longer.validate()
     longer_model = next(
         p.backend for p in longer.scene.head_camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg)
     )
-    assert longer_model.max_episode_frames >= 226
-    # The prompt is the demonstrations' caption as compact JSON, then the request to follow the depth.
-    assert model.prompt.startswith('{"') and '", "' not in model.prompt and "apple" in model.prompt
-    assert model.prompt.endswith("align with the depth signal at every frame.")
+    assert longer_model.max_episode_frames >= 901
+    # The prompt describes the real demonstrations' appearance.
+    assert "apple" in read_prompt_files([model.prompt_files])[0]
     # The core task keeps the rendered image.
     assert not parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=()).scene.head_camera.tensor_processors
 
