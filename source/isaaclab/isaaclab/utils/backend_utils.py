@@ -112,7 +112,8 @@ class FactoryBase:
     @classmethod
     def _get_package_name(cls, backend: str) -> str:
         """Return the package that hosts a given backend key."""
-        return "isaaclab_ov" if backend == "ovphysx" else f"isaaclab_{backend}"
+        packages = {"ovphysx": "isaaclab_ov", "physx": "isaaclab_isaacsim"}
+        return packages.get(backend, f"isaaclab_{backend}")
 
     @classmethod
     def _get_module_name(cls, backend: str) -> str:

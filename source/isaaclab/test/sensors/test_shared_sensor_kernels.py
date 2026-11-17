@@ -117,7 +117,7 @@ def test_pva_data_hierarchy_remains_importable(monkeypatch):
     core = importlib.import_module("isaaclab.sensors.pva")
     assert core.BasePvaData is BasePvaData
     data_classes = {}
-    for backend in ("newton", "ov", "physx"):
+    for backend in ("newton", "ov", "isaacsim"):
         package = importlib.import_module(f"isaaclab_{backend}.sensors.pva")
         data_class = package.PvaData
         data_classes[backend] = data_class
@@ -233,7 +233,7 @@ def test_frame_outputs_preserve_coordinates_and_masked_rows():
         np.testing.assert_allclose(data.target_pose_w.warp.numpy()[0], [[1, 4, 3, 0, 0, 0, 1], [2, 2, 3, 0, 0, 0, 1]])
 
 
-@pytest.mark.parametrize("backend", ["physx", "ov"])
+@pytest.mark.parametrize("backend", ["isaacsim", "ov"])
 @pytest.mark.parametrize("family", ["frame_transformer", "contact_sensor"])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_packed_sensor_readers_follow_buffers_through_capture_and_recreation(backend, family, device):
@@ -255,7 +255,7 @@ def test_packed_sensor_readers_follow_buffers_through_capture_and_recreation(bac
             track_contact_points=False,
             track_friction_forces=False,
         )
-        if backend == "physx":
+        if backend == "isaacsim":
             allocation["supports_total_contact_forces"] = False
 
     data.create_buffers(num_envs=2, device=device, **allocation)
@@ -306,7 +306,7 @@ def test_pva_storage_has_one_owner(source_checkout_root):
         assert not any(
             name and name.startswith(("isaaclab_newton", "isaaclab_ov", "isaaclab_isaacsim")) for name in imports
         )
-    for backend in ("newton", "ov", "physx"):
+    for backend in ("newton", "ov", "isaacsim"):
         package = source / f"isaaclab_{backend}/isaaclab_{backend}/sensors/pva"
         tree = ast.parse((package / "pva_data.py").read_text())
         data_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "PvaData")

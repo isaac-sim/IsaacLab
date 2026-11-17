@@ -190,7 +190,7 @@ def test_shared_math_ownership(source_checkout_root):
         "update_soft_joint_pos_limits",
         "shift_jacobian_com_to_origin",
     }
-    for backend in ("ov", "physx", "newton"):
+    for backend in ("ov", "isaacsim", "newton"):
         for relative in ("assets/kernels.py", "assets/articulation/kernels.py"):
             file = source / f"isaaclab_{backend}/isaaclab_{backend}" / relative
             assert not retired & {n.name for n in ast.parse(file.read_text()).body if isinstance(n, ast.FunctionDef)}
