@@ -85,6 +85,7 @@ SHAPE_ATTRIBUTES = {
 
 MATERIAL_ATTRIBUTES = {
     "shape_material_mu": USD_PHYSICS_MATERIAL_ATTRIBUTES["dynamic_friction"],
+    "shape_material_mu_static": USD_PHYSICS_MATERIAL_ATTRIBUTES["static_friction"],
     "shape_material_restitution": USD_PHYSICS_MATERIAL_ATTRIBUTES["restitution"],
     "shape_material_mu_torsional": _MATERIAL["mu_torsional"].name,
     "shape_material_mu_rolling": _MATERIAL["mu_rolling"].name,
@@ -584,6 +585,7 @@ class UsdExporter(BaseUsdExporter):
         shape_bodies = model.shape_body.numpy()
         edits, changed_materials, complete, generated = [], {}, {}, []
         physics = self._get_collider_physics_materials(stage)
+        static, dynamic = (USD_PHYSICS_MATERIAL_ATTRIBUTES[f"{name}_friction"] for name in ("static", "dynamic"))
         bound = {}
         # 2. Collider edits; each collider's material binding, live material values and changed ones.
         for shape in self._select_env_entities(model.shape_world):
@@ -616,7 +618,11 @@ class UsdExporter(BaseUsdExporter):
                 ]
             bound[path] = physics.get(path)
             complete[path] = live
-            updated = {a: live[a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
+            updated = {a: live[a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape] and a != static}
+            # Newton's import reads a material's static friction only above its dynamic one, and the dynamic one else.
+            authored = self._get_authored_value(stage.GetPrimAtPath(bound[path]), static) if bound[path] else None
+            if not self._is_close(max(authored or 0.0, live[dynamic]), live[static]):
+                updated[static] = live[static]
             if updated:
                 changed_materials[path] = updated
         # 3. Every collider sharing a material with a changed value submits it, so the material edits check they agree.
@@ -629,8 +635,15 @@ class UsdExporter(BaseUsdExporter):
             for path in complete
             if bound[path] in affected
         }
-        # 4. A collider without a material gets a new one, which states every value an import reads from it.
-        submitted |= {path: complete[path] for path in submitted if not bound[path]}
+        # 4. A collider without a material gets a new one, which states every value an import reads from it but a
+        # static friction equal to the dynamic one, which the import gives an unset one.
+        submitted |= {
+            path: {
+                a: v for a, v in complete[path].items() if a != static or not self._is_close(v, complete[path][dynamic])
+            }
+            for path in submitted
+            if not bound[path]
+        }
         edits = [edit for edit in edits if edit is not None]
         # 5. Shapes Newton's import generates keep its contact values.
         if generated:
