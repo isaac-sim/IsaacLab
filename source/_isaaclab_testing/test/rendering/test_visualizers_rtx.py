@@ -190,9 +190,9 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
         eye=(2.25, 0.0, 3.5),
         lookat=(0.0, 0.0, 2.25),
         streaming_view=False,
-        backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_renderer_cfg=OVRTXRendererCfg(enable_shadows=True)),
+        backend=NewtonGLBackendCfg(initial_renderer="rtx"),
     )
-    cfg.camera.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+    cfg.camera.renderer_cfg = OVRTXRendererCfg()  # the viewer camera shares this renderer
     with build_rendering_scene(cfg, "newton", data_types=("rgb",), visualizer_cfgs=[viewer_cfg]) as runtime:
         robot = runtime.scene["robot"]
         robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch)
@@ -417,7 +417,14 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
         np.testing.assert_array_equal(image.numpy()[:, :128], camera.data.output["rgba"].warp.numpy()[0])
         assert image.device.is_cuda
         with monkeypatch.context() as gpu_display:
-            gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
+            numpy = wp.array.numpy
+
+            def numpy_unless_pixels(array):
+                # The viewer copies its packed transforms to the host; only an image download is a failure.
+                assert array.ndim < 3, "Display downloaded pixels"
+                return numpy(array)
+
+            gpu_display.setattr(wp.array, "numpy", numpy_unless_pixels)
             visualizer._select_camera(0)
             visualizer._render_frame()
             visualizer._select_camera(1)
