@@ -368,6 +368,19 @@ class FoveatedRTXCamera(FoveatedCamera):
         super().set_gaze_angles(angles_deg)
         self._write_gaze_local_pose()
 
+    def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
+        """Move the camera's mount; the gaze stays relative to the new mount.
+
+        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
+        """
+        super().set_world_poses(positions, orientations, env_ids, convention)
+        # The prims of the moved environments now hold the bare mount pose, which is their new base.
+        ids = slice(None) if env_ids is None else torch.as_tensor(env_ids, device=self._device, dtype=torch.long)
+        _, local_orientation = self._view.get_local_poses()
+        self._base_local_orientation[ids] = matrix_from_quat(local_orientation.torch[ids])
+        if self._gaze_rotation is not None:
+            self._write_gaze_local_pose()
+
     def _write_gaze_local_pose(self) -> None:
         # Replicator reads camera prims, not update_camera's pose arguments.
         # Write when the command arrives, before a visualizer can render the step.
