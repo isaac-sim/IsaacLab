@@ -113,7 +113,6 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
-# OptiX ray tracing for the ``newton_optix`` camera renderer.
 optix = ["newton[optix]"]
 
 importers = [
