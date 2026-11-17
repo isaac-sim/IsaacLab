@@ -24,6 +24,8 @@ machine or TCP from another machine.
 
 Prepare a Cosmos Framework checkout and a supported CUDA environment using its
 [official setup guide](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/setup.md).
+The service was tested with Framework commit `001fe1835d3b9a987bd29c521a4bd2fa6b454066`;
+check it out before `uv sync --locked`, which installs the dependencies that commit locks.
 Keep that model environment separate from the Isaac Lab training environment. The
 CUDA 13.0 group used below requires Python 3.13 and Torch 2.10; the Isaac Lab
 environment uses Python 3.12 and Torch 2.11. Framework owns its Torch,

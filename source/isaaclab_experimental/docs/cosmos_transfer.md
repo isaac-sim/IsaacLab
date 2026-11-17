@@ -44,10 +44,11 @@ Clone Isaac Lab:
 git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
 ```
 
-Clone Cosmos Framework:
+Clone Cosmos Framework at the commit this demo was tested with:
 
 ```bash
 git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
+git -C "$COSMOS_FRAMEWORK" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
 ```
 
 ## 3. Install dependencies and download the checkpoint
