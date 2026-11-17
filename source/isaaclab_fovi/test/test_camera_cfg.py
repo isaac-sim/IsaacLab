@@ -9,7 +9,7 @@ import math
 
 import pytest
 import torch
-from isaaclab_fovi.sensors.calibrated_geometry import camera_model, sampling_geometry
+from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model, sampling_geometry
 from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
 from isaaclab.sim import (
@@ -19,7 +19,7 @@ from isaaclab.sim import (
     PinholeCameraCfg,
 )
 
-CALIBRATION = {"model": "pinhole", "image_size": (480, 640), "intrinsics": (550.0, 550.0, 319.5, 239.5)}
+CAMERA_MODEL = {"model": "pinhole", "image_size": (480, 640), "intrinsics": (550.0, 550.0, 319.5, 239.5)}
 
 
 def make_cfg(**kwargs) -> FoveatedCameraCfg:
@@ -37,7 +37,7 @@ def test_defaults_are_grid_sampling_at_the_human_cmf_estimate() -> None:
     cfg = FoveatedCameraCfg()
     assert cfg.foveated_style == "warped_cartesian_as_grid"
     assert cfg.cmf_a_deg == 0.591
-    assert cfg.camera_calibration is None
+    assert cfg.camera_model is None
 
 
 def test_default_pinhole_spawn_describes_an_ideal_pinhole() -> None:
@@ -46,7 +46,7 @@ def test_default_pinhole_spawn_describes_an_ideal_pinhole() -> None:
     expected = math.degrees(2 * math.atan(spawn.horizontal_aperture / (2 * spawn.focal_length)))
     assert fov == pytest.approx(expected, rel=1e-6)
     assert cmf_a == 0.591
-    camera = camera_model(make_cfg(spawn=spawn))
+    camera = resolve_camera_model(make_cfg(spawn=spawn))
     assert camera.model == "pinhole"
     assert camera.distortion == ()
     # Without a vertical aperture the image is square.
@@ -64,7 +64,7 @@ def test_opencv_pinhole_spawn_gives_that_calibrated_camera() -> None:
     distortion = OpenCvPinholeDistortionCfg(
         fx=500.0, fy=510.0, cx=320.0, cy=240.0, image_size=(640, 480), k1=-0.1, k2=0.01, p1=0.001, k4=0.002
     )
-    camera = camera_model(make_cfg(spawn=PinholeCameraCfg(distortion=distortion)))
+    camera = resolve_camera_model(make_cfg(spawn=PinholeCameraCfg(distortion=distortion)))
     assert camera.model == "pinhole"
     # Isaac Lab sizes are (width, height); fovi's are (height, width).
     assert camera.image_size == (480, 640)
@@ -72,7 +72,7 @@ def test_opencv_pinhole_spawn_gives_that_calibrated_camera() -> None:
     assert camera.distortion == (-0.1, 0.01, 0.001, 0.0, 0.0, 0.002, 0.0, 0.0)
 
     distortion.apply_lens_distortion = False
-    assert camera_model(make_cfg(spawn=PinholeCameraCfg(distortion=distortion))).distortion == ()
+    assert resolve_camera_model(make_cfg(spawn=PinholeCameraCfg(distortion=distortion))).distortion == ()
 
 
 def test_zero_coefficient_opencv_fisheye_is_an_ideal_equidistant_fisheye() -> None:
@@ -80,7 +80,7 @@ def test_zero_coefficient_opencv_fisheye_is_an_ideal_equidistant_fisheye() -> No
     focal = 250.0
     distortion = OpenCvFisheyeDistortionCfg(fx=focal, fy=focal, cx=319.5, cy=319.5, image_size=(640, 640))
     cfg = make_cfg(spawn=PinholeCameraCfg(distortion=distortion))
-    camera = camera_model(cfg)
+    camera = resolve_camera_model(cfg)
     assert camera.model == "fisheye"
     assert camera.distortion == ()
     assert camera.max_angle_deg == pytest.approx(90.0)
@@ -91,17 +91,17 @@ def test_zero_coefficient_opencv_fisheye_is_an_ideal_equidistant_fisheye() -> No
     assert fov == pytest.approx(math.degrees(640 / focal), rel=1e-6)
 
 
-def test_explicit_calibration_wins_over_the_spawn() -> None:
-    cfg = make_cfg(spawn=PinholeCameraCfg(), camera_calibration=CALIBRATION)
-    assert camera_model(cfg).intrinsics == CALIBRATION["intrinsics"]
-    # A prim without spawn configuration needs a calibration.
-    assert camera_model(make_cfg(spawn=None, camera_calibration=CALIBRATION)).image_size == (480, 640)
+def test_explicit_camera_model_wins_over_the_spawn() -> None:
+    cfg = make_cfg(spawn=PinholeCameraCfg(), camera_model=CAMERA_MODEL)
+    assert resolve_camera_model(cfg).intrinsics == CAMERA_MODEL["intrinsics"]
+    # A prim without spawn configuration needs a camera model.
+    assert resolve_camera_model(make_cfg(spawn=None, camera_model=CAMERA_MODEL)).image_size == (480, 640)
 
 
 @pytest.mark.parametrize(
     ("spawn", "message"),
     [
-        (None, "camera_calibration"),
+        (None, "camera_model"),
         (FisheyeCameraCfg(), "OpenCvFisheyeDistortionCfg"),
         (PinholeCameraCfg(horizontal_aperture_offset=1.0), "Aperture offsets"),
         (
@@ -114,4 +114,4 @@ def test_explicit_calibration_wins_over_the_spawn() -> None:
 )
 def test_cameras_fovi_cannot_model_are_rejected(spawn, message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        camera_model(make_cfg(spawn=spawn))
+        resolve_camera_model(make_cfg(spawn=spawn))

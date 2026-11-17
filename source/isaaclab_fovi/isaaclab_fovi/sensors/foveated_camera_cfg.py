@@ -40,18 +40,18 @@ class FoveatedCameraCfg(CameraCfg):
     of view gives nearly uniform sampling. The default is an estimate from human
     data. It is passed to :class:`fovi.sensing.coords.SamplingCoords` unchanged."""
 
-    camera_calibration: CameraCalibration | None = None
+    camera_model: CameraCalibration | None = None
     """The physical camera the retina looks through, as :class:`fovi.sensing.projection.CameraModel` fields.
 
-    It defines the retinal window, the image that fixations are given in, and
-    the edge that :attr:`mask_to_sensor_fov` masks against. Any calibrated
-    pinhole or fisheye camera works.
+    The retinal window spans this camera's image, and :attr:`mask_to_sensor_fov`
+    masks against its edge. The same fields configure fovi's software sampler on
+    a real camera.
 
     If None, the camera that :attr:`spawn` creates is used: an OpenCV model in
     ``spawn.distortion`` (an :class:`~isaaclab.sim.OpenCvFisheyeDistortionCfg` with
     zero coefficients is an ideal equidistant fisheye), otherwise an ideal pinhole
     with the spawn's focal length and apertures. A prim without spawn
-    configuration needs a calibration."""
+    configuration needs a camera model."""
 
     foveated_res: int = 60
     """Resolution parameter passed to :class:`SamplingCoords`.  For isotropic
@@ -162,7 +162,7 @@ class FoveatedCameraCfg(CameraCfg):
     width: int = 1
     height: int = 1
 
-    # Enable per-frame pose updates so fixation rotation is applied each step.
+    # Enable per-frame pose updates so the gaze rotation is applied each step.
     update_latest_camera_pose: bool = True
 
     def __post_init__(self):

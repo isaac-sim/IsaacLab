@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared calibrated retinal geometry for rendering and image sampling."""
+"""Retinal geometry shared by rendering and image sampling: the physical camera and the gaze frame."""
 
 from __future__ import annotations
 
@@ -12,30 +12,24 @@ from typing import Any, Literal, Protocol
 
 import torch
 import warp as wp
-from fovi.sensing.projection import (
-    CameraCalibration,
-    CameraModel,
-    angular_directions,
-    gaze_rotation,
-)
+from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
 
 IDEAL_IMAGE_WIDTH = 1024
 """Pixel width [px] of the image assigned to a camera derived from ideal spawn optics.
 
-The scale is arbitrary: fixations are normalized image positions and the retinal
-window is an angle, so neither depends on it."""
+The scale is arbitrary: the retinal window and the gaze are angles, so neither depends on it."""
 
 
 class SamplingGeometryConfig(Protocol):
-    camera_calibration: CameraCalibration | None
+    camera_model: CameraCalibration | None
     cmf_a_deg: float
     retinal_window_reference_side: str
     retinal_window_short_side_fraction: float
     spawn: Any
 
 
-def calibration_from_spawn(spawn: Any) -> CameraCalibration:
-    """Describe the camera that the spawn configuration creates as a fovi calibration.
+def camera_model_from_spawn(spawn: Any) -> CameraCalibration:
+    """Describe the camera that the spawn configuration creates as :class:`CameraModel` fields.
 
     * An OpenCV model in ``spawn.distortion`` gives that calibrated camera. A fisheye
       model with zero coefficients is an ideal equidistant fisheye.
@@ -58,7 +52,7 @@ def calibration_from_spawn(spawn: Any) -> CameraCalibration:
             coefficients = tuple(getattr(distortion, name) for name in ("k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"))
             thin_prism = (distortion.s1, distortion.s2, distortion.s3, distortion.s4)
             if distortion.apply_lens_distortion and any(thin_prism):
-                raise ValueError("Thin-prism distortion (s1-s4) is not supported; set camera_calibration instead.")
+                raise ValueError("Thin-prism distortion (s1-s4) is not supported; set camera_model instead.")
         else:
             raise ValueError(f"Unsupported lens distortion model {distortion.model!r}.")
         calibration.update(image_size=(height, width), intrinsics=tuple(float(value) for value in intrinsics))
@@ -68,10 +62,10 @@ def calibration_from_spawn(spawn: Any) -> CameraCalibration:
     if getattr(spawn, "projection_type", None) != "pinhole":
         raise ValueError(
             "Only pinhole spawn optics describe a camera; for a fisheye, set spawn.distortion to an "
-            "OpenCvFisheyeDistortionCfg or set camera_calibration."
+            "OpenCvFisheyeDistortionCfg or set camera_model."
         )
     if spawn.horizontal_aperture_offset or spawn.vertical_aperture_offset:
-        raise ValueError("Aperture offsets are not supported; set camera_calibration instead.")
+        raise ValueError("Aperture offsets are not supported; set camera_model instead.")
     vertical_aperture = spawn.vertical_aperture or spawn.horizontal_aperture
     width = IDEAL_IMAGE_WIDTH
     height = round(width * vertical_aperture / spawn.horizontal_aperture)
@@ -81,20 +75,20 @@ def calibration_from_spawn(spawn: Any) -> CameraCalibration:
     )
 
 
-def camera_model(cfg: SamplingGeometryConfig) -> CameraModel:
+def resolve_camera_model(cfg: SamplingGeometryConfig) -> CameraModel:
     """Return the physical camera the retina looks through.
 
-    This is ``cfg.camera_calibration`` when set, otherwise the camera that ``cfg.spawn``
-    creates (see :func:`calibration_from_spawn`).
+    This is ``cfg.camera_model`` when set, otherwise the camera that ``cfg.spawn``
+    creates (see :func:`camera_model_from_spawn`).
 
     Raises:
-        ValueError: Neither a calibration nor spawn optics describe the camera.
+        ValueError: Neither ``cfg.camera_model`` nor ``cfg.spawn`` describes the camera.
     """
-    if cfg.camera_calibration is not None:
-        return CameraModel(**cfg.camera_calibration)
+    if cfg.camera_model is not None:
+        return CameraModel(**cfg.camera_model)
     if cfg.spawn is None:
-        raise ValueError("A foveated camera on an existing prim needs camera_calibration.")
-    return CameraModel(**calibration_from_spawn(cfg.spawn))
+        raise ValueError("A foveated camera on an existing prim needs camera_model.")
+    return CameraModel(**camera_model_from_spawn(cfg.spawn))
 
 
 def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
@@ -103,7 +97,9 @@ def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
     The field of view is the angular span of the retinal window in the physical
     camera. Both values are in the units :class:`fovi.sensing.coords.SamplingCoords` takes.
     """
-    fov = camera_model(cfg).field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_short_side_fraction)
+    fov = resolve_camera_model(cfg).field_of_view(
+        cfg.retinal_window_reference_side, cfg.retinal_window_short_side_fraction
+    )
     return fov, cfg.cmf_a_deg
 
 
@@ -158,45 +154,6 @@ def convert_camera_frame_quaternion(
     return torch.stack(components, dim=-1) * 0.5
 
 
-def calibrated_fixation_rotation(
-    camera: CameraModel, fixation: torch.Tensor, convention: str = "pan_tilt"
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return source-camera rotation and validity for normalized image gaze."""
-    if fixation.is_cuda:
-        return _compiled_fixation_rotation(camera, fixation, convention)
-    return _fixation_rotation(camera, fixation, convention)
-
-
-def _fixation_rotation(
-    camera: CameraModel, fixation: torch.Tensor, convention: str
-) -> tuple[torch.Tensor, torch.Tensor]:
-    h, w = camera.image_size
-    pixels = torch.stack((fixation[..., 1] * w - 0.5, fixation[..., 0] * h - 0.5), -1)
-    direction, valid = camera.unproject(pixels)
-    return gaze_rotation(direction, convention), valid
-
-
-def calibrated_mount_angles(camera: CameraModel, fixation: torch.Tensor) -> torch.Tensor:
-    """Unproject normalized upright-image gaze to mount (tilt, pan) radians."""
-    if fixation.is_cuda:
-        return _compiled_mount_angles(camera, fixation)
-    return _mount_angles(camera, fixation)
-
-
-def _mount_angles(camera: CameraModel, fixation: torch.Tensor) -> torch.Tensor:
-    h, w = camera.image_size
-    pixels = torch.stack((fixation[..., 1] * w - 0.5, fixation[..., 0] * h - 0.5), -1)
-    direction, _ = camera.unproject(pixels)
-    x, y, z = direction.unbind(-1)
-    return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1)
-
-
-# Fuse the lens inversion's iterative pointwise math instead of launching each
-# small operation separately on every simulation tick. CPU callers stay eager.
-_compiled_fixation_rotation = torch.compile(_fixation_rotation, fullgraph=True)
-_compiled_mount_angles = torch.compile(_mount_angles, fullgraph=True)
-
-
 @wp.kernel(enable_backward=False)
 def _rotate_camera_rays(
     rays: wp.array(dtype=wp.vec3),
@@ -235,7 +192,7 @@ def rotate_camera_rays(canonical_rays: torch.Tensor, rotation: torch.Tensor) -> 
     return canonical_rays @ rotation.transpose(-1, -2)
 
 
-def calibrated_visibility(camera: CameraModel, canonical_rays: torch.Tensor, rotation: torch.Tensor) -> torch.Tensor:
-    """Mask OpenCV-frame canonical rays against the fixed physical sensor."""
+def sensor_visibility(camera: CameraModel, canonical_rays: torch.Tensor, rotation: torch.Tensor) -> torch.Tensor:
+    """Mask OpenCV-frame canonical rays, turned by the gaze, against the fixed physical camera."""
     _, valid = camera.project(rotate_camera_rays(canonical_rays, rotation))
     return valid

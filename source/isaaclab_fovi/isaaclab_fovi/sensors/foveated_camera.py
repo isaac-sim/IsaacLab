@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 
 from isaaclab.sensors.camera.camera import Camera
 
-from .virtual_gaze import CalibratedVirtualGaze
+from .virtual_gaze import VirtualGaze
 
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
 
 
-class FoveatedCamera(CalibratedVirtualGaze, Camera):
+class FoveatedCamera(VirtualGaze, Camera):
     """Camera that samples the scene on a foveated retina instead of a uniform pixel grid.
 
     The sample layout comes from :class:`fovi.sensing.coords.SamplingCoords`. Constructing this class returns the

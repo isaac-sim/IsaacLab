@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Foveated rendering and binocular active cameras for Isaac Lab.
+"""Foveated cameras for Isaac Lab.
 
 Import camera implementations from :mod:`isaaclab_fovi.sensors` after starting
-the selected simulator runtime. Geometry and fixation helpers are available
-without starting a simulator.
+the selected simulator runtime.
 """
