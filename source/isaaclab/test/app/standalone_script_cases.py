@@ -514,7 +514,7 @@ def run_until_ready(
     process = subprocess.Popen(
         command,
         cwd=ROOT,
-        env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "PYTHONUNBUFFERED": "1"},
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
