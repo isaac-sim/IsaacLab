@@ -40,6 +40,10 @@ startup traction ramp. Commands persist across episode and hard resets. Call ``r
 after restoring bodies to clear stale forces for those environments, and ``close()`` before
 destroying the simulation.
 
+For device-side selection, use ``set_speed_scale(..., env_mask=mask)`` and
+``reset(env_mask=mask)`` with a full-environment boolean Warp or Torch mask.
+Same-device masks and indices reuse native storage without a host round trip.
+
 The Newton MJWarp implementation uses Newton's conveyor force model. Straight and curved
 sections retain their authored relative speeds under each environment's multiplier. Independent
 speed profiles can use separate controllers with disjoint collision surfaces. Surface geometry

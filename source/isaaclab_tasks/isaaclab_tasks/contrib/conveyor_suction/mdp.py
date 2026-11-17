@@ -280,7 +280,7 @@ class SizeSortCommand(CommandTerm):
         extras["full_start_episodes"] = full.sum()
         sampler = self._reset_term.reset_sampler
         extras["reset_row_coverage"] = (sampler.episode_counts.torch > 0).float().mean()
-        extras["full_start_sampling_probability"] = sampler.probabilities.torch[-1]
+        extras["full_start_sampling_probability"] = sampler.probabilities.torch[-1].clone()
         samples = self._reset_term._samples
         for phase, name in enumerate(("place", "carry", "approach", "return")):
             extras[f"{name}_sampling_probability"] = sampler.probabilities.torch[
@@ -481,7 +481,7 @@ class ResetParcels(ManagerTermBase):
         self._joint_positions = robot.data.default_joint_pos.torch.clone()
         self._zero_root_velocity = torch.zeros((self.num_envs, 6), device=self.device)
         self._zero_joint_velocity = torch.zeros_like(self._joint_positions)
-        self._parcel_pose = env.parcels[0].data.default_root_pose.torch.clone()
+        self._parcel_pose = env.scene["parcel_0"].data.default_root_pose.torch.clone()
         self._parcel_velocity = torch.zeros_like(self._zero_root_velocity)
 
     def reseed(self, seed: int) -> None:

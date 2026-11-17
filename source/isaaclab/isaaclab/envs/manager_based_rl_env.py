@@ -205,6 +205,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # Episode metrics belong to this step; retained dictionaries may already be with an RL logger.
+        self.extras["log"] = {}
         self.action_manager.process_action(action.to(self.device))
         if self._physics_handles_actions is None:
             self._handle_physics_actions()
@@ -259,6 +261,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # -- handle episode reset requested from visualizer UI controls
         if self.sim.consume_reset_request():
+            completed_logs = self.extras["log"]
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
             index_fill_(not_yet_reset, reset_env_ids, False)
@@ -269,6 +272,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
+                # A viewer interruption must not replace completed-episode metrics from this step.
+                self.extras["log"].update(completed_logs)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
 
         self.command_manager.compute(dt=self.step_dt)

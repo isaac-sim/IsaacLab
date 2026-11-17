@@ -62,11 +62,15 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         counts = reset.reset_sampler.episode_counts.torch
         previous = reset.row_ids.clone()
         command.ever_success[:] = torch.tensor([True, False])
-        env.reset_buf[:] = torch.tensor([True, False])
-        env._reset_idx(torch.tensor([0, 1]))
+        env.episode_length_buf[0] = env.max_episode_length - 1
+        env.sim.request_reset()
+        env.step(torch.zeros(2, 8))
         assert counts.sum() == 1 and counts[previous[0]] == 1
         assert reset.reset_sampler.success_rate.torch[previous[0]] == 1
         assert env.extras["log"]["Curriculum/reset_sampling/batch_success_rate"] == 1
+        # A later non-reset frame supplies no stale episode metrics to the logger.
+        env.step(torch.zeros(2, 8))
+        assert "Curriculum/reset_sampling/batch_success_rate" not in env.extras["log"]
 
         previous = reset.row_ids.clone()
         env.episode_length_buf.fill_(1)

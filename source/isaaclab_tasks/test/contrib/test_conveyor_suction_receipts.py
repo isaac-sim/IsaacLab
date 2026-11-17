@@ -43,7 +43,8 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
     with closing(gym.make("IsaacContrib-Conveyor-Suction-Sorting", cfg=cfg).unwrapped) as env:
         command = env.command_manager.get_term("sort")
         reset = env.event_manager.get_term_cfg("reset_parcels").func
-        env.reset()
+        observations, _ = env.reset()
+        assert observations["policy"].shape == (2, 312) and env.action_manager.total_action_dim == 4
         parcels = env.active_ids.clone()
         robot = env.scene["robot"]
         assert env.gripper.engaged.all() and not command.lifted.any()
