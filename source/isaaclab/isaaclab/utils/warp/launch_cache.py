@@ -16,16 +16,16 @@ _UNKNOWN = object()
 
 
 class _WarpLaunchCache:
-    """Recorded Warp launches of code that runs outside a CUDA graph, one per call site.
+    """Cached Warp launches of code that runs outside a CUDA graph, one per call site.
 
     Each call site names itself with ``key``, so the cache holds at most one :class:`warp.Launch` per call site. A
     launch compares its arguments with those of the call site's cached launch:
 
     * Through ``wp.launch``, a changed kernel argument is set on the cached launch in place, and so is a changed launch
       dimension. A kernel argument that cannot be compared, such as a Warp struct, is set on every launch. A changed
-      kernel or launch option records the call site's launch again.
+      kernel or launch option builds the call site's launch again.
     * Through any other operation, which must accept ``device`` and ``record_cmd`` like ``wp.launch``, a changed array
-      or scalar argument records the call site's launch again; other arguments must stay valid until the key is
+      or scalar argument builds the call site's launch again; other arguments must stay valid until the key is
       cleared.
 
     CPU execution and graph capture invoke the operation directly.
@@ -36,7 +36,7 @@ class _WarpLaunchCache:
         self._commands: dict[object, tuple[wp.Launch, tuple]] = {}
 
     def launch(self, key: object, operation: Callable, *args, **kwargs) -> None:
-        """Launch through the call site's cached launch, recording it on the first call.
+        """Launch through the call site's cached launch, building it on the first call.
 
         Args:
             key: Name of the call site.
@@ -79,7 +79,7 @@ class _WarpLaunchCache:
         command.launch()
 
     def clear(self, key: object | None = None) -> None:
-        """Remove one recorded launch or every recorded launch."""
+        """Remove one cached launch or every cached launch."""
         if key is None:
             self._commands.clear()
         else:

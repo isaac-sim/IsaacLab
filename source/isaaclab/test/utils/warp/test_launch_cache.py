@@ -99,8 +99,8 @@ def _scale_into(values: wp.array(dtype=wp.float32), scale: wp.float32, out: wp.a
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_a_cached_launch_takes_changed_arguments_in_place(device, monkeypatch):
-    """A call site keeps one recorded launch: a reallocated array, a changed scalar and a changed dimension are set on
-    it in place, without recording a new launch."""
+    """A call site keeps one cached launch: a reallocated array, a changed scalar and a changed dimension are set on
+    it in place, without building a new launch."""
     recorded = []
     launch = wp.launch
 

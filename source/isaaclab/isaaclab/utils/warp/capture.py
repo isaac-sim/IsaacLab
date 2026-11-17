@@ -109,6 +109,9 @@ class GraphedCallable:
       and the callable records again on its next call.
     * Called inside a graph capture that something else started, it runs inline, so its kernels become part of that
       capture.
+
+    Recording here means this callable's own CUDA graph; :func:`capturing` tells whether any graph capture is in
+    progress on the device, also one something else started.
     """
 
     _recording: ClassVar[_Recording | None] = None

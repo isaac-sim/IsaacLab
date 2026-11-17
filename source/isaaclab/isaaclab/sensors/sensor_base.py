@@ -228,7 +228,7 @@ class SensorBase(ABC):
         if not self._is_initialized:
             return
         self._data_dirty |= dt > 0.0
-        # Update the timestamp for the sensors, through a recorded launch: the update runs once per physics step
+        # Update the timestamp for the sensors, through a cached launch: the update runs once per physics step
         # outside the recorded parts of the step
         self._launch_cache.launch(
             "update_timestamp",
