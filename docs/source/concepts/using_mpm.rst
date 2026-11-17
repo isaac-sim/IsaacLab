@@ -345,10 +345,12 @@ Set ``reuse_grid_topology=True`` to select the guarded sparse runtime required
 by sleeping and working sets. Unchanged grid structure is reused where supported;
 point bases retain device guards and rebuild structure.
 Choose capacities for the largest anticipated awake region and support halo,
-not just the initial classification. Sleeping requires a CUDA sparse grid;
-bounded working sets additionally require standard PIC and a rebuildable grid.
-This opt-in feature requires the companion Newton runtime and Warp conditional
-allocation changes; the default dependency pins do not provide these APIs yet.
+not just the initial classification. Both helpers require CUDA,
+``integration_scheme="pic"``, a bounded, rebuildable sparse grid, and disabled gradients.
+This opt-in feature requires the companion
+`Newton runtime <https://github.com/newton-physics/newton/pull/5217>`_ and
+`Warp conditional allocations <https://github.com/NVIDIA/warp/pull/2270>`_;
+the default dependency pins do not provide these APIs yet.
 Use their source checkouts through ``PYTHONPATH`` and keep ``--no-sync`` when
 launching with manually installed feature builds. Topology reuse caches only
 structure; material values and contacts still update on every step.
@@ -407,11 +409,13 @@ capacity and recapture before retrying; a truncated or partially frozen
 rollout is not a valid fallback. Resetting or disabling sleeping can wake the
 full particle population, which must fit the new pool or be classified again.
 This moves the check to a validation boundary, rather than eliminating it.
-Prepare the scene before entering the scope. Use Isaac Lab's reset interfaces
-inside collection: they check pending faults before native reset can clear
-them. Reset forwarding can therefore synchronize, including when captured
-pose writes set reset masks. Direct native solver resets are unsupported
-inside the window. Closing or replacing the backend also rejects the window.
+Prepare the scene before entering the scope. Run Isaac Lab's reset interfaces
+eagerly, outside graph capture: they check pending faults before native reset
+can clear them and can therefore synchronize. Only replay graphs without
+resets inside the window. This also excludes graphs recorded earlier through
+Isaac Lab's reset interfaces: replay would clear faults without repeating the
+host validation. Direct native solver resets are unsupported inside the window.
+Closing or replacing the backend also rejects the window.
 Status validation does not replace task-specific finite-state or physical checks.
 
 Resets

@@ -595,7 +595,7 @@ def test_nested_solver_scopes_mujoco_joint_properties(entry_solver_cfg, expected
 
 @pytest.mark.parametrize(("mask_values", "should_reset"), [([True, False], True), ([False, False], False)])
 def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, should_reset):
-    """The only selected local MPM world uses the full-grid reset path."""
+    """A selected local MPM world resets the full grid only after checking pending faults."""
     state_0 = object()
     calls: list[tuple[object, object | None, int | None]] = []
     solver = SimpleNamespace(
@@ -605,9 +605,21 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
     mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    solver_driver(CouplerSolver, solver_cfg, solver).reset(state_0, mask)
+    driver = solver_driver(CouplerSolver, solver_cfg, solver)
+    driver.reset(state_0, mask)
 
     assert calls == ([(state_0, None, 0)] if should_reset else [])
+
+    if should_reset:
+        calls.clear()
+
+        def reject_pending_status(_solver):
+            raise RuntimeError("pending MPM fault")
+
+        monkeypatch.setattr(coupler, "check_mpm_reset_status", reject_pending_status)
+        with pytest.raises(RuntimeError, match="pending MPM fault"):
+            driver.reset(state_0, mask)
+        assert calls == []
 
 
 def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
@@ -632,7 +644,7 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
 
 
 def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
-    """A partial multi-world MPM reset must not clear every world's grid."""
+    """A multi-world MPM reset preserves its mask and rejects pending faults before resetting."""
     state = object()
     calls: list[tuple[object, object, int]] = []
     solver = SimpleNamespace(
@@ -642,9 +654,20 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
     mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    solver_driver(CouplerSolver, solver_cfg, solver).reset(state, mask)
+    driver = solver_driver(CouplerSolver, solver_cfg, solver)
+    driver.reset(state, mask)
 
     assert calls == [(state, mask, 0)]
+
+    calls.clear()
+
+    def reject_pending_status(_solver):
+        raise RuntimeError("pending MPM fault")
+
+    monkeypatch.setattr(coupler, "check_mpm_reset_status", reject_pending_status)
+    with pytest.raises(RuntimeError, match="pending MPM fault"):
+        driver.reset(state, mask)
+    assert calls == []
 
 
 @pytest.mark.parametrize(

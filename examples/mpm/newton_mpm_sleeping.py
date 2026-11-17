@@ -24,12 +24,15 @@ against full MPM for your task.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 
 import numpy as np
 import warp as wp
 
 from isaaclab.app import add_launcher_args, launch_simulation
+
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--max_steps", type=int, default=480, help="Frames; negative runs until the viewer closes.")
@@ -212,7 +215,7 @@ def run_simulator(sim, scene):
     sim.step(render=False)  # Warm and capture the final layout with the controller disabled.
     scene.update(dt)
     backend.solver_ops.motion_enabled.fill_(1)
-    print("[INFO]: Setup complete. Particle activity and sphere motion now replay on GPU.", flush=True)
+    logger.info("Setup complete. Particle activity and sphere motion now replay on GPU.")
     with defer_mpm_status_checks(manager):
         frames = 0
         while sim.is_running() and (args_cli.max_steps < 0 or frames < args_cli.max_steps):

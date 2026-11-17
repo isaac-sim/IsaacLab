@@ -189,7 +189,8 @@ def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, 
 def check_mpm_reset_status(solver: SolverBase) -> None:
     """Validate a deferred window before a Lab reset can clear its native fault status.
 
-    Outside deferred collection this is a no-op. Reset boundaries can synchronize; ordinary replay does not call it.
+    Outside deferred collection this is a no-op. Deferred resets must run eagerly and can synchronize;
+    replaying a previously captured reset cannot perform this host validation.
     """
     deferred = _deferred_status_checks.get()
     if deferred:
@@ -292,8 +293,10 @@ def defer_mpm_status_checks(manager: NewtonManager, *, solvers: Sequence[SolverI
     Consume collected transitions or update a policy only after successful exit. A body exception also rejects the
     window and restores ordinary checking. Nested scopes validate independently.
 
-    Use Lab's reset interfaces inside the scope; direct native resets are unsupported because they clear fault status.
-    Lab resets check before clearing status and can synchronize even inside the scope. Prepare the scene before entry.
+    Use Lab's reset interfaces eagerly, outside graph capture; they check before clearing status and can synchronize.
+    Only replay graphs without resets inside the scope. This excludes previously captured Lab reset operations as
+    well as direct native resets: their recorded clears can erase faults without this scope's host validation.
+    Prepare the scene before entry.
     Status validation does not replace task-specific finite-state or physical checks.
     This requires native guarded CUDA MPM with a persistent ``step_status``. The device guard protects particle
     buffers, but coupled rigid bodies may continue after an MPM fault. This scope does not provide GPU validity masks
