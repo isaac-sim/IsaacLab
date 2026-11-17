@@ -1,6 +1,6 @@
 * Added :mod:`isaaclab.utils.warp.capture`. :class:`~isaaclab.utils.warp.capture.GraphedCallable` records a call as
   a CUDA graph on its first run with a given argument layout and replays it after; it records again for another
-  layout or when the physics backend rebinds its buffers.
+  layout, or after its owner calls :meth:`~isaaclab.utils.warp.capture.GraphedCallable.reset`.
 * Added :func:`~isaaclab.utils.warp.capture.eager_method` to mark methods that cannot be recorded. A
   :class:`~isaaclab.utils.warp.capture.GraphedCallable` that calls one while it records abandons the recording
   without launching it and runs without a CUDA graph from then on, logging a warning that names both calls.

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from types import SimpleNamespace
 
 import pytest
 import torch
@@ -135,13 +134,14 @@ def test_views_of_one_array_record_their_own_graphs():
     assert (_read(values), fn.calls, _num_graphs(graphed)) == ([3, 3, 2, 2], 2, 2)
 
 
-def test_physics_rebind_records_the_callable_again():
+def test_reset_records_the_callable_again():
+    """The owner resets a callable when what its recordings hold changes, such as the physics buffers."""
     fn = _Affine()
     graphed = GraphedCallable(fn, DEVICE)
     values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
     graphed(values)
 
-    GraphedCallable.invalidate()
+    graphed.reset()
     graphed(values)
     graphed(values)
     assert (fn.calls, _read(values), _num_graphs(graphed)) == (2, [3], 1)
@@ -198,8 +198,8 @@ def test_an_eager_call_abandons_the_recording_through_an_exception_handler():
     assert (_read(values), fn.calls, _num_graphs(graphed)) == ([10], 1, 0)
 
 
-def test_a_callable_that_ran_plainly_records_again_after_an_invalidation():
-    """A term change can remove the eager call, so an invalidation lets the callable record again."""
+def test_a_callable_that_ran_plainly_records_again_after_a_reset():
+    """A term change can remove the eager call, so a reset lets the callable record again."""
     fn, eager_fn = _Affine(2, 0), _EagerAffine(1, 10)
     uses_eager = [True]
 
@@ -212,7 +212,7 @@ def test_a_callable_that_ran_plainly_records_again_after_an_invalidation():
     values = wp.ones(1, dtype=wp.int32, device=DEVICE)
     graphed(values)  # abandoned, then plain: 1 * 2 + 10 = 12
     uses_eager[0] = False
-    GraphedCallable.invalidate()
+    graphed.reset()
     graphed(values)  # records: 24
     graphed(values)  # replays: 48
     assert (_read(values), fn.calls, _num_graphs(graphed)) == ([48], 3, 1)
@@ -292,32 +292,6 @@ def test_an_eager_method_makes_its_recorded_caller_run_plainly():
     for _ in range(3):
         graphed()
     assert (registry.changes, _read(values), _num_graphs(graphed)) == ([7, 7, 7], [3], 0)
-
-
-def test_recording_settles_the_watched_backend_first():
-    """Work the physics backend queued before a recording runs once, before it, not on every replay."""
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    class Backend:
-        pending = True
-
-        def register_callback(self, fn, event):
-            return SimpleNamespace(deregister=lambda: None)
-
-        def forward(self):
-            if self.pending:
-                wp.launch(_affine, dim=1, inputs=[values, 1, 1], device=DEVICE)
-                self.pending = False
-
-    backend = Backend()
-    GraphedCallable.watch(backend)
-    try:
-        graphed = GraphedCallable(backend.forward, DEVICE)
-        for _ in range(3):
-            graphed()
-    finally:
-        GraphedCallable.unwatch()
-    assert _read(values) == [1]
 
 
 def _synchronizing_call(values: torch.Tensor) -> float:

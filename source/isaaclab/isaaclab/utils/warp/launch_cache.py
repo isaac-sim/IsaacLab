@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import weakref
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import Any
 
 import warp as wp
 
@@ -29,17 +28,12 @@ class _WarpLaunchCache:
       or scalar argument records the call site's launch again; other arguments must stay valid until the key is
       cleared.
 
-    CPU execution and graph capture invoke the operation directly. :meth:`clear_all` empties every cache, which the
-    recording of the environment step does when the physics backend rebinds its buffers or stops (see
-    :meth:`~isaaclab.utils.warp.capture.GraphedCallable.watch`).
+    CPU execution and graph capture invoke the operation directly.
     """
-
-    _instances: ClassVar[weakref.WeakSet] = weakref.WeakSet()
 
     def __init__(self, device: str):
         self._device = wp.get_device(device)
         self._commands: dict[object, tuple[wp.Launch, tuple]] = {}
-        _WarpLaunchCache._instances.add(self)
 
     def launch(self, key: object, operation: Callable, *args, **kwargs) -> None:
         """Launch through the call site's cached launch, recording it on the first call.
@@ -90,16 +84,6 @@ class _WarpLaunchCache:
             self._commands.clear()
         else:
             self._commands.pop(key, None)
-
-    @classmethod
-    def clear_all(cls, payload: Any = None) -> None:
-        """Remove the recorded launches of every cache, so they record again on their next launch.
-
-        Args:
-            payload: Event payload of a physics callback, unused.
-        """
-        for cache in list(cls._instances):
-            cache.clear()
 
 
 def _key(value: Any, unknown: Any = _UNKNOWN) -> Any:

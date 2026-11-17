@@ -14,7 +14,7 @@ import contextlib
 import functools
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 import torch
 import torch.utils._pytree as _pytree
@@ -23,10 +23,6 @@ import warp._src.context as _warp_context
 from torch.utils._python_dispatch import TorchDispatchMode
 
 from ..version import has_kit
-from .launch_cache import _WarpLaunchCache
-
-if TYPE_CHECKING:
-    from ...physics import PhysicsManager
 
 logger = logging.getLogger(__name__)
 
@@ -109,19 +105,11 @@ class GraphedCallable:
       counter it advanced, ran once in the abandoned recording and runs again in the plain call, on that first call
       only; its device work ran only in the plain call.
     * A callable on a CPU device always runs eagerly.
-    * :attr:`generation` advances when the terms change or the physics backend rebinds its buffers or stops (see
-      :meth:`watch`), and every callable records again on its next call.
+    * Its owner calls :meth:`reset` when what a recording holds changes, such as the physics buffers after a rebind,
+      and the callable records again on its next call.
     * Called inside a graph capture that something else started, it runs inline, so its kernels become part of that
       capture.
     """
-
-    generation: ClassVar[int] = 0
-    """Counter of term changes, physics rebinds and stops; a callable recorded under an older value records again."""
-
-    _callback_handles: ClassVar[list] = []
-
-    _settle: ClassVar[Callable[[], None] | None] = None
-    """The watched physics backend's forward, run before each recording (see :meth:`watch`)."""
 
     _recording: ClassVar[_Recording | None] = None
     """The recording in progress, which a call of an :func:`eager_method` method abandons."""
@@ -139,7 +127,6 @@ class GraphedCallable:
         self._recordings: dict[tuple, tuple[wp.Graph, Any]] = {}
         self._plain = False
         """Whether the callable called an :func:`eager_method` method while recording, so it runs plainly."""
-        self._generation = GraphedCallable.generation
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Run the callable and return its result."""
@@ -147,9 +134,6 @@ class GraphedCallable:
             return self._fn(*args, **kwargs)
         if not self._device.is_cuda:
             return self._fn(*args, **kwargs)
-        if self._generation != GraphedCallable.generation:
-            self.reset()
-            self._generation = GraphedCallable.generation
         if self._plain:
             return self._fn(*args, **kwargs)
         key = _argument_key(args, kwargs)
@@ -175,40 +159,6 @@ class GraphedCallable:
             # graphs may still be executing; drain the device before releasing them
             wp.synchronize_device(self._device)
             self._recordings.clear()
-
-    @classmethod
-    def watch(cls, backend_manager: PhysicsManager) -> None:
-        """Record every callable and every cached launch again after the physics backend rebinds its buffers or stops,
-        and settle the backend before each recording: work it queued before (model changes, kinematics) runs then,
-        once, so a recording holds only the work of its own calls.
-
-        Args:
-            backend_manager: Physics manager that dispatches the lifecycle events.
-        """
-        # imported here so that the utilities do not load the physics package
-        from ...physics import PhysicsEvent
-
-        cls.unwatch()
-        cls._settle = backend_manager.forward
-        cls._callback_handles = [
-            backend_manager.register_callback(callback, event)
-            for event in (PhysicsEvent.PHYSICS_READY, PhysicsEvent.STOP)
-            # the recorded launches of the code outside the graphs read the same buffers
-            for callback in (cls.invalidate, _WarpLaunchCache.clear_all)
-        ]
-
-    @classmethod
-    def unwatch(cls) -> None:
-        """Stop following the physics backend."""
-        for handle in cls._callback_handles:
-            handle.deregister()
-        cls._callback_handles = []
-        cls._settle = None
-
-    @classmethod
-    def invalidate(cls, payload: Any = None) -> None:
-        """Record every callable again on its next call."""
-        cls.generation += 1
 
     def _record(self, args: tuple, kwargs: dict[str, Any]) -> tuple[wp.Graph, Any]:
         """Record the callable as its first run and return the graph and the result.
@@ -238,9 +188,6 @@ def _record_calls(device: wp.Device):
     Yields:
         The recording, whose graph replays the calls.
     """
-    if GraphedCallable._settle is not None:
-        # physics work queued before the recording runs now, once, instead of on every replay
-        GraphedCallable._settle()
     recording = _Recording(device)
     enclosing, GraphedCallable._recording = GraphedCallable._recording, recording
     try:

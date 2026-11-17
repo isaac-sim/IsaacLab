@@ -10,7 +10,6 @@ import warp as wp
 
 import isaaclab.utils.warp.launch_cache as launch_cache
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.warp.capture import GraphedCallable
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 
@@ -92,39 +91,6 @@ def test_another_operation_records_again_when_an_array_or_scalar_argument_change
     assert len(cache._commands) == 1
 
 
-def test_a_physics_rebind_or_stop_clears_every_cache(monkeypatch):
-    """The recording of the environment step clears the recorded launches with its own recordings."""
-
-    class Device:
-        is_cuda = True
-        is_capturing = False
-
-    class BackendManager:
-        def __init__(self):
-            self.callbacks = []
-
-        def register_callback(self, fn, event):
-            self.callbacks.append(fn)
-            return SimpleNamespace(deregister=lambda: None)
-
-        def forward(self):
-            pass
-
-    monkeypatch.setattr(launch_cache.wp, "get_device", lambda _: Device())
-    caches = [_WarpLaunchCache("cuda:0") for _ in range(2)]
-    for cache in caches:
-        cache.launch("site", lambda device, record_cmd=False: SimpleNamespace(launch=lambda: None))
-    manager = BackendManager()
-    GraphedCallable.watch(manager)
-    try:
-        assert _WarpLaunchCache.clear_all in manager.callbacks
-        for callback in manager.callbacks:
-            callback(None)
-    finally:
-        GraphedCallable.unwatch()
-    assert [len(cache._commands) for cache in caches] == [0, 0]
-
-
 @wp.kernel
 def _scale_into(values: wp.array(dtype=wp.float32), scale: wp.float32, out: wp.array(dtype=wp.float32)):
     i = wp.tid()
@@ -156,6 +122,6 @@ def test_a_cached_launch_takes_changed_arguments_in_place(device, monkeypatch):
     assert scale(reallocated, 5.0) == [15.0] * 4
     assert scale(reallocated, 1.0, dim=2) == [3.0, 3.0, 15.0, 15.0]
     assert (len(recorded), len(cache._commands)) == (1, 1)
-    _WarpLaunchCache.clear_all()
+    cache.clear()
     assert scale(reallocated, 2.0) == [6.0] * 4
     assert len(recorded) == 2
