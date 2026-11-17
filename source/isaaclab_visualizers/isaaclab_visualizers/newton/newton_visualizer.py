@@ -754,6 +754,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._camera_keys_enabled = True
         self._overlay_publisher = None
         self._pose_started = False
+        self._marker_revision = -1
         self._followers: dict[object, CameraFollower] = {}
         """Followers of the tracking cameras, by image view."""
         self._rtx_pose_view = None
@@ -1839,6 +1840,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._apply_view_pose(pose_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
+                self._refresh_rtx_markers()
                 self._refresh_paused_rtx_view(self._log_rtx_overlays())
                 self._log_streaming_image()
             elif not viewer.is_paused():
@@ -1908,6 +1910,19 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.show_contact_disks = disks
         publisher.publish(renderers)
         return bool(dragging)
+
+    def _refresh_rtx_markers(self) -> None:
+        """Render the OVRTX cameras again when a marker group is shown, hidden, or moved, which OVRTX draws as prims."""
+        if not self.cfg.enable_markers:
+            return
+        revision = self._sim.vis_marker_registry.revision
+        if self._marker_revision == revision:
+            return
+        self._marker_revision = revision
+        for view in self._image_views:
+            if view.camera is not None:
+                view.camera._invalidate_buffers()
+                view.invalidate()
 
     def _refresh_paused_rtx_view(self, arrows_changed: bool) -> None:
         """Render the OVRTX camera again while the simulation is paused, which does not render it by itself.
