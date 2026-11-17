@@ -354,8 +354,8 @@ class SurfaceGripper(BaseSurfaceGripper):
             model.shape_flags.numpy(),
         )
         collision_shapes = {}
-        for shape, (body, kind, flags) in enumerate(zip(shape_body, shape_type, shape_flags, strict=True)):
-            if kind == int(GeoType.BOX) and flags & int(ShapeFlags.COLLIDE_SHAPES):
+        for shape, (body, flags) in enumerate(zip(shape_body, shape_flags, strict=True)):
+            if flags & int(ShapeFlags.COLLIDE_SHAPES):
                 collision_shapes.setdefault(int(body), []).append(shape)
         tool_bodies = [[] for _ in range(self._num_envs)]
         targets = [[] for _ in range(self._num_envs)]
@@ -363,9 +363,12 @@ class SurfaceGripper(BaseSurfaceGripper):
             world = int(body_world[body])
             if not 0 <= world < self._num_envs:
                 continue
+            shapes = collision_shapes.get(body, ())
             if self._tool_pattern.fullmatch(label):
                 tool_bodies[world].append(body)
-            elif self._target_pattern.fullmatch(label) and len(collision_shapes.get(body, ())) == 1:
+            elif (
+                self._target_pattern.fullmatch(label) and len(shapes) == 1 and shape_type[shapes[0]] == int(GeoType.BOX)
+            ):
                 targets[world].append(body)
         if any(len(bodies) != 1 for bodies in tool_bodies):
             raise ValueError("A surface gripper requires exactly one matching tool body per world.")

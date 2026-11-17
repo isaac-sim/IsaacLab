@@ -51,7 +51,7 @@ def test_box_acquisition_lift_release_and_rebind(device):
                 label=f"{root}/Robot/panda_hand",
             )
             builder.add_shape_sphere(tool, radius=0.01)
-            for index, x in enumerate((0.5, 0.0)):
+            for index, x in ((0, 0.5), (1, 1.0), (2, 0.0)):
                 parcel = builder.add_body(
                     xform=wp.transform((x, 0, hz), wp.quat_identity()), label=f"{root}/Cube{index}"
                 )
@@ -62,6 +62,9 @@ def test_box_acquisition_lift_release_and_rebind(device):
                     hz=hz,
                     cfg=builder.ShapeConfig(density=float((0.03, 0.2)[world] / (8 * hx * hy * hz))),
                 )
+                if index == 1:
+                    # Compound bodies are outside the single-box payload contract.
+                    builder.add_shape_sphere(parcel, radius=0.005)
             builder.end_world()
         gripper = SurfaceGripper(
             SurfaceGripperCfg(prim_path=r".*/Robot/panda_hand", target_prim_path=r".*/Cube[0-9]+"), sim=sim
@@ -84,7 +87,7 @@ def test_box_acquisition_lift_release_and_rebind(device):
                 sim.reset()
                 model = manager.backend.model
                 tools = [body for body, label in enumerate(model.body_label) if label.endswith("/panda_hand")]
-                parcels = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube1")]
+                parcels = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube2")]
                 distant = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube0")]
                 if reset_index:
                     gripper.set_target_ids(torch.ones(2, dtype=torch.long, device=device))

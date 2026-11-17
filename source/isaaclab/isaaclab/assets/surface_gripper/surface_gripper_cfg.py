@@ -19,7 +19,7 @@ class SurfaceGripperCfg(AssetBaseCfg):
     """Configure a surface gripper using the active physics backend.
 
     On Newton, ``prim_path`` selects the rigid tool body and the tool geometry below
-    defines four compliant pads. Payloads must have a single box collision shape.
+    defines four compliant pads. Payloads must have exactly one collider, of box type.
     PhysX uses a surface-gripper prim and the four optional PhysX properties below.
     """
 
