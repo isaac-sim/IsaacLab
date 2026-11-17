@@ -32,6 +32,7 @@ from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
+from ...utils.warp.capture import eager_method
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
@@ -201,11 +202,9 @@ class NewtonActuatorAdapter:
             self._reset_states(env_mask)
             return
         if env_ids is None or env_ids == slice(None):
-            for sa, sb in zip(self._states_a, self._states_b):
+            for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
                 if sa is not None:
-                    sa.reset(None)
-                if sb is not None:
-                    sb.reset(None)
+                    self._reset_state_pair(act, sa, sb, None)
             return
 
         num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
@@ -329,8 +328,23 @@ class NewtonActuatorAdapter:
                 inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
                 device=self._device,
             )
-            sa.reset(per_dof_mask)
-            sb.reset(per_dof_mask)
+            self._reset_state_pair(act, sa, sb, per_dof_mask)
+
+    @staticmethod
+    def _reset_state_pair(act: Actuator, sa: Any, sb: Any, per_dof_mask: wp.array | None) -> None:
+        """Reset both state buffers of an actuator; a torch state, such as a neural network drive's, cannot be
+        recorded, so its reset goes through :meth:`_reset_unrecordable_state`."""
+        for state in (sa, sb):
+            if act.is_graphable():
+                state.reset(per_dof_mask)
+            else:
+                NewtonActuatorAdapter._reset_unrecordable_state(state, per_dof_mask)
+
+    @staticmethod
+    @eager_method
+    def _reset_unrecordable_state(state: Any, per_dof_mask: wp.array | None) -> None:
+        """Reset an actuator state that cannot be recorded, so a recorded call that resets it runs without a graph."""
+        state.reset(per_dof_mask)
 
 
 # ---------------------------------------------------------------------------

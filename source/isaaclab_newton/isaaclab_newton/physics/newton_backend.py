@@ -156,7 +156,7 @@ class NewtonBackend:
             {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
         )
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
-        self.bvh_refit = TimestampedBuffer()
+        self.bvh_refit = TimestampedBuffer(update_in_graph=False)
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
@@ -237,7 +237,7 @@ class NewtonBackend:
         """Drop native handles after consumers release their bindings."""
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
-        self.bvh_refit = TimestampedBuffer()
+        self.bvh_refit = TimestampedBuffer(update_in_graph=False)
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
@@ -348,14 +348,26 @@ class NewtonBackend:
         self.notify_model_changes()
         if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
-        ops, state = self.solver_ops, self.state_0
-        if ops is None:
+        if self.solver_ops is None:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
+        self._resolve_flagged()
+        if not self.device.is_capturing:
+            # a capture records the work without running it
+            self.kinematics_dirty = False
+
+    def _resolves_in_step_graph(self) -> bool:
+        """Whether the step graph resolves the flagged worlds: once state writes were recorded into a graph, unless
+        the solver's reset reads the host, which then resolves before the step (see :meth:`forward`)."""
+        return self.transforms_may_change_on_graph_replay and self.solver_ops.reset_is_capturable
+
+    def _resolve_flagged(self) -> None:
+        """Reset solver internals and evaluate FK for the worlds and articulations flagged on the device, then clear
+        the device flags."""
+        ops, state = self.solver_ops, self.state_0
         ops.reset(state, self.world_mask)
         ops.eval_fk(state, self.world_mask, self.fk_mask)
         self.fk_mask.zero_()
         self.world_mask.zero_()
-        self.kinematics_dirty = False
         self.state_version += 1
 
     def notify_model_changes(self) -> None:
@@ -493,12 +505,22 @@ class NewtonBackend:
         steps = self.decimation if self.handles_decimation() else 1
         actuators = self.actuators
         with wp.ScopedDevice(self.device):
-            self.forward()
             if actuators is None or actuators.is_all_graphable:
-                self._launch(("simulate", steps), partial(self._simulate, steps))
+                # A solver reset may read the world mask on the host, so it stays outside the step graph until writes
+                # were recorded into a graph; their replays flag worlds on the device only. A reset that reads the
+                # host (reset_is_capturable False) always stays outside, as before.
+                replay_writes = self._resolves_in_step_graph()
+                if replay_writes:
+                    self.notify_model_changes()
+                else:
+                    self.forward()
+                self._launch(("simulate", steps, replay_writes), partial(self._simulate, steps))
+                if not self.device.is_capturing:
+                    self.kinematics_dirty = False
             else:
                 if self.device.is_capturing:
                     raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
+                self.forward()
                 self._stage_body_forces()
                 for i in range(steps):
                     self._launch("before_actuators", self._before_actuators)
@@ -609,7 +631,14 @@ class NewtonBackend:
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
-        """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
+        """Resolve the flagged state writes once writes were recorded into a graph, run ``steps`` physics steps with
+        the Newton actuators, then finish the step.
+
+        A captured step then resolves the flags on every replay, since replayed writes flag worlds on the device only;
+        with nothing flagged the masked kernels do no work.
+        """
+        if self._resolves_in_step_graph():
+            self._resolve_flagged()
         actuators = self.actuators
         self._stage_body_forces()
         for i in range(steps):

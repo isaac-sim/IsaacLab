@@ -25,8 +25,10 @@ import torch
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.capture import GraphedCallable
 
 from .articulation_factory import get_articulation
 from .backends import backends, read_backend_joint_state, requires
@@ -408,6 +410,53 @@ def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, bo
             buffers.append(("_body_com_vel_w_backend", art.data._body_com_vel_w_backend))
         set_coms(coms=coms)
         _assert_buffers_stale(art.data, buffers)
+
+
+# named apart from ``device``, whose Newton CUDA cases the conftest deselects: graph recording needs CUDA
+_CUDA_DEVICES = pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.DEFAULT_CUDA))
+
+
+def _recordable_articulation(backend: str, cuda_device: str, monkeypatch: pytest.MonkeyPatch):
+    art, view = _articulation(backend, cuda_device, monkeypatch)
+    if backend == "physx":
+        # the TensorAPI returns its own stable buffer, where the fixture view returns a copy allocated per call
+        monkeypatch.setattr(
+            view, "get_root_transforms", lambda: view._as_structured(view._root_transforms, wp.transformf, (N,))
+        )
+    return art
+
+
+@_CUDA_DEVICES
+def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda_device):
+    """A lazy property read while a GraphedCallable records updates on each replay, though current at recording.
+
+    The joint acceleration finite difference advances only in :meth:`update`, so the recording leaves it alone.
+    """
+    art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    # a previous velocity apart from the current one gives the step a nonzero acceleration, which a recorded
+    # finite difference would overwrite
+    art.data._previous_joint_vel.fill_(-1.0)
+    art.data.update(dt=0.01)
+    _ = art.data.heading_w  # current when the read is recorded
+    joint_acc = art.data.joint_acc
+    joint_acc_before = joint_acc.torch.clone()
+    assert torch.count_nonzero(joint_acc_before) > 0
+
+    def read():
+        _ = art.data.joint_acc
+        return art.data.heading_w
+
+    graphed = GraphedCallable(read, cuda_device)
+    heading = graphed()
+    recorded = heading.torch.clone()
+
+    art.write_root_link_pose_to_sim_index(root_pose=_payload((N,), 7, wp.transformf, cuda_device))
+    graphed()
+    replayed = heading.torch.clone()
+    torch.testing.assert_close(joint_acc.torch, joint_acc_before)
+    art.data.update(dt=0.01)
+    torch.testing.assert_close(replayed, art.data.heading_w.torch)
+    assert not torch.allclose(replayed, recorded)
 
 
 @requires("physx")

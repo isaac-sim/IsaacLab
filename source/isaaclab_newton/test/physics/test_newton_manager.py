@@ -607,6 +607,79 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
 # ----- Reset masks -------------------------------------------------------------------------
 
 
+@wp.kernel
+def _count_flagged(flags: wp.array(dtype=wp.bool), counts: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    if flags[i]:
+        counts[i] += 1
+
+
+def test_a_captured_step_resolves_the_worlds_a_replayed_write_flagged():
+    """Once a state write was recorded into a graph, its replays flag worlds on the device only; each replay of the
+    captured step resets the solver and evaluates FK for exactly those worlds and articulations, then clears the
+    flags."""
+    backend = _recording_backend([], captures=True)
+    backend.transforms_may_change_on_graph_replay = True  # as recording a state write sets it
+    resets = wp.zeros(2, dtype=wp.int32, device="cpu")
+    fks = wp.zeros(1, dtype=wp.int32, device="cpu")
+    ops = backend.solver_ops
+    ops.reset = lambda state, worlds: wp.launch(_count_flagged, 2, inputs=[worlds, resets], device="cpu")
+    ops.eval_fk = lambda state, worlds, articulations: wp.launch(
+        _count_flagged, 1, inputs=[articulations, fks], device="cpu"
+    )
+
+    backend.step()  # runs eagerly with nothing flagged, then captures the step
+    assert backend.graphs
+    for _ in range(2):
+        # as a replayed write flags them, with no host flag
+        backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+        backend.fk_mask.fill_(True)
+        backend.step()
+
+    assert (resets.numpy().tolist(), fks.numpy().tolist()) == ([2, 0], [2])
+    assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
+
+
+def test_a_reset_that_reads_the_host_resolves_before_the_captured_step():
+    """A solver reset that reads the world mask on the host, such as an MPM coupler with one world, runs before the
+    step graph on every step, also once state writes were recorded; the step graph never holds it."""
+    backend = _recording_backend([], captures=True)
+    backend.transforms_may_change_on_graph_replay = True  # as recording a state write sets it
+    ops = backend.solver_ops
+    type(ops).reset_is_capturable = property(lambda self: False)
+    resets = []
+    ops.reset = lambda state, worlds: resets.append(worlds.numpy().tolist())  # a host read
+    ops.eval_fk = lambda state, worlds, articulations: None
+
+    backend.step()  # resolves eagerly with nothing flagged, then captures the step without the reset
+    assert backend.graphs
+    for _ in range(2):
+        backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+        backend.step()
+
+    # one eager reset per step, each reading the flags of that step
+    assert resets == [[False, False], [True, False], [True, False]]
+    assert not backend.world_mask.numpy().any()
+
+
+def test_forward_recorded_in_an_abandoned_capture_leaves_the_flags_pending():
+    """FK recorded in a capture runs only when the graph is launched, so a capture that is abandoned leaves the host
+    flag and the device flags pending for the next eager forward."""
+    backend = _recording_backend([])
+    resets = wp.zeros(2, dtype=wp.int32, device="cpu")
+    backend.solver_ops.reset = lambda state, worlds: wp.launch(_count_flagged, 2, inputs=[worlds, resets], device="cpu")
+    backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+    backend.kinematics_dirty = True
+
+    with wp.ScopedDevice("cpu"), wp.ScopedCapture():  # never launched
+        backend.forward()
+    assert backend.kinematics_dirty
+    backend.forward()
+
+    assert resets.numpy().tolist() == [1, 0]
+    assert not backend.kinematics_dirty and not backend.world_mask.numpy().any()
+
+
 def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_records_the_read():
     """Reading published state resolves pending FK once; a raw read during capture leaves it pending."""
     resets, fks = [], []

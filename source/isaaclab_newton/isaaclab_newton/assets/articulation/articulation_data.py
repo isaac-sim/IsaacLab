@@ -1780,12 +1780,18 @@ class ArticulationData(BaseArticulationData):
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer()
         self._body_com_pose_w = TimestampedBuffer()
-        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        # a finite difference, which update() takes every physics step: a recording that reads it must not hold it
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), update_in_graph=False
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer()
         self._heading_w = TimestampedBuffer()
         # -- joint state
-        self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
+        # a finite difference, which update() takes every physics step: a recording that reads it must not hold it
+        self._joint_acc = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
+        )
         self._joint_pos_user: wp.array | None = None
         self._joint_vel_user: wp.array | None = None
         self._joint_stiffness_user: wp.array | None = None
@@ -1964,7 +1970,10 @@ class ArticulationData(BaseArticulationData):
             self._previous_joint_vel.assign(self._sim_bind_joint_vel)
             self._actuator_stiffness.assign(self._sim_bind_joint_stiffness_sim)
             self._actuator_damping.assign(self._sim_bind_joint_damping_sim)
-        reset_timestamps([self._joint_acc, self._joint_pos_limits])
+        # the ordering does not make the finite difference stale: keeping its timestamp, the next read differences
+        # over the time since the last one, not since the simulation started
+        self._joint_acc.data.zero_()
+        reset_timestamps([self._joint_pos_limits])
 
     def _configure_body_ordering_buffers(self) -> None:
         """Allocate or release buffers owned only by nonidentity body ordering."""
@@ -1988,12 +1997,12 @@ class ArticulationData(BaseArticulationData):
             self._body_inertia_user = None
             self._body_com_pos_b_user = None
 
+        self._body_com_acc_w.data.zero_()
         reset_timestamps(
             [
                 self._body_link_vel_w,
                 self._body_com_pose_b,
                 self._body_com_pose_w,
-                self._body_com_acc_w,
                 self._body_state_w,
                 self._body_link_state_w,
                 self._body_com_state_w,

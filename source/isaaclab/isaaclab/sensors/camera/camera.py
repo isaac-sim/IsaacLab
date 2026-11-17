@@ -26,6 +26,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
+from ...utils.warp.capture import eager_method
 from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -728,6 +729,7 @@ class Camera(SensorBase):
             self._update_camera_state(env_mask=env_mask, frame_op=1)
         self._renderer.prepare_capture(self._render_data, self._data, self._frame)
 
+    @eager_method  # reads the outdated mask on the host and renders
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return

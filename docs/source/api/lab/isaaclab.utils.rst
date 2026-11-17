@@ -348,6 +348,13 @@ so callers must not retain a scratch result across another resolution using the 
 .. automodule:: isaaclab.utils.warp.memory
    :members:
 
+Warp CUDA graph capture
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: isaaclab.utils.warp.capture
+   :members:
+   :show-inheritance:
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 

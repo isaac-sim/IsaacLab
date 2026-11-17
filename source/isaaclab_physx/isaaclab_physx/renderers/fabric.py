@@ -189,7 +189,13 @@ class FabricBackend:
             )
             offsets = dict.fromkeys(group_paths, 0)
             self._geometry_bindings.append(
-                ((selection, write_selection), frequency, TimestampedBuffer(), offsets, -frequency)
+                (
+                    (selection, write_selection),
+                    frequency,
+                    TimestampedBuffer(),
+                    offsets,
+                    -frequency,
+                )
             )
 
     def close(self) -> None:

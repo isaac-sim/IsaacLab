@@ -57,9 +57,9 @@ def base_yaw_roll(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     )
 
 
-# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w,
-# avoiding the lazy TimestampedWarpBuffer which is not CUDA-graph-capturable.
-# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w.
+# Lazy asset data is recorded into CUDA graphs as well (a recording recomputes it on every replay),
+# so this can read asset.data.projected_gravity_b directly.
 
 
 @wp.kernel

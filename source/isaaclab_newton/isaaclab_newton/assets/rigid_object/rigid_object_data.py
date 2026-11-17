@@ -908,7 +908,10 @@ class RigidObjectData(BaseRigidObjectData):
         self._heading_w = TimestampedBuffer()
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer()
-        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        # a finite difference, which update() takes every physics step: a recording that reads it must not hold it
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), update_in_graph=False
+        )
         self._body_com_pose_b = TimestampedBuffer()
         # Empty memory pre-allocations
         self._root_state_w = None
