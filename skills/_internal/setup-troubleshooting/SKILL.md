@@ -1,7 +1,7 @@
 ---
 name: isaaclab-setup-troubleshooting
 description: Use when installing Isaac Lab, verifying setup, debugging launch failures, or diagnosing environment and simulation-performance problems.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---

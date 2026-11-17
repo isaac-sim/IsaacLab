@@ -1,7 +1,7 @@
 ---
 name: isaaclab-following-coding-style
 description: Applies Isaac Lab Python conventions. Use when writing or reviewing APIs, config classes, exports, and docstrings.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---

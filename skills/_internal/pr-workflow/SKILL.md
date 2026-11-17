@@ -1,7 +1,7 @@
 ---
 name: isaaclab-preparing-pr-workflow
 description: Checks Isaac Lab contribution readiness. Use when preparing a branch for a commit or PR.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---

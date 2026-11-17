@@ -1,7 +1,7 @@
 ---
 name: isaaclab-installing-isaac-lab
 description: Installs Isaac Lab end-to-end with minimal user interaction. Auto-detects the system with read-only checks, picks the right install method (uv checkout, uv-managed environment, Isaac Sim source build, Isaac Lab wheel, or Docker) from the install docs, applies the documented China Asset Region Profile when requested, shows one consolidated plan, and after a single confirmation executes the docs-prescribed commands unattended through verification. Use when installing Isaac Lab for the first time, picking between install combinations, configuring China asset access during installation, or asking for install commands for a specific platform.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---
