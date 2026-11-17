@@ -434,6 +434,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             visualizer._select_camera(0)
             assert visualizer.render_rgb_array().shape == (128, 128, 3)
         visualizer.close()
+        viewer.close()  # The GL visualizer leaves its window open; a later window must not draw into this context.
         assert renderer.backend.renderer is native_renderer
         camera.update(cfg.sim.dt)
         assert np.ptp(camera.data.output["rgba"].warp.numpy()) > 0
