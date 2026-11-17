@@ -364,8 +364,8 @@ class FoveatedRTXCamera(FoveatedCamera):
     #  Per-frame overrides
     # ------------------------------------------------------------------
 
-    def set_gaze_angles(self, angles: torch.Tensor) -> None:
-        super().set_gaze_angles(angles)
+    def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
+        super().set_gaze_angles(angles_deg)
         self._write_gaze_local_pose()
 
     def _write_gaze_local_pose(self) -> None:

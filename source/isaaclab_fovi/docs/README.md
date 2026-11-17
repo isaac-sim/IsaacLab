@@ -92,7 +92,7 @@ env.scene.eye.cmf_a_deg=1000
 The retina can turn while the camera prim stays in place:
 
 ```python
-# (tilt, pan) [rad] from the physical camera's optical axis, shape (num_envs, 2).
+# (tilt, pan) [deg] from the physical camera's optical axis, shape (num_envs, 2).
 # Positive tilt looks up and positive pan looks left.
 camera.set_gaze_angles(angles)
 ```

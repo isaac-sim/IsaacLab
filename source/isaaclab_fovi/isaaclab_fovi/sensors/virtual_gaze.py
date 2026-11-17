@@ -32,18 +32,18 @@ class VirtualGaze:
     to the optical axis of the physical camera it looks through.
     """
 
-    def set_gaze_angles(self, angles: torch.Tensor) -> None:
-        """Turn the retina to (tilt, pan) [rad] from the physical camera's optical axis.
+    def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
+        """Turn the retina to (tilt, pan) [deg] from the physical camera's optical axis.
 
         Positive tilt looks up and positive pan looks left. Zero looks along the
         optical axis.
 
         Args:
-            angles: Gaze angles for every environment, shape (num_envs, 2).
+            angles_deg: Gaze angles for every environment [deg], shape (num_envs, 2).
         """
         # Geometry must remain float32 even when the policy runs under AMP.
-        with torch.autocast(angles.device.type, enabled=False):
-            tilt, pan = angles.float().unbind(-1)
+        with torch.autocast(angles_deg.device.type, enabled=False):
+            tilt, pan = angles_deg.float().deg2rad().unbind(-1)
             direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
             self._gaze_rotation = gaze_rotation(direction, "pan_tilt")
 

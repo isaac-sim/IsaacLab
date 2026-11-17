@@ -86,17 +86,17 @@ class GazeHarness(VirtualGaze):
         self._initialize_gaze()
 
 
-def gaze_direction(angles: torch.Tensor) -> torch.Tensor:
-    """OpenCV camera-frame unit direction of (tilt, pan) gaze angles [rad]: up and left are positive."""
-    tilt, pan = angles.unbind(-1)
+def gaze_direction(angles_deg: torch.Tensor) -> torch.Tensor:
+    """OpenCV camera-frame unit direction of (tilt, pan) gaze angles [deg]: up and left are positive."""
+    tilt, pan = angles_deg.deg2rad().unbind(-1)
     return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
 
 
 def angles_toward(camera: CameraModel, pixel: tuple[float, float]) -> torch.Tensor:
-    """(tilt, pan) gaze angles [rad] that look along the ray through a source pixel (x, y)."""
+    """(tilt, pan) gaze angles [deg] that look along the ray through a source pixel (x, y)."""
     direction, _ = camera.unproject(torch.tensor([pixel]))
     x, y, z = direction.unbind(-1)
-    return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1)
+    return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1).rad2deg()
 
 
 @pytest.mark.parametrize("pixel", [(119.5, 39.5), (59.5, 79.5), (120.5, 39.5), (59.5, -1.3)])
@@ -114,7 +114,7 @@ def test_edge_gaze_preserves_visible_rays(pixel: tuple[float, float]) -> None:
 
 def test_gaze_away_from_sensor_masks_all_rays() -> None:
     camera = GazeHarness()
-    camera.set_gaze_angles(torch.tensor([[0.0, torch.pi]]))
+    camera.set_gaze_angles(torch.tensor([[0.0, 180.0]]))
     assert not camera._gaze_validity(1).any()
 
 
@@ -131,7 +131,7 @@ def test_gaze_preserves_camera_rotation_with_tf32(
     conversion = source_gl.new_tensor([[0, 0, -1], [-1, 0, 0], [0, 1, 0]]).double()
     source = quat_from_matrix(matrix_from_quat(source_gl.double()) @ conversion.T).float()
     original = source.clone()
-    angles = torch.tensor([[0.13, -0.21]], device=device).repeat(batch_size, 1)
+    angles = torch.tensor([[7.5, -12.0]], device=device).repeat(batch_size, 1)
     angles[1::2] = 0
     expected = matrix_from_quat(source.double()) @ conversion
     camera = GazeHarness()
@@ -161,7 +161,7 @@ def test_gaze_preserves_camera_rotation_with_tf32(
 
 def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pose() -> None:
     camera = GazeHarness()
-    angles = torch.tensor([[0.1, -0.2], [-0.15, 0.3]])
+    angles = torch.tensor([[6.0, -11.0], [-9.0, 17.0]])
     camera.set_gaze_angles(angles)
     camera._apply_gaze_pose()
     forward = quat_apply(camera._data.quat_w_world, torch.tensor([[1.0, 0.0, 0.0]]).expand(2, -1))
