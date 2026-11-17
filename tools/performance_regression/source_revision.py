@@ -132,19 +132,6 @@ def prepare_manifest(
     return manifest
 
 
-def _inspect_files(files: dict, root: Path) -> list[dict]:
-    mismatches = []
-    for relative, expected in files.items():
-        try:
-            if _digest((root / relative).read_bytes()) != expected:
-                mismatches.append(
-                    {"path": relative, "reason": "Measurement source differs from the selected manifest."}
-                )
-        except OSError as exc:
-            mismatches.append({"path": relative, "reason": f"Measurement source could not be read: {exc.strerror}."})
-    return mismatches
-
-
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
     records, mismatches = [], []
     measurement_files = manifest.get("measurement", {}).get("files", {})
@@ -208,7 +195,14 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
         if measurement is not None:
             if measurement_digest(measurement["files"]) != measurement["digest"]:
                 mismatches.append({"reason": "Measurement manifest digest does not match its files."})
-            mismatches.extend(_inspect_files(measurement["files"], root))
+            for relative, expected in measurement["files"].items():
+                try:
+                    if _digest((root / relative).read_bytes()) == expected:
+                        continue
+                    reason = "Measurement source differs from the selected manifest."
+                except OSError as exc:
+                    reason = f"Measurement source could not be read: {exc.strerror}."
+                mismatches.append({"path": relative, "reason": reason})
         outputs = []
         for path, state in sorted(_output_state(output_dir).items()):
             if before.get(path) == state:
