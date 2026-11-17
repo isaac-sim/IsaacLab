@@ -45,7 +45,7 @@ CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 
 _MISSING = object()
 _PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx"}
-_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer"}
+_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx"}
 
 
 """

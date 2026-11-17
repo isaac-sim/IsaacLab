@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton Warp renderer for tiled camera rendering."""
+"""Newton renderer for tiled camera rendering."""
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import warnings
 from dataclasses import dataclass
@@ -24,8 +25,8 @@ from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.warp_math import replace_background_depth_wp
 
 from ..physics import NewtonBackendCfg, newton_backend
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
-from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
+from .newton_warp_renderer_cfg import NewtonOptixRendererCfg, NewtonWarpRendererCfg
+from .segmentation import _NEWTON_NO_HIT_SHAPE_ID, NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -35,16 +36,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+SensorCamera = newton.sensors.SensorCamera
+
 
 @wp.kernel(enable_backward=False)
 def _fill_hdr_background(
-    image: wp.array4d(dtype=wp.vec3f),
-    shape_ids: wp.array4d(dtype=wp.uint32),
+    image: wp.array3d(dtype=wp.vec3f),
+    shape_ids: wp.array3d(dtype=wp.uint32),
     color: wp.vec3f,
 ):
-    world, camera, row, col = wp.tid()
-    if shape_ids[world, camera, row, col] == wp.uint32(0xFFFFFFFF):
-        image[world, camera, row, col] = color
+    view, row, col = wp.tid()
+    if shape_ids[view, row, col] == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
+        image[view, row, col] = color
 
 
 @wp.kernel(enable_backward=False)
@@ -65,25 +68,28 @@ def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(
         -(float(y) + 0.5 - matrix[1, 2]) / matrix[1, 1],
         -1.0,
     )
-    rays[0, y, x, 0] = wp.vec3f(0.0)
-    rays[0, y, x, 1] = wp.normalize(direction)
+    rays[y, x, 0, 0] = wp.vec3f(0.0)
+    rays[y, x, 0, 1] = wp.normalize(direction)
+
+
+@wp.kernel(enable_backward=False)
+def _update_transforms(
+    positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    output: wp.array(dtype=wp.transformf),
+):
+    tid = wp.tid()
+    # Convert world camera axes (+X forward, +Z up) to OpenGL (-Z forward, +Y up).
+    output[tid] = wp.transformf(positions[tid], orientations[tid] * wp.quatf(0.5, -0.5, -0.5, 0.5))
 
 
 class RenderData:
     # Back-compat alias for callers of ``RenderData.OutputNames``.
     OutputNames = RenderBufferKind
 
-    # Maps each supported RenderBufferKind to (CameraOutputs field name, Newton warp dtype).
-    # Newton reinterprets the allocated buffer memory: e.g. RGBA is allocated as (N,H,W,4) uint8
-    # but the Newton sensor API consumes it as (world_count,1,H,W) uint32 (same bytes, packed view).
-    #
-    # The depth family (``distance_to_camera`` / ``distance_to_image_plane`` / ``depth``) is handled
-    # separately in :meth:`set_outputs` because the two planar-depth names share one native output.
-    #
-    # The segmentation family (``semantic_segmentation`` / ``instance_segmentation``) is likewise
-    # handled separately: Newton emits a single per-shape index buffer that is remapped into each
-    # requested segmentation output by
-    # :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapper`.
+    # Maps each pixel output to its ``CameraOutputs`` field and Newton dtype. Newton writes the
+    # caller's buffers in place: e.g. RGBA is allocated as (N, H, W, 4) uint8 and viewed as
+    # (N, H, W) uint32. Depth and segmentation outputs are bound in :meth:`set_outputs`.
     _OUTPUT_MAP: dict[str, tuple[str, type]] = {
         str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
         str(RenderBufferKind.RGB_HDR): ("hdr_color_image", wp.vec3f),
@@ -91,133 +97,101 @@ class RenderData:
         str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
     }
 
-    # Newton's native ``depth_image`` is the ray-hit (euclidean) distance from the camera optical
-    # center, which is Isaac Lab's ``distance_to_camera``.
+    # Newton's ``depth_image`` is the ray distance from the camera center, Isaac Lab's ``distance_to_camera``.
     _RAY_DEPTH_KIND: str = str(RenderBufferKind.DISTANCE_TO_CAMERA)
-    # Planar-depth outputs (distance along the camera's forward axis). ``depth`` is Isaac Lab's alias
-    # for ``distance_to_image_plane``. Both are derived from the ray depth via
-    # ``convert_ray_depth_to_forward_depth``.
+    # ``depth`` aliases ``distance_to_image_plane``; both are Newton's ``forward_depth_image``.
     _PLANE_DEPTH_KINDS: frozenset[str] = frozenset(
-        {
-            str(RenderBufferKind.DEPTH),
-            str(RenderBufferKind.DISTANCE_TO_IMAGE_PLANE),
-        }
+        {str(RenderBufferKind.DEPTH), str(RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)}
     )
 
     @dataclass
     class CameraOutputs:
-        color_image: wp.array(dtype=wp.uint32, ndim=4) = None
-        hdr_color_image: wp.array(dtype=wp.vec3f, ndim=4) = None
-        albedo_image: wp.array(dtype=wp.uint32, ndim=4) = None
-        # Native ray-hit distance and planar depth, bound directly to the requested outputs.
-        depth_image: wp.array(dtype=wp.float32, ndim=4) = None
-        forward_depth_image: wp.array(dtype=wp.float32, ndim=4) = None
-        normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
-        # Buffer Newton fills with the per-pixel shape index; the source for all segmentation outputs.
-        shape_index_image: wp.array(dtype=wp.uint32, ndim=4) = None
+        color_image: wp.array(dtype=wp.uint32, ndim=3) = None
+        hdr_color_image: wp.array(dtype=wp.vec3f, ndim=3) = None
+        albedo_image: wp.array(dtype=wp.uint32, ndim=3) = None
+        depth_image: wp.array(dtype=wp.float32, ndim=3) = None
+        forward_depth_image: wp.array(dtype=wp.float32, ndim=3) = None
+        normals_image: wp.array(dtype=wp.vec3f, ndim=3) = None
+        # Per-pixel shape index, the source of all segmentation outputs.
+        shape_index_image: wp.array(dtype=wp.uint32, ndim=3) = None
 
     def __init__(
         self,
-        newton_sensor: newton.sensors.SensorTiledCamera,
+        model: newton.Model,
         spec: CameraRenderSpec,
         seg_mapper: NewtonSegmentationMapper | None = None,
         renderer_cfg: NewtonWarpRendererCfg | None = None,
     ):
-        self.newton_sensor = newton_sensor
-        # Shared, scene-static segmentation lookup builder (``None`` until segmentation is requested).
         self._seg_mapper = seg_mapper
         self._renderer_cfg = renderer_cfg
-
-        self.num_cameras = 1
+        self.view_count = model.world_count
+        self.device = model.device
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
-        self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
-        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=newton_sensor.model.device)
+        self.camera_transforms: wp.array(dtype=wp.transformf) = None
+        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=self.device)
         self.graph = None
         self.outputs = RenderData.CameraOutputs()
-        # Requested depth-family destination views keyed by data-type name. Each view aliases the
-        # caller's output buffer as ``(world_count, 1, H, W)`` float32.
+        # Requested depth outputs, keyed by name, each viewing the caller's buffer as (N, H, W) float32.
         self._depth_dests: dict[str, wp.array] = {}
-        # Requested segmentation outputs keyed by data-type name -> (destination view, mapping). Each view
-        # aliases the caller's output buffer as ``(world_count, 1, H, W)`` uint32.
+        # Requested segmentation outputs, keyed by name, as (destination view, mapping).
         self._seg_dests: dict[str, tuple[wp.array, NewtonSegmentationMapping]] = {}
         self.width = spec.cfg.width
         self.height = spec.cfg.height
-        # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
-        # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
-        # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
+        # Newton has no near plane, so only the far clip of ``spawn.clipping_range`` is applied.
         spawn = spec.cfg.spawn
         clipping_range = spawn.clipping_range if spawn is not None else None
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
+        # Render settings of this camera, set by :meth:`NewtonWarpRenderer.create_render_data`.
+        self.render_config: SensorCamera.RenderConfig | None = None
 
-        # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
-        # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
-        # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
+        # Newton packs RGBA as little-endian uint32. The default is 93% gray, the RTX renderer's background.
         background_color = spec.cfg.background_color
-        self._hdr_background_color = (
-            wp.vec3f(*newton.utils.color_srgb_to_linear(tuple(max(0.0, min(1.0, c)) for c in background_color)))
-            if background_color is not None
-            else None
-        )
+        self.clear_color = 0xFFEEEEEE
+        self._hdr_background_color = None
         if background_color is not None:
-            r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
-            self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
-        else:
-            self.clear_color = 0xFFEEEEEE
+            clamped = tuple(max(0.0, min(1.0, c)) for c in background_color)
+            r, g, b = (round(c * 255) for c in clamped)
+            self.clear_color = (0xFF << 24) | (b << 16) | (g << 8) | r
+            self._hdr_background_color = wp.vec3f(*newton.utils.color_srgb_to_linear(clamped))
 
-        # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
-        # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
+        # OpenCV lens distortion, traced as distorted per-pixel rays instead of the pinhole field.
         self._distortion = spawn.distortion if spawn is not None else None
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # Camera construction has already resolved the ISP configuration.
+        # Post-render PPISP pipeline, composed when ``spec.cfg.isp_cfg`` is set.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
             from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
+        # HDR scratch Newton fills when PPISP is composed without a requested ``rgb_hdr`` output.
         self._hdr_scratch_wp: wp.array | None = None
-        """Internal HDR scratch buffer allocated when PPISP is composed but the
-        user did not request ``"rgb_hdr"`` in ``data_types``. Also exposed to
-        the Newton sensor through :attr:`CameraOutputs.hdr_color_image` as a
-        vec3f reinterpretation of this same backing storage."""
+        # PPISP source and destination, bound in :meth:`set_outputs`.
         self._ppisp_hdr_source: wp.array | None = None
-        """PPISP HDR source bound once in :meth:`set_outputs` from the caller's
-        ``rgb_hdr`` output or :attr:`_hdr_scratch_wp`."""
         self._ppisp_rgba_dest: wp.array | None = None
-        """PPISP LDR destination bound once in :meth:`set_outputs` from the
-        caller's ``rgba`` output."""
 
-    def _view(self, proxy: ProxyArray, dtype: type, shape: tuple[int, ...]) -> wp.array:
-        """Alias the caller's output buffer as a ``(world_count, 1, H, W)`` warp array of ``dtype``.
-
-        Newton reinterprets the backing memory in place (no copy), so the sensor writes directly
-        into the camera's output buffer.
-        """
-        wp_arr = proxy.warp
-        return wp.array(ptr=wp_arr.ptr, dtype=dtype, shape=shape, device=wp_arr.device, copy=False)
+    def _view(self, proxy: ProxyArray, dtype: type) -> wp.array:
+        """View the caller's output buffer as an ``(N, H, W)`` array of ``dtype``, so Newton writes it in place."""
+        array = proxy.warp
+        shape = (self.view_count, self.height, self.width)
+        return wp.array(ptr=array.ptr, dtype=dtype, shape=shape, device=array.device, copy=False)
 
     def set_outputs(self, output_data: dict[str, ProxyArray]):
-        shape = (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width)
         self._depth_dests = {}
         self._seg_dests = {}
         self.outputs.shape_index_image = None
         self.outputs.depth_image = None
         self.outputs.forward_depth_image = None
         for output_name, proxy in output_data.items():
-            # Bind one destination for each native depth output; copy additional planar aliases after rendering.
+            # Bind one buffer per native depth output; extra planar aliases are copied after rendering.
             if output_name == self._RAY_DEPTH_KIND or output_name in self._PLANE_DEPTH_KINDS:
-                dest = self._view(proxy, wp.float32, shape)
+                dest = self._view(proxy, wp.float32)
                 self._depth_dests[output_name] = dest
                 if output_name == self._RAY_DEPTH_KIND:
                     self.outputs.depth_image = dest
                 elif self.outputs.forward_depth_image is None:
                     self.outputs.forward_depth_image = dest
                 continue
-            # Segmentation family: bind each requested output to a destination view — colorized RGBA
-            # (uint32 packed) or raw int32 ids (matching the Isaac RTX / OVRTX contract).  Newton
-            # fills only the shape-index scratch (uint32), which is remapped into each output in
-            # :meth:`_convert_segmentation`.
             if output_name == RenderBufferKind.SEMANTIC_SEGMENTATION:
                 colorize = bool(self._renderer_cfg.colorize_semantic_segmentation)
             elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION:
@@ -230,9 +204,9 @@ class RenderData:
                         f"Output '{output_name}' requires a segmentation mapper, but none was created. "
                         "Ensure the camera's data_types includes the segmentation output."
                     )
+                # Colorized outputs are packed RGBA and raw ids are int32; both are written as uint32.
                 seg_mapping = self._seg_mapper.get_mapping(output_name, colorize)
-                dest = self._view(proxy, wp.uint32 if colorize else wp.int32, shape)
-                self._seg_dests[output_name] = (dest, seg_mapping)
+                self._seg_dests[output_name] = (self._view(proxy, wp.uint32), seg_mapping)
                 continue
             mapping = self._OUTPUT_MAP.get(output_name)
             if mapping is None:
@@ -240,37 +214,24 @@ class RenderData:
                     logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
                 continue
             field_name, dtype = mapping
-            setattr(self.outputs, field_name, self._view(proxy, dtype, shape))
-        # Allocate the shape-index buffer Newton fills when any segmentation output is requested; all
-        # requested segmentation outputs are remapped from this single buffer in :meth:`_convert_segmentation`.
+            setattr(self.outputs, field_name, self._view(proxy, dtype))
+        shape = (self.view_count, self.height, self.width)
+        # One shape-index buffer feeds every segmentation output.
         if self._seg_dests:
-            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer and route a vec3f-shaped view
-        # of it as the Newton sensor's ``hdr_color_image`` so the renderer
-        # fills it directly.
+            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.device)
+        # With PPISP but no requested ``rgb_hdr`` output, Newton renders HDR into an internal scratch buffer.
         if self.ppisp_pipeline is not None and self.outputs.hdr_color_image is None:
-            ref_proxy = next(iter(output_data.values()))
-            self._hdr_scratch_wp = wp.zeros(
-                (self.newton_sensor.model.world_count, self.height, self.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
+            self._hdr_scratch_wp = wp.zeros((*shape, 3), dtype=wp.float32, device=self.device)
             self.outputs.hdr_color_image = wp.array(
-                ptr=self._hdr_scratch_wp.ptr,
-                dtype=wp.vec3f,
-                shape=shape,
-                device=self._hdr_scratch_wp.device,
-                copy=False,
+                ptr=self._hdr_scratch_wp.ptr, dtype=wp.vec3f, shape=shape, device=self.device, copy=False
             )
-        # Newton clears HDR to black regardless of clear_color. A hit mask preserves dark geometry.
+        # Newton clears HDR to black, so a hit mask is needed to fill the background without darkening geometry.
         if (
             self.outputs.hdr_color_image is not None
             and self._hdr_background_color is not None
             and self.outputs.shape_index_image is None
         ):
-            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
-        # Bind the two warp arrays the per-frame PPISP dispatch needs.
+            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.device)
         if self.ppisp_pipeline is not None:
             if str(RenderBufferKind.RGBA) not in output_data:
                 raise ValueError(
@@ -285,166 +246,86 @@ class RenderData:
     def get_output(self, output_name: str) -> wp.array:
         if output_name in self._depth_dests:
             return self._depth_dests[output_name]
-        elif output_name in self._seg_dests:
+        if output_name in self._seg_dests:
             return self._seg_dests[output_name][0]
-        elif output_name == RenderBufferKind.RGBA:
-            return self.outputs.color_image
-        elif output_name == RenderBufferKind.RGB_HDR:
-            return self.outputs.hdr_color_image
-        elif output_name == RenderBufferKind.ALBEDO:
-            return self.outputs.albedo_image
-        elif output_name == RenderBufferKind.NORMALS:
-            return self.outputs.normals_image
-        return None
-
-    def _convert_segmentation(self):
-        """Remap Newton's shape-index buffer into each requested segmentation output.
-
-        Newton emits a single per-pixel shape index (:attr:`CameraOutputs.shape_index_image`);
-        ``semantic_segmentation`` / ``instance_segmentation`` are each derived from it by a
-        :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapping`.
-        No-op when no segmentation output was requested.
-        """
-        if self.outputs.shape_index_image is None:
-            return
-        for dest, seg_mapping in self._seg_dests.values():
-            seg_mapping.convert_shape_index_to_output(self.outputs.shape_index_image, dest)
+        mapping = self._OUTPUT_MAP.get(output_name)
+        return getattr(self.outputs, mapping[0]) if mapping is not None else None
 
     def segmentation_info(self) -> dict[str, dict]:
         """Per-output ``idToLabels`` / ``idToSemantics`` info for the requested segmentation outputs."""
         return {name: seg_mapping.info for name, (_dest, seg_mapping) in self._seg_dests.items()}
 
-    def _copy_plane_depth(self):
-        """Copy native planar depth when both ``depth`` and ``distance_to_image_plane`` were requested."""
-        for output_name, dest in self._depth_dests.items():
-            if output_name in self._PLANE_DEPTH_KINDS and dest.ptr != self.outputs.forward_depth_image.ptr:
-                wp.copy(dest, self.outputs.forward_depth_image)
-
-    def _apply_depth_clipping(self, behavior: str):
-        """Apply the renderer's depth-clipping behavior to the depth-family outputs.
-
-        Newton writes ``0.0`` for rays that miss all geometry or fall beyond the far plane
-        (``max_distance``), so ``"none"`` and ``"zero"`` both leave that ``0.0`` background. ``"max"``
-        replaces the background with the far clip [m] to mirror the RTX renderer's
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`. No-op when no
-        depth output was requested or the camera did not provide a clipping range.
-
-        """
-        if behavior != "max" or self.far_clip is None:
-            return
-        for dest in self._depth_dests.values():
-            replace_background_depth_wp(dest, self.far_clip, device=dest.device)
-
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
-        # Buffers are persistent: the sensor manager graph captures the render
-        # launch against `camera_transforms`, so it must be updated in place.
+        # Captured renders read these buffers, so they are allocated once and updated in place.
         if self.camera_transforms is None:
-            self.camera_transforms = wp.empty(
-                (1, self.newton_sensor.model.world_count),
-                dtype=wp.transformf,
-                device=self.newton_sensor.model.device,
-            )
+            self.camera_transforms = wp.empty(self.view_count, dtype=wp.transformf, device=self.device)
         wp.launch(
-            RenderData._update_transforms,
-            self.newton_sensor.model.world_count,
-            [positions, orientations, self.camera_transforms],
-            device=self.newton_sensor.model.device,
+            _update_transforms, self.view_count, [positions, orientations, self.camera_transforms], device=self.device
         )
 
         if self.camera_rays is None:
             if self._distortion is not None:
                 self.camera_rays = self._build_distortion_rays()
             else:
-                self.camera_rays = wp.empty(
-                    (1, self.height, self.width, 2), dtype=wp.vec3f, device=self.newton_sensor.model.device
-                )
+                self.camera_rays = wp.empty((self.height, self.width, 1, 2), dtype=wp.vec3f, device=self.device)
                 wp.launch(
                     _update_camera_rays,
                     (self.height, self.width),
                     [intrinsics.warp, self.camera_rays],
-                    device=self.newton_sensor.model.device,
+                    device=self.device,
                 )
 
     def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
-        """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
+        """Build the ``(H, W, 1, 2)`` camera-space rays of an OpenCV lens-distortion camera.
 
-        Uses Newton's native OpenCV pinhole and fisheye ray helpers. Both paths honor calibrated
-        ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
-        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
-        as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
+        Both models honor calibrated, possibly non-square and off-center, ``fx/fy/cx/cy`` intrinsics. When
+        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are zero and the
+        intrinsics still apply, matching the RTX and OVRTX renderers.
         """
         cfg = self._distortion
-        image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
-
-        def _coefficient(value: float) -> float:
-            return float(value) if cfg.apply_lens_distortion else 0.0
-
+        coefficient_names = ("k1", "k2", "k3", "k4")
         if cfg.model == "opencvFisheye":
-            return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
-                self.width,
-                self.height,
-                float(cfg.fx),
-                float(cfg.fy),
-                float(cfg.cx),
-                float(cfg.cy),
-                image_width=image_width,
-                image_height=image_height,
-                k1=_coefficient(cfg.k1),
-                k2=_coefficient(cfg.k2),
-                k3=_coefficient(cfg.k3),
-                k4=_coefficient(cfg.k4),
-                max_fov=cfg.max_fov,
-            )
-
-        return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
+            compute, extra = SensorCamera.compute_camera_rays_fisheye_opencv, {"max_fov": cfg.max_fov}
+        else:
+            compute, extra = SensorCamera.compute_camera_rays_pinhole_opencv, {}
+            coefficient_names += ("k5", "k6", "p1", "p2", "s1", "s2", "s3", "s4")
+        coefficients = {
+            name: float(getattr(cfg, name)) if cfg.apply_lens_distortion else 0.0 for name in coefficient_names
+        }
+        return compute(
             self.width,
             self.height,
             float(cfg.fx),
             float(cfg.fy),
             float(cfg.cx),
             float(cfg.cy),
-            image_width=image_width,
-            image_height=image_height,
-            k1=_coefficient(cfg.k1),
-            k2=_coefficient(cfg.k2),
-            k3=_coefficient(cfg.k3),
-            k4=_coefficient(cfg.k4),
-            k5=_coefficient(cfg.k5),
-            k6=_coefficient(cfg.k6),
-            p1=_coefficient(cfg.p1),
-            p2=_coefficient(cfg.p2),
-            s1=_coefficient(cfg.s1),
-            s2=_coefficient(cfg.s2),
-            s3=_coefficient(cfg.s3),
-            s4=_coefficient(cfg.s4),
+            image_width=float(cfg.image_size[0]),
+            image_height=float(cfg.image_size[1]),
+            device=self.device,
+            **coefficients,
+            **extra,
         )
-
-    @wp.kernel
-    def _update_transforms(
-        positions: wp.array(dtype=wp.vec3f),
-        orientations: wp.array(dtype=wp.quatf),
-        output: wp.array(dtype=wp.transformf, ndim=2),
-    ):
-        tid = wp.tid()
-        # Convert world camera axes (+X forward, +Z up) to OpenGL (-Z forward, +Y up).
-        orientation = orientations[tid] * wp.quatf(0.5, -0.5, -0.5, 0.5)
-        output[0, tid] = wp.transformf(positions[tid], orientation)
 
 
 class NewtonWarpRenderer(BaseRenderer):
-    """Newton Warp backend for tiled camera rendering."""
+    """Newton camera rendering for tiled cameras.
+
+    Rays are traced with Warp, or with OptiX for :class:`NewtonOptixRendererCfg`.
+    """
 
     RenderData = RenderData
 
     def __init__(self, cfg: NewtonWarpRendererCfg, *, sim: SimulationContext):
         """Pre-physics initialization."""
         super().__init__(cfg, sim=sim)
-        self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+        self.newton_sensor: SensorCamera | None = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
+        # State timestamp of the last OptiX shape refit.
+        self._optix_timestamp: int | None = None
 
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
+        requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.renderer_type]
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model
 
@@ -454,31 +335,27 @@ class NewtonWarpRenderer(BaseRenderer):
         self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        self.newton_sensor = newton.sensors.SensorTiledCamera(
+        cfg = self.cfg
+        optix = isinstance(cfg, NewtonOptixRendererCfg)
+        self.newton_sensor = SensorCamera(
             self.backend.model,
-            default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
-                enable_textures=self.cfg.enable_textures,
-                enable_shadows=self.cfg.enable_shadows,
-                enable_ambient_lighting=self.cfg.enable_ambient_lighting,
-                enable_backface_culling=self.cfg.enable_backface_culling,
-                max_distance=self.cfg.max_distance,
-                render_order=newton.sensors.SensorTiledCamera.RenderOrder.TILED,
-                tile_width=self.cfg.tile_rendering_width,
-                tile_height=self.cfg.tile_rendering_height,
+            backend="optix" if optix else "warp",
+            default_render_config=SensorCamera.RenderConfig(
+                enable_textures=cfg.enable_textures,
+                enable_shadows=cfg.enable_shadows,
+                enable_ambient_lighting=cfg.enable_ambient_lighting,
+                enable_backface_culling=cfg.enable_backface_culling,
+                max_distance=cfg.max_distance,
+                render_order=SensorCamera.RenderOrder[cfg.render_order.upper()],
+                tile_width=cfg.tile_rendering_width,
+                tile_height=cfg.tile_rendering_height,
+                block_dim=cfg.kernel_block_dim,
             ),
         )
-
-        if self.cfg.render_order == "pixel_priority":
-            self.newton_sensor.default_render_config.render_order = (
-                newton.sensors.SensorTiledCamera.RenderOrder.PIXEL_PRIORITY
-            )
-        elif self.cfg.render_order == "view_priority":
-            self.newton_sensor.default_render_config.render_order = (
-                newton.sensors.SensorTiledCamera.RenderOrder.VIEW_PRIORITY
-            )
-
-        if self.cfg.create_default_light:
-            self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
+        if optix:
+            self.backend.model.bvh_build_shapes(self.backend.state_0, backend="optix")
+        if cfg.create_default_light:
+            self.newton_sensor.create_default_light(enable_shadows=cfg.enable_shadows)
 
     @property
     def visual_material_writer(self):
@@ -486,12 +363,12 @@ class NewtonWarpRenderer(BaseRenderer):
         return self.backend.create_visual_material_writer
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
-        """Publish the per-output layout this Newton Warp backend writes.
+        """Publish the per-output layout this Newton backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return self.cfg.supported_output_types()
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """No-op for Newton Warp - uses Newton scene directly without stage export.
+        """No-op: Newton renders its own model without a stage export.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
@@ -515,23 +392,22 @@ class NewtonWarpRenderer(BaseRenderer):
                     )
                     break
 
-        # Build the shared segmentation mapper and its per-kind lookup tables up-front for all
-        # requested segmentation outputs.
-        has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
-        has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
-        if (has_semantic or has_instance) and self._seg_mapper is None:
-            plan = self._sim.get_clone_plan()
-            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._sim.stage, self.cfg, plan)
-        if has_semantic:
-            self._seg_mapper.build_mapping(
-                RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
-            )
-        if has_instance:
-            self._seg_mapper.build_mapping(
-                RenderBufferKind.INSTANCE_SEGMENTATION, bool(self.cfg.colorize_instance_segmentation)
-            )
+        # Build the shared segmentation lookup tables for the requested segmentation outputs.
+        segmentation = {
+            RenderBufferKind.SEMANTIC_SEGMENTATION: self.cfg.colorize_semantic_segmentation,
+            RenderBufferKind.INSTANCE_SEGMENTATION: self.cfg.colorize_instance_segmentation,
+        }
+        for kind, colorize in segmentation.items():
+            if kind in spec.cfg.data_types:
+                if self._seg_mapper is None:
+                    plan = self._sim.get_clone_plan()
+                    self._seg_mapper = NewtonSegmentationMapper(self.backend.model, self._sim.stage, self.cfg, plan)
+                self._seg_mapper.build_mapping(kind, bool(colorize))
 
-        return RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
+        render_data = RenderData(self.backend.model, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
+        far_clip = render_data.far_clip if render_data.far_clip is not None else self.cfg.max_distance
+        render_data.render_config = dataclasses.replace(self.newton_sensor.default_render_config, max_distance=far_clip)
+        return render_data
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -542,7 +418,7 @@ class NewtonWarpRenderer(BaseRenderer):
         pass
 
     def update_geometries(self) -> None:
-        """No-op for Newton Warp - geometry is read directly from Newton state during render.
+        """No-op: geometry is read from the Newton state during rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
         pass
 
@@ -583,107 +459,93 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-
         backend, provider = self.backend, self._scene_data_provider
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
-        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
-        backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
-        if not use_graph or backend.device.is_capturing:
+        if isinstance(self.cfg, NewtonOptixRendererCfg):
+            # OptiX work cannot be recorded in CUDA graphs.
+            if self._optix_timestamp != timestamp:
+                backend.model.bvh_refit_shapes(backend.state_0, backend="optix")
+                self._optix_timestamp = timestamp
             self._launch_render(render_data)
         else:
-            pointers = backend.state_pointers()
-            if render_data.graph is None or render_data.graph[0] != pointers:
-                graph = newton_backend.capture_graph(
-                    backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
-                )
-                render_data.graph = pointers, graph
-            wp.capture_launch(render_data.graph[1])
+            # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
+            use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
+            backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
+            if not use_graph or backend.device.is_capturing:
+                self._launch_render(render_data)
+            else:
+                pointers = backend.state_pointers()
+                if render_data.graph is None or render_data.graph[0] != pointers:
+                    graph = newton_backend.capture_graph(
+                        backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
+                    )
+                    render_data.graph = pointers, graph
+                wp.capture_launch(render_data.graph[1])
 
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # tensors were bound once in ``set_outputs``.
+        # Post-render PPISP: HDR scene-linear to LDR RGBA.
         if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
+            render_data.ppisp_pipeline.apply(render_data._ppisp_hdr_source, render_data._ppisp_rgba_dest)
 
     def _launch_render(self, render_data: RenderData) -> None:
-        """Launch the tiled-camera render kernels for sensor graph capture."""
-        # default_render_config is shared state across all Newton sensors, so set max_distance
-        # immediately before each render call rather than once in create_render_data.
-        self.newton_sensor.default_render_config.max_distance = (
-            render_data.far_clip if render_data.far_clip is not None else self.cfg.max_distance
-        )
-
-        # Use the renderer's clear value to fill distance_to_camera background when it is the only
-        # depth output requested. This avoids a post-render kernel pass for that common case.
-        # Planar-depth outputs retain the clipping pass for non-positive projected depths as well as misses.
-        _depth_kinds = set(render_data._depth_dests)
-        _use_depth_clear = (
-            self.cfg.depth_clipping_behavior == "max"
-            and render_data.far_clip is not None
-            and render_data._RAY_DEPTH_KIND in _depth_kinds
-            and not (_depth_kinds & render_data._PLANE_DEPTH_KINDS)
-        )
-
+        """Render one camera and derive the depth aliases, HDR background and segmentation outputs."""
+        outputs = render_data.outputs
+        depth_kinds = render_data._depth_dests.keys()
+        plane_depth = bool(depth_kinds & render_data._PLANE_DEPTH_KINDS)
+        clip_depth = self.cfg.depth_clipping_behavior == "max" and render_data.far_clip is not None
+        # With only ray depth requested, clearing to the far clip replaces the post-render clipping pass.
+        # Planar depth keeps that pass, since it also clips non-positive projected depths.
+        clear_depth = {"clear_depth": render_data.far_clip} if clip_depth and not plane_depth else {}
         self.newton_sensor.update(
             self.backend.state_0,
             render_data.camera_transforms,
             render_data.camera_rays,
-            color_image=render_data.outputs.color_image,
-            hdr_color_image=render_data.outputs.hdr_color_image,
-            albedo_image=render_data.outputs.albedo_image,
-            depth_image=render_data.outputs.depth_image,
-            forward_depth_image=render_data.outputs.forward_depth_image,
-            normal_image=render_data.outputs.normals_image,
-            shape_index_image=render_data.outputs.shape_index_image,
-            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
-            clear_data=newton.sensors.SensorTiledCamera.ClearData(
-                clear_color=render_data.clear_color,
-                **({"clear_depth": render_data.far_clip} if _use_depth_clear else {}),
-            ),
-            kernel_block_dim=self.cfg.kernel_block_dim,
+            color_image=outputs.color_image,
+            hdr_color_image=outputs.hdr_color_image,
+            albedo_image=outputs.albedo_image,
+            depth_image=outputs.depth_image,
+            forward_depth_image=outputs.forward_depth_image,
+            normal_image=outputs.normals_image,
+            shape_index_image=outputs.shape_index_image,
+            clear_data=SensorCamera.ClearData(clear_color=render_data.clear_color, **clear_depth),
+            render_config=render_data.render_config,
         )
 
-        if render_data.outputs.hdr_color_image is not None and render_data._hdr_background_color is not None:
+        if outputs.hdr_color_image is not None and render_data._hdr_background_color is not None:
             wp.launch(
                 _fill_hdr_background,
-                dim=render_data.outputs.hdr_color_image.shape,
-                inputs=[
-                    render_data.outputs.hdr_color_image,
-                    render_data.outputs.shape_index_image,
-                    render_data._hdr_background_color,
-                ],
-                device=render_data.outputs.hdr_color_image.device,
+                outputs.hdr_color_image.shape,
+                [outputs.hdr_color_image, outputs.shape_index_image, render_data._hdr_background_color],
+                device=outputs.hdr_color_image.device,
             )
 
-        if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
-            render_data._copy_plane_depth()
-            render_data._apply_depth_clipping(self.cfg.depth_clipping_behavior)
+        if plane_depth:
+            # ``depth`` and ``distance_to_image_plane`` share Newton's planar depth.
+            for name, dest in render_data._depth_dests.items():
+                if name in render_data._PLANE_DEPTH_KINDS and dest.ptr != outputs.forward_depth_image.ptr:
+                    wp.copy(dest, outputs.forward_depth_image)
+            # Newton writes 0 for misses and rays beyond the far plane; "max" replaces them with the far clip.
+            if clip_depth:
+                for dest in render_data._depth_dests.values():
+                    replace_background_depth_wp(dest, render_data.far_clip, device=dest.device)
 
-        # Remap the shape-index buffer into the requested segmentation outputs.
-        render_data._convert_segmentation()
+        for dest, seg_mapping in render_data._seg_dests.values():
+            seg_mapping.convert_shape_index_to_output(outputs.shape_index_image, dest)
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Publish segmentation metadata; pixel outputs alias the camera buffers bound in :meth:`set_outputs`.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        # Publish the segmentation id-to-label metadata (idToLabels / idToSemantics) alongside the
-        # pixel buffers.
-        for output_name, info in render_data.segmentation_info().items():
-            camera_data.info[output_name] = info
+        camera_data.info.update(render_data.segmentation_info())
 
     def cleanup(self, render_data: RenderData | None):
         """Release the camera's buffers and captured query.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
             render_data.graph = None
-            render_data.newton_sensor = None
 
     def close(self) -> None:
         """Release borrowed native handles and SDP bindings after camera cleanup."""

@@ -113,6 +113,9 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
+# OptiX ray tracing for the ``newton_optix`` camera renderer.
+optix = ["newton[optix]"]
+
 importers = [
     "isaacsim-asset-isolated==6.2.0.1",
     "tinyobjloader==2.0.0rc13",
@@ -418,7 +421,8 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3f428bf1a7183d3d9a10cc17241e8a9eac3841eb",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3f428bf1a7183d3d9a10cc17241e8a9eac3841eb ; extra != 'optix'",
+    "newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@3f428bf1a7183d3d9a10cc17241e8a9eac3841eb ; extra == 'optix'",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.

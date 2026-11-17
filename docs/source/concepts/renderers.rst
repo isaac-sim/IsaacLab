@@ -34,7 +34,10 @@ Choosing a renderer backend
       Warp ray tracing with direct lighting. Use it when camera throughput and memory matter more than
       material and lighting fidelity.
 
-      ``renderer=newton_renderer``
+      ``renderer=newton_warp``
+
+      On RTX GPUs, ``renderer=newton_optix`` traces the same scenes in hardware with OptiX. Install it
+      with ``uv sync --extra optix``. It does not support particles or deformable surfaces.
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
@@ -192,7 +195,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+            physics=newton_mjwarp renderer=newton_warp presets=rgb
 
       Enable directional-light shadows explicitly:
 
@@ -200,7 +203,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+            physics=newton_mjwarp renderer=newton_warp presets=rgb \
             env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
    .. tab-item:: OVRTX Minimal

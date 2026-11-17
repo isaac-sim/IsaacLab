@@ -222,7 +222,7 @@ def _replicate_newton(
                 add_deformable_from_usd(source, stage, entry)
         global_sites, source_sites, root_sites = sim.backend_manager.inject_sites(builder, source_builders)
     else:
-        add_visual_deformables_to_sources(source_builders, entries)
+        add_visual_deformables_to_sources(source_builders, stage, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
             imported.shape_collision_filter_pairs = []

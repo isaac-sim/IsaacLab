@@ -121,6 +121,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "teleop",
         "tetrahedralization",
         "video",
+        "optix",
         "leapp",
         "wandb",
         "test",
@@ -192,7 +193,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     commit = newton["source"]["git"].rsplit("#", 1)[1]
     newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
     assert newton_spec in dependencies
-    assert newton_spec in overrides
+    assert f"{newton_spec} ; extra != 'optix'" in overrides
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).

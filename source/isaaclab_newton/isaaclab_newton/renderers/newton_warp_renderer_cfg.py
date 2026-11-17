@@ -144,3 +144,15 @@ class NewtonWarpRendererCfg(RendererCfg):
             RenderBufferKind.SEMANTIC_SEGMENTATION: segmentation_spec(self.colorize_semantic_segmentation),
             RenderBufferKind.INSTANCE_SEGMENTATION: segmentation_spec(self.colorize_instance_segmentation),
         }
+
+
+@configclass
+class NewtonOptixRendererCfg(NewtonWarpRendererCfg):
+    """Configuration for Newton's OptiX renderer, which traces rays in hardware on RTX GPUs.
+
+    Requires the ``optix`` extra. It does not support particles or deformable surfaces, and it
+    ignores :attr:`use_cuda_graph`, since OptiX work cannot be recorded in CUDA graphs.
+    """
+
+    renderer_type: str = "newton_optix"
+    """Type identifier for the Newton OptiX renderer."""

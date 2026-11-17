@@ -33,7 +33,7 @@ rendering-correctness-kitless-ovstage = [
 
 # Nodes the shader-cache warmer runs: the RTX-renderer subset of the lists above,
 # which are the only ones that compile PSO blobs. isaacsim_rtx fills kit/ and ovrtx
-# fills kitless/; the newton_renderer nodes drive the Warp rasterizer and populate
+# fills kitless/; the newton_warp nodes drive the Warp rasterizer and populate
 # neither tree. Exact node IDs rather than a -k expression so a parametrize-ID
 # rename fails collection instead of silently selecting nothing.
 ovrtx-cache-warm = [

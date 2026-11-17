@@ -11,7 +11,7 @@ the Newton Warp or Isaac RTX renderer.
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
     uvx --from 'isaaclab[isaacsim]' isaaclab example ppisp-camera \
-        --input_scene /path/to/scene.usd --renderer newton_renderer --max_steps 60
+        --input_scene /path/to/scene.usd --renderer newton_warp --max_steps 60
 
     # Run the same saved-image workflow with Isaac RTX.
     uvx --from 'isaaclab[isaacsim]' isaaclab example ppisp-camera \
@@ -67,8 +67,8 @@ parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabri
 parser.add_argument(
     "--renderer",
     type=str,
-    choices=["newton_renderer", "isaac_rtx"],
-    default="newton_renderer",
+    choices=["newton_warp", "isaac_rtx"],
+    default="newton_warp",
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",
 )
 parser.add_argument(
@@ -163,7 +163,7 @@ class PpispCameraSceneCfg(InteractiveSceneCfg):
 
 def make_renderer_cfg() -> Any:
     """Create the selected camera renderer cfg."""
-    if args_cli.renderer == "newton_renderer":
+    if args_cli.renderer == "newton_warp":
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         return NewtonWarpRendererCfg()
@@ -176,7 +176,7 @@ def make_renderer_cfg() -> Any:
 def make_sim_cfg() -> sim_utils.SimulationCfg:
     """Create the simulation cfg matching the selected renderer."""
     physics_cfg = None
-    if args_cli.renderer == "newton_renderer":
+    if args_cli.renderer == "newton_warp":
         from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 
@@ -547,7 +547,7 @@ def main() -> None:
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
         scene = create_duplicated_env_scene()
-        if args_cli.renderer == "newton_renderer":
+        if args_cli.renderer == "newton_warp":
             bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
         baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
         ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)

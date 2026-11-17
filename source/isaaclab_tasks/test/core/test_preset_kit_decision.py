@@ -166,6 +166,6 @@ def test_resolve_task_runs_lists_each_launchable_combination_once():
     assert {("ovphysx", "ovrtx"), ("isaacsim_physx", "isaacsim_rtx")} <= pairs
     assert not {("isaacsim_physx", "ovrtx"), ("ovphysx", "isaacsim_rtx")} & pairs
     # The Warp renderer cannot produce shaded images; the env config rejects that pairing.
-    assert ("newton_mjwarp", "newton_renderer", "simple_shading_full_mdl") not in runs
+    assert ("newton_mjwarp", "newton_warp", "simple_shading_full_mdl") not in runs
     # ``physx`` and ``rtx`` select a concrete backend, so they resolve to a run already listed.
     assert not {"physx", "rtx"} & {name for physics, renderer, _ in runs for name in (physics, renderer)}

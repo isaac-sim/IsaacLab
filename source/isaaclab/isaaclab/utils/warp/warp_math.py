@@ -140,13 +140,13 @@ def _replace_inf_kernel(
 
 @wp.kernel
 def _replace_background_depth_kernel(
-    buf: wp.array(dtype=wp.float32, ndim=4),
+    buf: wp.array(dtype=wp.float32),
     replacement: float,
 ):
     """Replace non-positive (background/beyond-far) values with ``replacement``."""
-    n, a, b, c = wp.tid()
-    if buf[n, a, b, c] <= 0.0:
-        buf[n, a, b, c] = replacement
+    i = wp.tid()
+    if buf[i] <= 0.0:
+        buf[i] = replacement
 
 
 def clamp_depth_to_inf_wp(buf: wp.array, max_range: float, device: str | None = None) -> None:
@@ -194,13 +194,13 @@ def replace_background_depth_wp(buf: wp.array, replacement: float, device: str |
     identifies the background/beyond-far sentinel.
 
     Args:
-        buf: Depth buffer. Shape ``(N, ..., )`` with four dimensions, dtype ``wp.float32``.
+        buf: Contiguous depth buffer of any shape, dtype ``wp.float32``.
         replacement: Value to write where ``depth <= 0`` was found (e.g. the far clip ``max_range``).
         device: Warp device string. Defaults to ``buf.device``.
     """
     wp.launch(
         _replace_background_depth_kernel,
-        dim=buf.shape,
-        inputs=[buf, float(replacement)],
+        dim=buf.size,
+        inputs=[buf.flatten(), float(replacement)],
         device=device or buf.device,
     )

@@ -1007,8 +1007,8 @@ jobs:
       run: |
         cat > benchmark-legs.tsv <<'EOF'
         cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
-        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
-        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
+        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_warp
+        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_warp
         g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
         EOF
 
