@@ -613,9 +613,11 @@ def _count_flagged(flags: wp.array(dtype=wp.bool), counts: wp.array(dtype=wp.int
 
 
 def test_a_captured_step_resolves_the_worlds_a_replayed_write_flagged():
-    """A replayed state write flags worlds on the device only; each replay of the captured step resets the solver and
-    evaluates FK for exactly those worlds and articulations, then clears the flags."""
+    """Once a state write was recorded into a graph, its replays flag worlds on the device only; each replay of the
+    captured step resets the solver and evaluates FK for exactly those worlds and articulations, then clears the
+    flags."""
     backend = _recording_backend([], captures=True)
+    backend.transforms_may_change_on_graph_replay = True  # as recording a state write sets it
     resets = wp.zeros(2, dtype=wp.int32, device="cpu")
     fks = wp.zeros(1, dtype=wp.int32, device="cpu")
     ops = backend.solver_ops
