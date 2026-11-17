@@ -28,7 +28,7 @@ from isaaclab_tasks.utils import SuccessMonitorCfg, preset
 from ... import mdp
 from ...constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
 from ...spawners import ColoredCuboidCfg
-from ...stack_env_cfg import StackEnvCfg, apply_default_semantics
+from ...stack_env_cfg import StackCommonTerminationsCfg, StackEnvCfg, apply_default_semantics
 from .franka_robot_cfg import FRANKA_PANDA_DEXSUITE_CFG
 
 
@@ -151,6 +151,44 @@ class CurriculumCfg:
 
 
 @configclass
+class FrankaStackTerminationsCfg(StackCommonTerminationsCfg):
+    """Evaluate the newly settled stack before forwarding it to the success term."""
+
+    progress_context = DoneTerm(
+        func=mdp.StableOrderInvariantStackGoal,
+        params={
+            "minimum_episode_steps": 3,
+            "hold_steps": 5,
+            "maximum_cube_velocity": 0.10,
+            "minimum_finger_release_position": 0.023,
+        },
+    )
+    learning_progress_context = DoneTerm(
+        func=mdp.StackResetLearningProgress,
+        params={"minimum_episode_steps": 3},
+    )
+    success = DoneTerm(
+        func=mdp.success_after_minimum_horizon,
+        params={
+            "context_term_name": "progress_context",
+            # The context already requires five consecutive stable,
+            # released-stack frames. Terminate on that physical hold
+            # instead of leaving a solved scene alive for five seconds,
+            # which invites post-success oscillation and reward cycling.
+            "minimum_episode_length_s": 0.1,
+        },
+    )
+    nonfinite_robot_state = DoneTerm(
+        func=mdp.nonfinite_robot_state,
+        params={"robot_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    nonfinite_cube_state = DoneTerm(func=mdp.nonfinite_cube_state)
+    cube_workspace_invalid = DoneTerm(
+        func=mdp.cube_out_of_workspace,
+    )
+
+
+@configclass
 class FrankaCubeStackRLEnvCfg(StackEnvCfg):
     """Train a color-order-invariant three-cube stack from physical reset rows."""
 
@@ -158,6 +196,7 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
+    terminations: FrankaStackTerminationsCfg = FrankaStackTerminationsCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -277,7 +316,6 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
         # stack roles over all six physical cube permutations, providing order
         # invariance as data augmentation without dynamically re-sorting input
         # slots at the critical grasp-to-lift transition.
-        arm_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"])
         self.scene.ee_frame = None
 
         # Provide one backend-neutral camera hint. The selected Kit or Newton
@@ -313,43 +351,6 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
                 ),
                 semantic_tags=semantic_tags,
             )
-
-        self.terminations.progress_context = DoneTerm(
-            func=mdp.StableOrderInvariantStackGoal,
-            params={
-                "minimum_episode_steps": 3,
-                "hold_steps": 5,
-                "maximum_cube_velocity": 0.10,
-                "minimum_finger_release_position": 0.023,
-            },
-        )
-        self.terminations.learning_progress_context = DoneTerm(
-            func=mdp.StackResetLearningProgress,
-            params={"minimum_episode_steps": 3},
-        )
-        self.terminations.success = DoneTerm(
-            func=mdp.success_after_minimum_horizon,
-            params={
-                "context_term_name": "progress_context",
-                # The context already requires five consecutive stable,
-                # released-stack frames. Terminate on that physical hold
-                # instead of leaving a solved scene alive for five seconds,
-                # which invites post-success oscillation and reward cycling.
-                "minimum_episode_length_s": 0.1,
-            },
-        )
-        self.terminations.time_out = DoneTerm(
-            func=mdp.time_out,
-            time_out=True,
-        )
-        self.terminations.nonfinite_robot_state = DoneTerm(
-            func=mdp.nonfinite_robot_state,
-            params={"robot_cfg": arm_cfg},
-        )
-        self.terminations.nonfinite_cube_state = DoneTerm(func=mdp.nonfinite_cube_state)
-        self.terminations.cube_workspace_invalid = DoneTerm(
-            func=mdp.cube_out_of_workspace,
-        )
 
     def validate_config(self) -> None:
         """Validate task-specific constraints beyond the shared configuration checks."""

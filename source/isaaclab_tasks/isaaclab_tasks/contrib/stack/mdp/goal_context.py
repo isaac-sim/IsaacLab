@@ -64,6 +64,7 @@ class StableOrderInvariantStackGoal(_StackSuccessContext):
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._stable_steps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+        self._reported_success = torch.zeros_like(self.ever_success)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear the stability dwell counter for reset environments."""
@@ -114,7 +115,9 @@ class StableOrderInvariantStackGoal(_StackSuccessContext):
         stable = (stack_progress >= 2.0) & slow & released & (env.episode_length_buf >= minimum_episode_steps)
         self._stable_steps = torch.where(stable, self._stable_steps + 1, torch.zeros_like(self._stable_steps))
         self._update_success(self._stable_steps >= hold_steps)
-        env.extras["successes"] = self.ever_success
+        # The manager resets episode state before returning the step extras.
+        self._reported_success.copy_(self.ever_success)
+        env.extras["successes"] = self._reported_success
         return self._no_termination
 
 
