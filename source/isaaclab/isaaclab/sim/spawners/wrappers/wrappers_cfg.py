@@ -101,6 +101,7 @@ class SimReadyUsdFileCfg(MultiUsdFileCfg):
     The USD paths are resolved when the configuration is created, since the scene counts the files before spawning
     them. They are read from :attr:`cache_file` when it holds the same search; otherwise the search is run through
     :func:`~isaaclab.utils.assets.search_simready_usd_paths` and :attr:`cache_file` is rewritten with its result.
+    Edit :attr:`search` in the configuration: a later change, such as a command-line override, is not searched again.
     """
 
     search: dict = MISSING
