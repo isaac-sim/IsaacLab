@@ -9,6 +9,8 @@ __all__ = [
     "CurriculumGripperPositionActionCfg",
     "EMARelativeJointPositionAction",
     "EMARelativeJointPositionActionCfg",
+    # MPM resolution
+    "PourMPMResolutionCurriculum",
     # events
     "reset_pour_scene",
     # observations
@@ -58,6 +60,7 @@ from .actions_cfg import (
     EMARelativeJointPositionActionCfg,
 )
 from .events import reset_pour_scene
+from .mpm_resolution import PourMPMResolutionCurriculum
 from .observations import (
     cup_pose_obs,
     finger_position_obs,

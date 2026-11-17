@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import (
+    MPMSolverCfg,
     NewtonBackend,
     NewtonBackendCfg,
     NewtonCfg,
@@ -28,10 +29,13 @@ from isaaclab_newton.physics.coupling import (
     CouplerProxyMappingCfg,
 )
 from newton import CollisionPipeline, Mesh, ModelBuilder
-from newton.solvers import SolverXPBD
+from newton.solvers import SolverImplicitMPM, SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.sim import SimulationContext
+from isaaclab.test.utils import DeviceScope, test_devices
+
+pytestmark = pytest.mark.kitless
 
 pytestmark = pytest.mark.kitless
 
@@ -226,3 +230,56 @@ def test_real_coupler_constructs_resets_and_steps(
 
     solver.reset(state_1)
     assert solver.entry_output_state_valid() is False
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "grid_type, grid_padding, collider_basis, captured",
+    [
+        pytest.param("sparse", 0, "S2", True, id="b3_sparse"),
+        pytest.param("dense", 1, "S2", False, id="dense"),
+        pytest.param("sparse", 0, "pic", False, id="uncapped_pic"),
+    ],
+)
+def test_mpm_entry_controls_captured_coupled_steps(device, grid_type, grid_padding, collider_basis, captured):
+    """A coupled B3 MPM entry advances through replay only when its grid supports capture."""
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    SolverImplicitMPM.register_custom_attributes(builder)
+    builder.add_particle(pos=(0.0, 0.0, 0.0), vel=(0.1, 0.0, 0.0), mass=0.01, radius=0.02)
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(
+                name="media",
+                all_particles=True,
+                in_place=True,
+                solver_cfg=MPMSolverCfg(
+                    grid_type=grid_type,
+                    grid_padding=grid_padding,
+                    max_active_cell_count=256,
+                    voxel_size=0.1,
+                    velocity_basis="B3",
+                    collider_basis=collider_basis,
+                    max_iterations=1,
+                    solver="jacobi",
+                    warmstart_mode="none",
+                ),
+            ),
+        ],
+    )
+    backend = NewtonBackend(
+        NewtonBackendCfg(physics_cfg=NewtonCfg(solver_cfg=solver_cfg), device=device), builder, dt=0.001
+    )
+    try:
+        backend.init_solver()
+        assert (backend.capture is not None) is captured
+        backend.step()
+        before = backend.state_0.particle_q.numpy().copy()
+
+        assert backend.step() is captured
+
+        after = backend.state_0.particle_q.numpy()
+        assert np.isfinite(after).all()
+        assert np.isfinite(backend.state_0.particle_qd.numpy()).all()
+        assert np.all(after[:, 0] > before[:, 0])
+    finally:
+        backend.close()

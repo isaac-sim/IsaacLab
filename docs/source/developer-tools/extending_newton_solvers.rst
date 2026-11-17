@@ -246,8 +246,9 @@ differs:
 
 A task that needs a different Newton solver class subclasses the Isaac Lab solver it extends and selects it through
 its configuration's ``class_type``: a custom VBD solver only sets ``solver_class``, and a custom implicit MPM solver
-overrides ``build`` around ``isaaclab_newton.physics.mpm_solver.mpm_solver_config``, which keeps the shared MPM
-configuration resolution. Subclass a Newton solver only to change the physics; integration behavior belongs in the
+overrides ``build`` using :meth:`~isaaclab_newton.physics.MPMSolverCfg.to_solver_config`.
+For USD exports, call :meth:`~isaaclab_newton.physics.MPMSolverCfg.author_usd` explicitly on the resolved physics scene.
+The deprecated ``mpm_solver_config`` helper retains active-scene authoring for existing callers. Subclass a Newton solver only to change the physics; integration behavior belongs in the
 Isaac Lab solver. Raise from a method on an unsupported configuration rather than silently degrading.
 
 

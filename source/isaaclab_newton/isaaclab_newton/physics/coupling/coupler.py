@@ -18,7 +18,7 @@ from functools import partial
 
 import warp as wp
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
-from newton.solvers import SolverBase
+from newton.solvers import SolverBase, SolverImplicitMPM
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
@@ -307,7 +307,15 @@ class CouplerSolver(NewtonSolver):
         self.entries: dict[str, NewtonSolver] = {}
         """Driver of each entry's solver, by entry name; filled while Newton builds the entries."""
         entries = [_coupled_entry(entry, mode, env_template, self.entries) for entry in resolved_entries]
-        return self.build_coupled(model, entries, proxies, mode)
+        solver = self.build_coupled(model, entries, proxies, mode)
+        # Keep resolved ownership with this solver instance: local views can also
+        # contain foreign proxy particles, and configurations may change later.
+        solver._isaaclab_mpm_particle_owner_counts = {
+            solver.solver(entry.config.name): len(entry.particles)
+            for entry in resolved_entries
+            if isinstance(solver.solver(entry.config.name), SolverImplicitMPM)
+        }
+        return solver
 
     def build_coupled(
         self,
