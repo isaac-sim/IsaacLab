@@ -66,5 +66,19 @@ What is not exported
 
 * Startup and reset events (randomization), controllers, and state other than the initial joint and
   deformable state.
-* Values the import cannot read, such as Newton's collision pipeline and substeps: the export warns.
-* Entities the import does not build alike, such as bodies a Newton world builder hook adds: the export raises.
+* Terrain that Isaac Lab collides as a heightfield imports as its mesh.
+* Actuators without a USD drive equivalent, such as networks, stay ``NewtonActuator`` prims, which only
+  Newton's import reads; the export warns.
+* The export warns where Newton's import cannot reproduce a value:
+
+  * settings of solvers other than MuJoCo, beyond Kamino's constraint gains;
+  * collisions every solver step instead of once per physics step, when the physics step has substeps;
+  * joint target modes that the gains cannot tell apart;
+  * the initial joint state of articulations with ball joints;
+  * values of the joints, bodies and shapes Newton's import generates, such as cable segments.
+
+* The export raises where an import would build something else:
+
+  * Newton deformable objects;
+  * bodies, joints or colliders added outside the USD, such as by a world builder hook;
+  * a joint with different values per axis, or a material shared by colliders with different values.
