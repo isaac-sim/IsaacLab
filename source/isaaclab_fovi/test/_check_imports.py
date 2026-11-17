@@ -42,7 +42,6 @@ for module in (
     "isaaclab_fovi",
     "isaaclab_fovi.sensors",
     "isaaclab_fovi.sensors.fixed_software_fov",
-    "isaaclab_fovi.sensors.active_camera_geometry",
     "isaaclab_fovi.sensors.foveated_rays",
     "isaaclab_fovi.sensors.pooling",
     "fovi.sensing.coords",
