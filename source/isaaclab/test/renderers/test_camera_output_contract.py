@@ -26,7 +26,7 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, instantiate, replace, validate
-from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCallInfo, TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -49,8 +49,10 @@ class _ScaleProcessor(TensorProcessor):
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
-    def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        _ScaleProcessor.masks.append(None if env_mask is None else env_mask.numpy().tolist())
+    def __call__(
+        self, data: dict[str, ProxyArray], info: TensorProcessorCallInfo | None = None
+    ) -> dict[str, ProxyArray]:
+        _ScaleProcessor.masks.append(None if info.env_mask is None else info.env_mask.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -165,7 +167,7 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
         # Later captures read the new render rather than the published replacement.
         for _ in range(2):
             np.testing.assert_allclose(capture()[:, 0, 0], [2 * background] * 2, atol=1e-6)
-        # env_mask reaches each processor once per capture with one flag per environment.
+        # info.env_mask reaches each processor once per capture with one flag per environment.
         assert set(camera.data.output) == set(camera.data.info) == {"rgb_hdr", "bounding_box_3d"}
         assert _ScaleProcessor.masks == [[True, True]] * 4
         camera.reset(env_ids=[1])
