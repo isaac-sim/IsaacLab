@@ -33,8 +33,8 @@ class BaseConveyor(ABC):
 
     def __init__(self, cfg: ConveyorCfg, num_envs: int, *, sim: SimulationContext) -> None:
         cfg.validate()
-        if num_envs < 1 or cfg.body_count_per_env < 1:
-            raise ValueError("Conveyor environment and transported-body counts must be positive.")
+        if num_envs < 1:
+            raise ValueError("Conveyor environment count must be positive.")
         self.cfg = cfg.copy()
         self.num_envs = num_envs
         self.device = sim.device
@@ -76,6 +76,8 @@ class BaseConveyor(ABC):
             env_mask: Native full-environment mask. Same-device masks and arrays avoid
                 index compaction and are suitable for CUDA graph replay.
         """
+        if env_ids is not None and env_mask is not None:
+            raise ValueError("Specify either env_ids or env_mask, not both.")
         if isinstance(scale, (float, int)):
             if not math.isfinite(scale):
                 raise ValueError("Conveyor speed scales must be finite.")

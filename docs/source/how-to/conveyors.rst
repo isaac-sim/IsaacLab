@@ -21,10 +21,10 @@ contains a ``Belt`` collision surface and five parcels named ``Parcel0`` through
        sim=sim,
    )
    sim.reset()
-   conveyor.set_speed_scale(0.5)       # Request 0.175 m/s in every environment.
-   conveyor.stop(env_ids=[0])         # Stop only environment 0.
-   conveyor.start(env_ids=[0])        # Restore its authored speed.
-   conveyor.set_speed_scale(-1.0)      # Reverse the authored travel directions.
+   conveyor.set_speed_scale(0.5)
+   conveyor.stop(env_ids=[0])
+   conveyor.start(env_ids=[0])
+   conveyor.set_speed_scale(-1.0)
 
 ``speed_scale`` contains the requested multiplier for each environment. It multiplies
 the configured signed centerline velocity before the startup ramp. Commands persist across
@@ -34,7 +34,9 @@ destroying the simulation.
 
 For device-side selection, use ``set_speed_scale(..., env_mask=mask)`` and
 ``reset(env_mask=mask)`` with a full-environment boolean Warp or Torch mask.
-Same-device masks and indices reuse native storage without a host round trip.
+Same-device masks and contiguous int32 indices reuse native storage without a host round trip.
+Strided or int64 indices require normalization. Surface paths follow the simulation's clone
+template, or ``/World/envs/env_{}`` for manually built worlds without a clone plan.
 
 The Newton MJWarp implementation uses Newton's conveyor force model. Straight and curved
 sections retain their authored relative speeds under each environment's multiplier. Independent
