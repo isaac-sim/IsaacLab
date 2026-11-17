@@ -38,6 +38,7 @@ from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.tensor_processors import TensorProcessorCallInfo
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -414,16 +415,16 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
     )
     buffers = {"distance_to_image_plane": _proxy(torch.tensor([1.0, 9.0]).reshape(1, 1, 2, 1))}
     processors = []
-    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    captured = TensorProcessorCallInfo(env_mask=wp.ones(1, dtype=wp.bool, device="cpu"))
     try:
         # Construct and run in order, as a camera does: each processor reads the outputs of the earlier ones.
         for cfg in cfgs:
             processors.append(cfg.func(cfg, buffers))
             if isinstance(cfg, CosmosTransferProcessorCfg):
                 with pytest.raises(ValueError, match="synchronous rendering"):
-                    processors[-1](buffers, env_mask=None)
+                    processors[-1](buffers, info=TensorProcessorCallInfo())
                 assert not cosmos_service.resource.streams
-            buffers.update(processors[-1](buffers, env_mask=mask))
+            buffers.update(processors[-1](buffers, info=captured))
         generated = buffers["rgb"].torch
         assert generated.shape == (1, 1, 2, 3) and generated.dtype == torch.uint8
         assert generated[0, 0].tolist() == [[127, 127, 127], [127, 127, 127]]
@@ -434,13 +435,13 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         transfer = processors[-1]
         buffers["control"].torch.fill_(99)
         with pytest.raises(ValueError, match="synchronous rendering"):
-            transfer(buffers, env_mask=None)
-        transfer(buffers, env_mask=wp.zeros(1, dtype=wp.bool, device="cpu"))
+            transfer(buffers, info=TensorProcessorCallInfo())
+        transfer(buffers, info=TensorProcessorCallInfo(env_mask=wp.zeros(1, dtype=wp.bool, device="cpu")))
         buffers["control"].torch.fill_(25)
         for _ in range(3):
-            transfer(buffers, env_mask=mask)
+            transfer(buffers, info=captured)
         assert len(session.steps) == 1
-        transfer(buffers, env_mask=mask)
+        transfer(buffers, info=captured)
         assert len(session.steps) == 2
         np.testing.assert_array_equal(session.steps[1][0][0], np.full((4, 1, 2, 3), 25, dtype=np.uint8))
     finally:
@@ -459,7 +460,7 @@ class LazyCamera:
         self.value = value
         self.due = False
         self.output = None
-        self.capture_mask = wp.ones(2, dtype=wp.bool, device="cpu")
+        self.capture_info = TensorProcessorCallInfo(env_mask=wp.ones(2, dtype=wp.bool, device="cpu"))
 
     @property
     def data(self):
@@ -469,7 +470,7 @@ class LazyCamera:
             # A camera constructs its processors at its first capture.
             if self.processor is None:
                 self.processor = self.cfg.func(self.cfg, buffers)
-            self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
+            self.output = self.processor(buffers, info=self.capture_info)["rgb"].torch
         return self.output
 
 
