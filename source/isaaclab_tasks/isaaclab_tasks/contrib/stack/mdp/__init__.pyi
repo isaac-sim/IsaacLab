@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "EpisodeCameraNoise",
+    "EpisodeCameraNoiseCfg",
     "ResetBufferedGripperActionCfg",
     "StableOrderInvariantStackGoal",
     "StackResetLearningProgress",
@@ -28,6 +30,7 @@ __all__ = [
     "instance_randomize_cube_positions_in_world_frame",
     "instance_randomize_object_obs",
     "irrecoverable_stack_failure",
+    "joint_position_target",
     "nonfinite_cube_state",
     "nonfinite_robot_state",
     "object_abs_obs_in_base_frame",
@@ -35,6 +38,7 @@ __all__ = [
     "object_obs",
     "object_stacked",
     "order_invariant_stack_progress",
+    "randomize_camera_calibration",
     "role_conditioned_stack_obs",
     "stack_success_pulse",
     "success_after_minimum_horizon",
@@ -43,6 +47,7 @@ __all__ = [
 from isaaclab.envs.mdp import *  # noqa: F403
 
 from .actions_cfg import ResetBufferedGripperActionCfg, WorkspaceBoundedRelativeJointPositionActionCfg
+from .camera import EpisodeCameraNoise, EpisodeCameraNoiseCfg, joint_position_target, randomize_camera_calibration
 from .curriculums import StackResetTableCurriculum
 from .goal_context import StableOrderInvariantStackGoal, StackResetLearningProgress
 from .observations import (
