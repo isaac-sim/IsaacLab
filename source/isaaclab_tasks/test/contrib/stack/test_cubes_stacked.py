@@ -5,13 +5,15 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from isaaclab_tasks.contrib.stack.mdp import cubes_stacked
 
+pytestmark = pytest.mark.kitless
 
-def test_stacked_cubes_require_the_expected_vertical_separation():
-    """Nearby cubes with too little vertical separation must not count as stacked."""
+
+def test_stacked_cubes_can_require_the_expected_vertical_separation() -> None:
     # Each row holds the center heights of one scene, bottom to top.
     heights = torch.tensor(
         [
@@ -42,5 +44,6 @@ def test_stacked_cubes_require_the_expected_vertical_separation():
         device="cpu",
     )
 
-    assert cubes_stacked(env).tolist() == [True, False, False]
-    assert cubes_stacked(env, cube_3_cfg=None).tolist() == [True, False, True]
+    assert cubes_stacked(env).tolist() == [True, True, True]
+    assert cubes_stacked(env, symmetric_height_tolerance=True).tolist() == [True, False, False]
+    assert cubes_stacked(env, cube_3_cfg=None, symmetric_height_tolerance=True).tolist() == [True, False, True]

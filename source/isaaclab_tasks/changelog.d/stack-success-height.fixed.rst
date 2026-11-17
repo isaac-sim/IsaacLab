@@ -1,2 +1,2 @@
-* Fixed cube stacking success to require each adjacent pair to be within the configured height tolerance
-  of its expected center separation.
+* Fixed Franka joint-position cube stacking success to reject adjacent cube pairs that are
+  vertically closer than the expected center separation minus the configured tolerance.
