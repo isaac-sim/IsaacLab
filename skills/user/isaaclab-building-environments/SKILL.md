@@ -1,7 +1,7 @@
 ---
 name: isaaclab-building-environments
 description: Designs and registers complete Isaac Lab task architectures from scratch, including template-generated external projects and internal tasks, by composing scene assets, wiring MDP term managers, and configuring the environment lifecycle. Use when creating or registering a new task, choosing between direct and manager-based workflows, or adapting a maintained example into a new environment. For targeted sensor signal pipeline, actuator hardware abstraction, or sensor-derived term changes in an existing task, use isaaclab-using-sensors-actuators instead.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [environments, manager-based, direct-workflow, task-registration]

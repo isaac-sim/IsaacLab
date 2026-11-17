@@ -1,7 +1,7 @@
 ---
 name: isaaclab-preparing-assets-for-newton
 description: Migrates PhysX-compatible robot, object, and scene assets to Isaac Lab's Newton backend with MJWarp. Use when handling existing Isaac Lab assets or new multi-physics conversion, per-solver asset configuration, mass or inertia warnings, contact slip and friction, velocity-limit behavior, armature and damping, MJWarp solver profiles, solver-specific failures, or task-level validation.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [newton, mjwarp, assets, physics]

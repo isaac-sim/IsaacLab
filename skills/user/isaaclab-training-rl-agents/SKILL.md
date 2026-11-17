@@ -1,7 +1,7 @@
 ---
 name: isaaclab-training-rl-agents
 description: Provisions and launches Isaac Lab RL training jobs. Use when selecting RL frameworks, wiring agent configs, submitting first-run training jobs, resuming checkpoints, or troubleshooting training setup before a job produces results. Covers job provisioning, framework selection, hyperparameter wiring, and launch commands. For post-launch pathology investigation (reward hacking, policy collapse, reward-metric divergence), use isaaclab-debugging-rl-training instead.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [reinforcement-learning, training, rl-frameworks]

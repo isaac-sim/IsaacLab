@@ -82,7 +82,7 @@ Every skill directory must contain a `SKILL.md` file with frontmatter:
 ```yaml
 name: isaaclab-example-skill
 description: Does a specific Isaac Lab task. Use when the user mentions the task or related trigger terms.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [example, workflow]

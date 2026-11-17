@@ -1,7 +1,7 @@
 ---
 name: isaaclab-randomizing-with-events
 description: Implements Isaac Lab domain randomization with event terms and success-driven ADR curricula. Use when randomizing physics or observations, for example initial joint positions each episode, random pushes during training, or friction and restitution on PhysX and Newton, when porting reset randomization, or when configuring Automatic or Adaptive Domain Randomization (ADR).
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [domain-randomization, events, curriculum, adr]

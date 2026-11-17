@@ -1,7 +1,7 @@
 ---
 name: isaaclab-selecting-backends
 description: Selects and validates Isaac Lab physics and rendering backends. Use when choosing PhysX, Newton, or OvPhysX, deciding which backend to start a port on, adding Newton support to a task that already works on PhysX, running a quick check that a task runs on Newton before training, adding backend presets, comparing backend behavior, or debugging backend-specific simulation, randomization, sensor, or renderer issues.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [physx, newton, backends, rendering]

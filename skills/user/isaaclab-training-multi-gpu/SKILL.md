@@ -1,7 +1,7 @@
 ---
 name: isaaclab-training-multi-gpu
 description: Launches and debugs Isaac Lab multi-GPU and multi-node RL training, including NCCL hangs and collective failures. Use when running train_multigpu, choosing num_gpus, setting up multi-node jobs, or diagnosing distributed training that hangs, deadlocks, or aborts in ProcessGroupNCCL.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [multi-gpu, distributed-training, nccl, reinforcement-learning]

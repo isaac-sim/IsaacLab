@@ -1,7 +1,7 @@
 ---
 name: isaaclab-using-sensors-actuators
 description: Configures Isaac Lab sensor signal pipelines, hardware abstraction layers, and actuator dynamics for existing tasks. Use when adding cameras, contact sensors, foot or feet contacts, contact history, touchdown timing, air-time rewards, undesired contacts, sensor-derived observations or terminations, ray casters, IMUs, joint wrench sensors, tiled cameras, or actuator models. Focuses on data shape validation, update timing, backend-specific sensor behavior, and the hardware-to-task interface rather than environment architecture.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [sensors, actuators, cameras, contact-sensors]

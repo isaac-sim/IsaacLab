@@ -1,7 +1,7 @@
 ---
 name: isaaclab-debugging-rl-training
 description: Investigates post-launch RL pathologies in Isaac Lab tasks. Use when reward curves are pathological, policies collapse or fail to converge, reward hacking masks task failure, checkpoints are incompatible after config changes, or training stability is in question. Focuses on root cause isolation, failure mode classification, and controlled ablations — not initial job provisioning or framework setup.
-license: BSD-3-Clause
+license: Apache-2.0
 metadata:
   author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
   tags: [reinforcement-learning, debugging, rewards, checkpoints]
