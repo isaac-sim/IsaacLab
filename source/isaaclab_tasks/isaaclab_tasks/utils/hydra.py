@@ -908,7 +908,10 @@ def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[s
 def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
     """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
     try:
-        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        with warnings.catch_warnings():
+            # Enumerating every backend is not a user selecting the deprecated ones.
+            warnings.filterwarnings("ignore", message="Selecting '.*' runs on Isaac Sim")
+            env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
         validate(env_cfg)
         validate_launch(env_cfg, {"livestream": 0})
     except ValueError:

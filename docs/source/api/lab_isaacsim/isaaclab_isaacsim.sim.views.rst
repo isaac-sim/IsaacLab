@@ -1,5 +1,5 @@
 isaaclab_isaacsim.sim.views
-========================
+===========================
 
 .. automodule:: isaaclab_isaacsim.sim.views
 

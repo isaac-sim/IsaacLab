@@ -1,5 +1,5 @@
 isaaclab_isaacsim.sim.schemas
-==========================
+=============================
 
 .. automodule:: isaaclab_isaacsim.sim.schemas
 

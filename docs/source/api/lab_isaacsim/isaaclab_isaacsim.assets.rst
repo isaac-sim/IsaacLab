@@ -1,5 +1,5 @@
 ﻿isaaclab_isaacsim.assets
-=====================
+=========================
 
 .. automodule:: isaaclab_isaacsim.assets
   :noindex:

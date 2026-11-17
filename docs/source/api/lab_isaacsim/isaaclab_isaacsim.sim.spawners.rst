@@ -1,5 +1,5 @@
 isaaclab_isaacsim.sim.spawners
-===========================
+==============================
 
 .. automodule:: isaaclab_isaacsim.sim.spawners.materials
 

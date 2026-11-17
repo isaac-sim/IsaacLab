@@ -117,7 +117,7 @@ The following modules are available in the ``isaaclab_teleop`` extension:
    lab_teleop/isaaclab_teleop
 
 isaaclab_isaacsim extension
-------------------------
+---------------------------
 
 The following modules are available in the ``isaaclab_isaacsim`` extension:
 

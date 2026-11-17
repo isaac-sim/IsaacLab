@@ -1,5 +1,5 @@
 ﻿isaaclab\_physx.cloner
-======================
+=======================
 
 .. automodule:: isaaclab_isaacsim.cloner
 

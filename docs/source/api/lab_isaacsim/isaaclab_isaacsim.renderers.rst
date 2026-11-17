@@ -1,5 +1,5 @@
 ﻿isaaclab\_physx.renderers
-=========================
+==========================
 
 .. automodule:: isaaclab_isaacsim.renderers
 
