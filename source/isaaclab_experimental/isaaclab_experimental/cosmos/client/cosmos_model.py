@@ -59,6 +59,8 @@ class CosmosModel:
             raise ValueError("Cosmos endpoints must name distinct services.")
         if not math.isfinite(cfg.timeout) or cfg.timeout <= 0:
             raise ValueError("Cosmos timeout must be finite and positive.")
+        if not math.isfinite(cfg.fps) or cfg.fps <= 0:
+            raise ValueError("Cosmos fps must be finite and positive.")
         if isinstance(cfg.prompt, (list, tuple)):
             if not cfg.prompt or any(not isinstance(prompt, str) or not prompt.strip() for prompt in cfg.prompt):
                 raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
@@ -293,6 +295,7 @@ class _CosmosStream:
                     "height": image_shape[0],
                     "width": image_shape[1],
                     "max_episode_frames": self._cfg.max_episode_frames,
+                    "fps": self._cfg.fps,
                 }
                 self.transport = self._select_transport(control.device)
                 if self.transport == "cuda_ipc":

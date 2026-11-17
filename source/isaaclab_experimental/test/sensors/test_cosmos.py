@@ -260,7 +260,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     np.testing.assert_array_equal(resident_stream.steps[0][0][0][0, 0], [[0, 1, 2], [6, 7, 8], [12, 13, 14]])
     assert resident_stream.settings["prompt"] == "A camera view"
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
-    assert resident_stream.settings["seeds"] == (7,)
+    assert resident_stream.settings["seeds"] == (7,) and resident_stream.settings["fps"] == 30.0
     reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
     assert reply["session_active"]
 

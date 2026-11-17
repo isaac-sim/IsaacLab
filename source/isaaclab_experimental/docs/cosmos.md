@@ -552,6 +552,9 @@ before that budget is exhausted; the service rejects further generation rather t
 Startup logs show the budget and the captures and generated updates per second of simulation time. The model uses
 a sliding history window; longer episodes still need quality and memory validation on the intended workload.
 
+The service also tells the model the images' frame rate, `CosmosModelCfg.fps`, 30 by default as in the Sim-Transfer
+recipe. A task whose prompt and settings were calibrated at another rate sets it; it need not equal the capture rate.
+
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract and camera scheduling. Service shutdown and
 environment setup are covered in [Cosmos service setup](cosmos_service.md).

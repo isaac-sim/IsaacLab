@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import tempfile
 from collections.abc import Generator, Iterator
@@ -155,7 +156,6 @@ class CosmosInferenceModel:
             "initial_frames": 1,
             "update_frames": MAX_CHUNK_FRAMES,
             "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
-            "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
             "partial_resets": use_compile and _vae_cache_owner(model.tokenizer_vision_gen) is not None,
             "device": str(selected_device),
@@ -172,6 +172,7 @@ class CosmosInferenceModel:
         height: int,
         width: int,
         max_episode_frames: int,
+        fps: float = 30.0,
     ) -> _CosmosInferenceStream:
         """Open one fixed-resolution generation session with a fresh episode history.
 
@@ -188,6 +189,7 @@ class CosmosInferenceModel:
             height: Control image height [pixels].
             width: Control image width [pixels].
             max_episode_frames: Episode horizon, ``1 + 4*k`` frames; the model is told the episode's duration.
+            fps: Frame rate the model is told the controls have [Hz]. Defaults to 30, the Sim-Transfer recipe's rate.
 
         Returns:
             A session whose close releases generation history, retaining model weights.
@@ -213,14 +215,16 @@ class CosmosInferenceModel:
             )
         if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
             raise ValueError("Cosmos max_episode_frames must be 1 + 4*k.")
+        if type(fps) not in (int, float) or not math.isfinite(fps) or fps <= 0:
+            raise ValueError("Cosmos fps must be finite and positive.")
 
         import torch
 
         with torch.cuda.device(self._device):
-            rows = {text: self._prompt_batch(text, height, width, max_episode_frames) for text in set(prompts)}
+            rows = {text: self._prompt_batch(text, height, width, max_episode_frames, fps) for text in set(prompts)}
         if num_views == 1:
             data = rows[prompts[0]]
-            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames)
+            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, fps)
         else:
             data = _merge_prompt_rows([rows[text] for text in prompts], self._pipeline.model.input_caption_key)
             self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames)
@@ -262,7 +266,9 @@ class CosmosInferenceModel:
             self._pipeline = None
             self._metadata_dir.cleanup()
 
-    def _prompt_batch(self, prompt: str | None, height: int, width: int, max_episode_frames: int) -> dict[str, Any]:
+    def _prompt_batch(
+        self, prompt: str | None, height: int, width: int, max_episode_frames: int, fps: float
+    ) -> dict[str, Any]:
         """Build one episode's text conditioning: appearance prompt and metadata."""
         from cosmos_framework.inference.args import OmniSampleOverrides
         from cosmos_framework.inference.inference import _get_prompt_sample_data
@@ -279,7 +285,8 @@ class CosmosInferenceModel:
             resolution="480",
             aspect_ratio=CANVAS_ASPECT_RATIOS[(height, width)],
             num_frames=max_episode_frames,
-            fps=30,
+            # The native metadata takes a whole frame rate; the conditioning below keeps a fractional one.
+            fps=round(fps),
             num_steps=4,
             guidance=1.0,
             shift=5.0,
@@ -290,7 +297,7 @@ class CosmosInferenceModel:
         ).build_sample(model_config=model.config)
         data = _get_prompt_sample_data(sample, model, h=height, w=width, device="cuda")
         # Like the Sim-Transfer recipe (emphasize_control_in_prompt off), the caption does not name the control.
-        data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[30.0])
+        data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[float(fps)])
         # The Framework's own Transfer requests carry this marker. Compiled generation reads it to keep the numerics
         # the checkpoint was validated with (see the Framework's docs/transfer_numerical_preservation.md).
         data["_preserve_transfer_numerics"] = True
@@ -306,7 +313,7 @@ def _merge_prompt_rows(rows: list[dict[str, Any]], caption_key: str) -> dict[str
         data[negative_key] = [
             row[negative_key][0] if isinstance(row[negative_key], list) else row[negative_key] for row in rows
         ]
-    data["fps"] = [30.0] * len(rows)
+    data["fps"] = [row["fps"][0] for row in rows]
     return data
 
 
@@ -347,6 +354,7 @@ class _CosmosInferenceStream:
         height: int,
         width: int,
         max_episode_frames: int,
+        fps: float,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
@@ -354,6 +362,7 @@ class _CosmosInferenceStream:
         self._seed = seed
         self._canvas = (height, width, 3)
         self._max_episode_frames = max_episode_frames
+        self._fps = fps
         self._frame_count = 0
         self._closed = False
         self._cache_scope: ExitStack | None = None
@@ -412,7 +421,9 @@ class _CosmosInferenceStream:
                     self._close_episode()
                     if prompt is not _KEEP_PROMPT:
                         height, width, _ = self._canvas
-                        self._data_batch = self._owner._prompt_batch(prompt, height, width, self._max_episode_frames)
+                        self._data_batch = self._owner._prompt_batch(
+                            prompt, height, width, self._max_episode_frames, self._fps
+                        )
                     self._seed = seeds[0]
                     self._frame_count = 0
                     self._iterator = self._make_iterator()

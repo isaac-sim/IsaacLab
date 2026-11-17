@@ -11,7 +11,8 @@
   :func:`~isaaclab_experimental.cosmos.episode_frame_budget` sizes a session to the episode.
 * Added :class:`~isaaclab_experimental.cosmos.CosmosModelCfg` settings: one prompt per environment, or prompt
   files read with :func:`~isaaclab_experimental.cosmos.read_prompt_files`; several cameras sharing one session;
-  several services, one per GPU, each generating a share of the environments; and the transport.
+  several services, one per GPU, each generating a share of the environments; the transport; and ``fps``, the
+  frame rate the model is told.
 * Added the standalone ``isaaclab-cosmos`` package with the ``isaaclab-cosmos-server`` command. It serves the
   public Cosmos Framework from its own environment, keeps the model loaded between sessions, and generates all of a
   session's views as one batch. Images move over a Unix socket or TCP, or, on one Linux machine, over CUDA IPC
