@@ -82,16 +82,14 @@ def test_textures_and_public_modalities(field: str) -> None:
     assert target["rgb"].untyped_storage().data_ptr() == target["rgba"].untyped_storage().data_ptr()
 
 
-def test_camera_config_rejects_wang_and_requires_native_layout() -> None:
+def test_camera_config_rejects_wang_with_square_shells() -> None:
     from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
     kwargs = dict(prim_path="/World/Camera", foveated_style="warped_cartesian_as_grid", radius_norm=math.inf)
-    with pytest.raises(ValueError, match="native_grid"):
-        FoveatedCameraCfg(**kwargs, fov_type="square")
     with pytest.raises(ValueError, match="wang"):
-        FoveatedCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="wang")
-    cfg = FoveatedCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="square")
-    assert cfg.ndc_layout == "native_grid"
+        FoveatedCameraCfg(**kwargs, fov_type="wang")
+    cfg = FoveatedCameraCfg(**kwargs, fov_type="square")
+    assert cfg.fov_type == "square"
 
 
 @pytest.mark.parametrize("coverage", ["square", "circular"])
@@ -105,10 +103,10 @@ def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
         prim_path="/World/Camera",
         spawn=PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0),
         cmf_a_deg=9.0,
+        field_geometry="planar",
         foveated_style="warped_cartesian_as_grid",
         fov_type=coverage,
         radius_norm=math.inf,
-        ndc_layout="native_grid",
         foveated_res=16,
         pool_enabled=True,
         pool_res_mult=2.0,
@@ -125,7 +123,7 @@ def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
 @pytest.mark.parametrize(
     "kwargs",
     [
-        dict(radius_norm=1.0, foveated_style="warped_cartesian_as_grid", ndc_layout="native_grid"),
+        dict(radius_norm=1.0, foveated_style="warped_cartesian_as_grid"),
         dict(radius_norm=math.inf, foveated_style="isotropic"),
     ],
 )

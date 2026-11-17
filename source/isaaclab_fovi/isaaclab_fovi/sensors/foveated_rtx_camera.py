@@ -224,13 +224,15 @@ class FoveatedRTXCamera(FoveatedCamera):
             r_deg = ray_coords.polar[:, 0].to(torch.float64) * (self._camera_hfov_deg / 2.0)
             dirs = gp.ray_directions_rectilinear(r_deg, theta_rad, device="cpu")
 
-        # 4. Texture dimensions and UV layout.
-        if self.cfg.ndc_layout == "native_grid":
+        # 4. Texture dimensions and UV layout. Grid styles render straight into their
+        #    native grid; sample-set styles are packed onto a cortical disc, which keeps
+        #    neighbouring samples adjacent for the renderer's spatial filtering.
+        if self._native_grid:
             tw = th = ray_coords.resolution
             axis = (torch.arange(tw, dtype=torch.float32) + 0.5) / tw
             row, col = torch.meshgrid(axis, axis, indexing="ij")
             uv = torch.stack((col, row), -1).reshape(-1, 2)
-        elif self.cfg.ndc_layout == "cortical_disc":
+        else:
             tw = th = max(64, math.ceil(math.sqrt(4 * N / math.pi)))
             # Eccentricity [deg] of each sample; the disc is laid out with the same
             # field of view and CMF constant the samples were generated with.
@@ -242,8 +244,6 @@ class FoveatedRTXCamera(FoveatedCamera):
                 ray_coords.cmf_a,
                 device="cpu",
             )
-        else:
-            raise ValueError(f"Unknown ndc_layout: {self.cfg.ndc_layout!r}")
 
         self._texture_width = tw
         self._texture_height = th
@@ -289,7 +289,7 @@ class FoveatedRTXCamera(FoveatedCamera):
 
         logger.info(
             "FoveatedRTXCamera: %d samples (%d rendered), style=%s, cmf_a=%.4g deg, field of view=%.1f deg, "
-            "texture %dx%d, exit lookup %dx%d, layout=%s, lookup textures in %s",
+            "texture %dx%d, exit lookup %dx%d, lookup textures in %s",
             self._num_valid_samples,
             self._num_ray_samples,
             self.cfg.foveated_style,
@@ -299,7 +299,6 @@ class FoveatedRTXCamera(FoveatedCamera):
             th,
             EW,
             EH,
-            self.cfg.ndc_layout,
             self._lut_tmpdir,
         )
 
@@ -394,14 +393,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         except AttributeError:
             # Older IsaacLab where ``output`` was a writable attribute.
             self._data.output = new_output
-
-        logger.info(
-            "FoveatedRTXCamera: %d samples, %dx%d texture, layout=%s",
-            self._num_ray_samples,
-            tw,
-            th,
-            self.cfg.ndc_layout,
-        )
 
     def _allocate_foveated_buffers(self):
         """Allocate ``(B, N_hi, 1, C)`` (and optionally ``(B, N_lo, 1, C)``)

@@ -40,7 +40,13 @@ class FoveatedCameraCfg(CameraCfg):
     data. It is passed to :class:`fovi.sensing.coords.SamplingCoords` unchanged
     in both field geometries."""
 
-    field_geometry: str = "planar"
+    field_geometry: str = "spherical"
+    """Coordinates the samples are laid out in: ``"spherical"`` or ``"planar"``.
+
+    Spherical sampling places samples by visual angle inside the calibrated
+    camera's field of view and needs :attr:`camera_calibration`. Planar sampling
+    places them on the image plane of the spawn optics."""
+
     camera_calibration: CameraCalibration | None = None
     """CameraModel fields for the physical source image; required for spherical geometry."""
 
@@ -49,9 +55,12 @@ class FoveatedCameraCfg(CameraCfg):
     sampling this is the number of radial rings; the total sample count *N*
     depends on ``(fov, cmf_a, foveated_res)``."""
 
-    foveated_style: str = "isotropic"
-    """Sampling style passed to :class:`SamplingCoords`.  Supported values
-    include ``"isotropic"``, ``"logpolar"``, ``"uniform"``, etc."""
+    foveated_style: str = "warped_cartesian_as_grid"
+    """Sampling style passed to :class:`SamplingCoords`.
+
+    The default ``"warped_cartesian_as_grid"`` publishes an upright image of
+    shape ``(B, H, W, C)``. Sample-set styles such as ``"isotropic"`` are an
+    advanced option and publish ``(B, N, 1, C)``."""
 
     fov_type: str = "circular"
     """Visual footprint; circular is the default for native warped grids."""
@@ -152,13 +161,6 @@ class FoveatedCameraCfg(CameraCfg):
 
     # -- RTX-specific parameters (ignored by Newton backend) ----------------
 
-    ndc_layout: str = "cortical_disc"
-    """RTX texture layout: ``cortical_disc`` or warped Cartesian ``native_grid``.
-
-    Row-major packing breaks spatial filtering and is no longer accepted.
-    Newton does not use a texture layout.
-    """
-
     exit_texture_size: int | None = None
     """Dimension of the exit (inverse) LUT texture (EW = EH) for RTX rendering.
     If ``None`` (default), computed as ``max(128, 4 * tw)`` where ``tw`` is the
@@ -178,15 +180,8 @@ class FoveatedCameraCfg(CameraCfg):
     def __post_init__(self):
         # Resolves the default renderer and forwards deprecated renderer fields.
         super().__post_init__()
-        if self.ndc_layout not in ("cortical_disc", "native_grid"):
-            raise ValueError(
-                f"Unsupported ndc_layout={self.ndc_layout!r}; use 'cortical_disc' or 'native_grid'. "
-                "Row-major packing is no longer supported because it breaks spatial filtering."
-            )
-        if self.ndc_layout == "native_grid" and self.foveated_style != "warped_cartesian_as_grid":
-            raise ValueError("native_grid requires a Cartesian grid foveated_style.")
-        if self.foveated_style == "warped_cartesian_as_grid" and self.ndc_layout != "native_grid":
-            raise ValueError(f"{self.foveated_style} requires ndc_layout='native_grid'.")
+        if self.field_geometry not in ("spherical", "planar"):
+            raise ValueError(f"Unknown field_geometry={self.field_geometry!r}; use 'spherical' or 'planar'.")
         validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
         # ``spawn`` is a ``PinholeCameraCfg`` / ``FisheyeCameraCfg`` whose
         # ``lock_camera`` field defaults to True.  That writes
