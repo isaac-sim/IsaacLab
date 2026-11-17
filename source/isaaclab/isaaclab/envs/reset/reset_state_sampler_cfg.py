@@ -7,7 +7,7 @@
 
 from isaaclab.utils import configclass
 
-from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg, UniformScoreCfg
+from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg
 
 
 @configclass
@@ -16,9 +16,9 @@ class ResetStateSamplerCfg:
 
     history_length: int = 50
     """Completed outcomes retained independently for each catalog entry."""
-    scores: list[SamplingScoreCfg] = [TargetSuccessScoreCfg(weight=0.25), UniformScoreCfg(weight=0.05)]
-    """Weighted native scorers consuming named per-entry metrics."""
-    eps: float = 1.0e-4
-    """Additive score floor before normalization; a zero-total partition falls back to uniform."""
+    scores: list[SamplingScoreCfg] = [TargetSuccessScoreCfg(weight=0.25)]
+    """Weighted scorers consuming per-entry metrics. An empty list selects uniformly."""
+    uniform_weight: float = 0.0501
+    """Weight added to every entry before normalization. A zero-total group draws uniformly."""
     seed: int = 0
     """Initial seed of the independent per-environment random streams."""

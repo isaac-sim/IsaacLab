@@ -245,10 +245,10 @@ class TermChoice(ManagerTermBase):
         super().__init__(cfg, env)
         self.term_partitions: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
         self.num_partitions = len(self.term_partitions)
-        self.term_samples = torch.zeros((env.num_envs,), dtype=torch.long, device=env.device)
+        sampling = cfg.params["sampling"]
         self._sampler = (
             ResetStateSampler(
-                cfg.params["sampling"].replace(seed=(cfg.params["sampling"].seed + (env.cfg.seed or 0)) % 2**32),
+                sampling.replace(seed=(sampling.seed + (env.cfg.seed or 0)) % 2**32),
                 env.num_envs,
                 self.num_partitions,
                 env.device,
@@ -258,6 +258,11 @@ class TermChoice(ManagerTermBase):
         )
         self.term_success_rate = (
             self._sampler.success_rate.torch if self._sampler is not None else torch.empty(0, device=env.device)
+        )
+        self.term_samples = (
+            self._sampler.state_ids.torch
+            if self._sampler is not None
+            else torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         )
 
     def reseed(self, seed: int) -> None:
@@ -281,10 +286,12 @@ class TermChoice(ManagerTermBase):
                 for i, name in enumerate(self.term_partitions.keys())
             }
             log["Metrics/SuccessRate"] = self.term_success_rate.mean().item()
-        success = env.termination_manager.get_term_cfg("progress_context").func.is_success
-        valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
-        choices = self._sampler.reset(env_ids=env_ids, success=success, valid=valid)
-        self.term_samples.copy_(choices.torch)
+        if report or sampling.scores:
+            success = env.termination_manager.get_term_cfg("progress_context").func.is_success
+            valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
+            self._sampler.reset(env_ids=env_ids, success=success, valid=valid)
+        else:
+            self._sampler.reset(env_ids=env_ids)
         env_ids = env.scene._ALL_INDICES[env_ids]
         if report:
             log.update(

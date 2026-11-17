@@ -91,6 +91,8 @@ def test_lift_native_reset_replay_and_completed_outcomes(device, monkeypatch):
             torch.testing.assert_close(robot.data.joint_pos.torch, seeded_joints)
             torch.testing.assert_close(term._sampler.episode_counts.torch, recorded)
 
+            # RSL-RL can replace the counter tensor while initializing randomized episode lengths.
+            env.episode_length_buf = env.episode_length_buf.clone()
             # A viewer request ends the wrapper episode but is not a completed natural attempt.
             actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=device)
             monkeypatch.setattr(env.sim, "consume_reset_request", lambda: True)
