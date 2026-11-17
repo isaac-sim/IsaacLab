@@ -139,6 +139,26 @@ def test_xr_pins_the_renderer_only_for_a_cuda_device(
 
 
 @pytest.mark.parametrize(
+    ("launcher_args", "expected_device", "warns"),
+    [
+        pytest.param({"device": "cuda:0"}, "cpu", True, id="default-device"),
+        pytest.param({"device": "cuda:0", "device_explicit": True}, "cuda:0", False, id="explicit-device"),
+        pytest.param({"device": "cpu"}, "cpu", False, id="cpu-default"),
+        pytest.param({"device": "cuda:1", "distributed": True}, "cuda:1", False, id="distributed"),
+    ],
+)
+def test_xr_cpu_fallback_warns(launcher_args, expected_device, warns, monkeypatch, caplog):
+    """Warn when XR replaces the default device with the CPU, and only then."""
+    for name in ("PXR_WORK_THREAD_LIMIT", "OPENBLAS_NUM_THREADS"):
+        monkeypatch.setenv(name, "0")
+    with caplog.at_level(logging.WARNING, logger=kit_launcher_module.__name__):
+        args, _ = _resolve_devices_and_kit_args(launcher_args, monkeypatch, xr=True)
+
+    assert args["device"] == expected_device
+    assert any("running physics on the CPU" in record.getMessage() for record in caplog.records) == warns
+
+
+@pytest.mark.parametrize(
     ("launcher_state", "expected_enabled"),
     [
         pytest.param({}, False, id="headless-training"),
