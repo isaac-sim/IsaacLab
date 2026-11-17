@@ -80,6 +80,7 @@ Scene data
 .. autoclass:: Command
 .. autoclass:: Event
 .. autoclass:: EventMode
+   :members:
 .. autoclass:: Quantity
 .. autoclass:: UniformNoise
 .. autofunction:: term_state
@@ -91,6 +92,7 @@ Scene data
    :members:
 .. autoclass:: Transition
 .. autoclass:: Backend
+   :members:
 .. autoclass:: CapturedMDP
    :members:
 .. autofunction:: startup
