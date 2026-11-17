@@ -57,7 +57,7 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
         cfg.foveated_style,
         1,
         device,
-        quiet=False,
+        quiet=True,
         fov_type=cfg.fov_type,
         radius_norm=cfg.radius_norm,
         field_geometry=cfg.field_geometry,
