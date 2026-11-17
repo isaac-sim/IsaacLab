@@ -66,8 +66,7 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     Grid styles render straight into their native grid. Sample-set styles are
     packed onto a cortical disc, which keeps neighbouring samples adjacent for
-    DLSS denoising. Camera motion comes from the prim's parent, and in spherical
-    geometry from the calibrated gaze.
+    DLSS denoising. Camera motion comes from the prim's parent and from the gaze.
     """
 
     cfg: FoveatedCameraCfg
@@ -90,9 +89,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         return self._renderer
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        # Spawn optics are only needed for planar geometry; an existing prim has none.
-        self._spawn_focal_length: float | None = None if cfg.spawn is None else cfg.spawn.focal_length
-        self._spawn_horizontal_aperture: float | None = None if cfg.spawn is None else cfg.spawn.horizontal_aperture
         self._calibrated_rotation = None
         # Texture buffers are owned by the parent ``Camera`` (allocated in
         # ``_create_buffers`` and bound to the renderer via ``set_outputs``).
@@ -114,12 +110,7 @@ class FoveatedRTXCamera(FoveatedCamera):
     # ------------------------------------------------------------------
 
     def _prepare_projection(self) -> None:
-        # 1. Derive camera physical FOV.
-        self._camera_hfov_rad: float | None = None
-        if self._spawn_focal_length is not None:
-            self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
-
-        # 2. Build coords on CPU.  The LUT textures + UV extraction use the
+        # 1. Build coords on CPU.  The LUT textures + UV extraction use the
         #    *rendered* grid (highres when pooling, else lowres).  The
         #    public `sampling_coords` property stays on the lowres / RGC grid.
         self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
@@ -136,7 +127,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._num_ray_samples = len(ray_coords)  # rendered ray count
         N = self._num_ray_samples
 
-        # 3. Compute ray directions and UV mapping from the rendered grid.
+        # 2. Compute ray directions and UV mapping from the rendered grid.
         # Apply optional image-space rotation (``cfg.image_rotation_deg``) by
         # rotating the per-ray polar angle ``theta`` around the optical axis
         # *before* computing the ray directions. This undoes a physical
@@ -151,22 +142,11 @@ class FoveatedRTXCamera(FoveatedCamera):
         if self.cfg.image_rotation_deg:
             theta_rad = theta_rad + math.radians(float(self.cfg.image_rotation_deg))
         if self._native_grid:
-            # Spherical grids take their extent from the sampling coordinates and ignore the tangent scale.
-            tangent_scale = 1.0 if self._camera_hfov_rad is None else math.tan(self._camera_hfov_rad / 2)
-            self._native_tangent_scale = tangent_scale
-            dirs = native_grid_directions(
-                ray_coords,
-                tangent_scale=tangent_scale,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-                camera_fov_rad=self._camera_hfov_rad,
-            )
-        elif self.cfg.field_geometry == "spherical":
-            dirs = retinal_directions(ray_coords.cartesian, ray_coords.fov, self.cfg.image_rotation_deg)
+            dirs = native_grid_directions(ray_coords, image_rotation_deg=self.cfg.image_rotation_deg)
         else:
-            r_deg = ray_coords.polar[:, 0].to(torch.float64) * (ray_coords.fov / 2.0)
-            dirs = gp.ray_directions_rectilinear(r_deg, theta_rad, device="cpu")
+            dirs = retinal_directions(ray_coords.cartesian, ray_coords.fov, self.cfg.image_rotation_deg)
 
-        # 4. Texture dimensions and UV layout. Grid styles render straight into their
+        # 3. Texture dimensions and UV layout. Grid styles render straight into their
         #    native grid; sample-set styles are packed onto a cortical disc, which keeps
         #    neighbouring samples adjacent for the renderer's spatial filtering.
         if self._native_grid:
@@ -191,7 +171,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._texture_height = th
         self._sample_uv = uv  # (N, 2) float32
 
-        # 5. Build and save LUT textures.
+        # 4. Build and save LUT textures.
         #    The exit texture is an octahedral inverse map (ray direction → sensor NDC).
         #    It covers the full hemisphere, but only the fraction within the camera
         #    FOV is populated.  The resolution must be high enough that each foveated
@@ -204,11 +184,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             EW = EH = max(128, 4 * max(tw, th))
         if self._native_grid:
             dir_tex, exit_tex = gp.build_native_grid_textures(
-                ray_coords,
-                tangent_scale=self._native_tangent_scale,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-                exit_size=EW,
-                camera_fov_rad=self._camera_hfov_rad,
+                ray_coords, image_rotation_deg=self.cfg.image_rotation_deg, exit_size=EW
             )
         else:
             dir_tex, exit_tex = gp.build_generalized_projection_textures(
@@ -243,7 +219,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._lut_tmpdir,
         )
 
-        # 6. Set texture dimensions so parent allocates (B, th, tw, C) buffers.
+        # 5. Set texture dimensions so parent allocates (B, th, tw, C) buffers.
         self.cfg.height = th
         self.cfg.width = tw
 
@@ -290,9 +266,8 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._initialize_calibrated_gaze()
-        if self.cfg.field_geometry == "spherical":
-            _, local_orientation = self._view.get_local_poses()
-            self._calibrated_base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
+        _, local_orientation = self._view.get_local_poses()
+        self._calibrated_base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
 
         # Build the pooler on the sensor device (so knn tensors live there).
         # A second max-mode pooler is built inside ``_allocate_foveated_buffers``
@@ -493,11 +468,6 @@ class FoveatedRTXCamera(FoveatedCamera):
     # ------------------------------------------------------------------
     #  Output helpers
     # ------------------------------------------------------------------
-
-    @property
-    def hfov_rad(self) -> float:
-        """Horizontal field of view in radians."""
-        return self._camera_hfov_rad
 
     @property
     def sampling_coords(self):

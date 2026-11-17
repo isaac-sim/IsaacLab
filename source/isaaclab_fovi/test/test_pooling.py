@@ -6,7 +6,6 @@
 """Dual-grid geometry and modality-specific pooling without a simulator."""
 
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 
 import pytest
 import torch
@@ -20,15 +19,16 @@ from isaaclab_fovi.sensors.pooling import (
     pool_hwc_buffer,
 )
 
+from isaaclab.sim import PinholeCameraCfg
+
 
 @dataclass
 class SamplingConfig:
     """Sampling fields consumed by the shared pooling helpers."""
 
-    # A 90 degree planar window (focal length 1, aperture 2) with a CMF constant of a tenth of it.
+    # A 90 degree pinhole window (focal length 1, aperture 2) with a CMF constant of a tenth of it.
     cmf_a_deg: float = 9.0
-    spawn: SimpleNamespace = field(default_factory=lambda: SimpleNamespace(focal_length=1.0, horizontal_aperture=2.0))
-    field_geometry: str = "planar"
+    spawn: PinholeCameraCfg = field(default_factory=lambda: PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0))
     camera_calibration: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
     retinal_window_reference_side: str = "short"
     retinal_window_short_side_fraction: float = 1.0
@@ -126,7 +126,6 @@ def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, sample_cortex
     "style,expected",
     [
         ("warped_cartesian_as_grid", GridPoolingLayer),
-        ("logpolar_as_grid", GridPoolingLayer),
         ("warped_cartesian", KNNPoolingLayer),
     ],
 )
@@ -141,22 +140,3 @@ def test_native_grid_default_kernel_matches_deployment(style: str, expected: typ
     pooler, resolved_k = build_pooler(cfg, lowres, highres, "cpu")
     assert resolved_k == 4
     assert isinstance(pooler, expected)
-
-
-def test_logpolar_grid_pooling_wraps_the_angular_boundary() -> None:
-    cfg = SamplingConfig(foveated_style="logpolar_as_grid", pool_k=9)
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
-    pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
-    assert highres.valid_mask.all()
-    # Log-polar grids are angle x eccentricity; light only the last angle row.
-    values = torch.zeros(highres.resolution, highres.resolution)
-    values[-1] = 1.0
-    result = pool_hwc_buffer(pooler, values.reshape(1, -1, 1, 1))[0, :, 0, 0]
-    pooled = lowres.as_grid(result)
-    # 3x3 windows centered on high-res angles 2i span 2i-1..2i+1, so the last
-    # row reaches output angle 0 only by wrapping, and the last output angle.
-    expected = torch.zeros_like(pooled)
-    expected[0] = 1 / 3
-    expected[-1] = 1 / 3
-    torch.testing.assert_close(pooled, expected)

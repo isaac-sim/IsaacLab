@@ -50,7 +50,12 @@ def proxy_outputs(outputs: Mapping[str, torch.Tensor | ProxyArray]) -> dict[str,
     }
 
 
-def _angular_padding_boundary(coords: SamplingCoords, camera_fov_rad: float | None = None) -> tuple[float, float]:
+def _require_spherical(coords: SamplingCoords) -> None:
+    if coords.field_geometry != "spherical":
+        raise ValueError(f"Foveated cameras sample spherical coordinates, got {coords.field_geometry!r}.")
+
+
+def _angular_padding_boundary(coords: SamplingCoords) -> tuple[float, float]:
     if coords.fov_type == "circular":
         radius = 1.0
     elif coords.fov_type == "square":
@@ -60,8 +65,7 @@ def _angular_padding_boundary(coords: SamplingCoords, camera_fov_rad: float | No
         radius = float(torch.linalg.vector_norm(coords.native_to_visual(corner)).item())
     else:
         raise ValueError(f"Unsupported native grid footprint {coords.fov_type!r}.")
-    fov_rad = math.radians(coords.fov) if camera_fov_rad is None else camera_fov_rad
-    angle = radius * fov_rad / 2
+    angle = radius * math.radians(coords.fov) / 2
     if angle >= math.pi:
         raise ValueError("Spherical native grid footprint reaches the antipode; reduce FoV or use circular coverage.")
     return radius, angle
@@ -89,34 +93,20 @@ def unbounded_angular_radius(angle: torch.Tensor, half_fov_rad: float) -> torch.
     return torch.where(angle <= half_fov_rad, angle / half_fov_rad, padding)
 
 
-def native_grid_directions(
-    coords: SamplingCoords,
-    *,
-    tangent_scale: float,
-    image_rotation_deg: float = 0.0,
-    projection: str = "pinhole",
-    camera_fov_rad: float | None = None,
-) -> torch.Tensor:
-    """Return canonical ordered OpenGL rays for a warped Cartesian grid."""
+def native_grid_directions(coords: SamplingCoords, *, image_rotation_deg: float = 0.0) -> torch.Tensor:
+    """Return canonical ordered OpenGL rays for a warped Cartesian grid.
+
+    Grid radius is proportional to visual angle, and the padding outside the
+    nominal field continues toward the antipode without wrapping.
+    """
+    _require_spherical(coords)
     cartesian = coords.cartesian.to(torch.float64)
     radius = torch.linalg.vector_norm(cartesian, dim=-1)
-    if projection not in ("pinhole", "fisheye_equidistant"):
-        raise ValueError(f"Unsupported native grid projection {projection!r}.")
-    if coords.field_geometry == "spherical" or projection == "fisheye_equidistant":
-        if coords.field_geometry != "spherical" and camera_fov_rad is None:
-            raise ValueError("Planar equidistant rendering requires camera_fov_rad.")
-        boundary_radius, boundary_angle = _angular_padding_boundary(
-            coords, None if coords.field_geometry == "spherical" else camera_fov_rad
-        )
-        angle = bounded_angular_radius(radius / boundary_radius, boundary_angle)
-        scale = torch.where(radius > 0, angle.sin() / radius.clamp_min(1e-30), angle.new_zeros(()))
-        xy = cartesian * scale[:, None]
-        z = -angle.cos()
-    elif coords.field_geometry in ("planar", "legacy"):
-        xy = cartesian * tangent_scale
-        z = -torch.ones_like(radius)
-    else:
-        raise ValueError(f"Unknown field geometry {coords.field_geometry!r}.")
+    boundary_radius, boundary_angle = _angular_padding_boundary(coords)
+    angle = bounded_angular_radius(radius / boundary_radius, boundary_angle)
+    scale = torch.where(radius > 0, angle.sin() / radius.clamp_min(1e-30), angle.new_zeros(()))
+    xy = cartesian * scale[:, None]
+    z = -angle.cos()
     angle = math.radians(image_rotation_deg)
     x, y = xy.unbind(-1)
     rays = torch.stack(
@@ -127,40 +117,23 @@ def native_grid_directions(
 
 
 def native_grid_exit_uv(
-    directions: torch.Tensor,
-    coords: SamplingCoords,
-    *,
-    tangent_scale: float,
-    image_rotation_deg: float = 0.0,
-    projection: str = "pinhole",
-    camera_fov_rad: float | None = None,
+    directions: torch.Tensor, coords: SamplingCoords, *, image_rotation_deg: float = 0.0
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Analytically map OpenGL rays to native texture UV and visibility.
 
     Texture rows and columns follow canonical vector order: native x then y.
     The public image applies Fovi's upright grid permutation after rendering.
     """
+    _require_spherical(coords)
     angle = math.radians(image_rotation_deg)
     x, y, z = directions.to(torch.float64).unbind(-1)
     xy = torch.stack((math.cos(angle) * x + math.sin(angle) * y, -math.sin(angle) * x + math.cos(angle) * y), -1)
     lateral = torch.linalg.vector_norm(xy, dim=-1)
-    if projection not in ("pinhole", "fisheye_equidistant"):
-        raise ValueError(f"Unsupported native grid projection {projection!r}.")
-    if coords.field_geometry == "spherical" or projection == "fisheye_equidistant":
-        if coords.field_geometry != "spherical" and camera_fov_rad is None:
-            raise ValueError("Planar equidistant rendering requires camera_fov_rad.")
-        theta = torch.atan2(lateral, -z)
-        boundary_radius, boundary_angle = _angular_padding_boundary(
-            coords, None if coords.field_geometry == "spherical" else camera_fov_rad
-        )
-        radius = unbounded_angular_radius(theta, boundary_angle) * boundary_radius
-        cartesian = xy * (radius / lateral.clamp_min(1e-30))[..., None]
-        visible = theta < math.pi - 1e-8
-    elif coords.field_geometry in ("planar", "legacy"):
-        cartesian = xy / ((-z).clamp_min(1e-30) * tangent_scale)[..., None]
-        visible = z < 0
-    else:
-        raise ValueError(f"Unknown field geometry {coords.field_geometry!r}.")
+    theta = torch.atan2(lateral, -z)
+    boundary_radius, boundary_angle = _angular_padding_boundary(coords)
+    radius = unbounded_angular_radius(theta, boundary_angle) * boundary_radius
+    cartesian = xy * (radius / lateral.clamp_min(1e-30))[..., None]
+    visible = theta < math.pi - 1e-8
     native = coords.visual_to_native(cartesian)
     uv = (native.flip(-1) + 1) / 2
     visible = visible & (uv >= 0).all(-1) & (uv <= 1).all(-1)

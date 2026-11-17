@@ -50,7 +50,7 @@ def test_pooled_allocation_accepts_proxy_arrays_and_preserves_render_buffers() -
 
 @pytest.mark.parametrize("pooled", [False, True])
 def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatch, pooled) -> None:
-    coords = SamplingCoords(1.0, 0.036021, 16, style="warped_cartesian_as_grid", device="cpu")
+    coords = SamplingCoords(60.0, 0.591, 16, style="warped_cartesian_as_grid", field_geometry="spherical", device="cpu")
     highres = coords.clone(resolution=32) if pooled else None
     ray_coords = highres if pooled else coords
     pooler = torch.nn.AdaptiveAvgPool1d(len(coords)) if pooled else None
@@ -90,8 +90,6 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     camera._view = None
     camera._renderer = None
     camera._device = "cpu"
-    camera._spawn_horizontal_aperture = 1.0
-    camera._spawn_focal_length = 1.0
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
@@ -100,7 +98,6 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
         pool_mode="avg",
         pool_int_mode="avg",
         pool_sample_cortex=False,
-        field_geometry="planar",
         image_rotation_deg=0,
         data_types=["rgba", "rgb"],
         renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),

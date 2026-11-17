@@ -14,7 +14,6 @@ to shoot custom ray arrays.
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -26,7 +25,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .calibrated_geometry import retinal_directions
 from .foveated_camera import FoveatedCamera
-from .foveated_rays import compute_explicit_ray_array, compute_foveated_ray_array
+from .foveated_rays import compute_explicit_ray_array
 from .native_grid import (
     GRID_STYLE,
     allocate_grid_outputs,
@@ -70,17 +69,13 @@ class FoveatedNewtonCamera(FoveatedCamera):
     and injected into Newton's Warp renderer. Vector sensors publish
     ``(B, N, 1, C)``; native grid sensors publish upright ``(B, H, W, C)``.
 
-    In planar geometry the samples cover the horizontal field of view of the
-    ``spawn`` optics. In spherical geometry they cover the calibrated retinal
-    window, and gaze is applied as a per-environment rotation of the rays.
+    The samples cover the retinal window of the physical camera, and gaze is
+    applied as a per-environment rotation of the rays.
     """
 
     cfg: FoveatedCameraCfg
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        # Spawn optics are only needed for planar geometry; an existing prim has none.
-        self._spawn_focal_length: float | None = None if cfg.spawn is None else cfg.spawn.focal_length
-        self._spawn_horizontal_aperture: float | None = None if cfg.spawn is None else cfg.spawn.horizontal_aperture
         self._calibrated_rotation = None
         super().__init__(cfg)
 
@@ -89,12 +84,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
     # ------------------------------------------------------------------
 
     def _initialize_impl(self):
-        # 1. Derive camera physical FOV for ray generation.
-        self._camera_hfov_rad: float | None = None
-        if self._spawn_focal_length is not None:
-            self._camera_hfov_rad = 2.0 * math.atan(self._spawn_horizontal_aperture / (2.0 * self._spawn_focal_length))
-
-        # 2. Build coords on CPU so we know N_lo (and N_hi when pooling) before
+        # 1. Build coords on CPU so we know N_lo (and N_hi when pooling) before
         #    the parent allocates buffers.  The pooler is constructed later,
         #    after the sensor device is available, because its knn indices /
         #    distances / gaussian weights are plain tensor attributes that
@@ -171,41 +161,15 @@ class FoveatedNewtonCamera(FoveatedCamera):
         # the camera prim. Foveated analogue of a post-render
         # ``torch.flip`` — but flip would shuffle the sample-to-coord
         # mapping; this rotation does not.
-        ray_cart = ray_coords_device.cartesian
         if self._native_grid:
-            # Spherical grids take their extent from the sampling coordinates and ignore the tangent scale.
-            tangent_scale = 1.0 if self._camera_hfov_rad is None else math.tan(self._camera_hfov_rad / 2)
             self._ray_directions = native_grid_directions(
-                ray_coords_device,
-                tangent_scale=tangent_scale,
-                image_rotation_deg=self.cfg.image_rotation_deg,
-                camera_fov_rad=self._camera_hfov_rad,
-            )
-            self._foveated_rays = compute_explicit_ray_array(self._ray_directions, device=str(self._device))
-        elif self.cfg.field_geometry == "spherical":
-            self._ray_directions = retinal_directions(ray_cart, ray_coords_device.fov, self.cfg.image_rotation_deg)
-            self._foveated_rays = compute_explicit_ray_array(self._ray_directions, device=str(self._device))
-        elif self.cfg.image_rotation_deg:
-            theta = math.radians(float(self.cfg.image_rotation_deg))
-            cos_t = math.cos(theta)
-            sin_t = math.sin(theta)
-            rot = torch.tensor(
-                [[cos_t, -sin_t], [sin_t, cos_t]],
-                device=ray_cart.device,
-                dtype=ray_cart.dtype,
-            )
-            ray_cart = ray_cart @ rot.T
-            self._foveated_rays = compute_foveated_ray_array(
-                sampling_coords_cartesian=ray_cart,
-                camera_fov_rad=self._camera_hfov_rad,
-                device=str(self._device),
+                ray_coords_device, image_rotation_deg=self.cfg.image_rotation_deg
             )
         else:
-            self._foveated_rays = compute_foveated_ray_array(
-                sampling_coords_cartesian=ray_cart,
-                camera_fov_rad=self._camera_hfov_rad,
-                device=str(self._device),
+            self._ray_directions = retinal_directions(
+                ray_coords_device.cartesian, ray_coords_device.fov, self.cfg.image_rotation_deg
             )
+        self._foveated_rays = compute_explicit_ray_array(self._ray_directions, device=str(self._device))
 
         render_samples = self.cfg.height * self.cfg.width
         if render_samples > self._num_ray_samples:
@@ -401,11 +365,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
     # ------------------------------------------------------------------
     #  Output helpers
     # ------------------------------------------------------------------
-
-    @property
-    def hfov_rad(self) -> float:
-        """Horizontal field of view in radians."""
-        return self._camera_hfov_rad
 
     @property
     def sampling_coords(self):

@@ -12,7 +12,7 @@ from collections.abc import Sequence
 
 import torch
 import warp as wp
-from fovi.sensing.projection import CameraModel, angular_directions, gaze_rotation
+from fovi.sensing.projection import angular_directions, gaze_rotation
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
@@ -20,6 +20,7 @@ from .calibrated_geometry import (
     calibrated_fixation_rotation,
     calibrated_mount_angles,
     calibrated_visibility,
+    camera_model,
     compose_rotations,
     convert_camera_frame_quaternion,
 )
@@ -91,14 +92,10 @@ class CalibratedVirtualGaze:
             return calibrated_visibility(self._calibrated_camera, rays, rotation)
 
     def _initialize_calibrated_gaze(self) -> None:
-        if self.cfg.field_geometry != "spherical":
-            return
-        self._calibrated_camera = CameraModel(**self.cfg.camera_calibration)
+        self._calibrated_camera = camera_model(self.cfg)
         coords = self._sampling_coords_highres or self._sampling_coords
         if coords.style == GRID_STYLE:
-            self._calibrated_rays = native_grid_directions(coords, tangent_scale=1.0) * coords.cartesian.new_tensor(
-                (1, -1, -1)
-            )
+            self._calibrated_rays = native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))
         else:
             self._calibrated_rays = angular_directions(coords.cartesian, coords.fov)
         self._calibrated_identity = torch.eye(3, device=coords.device)

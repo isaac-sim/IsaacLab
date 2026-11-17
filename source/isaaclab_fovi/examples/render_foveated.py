@@ -5,15 +5,16 @@
 
 """Render a small scene with a foveated camera.
 
-Run with ``--backend newton`` or ``--backend rtx``. By default the fixation
-moves inside the fixed camera's calibrated field of view; ``--planar`` samples
-the image plane of the spawn optics instead, with no gaze. ``--pool`` renders a
-denser photoreceptor grid and pools it to the output grid.
+Run with ``--backend newton`` or ``--backend rtx``. The retina looks through
+the spawned camera, an ideal pinhole or, with ``--lens fisheye``, an ideal
+equidistant fisheye, and its fixation moves inside that camera's field of view.
+``--pool`` renders a denser photoreceptor grid and pools it to the output grid.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import time
 import traceback
 from pathlib import Path
@@ -22,7 +23,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--backend", choices=("newton", "rtx"), required=True)
-parser.add_argument("--planar", action="store_true", help="Sample the image plane of the spawn optics.")
+parser.add_argument("--lens", choices=("pinhole", "fisheye"), default="pinhole", help="The camera the retina uses.")
 parser.add_argument("--pool", action="store_true", help="Pool a denser photoreceptor grid to the output grid.")
 parser.add_argument("--resolution", type=int, default=64, help="Side length of the output grid.")
 parser.add_argument("--cmf-a-deg", type=float, default=None, help="CMF constant [deg]; a large value is non-foveated.")
@@ -65,29 +66,31 @@ def main() -> None:
         physics = PhysxCfg()
         renderer = IsaacRtxRendererCfg()
 
+    if args.lens == "pinhole":
+        # An ideal pinhole with a 60 degree field of view.
+        spawn = sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=27.713)
+    else:
+        # An ideal equidistant fisheye: a 640 px image circle spanning 160 degrees.
+        focal = 320.0 / math.radians(80.0)
+        spawn = sim_utils.PinholeCameraCfg(
+            distortion=sim_utils.OpenCvFisheyeDistortionCfg(
+                fx=focal, fy=focal, cx=319.5, cy=319.5, image_size=(640, 640)
+            )
+        )
     camera_cfg = FoveatedCameraCfg(
         prim_path="{ENV_REGEX_NS}/Eye",
         data_types=["rgb"],
         renderer_cfg=renderer,
         foveated_res=args.resolution,
         pool_enabled=args.pool,
-        # A 60 degree horizontal field of view, used by planar sampling.
-        spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=27.713),
+        spawn=spawn,
+        # The retina sees only what the spawned camera can see at the current gaze.
+        mask_to_sensor_fov=True,
         # OpenGL camera half a metre above the ground, looking along +Y with +Z up.
         offset=FoveatedCameraCfg.OffsetCfg(
             pos=(0.0, 0.0, 0.5), rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"
         ),
     )
-    if args.planar:
-        camera_cfg.field_geometry = "planar"
-    else:
-        # The physical camera the retina looks through: a 640x480 pinhole.
-        camera_cfg.camera_calibration = {
-            "model": "pinhole",
-            "image_size": (480, 640),
-            "intrinsics": (550.0, 550.0, 319.5, 239.5),
-        }
-        camera_cfg.mask_to_sensor_fov = True
     if args.cmf_a_deg is not None:
         camera_cfg.cmf_a_deg = args.cmf_a_deg
 
@@ -119,10 +122,9 @@ def main() -> None:
     frame_seconds: list[float] = []
     frames: list[torch.Tensor] = []
     for step in range(args.steps):
-        if not args.planar:
-            # Fixation in normalized image coordinates (row, column) of the calibrated camera.
-            fixation = torch.tensor([[0.5, (0.5, 0.58, 0.58, 0.5)[step % 4]]], device=sim.device)
-            camera.set_calibrated_fixation(fixation)
+        # Fixation in normalized image coordinates (row, column) of the spawned camera.
+        fixation = torch.tensor([[0.5, (0.5, 0.58, 0.58, 0.5)[step % 4]]], device=sim.device)
+        camera.set_calibrated_fixation(fixation)
         wp.synchronize_device(sim.device)
         start = time.perf_counter()
         sim.step()
