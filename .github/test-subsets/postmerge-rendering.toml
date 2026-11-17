@@ -13,6 +13,7 @@ rendering-correctness = [
 
 rendering-correctness-kitless-legacy = [
   "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_newton_warp.py::test_rendering[legacy-cartpole-newton-newton_warp]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_newton_warp.py::test_rendering_optix[legacy-rendering_scene-newton-newton_warp]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-cartpole-newton-ovrtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_newton_warp.py::test_rendering[legacy-cartpole-ovphysx-newton_warp]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[legacy-cartpole-ovphysx-ovrtx]",

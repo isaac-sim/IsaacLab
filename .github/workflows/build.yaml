@@ -915,7 +915,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab"
-        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
+        # warp-optix matches newton[optix], so the Newton OptiX golden test runs instead of skipping.
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4 warp-optix~=0.3.0"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
