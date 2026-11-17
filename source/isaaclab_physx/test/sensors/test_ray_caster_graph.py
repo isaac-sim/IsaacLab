@@ -138,7 +138,7 @@ def test_ray_caster_refuses_update_inside_outer_graph_capture(monkeypatch):
 
     zeros = wp.zeros_like(sensor._test_output)
     with wp.ScopedCapture(device=device):
-        with pytest.raises(RuntimeError, match="graph capture"):
+        with pytest.raises(RuntimeError, match="CUDA graph capture"):
             sensor._update_buffers_impl(env_mask)
         # record something so the outer capture does not end empty
         wp.copy(sensor._test_output, zeros)

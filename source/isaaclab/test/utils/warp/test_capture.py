@@ -231,27 +231,18 @@ def test_an_eager_call_of_a_nested_callable_makes_both_run_plainly():
     assert (_num_graphs(outer), _num_graphs(nested), outer._plain, nested._plain) == (0, 0, True, True)
 
 
-def test_eager_call_raises_inside_a_capture_no_callable_started():
-    """A call that cannot be recorded must not be captured silently into a foreign graph."""
+@pytest.mark.parametrize("device", [DEVICE, "cpu"])
+def test_eager_call_raises_inside_a_capture_no_callable_started(device):
+    """A call that cannot be recorded must not be captured silently into a foreign graph; Warp's CPU capture counts
+    as a capture too."""
     fn = _EagerAffine()
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    values = wp.zeros(1, dtype=wp.int32, device=device)
 
-    with pytest.raises(RuntimeError, match="no GraphedCallable started"):
-        with wp.ScopedDevice(DEVICE), wp.ScopedCapture():
-            fn(values)
-    assert fn.calls == 0
-
-
-def test_capturing_sees_a_cpu_capture():
-    """Warp's CPU capture counts as a capture, so a call that cannot be recorded raises inside it as on CUDA."""
-    fn = _EagerAffine()
-    values = wp.zeros(1, dtype=wp.int32, device="cpu")
-
-    with wp.ScopedDevice("cpu"), wp.ScopedCapture():
-        assert capturing("cpu")
+    with wp.ScopedDevice(device), wp.ScopedCapture():
+        assert capturing(device)
         with pytest.raises(RuntimeError, match="no GraphedCallable started"):
             fn(values)
-    assert not capturing("cpu")
+    assert not capturing(device)
     assert fn.calls == 0
 
 

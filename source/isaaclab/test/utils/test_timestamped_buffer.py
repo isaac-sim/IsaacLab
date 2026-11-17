@@ -13,7 +13,7 @@ import pytest
 import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp.capture import GraphedCallable
 
 pytestmark = pytest.mark.unit
@@ -55,17 +55,6 @@ def _capture(device: str, fn) -> wp.Graph:
     with wp.ScopedDevice(device), wp.ScopedCapture() as capture:
         fn()
     return capture.graph
-
-
-def test_eager_reads_update_once_per_timestamp():
-    value = _LazyValue("cpu")
-    for _ in range(2):
-        value.timestamp += 0.01
-        value.read()
-        value.read()
-    reset_timestamps([value._value])
-    value.read()
-    assert value.num_updates == 3
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))

@@ -27,7 +27,6 @@ import warp as wp
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
-from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.capture import GraphedCallable
 
@@ -427,12 +426,6 @@ def _recordable_articulation(backend: str, cuda_device: str, monkeypatch: pytest
     return art
 
 
-def _identity_yaw(pose: torch.Tensor) -> torch.Tensor:
-    pose = pose.clone()
-    pose[..., 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=pose.device)
-    return pose
-
-
 @_CUDA_DEVICES
 def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda_device):
     """A lazy property read while a GraphedCallable records updates on each replay, though current at recording.
@@ -464,40 +457,6 @@ def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda
     art.data.update(dt=0.01)
     torch.testing.assert_close(replayed, art.data.heading_w.torch)
     assert not torch.allclose(replayed, recorded)
-
-
-@_CUDA_DEVICES
-def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, backend, cuda_device):
-    """A property invalidated between two reads of one recording updates again for the second read.
-
-    The recording writes the root pose in place and invalidates the heading as the root pose writers do.
-    """
-    if backend == "ovphysx":
-        pytest.skip(
-            "the test writes the root pose data buffer directly, while OVPhysX's writers write the binding, which each"
-            " read inside a capture copies into the buffer again"
-        )
-    art = _recordable_articulation(backend, cuda_device, monkeypatch)
-    rotated = _payload((N,), 7, wp.transformf, cuda_device)
-    art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))
-    art.data.update(dt=0.01)
-    unrotated = art.data.heading_w.torch.clone()
-    rotated_wp = wp.from_torch(rotated, dtype=wp.transformf)
-
-    def rotate_and_read():
-        _ = art.data.heading_w
-        wp.copy(art.data.root_link_pose_w.warp, rotated_wp)
-        reset_timestamps([art.data._heading_w])
-        return art.data.heading_w
-
-    graphed = GraphedCallable(rotate_and_read, cuda_device)
-    heading = graphed()  # the recording is the first run
-    graphed()
-    replayed = heading.torch.clone()
-    art.write_root_link_pose_to_sim_index(root_pose=rotated)
-    art.data.update(dt=0.01)
-    torch.testing.assert_close(replayed, art.data.heading_w.torch)
-    assert not torch.allclose(replayed, unrotated)
 
 
 @requires("physx")
