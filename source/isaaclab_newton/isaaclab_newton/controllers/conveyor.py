@@ -44,13 +44,7 @@ class Conveyor(BaseConveyor):
         if not isinstance(sim.cfg.physics.solver_cfg, MJWarpSolverCfg):
             raise NotImplementedError("Conveyors currently require the Newton MJWarp solver.")
         super().__init__(cfg, num_envs, sim=sim)
-        plan = sim.get_clone_plan()
-        template = DEFAULT_ENV_TEMPLATE if plan is None else plan.env_template
-        self._prim_paths = tuple(
-            spec.prim_path.replace("{ENV_REGEX_NS}", template.format(env_id))
-            for env_id in range(num_envs)
-            for spec in self.cfg.surface_specs
-        )
+        self._sim = sim
         self._manager = sim.backend_manager
         self._body_pattern = re.compile(self.cfg.body_pattern)
         self._conveyor: ConveyorForceModel | None = None
@@ -120,8 +114,15 @@ class Conveyor(BaseConveyor):
         if model.world_count != self.num_envs:
             raise RuntimeError(f"Newton model has {model.world_count} worlds, expected {self.num_envs}.")
 
+        plan = self._sim.get_clone_plan()
+        template = DEFAULT_ENV_TEMPLATE if plan is None else plan.env_template
+        prim_paths = tuple(
+            spec.prim_path.replace("{ENV_REGEX_NS}", template.format(env_id))
+            for env_id in range(self.num_envs)
+            for spec in self.cfg.surface_specs
+        )
         surfaces_per_env = len(self.cfg.surface_specs)
-        surface_shapes = [-1] * len(self._prim_paths)
+        surface_shapes = [-1] * len(prim_paths)
         shape_world = model.shape_world.numpy()
         for shape_id, label in enumerate(model.shape_label):
             world_id = int(shape_world[shape_id])
@@ -129,7 +130,7 @@ class Conveyor(BaseConveyor):
                 continue
             for spec_id in range(surfaces_per_env):
                 surface_id = world_id * surfaces_per_env + spec_id
-                path = self._prim_paths[surface_id]
+                path = prim_paths[surface_id]
                 if label != path and not label.startswith(f"{path}/"):
                     continue
                 if surface_shapes[surface_id] >= 0:
@@ -137,7 +138,7 @@ class Conveyor(BaseConveyor):
                 surface_shapes[surface_id] = shape_id
         missing = [
             path
-            for index, (path, shape_id) in enumerate(zip(self._prim_paths, surface_shapes, strict=True))
+            for index, (path, shape_id) in enumerate(zip(prim_paths, surface_shapes, strict=True))
             if shape_id < 0 and not self.cfg.surface_specs[index % surfaces_per_env].optional
         ]
         if missing:
