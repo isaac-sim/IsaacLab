@@ -47,6 +47,16 @@ class G1ApplePickPlaceCosmosEnvCfg(G1ApplePickPlaceEnvCfg):
         # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
         self._cosmos_transfer().backend = settings
 
+    @property
+    def cosmos_seed(self) -> int | list[int]:
+        """Cosmos seed of environment 0, or a list with one seed per environment; overrides such as
+        ``env.cosmos_seed=[101,202]`` set it on the head camera's Cosmos step."""
+        return self._cosmos_transfer().seed
+
+    @cosmos_seed.setter
+    def cosmos_seed(self, seed: int | list[int]):
+        self._cosmos_transfer().seed = seed
+
     def validate_config(self):
         """Size the Cosmos episode to the task's final duration and capture rate."""
         if self.cosmos.max_episode_frames is None:

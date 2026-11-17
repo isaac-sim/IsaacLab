@@ -188,6 +188,29 @@ camera's depth to the service with the prompt in
 `isaaclab_experimental/cosmos/tasks/prompts/apple_pick_place.json`, and the policy
 reads the generated image. Edit that file to change the appearance of the scene.
 
+### Different appearances and seeds per environment
+
+The same folder holds four variations of the prompt: dark lighting, a green apple, a red plate, and a green
+apple on a red plate on a white cloth. `env.cosmos.prompt_files` takes one prompt per environment and
+`env.cosmos_seed` one Cosmos seed per environment:
+
+```bash
+cd "$ISAAC_LAB"
+P=source/isaaclab_experimental/isaaclab_experimental/cosmos/tasks/prompts
+uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+  python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
+  --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \
+  physics=newton_mjwarp renderer=newton_renderer env.scene.num_envs=4 \
+  env.cosmos.prompt_files="['$P/apple_pick_place.json','$P/apple_pick_place_green_apple.json','$P/apple_pick_place_red_plate.json','$P/apple_pick_place_dark_lighting.json']" \
+  env.cosmos_seed="[101,202,303,404]"
+```
+
+Environment `v` uses the `v`-th prompt and seed. It keeps its prompt across resets, and each reset
+advances its seed by the number of environments. Without `env.cosmos_seed`, environment `v` starts
+from seed `v`. With one environment, a list of prompts changes the appearance each episode. Each
+environment needs its own Cosmos GPU memory: on one 96 GB GPU shared with Isaac Lab and the GR00T
+server, 4 environments fit and 8 did not.
+
 ## 7. Optional: save the camera images
 
 Add `--save_frames DIR` to save the head camera image the policy sees as PNG files, one at the
