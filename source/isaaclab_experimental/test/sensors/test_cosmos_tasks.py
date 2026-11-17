@@ -280,7 +280,7 @@ def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
     transfer = next(p for p in varied.scene.head_camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg))
     assert transfer.backend.prompt_files == pattern and list(transfer.seed) == [101, 202]
     prompts = read_prompt_files([pattern])
-    assert len(prompts) == 5 and prompts[0] == read_prompt_files([model.prompt_files])[0]
+    assert len(prompts) == 4 and prompts[0] == read_prompt_files([model.prompt_files])[0]
     # The core task keeps the rendered image.
     assert not parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=()).scene.head_camera.tensor_processors
 

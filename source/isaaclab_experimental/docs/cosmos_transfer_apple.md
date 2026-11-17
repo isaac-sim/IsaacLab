@@ -192,9 +192,8 @@ reads the generated image. Edit that file to change the appearance of the scene.
 
 ### Different appearances and seeds per environment
 
-The same folder holds four variations of the prompt: dark lighting, a green apple, a red plate, and a green
-apple on a red plate on a white cloth. Cosmos images of the same moment, 5 s into an episode, with the
-default prompt and three of the variations:
+The same folder holds three variations of the prompt: a green apple, a red plate, and a green apple on a
+red plate on a white cloth. Cosmos images of the same moment, 5 s into an episode, with each prompt:
 
 | Default | Green apple | Red plate | Green apple, red plate, white cloth |
 | --- | --- | --- | --- |
@@ -210,7 +209,7 @@ uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \
   physics=newton_mjwarp renderer=newton_renderer env.scene.num_envs=4 \
-  env.cosmos.prompt_files="['$P/apple_pick_place.json','$P/apple_pick_place_green_apple.json','$P/apple_pick_place_red_plate.json','$P/apple_pick_place_dark_lighting.json']" \
+  env.cosmos.prompt_files="['$P/apple_pick_place.json','$P/apple_pick_place_green_apple.json','$P/apple_pick_place_red_plate.json','$P/apple_pick_place_green_apple_red_plate_whitecloth.json']" \
   env.cosmos_seed="[101,202,303,404]"
 ```
 
