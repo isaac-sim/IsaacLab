@@ -651,8 +651,8 @@ def test_camera_processors_receive_the_due_environments(camera_batch_context, la
     assert masks == ([None, None] if async_rendering else [[True, True], [False, True]])
 
 
-def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
-    """A processor output published for the first time has the capture metadata of the render outputs it used."""
+def test_processor_outputs_carry_capture_metadata_and_match_their_configuration(camera_batch_context):
+    """A first-published output takes its inputs' capture metadata; unlisted output names are an error."""
     _, renderer, _ = camera_batch_context
 
     def read_output(rd, data):
@@ -661,22 +661,17 @@ def test_first_processor_output_carries_the_capture_metadata(camera_batch_contex
             data.info[name] = {"capture": {"frame": rd.pose}}
 
     renderer.read_output.side_effect = read_output
-    camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})], outputs=["rgb"])
+    processor = Mock(return_value={"rgb": object()})
+    camera = _CpuCamera(renderer, "camera", processors=[processor], outputs=["rgb"])
     camera._data.info["depth"] = None
+    scene = _camera_scene([camera])
 
-    InteractiveScene.update(_camera_scene([camera]), 0.01)
-
+    InteractiveScene.update(scene, 0.01)
     assert camera.data.info["rgb"] == camera.data.info["depth"] == {"capture": {"frame": 0.0}}
 
-
-def test_processors_return_only_what_their_configuration_lists(camera_batch_context):
-    """Returning output names the configuration does not list is an error."""
-    _, renderer, _ = camera_batch_context
-    processor = Mock(return_value={"rgba": object()})
-    camera = _CpuCamera(renderer, "camera", processors=[processor], outputs=["rgb"])
-
+    processor.return_value = {"rgba": object()}
     with pytest.raises(ValueError, match=r"lists the outputs \['rgb'\]"):
-        InteractiveScene.update(_camera_scene([camera]), 0.01)
+        InteractiveScene.update(scene, 0.01)
 
 
 def test_failed_processor_close_still_releases_the_camera(camera_batch_context):

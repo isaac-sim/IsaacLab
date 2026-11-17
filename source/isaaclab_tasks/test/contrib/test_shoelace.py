@@ -75,7 +75,7 @@ def test_cable_friction_uses_each_bound_usd_material() -> None:
         material = UsdShade.Material.Define(stage, f"{path}/ContactMaterial")
         UsdPhysics.MaterialAPI.Apply(material.GetPrim()).CreateDynamicFrictionAttr(friction)
         UsdShade.MaterialBindingAPI.Apply(curve).Bind(material, materialPurpose="physics")
-        bodies, _ = builder.add_rod(rod=newton.Rod(points, radius=0.001), label=path, body_frame_origin="start")
+        bodies, _ = builder.add_rod(rod=newton.Rod(points, radius=0.001), label=path)
         for body in bodies:
             expected.update({shape: friction for shape in builder.body_shapes[body]})
     builder.end_world()
