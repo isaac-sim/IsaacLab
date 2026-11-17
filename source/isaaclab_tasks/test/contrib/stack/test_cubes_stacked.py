@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab_tasks.contrib.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
 from isaaclab_tasks.contrib.stack.mdp import cubes_stacked
 
 pytestmark = pytest.mark.kitless
@@ -38,12 +39,14 @@ def test_stacked_cubes_can_require_the_expected_vertical_separation() -> None:
                 root_lin_vel_w=SimpleNamespace(torch=torch.zeros_like(positions)),
             )
         )
+    cfg = FrankaCubeStackEnvCfg()
+    success = cfg.terminations.success
     env = SimpleNamespace(
         scene=scene,
-        cfg=SimpleNamespace(gripper_joint_names=["finger_joint.*"], gripper_open_val=0.04),
+        cfg=cfg,
         device="cpu",
     )
 
     assert cubes_stacked(env).tolist() == [True, True, True]
-    assert cubes_stacked(env, symmetric_height_tolerance=True).tolist() == [True, False, False]
-    assert cubes_stacked(env, cube_3_cfg=None, symmetric_height_tolerance=True).tolist() == [True, False, True]
+    assert success.func(env, **success.params).tolist() == [True, False, False]
+    assert success.func(env, cube_3_cfg=None, **success.params).tolist() == [True, False, True]
