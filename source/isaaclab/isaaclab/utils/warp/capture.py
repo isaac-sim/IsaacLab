@@ -130,18 +130,19 @@ class GraphedCallable:
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Run the callable and return its result."""
-        if capturing(self._device):
+        # inside another capture (its kernels join it), on a CPU device, or after an abandoned recording: run plainly
+        if capturing(self._device) or not self._device.is_cuda or self._plain:
             return self._fn(*args, **kwargs)
-        if not self._device.is_cuda:
-            return self._fn(*args, **kwargs)
-        if self._plain:
-            return self._fn(*args, **kwargs)
+        # one recording per argument layout: array pointers and scalar values
         key = _argument_key(args, kwargs)
         recorded = self._recordings.get(key)
         if recorded is None:
             try:
+                # the recording is the first run, so there is no eager warm-up whose work would run twice
                 self._recordings[key] = recorded = self._record(args, kwargs)
             except _EagerCall as call:
+                # the recording launched nothing; the callable cannot be recorded, so it runs plainly from now on,
+                # starting with this call, until reset() lets it record again
                 self._plain = True
                 logger.warning(
                     "'%s' calls '%s', which cannot be recorded, so it runs without a CUDA graph.", _name(self._fn), call
@@ -149,6 +150,7 @@ class GraphedCallable:
                 return self._fn(*args, **kwargs)
             return recorded[1]
         graph, result = recorded
+        # a replay writes into the buffers the recording call returned, so it returns that same result
         wp.capture_launch(graph)
         return result
 
@@ -168,11 +170,13 @@ class GraphedCallable:
             RuntimeError: If the callable runs work the graph cannot hold while it records (see :class:`_Recording`).
         """
         try:
+            # the calls run once while they are recorded; their result is what every replay returns
             with _record_calls(self._device) as recording:
                 result = self._fn(*args, **kwargs)
         except RuntimeError as exc:
             if not any(text in str(exc) for text in _UNRECORDABLE_ERRORS):
                 raise
+            # a host sync or an eager torch CUDA op inside the recording: name the fix instead of torch's message
             raise RuntimeError(
                 f"'{_name(self._fn)}' synchronizes the host with the device or runs a torch CUDA operation outside the"
                 " graph while it records, so a replay would keep the value it read or skip the operation. Run the"
