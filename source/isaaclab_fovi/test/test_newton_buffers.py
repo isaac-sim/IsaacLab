@@ -117,9 +117,11 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     if pooled:
         expected = newton_camera.pool_hwc_buffer(pooler, expected.float()).to(torch.uint8)
     expected = coords.as_grid(expected.squeeze(2), sample_dim=1)
-    torch.testing.assert_close(camera._data.output["rgba"], expected, rtol=0, atol=0)
+    torch.testing.assert_close(camera._data.output["rgba"].torch, expected, rtol=0, atol=0)
+    # The published buffers are stable across frames, and rgb shares rgba's memory.
     assert camera._data.output["rgba"] is public_rgba
-    assert camera._data.output["rgb"].untyped_storage().data_ptr() == public_rgba.untyped_storage().data_ptr()
+    torch.testing.assert_close(camera._data.output["rgb"].torch, expected[..., :3], rtol=0, atol=0)
+    assert camera._data.output["rgb"].warp.ptr == public_rgba.warp.ptr
 
 
 @pytest.mark.parametrize("render_order", ["tiled", "pixel_priority", "view_priority"])
