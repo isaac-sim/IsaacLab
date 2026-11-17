@@ -205,17 +205,11 @@ def _resolve_shape_color(
 
 
 def resolve_display_color(stage: Usd.Stage, prim_path: str) -> tuple[float, float, float] | None:
-    """Return the sRGB display color of a prim, or ``None`` when no color is authored.
-
-    Reads the OmniPBR albedo or the ``UsdPreviewSurface`` ``diffuseColor`` of the bound material, or the
-    prim's ``primvars:displayColor`` when no material is bound.
+    """Return a prim's sRGB display color from its bound material or ``displayColor``, or ``None``.
 
     Args:
         stage: USD stage containing the prim.
         prim_path: Path of the geometry prim.
-
-    Returns:
-        sRGB color in ``[0, 1]``, or ``None`` when no color is authored.
     """
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():

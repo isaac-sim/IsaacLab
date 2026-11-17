@@ -68,7 +68,6 @@ parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabri
 parser.add_argument(
     "--renderer",
     type=str,
-    # ``newton_renderer`` is the deprecated name of ``newton_warp``.
     choices=["newton_warp", "isaac_rtx", "newton_renderer"],
     default="newton_warp",
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",

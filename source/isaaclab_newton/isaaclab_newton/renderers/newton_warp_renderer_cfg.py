@@ -148,10 +148,10 @@ class NewtonWarpRendererCfg(RendererCfg):
 
 @configclass
 class NewtonOptixRendererCfg(NewtonWarpRendererCfg):
-    """Configuration for Newton's OptiX renderer, which traces rays in hardware on RTX GPUs.
+    """Configuration for the Newton OptiX renderer, which ray traces in hardware on RTX GPUs.
 
     Requires the ``optix`` extra. It does not support particles or deformable surfaces, and it
-    ignores :attr:`use_cuda_graph`, since OptiX work cannot be recorded in CUDA graphs.
+    ignores :attr:`use_cuda_graph`.
     """
 
     renderer_type: str = "newton_optix"

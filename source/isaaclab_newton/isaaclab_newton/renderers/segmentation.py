@@ -165,7 +165,7 @@ def _remap_shape_index(
     unlabelled: wp.uint32,
     out: wp.array(dtype=wp.uint32),
 ):
-    """Write each pixel's table entry; misses and hits without a shape entry, such as particles, get sentinels."""
+    """Write each pixel's table entry, or a sentinel for misses and hits without a shape."""
     i = wp.tid()
     idx = shape_index[i]
     if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
@@ -206,7 +206,7 @@ class NewtonSegmentationMapping:
             table, miss, unlabelled = self.shape_to_color, 0, _UNLABELLED_COLOR
         else:
             table, miss, unlabelled = self.shape_to_id, BACKGROUND_ID, UNLABELLED_ID
-        # Raw int32 ids share the bit pattern of the uint32 table entries.
+        # Raw int32 ids are written through a uint32 view.
         out = wp.array(ptr=out_view.ptr, dtype=wp.uint32, shape=out_view.size, device=out_view.device, copy=False)
         wp.launch(
             _remap_shape_index,

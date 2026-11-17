@@ -159,7 +159,7 @@ class NewtonBackend:
         self.bvh_refit = TimestampedBuffer()
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.optix_refit = TimestampedBuffer()
-        """Timestamp of the last OptiX shape refit, shared by OptiX cameras."""
+        """Timestamp of the last OptiX shape refit."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
         if not simulation:
@@ -553,9 +553,7 @@ class NewtonBackend:
         cache.timestamp = timestamp
 
     def refit_optix(self, timestamp: int) -> None:
-        """Build the model's OptiX shapes on first use and refit them to :attr:`state_0` once per state ``timestamp``.
-
-        OptiX work cannot be recorded in CUDA graphs.
+        """Build the model's OptiX shapes on first use and refit them once per state ``timestamp``.
 
         Args:
             timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
