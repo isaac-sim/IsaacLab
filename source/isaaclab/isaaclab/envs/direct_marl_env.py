@@ -550,6 +550,7 @@ class DirectMARLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            self.scene.close()
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 

@@ -459,7 +459,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.seed(seed)
+            self.event_manager.reseed(self.seed(seed))
 
         # reset state of scene
         self._reset_idx(env_ids)
@@ -519,7 +519,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.seed(seed)
+            self.event_manager.reseed(self.seed(seed))
 
         self._reset_idx(env_ids)
         # set the state
@@ -629,6 +629,7 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            self.scene.close()
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 

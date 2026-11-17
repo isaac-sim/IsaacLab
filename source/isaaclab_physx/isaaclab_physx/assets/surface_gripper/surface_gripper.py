@@ -14,6 +14,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.assets.surface_gripper import BaseSurfaceGripper
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
@@ -53,7 +54,7 @@ def fill_scalar_at_indices(
     out[env_ids[i]] = value
 
 
-class SurfaceGripper(AssetBase):
+class SurfaceGripper(AssetBase, BaseSurfaceGripper):
     """A surface gripper actuator class.
 
     Surface grippers are actuators capable of grasping objects when in close proximity with them.
@@ -77,12 +78,16 @@ class SurfaceGripper(AssetBase):
         Use `--device cpu` to run the simulation on CPU.
     """
 
-    def __init__(self, cfg: SurfaceGripperCfg):
+    def __init__(self, cfg: SurfaceGripperCfg, *, sim=None):
         """Initialize the surface gripper.
 
         Args:
             cfg: A configuration instance.
+            sim: Simulation context supplied by the scene; the native asset uses its existing lifecycle.
         """
+        if sim is not None and sim is not sim_utils.SimulationContext.instance():
+            raise ValueError("PhysX surface grippers require the current simulation context.")
+
         # copy the configuration
         self._cfg = clone(cfg)
 
@@ -421,6 +426,10 @@ class SurfaceGripper(AssetBase):
     """
     Initialization.
     """
+
+    def close(self) -> None:
+        """Release lifecycle callbacks; repeated calls are safe."""
+        self._clear_callbacks()
 
     def _initialize_impl(self) -> None:
         """Initializes the gripper-related handles and internal buffers.
