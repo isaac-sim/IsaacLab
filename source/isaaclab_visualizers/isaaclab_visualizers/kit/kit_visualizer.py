@@ -66,8 +66,9 @@ class KitVisualizer(BaseVisualizer):
         super().__init__(cfg)
         if getattr(cfg.backend, "deprecation_warning", True):
             warnings.warn(
-                "The Kit visualizer is deprecated and will be removed in 3.2. Use the Newton GL visualizer"
-                " ('--viz newton_gl') for the interactive window, tracking cameras and RTX rendering.",
+                "The Kit visualizer (KitBackendCfg, '--viz kit') is deprecated and will be removed in 3.2. Use the"
+                " Newton GL visualizer (NewtonGLBackendCfg, '--viz newton_gl') for the interactive window,"
+                " tracking cameras and RTX rendering.",
                 FutureWarning,
                 stacklevel=2,
             )

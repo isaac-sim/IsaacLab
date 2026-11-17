@@ -359,7 +359,7 @@ def test_kit_visualizer_warns_of_deprecation_unless_disabled(warns):
     """Creating a Kit visualizer warns of its deprecation, except where Kit is still required."""
     cfg = VisualizerCfg(backend=KitBackendCfg(deprecation_warning=warns))
     if warns:
-        with pytest.warns(FutureWarning, match="Kit visualizer is deprecated"):
+        with pytest.warns(FutureWarning, match="Kit visualizer .* is deprecated"):
             KitVisualizer(cfg)
     else:
         with warnings.catch_warnings():

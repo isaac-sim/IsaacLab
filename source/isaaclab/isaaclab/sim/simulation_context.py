@@ -393,13 +393,13 @@ class SimulationContext:
         resolved = self.cfg.visualizer_cfgs.copy()
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
-        if (
-            self._xr_enabled
-            and self.get_setting("/isaaclab/xr/auto_start")
-            and not any(cfg.backend.visualizer_type == "kit" for cfg in resolved)
-        ):
-            resolved.append(VisualizerCfg(backend=KitBackendCfg(deprecation_warning=False)))
-            logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+        if self._xr_enabled and self.get_setting("/isaaclab/xr/auto_start"):
+            kit_cfgs = [cfg for cfg in resolved if cfg.backend.visualizer_type == "kit"]
+            for cfg in kit_cfgs:
+                cfg.backend.deprecation_warning = False  # XR needs Kit and has no replacement yet
+            if not kit_cfgs:
+                resolved.append(VisualizerCfg(backend=KitBackendCfg(deprecation_warning=False)))
+                logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:
             if cfg.backend.visualizer_type is not None:

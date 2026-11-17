@@ -220,3 +220,19 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
         assert args.get("enable_cameras", False) == (source == "kit")
     assert kit_branch_taken == [True] * (source == "kit")
+
+
+@pytest.mark.parametrize("configured", [False, True])
+def test_livestream_keeps_kit_without_the_deprecation_warning(configured):
+    """Livestreaming needs Kit, so its Kit visualizer, added or already configured, does not warn."""
+    from types import SimpleNamespace
+
+    from isaaclab_visualizers.kit import KitBackendCfg
+
+    cfg = SimpleNamespace(
+        sim=SimulationCfg(device="cpu", visualizer_cfgs=[VisualizerCfg(backend=KitBackendCfg())] if configured else [])
+    )
+    sim_launcher.validate_launch(cfg, {"livestream": 1})
+    kit_backends = [viz.backend for viz in cfg.sim.visualizer_cfgs if isinstance(viz.backend, KitBackendCfg)]
+    assert len(kit_backends) == 1
+    assert not kit_backends[0].deprecation_warning
