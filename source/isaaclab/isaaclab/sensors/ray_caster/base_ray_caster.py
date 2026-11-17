@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import zlib
 from collections.abc import Sequence
@@ -66,8 +67,6 @@ class BaseRayCaster(SensorBase):
     (e.g. CUDA) when multiple simulation contexts or tests use different devices in the same Python process."""
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
-    _num_created: ClassVar[int] = 0
-    """The number of ray casters constructed so far; each takes the count as its creation index."""
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -81,9 +80,8 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled = False
         # Drift random states, allocated when the rays initialize; every configure_seed reseeds them.
         self._drift_rng_state: wp.array | None = None
-        # The scene constructs sensors in config order, so the creation index is stable for a given scene.
-        self._creation_index = BaseRayCaster._num_created
-        BaseRayCaster._num_created += 1
+        # A drift stream from the configuration, which writes callables by name, so it repeats across processes.
+        self._drift_stream = zlib.crc32(json.dumps(self.cfg.to_dict(), sort_keys=True, default=str).encode())
         add_seed_listener(self._seed_drift)
 
     def __str__(self) -> str:
@@ -274,11 +272,11 @@ class BaseRayCaster(SensorBase):
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 
     def _seed_drift(self, seed: int) -> None:
-        """Seed the drift random states from ``seed`` mixed with the prim path and the creation index.
+        """Seed the drift random states from ``seed`` mixed with the configuration's drift stream.
 
-        Each ray caster draws its own drift, including ray casters mounted on the same prim. Runs when the rays
-        initialize and on every :func:`~isaaclab.utils.seed.configure_seed`, on the host where the seed is set, never
-        inside a recorded reset.
+        Ray casters with different configurations, including ray casters on one prim at different offsets, draw
+        different drift; identical configurations draw the same drift. Runs when the rays initialize and on every
+        :func:`~isaaclab.utils.seed.configure_seed`, on the host where the seed is set, never inside a recorded reset.
         """
         # No states before the rays initialize, and none in the ray-caster cameras, which do not resample drift.
         if self._drift_rng_state is None:
@@ -286,7 +284,7 @@ class BaseRayCaster(SensorBase):
         wp.launch(
             initialize_rng_state,
             dim=self._view_count,
-            inputs=[(seed ^ zlib.crc32(self.cfg.prim_path.encode()) ^ self._creation_index) & 0x7FFFFFFF],
+            inputs=[(seed ^ self._drift_stream) & 0x7FFFFFFF],
             outputs=[self._drift_rng_state],
             device=self._device,
         )

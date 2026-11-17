@@ -261,12 +261,14 @@ def test_drift_follows_the_environment_seed(sim):
 
     Resets do not draw from torch's generator, and new storage, as after a simulation stop and play, starts the
     drift sequence of the current seed again. Two ray casters on the same prim with the same drift ranges draw
-    different drift after every seed.
+    different drift after every seed, and a ray caster built later with the same configuration, as in a second
+    environment instance, repeats the drift.
     """
     scene_cfg = RaycastTestSceneCfg(num_envs=2)
     scene_cfg.raycast.drift_range = (0.01, 0.05)
     twin_offset = NewtonRaycastSensorCfg.OffsetCfg(pos=(0.1, 0.0, -RAY_OFFSET))
     scene_cfg.raycast_twin = replace(scene_cfg.raycast, offset=twin_offset)
+    scene_cfg.raycast_copy = scene_cfg.raycast.copy()
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     sensor: NewtonRaycastSensor = scene["raycast"]
@@ -277,6 +279,8 @@ def test_drift_follows_the_environment_seed(sim):
     first = sensor.drift.torch.clone()
     twin.reset()
     assert not torch.allclose(twin.drift.torch, first)
+    scene["raycast_copy"].reset()
+    torch.testing.assert_close(scene["raycast_copy"].drift.torch, first)
     sensor.reset()
     assert not torch.allclose(sensor.drift.torch, first)
     configure_seed(123)
