@@ -201,7 +201,7 @@ def run_rendering_case(
                 part for part in (case.scene, artifact_namespace, golden_filename.removesuffix(".png")) if part
             )
             comparison = compare_to_golden(
-                camera_output_image(outputs[aov], aov),
+                camera_output_image(outputs[aov], aov, depth_scale_m=scene.depth_scales_m.get((case.renderer, aov))),
                 _GOLDEN_ROOT / case.scene / golden_filename,
                 label=artifact_label,
                 artifact_dir=_ARTIFACT_DIR,
