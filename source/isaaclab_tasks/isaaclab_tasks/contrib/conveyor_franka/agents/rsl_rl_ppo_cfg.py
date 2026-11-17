@@ -15,16 +15,21 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
-class _ConveyorDeterministicOutput(nn.Module):
+def _deterministic_output(output: torch.Tensor) -> torch.Tensor:
     """Threshold the gripper logit into the action used by the environment."""
+    gripper = torch.where(
+        output[..., -1:] >= 0.0,
+        torch.ones_like(output[..., -1:]),
+        -torch.ones_like(output[..., -1:]),
+    )
+    return torch.cat((output[..., :-1], gripper), dim=-1)
+
+
+class _ConveyorDeterministicOutput(nn.Module):
+    """Export the same deterministic action transform used during inference."""
 
     def forward(self, output: torch.Tensor) -> torch.Tensor:
-        gripper = torch.where(
-            output[..., -1:] >= 0.0,
-            torch.ones_like(output[..., -1:]),
-            -torch.ones_like(output[..., -1:]),
-        )
-        return torch.cat((output[..., :-1], gripper), dim=-1)
+        return _deterministic_output(output)
 
 
 class ConveyorGaussianBernoulliDistribution(GaussianDistribution):
@@ -75,7 +80,7 @@ class ConveyorGaussianBernoulliDistribution(GaussianDistribution):
 
     def deterministic_output(self, mlp_output: torch.Tensor) -> torch.Tensor:
         """Return arm means and the most likely binary gripper command."""
-        return _ConveyorDeterministicOutput()(mlp_output)
+        return _deterministic_output(mlp_output)
 
     def as_deterministic_output_module(self) -> nn.Module:
         """Return an exportable deterministic-output transform."""

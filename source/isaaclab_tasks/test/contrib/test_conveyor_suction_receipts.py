@@ -100,6 +100,8 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
         assert command.failed.tolist() == [False, True]
 
         # Both actual bodies settle into their correct bins. The unqualified drop still earns nothing.
+        # Clear its separate failure latch so receipt qualification alone must reject it.
+        command.failed[1] = False
         for world, parcel in enumerate(parcels.tolist()):
             center = env.bin_positions[world, command.destination_ids[world]].clone()
             center[2] -= BIN_INTERIOR_SIZE[2] / 2.0 - env.parcel_sizes[parcel, 2] / 2.0 - 0.006
