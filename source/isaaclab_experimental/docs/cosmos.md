@@ -292,7 +292,9 @@ episode reset sends the next one to the service, which rebuilds the text conditi
 The model stays loaded; only the episode's conditioning and generation state change. A reset before the
 episode's first update keeps the prompt, so the environment's initial reset right after its first capture does
 not skip the first prompt. Rebuilding the conditioning adds time to that reset, and with compiled inference a
-prompt's first use can trigger compilation, so prefer a short list of prompts.
+prompt's first use can trigger compilation, so prefer a short list of prompts. A compiled server keeps what it
+compiled for earlier sessions, and Torch limits how often it recompiles: after several sessions with new prompts or
+view counts, a session can fail with `recompile_limit reached`. Restart the server then.
 
 ```python
 CosmosModelCfg(
