@@ -37,6 +37,7 @@ from .native_grid import (
     grid_sample_indices,
     mask_grid_samples,
     native_grid_directions,
+    proxy_outputs,
 )
 from .pooling import (
     build_highres_coords,
@@ -312,25 +313,15 @@ class FoveatedRTXCamera(FoveatedCamera):
         # pooled output buffers.
         self._texture_output = self._data.output
         self._allocate_foveated_buffers()
-        # Expose foveated (or pooled) buffers as the public output.
-        # IsaacLab 3.0 made ``CameraData.output`` a read-only property; set
-        # the private ``_output`` backing field directly. Downstream
-        # readers (``CameraNode._read_rgb_raw`` etc.) just dict-index
-        # ``camera.data.output[name]`` and pass the value through
-        # ``_camera_output_to_torch``, which handles plain torch tensors
-        # natively — the renderer still writes to the original
-        # ProxyArray-backed buffers via the ``set_outputs`` binding done
-        # by the parent ``_create_buffers``.
+        # Publish the foveated (or pooled) buffers. ``CameraData.output`` is read-only, so the
+        # backing field is replaced; the renderer keeps writing to the texture buffers it was
+        # bound to by the parent ``_create_buffers``.
         new_output = self._pooled_output if self._pooled_output is not None else self._foveated_output
         if self._native_grid:
             self._grid_output = allocate_grid_outputs(new_output, self._sampling_coords)
             self._grid_indices = grid_sample_indices(self._sampling_coords)
             new_output = self._grid_output
-        try:
-            self._data._output = new_output
-        except AttributeError:
-            # Older IsaacLab where ``output`` was a writable attribute.
-            self._data.output = new_output
+        self._data._output = proxy_outputs(new_output)
 
     def _allocate_foveated_buffers(self):
         """Allocate ``(B, N_hi, 1, C)`` (and optionally ``(B, N_lo, 1, C)``)

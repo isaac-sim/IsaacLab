@@ -35,6 +35,7 @@ from .native_grid import (
     grid_sample_indices,
     mask_grid_samples,
     native_grid_directions,
+    proxy_outputs,
 )
 from .pooling import (
     build_highres_coords,
@@ -229,12 +230,15 @@ class FoveatedNewtonCamera(FoveatedCamera):
         self._data.output.update(self._flat_render_output)
 
         self._allocate_pooled_buffers()
+        source = self._pooled_output if self._pooler is not None else self._flat_render_output
         if self._native_grid:
-            source = self._pooled_output if self._pooler is not None else self._flat_render_output
             self._grid_output = allocate_grid_outputs(source, self._sampling_coords)
             self._grid_indices = grid_sample_indices(self._sampling_coords)
-            self._data.output.clear()
-            self._data.output.update(self._grid_output)
+            source = self._grid_output
+        # The buffers the camera publishes: stable for the camera's lifetime and refilled each frame.
+        self._public_output = proxy_outputs(source)
+        self._data.output.clear()
+        self._data.output.update(self._public_output)
 
         # 6. Inject foveated rays into render_data immediately.
         self._render_data.camera_rays = self._foveated_rays
@@ -348,7 +352,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
             if self._native_grid:
                 copy_grid_outputs(output, self._grid_output, self._grid_indices)
             self._data.output.clear()
-            self._data.output.update(self._grid_output if self._native_grid else output)
+            self._data.output.update(self._public_output)
             return
 
         # Ensure the renderer writes into the highres buffers, not the pooled ones.
@@ -371,16 +375,12 @@ class FoveatedNewtonCamera(FoveatedCamera):
             pooler = self._pooler_int if use_int_pool else self._pooler
             pooled = pool_hwc_buffer(pooler, hi.torch.float())
             lo.copy_(pooled.to(lo.dtype))
-        if "rgba" in self._pooled_output and "rgb" in self.cfg.data_types:
-            self._pooled_output["rgb"] = self._pooled_output["rgba"][..., :3]
 
         # Expose pooled tensors as the public sensor output.
-        self._data.output.clear()
         if self._native_grid:
             copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)
-            self._data.output.update(self._grid_output)
-        else:
-            self._data.output.update(self._pooled_output)
+        self._data.output.clear()
+        self._data.output.update(self._public_output)
 
     def _apply_sensor_fov_mask(self, outputs: dict[str, torch.Tensor]) -> None:
         """Zero the samples that fall outside the calibrated camera at the current gaze."""

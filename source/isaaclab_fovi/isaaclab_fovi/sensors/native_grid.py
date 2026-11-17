@@ -12,7 +12,10 @@ from collections.abc import Mapping
 from typing import Protocol
 
 import torch
+import warp as wp
 from fovi.sensing.coords import RADIUS_NORMS, WARPED_CARTESIAN_STYLES, SamplingCoords
+
+from isaaclab.utils.warp import ProxyArray
 
 GRID_STYLE = "warped_cartesian_as_grid"
 
@@ -37,6 +40,14 @@ class TorchBuffer(Protocol):
 def buffer_tensor(value: torch.Tensor | TorchBuffer) -> torch.Tensor:
     """Get a renderer or public tensor without copying."""
     return value if isinstance(value, torch.Tensor) else value.torch
+
+
+def proxy_outputs(outputs: Mapping[str, torch.Tensor | ProxyArray]) -> dict[str, ProxyArray]:
+    """Wrap output buffers as zero-copy :class:`ProxyArray` values, as :class:`CameraData` publishes them."""
+    return {
+        name: ProxyArray(wp.from_torch(value)) if isinstance(value, torch.Tensor) else value
+        for name, value in outputs.items()
+    }
 
 
 def _angular_padding_boundary(coords: SamplingCoords, camera_fov_rad: float | None = None) -> tuple[float, float]:
