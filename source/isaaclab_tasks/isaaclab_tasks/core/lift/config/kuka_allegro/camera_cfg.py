@@ -79,8 +79,10 @@ RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
     ),
 ]
 
+# Ray-caster cameras spawn no prim, so they mount on the existing parent of the matching rendered
+# camera with the same offset: the environment root for the base view and the palm for the wrist view.
 BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
-    prim_path="{ENV_REGEX_NS}/Camera",
+    prim_path="{ENV_REGEX_NS}",
     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
@@ -93,7 +95,7 @@ BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 )
 
 WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
-    prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link/Camera",
+    prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link",
     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),
