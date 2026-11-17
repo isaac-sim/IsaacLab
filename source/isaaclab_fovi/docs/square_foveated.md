@@ -1,6 +1,8 @@
 # Square-foveated rendering
 
-Both RTX and Newton foveated cameras accept this configuration:
+By default the foveated grid covers a circular field: cells outside the circle
+are masked. A square field uses every cell. Both the RTX and Newton foveated
+cameras accept this configuration:
 
 ```python
 FoveatedCameraCfg(
@@ -12,29 +14,18 @@ FoveatedCameraCfg(
 )
 ```
 
-Fovi owns the concentric-square mapping and its analytic inverse. Direction
-textures, exit textures, virtual gaze, and software retinalization use that
-geometry. The public image is upright `(batch, height, width, channels)`;
-RGB, depth, and segmentation retain their existing dtypes and buffer lifetimes.
-There are no cells masked by the sensor footprint. Camera visibility and
-out-of-frame software sampling can still invalidate pixels.
+`fovi` owns the concentric-square mapping and its analytic inverse. The lens
+lookup textures and the calibrated gaze use that geometry. The published image
+is upright, `(num_envs, height, width, channels)`, and RGB, depth and
+segmentation keep their usual dtypes.
 
-The mode works with the existing planar and spherical chart conventions and
-pinhole/equidistant ray projections. It retains a two-dimensional native
-topology; the square footprint refers to the visual chart used by the projection.
-The diagonal derivative seams remain relevant when assessing temporal filtering.
+No cell is masked by the sensor footprint. With `mask_to_sensor_fov=True`,
+samples outside the calibrated camera's image are still zeroed.
 
-Configure policy image preprocessing with the same field geometry, radius norm,
-and sampling resolution as the camera. Checkpoints must use the sampling
-configuration they were trained with.
+The mode works in both field geometries. The grid keeps its two-dimensional
+topology; "square" refers to the region of the visual field the grid covers.
+The mapping is not smooth across the diagonals of the square, which matters
+when a temporal filter such as DLSS is applied to the rendered grid.
 
-A bounded renderer example is:
-
-```bash
-uv run --no-sync python source/isaaclab_fovi/examples/render_foveated.py \
-  --backend rtx --style warped_cartesian_as_grid --radius-norm inf --fov-type square \
-  --resolution 64 --steps 8 --visualizer none --device cuda:0 --output /tmp/square-foveated.pt
-```
-
-Install the pinned Fovi dependency through the repository's `fovi` extra.
-The implementation uses Fovi's upright-grid and analytic native-mapping APIs.
+A policy that consumes the image has to be configured with the same field
+geometry, `radius_norm` and resolution as the camera.
