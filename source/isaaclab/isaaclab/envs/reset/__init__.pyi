@@ -11,8 +11,6 @@ __all__ = [
     "SamplingScoreCfg",
     "TargetSuccessScore",
     "TargetSuccessScoreCfg",
-    "UniformScore",
-    "UniformScoreCfg",
     "sample_cdf",
     "target_success_score",
 ]
@@ -23,7 +21,6 @@ from .reset_state_sampler_cfg import ResetStateSamplerCfg
 from .sampling_scores import (
     SamplingScore,
     TargetSuccessScore,
-    UniformScore,
     target_success_score,
 )
-from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg, UniformScoreCfg
+from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg

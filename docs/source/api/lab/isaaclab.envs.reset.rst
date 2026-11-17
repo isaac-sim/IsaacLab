@@ -15,7 +15,6 @@ broadcasting, custom metrics, and the existing Lift event integration.
    ResetStateSamplerCfg
    SamplingScoreCfg
    TargetSuccessScoreCfg
-   UniformScoreCfg
 
 .. autoclass:: ResetStateBuffer
    :members:
@@ -34,9 +33,5 @@ broadcasting, custom metrics, and the existing Lift event integration.
    :exclude-members: __init__
 
 .. autoclass:: TargetSuccessScoreCfg
-   :members:
-   :exclude-members: __init__
-
-.. autoclass:: UniformScoreCfg
    :members:
    :exclude-members: __init__
