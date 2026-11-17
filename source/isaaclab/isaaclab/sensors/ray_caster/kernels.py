@@ -337,10 +337,11 @@ def compute_distance_to_image_plane_to_image_masked_kernel(
         return
 
     depth = ray_distance[env, ray]
-    dir_w = ray_directions_w[env, ray]
-    disp_w = wp.vec3f(depth * dir_w[0], depth * dir_w[1], depth * dir_w[2])
-    disp_cam = wp.quat_rotate_inv(quat_w[env], disp_w)
-    value = disp_cam[0]
+    # A missed ray keeps its infinite depth. Projecting the finite direction before scaling keeps
+    # inf * 0 terms of an infinite displacement from turning that depth into NaN.
+    value = wp.inf
+    if not wp.isinf(depth):
+        value = depth * wp.quat_rotate_inv(quat_w[env], ray_directions_w[env, ray])[0]
     if clip_depth and (value > max_dist or wp.isnan(value)):
         value = fill_val
 

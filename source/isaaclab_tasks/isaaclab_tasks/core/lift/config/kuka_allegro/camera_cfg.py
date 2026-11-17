@@ -90,6 +90,8 @@ BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
     ),
     mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
     max_distance=2.5,
+    # match the rendered cameras' 2.5 m far plane: rays past it, including misses, read 2.5 m
+    depth_clipping_behavior="max",
     data_types=["distance_to_image_plane"],
     pattern_cfg=MISSING,
 )
@@ -103,6 +105,8 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
     ),
     mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
     max_distance=2.5,
+    # match the rendered cameras' 2.5 m far plane: rays past it, including misses, read 2.5 m
+    depth_clipping_behavior="max",
     data_types=["distance_to_image_plane"],
     pattern_cfg=MISSING,
     debug_vis=False,
