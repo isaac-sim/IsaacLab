@@ -21,12 +21,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.renderers import BaseRenderer
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import SensorTensorProcessorArgs
 from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, instantiate, replace, validate
-from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorArgs, TensorProcessorCfg
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -49,7 +50,9 @@ class _ScaleProcessor(TensorProcessor):
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
-    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
+    def __call__(
+        self, data: dict[str, ProxyArray], args: SensorTensorProcessorArgs | None = None
+    ) -> dict[str, ProxyArray]:
         _ScaleProcessor.masks.append(None if args.env_mask is None else args.env_mask.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
