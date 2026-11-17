@@ -11,8 +11,8 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.coords import SamplingCoords
-from isaaclab_fovi.sensors import foveated_newton_tiled_camera as newton_camera
-from isaaclab_fovi.sensors.foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
+from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
+from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData
@@ -40,7 +40,7 @@ def test_pooled_allocation_accepts_proxy_arrays_and_preserves_render_buffers() -
     camera._pool_k = 2
     camera.cfg = SimpleNamespace(data_types=["rgba"], pool_int_mode="max", pool_mode="avg", pool_sample_cortex=False)
 
-    FoveatedNewtonTiledCamera._allocate_pooled_buffers(camera)
+    FoveatedNewtonCamera._allocate_pooled_buffers(camera)
 
     assert camera._pooled_output["rgba"].shape == (1, 4, 1, 4)
     assert camera._pooled_output["rgba"].dtype == torch.uint8
@@ -57,7 +57,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
     monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (pooler, 4))
-    monkeypatch.setattr(FoveatedNewtonTiledCamera, "_initialize_calibrated_gaze", lambda self: None)
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_calibrated_gaze", lambda self: None)
 
     def initialize_renderer(camera):
         # Newton launches image tiles; a vector-shaped width of one is not valid.
@@ -83,7 +83,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 
     monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
-    camera = object.__new__(FoveatedNewtonTiledCamera)
+    camera = object.__new__(FoveatedNewtonCamera)
     camera._initialize_handle = None
     camera._invalidate_initialize_handle = None
     camera._prim_deletion_handle = None
@@ -133,6 +133,6 @@ def test_native_grid_fractional_pool_resolution_validates_newton_tiles(render_or
     )
     if render_order == "tiled":
         with pytest.raises(ValueError, match="83x83.*16x8"):
-            FoveatedNewtonTiledCamera._validate_native_render_layout(camera)
+            FoveatedNewtonCamera._validate_native_render_layout(camera)
     else:
-        FoveatedNewtonTiledCamera._validate_native_render_layout(camera)
+        FoveatedNewtonCamera._validate_native_render_layout(camera)

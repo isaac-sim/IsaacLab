@@ -57,7 +57,7 @@ def main() -> None:
     # Isaac Sim plugins must be available before importing simulator-bound types.
     import torch
     import warp as wp
-    from isaaclab_fovi.sensors import FoveatedTiledCamera, FoveatedTiledCameraCfg
+    from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.utils.warp import ProxyArray
@@ -100,7 +100,7 @@ def main() -> None:
             "intrinsics": (550.0, 550.0, 319.5, 239.5),
             "distortion": (0.02, -0.003, 0.0, 0.0),
         }
-    cfg = FoveatedTiledCameraCfg(
+    cfg = FoveatedCameraCfg(
         prim_path="/World/envs/env_.*/Eye",
         data_types=["rgb"],
         renderer_cfg=renderer,
@@ -122,9 +122,9 @@ def main() -> None:
         camera_fov_deg=60.0,
         spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=27.713),
         # OpenGL camera looking along +Y with +Z up.
-        offset=FoveatedTiledCameraCfg.OffsetCfg(rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"),
+        offset=FoveatedCameraCfg.OffsetCfg(rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"),
     )
-    camera = FoveatedTiledCamera(cfg)
+    camera = FoveatedCamera(cfg)
     sim.reset()
     frame_seconds: list[float] = []
     frames: list[torch.Tensor] = []

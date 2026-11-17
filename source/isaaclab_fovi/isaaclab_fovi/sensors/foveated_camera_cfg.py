@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the FoveatedTiledCamera sensor."""
+"""Configuration for the FoveatedCamera sensor."""
 
 from __future__ import annotations
 
@@ -16,20 +16,19 @@ from isaaclab_fovi.sensors.native_grid import validate_radius_norm
 
 
 @configclass
-class FoveatedTiledCameraCfg(CameraCfg):
-    """Configuration for a foveated tiled camera sensor.
+class FoveatedCameraCfg(CameraCfg):
+    """Configuration for a foveated camera sensor.
 
     Extends :class:`CameraCfg` with CMF-based foveation parameters.
     The sensor generates non-uniform foveated rays from
     :class:`fovi.sensing.coords.SamplingCoords`.  ``height`` and ``width``
     are auto-computed from the number of sampling coordinates.
 
-    The actual camera class (Newton or RTX) is resolved at runtime by the
-    :func:`isaaclab_fovi.sensors.FoveatedTiledCamera` factory based on
-    ``renderer_cfg.renderer_type``.
+    :class:`~isaaclab_fovi.sensors.FoveatedCamera` selects its Newton or RTX
+    implementation from ``renderer_cfg.renderer_type``.
     """
 
-    class_type: type | str = "isaaclab_fovi.sensors:FoveatedTiledCamera"
+    class_type: type | str = "isaaclab_fovi.sensors:FoveatedCamera"
 
     # -- Foveation parameters (no img_height/img_width/fixation_size) --------
 
@@ -155,13 +154,6 @@ class FoveatedTiledCameraCfg(CameraCfg):
 
     # -- RTX-specific parameters (ignored by Newton backend) ----------------
 
-    tiled: bool = True
-    """Use a shared tiled RTX render product across environments.
-
-    Non-tiled foveated RTX rendering is not implemented and selecting it
-    raises :class:`NotImplementedError`. Ignored by Newton backend.
-    """
-
     ndc_layout: str = "cortical_disc"
     """RTX texture layout: ``cortical_disc`` or warped Cartesian ``native_grid``.
 
@@ -186,6 +178,8 @@ class FoveatedTiledCameraCfg(CameraCfg):
     update_latest_camera_pose: bool = True
 
     def __post_init__(self):
+        # Resolves the default renderer and forwards deprecated renderer fields.
+        super().__post_init__()
         if self.ndc_layout not in ("cortical_disc", "native_grid"):
             raise ValueError(
                 f"Unsupported ndc_layout={self.ndc_layout!r}; use 'cortical_disc' or 'native_grid'. "

@@ -27,27 +27,7 @@ from .native_grid import GRID_STYLE, native_grid_directions
 
 
 class CalibratedVirtualGaze:
-    """Calibrated virtual-gaze operations shared by tiled-camera backends."""
-
-    def get_world_positions(self) -> torch.Tensor:
-        """Read live camera origins without capturing RGB or changing image metadata.
-
-        Unlike ``data``, this only queries the camera's FrameView and never
-        refreshes lazy image buffers. Hybrid virtual gaze leaves origins unchanged.
-        """
-        position, _ = self.get_world_poses()
-        return position
-
-    def get_world_poses(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Read live scene-frame poses without refreshing images or their metadata.
-
-        Returns:
-            World positions (B, 3), in meters, and OpenGL orientations (B, 4),
-            as XYZW quaternions. The tensors borrow the sensor view's buffers.
-            RTX gaze writes are included; Warp's renderer-only gaze is not.
-        """
-        position, orientation = self._view.get_world_poses()
-        return position.torch, orientation.torch
+    """Calibrated virtual-gaze operations shared by the foveated camera backends."""
 
     def calibrated_fov_sample_mask(self) -> torch.Tensor:
         """Return the physical-sensor visibility mask in canonical ray order (B,N)."""

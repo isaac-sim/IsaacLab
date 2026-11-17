@@ -83,23 +83,23 @@ def test_textures_and_public_modalities(field: str) -> None:
 
 
 def test_camera_config_rejects_wang_and_requires_native_layout() -> None:
-    from isaaclab_fovi.sensors.foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
     kwargs = dict(prim_path="/World/Camera", foveated_style="warped_cartesian_as_grid", radius_norm=math.inf)
     with pytest.raises(ValueError, match="native_grid"):
-        FoveatedTiledCameraCfg(**kwargs, fov_type="square")
+        FoveatedCameraCfg(**kwargs, fov_type="square")
     with pytest.raises(ValueError, match="wang"):
-        FoveatedTiledCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="wang")
-    cfg = FoveatedTiledCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="square")
+        FoveatedCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="wang")
+    cfg = FoveatedCameraCfg(**kwargs, ndc_layout="native_grid", fov_type="square")
     assert cfg.ndc_layout == "native_grid"
 
 
 @pytest.mark.parametrize("coverage", ["square", "circular"])
 def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
-    from isaaclab_fovi.sensors.foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
     from isaaclab_fovi.sensors.pooling import build_highres_coords, build_lowres_coords
 
-    cfg = FoveatedTiledCameraCfg(
+    cfg = FoveatedCameraCfg(
         prim_path="/World/Camera",
         foveated_style="warped_cartesian_as_grid",
         fov_type=coverage,
@@ -126,7 +126,7 @@ def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
     ],
 )
 def test_camera_rejects_unsupported_radius_norm(kwargs: dict[str, float | str]) -> None:
-    from isaaclab_fovi.sensors.foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
     with pytest.raises(ValueError, match="radius_norm"):
-        FoveatedTiledCameraCfg(prim_path="/World/Camera", **kwargs)
+        FoveatedCameraCfg(prim_path="/World/Camera", **kwargs)

@@ -3,7 +3,7 @@
 Both RTX and Newton foveated cameras accept this configuration:
 
 ```python
-FoveatedTiledCameraCfg(
+FoveatedCameraCfg(
     prim_path="/World/Camera",
     foveated_style="warped_cartesian_as_grid",
     radius_norm=float("inf"),
