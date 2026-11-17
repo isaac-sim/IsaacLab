@@ -17,20 +17,20 @@ from isaaclab_rl.rsl_rl import (
 
 
 @configclass
-class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 5000
+    max_iterations = 1500
     save_interval = 50
-    experiment_name = "g1_rough"
+    experiment_name = "g1_flat"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
-        hidden_dims=[512, 256, 128],
+        hidden_dims=[256, 128, 128],
         activation="elu",
         obs_normalization=False,
         distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
     )
     critic = RslRlMLPModelCfg(
-        hidden_dims=[512, 256, 128],
+        hidden_dims=[256, 128, 128],
         activation="elu",
         obs_normalization=False,
     )
@@ -51,14 +51,14 @@ class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
-class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
+class G1RoughPPORunnerCfg(G1FlatPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.max_iterations = 1500
-        self.experiment_name = "g1_flat"
-        self.actor.hidden_dims = [256, 128, 128]
-        self.critic.hidden_dims = [256, 128, 128]
+        self.max_iterations = 5000
+        self.experiment_name = "g1_rough"
+        self.actor.hidden_dims = [512, 256, 128]
+        self.critic.hidden_dims = [512, 256, 128]
 
 
 @configclass
