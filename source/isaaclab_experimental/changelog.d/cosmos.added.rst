@@ -1,6 +1,7 @@
 * Added :mod:`isaaclab_experimental.image_transfer`, which generates camera images with an application-owned model
   as camera tensor processors: :class:`~isaaclab_experimental.image_transfer.ImageTransferProcessorCfg` queues
-  captures per view, following the camera's ``args.env_mask``, resets each view with its own deterministic seed, and
+  captures per view, following the camera's ``args.env_mask``, resets each view with its own deterministic seed
+  (from a base seed or a list with one seed per view), and
   shares one model per configuration through the simulation context.
   :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` and ``depth_to_control`` prepare controls.
 * Added :mod:`isaaclab_experimental.cosmos`, which puts Cosmos3-Nano-Sim-Transfer on a camera: the camera renders

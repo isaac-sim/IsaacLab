@@ -389,6 +389,9 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
+- Environment `v` starts from seed `seed + v` of the camera's `CosmosTransferProcessorCfg`, 0 by default, or from
+  `seed[v]` when `seed` is a list with one seed per environment. Each reset advances an environment's seed by the
+  number of environments.
 - An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
   environments keep one four-frame cadence; it shows black until then.
 - A camera slower than the environment step captures each environment on its own schedule after independent

@@ -68,8 +68,9 @@ controls only for the views captured in each call.
 
 Resetting a view clears its queued controls and its visible image. Its next chunk
 uses the initial size, and `step` receives the view index and a new deterministic
-seed: view `i` starts from `seed + i`, and each reset advances it by the number of
-views, modulo `2**31`. The stream must discard all episode state for those views.
+seed: view `i` starts from `seed + i`, or from `seed[i]` when `seed` lists one seed
+per view, and each reset advances it by the number of views, modulo `2**31`. The
+stream must discard all episode state for those views.
 An exception or invalid result marks the processor as failed; recreate the camera
 instead of retrying against a stream that may already have advanced.
 

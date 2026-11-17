@@ -87,9 +87,10 @@ class ImageTransferProcessorCfg(TensorProcessorCfg):
     """Model configuration. Equal configurations share one model through the simulation context; the
     constructed model must implement :class:`ImageTransferModel`."""
 
-    seed: int = 0
-    """Initial seed of view 0. View ``i`` starts from ``seed + i``; each reset advances a view's seed by
-    the number of views, modulo ``2**31``."""
+    seed: int | list[int] = 0
+    """Initial seed of view 0. View ``i`` starts from ``seed + i``, or from ``seed[i]`` when a list gives one seed
+    per view, for example per environment. Each reset advances a view's seed by the number of views, modulo
+    ``2**31``."""
 
     initial_frames: int = 1
     """Captures required for the first chunk of each episode."""

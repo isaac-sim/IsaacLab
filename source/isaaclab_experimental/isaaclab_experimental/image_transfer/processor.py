@@ -69,7 +69,8 @@ class ImageTransferProcessor(TensorProcessor):
             model = sim.get_or_create_backend(cfg.backend)
         else:
             model = self._owned_model = instantiate(cfg.backend)
-        self._seeds = tuple((cfg.seed + row) % _SEED_MODULUS for row in range(num_views))
+        seeds = cfg.seed if isinstance(cfg.seed, (list, tuple)) else [cfg.seed + row for row in range(num_views)]
+        self._seeds = tuple(seed % _SEED_MODULUS for seed in seeds)
         self._stream = model.open_stream(num_views, self._seeds)
         self._pending: list[list[torch.Tensor]] = [[] for _ in range(num_views)]
         self._fresh = [True] * num_views
@@ -248,3 +249,8 @@ def _validate(cfg: ImageTransferProcessorCfg, data_dim: tuple[int, ...]) -> None
         raise ValueError("Chunk sizes and queue capacity must be positive integers.")
     if cfg.max_pending_frames < max(cfg.initial_frames, cfg.update_frames):
         raise ValueError("Queue capacity must accommodate both configured chunk sizes.")
+    seeds = cfg.seed if isinstance(cfg.seed, (list, tuple)) else [cfg.seed]
+    if any(type(seed) is not int for seed in seeds):
+        raise ValueError("Image transfer seeds must be integers.")
+    if isinstance(cfg.seed, (list, tuple)) and len(cfg.seed) != data_dim[0]:
+        raise ValueError(f"A seed list needs one seed per view: {len(cfg.seed)} seeds for {data_dim[0]} views.")
