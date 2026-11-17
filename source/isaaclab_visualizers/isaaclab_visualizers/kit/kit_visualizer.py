@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import warnings
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
@@ -45,7 +46,13 @@ _BACKEND_DISPLAY_NAMES = {
 
 
 class KitVisualizer(BaseVisualizer):
-    """Kit visualizer using Isaac Sim viewport."""
+    """Kit visualizer using Isaac Sim viewport.
+
+    .. deprecated:: 3.1
+        The Kit visualizer is deprecated and will be removed in 3.2. Use the Newton GL visualizer
+        (``--viz newton_gl``) for the interactive window, tracking cameras and RTX rendering, and the
+        OVRTX renderer for Kit-free RTX rendering of sensor cameras.
+    """
 
     _timeline_auto_update: ClassVar[bool | None] = None
     _timeline_control_owner_count: ClassVar[int] = 0
@@ -57,6 +64,13 @@ class KitVisualizer(BaseVisualizer):
             cfg: Kit visualizer configuration.
         """
         super().__init__(cfg)
+        if getattr(cfg.backend, "deprecation_warning", True):
+            warnings.warn(
+                "The Kit visualizer is deprecated and will be removed in 3.2. Use the Newton GL visualizer"
+                " ('--viz newton_gl') for the interactive window, tracking cameras and RTX rendering.",
+                FutureWarning,
+                stacklevel=2,
+            )
 
         self._simulation_app = None
         self._viewport_window = None

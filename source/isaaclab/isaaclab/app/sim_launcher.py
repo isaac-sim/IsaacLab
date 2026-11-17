@@ -258,7 +258,9 @@ def validate_launch(  # noqa: C901
         if livestream or launcher_args.get("xr", False):
             if not any(isinstance(viewer.backend, KitBackendCfg) for viewer in node.visualizer_cfgs):
                 node.visualizer_cfgs.append(
-                    template.replace(backend=KitBackendCfg(), headless=bool(launcher_args.get("xr", False)))
+                    template.replace(
+                        backend=KitBackendCfg(deprecation_warning=False), headless=bool(launcher_args.get("xr", False))
+                    )
                 )
         node.visualizer_cfgs = [viewer for viewer in node.visualizer_cfgs if viewer.backend]
 

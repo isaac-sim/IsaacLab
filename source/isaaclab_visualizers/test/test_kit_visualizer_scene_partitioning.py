@@ -8,6 +8,7 @@
 import contextlib
 import signal
 import sys
+import warnings
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -351,3 +352,16 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
     )
 
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+@pytest.mark.parametrize("warns", [True, False])
+def test_kit_visualizer_warns_of_deprecation_unless_disabled(warns):
+    """Creating a Kit visualizer warns of its deprecation, except where Kit is still required."""
+    cfg = VisualizerCfg(backend=KitBackendCfg(deprecation_warning=warns))
+    if warns:
+        with pytest.warns(FutureWarning, match="Kit visualizer is deprecated"):
+            KitVisualizer(cfg)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            KitVisualizer(cfg)

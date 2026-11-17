@@ -246,7 +246,7 @@ Visualizer Overview
      - High-quality RTX rendering; experimental, missing some features
    * - **Rerun**
      - Web-based, supports recording and replay; limited UI toggles
-   * - **Kit**
+   * - **Kit** (deprecated)
      - High-quality RTX rendering, rich Isaac Sim tooling; longer start-up time
 
 .. tab-set::
@@ -492,6 +492,11 @@ Visualizer Overview
             :pyobject: VisualizerCfg
 
    .. tab-item:: Kit
+
+      .. deprecated:: 3.1
+         The Kit visualizer is deprecated and will be removed in 3.2. Use Newton GL (``--viz newton_gl``)
+         for the interactive window, tracking cameras and RTX rendering, and the OVRTX renderer for
+         Kit-free RTX rendering of sensor cameras. Livestreaming and XR still start Kit and do not warn.
 
       The Kit visualizer embeds Isaac Lab inside a Kit process, providing access to the
       full Isaac Sim USD stage, RTX renderer, and GUI tooling. It has the highest startup and

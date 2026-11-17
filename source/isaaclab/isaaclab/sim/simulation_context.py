@@ -398,7 +398,7 @@ class SimulationContext:
             and self.get_setting("/isaaclab/xr/auto_start")
             and not any(cfg.backend.visualizer_type == "kit" for cfg in resolved)
         ):
-            resolved.append(VisualizerCfg(backend=KitBackendCfg()))
+            resolved.append(VisualizerCfg(backend=KitBackendCfg(deprecation_warning=False)))
             logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:

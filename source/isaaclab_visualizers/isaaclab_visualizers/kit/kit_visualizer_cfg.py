@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 class KitBackendCfg(VisualizerBackendCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport.
 
+    .. deprecated:: 3.1
+        The Kit visualizer is deprecated and will be removed in 3.2. Use
+        :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` instead.
+
     .. note::
         The streaming panel displays a scene-declared camera. Isaac RTX cameras require
         ``--enable_cameras``. Set ``dock_position="RIGHT"`` to display the panel beside the viewport.
@@ -32,6 +36,13 @@ class KitBackendCfg(VisualizerBackendCfg):
     """Type identifier for Kit visualizer."""
 
     launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
+
+    deprecation_warning: bool = True
+    """Whether creating the visualizer emits the deprecation warning.
+
+    Isaac Lab sets this to ``False`` where Kit is still required by a feature that has no replacement yet,
+    such as livestreaming and XR.
+    """
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
