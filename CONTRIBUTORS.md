@@ -218,6 +218,7 @@ Guidelines for modifications:
 * Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* StriverAlex
 * Sujal
 * Tiffany Chen
 * Trushant Adeshara

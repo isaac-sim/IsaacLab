@@ -49,11 +49,11 @@ _RTX_FIELD_TO_SETTING = {
     "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
 }
 
-# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
+# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation, pose revision) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
-_last_render_update_key: tuple[int, int, int] = (0, -1, -1)
+_last_render_update_key: tuple[int, int, int, int] = (0, -1, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
 
@@ -238,11 +238,11 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count, render_generation)`` tuple.
+    current ``(id(sim), step_count, render_generation, pose_revision)`` tuple.
 
-    The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
+    The key includes the scene-data transform revision so that:
     - creating a new ``SimulationContext`` invalidates stale stamps, and
-    - render/reset transitions that do not advance physics step count still force a fresh update.
+    - render/reset transitions and pose writes without a physics step still force a fresh update.
 
     After the initial ``app.update()`` the streaming subsystem is queried
     synchronously via ``UsdContext.get_stage_streaming_status()``.  If textures
@@ -251,7 +251,7 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
 
     No-op conditions:
         * Already called this step (dedup across camera instances).
-        * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+        * A visualizer has already rendered the current transform revision.
         * Rendering is not active and ``force`` is ``False``.
     """
     global _last_render_update_key
@@ -260,35 +260,43 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if sim is None:
         return
 
-    key = (id(sim), sim.get_physics_step_count(), sim.render_generation)
-    if _last_render_update_key == key:
-        return  # Already pumped this step (by another camera or a visualizer)
-
-    # Prime annotators once; afterward the Kit visualizer owns its app updates.
-    first_call_for_sim = _last_render_update_key[0] != id(sim)
-    if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
-        _last_render_update_key = key
-        return
-
     # Headless offscreen capture requests a frame explicitly with force=True.
     if not force and not sim.is_rendering:
         return
 
+    provider = sim.get_scene_data_provider()
+    revision = provider.backend.transforms_timestamp
+    key = (id(sim), sim.get_physics_step_count(), sim.render_generation, revision)
+    if _last_render_update_key == key:
+        return  # Already pumped this step (by another camera or a visualizer)
+
     from .fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
     fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
-    fabric.update_transforms(sim.get_scene_data_provider())
+    # Prime annotators once; afterward the Kit visualizer owns its app updates.
+    first_call_for_sim = _last_render_update_key[0] != id(sim)
+    if (
+        not first_call_for_sim
+        and fabric.rendered_transforms_timestamp == revision
+        and any(viz.pumps_app_update() for viz in sim.visualizers)
+    ):
+        _last_render_update_key = key
+        return
+
+    revision = fabric.update_transforms(provider)
 
     import omni.kit.app
 
+    play_flag = sim.get_setting("/app/player/playSimulations")
     sim.set_setting("/app/player/playSimulations", False)
-    omni.kit.app.get_app().update()
+    try:
+        omni.kit.app.get_app().update()
+        if _get_stage_streaming_busy():
+            _wait_for_streaming_complete()
+    finally:
+        sim.set_setting("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
 
-    if _get_stage_streaming_busy():
-        _wait_for_streaming_complete()
-
-    sim.set_setting("/app/player/playSimulations", True)
-
+    fabric.rendered_transforms_timestamp = revision
     _last_render_update_key = key
 
 

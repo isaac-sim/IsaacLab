@@ -462,11 +462,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
-        self.root_view.set_transforms(
+        self._backend_manager.write_rigid_body_transforms(
+            self.root_view,
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        self._backend_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -573,11 +573,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
-        self.root_view.set_transforms(
+        self._backend_manager.write_rigid_body_transforms(
+            self.root_view,
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        self._backend_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,

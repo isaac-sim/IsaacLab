@@ -39,7 +39,7 @@ MOCK_ITERATIONS_BEFORE_IDLE = 3
 @pytest.fixture(autouse=True)
 def _reset_globals(monkeypatch):
     """Restore module-level state so tests are isolated."""
-    monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1))
+    monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1, -1))
     fabric = types.SimpleNamespace(FabricBackendCfg=types.SimpleNamespace)
     monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric)
 
@@ -168,6 +168,11 @@ class TestEnsureIsaacRtxRenderUpdate:
         sim.render_generation = 0
         sim.is_rendering = True
         sim.visualizers = []
+        provider = sim.get_scene_data_provider.return_value
+        provider.backend.transforms_timestamp = 0
+        fabric = sim.get_or_create_backend.return_value
+        fabric.rendered_transforms_timestamp = -1
+        fabric.update_transforms.side_effect = lambda _: provider.backend.transforms_timestamp
         return sim
 
     @pytest.fixture()
@@ -207,7 +212,6 @@ class TestEnsureIsaacRtxRenderUpdate:
         mock_app.update.assert_not_called()
         cfg = mock_sim.get_or_create_backend.call_args.args[0]
         assert cfg.stage is mock_sim.stage and cfg.device is mock_sim.device
-        mock_sim.get_or_create_backend.assert_called_once()
         update_transforms.assert_called_once_with(provider)
         mock_sim.backend_manager.forward.assert_not_called()
 
@@ -237,6 +241,61 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
+
+    def test_same_step_pose_write_refreshes_after_a_visualizer_frame(
+        self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
+    ):
+        """Post-pump writes bypass dedup even before a camera observes the new physics step."""
+        mock_app = mock_omni_kit_app.get_app.return_value
+        mock_sim_context.instance.return_value = mock_sim
+        provider = mock_sim.get_scene_data_provider.return_value
+        fabric = mock_sim.get_or_create_backend.return_value
+        with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
+            rtx_utils.ensure_isaac_rtx_render_update()
+            mock_sim.visualizers = [pumping_visualizer]
+            mock_sim._physics_step_count += 1
+            provider.backend.transforms_timestamp += 1
+            # Kit has rendered this step, but the camera still holds its previous-step key.
+            fabric.rendered_transforms_timestamp = provider.backend.transforms_timestamp
+            provider.backend.transforms_timestamp += 1
+            rtx_utils.ensure_isaac_rtx_render_update()
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        assert mock_app.update.call_count == 2
+        assert fabric.update_transforms.call_count == 2
+
+    @pytest.mark.parametrize("failure", [False, True])
+    @pytest.mark.parametrize("play_flag", [False, True, None])
+    def test_update_keeps_new_writes_due_and_restores_playback(
+        self, mock_sim, mock_sim_context, mock_omni_kit_app, failure, play_flag
+    ):
+        """Only a completed frame consumes its snapshot; writes during a pump remain due."""
+        mock_app = mock_omni_kit_app.get_app.return_value
+        mock_sim_context.instance.return_value = mock_sim
+        mock_sim.get_setting.return_value = play_flag
+        provider = mock_sim.get_scene_data_provider.return_value
+
+        def update():
+            provider.backend.transforms_timestamp += 1
+            if failure:
+                raise RuntimeError("frame failed")
+
+        mock_app.update.side_effect = update
+        with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
+            if failure:
+                with pytest.raises(RuntimeError, match="frame failed"):
+                    rtx_utils.ensure_isaac_rtx_render_update()
+            else:
+                rtx_utils.ensure_isaac_rtx_render_update()
+            assert mock_sim.set_setting.call_args.args == (
+                "/app/player/playSimulations",
+                True if play_flag is None else play_flag,
+            )
+            mock_app.update.side_effect = None
+            rtx_utils.ensure_isaac_rtx_render_update()
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        assert mock_app.update.call_count == 2
 
     @pytest.mark.parametrize("force", [False, True])
     def test_not_rendering_pumps_only_when_forced(self, mock_sim, mock_sim_context, mock_omni_kit_app, force):
