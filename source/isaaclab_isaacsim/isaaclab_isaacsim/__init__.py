@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Package containing the Isaac Sim (Kit) integration for Isaac Lab: PhysX physics, Isaac RTX rendering and app launch."""
+"""Package containing the Isaac Sim (Kit) integration for Isaac Lab: PhysX physics, Isaac RTX rendering and app launch.
+
+.. deprecated:: 3.1
+    This package is the Kit path, which is deprecated in 3.1 and removed in 3.2 along with the Kit visualizer and the
+    ``isaacsim_physx`` and ``isaacsim_rtx`` selectors. Use :mod:`isaaclab_newton` or :mod:`isaaclab_ov` (OvPhysX and
+    OVRTX) for Kit-free runs. Launching Kit through Isaac Lab emits a :class:`FutureWarning`. This package was renamed
+    from ``isaaclab_physx``.
+"""
 
 import importlib.metadata
 import sys

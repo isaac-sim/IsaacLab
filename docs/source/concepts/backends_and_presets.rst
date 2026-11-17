@@ -169,6 +169,11 @@ conventions:
    and emits a ``FutureWarning``; it is removed in 3.2. The ``isaacsim_physx`` and ``isaacsim_rtx`` selectors keep
    their names.
 
+   ``isaaclab_isaacsim`` is the Kit path, so the package itself is deprecated in 3.1 and removed in 3.2 together
+   with the Kit visualizer and those selectors. Launching Kit emits a ``FutureWarning`` that lists why it is needed
+   (livestreaming and XR, which have no replacement yet, do not warn). Use ``isaaclab_newton`` or ``isaaclab_ov`` for
+   Kit-free runs.
+
 Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
 Defaults are concrete so that running a task without selectors is predictable.
 A solver is not a separate backend: ``newton_mjwarp`` and ``newton_kamino``

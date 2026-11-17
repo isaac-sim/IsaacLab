@@ -19,6 +19,7 @@ import contextlib
 import signal
 import sys
 import types
+import warnings
 
 import isaaclab_isaacsim.app as physx_app
 import pytest
@@ -236,3 +237,23 @@ def test_livestream_keeps_kit_without_the_deprecation_warning(configured):
     kit_backends = [viz.backend for viz in cfg.sim.visualizer_cfgs if isinstance(viz.backend, KitBackendCfg)]
     assert len(kit_backends) == 1
     assert not kit_backends[0].deprecation_warning
+
+
+def test_launching_kit_warns_with_the_reason_it_is_needed(kit_branch_taken):
+    with pytest.warns(FutureWarning, match=r"Running on Isaac Sim \(Kit\) is deprecated .*explicit Kit requirement"):
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+@pytest.mark.parametrize("launcher_args", [{"livestream": 1}, {"xr": True}], ids=["livestream", "xr"])
+def test_livestream_and_xr_launch_kit_without_the_deprecation_warning(kit_branch_taken, launcher_args):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(
+            SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True, **launcher_args}
+        ):
+            pass
+
+    assert kit_branch_taken == [True]

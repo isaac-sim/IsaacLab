@@ -473,6 +473,16 @@ def launch_simulation(
     if sim_cfg is not None:
         launcher_args["device"] = launcher_args.get("device") or sim_cfg.device
 
+    livestream = launcher_args.get("livestream", -1)
+    livestream = int(os.environ.get("LIVESTREAM", 0) if livestream is None or int(livestream) < 0 else livestream)
+    if kit_sources and not livestream and not launcher_args.get("xr", False):
+        # Livestreaming and XR need Kit and have no replacement yet, so they do not warn.
+        warnings.warn(
+            f"Running on Isaac Sim (Kit) is deprecated in 3.1 and will be removed in 3.2 ({', '.join(kit_sources)}). "
+            "Use Newton or OvPhysX physics, the OVRTX or Newton Warp renderer, and the Newton GL visualizer.",
+            FutureWarning,
+            stacklevel=3,
+        )
     launcher_types = [_KIT_LAUNCHER] if kit_sources else []
     launcher_types += [
         node.launcher_type
