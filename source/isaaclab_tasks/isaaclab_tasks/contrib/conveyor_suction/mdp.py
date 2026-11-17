@@ -85,7 +85,7 @@ def initialize_outfeed_layouts(env: ManagerBasedRLEnv, env_ids: torch.Tensor | N
 
 def parcel_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Observe the active package in the tool frame, with dimensions and relative velocities."""
-    state = _parcel_states(env)[env.scene._ALL_INDICES, env.active_ids]
+    state = _parcel_states(env, env.scene._ALL_INDICES)
     position, rotation = end_effector_pose(env)
     inverse = math_utils.quat_conjugate(rotation)
     velocity = state[:, 7:13] - tool_velocity(env)
@@ -139,14 +139,23 @@ class SizeSortCommandCfg(CommandTermCfg):
     reset_event_name: str = "reset_parcels"
     randomize_destination: bool = False
     goal_radial_range: tuple[float, float] = (-0.02, 0.02)
+    """Radial offset range from each receiving-pad goal [m]."""
     goal_lateral_range: tuple[float, float] = (-0.015, 0.015)
+    """Lateral offset range from each receiving-pad goal [m]."""
     placement_xy_tolerance: float = 0.035
+    """Maximum parcel-center XY distance from the commanded placement goal [m]."""
     placement_max_height: float = 0.02
+    """Maximum parcel-bottom clearance above the receiving surface at release [m]."""
     placement_max_horizontal_speed: float = 0.15
+    """Maximum horizontal speed relative to either the world or the belt at release [m/s]."""
     placement_max_vertical_speed: float = 0.10
+    """Maximum absolute vertical parcel speed at release [m/s]."""
     placement_max_angular_speed: float = 1.0
+    """Maximum parcel angular-speed norm at release [rad/s]."""
     placement_upright_tolerance: float = 0.15
+    """Maximum parcel tilt from the upright orientation at release [rad]."""
     arm_contact_force_threshold: float = 5.0
+    """Contact-force norm above which an arm collision fails the episode [N]."""
 
 
 class SizeSortCommand(CommandTerm):
@@ -212,7 +221,7 @@ class SizeSortCommand(CommandTerm):
         ids = attempting.nonzero(as_tuple=False).flatten()
         if not ids.numel():
             return
-        state = _parcel_states(env)[ids, env.active_ids[ids]]
+        state = _parcel_states(env, ids)
         local = state[:, :3] - env.scene.env_origins[ids]
         rotation = math_utils.matrix_from_quat(state[:, 3:7])
         half_size = env.parcel_sizes[env.active_ids[ids]] / 2.0
@@ -468,9 +477,9 @@ class ResetParcels(ManagerTermBase):
             raise ValueError("Suction reset recipes must be finite.")
         if not ((states["arm_positions"] >= limits[:, 0]) & (states["arm_positions"] <= limits[:, 1])).all():
             raise ValueError("Suction reset recipes exceed the robot joint limits.")
-        self.reset_buffer = ResetStateBuffer(states)
         for name in ("layout_ids", "destination_ids", "parcel_ids", "phase_ids", "goal_positions", "lifted_rows"):
-            setattr(self, name, states[name])
+            setattr(self, name, states.pop(name))
+        self.reset_buffer = ResetStateBuffer(states)
         self._state = self.reset_buffer.get_state(self.row_ids)
         self._all_mask = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
         self._mask = wp.empty_like(self._all_mask)
@@ -691,10 +700,10 @@ class ResetParcels(ManagerTermBase):
         ) * self._lane_count + lane
         self.reset_buffer.get_state(self.row_ids, out=self._state, mask=mask)
         state = {name: value.torch[ids] for name, value in self._state.items()}
-        active = state["parcel_ids"]
+        active = self.parcel_ids[self.row_ids[ids]]
         env.active_ids[ids] = active
         env.gripper.reset(ids)
-        phase = state["phase_ids"]
+        phase = self.phase_ids[self.row_ids[ids]]
         self.held_rows[ids] = phase < 2
         batch = torch.arange(len(ids), device=self.device)
         slots = torch.rand((len(ids), len(env.parcels)), device=self.device).argsort(dim=1)
@@ -706,8 +715,8 @@ class ResetParcels(ManagerTermBase):
             state["pick_distances"][:, None] + slots * (INTAKE_LENGTH / len(env.parcels))
         )
         positions[:, :, 2] = BELT_TOP_Z + 0.5 * env.parcel_sizes[:, 2] + 0.002
-        active_position = state["pick_positions"].clone()
-        held_position = state["tool_positions"].clone()
+        active_position = state["pick_positions"]
+        held_position = state["tool_positions"]
         held_position[:, 2] -= 0.5 * env.parcel_sizes[active, 2] + 0.002
         active_position = torch.where(self.held_rows[ids, None], held_position, active_position)
         positions[batch, active] = active_position
@@ -729,8 +738,11 @@ class ResetParcels(ManagerTermBase):
         robot.actuators.target_command.set_position_mask(value=self._joint_positions, env_mask=mask)
 
 
-def _parcel_states(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Read link poses and center-of-mass velocities through the current asset API."""
+def _parcel_states(env: ManagerBasedRLEnv, env_ids: torch.Tensor | None = None) -> torch.Tensor:
+    """Read fresh link poses and COM velocities; selected worlds return only their active parcel."""
     poses = torch.stack([parcel.data.root_link_pose_w.torch for parcel in env.parcels], dim=1)
     velocities = torch.stack([parcel.data.root_com_vel_w.torch for parcel in env.parcels], dim=1)
+    if env_ids is not None:
+        poses = poses[env_ids, env.active_ids[env_ids]]
+        velocities = velocities[env_ids, env.active_ids[env_ids]]
     return torch.cat((poses, velocities), dim=-1)

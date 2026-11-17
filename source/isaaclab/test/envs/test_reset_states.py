@@ -50,6 +50,8 @@ def test_buffer_owns_snapshots_and_returns_selected_copies() -> None:
     torch.testing.assert_close(buffer.states["joint_ids"].torch, torch.tensor([7, 8, 9]))
     empty = buffer.get_state(torch.empty(0, dtype=torch.long))
     assert empty["rigid_object"]["cube"]["root_pose"].shape == (0, 4)
+    selected = buffer.get_state(torch.tensor([2**32, 0, 2 - 2**32]))
+    torch.testing.assert_close(selected["joint_ids"].torch, torch.tensor([0, 7, 0]))
 
 
 def test_empty_buffers_and_repeated_default_states() -> None:
@@ -83,8 +85,17 @@ def test_buffer_rejects_invalid_array_trees(states, message) -> None:
         ResetStateBuffer(states)
 
 
+def test_buffer_rejects_malformed_output_before_writing() -> None:
+    buffer = ResetStateBuffer({"first": torch.tensor([1, 2]), "nested": {"second": torch.tensor([3, 4])}})
+    out = {"first": torch.tensor([-1]), "nested": None}
+    with pytest.raises(ValueError, match="out must match the stored state tree"):
+        buffer.get_state(torch.tensor([0]), out=out)
+    torch.testing.assert_close(out["first"], torch.tensor([-1]))
+    assert out["nested"] is None
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_masked_state_gather_replays_changed_ids_without_touching_other_worlds(device) -> None:
+def test_masked_state_gather_replays_changed_indices_without_touching_other_worlds(device) -> None:
     poses = wp.array(
         [[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0], [7, 8, 9, 0, 1, 0, 0]],
         dtype=wp.transformf,
@@ -112,5 +123,9 @@ def test_masked_state_gather_replays_changed_ids_without_touching_other_worlds(d
     np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])
     mask.fill_(False)
     ids.fill_(-1)
+    wp.capture_launch(capture.graph)
+    np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])
+    mask.fill_(True)
+    ids.assign(np.array([2**32, 2**32, 2 - 2**32], dtype=np.int64))
     wp.capture_launch(capture.graph)
     np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])

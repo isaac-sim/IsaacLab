@@ -16,7 +16,6 @@ from isaaclab.envs.reset import (
     SamplingScoreCfg,
     TargetSuccessScore,
     TargetSuccessScoreCfg,
-    UniformScoreCfg,
     sample_cdf,
 )
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -25,8 +24,6 @@ pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _PriorityScore:
-    name = "priority"
-
     def __init__(self, cfg):
         del cfg
 
@@ -121,9 +118,7 @@ def test_target_score_keeps_analytic_unit_peak_without_mutating_metrics(target, 
 
 def test_named_metrics_and_concentration_control_the_current_distribution():
     readiness = wp.array([0.0, 0.25, 0.5, 0.75, 1.0], dtype=float, device="cpu")
-    cfg = ResetStateSamplerCfg(
-        scores=[TargetSuccessScoreCfg(metric="readiness", weight=0.25), UniformScoreCfg(weight=0.05)]
-    )
+    cfg = ResetStateSamplerCfg(scores=[TargetSuccessScoreCfg(metric="readiness", weight=0.25)])
     sampler = ResetStateSampler(cfg, 1, 5, "cpu", metrics={"readiness": readiness})
     broad = sampler.probabilities.warp.numpy()
     np.testing.assert_allclose(broad, [0.05722444, 0.27138778, 0.34277556, 0.27138778, 0.05722444], rtol=1e-6)
@@ -136,9 +131,11 @@ def test_named_metrics_and_concentration_control_the_current_distribution():
     concentrated.reset(wp.zeros(1, dtype=wp.bool, device="cpu"))
     assert concentrated.probabilities.warp.numpy().argmax() == 0
     np.testing.assert_array_equal(concentrated.episode_counts.warp.numpy(), 0)
-    priorities = wp.array([1.0e6, 1.0e6, 0.1, 0.3], dtype=float, device="cpu")
+    # Different asset groups need independent distributions even when a custom metric
+    # puts their scores on very different scales.
+    priorities = wp.array([1.0e20, 1.0e20, 0.1, 0.3], dtype=float, device="cpu")
     partitioned = ResetStateSampler(
-        ResetStateSamplerCfg(scores=[SamplingScoreCfg(class_type=_PriorityScore)], eps=0.0),
+        ResetStateSamplerCfg(scores=[SamplingScoreCfg(class_type=_PriorityScore)], uniform_weight=0.0),
         2,
         4,
         "cpu",
@@ -151,7 +148,7 @@ def test_named_metrics_and_concentration_control_the_current_distribution():
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_cuda_graph_replays_changed_masks_ids_outcomes_and_random_streams(device):
-    cfg = ResetStateSamplerCfg(history_length=2, seed=27, scores=[UniformScoreCfg()], eps=0.0)
+    cfg = ResetStateSamplerCfg(history_length=2, seed=27, scores=[])
     sampler = ResetStateSampler(cfg, 4, 5, device)
     reference = ResetStateSampler(cfg, 4, 5, device)
     mask = wp.zeros(4, dtype=wp.bool, device=device)

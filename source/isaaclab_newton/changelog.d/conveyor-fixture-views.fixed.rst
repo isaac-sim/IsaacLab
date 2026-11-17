@@ -1,1 +1,1 @@
-* Fixed replicated articulation, rigid-object and material views in scenes with different static geometry per environment.
+* Fixed replicated articulation, rigid-object, material, collider-offset, and color writes in scenes with different static geometry per environment.

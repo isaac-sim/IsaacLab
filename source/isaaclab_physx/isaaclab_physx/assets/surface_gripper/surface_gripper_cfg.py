@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @configclass
 class SurfaceGripperCfg(BaseSurfaceGripperCfg):
-    """Keep the existing PhysX-specific configuration import and implementation."""
+    """Configure an authored Isaac Sim surface-gripper prim using native PhysX."""
 
     class_type: type["SurfaceGripper"] | str = "{DIR}.surface_gripper:SurfaceGripper"
     cloning_contexts: tuple[type | str, ...] | None = None

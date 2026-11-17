@@ -288,7 +288,7 @@ class NewtonBackend:
         if self.contact_sensors:
             requested.update(SensorContact.solver_observable_kinds)
         outputs = solver.observables(requested, contacts=self.contacts) if requested else None
-        self.solver_observables = outputs if observable_kinds else None
+        self.solver_observables = outputs.select(observable_kinds) if observable_kinds else None
         self.contact_observables = outputs if self.contact_sensors else None
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
@@ -445,12 +445,6 @@ class NewtonBackend:
         sensor = self.contact_sensors.get(key)
         if sensor is not None:
             return sensor
-        if (
-            self.solver is not None
-            and self.solver_observables is not None
-            and not SensorContact.solver_observable_kinds.issubset(self.solver_observables.kinds)
-        ):
-            raise ValueError("Register contact sensors before binding solver observables without CONTACT_F.")
         with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:", synchronize="both"):
             sensor = SensorContact(
                 self.model,
@@ -468,10 +462,19 @@ class NewtonBackend:
                 self._allocate_contacts()
             if self.contact_observables is None:
                 self.contact_observables = self.solver_observables
-                if self.contact_observables is None:
+                if self.contact_observables is None or not SensorContact.solver_observable_kinds.issubset(
+                    self.contact_observables.kinds
+                ):
+                    existing = self.solver_observables
                     self.contact_observables = self.solver.observables(
-                        SensorContact.solver_observable_kinds, contacts=self.contacts
+                        SensorContact.solver_observable_kinds | (existing.kinds if existing is not None else set()),
+                        contacts=self.contacts,
                     )
+                    if existing is not None:
+                        # Keep arrays already bound by substep consumers while extending the final solve's outputs.
+                        for name, value in vars(existing).items():
+                            if isinstance(value, wp.array):
+                                setattr(self.contact_observables, name, value)
             self.invalidate_graph()
         return sensor
 
@@ -696,7 +699,7 @@ class NewtonBackend:
             state_out = state if ops.single_state else self.state_1
             # Substep consumers need every solve; sensors alone need only the final one.
             step_observables = self.solver_observables
-            if step_observables is None and i == num_substeps - 1:
+            if observables is not None and i == num_substeps - 1:
                 step_observables = observables
             ops.step(state, state_out, control, contacts, dt, observables=step_observables)
             for callback in self.post_solver_substep_callbacks:

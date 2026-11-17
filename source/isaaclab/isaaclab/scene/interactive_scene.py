@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from ..assets import SurfaceGripper
     from ..terrains.terrain_importer import TerrainImporter
 
 import torch
@@ -38,6 +37,8 @@ from ..assets import (
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
+    SurfaceGripper,
+    SurfaceGripperCfg,
     VisualMaterial,
     VisualMaterialCfg,
 )
@@ -45,7 +46,7 @@ from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
-from ..utils import instantiate, validate
+from ..utils import instantiate, string_to_callable, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -751,8 +752,6 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab.assets import SurfaceGripperCfg  # noqa: PLC0415
-
         from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 
         # store paths that are in global collision filter
@@ -790,7 +789,12 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                self._surface_grippers[asset_name] = instantiate(asset_cfg, sim=self.sim)
+                gripper_type = asset_cfg.class_type
+                if isinstance(gripper_type, str):
+                    gripper_type = string_to_callable(gripper_type)
+                self._surface_grippers[asset_name] = (
+                    gripper_type(asset_cfg, sim=self.sim) if gripper_type is SurfaceGripper else gripper_type(asset_cfg)
+                )
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

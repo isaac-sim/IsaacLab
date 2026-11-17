@@ -15,7 +15,6 @@ __all__ = [
     "ResetBufferedGripperActionCfg",
     "action_term_l2",
     "active_transfer_features",
-    "build_reset_rows",
     "cube_conveyor_state",
     "cube_out_of_workspace",
     "end_effector_axes",
@@ -49,7 +48,6 @@ from .reset_events import (
     BELT_DEPLOYMENT_VARIANT,
     ConveyorResetRecipe,
     ConveyorResetStateTable,
-    build_reset_rows,
     select_next_transfer_cube,
 )
 from .rewards import (

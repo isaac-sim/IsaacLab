@@ -5,6 +5,7 @@
 
 """Checkpoint, inventory identity, and selected-reset contracts for conveyor tasks."""
 
+import math
 import subprocess
 import sys
 from contextlib import closing
@@ -186,4 +187,5 @@ def test_binary_policy_likelihoods():
     torch.testing.assert_close(distribution.log_prob(samples), expected)
     assert set(samples[:, -1].unique().tolist()) == {-1, 1}
     divergence = distribution.kl_divergence(previous, distribution.params)
-    assert torch.isfinite(divergence).all() and (divergence >= 0).all()
+    expected_kl = 7 * 0.2**2 / (2 * 0.45**2) + math.log(math.cosh(0.1))
+    torch.testing.assert_close(divergence, torch.full_like(divergence, expected_kl))

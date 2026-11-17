@@ -72,6 +72,7 @@ class ConveyorTransferCommand(CommandTerm):
         self.pending_success = torch.zeros_like(self.is_success)
         self.ever_success = torch.zeros_like(self.is_success)
         self._last_evaluation_steps = torch.full_like(self.target_cube_ids, -1)
+        self._evaluation_step = -1
         self._resampling_from_reset = False
 
         self.metrics["success_rate"] = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
@@ -120,15 +121,16 @@ class ConveyorTransferCommand(CommandTerm):
             self._resampling_from_reset = False
 
         self._last_evaluation_steps[ids] = -1
+        self._evaluation_step = -1
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
         return extras
 
     def evaluate(self) -> None:
         """Evaluate stable transfer completion once per policy step."""
+        if self._evaluation_step == self._env.common_step_counter:
+            return
         evaluation_steps = self._env.episode_length_buf
         evaluate_mask = (self.command_counter > 0) & (self._last_evaluation_steps != evaluation_steps)
-        if not bool(torch.any(evaluate_mask)):
-            return
 
         positions = cube_values(self._env, "root_pos_w")
         velocities = cube_values(self._env, "root_lin_vel_w")
@@ -160,16 +162,14 @@ class ConveyorTransferCommand(CommandTerm):
         self.new_success.copy_(new_success)
         self.pending_success |= new_success
         self.ever_success |= new_success
-        success_ids = new_success.nonzero(as_tuple=False).squeeze(-1)
-        if success_ids.numel():
-            source_sides = self.source_side_ids[success_ids]
-            self.transfer_counts[success_ids] += 1
-            self.direction_transfer_counts[success_ids, source_sides] += 1
-            pool = getattr(self._env, "conveyor_cube_pool", None)
-            if pool is not None:
-                pool.record_transfers(success_ids, self.target_cube_ids[success_ids])
+        self.transfer_counts += new_success
+        self.direction_transfer_counts.scatter_add_(1, self.source_side_ids[:, None], new_success[:, None].long())
+        pool = getattr(self._env, "conveyor_cube_pool", None)
+        if pool is not None:
+            pool.record_transfers(self._env.scene._ALL_INDICES, self.target_cube_ids, new_success)
 
         self._last_evaluation_steps[evaluate_mask] = evaluation_steps[evaluate_mask]
+        self._evaluation_step = self._env.common_step_counter
         self._env.extras["successes"] = self.ever_success.clone()
 
     def _update_metrics(self) -> None:

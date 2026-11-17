@@ -66,15 +66,14 @@ class ConveyorCubePool:
         priority = positions[..., 0] - 10.0 * self.assignment_counts
         for slot in range(CUBE_COUNT):
             eligible = reusable[:, slot] & available.any(dim=1)
-            rows = eligible.nonzero(as_tuple=False).flatten()
-            if not rows.numel():
-                continue
-            choices = torch.where(available, priority, -torch.inf).argmax(dim=1)[rows]
-            self.slot_ids[rows, slot] = choices
-            self.assignment_counts[rows, choices] += 1
-            available[rows, choices] = False
+            choices = torch.where(available, priority, -torch.inf).argmax(dim=1, keepdim=True)
+            self.slot_ids[:, slot] = torch.where(eligible, choices[:, 0], self.slot_ids[:, slot])
+            self.assignment_counts.scatter_add_(1, choices, eligible[:, None].long())
+            available.scatter_(1, choices, available.gather(1, choices) & ~eligible[:, None])
 
-    def record_transfers(self, env_ids: torch.Tensor, target_slots: torch.Tensor) -> None:
+    def record_transfers(
+        self, env_ids: torch.Tensor, target_slots: torch.Tensor, successful: torch.Tensor | bool = True
+    ) -> None:
         """Credit stable placements to physical parcels before the command selects its next slot."""
         physical_ids = self.slot_ids[env_ids, target_slots]
-        self.transfer_counts[env_ids, physical_ids] += 1
+        self.transfer_counts[env_ids, physical_ids] += successful

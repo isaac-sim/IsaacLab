@@ -45,7 +45,7 @@ FRANKA_PANDA_CONVEYOR_CFG.actuators = {
         joint_velocity_limit=2.0,
         stiffness=350.0,
         # Keep the 0.1 kg m^2 armature close to critical damping so the
-        # fingers establish contact within a few 50 Hz policy steps.
+        # fingers establish contact within a few 60 Hz policy steps.
         damping=10.0,
         armature=0.1,
     ),

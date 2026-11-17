@@ -57,7 +57,6 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
                 friction_coefficient=self.cfg.belt_friction,
                 contact_threshold=self.cfg.belt_contact_threshold,
             ),
-            env_path_format=self.cfg.scene.clone_cfg.clone_template,
         )
         driver = instantiate(controller_cfg, self.cfg.scene.num_envs, sim=self.sim)
         self.conveyor = driver

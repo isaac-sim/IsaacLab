@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from ..utils import configclass
 
 if TYPE_CHECKING:
@@ -58,7 +57,7 @@ class ConveyorSurfaceCfg:
     optional: bool = False
     """Permit this surface to be absent from some scene variants."""
 
-    def __post_init__(self) -> None:
+    def validate_config(self) -> None:
         """Reject invalid authored geometry and contact parameters."""
         namespace = "{ENV_REGEX_NS}"
         if self.prim_path is not MISSING and (
@@ -111,5 +110,14 @@ class ConveyorCfg:
     startup_duration_s: float = 1.0
     """Initial traction-ramp duration [s]."""
 
-    env_path_format: str = DEFAULT_ENV_TEMPLATE
-    """Clone-template format resolving environment roots."""
+    def validate_config(self) -> None:
+        """Validate transported-body counts, startup duration, and distinct surface profiles."""
+        if not isinstance(self.body_count_per_env, int) or self.body_count_per_env < 1:
+            raise ValueError("Conveyor body_count_per_env must be a positive integer.")
+        if not math.isfinite(self.startup_duration_s) or self.startup_duration_s <= 0.0:
+            raise ValueError("Conveyor startup_duration_s must be finite and positive.")
+        if not self.surface_specs:
+            raise ValueError("At least one ConveyorSurfaceCfg is required.")
+        paths = sorted(surface.prim_path for surface in self.surface_specs)
+        if any(right == left or right.startswith(f"{left}/") for left, right in zip(paths, paths[1:])):
+            raise ValueError("Conveyor prim paths must be unique and must not be ancestors of one another.")

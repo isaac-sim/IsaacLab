@@ -436,7 +436,9 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         backend._allocate_contacts()
 
 
-@pytest.mark.parametrize("substep_consumer", [False, True], ids=["sensor_only", "existing_contact_f"])
+@pytest.mark.parametrize(
+    "substep_consumer", [None, "contact_f", "body_qdd"], ids=["sensor_only", "contact_f", "body_qdd"]
+)
 def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch, substep_consumer):
     """A new sensor must be included in the next captured step without reallocating existing contacts."""
     allocated, requests = [], []
@@ -448,8 +450,14 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
         def __init__(self, model, **kwargs):
             requests.append(kwargs["request_contact_attributes"])
 
-    solver = SimpleNamespace(observables=lambda kinds, *, contacts: allocated.append((kinds, contacts)) or object())
-    existing = SimpleNamespace(kinds=RecordingSensor.solver_observable_kinds) if substep_consumer else None
+    def allocate(kinds, *, contacts):
+        allocated.append((kinds, contacts))
+        return SimpleNamespace(kinds=kinds)
+
+    solver = SimpleNamespace(observables=allocate)
+    existing = SimpleNamespace(kinds=frozenset({substep_consumer})) if substep_consumer else None
+    if substep_consumer == "body_qdd":
+        existing.body_qdd = wp.zeros(1, dtype=wp.spatial_vector, device="cpu")
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
         model=object(),
@@ -463,15 +471,19 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
     backend.add_contact_sensor(body_names_expr="foot")
 
     assert requests == [False]
-    assert allocated == ([] if substep_consumer else [(RecordingSensor.solver_observable_kinds, contacts)])
+    expected_kinds = RecordingSensor.solver_observable_kinds | (existing.kinds if existing is not None else set())
+    assert allocated == ([] if substep_consumer == "contact_f" else [(expected_kinds, contacts)])
     assert backend.contact_observables is not None
-    if substep_consumer:
+    assert backend.solver_observables is existing
+    if substep_consumer == "contact_f":
         assert backend.contact_observables is existing
+    elif substep_consumer == "body_qdd":
+        assert backend.contact_observables.body_qdd is existing.body_qdd
     assert backend.graphs == {}
     backend.graphs = {"simulate": object()}
     backend.add_contact_sensor(body_names_expr="hand")
     assert backend.graphs == {}
-    assert len(allocated) == int(not substep_consumer)
+    assert len(allocated) == int(substep_consumer != "contact_f")
 
 
 @pytest.mark.parametrize("solver_cfg", [FeatherstoneSolverCfg(), MPMSolverCfg()], ids=["featherstone", "mpm"])
@@ -965,6 +977,8 @@ def test_captured_step_holds_staged_forces_and_recaptures_after_decimation_chang
         )
         sim.step(render=False)
         assert substeps.numpy()[0] == num_substeps * decimation
+        sim.step(render=False)
+        assert substeps.numpy()[0] == 2 * num_substeps * decimation
 
 
 def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(monkeypatch):
