@@ -236,11 +236,19 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             assignment = f"{field}[{_index(op.shape)}] = {value}"
             code.world(*_under([*conditions, *loops], assignment), writes=[*op.writes, *_computed_state(op)])
         case Phase.TERMINATIONS:
-            writes = ["truncated" if op.time_out else "terminated", "done"]
-            flags = [f"{_result(code, key)}[world] = True" for key in writes]
-            if not op.time_out:
-                flags.append(f"{_array(code, terminated, wp.array(dtype=wp.bool))}[world] = True")
-                writes.append(terminated)
+            # A world that terminates is not truncated, so that learners do not bootstrap its value.
+            done, truncated = _result(code, "done"), _result(code, "truncated")
+            writes = ["truncated", "done"]
+            if op.time_out:
+                flags = [f"{truncated}[world] = not {_result(code, 'terminated')}[world]"]
+            else:
+                flags = [
+                    f"{_result(code, 'terminated')}[world] = True",
+                    f"{truncated}[world] = False",
+                    f"{_array(code, terminated, wp.array(dtype=wp.bool))}[world] = True",
+                ]
+                writes += ["terminated", terminated]
+            flags.append(f"{done}[world] = True")
             lines = [f"ended = {_value(code, mdp, op)}", *_under(["if ended:"], *flags)]
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
@@ -289,8 +297,24 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
     if observation.scale is not None:
         value = f"{value} * {code.constant(float, observation.scale)}"
 
+    # With final observations, evaluate also copies what it wrote in the worlds that ended, which reset overwrites.
+    final = []
+    if stepping and mdp.final_observations:
+        columns = [f"{start} + element"]
+        if observation.history_length:
+            size = math.prod(op.shape)
+            columns = [f"{start} + {h * size} + element" for h in range(observation.history_length)]
+        copies = code.argument(
+            ("final_observations", group),
+            wp.array2d(dtype=wp.float32),
+            lambda call: call.transition.final_observations[group].warp,
+        )
+        final = _under(
+            [f"if {_result(code, 'done')}[world]:"], *(f"{copies}[world, {c}] = {out}[world, {c}]" for c in columns)
+        )
+
     if not observation.history_length:
-        code.elements(op.shape, *_under(conditions, f"{out}[world, {start} + element] = {value}"))
+        code.elements(op.shape, *_under(conditions, f"{out}[world, {start} + element] = {value}", *final))
         return
 
     # Each thread keeps the history of its element: stepping shifts it and appends the value, observing fills it for
@@ -315,7 +339,7 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
         f"for h in range({observation.history_length}):",
         f"    {out}[world, {start} + h * {size} + element] = {history}[world, h, element]",
     ]
-    code.elements(op.shape, *_under(conditions, *update, *write))
+    code.elements(op.shape, *_under(conditions, *update, *write, *final))
 
 
 def _run(

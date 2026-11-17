@@ -25,7 +25,9 @@
   over the worlds, so every step after the first replays as CUDA graphs, physics included, on both backends: one
   graph without eager terms, and the eager terms between graphs otherwise. Reset events write scene fields in place,
   including fixed-base root poses and gravity, and ``Event(commit=True)`` makes the simulation see earlier writes.
-  ``extras["log"]`` holds per-term episode statistics and logged quantities. Articulations must have actuators
+  ``extras["log"]`` holds per-term episode statistics and logged quantities, and with ``compute_final_obs``,
+  ``extras["final_obs"]`` holds the observations of the worlds that ended before their reset, which the generated
+  kernels write as they observe. A world that terminates is not truncated. Articulations must have actuators
   without state (implicit, ideal PD, and DC motor).
 * Added :mod:`isaaclab_experimental.mdp2.mdp`, built-in terms with the names of their MDP1 counterparts: joint, root,
   and command observations with noise, clipping, scaling, and history; velocity tracking, regularization, contact,

@@ -46,6 +46,7 @@ class MDP2Env:
     """
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
+    final_observations: bool = False  # Whether evaluate writes the observations of the worlds that ended
 
     def __init__(self, cfg: MDP2EnvCfg) -> None:
         self.cfg = cfg
@@ -93,7 +94,12 @@ class MDP2Env:
                 task_builder.add_task(task)
                 num_worlds = schema.num_worlds // len(cfg.task) + (index < schema.num_worlds % len(cfg.task))
                 builder.replicate(task_builder, num_worlds if cfg.task_worlds is None else cfg.task_worlds[index])
-        self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
+        self.mdp = builder.finalize(
+            device=self.device,
+            backend=cfg.backend,
+            diagnostics=self.diagnostics,
+            final_observations=self.final_observations,
+        )
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
         self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
         mdp2.startup(self.mdp, self.state)
@@ -279,9 +285,11 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     """A Gym environment driven by an MDP2 task, like a :class:`~isaaclab.envs.ManagerBasedRLEnv` without managers.
 
     :meth:`step` returns copies of the observations after resets, and the rewards and the terminated and truncated
-    flags of the step as Torch views of buffers that the next step overwrites. ``extras["log"]`` holds, per term, the
-    average over worlds of their last finished episode: the reward sum per second, whether the term ended it, and
-    the value that each logged quantity had at its end.
+    flags of the step as Torch views of buffers that the next step overwrites. A world is truncated only if it did not
+    terminate. ``extras["log"]`` holds, per term, the average over worlds of their last finished episode: the reward
+    sum per second, whether the term ended it, and the value that each logged quantity had at its end. With
+    :attr:`~MDP2RLEnvCfg.compute_final_obs`, ``extras["final_obs"]`` holds the observations that the worlds that
+    ended had before their reset, also as views; only the rows of the worlds that ended are of this step.
     """
 
     is_vector_env: ClassVar[bool] = True
@@ -291,7 +299,12 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     cfg: MDP2RLEnvCfg
 
     def __init__(self, cfg: MDP2RLEnvCfg, render_mode: str | None = None, **kwargs: Any) -> None:
+        self.final_observations = cfg.compute_final_obs
         super().__init__(cfg)
+        if cfg.compute_final_obs:
+            self.extras["final_obs"] = {
+                group: values.torch for group, values in self.transition.final_observations.items()
+            }
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
 

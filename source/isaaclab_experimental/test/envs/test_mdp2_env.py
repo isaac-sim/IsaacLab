@@ -188,9 +188,10 @@ def shift_root_torch(mask, root_link_pose_w, default_root_pose, env_origins, *, 
 
 
 def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
-    """Steps follow the Gym interface, render when rendering is on, and the solver sees the reset joint state and the
-    moved fixed base."""
+    """Steps follow the Gym interface, render when rendering is on, return the observations before resets, and the
+    solver sees the reset joint state and the moved fixed base."""
     cfg = cartpole_cfg()
+    cfg.compute_final_obs = True
     cfg.task.events["shift_root"] = mdp2.Event(
         mdp2.Term(torch=shift_root_torch),
         inputs={"default_root_pose": robot.default_root_pose, "env_origins": mdp2.Entity("scene").env_origins},
@@ -206,7 +207,7 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
 
         observations, extras = env.reset()
 
-        assert observations["policy"].shape == (NUM_ENVS, 4) and extras == {}
+        assert observations["policy"].shape == (NUM_ENVS, 4) and "log" not in extras
         assert (robot_data.joint_pos.torch[:, 0].abs() <= 1.0).all() and robot_data.joint_pos.torch.std(0).min() > 0
         with pytest.raises(ValueError, match=r"Expected actions of shape \(16, 1\), got \(1, 1\)"):
             env.step(torch.ones(1, 1, device=env.device))
@@ -216,8 +217,12 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
         monkeypatch.setattr(env.sim, "render", lambda: renders.append(env.common_step_counter))
         ended = torch.zeros(NUM_ENVS, dtype=torch.bool, device=env.device)
         for _ in range(env.max_episode_length):
-            observations, rewards, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            observations, rewards, terminated, truncated, extras = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
             assert rewards.dtype == torch.float32 and terminated.dtype == truncated.dtype == torch.bool
+            assert not (terminated & truncated).any()
+            # A cart that left its bounds is observed there before the reset, and back within them after it.
+            assert (extras["final_obs"]["policy"][terminated, 0].abs() > 1.5).all()
+            assert (observations["policy"][terminated, 0].abs() <= 1.0).all()
             assert (env.scene["robot"].actuators.target_command.effort.torch[:, 0] == 100.0).all()
             ended |= terminated | truncated
 

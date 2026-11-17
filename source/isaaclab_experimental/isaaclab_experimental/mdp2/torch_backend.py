@@ -153,11 +153,14 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         value = torch.where(mask, value, torch.zeros_like(value))
 
     if op.phase is Phase.TERMINATIONS:
-        flags = transition.truncated if op.time_out else transition.terminated
-        flags.torch.logical_or_(value)
-        transition.done.torch.logical_or_(value)
-        if not op.time_out:
+        # A world that terminates is not truncated, so that learners do not bootstrap its value.
+        if op.time_out:
+            transition.truncated.torch.logical_or_(value & ~transition.terminated.torch)
+        else:
+            transition.terminated.torch.logical_or_(value)
+            transition.truncated.torch.logical_and_(~value)
             state.arrays[terminated].torch.logical_or_(value)
+        transition.done.torch.logical_or_(value)
         if mdp.diagnostics:
             transition.termination_terms.torch[:, op.index] = value
         return
@@ -187,6 +190,10 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
 
     value = value.reshape(destination.shape)
     destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))
+    if stepping and transition.final_observations is not None:
+        ended = transition.done.torch if mask is None else transition.done.torch & mask
+        final = transition.final_observations[observation.group].torch[:, observation.columns]
+        final.copy_(torch.where(ended[:, None], value, final))
 
 
 def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tensor | None, push: bool) -> torch.Tensor:

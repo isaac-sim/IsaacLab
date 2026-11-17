@@ -256,13 +256,21 @@ class MDPBuilder:
         """Run all checks of :meth:`finalize` without generating kernels."""
         self._compile("cpu", Backend(backend))
 
-    def finalize(self, device: str = "cpu", backend: Backend | str = Backend.TORCH, diagnostics: bool = False) -> MDP:
+    def finalize(
+        self,
+        device: str = "cpu",
+        backend: Backend | str = Backend.TORCH,
+        diagnostics: bool = False,
+        final_observations: bool = False,
+    ) -> MDP:
         """Validate the schedule and compile it into an immutable MDP.
 
         Raises a single ``ValueError`` that lists every error found. Editing the builder afterwards does not change the
         returned MDP. With ``diagnostics``, :func:`evaluate` also writes the reward and termination flag of each term.
+        With ``final_observations``, it also writes the observations of the worlds that ended, before their reset, to
+        :attr:`Transition.final_observations`, in the kernels that compute them.
         """
-        mdp = self._compile(device, Backend(backend), diagnostics)
+        mdp = self._compile(device, Backend(backend), diagnostics, final_observations)
         backend_module = warp_backend if mdp.backend is Backend.WARP else torch_backend
         return replace(mdp, launches=backend_module.compile_launches(mdp))
 
@@ -290,7 +298,9 @@ class MDPBuilder:
             raise ValueError("Invalid schedule:\n  " + "\n  ".join(errors))
         self._entries = {entry.path: entry for entry in order}
 
-    def _compile(self, device: str, backend: Backend, diagnostics: bool = False) -> MDP:
+    def _compile(
+        self, device: str, backend: Backend, diagnostics: bool = False, final_observations: bool = False
+    ) -> MDP:
         """Compile the schedule of each world config, then merge their ops, sharing the ones they have in common."""
         configs = self._world_configs or [(self.schedule(), range(self.schema.num_worlds))]
         world_ranges = [worlds for _, worlds in configs]
@@ -378,6 +388,7 @@ class MDPBuilder:
             streams=tuple(streams),
             subsets=MappingProxyType(subsets),
             diagnostics=diagnostics,
+            final_observations=final_observations,
             world_configs=tuple(
                 WorldConfig(worlds, context.action_dim, MappingProxyType(context.observation_dims))
                 for context, worlds in zip(contexts, world_ranges)

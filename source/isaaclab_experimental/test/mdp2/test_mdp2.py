@@ -605,23 +605,28 @@ def test_step_matches_point_mass_dynamics():
 
 
 def test_step_ends_and_bootstraps_worlds():
-    """In one step, world 0 continues, world 1 times out, and world 2 leaves the bounds."""
-    scene = PointMassScene(num_worlds=3, device=DEVICE)
-    mdp, state = make_task(scene, episode_length_s=0.2)
-    transition = mdp.transition()
-    state.episode_length.torch[1] = mdp.max_episode_length - 1
+    """In one step, world 0 continues, world 1 times out, and world 2 times out but also leaves the bounds."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=3, device=DEVICE)
+        builder = make_builder(scene.schema, episode_length_s=0.2)
+        mdp = builder.finalize(device=DEVICE, backend=backend, final_observations=True)
+        state, transition = mdp.state(scene), mdp.transition()
+        state.episode_length.torch[1:] = mdp.max_episode_length - 1
 
-    bootstrap = env_step(mdp, state, scene, torch.tensor([[0.1], [0.1], [100.0]], device=DEVICE), transition)
+        bootstrap = env_step(mdp, state, scene, torch.tensor([[0.1], [0.1], [100.0]], device=DEVICE), transition)
 
-    assert transition.terminated.torch.tolist() == [False, False, True]
-    assert transition.truncated.torch.tolist() == [False, True, False]
-    assert state.episode_length.torch.tolist() == [1, 0, 0]
+        # A world that terminates is not truncated.
+        assert transition.terminated.torch.tolist() == [False, False, True]
+        assert transition.truncated.torch.tolist() == [False, True, False]
+        assert state.episode_length.torch.tolist() == [1, 0, 0]
 
-    observations, bootstrap = transition.observations["policy"].torch, bootstrap["policy"]
-    assert torch.equal(observations[0], bootstrap[0])  # Continuing worlds keep their successor sample.
-    assert torch.equal(bootstrap[1], bootstrap[0])  # Truncated worlds bootstrap from the pre-reset sample.
-    assert bootstrap[0].abs().sum() > 0.0 and bootstrap[2].isfinite().all()
-    assert observations[1:].abs().sum() == 0.0  # Ended worlds observe their new episode.
+        observations, bootstrap = transition.observations["policy"].torch, bootstrap["policy"]
+        final = transition.final_observations["policy"].torch
+        assert torch.equal(observations[0], bootstrap[0])  # Continuing worlds keep their successor sample.
+        assert torch.equal(bootstrap[1], bootstrap[0])  # Truncated worlds bootstrap from the pre-reset sample.
+        assert bootstrap[0].abs().sum() > 0.0 and bootstrap[2].isfinite().all()
+        assert observations[1:].abs().sum() == 0.0  # Ended worlds observe their new episode.
+        assert torch.equal(final[1:], bootstrap[1:]) and final[0].abs().sum() == 0.0
 
 
 def test_reset_touches_only_selected_worlds():
@@ -701,9 +706,10 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         assert torch.equal(scene.data("robot", "joint_effort_target").torch, actions[:, [1, 2, 0]])
         expected = torch.cat([actions, torch.ones(2, 1, device=DEVICE), joint_pos[:, [0, 2]]], dim=-1)
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
-        # A termination with time_out truncates instead.
+        # A termination with time_out truncates instead, in the worlds that do not terminate.
         assert transition.terminated.torch.tolist() == [False, True]
-        assert transition.truncated.torch.tolist() == transition.done.torch.tolist() == [True, True]
+        assert transition.truncated.torch.tolist() == [True, False]
+        assert transition.done.torch.tolist() == [True, True]
         assert torch.equal(transition.termination_terms.torch[:, 0], transition.terminated.torch)
         torch.testing.assert_close(transition.reward_terms.torch.sum(dim=-1), transition.rewards.torch)
 
@@ -1066,7 +1072,8 @@ def test_observation_history():
         builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
         history = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}, history_length=3)
         builder.add_observation("policy", "joint_pos", history)
-        mdp = builder.finalize(device=DEVICE, backend=backend)
+        builder.add_termination("time_out", mdp2.TimeLimit(episode_length_s=1.0))
+        mdp = builder.finalize(device=DEVICE, backend=backend, final_observations=True)
         state, transition = mdp.state(scene), mdp.transition()
 
         assert mdp.observation_dims["policy"] == 3
@@ -1091,6 +1098,14 @@ def test_observation_history():
         # World 0 was never reset, so its history started at zero.
         expected = torch.stack([torch.tensor([0.0, 0.25], device=DEVICE), *positions], dim=1)
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
+
+        # World 0 times out: its final observation holds the history of the step, before the reset refills it.
+        state.episode_length.torch[0] = mdp.max_episode_length - 1
+        bootstrap = env_step(mdp, state, scene, torch.ones(2, 1, device=DEVICE), transition)
+
+        final = transition.final_observations["policy"].torch[0]
+        assert torch.equal(final, bootstrap["policy"][0]) and torch.equal(final[:2], expected[0, 1:])
+        assert transition.observations["policy"].torch[0].tolist() == [0.0] * 3
 
 
 @wp.func

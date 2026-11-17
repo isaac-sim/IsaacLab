@@ -87,6 +87,9 @@ class Transition:
     observations: dict[str, ProxyArray]  # Successor observations before resets, (num_worlds, group_dim) per group
     reward_terms: ProxyArray | None = None  # (num_worlds, num_rewards) weighted rewards, only with diagnostics
     termination_terms: ProxyArray | None = None  # (num_worlds, num_terminations) flags, only with diagnostics
+    # Observations of the worlds that ended, before their reset, per group; only with final observations. The rows of
+    # the other worlds keep older values.
+    final_observations: dict[str, ProxyArray] | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,7 @@ class MDP:
     streams: tuple[str, ...]  # Use names of the rows of MDPState.rng, with "/noise" for observation noise
     subsets: Mapping[SubsetSelector, tuple[int, ...]]  # Indices of every selected subset
     diagnostics: bool  # Whether evaluate also writes the reward and termination of every term
+    final_observations: bool  # Whether evaluate also writes the observations of the worlds that ended
     world_configs: tuple[WorldConfig, ...]  # One per replicated builder, or one for every world
     launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
@@ -304,7 +308,7 @@ class MDP:
         return {group: self._zeros(self.num_worlds, dim) for group, dim in self.observation_dims.items()}
 
     def transition(self) -> Transition:
-        """Allocate the zeroed buffers of a transition, with per-term buffers only with diagnostics."""
+        """Allocate the zeroed buffers of a transition, with the optional buffers that the MDP writes."""
         reward_terms = termination_terms = None
         if self.diagnostics:
             reward_terms = self._zeros(self.num_worlds, len(self.ops[Phase.REWARDS]))
@@ -318,6 +322,7 @@ class MDP:
             observations=self.observations(),
             reward_terms=reward_terms,
             termination_terms=termination_terms,
+            final_observations=self.observations() if self.final_observations else None,
         )
 
     def _zeros(self, *shape: int, dtype: type = wp.float32) -> ProxyArray:
