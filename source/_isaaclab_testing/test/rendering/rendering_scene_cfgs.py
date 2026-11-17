@@ -908,6 +908,8 @@ class RenderingSceneSpec:
     image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
     # Per-pixel L2 limits replacing the default of the golden comparison, keyed like ``image_tolerance_overrides``.
     pixel_l2_thresholds: dict[tuple[str, RenderBufferKind], float] = field(default_factory=dict)
+    # Fixed meter-to-image scales for depth goldens; other outputs keep their existing display normalization.
+    depth_scales_m: dict[tuple[str, RenderBufferKind], float] = field(default_factory=dict)
     # Runs on the instantiated scene before the simulation resets.
     on_scene_created: Callable[[InteractiveScene], None] | None = None
     # Runs after the reset, once sensor data is populated and before the capture steps.
@@ -952,6 +954,12 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         min_ssim=0.95,
         image_tolerance_overrides=overrides,
         pixel_l2_thresholds=pixel_l2_thresholds,
+        # The street-scene golden covers 0-100 m. Rare farther splat hits saturate without rescaling every pixel.
+        depth_scales_m=(
+            {("isaac_rtx", RenderBufferKind.DISTANCE_TO_IMAGE_PLANE): 100.0}
+            if scene == "gaussian_splats_valiant_1env"
+            else {}
+        ),
         on_scene_created=(
             partial(_freeze_gaussian_splats_xform, prim_rel_path=animated_xform) if animated_xform else None
         ),

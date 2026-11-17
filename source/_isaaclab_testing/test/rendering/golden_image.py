@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -52,12 +53,20 @@ class ImageComparison:
             )
 
 
-def camera_output_image(output: torch.Tensor, data_type: str) -> Image.Image:
-    """Normalize a batched camera AOV and compose its views into a PIL image."""
+def camera_output_image(output: torch.Tensor, data_type: str, *, depth_scale_m: float | None = None) -> Image.Image:
+    """Compose camera views, optionally encoding depth with a fixed scale in meters."""
     tensor = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
     if tensor.numel() == 0 or tensor.abs().max().item() == 0:
         raise AssertionError(f"Camera output '{data_type}' is empty or contains only zeroes.")
-    grid = make_camera_output_grid(normalize_camera_output_for_display(tensor, data_type))
+    if depth_scale_m is None:
+        normalized = normalize_camera_output_for_display(tensor, data_type)
+    else:
+        if data_type not in ("depth", "distance_to_camera", "distance_to_image_plane"):
+            raise ValueError("A depth scale can only be used with a depth output.")
+        if not math.isfinite(depth_scale_m) or depth_scale_m <= 0:
+            raise ValueError("The depth scale must be finite and positive.")
+        normalized = tensor.float().div(depth_scale_m).clamp(0.0, 1.0)
+    grid = make_camera_output_grid(normalized)
     array = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
     return Image.fromarray(array)
 

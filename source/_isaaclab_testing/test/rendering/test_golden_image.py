@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import torch
-from golden_image import compare_to_golden
+from golden_image import camera_output_image, compare_to_golden
 from PIL import Image
 from rendering_runner import validate_motion_vectors, validate_segmentation
 
@@ -19,6 +19,21 @@ from isaaclab.renderers.output_contract import RenderBufferKind
 
 def _image(color: tuple[int, int, int]) -> Image.Image:
     return Image.new("RGB", (24, 24), color)
+
+
+def test_depth_image_preserves_metric_scale_when_far_samples_change() -> None:
+    depth = torch.tensor([0.0, 25.0, 50.0, 100.0, float("inf")]).reshape(1, 1, 5, 1)
+    farther = depth.clone()
+    farther[0, 0, 3, 0] = 200.0
+    image = camera_output_image(depth, "distance_to_image_plane", depth_scale_m=100.0)
+    changed = camera_output_image(farther, "distance_to_image_plane", depth_scale_m=100.0)
+
+    expected = [(0, 0, 0), (64, 64, 64), (128, 128, 128), (255, 255, 255), (0, 0, 0)]
+    assert [image.getpixel((x, 0)) for x in range(5)] == expected
+    assert [changed.getpixel((x, 0)) for x in range(5)] == expected
+    # A real depth change must remain visible rather than being normalized away.
+    shifted = camera_output_image(depth * 2, "distance_to_image_plane", depth_scale_m=100.0)
+    assert shifted.getpixel((1, 0)) == (128, 128, 128)
 
 
 def _compare(image: Image.Image, golden: Path, artifacts: Path):
