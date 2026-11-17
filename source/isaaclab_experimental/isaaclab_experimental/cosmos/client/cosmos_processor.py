@@ -14,7 +14,7 @@ from isaaclab_experimental.image_transfer import ImageTransferProcessor
 from .._protocol import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
-    from isaaclab.utils.tensor_processors import TensorProcessorArgs
+    from isaaclab.sensors import SensorTensorProcessorArgs
     from isaaclab.utils.warp import ProxyArray
 
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg
@@ -46,7 +46,9 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         if bind is not None:
             bind(cfg.camera)
 
-    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
+    def __call__(
+        self, data: dict[str, ProxyArray], args: SensorTensorProcessorArgs | None = None
+    ) -> dict[str, ProxyArray]:
         """Consume controls only when the caller identifies which views have a fresh capture.
 
         Args:

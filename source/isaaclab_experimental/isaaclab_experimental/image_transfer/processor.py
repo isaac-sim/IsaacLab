@@ -20,6 +20,8 @@ from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorArg
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
+    from isaaclab.sensors import SensorTensorProcessorArgs
+
     from .backend import ImageTransferModel
     from .processor_cfg import FunctionProcessorCfg, ImageTransferProcessorCfg
 
@@ -80,7 +82,9 @@ class ImageTransferProcessor(TensorProcessor):
         self._outputs = {cfg.outputs[0]: ProxyArray(output)}
         self._output = self._outputs[cfg.outputs[0]].torch
 
-    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
+    def __call__(
+        self, data: dict[str, ProxyArray], args: SensorTensorProcessorArgs | None = None
+    ) -> dict[str, ProxyArray]:
         """Queue one control per captured view and generate a chunk when every view has one.
 
         Args:

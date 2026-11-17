@@ -17,9 +17,9 @@ from isaaclab_experimental.image_transfer import (
 )
 from isaaclab_experimental.image_transfer import processor as processor_module
 
+from isaaclab.sensors import SensorTensorProcessorArgs
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.tensor_processors import TensorProcessorArgs
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -85,7 +85,7 @@ def _processor(**kwargs):
 
 
 def _rgb(processor, value, mask=None):
-    args = None if mask is None else TensorProcessorArgs(env_mask=wp.array(mask, dtype=wp.bool, device="cpu"))
+    args = None if mask is None else SensorTensorProcessorArgs(env_mask=wp.array(mask, dtype=wp.bool, device="cpu"))
     return processor(_buffers(_controls(value)), args=args)["rgb"].torch
 
 
