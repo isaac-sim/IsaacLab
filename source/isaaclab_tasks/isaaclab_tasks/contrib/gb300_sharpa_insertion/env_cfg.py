@@ -204,7 +204,6 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                         include_static_shapes=True,
                         solver_cfg=VBDSolverCfg(
                             iterations=4,
-                            rigid_compliant_alm=True,
                             rigid_joint_angular_ke=10.0,
                             rigid_body_contact_buffer_size=1024,
                         ),

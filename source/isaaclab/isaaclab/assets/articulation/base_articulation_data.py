@@ -971,6 +971,10 @@ class BaseArticulationData(ABC):
         ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
         relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+
+        The joint armature (:attr:`joint_armature`) is included on the diagonal of the
+        joint DoFs, so ``M(q)`` is the joint-space inertia the solver integrates. The
+        floating-base DoFs carry no armature.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 

@@ -5,6 +5,7 @@
 
 """XPBD solver implementation."""
 
+import warp as wp
 from newton.solvers import SolverXPBD
 
 from .newton_solver import NewtonSolver
@@ -14,4 +15,4 @@ class XPBDSolver(NewtonSolver):
     """Newton's XPBD solver, which double-buffers state."""
 
     solver_class = SolverXPBD
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
