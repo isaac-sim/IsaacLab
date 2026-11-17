@@ -33,6 +33,8 @@ class BaseConveyor(ABC):
 
     def __init__(self, cfg: ConveyorCfg, num_envs: int, *, sim: SimulationContext) -> None:
         cfg.validate()
+        if not cfg.surface_specs:
+            raise ValueError("Provide at least one conveyor surface when constructing the controller.")
         if num_envs < 1:
             raise ValueError("Conveyor environment count must be positive.")
         self.cfg = cfg.copy()

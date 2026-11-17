@@ -116,8 +116,6 @@ class ConveyorCfg:
             raise ValueError("Conveyor body_count_per_env must be a positive integer.")
         if not math.isfinite(self.startup_duration_s) or self.startup_duration_s <= 0.0:
             raise ValueError("Conveyor startup_duration_s must be finite and positive.")
-        if not self.surface_specs:
-            raise ValueError("At least one ConveyorSurfaceCfg is required.")
         paths = sorted(surface.prim_path for surface in self.surface_specs)
         if any(right == left or right.startswith(f"{left}/") for left, right in zip(paths, paths[1:])):
             raise ValueError("Conveyor prim paths must be unique and must not be ancestors of one another.")
