@@ -1362,7 +1362,6 @@ jobs:
           if (!summaryJob) throw new Error('The Performance regression Summary job could not be located.');
           const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
             + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
-          // Link the PR check to the rendered Summary.
           core.notice(summaryUrl, {title: 'Open rendered Performance regression Summary'});
           const reportPath = 'build-comparison/build-comparison.md';
           const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';

@@ -11,7 +11,6 @@ on:
     paths:
       # The repo-root conftest.py writes the crash journal these tests read back.
       - "conftest.py"
-      # Tool subpackages have separate test workflows.
       - "tools/*.py"
       - "tools/performance_regression/**"
       - "tools/performance_regression_thresholds.json"
@@ -43,7 +42,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # Use this workflow's dependency list as the cache key.
           cache-dependency-path: .github/workflows/tools-tests.yml
 
       # These tests run without Isaac Sim; flaky and pytest-xdist enable retry and parallel crash tests.

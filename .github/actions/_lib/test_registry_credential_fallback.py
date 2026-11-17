@@ -338,11 +338,14 @@ def test_dependency_cache(tmp_path: Path, subtests) -> None:
                     for line in path.read_text().splitlines():
                         key, value = line.split("=", 1)
                         destination[prefix + key] = value
-            # Evaluate both guard forms so reverting to the job-wide guard exposes the wrong image push.
             push = steps["Push deps tag"]
-            lhs, operator, rhs = push["if"].split()
-            value = env.get(lhs[4:], "") if lhs.startswith("env.") else values.get(lhs, "")
-            enabled = {"==": value == rhs.strip("'"), "!=": value != rhs.strip("'")}[operator]
+            context = {**values, **{f"env.{key}": value for key, value in env.items()}}
+            condition = re.sub(
+                r"\b(?:env|steps)\.[\w.-]+",
+                lambda match: json.dumps(context.get(match[0], "")),
+                push["if"].strip().removeprefix("${{").removesuffix("}}"),
+            )
+            enabled = subprocess.check_output(["node", "-p", f"Boolean({condition})"], text=True).strip() == "true"
             if enabled:
                 env.update({key: expand(value) for key, value in push.get("env", {}).items()})
                 run(push["run"])

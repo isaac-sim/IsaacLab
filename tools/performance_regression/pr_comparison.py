@@ -507,7 +507,7 @@ def restore_baseline(args: argparse.Namespace, event: dict, measurement_manifest
     run_attempt = int(os.environ["GITHUB_RUN_ATTEMPT"])
     pr = event["pull_request"]
     pr_number, base_commit = pr["number"], _resolved_base()
-    prepare_manifest(args.checkout_root, measurement_manifest, expected_commit=base_commit)
+    prepare_manifest(args.checkout_root, expected_commit=base_commit, measurement_manifest=measurement_manifest)
     selection = _initial_selection(event, base_commit)
     selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
     # Save the fresh-run request in case the lookup is interrupted.
@@ -592,7 +592,9 @@ def capture_context(args: argparse.Namespace, event: dict, measurement_manifest:
     else:
         reference_commit = _resolved_base() if pr else None
     expected_commit = reference_commit if pr and args.role == "baseline" else os.environ.get("GITHUB_SHA")
-    manifest = prepare_manifest(args.checkout_root, measurement_manifest, expected_commit=expected_commit)
+    manifest = prepare_manifest(
+        args.checkout_root, expected_commit=expected_commit, measurement_manifest=measurement_manifest
+    )
     _write(args.output_dir / "source-manifest.json", manifest)
     if not pr:
         return {}
@@ -1223,7 +1225,7 @@ def main(argv: list[str] | None = None) -> int:
         if name in ("restore", "capture"):
             command.add_argument("--legs", type=Path, required=True)
             command.add_argument(
-                "--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST")
+                "--measurement_manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST")
             )
         if name == "capture":
             command.add_argument("--image", required=True)
@@ -1409,7 +1411,8 @@ if "pytest" in sys.modules:
     def command_args(command, **options):
         arguments = [command]
         for name, value in options.items():
-            name = name if command == "report" and name != "gate_only" else name.replace("_", "-")
+            if name == "gate_only" or (command != "report" and name != "measurement_manifest"):
+                name = name.replace("_", "-")
             if value is not None and value is not False:
                 arguments += ["--" + name] + ([] if value is True else [str(value)])
         return arguments

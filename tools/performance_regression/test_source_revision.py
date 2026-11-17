@@ -18,6 +18,11 @@ import textwrap
 import unittest
 from pathlib import Path
 
+if __package__:
+    from .source_revision import prepare_manifest
+else:
+    from source_revision import prepare_manifest
+
 LAUNCHER = Path(__file__).with_name("source_revision.py")
 TASK = Path("source/isaaclab_tasks/isaaclab_tasks/fixture_task.py")
 IMPORT_MAP = TASK.with_name("__init__.pyi")
@@ -125,7 +130,7 @@ class SourceRevisionTests(unittest.TestCase):
 
     def _prepare(self, name="manifest", *args, measurement=None, success=True):
         path = self.directory / f"{name}.json"
-        measurement_args = ["--measurement-manifest", measurement] if measurement else []
+        measurement_args = ["--measurement_manifest", measurement] if measurement else []
         process = self._invoke("prepare", "--output", path, *measurement_args, *args)
         self.assertEqual(process.returncode == 0, success, process.stdout + process.stderr)
         if success:
@@ -178,6 +183,9 @@ class SourceRevisionTests(unittest.TestCase):
 
     def test_source_verification_workflow(self):
         manifest_a, _ = self._prepare("manifest-a", "--commit", self.commit_a)
+        self.assertEqual(prepare_manifest(self.checkout, self.commit_a), json.loads(manifest_a.read_text()))
+        with self.assertRaisesRegex(ValueError, "differs from expected commit"):
+            prepare_manifest(self.checkout, "0" * 40)
         with self.subTest(case="cached package origin is rejected"):
             output, sidecar = self._run(manifest_a, "stale", success=False, roots=[self.cached, self.checkout])
             self.assertTrue(any(item["module"] == "isaaclab_tasks.fixture_task" for item in sidecar["mismatches"]))
@@ -189,6 +197,12 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(self._git("diff", "--name-only", "HEAD", "--", TASK.as_posix()), TASK.as_posix())
             measurement = self._snapshot()
             manifest, _ = self._prepare("measurement-source", measurement=measurement)
+            self.assertEqual(
+                prepare_manifest(
+                    self.checkout, self.commit_a, measurement_manifest=json.loads(measurement.read_text())
+                ),
+                json.loads(manifest.read_text()),
+            )
             self._git("config", "core.filemode", "true")
             (self.checkout / TASK).chmod(0o755)
             self.assertIn("mode change", self._git("diff", "--summary", "HEAD", "--", TASK.as_posix()))

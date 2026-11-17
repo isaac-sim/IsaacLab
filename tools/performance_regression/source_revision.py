@@ -21,27 +21,6 @@ RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
 MEASUREMENT_PATHS = ("source/isaaclab/isaaclab/benchmark", "source/isaaclab/isaaclab/utils/timer.py")
 
 
-def _digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
-    result = subprocess.run(["git", "-C", str(root), *args], input=data, capture_output=True, check=False)
-    if result.returncode:
-        raise ValueError(f"Git source inspection failed: {result.stderr.decode(errors='replace').strip()}")
-    return result.stdout
-
-
-def _tracked_files(root: Path, commit: str, paths: tuple[str, ...]) -> dict[str, str]:
-    files = {}
-    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", *paths).split(b"\0")[:-1]:
-        metadata, path_bytes = entry.split(b"\t", 1)
-        _, kind, oid = metadata.decode().split()
-        if kind == "blob":
-            files[path_bytes.decode()] = oid
-    return files
-
-
 def measurement_digest(files: dict[str, str]) -> str:
     """Identify measurement contents independently of the commit containing them."""
     return _digest(json.dumps(files, sort_keys=True, separators=(",", ":")).encode())
@@ -64,6 +43,27 @@ def snapshot_measurement(root: Path, output_dir: Path) -> dict:
     manifest = {"schema_version": 1, "commit": commit, "files": files, "digest": measurement_digest(files)}
     (output_dir / "measurement-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
+
+
+def _digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
+    result = subprocess.run(["git", "-C", str(root), *args], input=data, capture_output=True, check=False)
+    if result.returncode:
+        raise ValueError(f"Git source inspection failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def _tracked_files(root: Path, commit: str, paths: tuple[str, ...]) -> dict[str, str]:
+    files = {}
+    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", *paths).split(b"\0")[:-1]:
+        metadata, path_bytes = entry.split(b"\t", 1)
+        _, kind, oid = metadata.decode().split()
+        if kind == "blob":
+            files[path_bytes.decode()] = oid
+    return files
 
 
 def check_checkout(root: Path, expected_commit: str | None = None) -> str:
@@ -94,7 +94,7 @@ def check_checkout(root: Path, expected_commit: str | None = None) -> str:
 
 
 def prepare_manifest(
-    root: Path, measurement_manifest: dict | None = None, *, expected_commit: str | None = None
+    root: Path, expected_commit: str | None = None, *, measurement_manifest: dict | None = None
 ) -> dict:
     """Record the selected commit and repository-relative Python paths.
     `files` lists paths. `namespaces` maps installed package names to their source directories.
@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     prepare.add_argument("--checkout-root", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
     prepare.add_argument("--commit")
-    prepare.add_argument("--measurement-manifest", type=Path)
+    prepare.add_argument("--measurement_manifest", type=Path)
     check = commands.add_parser("check")
     check.add_argument("--manifest", type=Path, required=True)
     check.add_argument("--checkout-root", type=Path, required=True)
@@ -261,7 +261,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "prepare":
             measurement = json.loads(args.measurement_manifest.read_text()) if args.measurement_manifest else None
-            manifest = prepare_manifest(args.checkout_root, measurement, expected_commit=args.commit)
+            manifest = prepare_manifest(
+                args.checkout_root, expected_commit=args.commit, measurement_manifest=measurement
+            )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
             print(f"Prepared source revision {manifest['commit']} ({len(manifest['files'])} Python files)")
