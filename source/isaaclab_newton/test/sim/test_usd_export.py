@@ -331,7 +331,9 @@ def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path
         scene = InteractiveScene(cfg)
         sim.reset()
         model = sim.backend_manager.backend.model
-        model.shape_material_mu.assign(np.full(model.shape_count, 0.7, dtype=np.float32))
+        # one friction coefficient: Newton keeps the static one apart from the dynamic one after finalize
+        for friction in (model.shape_material_mu, model.shape_material_mu_static):
+            friction.assign(np.full(model.shape_count, 0.7, dtype=np.float32))
         stiffness, masses, starts = model.joint_target_ke.numpy(), model.body_mass.numpy(), model.joint_qd_start.numpy()
         types = model.joint_type.numpy()
         cable_joint = next(j for j in range(model.joint_count) if types[j] != int(newton.JointType.FREE))
