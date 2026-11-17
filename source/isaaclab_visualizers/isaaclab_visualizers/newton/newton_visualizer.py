@@ -753,6 +753,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
         self._overlay_publisher = None
+        self._pose_started = False
         self._followers: dict[object, CameraFollower] = {}
         """Followers of the tracking cameras, by image view."""
         self._rtx_pose_view = None
@@ -1432,7 +1433,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             index: Image view to display.
             keep_pose: Continue from the viewer's current camera instead of the source's configured pose.
         """
-        self._remember_perspective_pose()
+        if getattr(self, "_pose_started", True):  # the viewer camera holds no pose of its own before the first source
+            self._remember_perspective_pose()
         self.current_image_view = self._image_views[index]
         if index != getattr(self, "rtx_view_index", None):
             self._rtx_pose_view = None
@@ -1460,6 +1462,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._viewer.picking.release()
 
         self._navigation_view = self._viewer.camera.get_view_matrix().reshape(4, 4).T.copy()
+        self._pose_started = True
 
     def _place_scene_camera_at_viewer(self, camera: Camera) -> None:
         """Move a scene camera to the viewer camera's current world pose."""
