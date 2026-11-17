@@ -53,7 +53,7 @@ Assets
 ------
 
 Surface grippers use :class:`SurfaceGripperCfg` and the active physics backend.
-See :doc:`/source/how-to/conveyors_and_surface_grippers` for configuration and commands.
+See :doc:`/source/how-to/surface_grippers` for configuration and commands.
 
 .. autoclass:: Asset
     :members:

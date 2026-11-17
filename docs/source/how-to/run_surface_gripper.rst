@@ -12,7 +12,7 @@ This tutorial shows how to interact with an articulated robot with a surface gri
 the simulation. It is a continuation of the :ref:`tutorial-interact-articulation` tutorial, where we learned how to
 interact with an articulated robot. This tutorial uses the PhysX surface-gripper implementation,
 which requires CPU simulation. Run it with ``--device cpu``. For the common Isaac Lab API and
-Newton suction support, see :doc:`conveyors_and_surface_grippers`.
+Newton suction support, see :doc:`surface_grippers`.
 
 
 The Code
