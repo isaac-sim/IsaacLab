@@ -309,8 +309,8 @@ def test_kamino_dvi_cfg_forwards_its_fields():
 
     newton_cfg = solver_cfg.to_solver_config()
 
-    assert newton_cfg.dynamics_solver == "dvi"
-    _assert_forwarded(newton_cfg.dvi, _KAMINO_DVI_FIELD_VALUES)
+    assert newton_cfg.dynamics_solver == "scc"
+    _assert_forwarded(newton_cfg.scc, _KAMINO_DVI_FIELD_VALUES)
     _assert_forwarded(newton_cfg.dynamics, _KAMINO_DYNAMICS_FIELD_VALUES[:1])
 
 
