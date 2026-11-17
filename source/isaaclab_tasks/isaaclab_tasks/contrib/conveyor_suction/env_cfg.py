@@ -10,14 +10,12 @@ from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import mdp as common_mdp
+from isaaclab.envs.reset import ResetStateSamplerCfg, TargetSuccessScoreCfg, UniformScoreCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_tasks.utils import ResetStateSamplerCfg
-from isaaclab_tasks.utils.sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
 
 from ..conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg, ConveyorFrankaEnvCfg
 from ..conveyor_franka.mdp.rewards import transfer_success_reward
@@ -81,15 +79,9 @@ class EventsCfg:
         mode="reset",
         params={
             "sampling": ResetStateSamplerCfg(
-                sampling=SamplerCfg(
-                    strategies=[
-                        BetaSamplingStrategyCfg(target=0.5, kappa=2.0),
-                        UniformSamplingStrategyCfg(weight=0.0009),
-                    ],
-                    eps=1.0e-4,
-                ),
+                scores=[TargetSuccessScoreCfg(weight=0.25), UniformScoreCfg(weight=0.0009)],
             ),
-            "full_starts": False,
+            "state_id": None,
             "samples_per_path": 64,
         },
     )
@@ -199,7 +191,7 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
     def play_mode(self) -> None:
         self.scene.num_envs = min(self.scene.num_envs, 4)
         self.scene.outfeeds.spawn.assets_cfg = self.scene.outfeeds.spawn.assets_cfg[:1]
-        self.events.reset_parcels.params["full_starts"] = True
+        self.events.reset_parcels.params["state_id"] = 4 * self.events.reset_parcels.params["samples_per_path"]
         self.observations.policy.enable_corruption = False
 
     def validate_config(self) -> None:

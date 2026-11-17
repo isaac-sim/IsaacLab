@@ -29,6 +29,8 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import clone, validate
+from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import make_masked_copy, resolve_1d_indices, resolve_1d_mask, resolve_ids
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -58,7 +60,6 @@ def _box_seal_fits(seal: wp.transform, box: wp.transform, half_extents: wp.vec3,
 
 @wp.kernel
 def _reset_pads(
-    world_ids: wp.array[wp.int64],
     mask: wp.array[wp.bool],
     enabled: wp.array[wp.bool],
     targets: wp.array[wp.int32],
@@ -71,8 +72,8 @@ def _reset_pads(
     load: wp.array[wp.vec4],
     unclamped_load: wp.array[wp.vec4],
 ):
-    world = int(world_ids[wp.tid()])
-    if mask and not mask[world]:
+    world = wp.tid()
+    if not mask[world]:
         return
     enabled[world] = False
     targets[world] = -1
@@ -89,8 +90,30 @@ def _reset_pads(
 
 
 @wp.kernel
+def _stage_vacuum(
+    enabled: wp.array[wp.bool],
+    world_ids: wp.array[wp.int32],
+    vacuum: wp.array[wp.bool],
+    command: wp.array[wp.float32],
+):
+    i = wp.tid()
+    world = world_ids[i]
+    vacuum[world] = enabled[i]
+    command[world] = wp.where(enabled[i], 1.0, -1.0)
+
+
+@wp.kernel
+def _apply_commands(command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
+    world = wp.tid()
+    if command[world] > 0.3:
+        enabled[world] = True
+    elif command[world] < -0.3:
+        enabled[world] = False
+
+
+@wp.kernel
 def _update_engagement(
-    world_ids: wp.array[wp.int64],
+    mask: wp.array[wp.bool],
     enabled: wp.array[wp.bool],
     target_ids: wp.array[wp.int32],
     target_body: wp.array2d[wp.int32],
@@ -111,7 +134,9 @@ def _update_engagement(
     engaged: wp.array[wp.bool],
     gripper_state: wp.array[wp.float32],
 ):
-    world = int(world_ids[wp.tid()])
+    world = wp.tid()
+    if mask and not mask[world]:
+        return
     first = world * 4
     body = previous[first][0]
     shape = previous[first][1]
@@ -213,70 +238,84 @@ class SurfaceGripper(BaseSurfaceGripper):
 
     @property
     def state(self) -> wp.array:
-        return wp.from_torch(self._state)
+        return self._state.warp
 
     @property
     def command(self) -> wp.array:
-        return wp.from_torch(self._command)
+        return self._command.warp
+
+    @property
+    def engaged(self) -> torch.Tensor:
+        """Whether all pads currently hold a sealed parcel, shape ``(num_envs,)``."""
+        return self._engaged.torch
 
     @property
     def target_ids(self) -> torch.Tensor:
         """Acquisition restrictions; -1 permits any eligible payload."""
-        return self._target_ids
+        return self._target_ids.torch
 
-    def _indices(self, env_ids) -> torch.Tensor:
-        if env_ids is None:
-            return self._world_ids
-        if isinstance(env_ids, slice):
-            return self._world_ids[env_ids]
-        if isinstance(env_ids, wp.array):
-            env_ids = wp.to_torch(env_ids)
-        return torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+    def _indices(self, env_ids) -> wp.array:
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._world_ids))
 
-    def set_target_ids(self, target_ids: torch.Tensor, env_ids=None) -> None:
+    def set_target_ids(self, target_ids: torch.Tensor | wp.array, env_ids=None) -> None:
         """Restrict selected tools to payload IDs, or pass -1 to enable automatic acquisition."""
-        self._target_ids[self._indices(env_ids)] = target_ids.to(dtype=torch.int32)
+        ids = self._indices(env_ids)
+        values = wp.from_torch(target_ids.to(dtype=torch.int32)) if isinstance(target_ids, torch.Tensor) else target_ids
+        wp.copy(wp.indexedarray(self._target_ids.warp, [ids]), values)
 
     def set_grippers_command_index(self, states, env_ids=None, full_data: bool = False) -> None:
         """Stage compact commands, or full-size commands when ``full_data`` is true."""
-        values = wp.to_torch(states) if isinstance(states, wp.array) else states
         ids = self._indices(env_ids)
-        self._command[ids] = values[ids] if full_data else values
+        if isinstance(states, ProxyArray):
+            states = states.warp
+        values = wp.from_torch(states.to(dtype=torch.float32)) if isinstance(states, torch.Tensor) else states
+        if full_data:
+            values = wp.indexedarray(values, [ids])
+        wp.copy(wp.indexedarray(self._command.warp, [ids]), values)
 
     def set_grippers_command_mask(self, states, env_mask=None) -> None:
         """Stage full-size commands for the masked worlds without compacting CUDA masks."""
-        values = wp.to_torch(states) if isinstance(states, wp.array) else states
-        if env_mask is None:
-            self._command.copy_(values)
-        else:
-            mask = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            self._command.copy_(torch.where(mask, values, self._command))
+        if isinstance(states, ProxyArray):
+            states = states.warp
+        values = wp.from_torch(states.to(dtype=torch.float32)) if isinstance(states, torch.Tensor) else states
+        mask = resolve_1d_mask(mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
+        wp.launch(
+            make_masked_copy(wp.float32, 1),
+            dim=self._num_envs,
+            inputs=[values, mask, None],
+            outputs=[self._command.warp],
+            device=self._model.device,
+        )
 
     def set_grippers_command(self, states, indices=None) -> None:
         """Stage commands for all or selected worlds."""
         self.set_grippers_command_index(states, indices)
 
-    def set_command(self, enabled: torch.Tensor, target_ids: torch.Tensor, env_ids=None) -> None:
+    def set_command(self, enabled: torch.Tensor | wp.array, target_ids: torch.Tensor | wp.array, env_ids=None) -> None:
         """Apply vacuum and target restrictions together, preserving the task reset interface."""
         ids = self._indices(env_ids)
-        self._enabled[ids] = enabled
-        self._command[ids] = torch.where(enabled, 1.0, -1.0)
+        wp.launch(
+            _stage_vacuum,
+            dim=ids.shape[0],
+            inputs=[wp.from_torch(enabled) if isinstance(enabled, torch.Tensor) else enabled, ids],
+            outputs=[self._enabled.warp, self._command.warp],
+            device=self._model.device,
+        )
         self.set_target_ids(target_ids, ids)
 
     def reset(self, env_ids=None, env_mask=None) -> None:
         """Release selected tools without changing physical poses or unselected worlds."""
-        ids = self._world_ids if env_mask is not None else self._indices(env_ids)
-        mask = wp.from_torch(env_mask) if isinstance(env_mask, torch.Tensor) else env_mask
+        mask = resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
             _reset_pads,
-            dim=ids.numel(),
-            inputs=[wp.from_torch(ids), mask],
+            dim=self._num_envs,
+            inputs=[mask],
             outputs=[
-                wp.from_torch(self._enabled),
-                wp.from_torch(self._target_ids),
-                wp.from_torch(self.engaged),
-                wp.from_torch(self._command),
-                wp.from_torch(self._state),
+                self._enabled.warp,
+                self._target_ids.warp,
+                self._engaged.warp,
+                self._command.warp,
+                self._state.warp,
                 self._previous.pad_engaged_bs,
                 self._current.pad_engaged_bs,
                 self._control.pad_grip_control,
@@ -288,8 +327,12 @@ class SurfaceGripper(BaseSurfaceGripper):
 
     def write_data_to_sim(self) -> None:
         """Apply staged close/open commands; values inside [-0.3, 0.3] retain the current vacuum."""
-        self._enabled.copy_(
-            torch.where(self._command > 0.3, True, torch.where(self._command < -0.3, False, self._enabled))
+        wp.launch(
+            _apply_commands,
+            dim=self._num_envs,
+            inputs=[self._command.warp],
+            outputs=[self._enabled.warp],
+            device=self._model.device,
         )
 
     def update(self, dt: float) -> None:
@@ -303,8 +346,8 @@ class SurfaceGripper(BaseSurfaceGripper):
         Unselected worlds retain their attachment state.
         """
         self._manager.forward()
-        worlds = self._world_ids if env_ids is None else self._world_ids[env_ids]
-        self._update_seals(self._manager.backend.state_0, worlds)
+        mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._selection_mask)
+        self._update_seals(self._manager.backend.state_0, mask)
         wp.copy(self._previous.pad_engaged_bs, self._current.pad_engaged_bs)
 
     def close(self) -> None:
@@ -392,25 +435,25 @@ class SurfaceGripper(BaseSurfaceGripper):
         self._target_body = wp.array(np.asarray(targets, dtype=np.int32), dtype=wp.int32, device=model.device)
         self._target_shape = wp.array(np.asarray(target_shapes, dtype=np.int32), dtype=wp.int32, device=model.device)
         self._shape_mesh_id = wp.zeros(model.shape_count, dtype=wp.uint64, device=model.device)
-        device = str(model.device)
-        self._world_ids = torch.arange(self._num_envs, device=device)
-        self._enabled = torch.zeros(self._num_envs, dtype=torch.bool, device=device)
-        self._target_ids = torch.full((self._num_envs,), -1, dtype=torch.int32, device=device)
-        self._command = torch.zeros(self._num_envs, device=device)
-        self._state = torch.full((self._num_envs,), -1.0, device=device)
-        self.engaged = torch.zeros(self._num_envs, dtype=torch.bool, device=device)
-        """Whether all pads currently hold a sealed parcel, shape ``(num_envs,)``."""
+        self._world_ids = wp.array(np.arange(self._num_envs), dtype=wp.int32, device=model.device)
+        self._all_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=model.device)
+        self._selection_mask = wp.empty_like(self._all_mask)
+        self._enabled = ProxyArray(wp.zeros(self._num_envs, dtype=wp.bool, device=model.device))
+        self._target_ids = ProxyArray(wp.full(self._num_envs, -1, dtype=wp.int32, device=model.device))
+        self._command = ProxyArray(wp.zeros(self._num_envs, dtype=wp.float32, device=model.device))
+        self._state = ProxyArray(wp.full(self._num_envs, -1.0, dtype=wp.float32, device=model.device))
+        self._engaged = ProxyArray(wp.zeros(self._num_envs, dtype=wp.bool, device=model.device))
         self._manager.register_state_force_callback(self._apply)
 
-    def _update_seals(self, state: State, world_ids: torch.Tensor) -> None:
+    def _update_seals(self, state: State, mask: wp.array | None = None) -> None:
         gripper = self._gripper
         wp.launch(
             _update_engagement,
-            dim=world_ids.numel(),
+            dim=self._num_envs,
             inputs=[
-                wp.from_torch(world_ids),
-                wp.from_torch(self._enabled),
-                wp.from_torch(self._target_ids),
+                mask,
+                self._enabled.warp,
+                self._target_ids.warp,
                 self._target_body,
                 self._target_shape,
                 gripper.gripper_body_id,
@@ -428,15 +471,15 @@ class SurfaceGripper(BaseSurfaceGripper):
             outputs=[
                 self._current.pad_engaged_bs,
                 self._control.pad_grip_control,
-                wp.from_torch(self.engaged),
-                wp.from_torch(self._state),
+                self._engaged.warp,
+                self._state.warp,
             ],
             device=self._model.device,
         )
         attach_seal(self._model, state, gripper, self._previous, self._output, self._current, self._shape_mesh_id)
 
     def _apply(self, state: State) -> None:
-        self._update_seals(state, self._world_ids)
+        self._update_seals(state)
         evaluate_gripper_force(
             self._model,
             state,

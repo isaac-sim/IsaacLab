@@ -35,11 +35,12 @@ uv run isaaclab train --rl_library rsl_rl \
 ### Curriculum and evaluation
 
 Racetrack training uses the shared [reset-buffer API](../../../../../docs/source/how-to/reset_state_buffers.rst)
-from [#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). `ResetStateBuffer` constructs and
-stores the calibrated procedural recipes once, rejecting non-finite or out-of-limit joint states.
-Task reset events restore their robot, cube and command state through normal asset APIs.
-`ResetStateSampler` and `SuccessMonitor` favor rows near 50% transfer success while retaining
-uniform coverage. Outcomes credit the previous reset row before a replacement is selected.
+from [#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). `ResetStateBuffer` stores
+task-prepared procedural recipes. The reset event constructs and validates those recipes
+once, then restores robot, cube and command state through public mask writers.
+The core `ResetStateSampler` favors entries near 50% transfer success while retaining
+uniform coverage. Completed outcomes credit the previous assignment before selecting its replacement;
+unfinished manual resets do not count as failures.
 The buffer contains procedural recipes; it does not turn them into physically generated grasps.
 
 Training uses standard PPO with the existing arm-and-gripper action distribution. Checkpoints
@@ -89,3 +90,14 @@ NVIDIA geometry and textures remain references to their original remote assets u
 their original licenses. `assets/conveyor_routes.usda` owns route centerlines and feed
 positions; `assets/warehouse.usda` owns dressing, cameras, lights and animation. Resetting
 a batch clears its slot assignments and parcel counters together.
+
+## Support and evaluation
+
+Maximilian Krause ([@maxkra15](https://github.com/maxkra15)) maintains these Contrib examples
+and the [suction variant](../conveyor_suction/README.md). Racetrack transfer is the small reference
+for the public conveyor API; warehouse sorting demonstrates the same policy interface with a larger
+physical inventory and authored scenery. Suction adds native acquisition and goal-conditioned placement.
+Evaluate physical transfer/receipt success from full starts separately from curriculum outcomes,
+and retain the focused API and reset-isolation checks. Promotion out of Contrib requires documented
+policy evaluation and supported runtime coverage; application-specific scenery can remain an external
+example. Remove or relocate an example if its owner can no longer maintain that coverage.

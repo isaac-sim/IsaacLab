@@ -1,1 +1,1 @@
-* Added a public conveyor controller with batched speed commands and a common surface-gripper configuration, backend factory and scene/action interface.
+* Added a public conveyor controller and scene-owned surface-gripper API with native command/mask buffers, selected resets and backend dispatch. Existing PhysX configuration imports and positional arguments remain supported.

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for collecting validated reset states."""
+"""Native state banks and outcome-guided reset selection."""
 
 from ...utils.module import lazy_export
 

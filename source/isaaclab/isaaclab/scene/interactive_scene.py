@@ -578,7 +578,7 @@ class InteractiveScene:
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
-            surface_gripper.set_grippers_command(asset_state)
+            surface_gripper.set_grippers_command(asset_state, indices=env_ids)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation

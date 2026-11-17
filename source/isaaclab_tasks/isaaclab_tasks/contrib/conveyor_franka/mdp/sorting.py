@@ -14,10 +14,11 @@ import torch
 
 from isaaclab.utils.configclass import configclass
 
+from ..conveyor_warehouse_geometry import warehouse_circulation_edges
 from .commands import ConveyorTransferCommand, ConveyorTransferCommandCfg
 from .cube_state import cube_values
 from .kinematics import end_effector_pose
-from .reset_events import CUBE_REST_Z
+from .reset_events import CUBE_REST_Z, CUBE_SIZE
 
 if TYPE_CHECKING:
     from ..conveyor_franka_warehouse_env import ConveyorFrankaWarehouseEnv
@@ -51,6 +52,11 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         self.has_target = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.metrics["sorted_parcels"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["batch_complete"] = torch.zeros(self.num_envs, device=self.device)
+        edges = torch.tensor(warehouse_circulation_edges(), device=self.device)
+        self._deck_starts = edges[:, :3]
+        self._deck_vectors = edges[:, 3:6] - self._deck_starts
+        self._deck_lengths_xy = self._deck_vectors[:, :2].square().sum(dim=-1).clamp_min(1.0e-8)
+        self._deck_half_widths_squared = (0.5 * edges[:, 6]).square()
 
     def evaluate(self) -> None:
         """Credit stable placements only while the dispatcher owns an active transfer."""
@@ -110,9 +116,16 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         self._assign_goal(env_ids, slots, (positions[env_ids, physical_ids, 1] < 0.0).long())
         self.has_target[env_ids] = True
         self.command_counter[env_ids] += 1
-        # A class is counted only after leaving the elevated supply and landing on a loop.
+        # Correct-side inventory must rest on a circulating deck, including its elevated return.
         velocities = cube_values(env, "root_lin_vel_w", all_cubes=True)
-        on_loop = (positions[..., 2] > 0.04) & (positions[..., 2] < 0.20) & (velocities[..., 2].abs() < 0.15)
+        offsets = positions[..., None, :2] - self._deck_starts[:, :2]
+        along = ((offsets * self._deck_vectors[:, :2]).sum(dim=-1) / self._deck_lengths_xy).clamp(0.0, 1.0)
+        nearest = self._deck_starts + along[..., None] * self._deck_vectors
+        lateral_distance = (positions[..., None, :2] - nearest[..., :2]).square().sum(dim=-1)
+        clearance = positions[..., None, 2] - 0.5 * CUBE_SIZE - nearest[..., 2]
+        on_loop = ((lateral_distance <= self._deck_half_widths_squared) & (clearance.abs() < 0.01)).any(dim=-1) & (
+            velocities[..., 2].abs() < 0.15
+        )
         active = torch.zeros_like(on_loop).scatter_(
             1, pool.slot_ids[rows, self.target_cube_ids, None], self.has_target[:, None]
         )

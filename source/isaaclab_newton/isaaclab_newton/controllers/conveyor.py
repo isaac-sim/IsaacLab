@@ -20,6 +20,7 @@ from newton.solvers import SolverBase
 from isaaclab.controllers.conveyor import BaseConveyor
 from isaaclab.controllers.conveyor_cfg import ConveyorCfg, ConveyorSurfaceCfg
 from isaaclab.physics import PhysicsEvent
+from isaaclab.utils.warp import memory
 
 if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
@@ -41,10 +42,24 @@ def _advance_startup_scale(
 
 
 @wp.kernel
+def _check_full_reset(world_mask: wp.array[wp.bool], full_reset: wp.array[wp.int32]):
+    if not world_mask[wp.tid()]:
+        wp.atomic_min(full_reset, 0, 0)
+
+
+@wp.kernel
 def _clear_selected_body_forces(
-    body_world: wp.array[wp.int32], world_mask: wp.array[wp.bool], body_force: wp.array[wp.spatial_vector]
+    body_world: wp.array[wp.int32],
+    world_mask: wp.array[wp.bool],
+    full_reset: wp.array[wp.int32],
+    body_force: wp.array[wp.spatial_vector],
+    elapsed: wp.array[wp.float32],
+    scale: wp.array[wp.float32],
 ):
     body_id = wp.tid()
+    if body_id == 0 and full_reset[0] != 0:
+        elapsed[0] = 0.0
+        scale[0] = 0.0
     world_id = body_world[body_id]
     if world_id >= 0 and world_mask[world_id]:
         body_force[body_id] = wp.spatial_vector()
@@ -213,11 +228,9 @@ class Conveyor(BaseConveyor):
         self._surface_worlds = wp.array(surface_worlds, dtype=wp.int32, device=model.device)
         self._default_linear_velocity = wp.clone(conveyor.conv_const_vel)
         self._default_angular_velocity = wp.clone(conveyor.conv_pivot_angvel)
-        self._speed_scale_wp = wp.from_torch(self._speed_scale)
         self._body_is_tracked = wp.array(body_is_tracked, dtype=wp.int32, device=model.device)
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=model.device)
-        self._world_mask_host = np.zeros(self.num_envs, dtype=np.bool_)
-        self._world_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=model.device)
+        self._full_reset = wp.ones(1, dtype=wp.int32, device=model.device)
         self._manager.register_state_force_callback(self._apply)
         self._manager.register_post_solver_substep_callback(self._update)
         self._is_initialized = True
@@ -234,7 +247,7 @@ class Conveyor(BaseConveyor):
             dim=self._conveyor.conv_const_vel.shape[0],
             inputs=[
                 self._surface_worlds,
-                self._speed_scale_wp,
+                self._speed_scale.warp,
                 self._default_linear_velocity,
                 self._default_angular_velocity,
             ],
@@ -257,36 +270,35 @@ class Conveyor(BaseConveyor):
             device=model.device,
         )
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        *,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Clear selected-world forces while preserving commanded speed scales.
 
-        A full reset also restarts the startup traction ramp.
+        A full reset also restarts the startup traction ramp. Native masks and
+        same-device indices select worlds without synchronizing with the host.
         """
         if self._conveyor is None:
             raise RuntimeError("Surface velocity is not bound to an initialized Newton solver.")
-        if env_ids is None:
+        mask = memory.resolve_1d_mask(
+            ids=env_ids, mask=env_mask, all_mask=self._all_env_mask, scratch_mask=self._selection_mask
+        )
+        if mask is self._all_env_mask:
             self._conveyor.conveyor_body_f.zero_()
             self._elapsed_time.zero_()
             self._conveyor.global_velocity_scale.zero_()
             return
-        ids = env_ids.detach().cpu().numpy() if isinstance(env_ids, torch.Tensor) else np.asarray(env_ids)
-        if not np.issubdtype(ids.dtype, np.integer):
-            raise IndexError(f"Surface reset environment indices must be integers, got {env_ids!r}.")
-        ids = ids.reshape(-1)
-        if np.any((ids < 0) | (ids >= self.num_envs)):
-            raise IndexError(f"Conveyor reset environment indices are out of range: {ids.tolist()}.")
-        self._world_mask_host.fill(False)
-        self._world_mask_host[ids] = True
-        if np.all(self._world_mask_host):
-            self.reset()
-            return
-        self._world_mask.assign(self._world_mask_host)
+        self._full_reset.fill_(1)
+        wp.launch(_check_full_reset, self.num_envs, inputs=[mask], outputs=[self._full_reset], device=self.device)
         model = self._conveyor.model
         wp.launch(
             _clear_selected_body_forces,
             dim=model.body_count,
-            inputs=[model.body_world, self._world_mask],
-            outputs=[self._conveyor.conveyor_body_f],
+            inputs=[model.body_world, mask, self._full_reset],
+            outputs=[self._conveyor.conveyor_body_f, self._elapsed_time, self._conveyor.global_velocity_scale],
             device=model.device,
         )
 

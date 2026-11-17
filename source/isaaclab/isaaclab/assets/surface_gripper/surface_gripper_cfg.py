@@ -26,6 +26,18 @@ class SurfaceGripperCfg(AssetBaseCfg):
     class_type: type["SurfaceGripper"] | str = "{DIR}.surface_gripper:SurfaceGripper"
     cloning_contexts: tuple[type | str, ...] | None = ()
 
+    max_grip_distance: float | None = None
+    """PhysX maximum grip distance [m]; ``None`` preserves the authored value."""
+
+    coaxial_force_limit: float | None = None
+    """PhysX axial force limit [N]; ``None`` preserves the authored value."""
+
+    shear_force_limit: float | None = None
+    """PhysX shear force limit [N]; ``None`` preserves the authored value."""
+
+    retry_interval: float | None = None
+    """PhysX acquisition retry interval [s]; ``None`` preserves the authored value."""
+
     target_prim_path: str = ".*"
     """Newton payload-body expression. All eligible boxes are candidates by default."""
 
@@ -46,15 +58,3 @@ class SurfaceGripperCfg(AssetBaseCfg):
 
     force_per_pad: float = 4.0
     """Newton force limit per pad [N]."""
-
-    max_grip_distance: float | None = None
-    """PhysX maximum grip distance [m]; ``None`` preserves the authored value."""
-
-    coaxial_force_limit: float | None = None
-    """PhysX axial force limit [N]; ``None`` preserves the authored value."""
-
-    shear_force_limit: float | None = None
-    """PhysX shear force limit [N]; ``None`` preserves the authored value."""
-
-    retry_interval: float | None = None
-    """PhysX acquisition retry interval [s]; ``None`` preserves the authored value."""

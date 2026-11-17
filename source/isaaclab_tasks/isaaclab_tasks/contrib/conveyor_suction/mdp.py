@@ -12,15 +12,15 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab import cloner
 from isaaclab.envs import mdp as common_mdp
-from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import CommandTerm, CommandTermCfg, EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
-
-from isaaclab_tasks.utils.reset_states import ResetStateSampler, ResetStateSamplerCfg
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from ..conveyor_franka.mdp.kinematics import end_effector_pose, tool_velocity
 from ..conveyor_franka.mdp.reset_events import franka_tool_position
@@ -255,7 +255,9 @@ class SizeSortCommand(CommandTerm):
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> dict[str, torch.Tensor]:
         """Report only the resetting episodes; preserve all other environments' counters."""
         ids = self._ids[slice(None) if env_ids is None else env_ids]
-        full = self.full_start[ids] & (self._env.episode_length_buf[ids] > 0)
+        completed = (self._env.episode_length_buf[ids] > 0) & self._env.reset_buf[ids]
+        completed_ids = ids[completed]
+        full = self.full_start[ids] & completed
         full_ids = ids[full]
         row_success = self.delivered[ids, self._reset_term.parcel_ids[self._sampled_rows[ids]]].float()
         full_success = row_success[full]
@@ -263,23 +265,25 @@ class SizeSortCommand(CommandTerm):
         second_success = (self.delivered[full_ids].sum(dim=-1) >= 2).float()
         phase = self._reset_term.phase_ids[self._sampled_rows[ids]]
         phase_outcomes = {
-            f"{name}_success_rate": row_success[(phase == index) & (self._env.episode_length_buf[ids] > 0)]
+            f"{name}_success_rate": row_success[(phase == index) & completed]
             for index, name in enumerate(("place", "carry", "approach", "return"))
         }
-        extras = super().reset(ids)
+        extras = {name: values[completed_ids] for name, values in self.metrics.items()} if completed_ids.numel() else {}
+        super().reset(ids)
         extras.update({name: outcomes for name, outcomes in phase_outcomes.items() if outcomes.numel()})
-        extras.pop("full_batch_success_rate")
+        extras.pop("full_batch_success_rate", None)
         if full_ids.numel():
             # RSL concatenates episode values; scalar reset-batch means misweight this conditional rate.
             extras["full_start_success_rate"] = full_success
             extras["full_batch_success_rate"] = full_batch
             extras["second_delivery_success_rate"] = second_success
         extras["full_start_episodes"] = full.sum()
-        extras["reset_row_coverage"] = (self._reset_term.reset_sampler.success_monitor.success_size > 0).float().mean()
-        extras["full_start_sampling_probability"] = self._reset_term.reset_sampler.probabilities[-1]
+        sampler = self._reset_term.reset_sampler
+        extras["reset_row_coverage"] = (sampler.episode_counts.torch > 0).float().mean()
+        extras["full_start_sampling_probability"] = sampler.probabilities.torch[-1]
         samples = self._reset_term._samples
         for phase, name in enumerate(("place", "carry", "approach", "return")):
-            extras[f"{name}_sampling_probability"] = self._reset_term.reset_sampler.probabilities[
+            extras[f"{name}_sampling_probability"] = sampler.probabilities.torch[
                 phase * samples : (phase + 1) * samples
             ].sum()
         return extras
@@ -341,13 +345,8 @@ class SizeSortCommand(CommandTerm):
         completed &= changed[:, None] & ~self.failed[:, None]
         self.new_success = torch.where(changed, completed.sum(dim=-1), self.new_success)
         self.delivered |= completed
-        # Only the first transfer starts from the sampled reset row. Later targets
-        # still earn receipts and rewards, but must not relabel that row's outcome.
-        initial = self._reset_term.parcel_ids[self._sampled_rows]
-        first = completed[self._ids, initial].nonzero(as_tuple=False).flatten()
-        self._reset_term.reset_sampler.success_monitor.success_update(
-            self._reset_term.reset_sampler.row_ids[first], completed[first, initial[first]]
-        )
+        # Retain receipts until reset. Only the first sampled parcel credits the
+        # sampler; later transfers still earn their own sparse rewards.
         count = self.delivered.sum(dim=-1)
         self.metrics["success_rate"][:] = (count > 0).float()
         self.metrics["correct_deliveries"][:] = count.float()
@@ -459,35 +458,35 @@ class ResetParcels(ManagerTermBase):
         self.reset_sampler = ResetStateSampler(
             cfg.params["sampling"], self.num_envs, _FULL_START_PHASE * samples + 1, self.device
         )
+        self.reseed(env.cfg.seed or 0)
         self.row_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.held_rows = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._arm_ids = env.scene["robot"].find_joints([f"panda_joint{i}" for i in range(1, 8)], preserve_order=True)[0]
-        self.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=self.row_count, max_batches=1, seed=env.cfg.seed))
-        candidates: dict[str, torch.Tensor] = {}
+        states = self._generate_recipes(torch.arange(self.row_count, device=self.device))
         limits = env.scene["robot"].data.joint_pos_limits.torch[0, self._arm_ids]
-
-        def generate(recipe_ids: torch.Tensor) -> None:
-            candidates.update(self._generate_recipes(recipe_ids))
-
-        # These indices identify canonical tensor recipes, not parallel simulation worlds.
-        self.reset_buffer.collect(
-            torch.arange(self.row_count, device=self.device),
-            generate,
-            capture=lambda ids: {name: value[ids] for name, value in candidates.items()},
-            checks={
-                "finite": lambda ids: torch.stack(
-                    [torch.isfinite(value[ids]).reshape(len(ids), -1).all(dim=-1) for value in candidates.values()]
-                ).all(dim=0),
-                "joint_limits": lambda ids: (
-                    (candidates["arm_positions"][ids] >= limits[:, 0])
-                    & (candidates["arm_positions"][ids] <= limits[:, 1])
-                ).all(dim=-1),
-            },
-        )
-        # Retain command metadata from one snapshot; the public state accessor copies the catalog.
-        metadata = self.reset_buffer.state
+        if not all(torch.isfinite(value).all() for value in states.values()):
+            raise ValueError("Suction reset recipes must be finite.")
+        if not ((states["arm_positions"] >= limits[:, 0]) & (states["arm_positions"] <= limits[:, 1])).all():
+            raise ValueError("Suction reset recipes exceed the robot joint limits.")
+        self.reset_buffer = ResetStateBuffer(states)
         for name in ("layout_ids", "destination_ids", "parcel_ids", "phase_ids", "goal_positions", "lifted_rows"):
-            setattr(self, name, metadata[name])
+            setattr(self, name, states[name])
+        self._state = self.reset_buffer.get_state(self.row_ids)
+        self._all_mask = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
+        self._mask = wp.empty_like(self._all_mask)
+        self._requested_ids = wp.empty(self.num_envs, dtype=wp.int64, device=self.device)
+        robot = env.scene["robot"]
+        self._root_pose = robot.data.default_root_pose.torch.clone()
+        self._root_pose[:, :3] += env.scene.env_origins
+        self._joint_positions = robot.data.default_joint_pos.torch.clone()
+        self._zero_root_velocity = torch.zeros((self.num_envs, 6), device=self.device)
+        self._zero_joint_velocity = torch.zeros_like(self._joint_positions)
+        self._parcel_pose = env.parcels[0].data.default_root_pose.torch.clone()
+        self._parcel_velocity = torch.zeros_like(self._zero_root_velocity)
+
+    def reseed(self, seed: int) -> None:
+        """Reseed native draws in place while retaining recipes, assignments and history."""
+        self.reset_sampler.reseed((seed + self.cfg.params["sampling"].seed) % 2**32)
 
     def _generate_recipes(self, rows: torch.Tensor) -> dict[str, torch.Tensor]:
         """Construct the complete procedural catalog without stepping or writing the scene."""
@@ -643,25 +642,37 @@ class ResetParcels(ManagerTermBase):
         env: ManagerBasedRLEnv,
         env_ids: torch.Tensor | slice,
         sampling: ResetStateSamplerCfg,
-        full_starts: bool = False,
+        state_id: int | None = None,
         samples_per_path: int = 64,
     ) -> None:
-        """Record pending failures before sampling and restoring selected environments."""
+        """Credit the original assignment, sample a start and restore selected worlds.
+
+        Args:
+            env: Environment owning the parcels and robot.
+            env_ids: Environments to restore.
+            sampling: Sampler configuration bound at construction.
+            state_id: Explicit progress bucket, or None for success-guided selection.
+            samples_per_path: Progress levels bound at construction.
+        """
         del sampling, samples_per_path
         ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         if not ids.numel():
             return
-        sampled_received = env.command_manager.get_term("sort").delivered[ids, self.parcel_ids[self.row_ids[ids]]]
-        row_mask = None
-        if full_starts:
-            row_mask = torch.zeros(_FULL_START_PHASE * self._samples + 1, dtype=torch.bool, device=self.device)
-            row_mask[-1] = True
+        mask = resolve_1d_mask(ids=ids, all_mask=self._all_mask, scratch_mask=self._mask)
+        command = env.command_manager.get_term("sort")
+        sampled_received = command.delivered[env.scene._ALL_INDICES, self.parcel_ids[self.row_ids]]
+        if state_id is not None:
+            if type(state_id) is not int or not 0 <= state_id <= _FULL_START_PHASE * self._samples:
+                raise ValueError("state_id must identify an existing reset progress bucket.")
+            self._requested_ids.fill_(state_id)
         buckets = self.reset_sampler.reset(
-            ids,
-            sampled_received,
-            valid=(env.episode_length_buf[ids] > 0) & ~sampled_received,
-            row_mask=row_mask,
-        )
+            mask,
+            success=sampled_received,
+            # A receipt completes the original assignment even if a later target
+            # fails or is interrupted. An unfinished viewer reset is not a failure.
+            valid=(env.episode_length_buf > 0) & (sampled_received | env.reset_buf),
+            state_ids=self._requested_ids if state_id is not None else None,
+        ).torch[ids]
         phase = (buckets // self._samples).clamp_max(_FULL_START_PHASE)
         progress = torch.where(
             phase == _FULL_START_PHASE,
@@ -678,8 +689,8 @@ class ResetParcels(ManagerTermBase):
         self.row_ids[ids] = (
             (parcel * (_FULL_START_PHASE + 1) + phase) * (2 * self._samples) + variant
         ) * self._lane_count + lane
-        rows = self.row_ids[ids]
-        state = self.reset_buffer.get_state(rows)
+        self.reset_buffer.get_state(self.row_ids, out=self._state, mask=mask)
+        state = {name: value.torch[ids] for name, value in self._state.items()}
         active = state["parcel_ids"]
         env.active_ids[ids] = active
         env.gripper.reset(ids)
@@ -702,26 +713,20 @@ class ResetParcels(ManagerTermBase):
         positions[batch, active] = active_position
         yaw = (torch.rand((len(ids), len(env.parcels)), device=self.device) - 0.5) * (2.0 * math.pi)
         yaw[batch, active] += state["pick_yaw"] * ~self.held_rows[ids]
-        velocity = torch.zeros((len(ids), 6), device=self.device)
-        parcel_velocities = torch.zeros((len(ids), len(env.parcels), 6), device=self.device)
-        parcel_velocities[batch, active] = state["parcel_velocities"]
         for index, parcel in enumerate(env.parcels):
-            pose = parcel.data.default_root_pose.torch[ids].clone()
-            pose[:, :3] = positions[:, index]
-            pose[:, 5], pose[:, 6] = torch.sin(0.5 * yaw[:, index]), torch.cos(0.5 * yaw[:, index])
-            pose[:, :3] += env.scene.env_origins[ids]
-            parcel.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
-            parcel.write_root_velocity_to_sim_index(root_velocity=parcel_velocities[:, index], env_ids=ids)
+            self._parcel_pose[ids, :3] = positions[:, index] + env.scene.env_origins[ids]
+            self._parcel_pose[ids, 5] = torch.sin(0.5 * yaw[:, index])
+            self._parcel_pose[ids, 6] = torch.cos(0.5 * yaw[:, index])
+            self._parcel_velocity[ids] = torch.where((active == index)[:, None], state["parcel_velocities"], 0.0)
+            parcel.write_root_pose_to_sim_mask(root_pose=self._parcel_pose, env_mask=mask)
+            parcel.write_root_velocity_to_sim_mask(root_velocity=self._parcel_velocity, env_mask=mask)
         robot = env.scene["robot"]
-        root = robot.data.default_root_pose.torch[ids].clone()
-        root[:, :3] += env.scene.env_origins[ids]
-        robot.write_root_pose_to_sim_index(root_pose=root, env_ids=ids)
-        robot.write_root_velocity_to_sim_index(root_velocity=velocity, env_ids=ids)
-        joints = robot.data.default_joint_pos.torch[ids].clone()
-        joints[:, self._arm_ids] = state["arm_positions"]
-        robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
-        robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
-        robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
+        robot.write_root_pose_to_sim_mask(root_pose=self._root_pose, env_mask=mask)
+        robot.write_root_velocity_to_sim_mask(root_velocity=self._zero_root_velocity, env_mask=mask)
+        self._joint_positions[ids[:, None], self._arm_ids] = state["arm_positions"]
+        robot.write_joint_position_to_sim_mask(position=self._joint_positions, env_mask=mask)
+        robot.write_joint_velocity_to_sim_mask(velocity=self._zero_joint_velocity, env_mask=mask)
+        robot.actuators.target_command.set_position_mask(value=self._joint_positions, env_mask=mask)
 
 
 def _parcel_states(env: ManagerBasedRLEnv) -> torch.Tensor:

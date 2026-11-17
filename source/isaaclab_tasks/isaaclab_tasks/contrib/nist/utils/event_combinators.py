@@ -30,13 +30,11 @@ from typing import TYPE_CHECKING
 import torch
 from tqdm import tqdm
 
+from isaaclab.envs.reset import ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase
-from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
-from isaaclab_tasks.utils.sampling import Sampler, SamplerCfg
-from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -71,21 +69,27 @@ class reset_accumulator(ManagerTermBase):
         oversample_capacity = int(self._state_target_size * float(cfg.params["state_table_oversample_ratio"]))
         self.sampled_slots = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.precollecting_phase = True
-        self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
+        sampling_cfg: ResetStateSamplerCfg = cfg.params["sampling"]
+        self._sampling_cfg = sampling_cfg.replace(seed=(sampling_cfg.seed + (env.cfg.seed or 0)) % 2**32)
 
         self.state_tag_names: list[str] | None = None
         self.state_data = torch.zeros((oversample_capacity, state_dim), device=env.device)
         self.state_tag_indices = torch.full((oversample_capacity,), -1, device=env.device, dtype=torch.int64)
 
-        self._success_monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
         self.monitor_success_rate: torch.Tensor | None = None
-        self.success_monitor = None
-        self._sampler: Sampler | None = None
+        self._sampler: ResetStateSampler | None = None
         self._wandb_3d_log_state: dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
+
+    def reseed(self, seed: int) -> None:
+        """Reseed this bank's native sampler before a seeded reset."""
+        cfg = self.cfg.params["sampling"]
+        self._sampling_cfg = cfg.replace(seed=(cfg.seed + seed) % 2**32)
+        if self._sampler is not None:
+            self._sampler.reseed(self._sampling_cfg.seed)
 
     def __call__(
         self,
@@ -95,8 +99,7 @@ class reset_accumulator(ManagerTermBase):
         reset_assets: list[str],
         acceptance_conditions: dict,
         state_table_size: int,
-        success_monitor_cfg: SuccessMonitorCfg,
-        sampling: SamplerCfg,
+        sampling: ResetStateSamplerCfg,
         state_table_oversample_ratio: float = 1.0,
         state_table_fps_features: Callable | None = None,
         state_tag_names_bind: str | None = None,
@@ -104,7 +107,7 @@ class reset_accumulator(ManagerTermBase):
         report: bool = False,
         monitor_exclude_terms: list[str] | tuple[str, ...] = (),
         wandb_3d_log: Callable[
-            [torch.Tensor, torch.Tensor, Sampler, dict[str, object], ManagerBasedRLEnv, list[str]], None
+            [torch.Tensor, torch.Tensor, ResetStateSampler, dict[str, object], ManagerBasedRLEnv, list[str]], None
         ]
         | None = None,
         wandb_3d_log_period: int = 100,
@@ -171,29 +174,20 @@ class reset_accumulator(ManagerTermBase):
                     + f" (total={int(counts.sum())})"
                 )
 
-        if self.success_monitor is None:
-            n_slots = self.state_data.shape[0]
-            monitor_cfg = self._success_monitor_cfg
-            # one partition: the bank draws across every slot, and the samplers below do the
-            # drawing themselves. ``success_rate`` is updated in place, so aliasing it here keeps
-            # the strategies' ``success_rates`` binding live.
-            self.success_monitor = instantiate(monitor_cfg, 1, n_slots, env.device)
-            self.monitor_success_rate = self.success_monitor.success_rate
+        if self._sampler is None:
+            self._sampler = ResetStateSampler(self._sampling_cfg, env.num_envs, self.state_data.shape[0], env.device)
+            self.monitor_success_rate = self._sampler.success_rate.torch
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         progress = env.termination_manager.get_term_cfg("progress_context").func
-        monitor_ids = env_ids
+        valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
         if num_envs > 0 and monitor_exclude_terms:
-            exclude_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
             for term_name in monitor_exclude_terms:
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
-                    exclude_mask |= env.termination_manager._last_episode_dones[:, term_idx]
-            monitor_ids = env.scene._ALL_INDICES[env_ids]
-            monitor_ids = monitor_ids[~exclude_mask[monitor_ids]]
-        num_monitored = num_envs if isinstance(monitor_ids, slice) else len(monitor_ids)
-        if num_monitored > 0:
-            self.success_monitor.success_update(self.sampled_slots[monitor_ids], progress.is_success[monitor_ids])
+                    valid &= ~env.termination_manager._last_episode_dones[:, term_idx]
+        assignments = self._sampler.reset(env_ids=env_ids, success=progress.is_success, valid=valid)
+        self.sampled_slots.copy_(assignments.torch)
 
         log: dict[str, float] = {}
         if report:
@@ -208,16 +202,12 @@ class reset_accumulator(ManagerTermBase):
                     log[f"Metrics/MonitorSuccessRate/{name}"] = monitor_rates[mask].mean().item() if mask.any() else 0.0
 
         if num_envs > 0:
-            if self._sampler is None:
-                self._sampler = instantiate(self._sampling_cfg, self.monitor_success_rate)
-
-            probs, slot_idx = self._sampler.probabilities_and_sample(num_envs)
-            self.sampled_slots[env_ids] = slot_idx
+            slot_idx = self.sampled_slots[env_ids]
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             if report and self.state_tag_names:
                 tags = self.state_tag_indices[: self.state_data.shape[0]]
                 for i, name in enumerate(self.state_tag_names):
-                    log[f"Metrics/SampleProb/{name}"] = probs[tags == i].sum().item()
+                    log[f"Metrics/SampleProb/{name}"] = self._sampler.probabilities.torch[tags == i].sum().item()
 
         if report:
             env.extras.setdefault("log", {}).update(log)
@@ -241,6 +231,10 @@ class reset_accumulator(ManagerTermBase):
         ``env_ids`` and then calls this so the chosen stored state is written
         back to the assets.
         """
+        assignments = self._sampler.reset(env_ids=env_ids, state_ids=self.sampled_slots)
+        self.sampled_slots.copy_(assignments.torch)
+        env_ids = self._env.scene._ALL_INDICES[env_ids]
+        env_ids = env_ids[~self._sampler.invalid_requests.torch[env_ids]]
         reset_state.set_reset_state(
             self._env, self.state_data[self.sampled_slots[env_ids]], env_ids, self.reset_assets, is_relative=True
         )
@@ -252,31 +246,31 @@ class TermChoice(ManagerTermBase):
         self.term_partitions: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
         self.num_partitions = len(self.term_partitions)
         self.term_samples = torch.zeros((env.num_envs,), dtype=torch.long, device=env.device)
-        self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
-
-        # Need a monitor when the sampler has any non-uniform strategy, or when the user
-        # explicitly requested reporting. Decided from the strategy configs because the monitor
-        # owns the rate tensor the sampler binds, so it has to exist first.
-        needs_rates = cfg.params["report"] or any(
-            "Uniform" not in str(strategy.class_type) for strategy in self._sampling_cfg.strategies
+        self._sampler = (
+            ResetStateSampler(
+                cfg.params["sampling"].replace(seed=(cfg.params["sampling"].seed + (env.cfg.seed or 0)) % 2**32),
+                env.num_envs,
+                self.num_partitions,
+                env.device,
+            )
+            if self.num_partitions
+            else None
         )
-        if needs_rates:
-            monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
-            self.success_monitor = instantiate(monitor_cfg, 1, self.num_partitions, env.device)
-            self.term_success_rate = self.success_monitor.success_rate
-        else:
-            self.success_monitor = None
-            self.term_success_rate = torch.zeros(self.num_partitions, device=env.device)
+        self.term_success_rate = (
+            self._sampler.success_rate.torch if self._sampler is not None else torch.empty(0, device=env.device)
+        )
 
-        self._sampler = instantiate(self._sampling_cfg, self.term_success_rate)
+    def reseed(self, seed: int) -> None:
+        """Reseed the existing native choice streams."""
+        if self._sampler is not None:
+            self._sampler.reseed((seed + self.cfg.params["sampling"].seed) % 2**32)
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
         env_ids: torch.Tensor,
         terms: dict[str, ManagerTermBase],
-        sampling: SamplerCfg,
-        success_monitor_cfg: SuccessMonitorCfg,
+        sampling: ResetStateSamplerCfg,
         report: bool = False,
     ) -> None:
         if self.num_partitions == 0:
@@ -287,16 +281,17 @@ class TermChoice(ManagerTermBase):
                 for i, name in enumerate(self.term_partitions.keys())
             }
             log["Metrics/SuccessRate"] = self.term_success_rate.mean().item()
-        if self.success_monitor:
-            success = env.termination_manager.get_term_cfg("progress_context").func.is_success
-            self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
-
+        success = env.termination_manager.get_term_cfg("progress_context").func.is_success
+        valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
+        choices = self._sampler.reset(env_ids=env_ids, success=success, valid=valid)
+        self.term_samples.copy_(choices.torch)
         env_ids = env.scene._ALL_INDICES[env_ids]
-        probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
-        self.term_samples[env_ids] = choices
         if report:
             log.update(
-                {f"Metrics/SampleProb/{name}": probs[i].item() for i, name in enumerate(self.term_partitions.keys())}
+                {
+                    f"Metrics/SampleProb/{name}": self._sampler.probabilities.torch[i].item()
+                    for i, name in enumerate(self.term_partitions)
+                }
             )
 
         for i, (_, term_cfg) in enumerate(self.term_partitions.items()):

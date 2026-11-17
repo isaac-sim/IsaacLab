@@ -13,8 +13,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..utils.backend_utils import FactoryBase
+from ..utils.warp import ProxyArray, memory
 
 if TYPE_CHECKING:
     from ..sim import SimulationContext
@@ -36,10 +38,13 @@ class BaseConveyor(ABC):
         self.cfg = cfg.copy()
         self.num_envs = num_envs
         self.device = sim.device
-        self._speed_scale = torch.ones(num_envs, dtype=torch.float32, device=self.device)
-        self._surface_velocities = torch.tensor(
-            [surface.velocity for surface in self.cfg.surface_specs], dtype=torch.float32, device=self.device
+        self._speed_scale = ProxyArray(wp.ones(num_envs, dtype=wp.float32, device=self.device))
+        self._surface_velocities = ProxyArray(
+            wp.array([surface.velocity for surface in self.cfg.surface_specs], dtype=wp.float32, device=self.device)
         )
+        self._all_env_ids = wp.array(range(num_envs), dtype=wp.int32, device=self.device)
+        self._all_env_mask = wp.ones(num_envs, dtype=wp.bool, device=self.device)
+        self._selection_mask = wp.empty(num_envs, dtype=wp.bool, device=self.device)
         self._is_initialized = False
 
     @property
@@ -50,7 +55,7 @@ class BaseConveyor(ABC):
     @property
     def speed_scale(self) -> torch.Tensor:
         """Copy of the target multiplier for each environment, shape ``(N,)``."""
-        return self._speed_scale.clone()
+        return self._speed_scale.torch.clone()
 
     @property
     def surface_velocities(self) -> torch.Tensor:
@@ -59,9 +64,15 @@ class BaseConveyor(ABC):
         These are the targets before the startup traction ramp. Collision surfaces
         remain stationary; the backend imparts their prescribed motion to contacts.
         """
-        return self._speed_scale[:, None] * self._surface_velocities[None, :]
+        return self._speed_scale.torch[:, None] * self._surface_velocities.torch[None, :]
 
-    def set_speed_scale(self, scale: float | torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def set_speed_scale(
+        self,
+        scale: float | torch.Tensor | wp.array,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        *,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set target multipliers for selected environments without rebinding physics.
 
         Positive values preserve the authored directions, zero stops motion and
@@ -70,17 +81,51 @@ class BaseConveyor(ABC):
         device synchronization when issuing commands during CUDA graph capture.
 
         Args:
-            scale: A finite scalar or one value per selected environment.
-            env_ids: Environments to command. ``None`` selects all environments.
+            scale: A finite scalar or one value per selected environment. Masked array
+                commands use the full environment shape. Native arrays use float32 on this device.
+            env_ids: Environments to command, in the order of compact array values.
+                ``None`` selects all environments. Torch inputs are boundary shims.
+            env_mask: Native full-environment mask. Same-device masks and arrays avoid
+                index compaction and are suitable for CUDA graph replay.
         """
-        if not isinstance(scale, torch.Tensor) and not math.isfinite(scale):
-            raise ValueError("Conveyor speed scales must be finite.")
-        values = torch.as_tensor(scale, dtype=torch.float32, device=self.device)
-        ids = slice(None) if env_ids is None else torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-        count = self.num_envs if env_ids is None else len(env_ids)
-        if values.ndim > 1 or (values.ndim == 1 and values.numel() != count):
-            raise ValueError("Conveyor scale must be a scalar or one value per selected environment.")
-        self._speed_scale[ids] = values
+        if isinstance(scale, (float, int)):
+            if not math.isfinite(scale):
+                raise ValueError("Conveyor speed scales must be finite.")
+            mask = memory.resolve_1d_mask(
+                ids=env_ids, mask=env_mask, all_mask=self._all_env_mask, scratch_mask=self._selection_mask
+            )
+            wp.launch(
+                memory.make_masked_fill(wp.float32, 1),
+                self.num_envs,
+                inputs=[float(scale), mask, None],
+                outputs=[self._speed_scale.warp],
+                device=self.device,
+            )
+            return
+        ids = (
+            None
+            if env_mask is not None
+            else memory.resolve_1d_indices(memory.resolve_ids(ids=env_ids, all_ids=self._all_env_ids))
+        )
+        count = self.num_envs if ids is None else ids.shape[0]
+        if isinstance(scale, torch.Tensor):
+            scale = scale.to(dtype=torch.float32, device=self.device)
+            if scale.ndim == 0:
+                scale = scale.expand(count)
+            scale = wp.from_torch(scale)
+        if scale.shape != (count,) or scale.dtype != wp.float32 or scale.device != self._speed_scale.warp.device:
+            raise ValueError("Conveyor scale must be float32 with one value per command on the controller device.")
+        if env_mask is None:
+            wp.copy(wp.indexedarray(self._speed_scale.warp, [ids]), scale)
+        else:
+            mask = memory.resolve_1d_mask(mask=env_mask, all_mask=self._all_env_mask, scratch_mask=self._selection_mask)
+            wp.launch(
+                memory.make_masked_copy(wp.float32, 1),
+                self.num_envs,
+                inputs=[scale, mask, None],
+                outputs=[self._speed_scale.warp],
+                device=self.device,
+            )
 
     def stop(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Command zero speed for selected environments."""
@@ -91,7 +136,12 @@ class BaseConveyor(ABC):
         self.set_speed_scale(1.0, env_ids)
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        *,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Clear selected-world force history without changing commanded speed scales."""
         raise NotImplementedError
 

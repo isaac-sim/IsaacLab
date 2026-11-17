@@ -7,7 +7,6 @@ __all__ = [
     "BELT_DEPLOYMENT_VARIANT",
     "ConveyorRelativeJointPositionAction",
     "ConveyorRelativeJointPositionActionCfg",
-    "ConveyorResetCurriculum",
     "ConveyorResetRecipe",
     "ConveyorResetStateTable",
     "ConveyorTransferCommand",
@@ -38,7 +37,6 @@ __all__ = [
 from .actions import ConveyorRelativeJointPositionAction, ResetBufferedGripperAction
 from .actions_cfg import ConveyorRelativeJointPositionActionCfg, ResetBufferedGripperActionCfg
 from .commands import ConveyorTransferCommand, ConveyorTransferCommandCfg, transfer_success_mask
-from .curriculums import ConveyorResetCurriculum
 from .observations import (
     active_transfer_features,
     cube_conveyor_state,

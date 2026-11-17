@@ -3,113 +3,114 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Collection validity, reproducibility, and tensor-state consistency at the public API."""
-
-import random
+"""Snapshot ownership, default-state construction, and captured masked restoration."""
 
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
-from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
+from isaaclab.envs.reset import ResetStateBuffer
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
-def test_collection_rejects_candidates_covers_groups_and_preserves_rng() -> None:
-    values = torch.empty(4, 2)
-    env_ids = torch.arange(4)
-
-    def generate(ids, sign):
-        values[ids, 0] = sign * (1.0 + torch.rand(len(ids)))
-        values[ids, 1] = torch.from_numpy(np.random.random(len(ids))).float() + random.random()
-        return ids != 0
-
-    def capture(ids):
-        return {"rigid_object": {"cube": {"root_pose": values[ids]}}}
-
-    generators = {"table": lambda ids: generate(ids, 1), "grasped": lambda ids: generate(ids, -1)}
-    checks = {"reachable": lambda ids: ids != 3}
-    torch_state, numpy_state, python_state = torch.get_rng_state(), np.random.get_state(), random.getstate()
-    buffer = ResetStateBuffer(ResetStateBufferCfg(size=7, max_batches=2, seed=17))
-    buffer.collect(env_ids, generators, capture, checks)
-    assert buffer.num_states == 7
-    assert buffer.group_names == ("table", "grasped")
-    assert buffer.group_ids.tolist() == [0, 0, 0, 0, 1, 1, 1]
-    exported_groups = buffer.group_ids
-    exported_groups.fill_(-1)
-    assert buffer.group_ids.tolist() == [0, 0, 0, 0, 1, 1, 1]
-    exported_groups.resize_(0)
-    assert buffer.num_states == 7
-    with pytest.raises(AttributeError):
-        buffer.group_ids = torch.empty(0, dtype=torch.long)
-    with pytest.raises(AttributeError):
-        buffer.group_names = ()
-    assert buffer.collection_report == {
-        "table": {"attempted": 8, "accepted": 4, "rejected/generator": 2, "rejected/reachable": 2},
-        "grasped": {"attempted": 8, "accepted": 3, "rejected/generator": 2, "rejected/reachable": 2},
+def test_buffer_owns_snapshots_and_returns_selected_copies() -> None:
+    poses = torch.arange(12, dtype=torch.float64).reshape(3, 4).requires_grad_()
+    history = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]], [[9, 10], [11, 12]]])
+    states = {
+        "rigid_object": {"cube": {"root_pose": poses}},
+        "joint_ids": torch.tensor([7, 8, 9]),
+        "history": history,
+        "batched_history": history[:, None],
     }
-    row_ids = torch.tensor([6, 0, 4])
-    selected = buffer.get_state(row_ids)["rigid_object"]["cube"]["root_pose"]
-    assert (selected[:, 0] * torch.tensor([-1, 1, -1]) > 1.0).all()
-    expected = selected.clone()
-    values.zero_()
-    selected.zero_()
-    exported = buffer.state
-    exported["rigid_object"]["cube"]["root_pose"].zero_()
-    torch.testing.assert_close(buffer.get_state(row_ids)["rigid_object"]["cube"]["root_pose"], expected)
-    torch.testing.assert_close(torch.get_rng_state(), torch_state)
-    np.testing.assert_equal(np.random.get_state(), numpy_state)
-    assert random.getstate() == python_state
-    torch.rand(3)
-    np.random.random(3)
-    random.random()
-    torch_state, numpy_state, python_state = torch.get_rng_state(), np.random.get_state(), random.getstate()
-    repeated = ResetStateBuffer(buffer.cfg)
-    repeated.collect(env_ids, generators, capture, checks)
-    torch.testing.assert_close(
-        repeated.state["rigid_object"]["cube"]["root_pose"], buffer.state["rigid_object"]["cube"]["root_pose"]
+    buffer = ResetStateBuffer(states)
+    assert buffer.num_states == 3
+    row_ids = torch.tensor([2, 0, 2])
+    selected = buffer.get_state(row_ids)
+    expected = torch.tensor([[8, 9, 10, 11], [0, 1, 2, 3], [8, 9, 10, 11]], dtype=torch.float64)
+    torch.testing.assert_close(selected["rigid_object"]["cube"]["root_pose"].torch, expected)
+    assert not selected["rigid_object"]["cube"]["root_pose"].torch.requires_grad
+    torch.testing.assert_close(selected["joint_ids"].torch, torch.tensor([9, 7, 9]))
+    expected_history = torch.tensor([[[9, 10], [11, 12]], [[1, 2], [3, 4]], [[9, 10], [11, 12]]])
+    torch.testing.assert_close(selected["history"].torch, expected_history)
+    torch.testing.assert_close(selected["batched_history"].torch, expected_history[:, None])
+    with torch.no_grad():
+        poses.zero_()
+    states.clear()
+    selected["rigid_object"]["cube"]["root_pose"].warp.zero_()
+    exported = buffer.states
+    exported["rigid_object"]["cube"]["root_pose"].warp.zero_()
+    exported["joint_ids"].warp.zero_()
+    exported.clear()
+    assert buffer.num_states == 3
+    torch.testing.assert_close(buffer.get_state(row_ids)["rigid_object"]["cube"]["root_pose"].torch, expected)
+    torch.testing.assert_close(buffer.states["joint_ids"].torch, torch.tensor([7, 8, 9]))
+    empty = buffer.get_state(torch.empty(0, dtype=torch.long))
+    assert empty["rigid_object"]["cube"]["root_pose"].shape == (0, 4)
+
+
+def test_empty_buffers_and_repeated_default_states() -> None:
+    empty = ResetStateBuffer({})
+    assert empty.num_states == 0
+    assert empty.get_state(wp.empty(0, dtype=wp.int32, device="cpu")) == {}
+    zero_rows = ResetStateBuffer({"joint_pos": torch.empty(0, 2)})
+    assert zero_rows.num_states == 0
+    assert zero_rows.states["joint_pos"].shape == (0, 2)
+    default = ProxyArray(wp.array([[0.25, -0.5]], dtype=wp.float32, device="cpu"))
+    buffer = ResetStateBuffer({"robot": {"joint_pos": default}}, num_states=3)
+    default.warp.zero_()
+    assert buffer.num_states == 3
+    np.testing.assert_array_equal(buffer.states["robot"]["joint_pos"].warp.numpy(), [[0.25, -0.5]] * 3)
+    with pytest.raises(ValueError, match="empty buffer"):
+        empty.get_state(torch.tensor([0]))
+    with pytest.raises(ValueError, match="single default state"):
+        ResetStateBuffer({"pose": torch.zeros(2, 7)}, num_states=3)
+
+
+@pytest.mark.parametrize(
+    ("states", "message"),
+    [
+        ({"pose": torch.tensor(1.0)}, "leading row dimension"),
+        ({"pose": "invalid"}, "leading row dimension"),
+        ({"pose": torch.zeros(3, 7), "joint": {"position": torch.zeros(2, 4)}}, "share a leading row dimension"),
+    ],
+)
+def test_buffer_rejects_invalid_array_trees(states, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        ResetStateBuffer(states)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_masked_state_gather_replays_changed_ids_without_touching_other_worlds(device) -> None:
+    poses = wp.array(
+        [[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0], [7, 8, 9, 0, 1, 0, 0]],
+        dtype=wp.transformf,
+        device=device,
     )
-    torch.testing.assert_close(torch.get_rng_state(), torch_state)
-    np.testing.assert_equal(np.random.get_state(), numpy_state)
-    assert random.getstate() == python_state
-
-
-def test_impossible_recollection_is_bounded_and_preserves_the_complete_catalog() -> None:
-    buffer = ResetStateBuffer(ResetStateBufferCfg(size=5, max_batches=2))
-    buffer.collect(torch.arange(3), lambda ids: None, lambda ids: {"pose": ids[:, None].float()})
-    catalog = buffer.get_state(torch.arange(5))["pose"]
-    with pytest.raises(RuntimeError, match="collected 2/5 states after 2 batches.*collision_free.*4"):
-        buffer.collect(
-            torch.arange(3),
-            {"blocked": lambda ids: None},
-            lambda ids: {"pose": torch.full((len(ids), 1), 999.0)},
-            {"collision_free": lambda ids: ids == 1},
-        )
-    assert buffer.num_states == 5
-    torch.testing.assert_close(buffer.get_state(torch.arange(5))["pose"], catalog)
-    assert buffer.group_names == ("default",)
-    assert buffer.group_ids.tolist() == [0] * 5
-    assert buffer.collection_report == {"default": {"attempted": 6, "accepted": 5}}
-    with pytest.raises(ValueError, match="'generator' is reserved"):
-        buffer.collect(
-            torch.arange(3),
-            lambda ids: torch.zeros_like(ids, dtype=torch.bool),
-            lambda ids: {"pose": torch.zeros(len(ids), 7)},
-            {"generator": lambda ids: torch.ones_like(ids, dtype=torch.bool)},
-        )
-
-
-def test_capture_requires_selected_rows_and_a_consistent_state_tree() -> None:
-    buffer = ResetStateBuffer(ResetStateBufferCfg(size=3, max_batches=2))
-    with pytest.raises(ValueError, match="leading dimension of 2"):
-        buffer.collect(torch.arange(3), lambda ids: ids > 0, lambda ids: {"pose": torch.zeros(3, 7)})
-    calls = 0
-
-    def capture(ids):
-        nonlocal calls
-        calls += 1
-        return {"pose": torch.zeros(len(ids), 7 if calls == 1 else 6)}
-
-    with pytest.raises(ValueError, match="shape, dtype, or device changed"):
-        buffer.collect(torch.arange(2), lambda ids: None, capture)
+    joints = torch.tensor([[10.0, 99.0, 11.0, 99.0], [20.0, 99.0, 21.0, 99.0], [30.0, 99.0, 31.0, 99.0]])
+    with pytest.raises(ValueError, match="and device"):
+        ResetStateBuffer({"pose": poses, "joint": joints})
+    joints = joints.to(device)[:, ::2]
+    buffer = ResetStateBuffer({"pose": poses, "joint": joints})
+    ids = wp.array([2, 0, 1], dtype=wp.int64, device=device)
+    mask = wp.array([True, False, True], dtype=wp.bool, device=device)
+    pose_out = wp.full(3, wp.transformf(-7.0), device=device)
+    padded = wp.full((3, 4), -7.0, device=device)
+    out = {"pose": ProxyArray(pose_out), "joint": padded[:, ::2]}
+    buffer.get_state(ids, out=out, mask=mask)
+    with wp.ScopedDevice("cpu"), wp.ScopedCapture(device=device) as capture:
+        assert buffer.get_state(ids, out=out, mask=mask) is out
+    ids.assign(np.array([0, 2, 1], dtype=np.int64))
+    mask.assign(np.array([False, True, False]))
+    wp.capture_launch(capture.graph)
+    np.testing.assert_array_equal(
+        pose_out.numpy(), [[7, 8, 9, 0, 1, 0, 0], [7, 8, 9, 0, 1, 0, 0], [4, 5, 6, 0, 0, 1, 0]]
+    )
+    np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])
+    mask.fill_(False)
+    ids.fill_(-1)
+    wp.capture_launch(capture.graph)
+    np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])

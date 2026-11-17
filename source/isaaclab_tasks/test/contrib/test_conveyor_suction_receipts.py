@@ -31,6 +31,7 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
     cfg.seed = 41
     cfg.scene.clone_cfg.clone_template = "/World/cells/cell_{}"
     cfg.events.reset_parcels.params["samples_per_path"] = 2
+    cfg.events.reset_parcels.params["state_id"] = 2
     cfg.commands.sort.goal_radial_range = cfg.commands.sort.goal_lateral_range = (0.0, 0.0)
     angles = tuple(math.radians(value) for value in (10, 35, 60, 85, 110))
     cfg.scene.outfeeds.spawn.assets_cfg = [OutfeedsCfg(layout=OutfeedLayout(angles, (0.0,) * 5, (0.0,) * 5))]
@@ -42,9 +43,6 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
     with closing(gym.make("IsaacContrib-Conveyor-Suction-Sorting", cfg=cfg).unwrapped) as env:
         command = env.command_manager.get_term("sort")
         reset = env.event_manager.get_term_cfg("reset_parcels").func
-        reset.reset_sampler.sampler.sample = lambda probabilities, count: torch.full(
-            (count,), 2, dtype=torch.long, device=device
-        )
         env.reset()
         parcels = env.active_ids.clone()
         robot = env.scene["robot"]
@@ -153,7 +151,10 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
         active = env.active_ids[0].clone()
         lengths = env.episode_length_buf.clone()
         delivered = command.delivered[0].clone()
+        counts = reset.reset_sampler.episode_counts.torch.clone()
         env.reset(env_ids=torch.tensor([1], device=device))
+        # An interrupted assignment supplies no failed outcome to the curriculum.
+        torch.testing.assert_close(reset.reset_sampler.episode_counts.torch, counts)
         torch.testing.assert_close(robot.data.joint_pos.torch[0], positions, rtol=0, atol=0)
         torch.testing.assert_close(robot.data.joint_vel.torch[0], velocities, rtol=0, atol=0)
         for parcel, (pose, velocity) in zip(env.parcels, states, strict=True):
@@ -163,3 +164,14 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
         torch.testing.assert_close(command.delivered[0], delivered)
         assert command.metrics["correct_deliveries"][0] == 1
         assert not command.delivered[1].any() and env.episode_length_buf[1] == 0
+
+        # A natural timeout credits its previous bucket once. The other world's
+        # completed original parcel survives handoff and credits a success on reset.
+        env.episode_length_buf[1] = env.max_episode_length - 1
+        _, _, _, timed_out, _ = env.step(actions)
+        assert timed_out.tolist() == [False, True]
+        assert reset.reset_sampler.episode_counts.torch.sum() == counts.sum() + 1
+        assert reset.reset_sampler.success_rate.torch[2] == 0
+        env.reset(env_ids=torch.tensor([0], device=device))
+        assert reset.reset_sampler.episode_counts.torch.sum() == counts.sum() + 2
+        assert reset.reset_sampler.success_rate.torch[2] == 0.5

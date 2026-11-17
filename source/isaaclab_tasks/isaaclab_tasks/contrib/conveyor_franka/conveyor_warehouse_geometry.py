@@ -100,6 +100,17 @@ def warehouse_parcel_positions() -> tuple[tuple[float, float, float], ...]:
     return tuple(tuple(position) for position in root.attributes["conveyor:parcelSpawnPositions"].default)
 
 
+def warehouse_circulation_edges() -> tuple[tuple[float, ...], ...]:
+    """Return deck centerline edges and widths [m], excluding the open supply belts."""
+    return tuple(
+        (*start, *end, segment.width)
+        for side in ("Left", "Right")
+        for segment in _route_segments(side)
+        if segment.path == "main"
+        for start, end in zip(segment.points[:-1], segment.points[1:], strict=True)
+    )
+
+
 def _normals(segment: _RouteSegment) -> np.ndarray:
     if segment.pivot is None:
         tangent = np.asarray(segment.direction)

@@ -49,13 +49,36 @@ def test_warehouse_config_import_does_not_preload_usd():
 
 
 def test_checkpoint_interface_and_invalid_action_recovery():
-    """The trained 123/8 interface survives invalid actions and selected action resets."""
+    """The 123/8 task attributes completed resets and safely rejects invalid policy actions."""
     with closing(_environment(_BASE)) as env:
         obs, _ = env.reset()
         assert obs["policy"].shape == (2, 123)
         assert env.action_manager.total_action_dim == 8
         result = env.step(torch.zeros(2, 8))
         assert torch.isfinite(result[0]["policy"]).all() and torch.isfinite(result[1]).all()
+
+        reset = env.event_manager.get_term_cfg("reset_from_state_table").func
+        command = env.command_manager.get_term("transfer")
+        counts = reset.reset_sampler.episode_counts.torch
+        previous = reset.row_ids.clone()
+        command.ever_success[:] = torch.tensor([True, False])
+        env.reset_buf[:] = torch.tensor([True, False])
+        env._reset_idx(torch.tensor([0, 1]))
+        assert counts.sum() == 1 and counts[previous[0]] == 1
+        assert reset.reset_sampler.success_rate.torch[previous[0]] == 1
+        assert env.extras["log"]["Curriculum/reset_sampling/batch_success_rate"] == 1
+
+        previous = reset.row_ids.clone()
+        env.episode_length_buf.fill_(1)
+        env.reset_buf[:] = torch.tensor([False, True])
+        env._reset_idx(torch.tensor([1]))
+        assert counts.sum() == 2 and counts[previous[1]] >= 1
+        assert (reset.reset_sampler.success_rate.torch * counts).sum() == 1
+        assert env.extras["log"]["Curriculum/reset_sampling/batch_success_rate"] == 0
+        env.episode_length_buf[0] = 1
+        env._reset_idx(torch.tensor([0]))
+        assert counts.sum() == 2, "An interrupted episode must not enter the sampling history."
+        assert "Curriculum/reset_sampling/batch_success_rate" not in env.extras["log"]
 
         bad = torch.zeros(2, 8)
         bad[0, 0], bad[1, 7] = float("nan"), float("inf")
@@ -76,10 +99,12 @@ def test_warehouse_slot_mapping_and_selected_reset_counters():
         env.reset()
         pool = env.conveyor_cube_pool
         assert len(pool.assets) == 24
-        positions = torch.tensor([[[2.5, 0.8, 0.5]] * 24] * 2)
+        positions = torch.tensor([[[20.0, 20.0, 4.0]] * 24] * 2)
         positions[:, :4] = torch.tensor([[0.4, 0.27, 0.06], [0.6, -0.27, 0.06], [0.8, 0.0, 0.2], [0.9, -0.27, 0.06]])
         positions[0, 4] = torch.tensor([0.52, 0.27, 0.06])
         positions[1, 5] = torch.tensor([0.72, -0.27, 0.06])
+        positions[:, 6] = torch.tensor([0.65, 0.27, 0.06])
+        positions[:, 7] = torch.tensor([0.52, -0.354, 0.08])
         pool.slot_ids[:] = torch.tensor([[4, 1, 2, 3], [0, 5, 2, 3]])
         for index, parcel in enumerate(pool.assets):
             pose = parcel.data.default_root_pose.torch.clone()
@@ -91,6 +116,10 @@ def test_warehouse_slot_mapping_and_selected_reset_counters():
         policy = env.observation_manager.compute()["policy"]
         expected = positions[torch.arange(2)[:, None], pool.slot_ids]
         torch.testing.assert_close(policy[:, 16:28], expected.flatten(1))
+        command = env.command_manager.get_term("transfer")
+        command._update_command()
+        torch.testing.assert_close(command.metrics["sorted_parcels"], torch.tensor([5.0, 5.0]))
+        assert not command.metrics["batch_complete"].any()
         pool.record_transfers(torch.tensor([0, 1]), torch.tensor([0, 1]))
         assert pool.transfer_counts[0, 4] == 1 and pool.transfer_counts[1, 5] == 1
         assert pool.transfer_counts.sum() == 2

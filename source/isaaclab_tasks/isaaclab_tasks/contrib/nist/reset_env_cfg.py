@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from isaaclab.envs.reset import ResetStateSamplerCfg, TargetSuccessScoreCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 
@@ -22,12 +23,7 @@ from isaaclab_tasks.contrib.nist.factory_presets import (
     HeldAssetObstaclesCfg,
     ResetAssetsCfg,
 )
-from isaaclab_tasks.contrib.nist.utils import (
-    BetaSamplingStrategyCfg,
-    SamplerCfg,
-)
 from isaaclab_tasks.utils import preset
-from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 _FRANKA_END_EFFECTOR = "panda_fingertip_centered"
 _FRANKA_ARM_JOINTS = ["panda_joint.*"]
@@ -231,11 +227,11 @@ SCENE_RESET = EventTerm(
                         "start_assembled": ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE,
                         "start_grasped_then_assembled": GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER,
                     },
-                    "sampling": SamplerCfg(
-                        strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=1.0, weight=1.0)],
+                    "sampling": ResetStateSamplerCfg(
+                        history_length=100,
+                        scores=[TargetSuccessScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
                         eps=1e-4,
                     ),
-                    "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=100),
                     "report": preset(accumulator=False, choice=True, default=False),
                 },
             ),
@@ -272,9 +268,9 @@ ACCUMULATOR_RESET = EventTerm(
         "state_table_size": 32768,
         "state_tag_names_bind": "list(reset_term.func.terms['reset_strategies'].func.term_partitions.keys())",
         "state_tag_indices_bind": "reset_term.func.terms['reset_strategies'].func.term_samples",
-        "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
-        "sampling": SamplerCfg(
-            strategies=[BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0)],
+        "sampling": ResetStateSamplerCfg(
+            history_length=50,
+            scores=[TargetSuccessScoreCfg(target=0.66, kappa=1.0, weight=0.66**0.66 * 0.34**0.34)],
             eps=1e-4,
         ),
         "reset_term": SCENE_RESET,

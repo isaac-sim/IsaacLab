@@ -1,1 +1,1 @@
-* Fixed constrained conveyor reset-row sampling when using the updated shared reset-state sampler.
+* Migrated conveyor reset events to native prepared-state buffers and success-guided sampling. Interrupted assignments no longer count as failures, and warehouse completion requires parcels supported on their destination conveyor.

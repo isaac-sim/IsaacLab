@@ -50,16 +50,21 @@ tool orientation. Preserve the checkpoint's observation scales and mixed action 
 
 Training builds its procedural recipe buffer with the shared
 [`ResetStateBuffer` API](../../../../../docs/source/how-to/reset_state_buffers.rst) from
-[#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). Collection validates finite recipe tensors,
-joint limits and the existing IK residual; native reset hooks restore controller targets and seals.
+[#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). The task validates finite recipe tensors,
+joint limits and the existing IK residual once, then stores the prepared states. Masked replay
+reuses output buffers and restores physical state, controller targets and native seals.
 These are procedural starts, rather than captured scripted grasp rollouts.
-`ResetStateSampler` and `SuccessMonitor` track 64 progress levels each for controlled descent,
+The core `ResetStateSampler` tracks 64 progress levels each for controlled descent,
 held transport, approach and empty-tool return, plus a full-home bucket. These 257 histories
 are shared across the buffer's parcel, fixture and destination combinations.
-Beta sampling favors intermediate success while retaining uniform coverage. Only the parcel
-selected by the original reset updates that reset bucket; every later receipt still earns reward.
+Target-success scoring favors intermediate success while retaining uniform coverage. Only the parcel
+selected by the original reset credits that bucket, once at reset; every later receipt still earns reward.
+An unfinished manual reset adds no failure. A first-assignment receipt remains a success even if a
+later transfer fails or is interrupted.
 Held resets restore native suction seals, and no reset seeds delivery credit. Playback uses full
-starts with an empty tool. Sampling histories are local to each worker and restart on recreation.
+starts with an empty tool through the event's explicit `state_id` selector (`4 * samples_per_path`).
+Leave `state_id=None` for adaptive training. Sampling histories are local to each worker and restart
+on recreation; an explicit `reset(seed=...)` reseeds draws without clearing that history.
 
 A release must be upright, near its goal, low above the receiving deck and moving slowly.
 Only a qualified release followed by a settled receipt in the commanded bin counts; throwing a
@@ -77,3 +82,6 @@ The 24 cm ray spacing can miss thin or occluded obstacles, and goals stay within
 reachable receiving areas. This example does not establish arbitrary-facility generalization.
 The reset curriculum follows [Success Guided Sampling](https://arxiv.org/abs/2610.12465), pooling
 progress outcomes across parcels and layouts instead of maintaining a history for every state.
+
+Support ownership and the Contrib evaluation/exit plan are shared with the
+[gripper conveyor examples](../conveyor_franka/README.md#support-and-evaluation).

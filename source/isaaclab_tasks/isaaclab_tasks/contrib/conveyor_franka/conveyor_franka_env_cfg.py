@@ -17,7 +17,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import ConveyorSurfaceCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -30,8 +30,6 @@ from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg, UsdP
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_tasks.utils import ResetStateSamplerCfg
 
 from . import mdp
 from .conveyor_geometry import (
@@ -155,11 +153,11 @@ class ObservationsCfg:
 class EventCfg:
     """Restore validated physical reset states."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
     reset_from_state_table = EventTerm(
         func=mdp.ConveyorResetStateTable,
         mode="reset",
         params={
+            "sampling": ResetStateSamplerCfg(),
             "fixed_recipe": None,
             "fixed_variant_id": None,
             "belt_start_x_range": (0.30, 0.82),
@@ -219,19 +217,6 @@ class TerminationsCfg:
         func=mdp.transfer_sequence_time_out,
         params={"maximum_transfers": _TRANSFER_SEQUENCE_LENGTH, "command_name": "transfer"},
         time_out=True,
-    )
-
-
-@configclass
-class CurriculumCfg:
-    """Practice reset states near the measured transfer-success frontier."""
-
-    reset_sampling = CurrTerm(
-        func=mdp.ConveyorResetCurriculum,
-        params={
-            "command_name": "transfer",
-            "sampling": ResetStateSamplerCfg(),
-        },
     )
 
 
@@ -450,7 +435,6 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
     decimation: int = 2
     episode_length_s: float = _SUBGOAL_TIMEOUT_S * _TRANSFER_SEQUENCE_LENGTH
 

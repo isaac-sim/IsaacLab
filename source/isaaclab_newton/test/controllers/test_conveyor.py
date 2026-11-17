@@ -5,6 +5,8 @@
 
 """Public conveyor commands, native transport, and reset/teardown contracts."""
 
+from functools import partial
+
 import numpy as np
 import pytest
 import warp as wp
@@ -81,6 +83,34 @@ def test_transport_reset_rebind_and_close(device):
             assert motion[0, 0] > 0.025  # Straight belt in world 0.
             assert motion[2, 1] > 0.025  # Pivot belt in world 1.
             np.testing.assert_allclose(motion[[1, 3], :2], 0.0, atol=0.002)
+
+            driver.set_speed_scale(-1.0)
+
+            def reset_motion(reset):
+                sim.step(render=False)  # Reversal produces a pending traction force in both worlds.
+                before = manager.backend.state_0.body_qd.numpy().copy()
+                reset()
+                sim.step(render=False)
+                return manager.backend.state_0.body_qd.numpy() - before
+
+            selected_ids = wp.array([0], dtype=wp.int64, device=device)
+            delta = reset_motion(lambda: driver.reset(env_ids=selected_ids))
+            np.testing.assert_allclose(delta[0, :2], 0.0, atol=0.001)
+            assert np.linalg.norm(delta[2, :2]) > 0.001
+            mask = wp.array([False, True], dtype=wp.bool, device=device)
+            driver.reset(env_mask=mask)  # Warm the full native mask path before capture.
+            reset = partial(driver.reset, env_mask=mask)
+            if device != "cpu":
+                with wp.ScopedCapture(device=device) as capture:
+                    driver.reset(env_mask=mask)
+                reset = partial(wp.capture_launch, capture.graph)
+            delta = reset_motion(reset)
+            np.testing.assert_allclose(delta[2, :2], 0.0, atol=0.001)
+            assert np.linalg.norm(delta[0, :2]) > 0.001
+            mask.assign(np.array([True, False]))
+            delta = reset_motion(reset)
+            np.testing.assert_allclose(delta[0, :2], 0.0, atol=0.001)
+            assert np.linalg.norm(delta[2, :2]) > 0.001
 
             driver.set_speed_scale(-1.0, env_ids=(0,))
             driver.stop(env_ids=[1])
