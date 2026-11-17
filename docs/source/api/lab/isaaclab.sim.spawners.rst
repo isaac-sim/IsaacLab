@@ -440,6 +440,7 @@ Wrappers
 
     MultiAssetSpawnerCfg
     MultiUsdFileCfg
+    SimReadyUsdFileCfg
 
 .. autofunction:: spawn_multi_asset
 
@@ -450,5 +451,9 @@ Wrappers
 .. autofunction:: spawn_multi_usd_file
 
 .. autoclass:: MultiUsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: SimReadyUsdFileCfg
     :members:
     :exclude-members: __init__, func

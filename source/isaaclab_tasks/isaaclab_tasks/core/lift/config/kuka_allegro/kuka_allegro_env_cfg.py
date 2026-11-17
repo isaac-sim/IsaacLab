@@ -5,8 +5,7 @@
 
 """Configuration for the Kuka-Allegro lift and reorient environments."""
 
-import json
-import pathlib
+import os
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -15,7 +14,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, search_simready_usd_paths
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_FRICTION_REPLACEMENTS
 
@@ -29,38 +27,26 @@ THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
 """Contact sensors of the remaining fingers."""
 
-# lists, as the JSON cache stores them, so that an unchanged search matches its cached entry
-SIMREADY_SEARCH = {
-    "size_range": [0.02, 0.15],
-    "mass_range": [0.005, 3.0],
-    "features": ["FET003_BASE_PHYSX"],
-    "exclude_features": ["FET004_BASE_PHYSX"],
-    "limit": 100,
-}
-"""SimReady search for the props of the ``simready`` object preset: the first 100 single-body PhysX props of 2 to 15 cm
-and 5 g to 3 kg."""
-
-_cache = json.loads((pathlib.Path(__file__).parent / "simready_objects.json").read_text())
-SIMREADY_OBJECTS = (
-    [f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}" for path in _cache["usd_paths"]]
-    if _cache["search"] == SIMREADY_SEARCH
-    else search_simready_usd_paths(**SIMREADY_SEARCH)
-)
-"""USD paths of the :data:`SIMREADY_SEARCH` result: cached in ``simready_objects.json`` by
-``scripts/tools/search_simready.py``, or searched again when the cache holds another search."""
-
 
 @configclass
 class KukaAllegroObjectCfg(lift.ObjectCfg):
     """Graspable objects for the Kuka-Allegro hand, with SimReady props as an alternative to the shapes."""
 
     # the props keep their authored mass and inertia; their instanced colliders take the shapes' collision overrides
-    simready = lift.ObjectCfg().shapes.replace(
-        assets_cfg=[
-            sim_utils.UsdFileCfg(usd_path=path, make_uninstanceable=True, move_rigid_body_to_root=True)
-            for path in SIMREADY_OBJECTS
-        ],
-        mass_props=None,
+    simready = sim_utils.SimReadyUsdFileCfg(
+        # the first 100 single-body PhysX props of 2 to 15 cm and 5 g to 3 kg
+        search={
+            "size_range": (0.02, 0.15),
+            "mass_range": (0.005, 3.0),
+            "features": ["FET003_BASE_PHYSX"],
+            "exclude_features": ["FET004_BASE_PHYSX"],
+            "limit": 100,
+        },
+        cache_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "simready_objects.json"),
+        make_uninstanceable=True,
+        move_rigid_body_to_root=True,
+        rigid_props=lift.ObjectCfg().shapes.rigid_props,
+        collision_props=lift.ObjectCfg().shapes.collision_props,
     )
 
 
