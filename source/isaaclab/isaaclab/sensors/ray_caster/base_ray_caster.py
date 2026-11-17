@@ -21,6 +21,7 @@ from ...markers import VisualizationMarkers
 from ...terrains.trimesh.utils import make_plane
 from ...utils import math as math_utils
 from ...utils.mesh import convert_faces_to_triangles
+from ...utils.seed import add_seed_listener
 from ...utils.warp import ProxyArray, convert_to_warp_mesh
 from ...utils.warp.kernels import initialize_rng_state, raycast_mesh_masked_kernel
 from ..sensor_base import SensorBase
@@ -76,6 +77,9 @@ class BaseRayCaster(SensorBase):
         super().__init__(cfg)
         self._data = RayCasterData()
         self._drift_sampled = False
+        # Drift random states, allocated when the rays initialize; every configure_seed reseeds them.
+        self._drift_rng_state: wp.array | None = None
+        add_seed_listener(self._seed_drift)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -244,17 +248,10 @@ class BaseRayCaster(SensorBase):
         # Drift buffers are warp-first; reset resamples them in a Warp kernel.
         self.drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
         self.ray_cast_drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
-        # Per-environment random states for drift resampling, seeded once from the environment seed (which
-        # configure_seed stores as torch's initial seed; reading it draws nothing) mixed with the prim path, so
-        # each ray caster draws its own drift; resets only draw from them.
+        # Per-environment random states for drift resampling, seeded from the environment seed (which
+        # configure_seed stores as torch's initial seed; reading it draws nothing); resets only draw from them.
         self._drift_rng_state = wp.empty(self._view_count, dtype=wp.uint32, device=self._device)
-        wp.launch(
-            initialize_rng_state,
-            dim=self._view_count,
-            inputs=[(torch.initial_seed() ^ zlib.crc32(self.cfg.prim_path.encode())) & 0x7FFFFFFF],
-            outputs=[self._drift_rng_state],
-            device=self._device,
-        )
+        self._seed_drift(torch.initial_seed())
 
         # World-frame ray buffers
         self._ray_starts_w = wp.empty((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
@@ -270,6 +267,23 @@ class BaseRayCaster(SensorBase):
         # buffers must be resized to (num_envs, num_rays) to avoid an out-of-bounds write.
         self._dummy_ray_distance = wp.empty((1, 1), dtype=wp.float32, device=self._device)
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
+
+    def _seed_drift(self, seed: int) -> None:
+        """Seed the drift random states from ``seed`` mixed with the prim path, so each ray caster draws its own drift.
+
+        Runs when the rays initialize and on every :func:`~isaaclab.utils.seed.configure_seed`, on the host where
+        the seed is set, never inside a recorded reset.
+        """
+        # No states before the rays initialize, and none in the ray-caster cameras, which do not resample drift.
+        if self._drift_rng_state is None:
+            return
+        wp.launch(
+            initialize_rng_state,
+            dim=self._view_count,
+            inputs=[(seed ^ zlib.crc32(self.cfg.prim_path.encode())) & 0x7FFFFFFF],
+            outputs=[self._drift_rng_state],
+            device=self._device,
+        )
 
     def _get_view_transforms_wp(self) -> wp.array:
         """Get world transforms from the frame view as a warp array of ``wp.transformf``.

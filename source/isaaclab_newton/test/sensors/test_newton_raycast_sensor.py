@@ -40,6 +40,7 @@ from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.seed import configure_seed
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -268,29 +269,32 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim, monkeypatch):
 
 
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
-def test_drift_is_seeded_once_from_the_environment_seed(sim):
-    """The drift states are seeded from the environment seed when the rays initialize; resets only draw from them.
+def test_drift_follows_the_environment_seed(sim):
+    """An explicit seed, as ``env.reset(seed=...)`` sets, restarts the drift sequence; unseeded resets advance it.
 
-    Neither initialization nor resets draw from torch's global generator, and new storage, as after a simulation
-    stop and play, starts the same drift sequence again.
+    Resets do not draw from torch's generator, and new storage, as after a simulation stop and play, starts the
+    drift sequence of the current seed again.
     """
     scene_cfg = RaycastTestSceneCfg(num_envs=2)
     scene_cfg.raycast.drift_range = (0.01, 0.05)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     sensor: NewtonRaycastSensor = scene["raycast"]
-    state = torch.get_rng_state()
 
-    sensor._initialize_rays_impl()
+    configure_seed(123)
     sensor.reset()
     first = sensor.drift.torch.clone()
     sensor.reset()
     assert not torch.allclose(sensor.drift.torch, first)
+    configure_seed(123)
+    state = torch.cuda.get_rng_state(sensor.device)
+    sensor.reset()
+    torch.testing.assert_close(sensor.drift.torch, first)
     sensor._initialize_rays_impl()
     sensor.reset()
     torch.testing.assert_close(sensor.drift.torch, first)
     assert ((first >= 0.01) & (first <= 0.05)).all()
-    assert torch.equal(torch.get_rng_state(), state)
+    assert torch.equal(torch.cuda.get_rng_state(sensor.device), state)
 
 
 @configclass
