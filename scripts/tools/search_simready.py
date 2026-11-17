@@ -9,7 +9,8 @@ The options are the arguments of :func:`isaaclab.utils.assets.search_simready_us
 field of the service's ``/search_hybrid`` request as given. The output holds the paths, relative to the SimReady asset
 folder, and the search as keyword arguments, so ``search_simready_usd_paths(**search)`` repeats it.
 
-The props of the Kuka-Allegro ``simready`` object preset were recorded with:
+The Kuka-Allegro ``simready`` object preset caches the result of its search (``SIMREADY_SEARCH``) in such a file,
+written with:
 
 .. code-block:: bash
 
