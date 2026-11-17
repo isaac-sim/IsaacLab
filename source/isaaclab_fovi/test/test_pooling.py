@@ -11,7 +11,6 @@ import pytest
 import torch
 from fovi.arch.knn import KNNPoolingLayer
 from fovi.arch.pooling import GridPoolingLayer
-
 from isaaclab_fovi.sensors.pooling import (
     build_highres_coords,
     build_lowres_coords,

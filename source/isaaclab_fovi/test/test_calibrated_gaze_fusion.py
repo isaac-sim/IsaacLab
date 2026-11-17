@@ -8,7 +8,6 @@
 import pytest
 import torch
 from fovi.sensing.projection import CameraModel, gaze_rotation
-
 from isaaclab_fovi.sensors.calibrated_geometry import (
     calibrated_fixation_rotation,
     calibrated_mount_angles,

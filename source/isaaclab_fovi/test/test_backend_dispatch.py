@@ -8,7 +8,6 @@
 from dataclasses import dataclass
 
 import pytest
-
 from isaaclab_fovi.sensors import FoveatedTiledCamera
 
 

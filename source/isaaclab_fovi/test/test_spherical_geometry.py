@@ -13,8 +13,6 @@ import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel, angular_directions
 from fovi.sensing.retina import RetinalTransform
-from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_euler_xyz, quat_from_matrix
-
 from isaaclab_fovi.sensors.calibrated_geometry import (
     retinal_directions,
     rotate_camera_rays,
@@ -24,6 +22,8 @@ from isaaclab_fovi.sensors.foveated_newton_tiled_camera import FoveatedNewtonTil
 from isaaclab_fovi.sensors.foveated_rtx_tiled_camera import FoveatedRTXTiledCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 from isaaclab_fovi.sensors.virtual_gaze import CalibratedVirtualGaze
+
+from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_euler_xyz, quat_from_matrix
 
 
 @pytest.fixture

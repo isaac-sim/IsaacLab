@@ -8,14 +8,13 @@ import math
 import numpy as np
 import pytest
 import torch
-from scipy.spatial.transform import Rotation as R
-
 from isaaclab_fovi.sensors.fixed_software_fov import (
     fixed_frustum_validity,
     image_fixation_to_camera_angles,
     image_fixation_to_pan_tilt_angles,
     retinal_ray_directions,
 )
+from scipy.spatial.transform import Rotation as R
 
 
 def test_center_image_fixation_preserves_camera_axis() -> None:

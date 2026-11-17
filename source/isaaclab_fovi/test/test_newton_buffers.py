@@ -11,12 +11,12 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.coords import SamplingCoords
+from isaaclab_fovi.sensors import foveated_newton_tiled_camera as newton_camera
+from isaaclab_fovi.sensors.foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
+
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_fovi.sensors import foveated_newton_tiled_camera as newton_camera
-from isaaclab_fovi.sensors.foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
 
 
 def test_pooled_allocation_accepts_proxy_arrays_and_preserves_render_buffers() -> None:
