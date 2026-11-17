@@ -6,3 +6,5 @@
 * Selected courses through the existing ``platforms``, ``ramps``, and ``granular`` presets;
   removed the ``terrain_name`` field. Preserved explicitly supplied simulation and terrain
   configurations.
+* Reused the core G1 velocity robot and depth-student defaults in the fixed-course demos,
+  preserving their existing effort limits, full collision variant, and SONIC gain overrides.
