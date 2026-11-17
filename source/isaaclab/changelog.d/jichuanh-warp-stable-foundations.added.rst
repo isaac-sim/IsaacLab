@@ -6,5 +6,6 @@
   them; ``to_dict`` stores them as lists, and a pickled configuration leaves them out (``None``) until
   :meth:`~isaaclab.managers.SceneEntityCfg.resolve_warp_ids` runs again.
 * Added :attr:`~isaaclab.scene.InteractiveScene.env_origins_wp` and
-  :attr:`~isaaclab.terrains.TerrainImporter.env_origins_wp`, the environment origins as a ``wp.vec3f`` Warp view of
-  ``env_origins`` for Warp code. ``env_origins`` stays a :class:`torch.Tensor`.
+  :attr:`~isaaclab.terrains.TerrainImporter.env_origins_wp`, the ``wp.vec3f`` Warp array that holds the environment
+  origins, for Warp code. ``env_origins`` stays a :class:`torch.Tensor`, now a view of that array: assigning
+  ``TerrainImporter.env_origins`` writes the new origins into it, so an earlier view of either stays current.

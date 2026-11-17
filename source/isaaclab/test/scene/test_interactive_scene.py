@@ -257,6 +257,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         env_template = scene.cfg.clone_cfg.clone_template
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        first_origins_ptr = scene.env_origins_wp.ptr
         env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
         assert env_0 and not env_0.GetAttribute("xformOpOrder").Get()
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
@@ -278,8 +279,8 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
-        # the Warp view follows the origins of the new clone plan
-        assert scene.env_origins_wp.ptr == scene.env_origins.data_ptr()
+        # the Warp array holds the origins of the new clone plan at its address, and env_origins is its view
+        assert scene.env_origins_wp.ptr == scene.env_origins.data_ptr() == first_origins_ptr
         for env_id, position in enumerate(positions):
             np.testing.assert_allclose(
                 sim_utils.resolve_prim_pose(scene.stage.GetPrimAtPath(env_template.format(env_id)))[0], position
