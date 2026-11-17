@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 def stack_progress(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Reward reaching, lifting, and placing the next cube in the stack.
 
-    Compare the world-frame positions of ``cube_1``, ``cube_2``, ``cube_3``, and ``ee_frame``.
-    The ``success`` termination term supplies the target height and alignment tolerances.
+    Compare the world-frame positions of the three cubes and the ``ee_frame`` sensor. The
+    ``success`` termination term supplies their order, target height, and alignment tolerances.
 
     Args:
         env: The Franka cube stacking environment.
@@ -29,13 +29,12 @@ def stack_progress(env: ManagerBasedRLEnv) -> torch.Tensor:
     Returns:
         One progress reward per environment, with shape ``(num_envs,)``.
     """
-    bottom = env.scene["cube_1"].data.root_pos_w.torch
-    middle = env.scene["cube_2"].data.root_pos_w.torch
-    top = env.scene["cube_3"].data.root_pos_w.torch
-    ee = env.scene["ee_frame"].data.target_pos_w.torch[:, 0]
-
     # The termination manager resolves omitted defaults when it prepares the success term.
     success_params = env.termination_manager.get_term_cfg("success").params
+    bottom = env.scene[success_params["cube_1_cfg"].name].data.root_pos_w.torch
+    middle = env.scene[success_params["cube_2_cfg"].name].data.root_pos_w.torch
+    top = env.scene[success_params["cube_3_cfg"].name].data.root_pos_w.torch
+    ee = env.scene["ee_frame"].data.target_pos_w.torch[:, 0]
     height = success_params["height_diff"]
     # Use alignment alone so closing the gripper for the next pick keeps the new goal.
     middle_placed = _cube_pair_is_aligned(

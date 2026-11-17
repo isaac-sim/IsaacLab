@@ -50,4 +50,5 @@ class FrankaCubeStackRLEnvCfg(FrankaCubeStackEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self.terminations.success.params["symmetric_height_tolerance"] = True
         self.sim.render_interval = self.decimation
