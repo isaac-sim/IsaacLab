@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized scene-data bookkeeping and articulation command bindings in mocked OVPhysX asset benchmarks so pose writes and joint targets completed.
+
+
 9.1.0 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~
 

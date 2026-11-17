@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+30.3.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
+
+
 30.3.0 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
