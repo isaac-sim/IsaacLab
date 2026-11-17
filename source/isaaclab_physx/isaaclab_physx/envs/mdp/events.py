@@ -120,7 +120,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         shape_ids = self._shape_indices
         if len(env_ids) == 0 or shape_ids == []:
             return
-        rows = env_ids[:, None]
+        rows = env_ids if isinstance(shape_ids, slice) else env_ids[:, None]
         materials[rows, shape_ids] = material_samples[:, shape_ids, :3]
 
         indices = wp.from_torch(env_ids, dtype=wp.int32)
@@ -136,7 +136,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             for prim, _ in sim_utils.resolve_matching_prims_from_source(
                 self.asset.cfg.prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.CollisionAPI)
             ):
-                material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(UsdPhysics.Tokens.physics)
+                material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")
                 mode = material.GetPrim().GetAttribute("physxMaterial:frictionCombineMode").Get() if material else None
                 friction_modes.add(mode or "average")
             if len(friction_modes) != 1:
