@@ -34,7 +34,7 @@ class StackResetTableCurriculum(ManagerTermBase):
         if not isinstance(reset_term, StackResetStateTable):
             raise RuntimeError("StackResetTableCurriculum requires StackResetStateTable.")
         self._reset_term = reset_term
-        monitor_cfg = cfg.params.get("success_monitor")
+        monitor_cfg = cfg.params["success_monitor"]
         if not isinstance(monitor_cfg, SuccessMonitorCfg):
             raise TypeError("StackResetTableCurriculum requires a SuccessMonitorCfg.")
         self._progress_monitor = instantiate(
@@ -45,7 +45,7 @@ class StackResetTableCurriculum(ManagerTermBase):
         )
         self._attempts = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
         self._progress_successes = torch.zeros_like(self._attempts)
-        self._table_sampling_probability = float(cfg.params.get("table_sampling_probability", 0.35))
+        self._table_sampling_probability = float(cfg.params["table_sampling_probability"])
         if not 0.0 < self._table_sampling_probability < 1.0:
             raise ValueError("table_sampling_probability must lie strictly between zero and one.")
         self._table_rows = reset_term.recipe_ids == StackResetRecipe.TABLE

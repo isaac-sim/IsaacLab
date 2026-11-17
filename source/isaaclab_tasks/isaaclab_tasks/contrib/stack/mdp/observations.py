@@ -205,7 +205,11 @@ def franka_ee_velocity(
     tool_body_name: str = "panda_hand",
     tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
 ) -> torch.Tensor:
-    """Return the configured tool-center linear/angular velocity."""
+    """Return the tool velocity approximation used by the published state policy.
+
+    The linear component adds the link-origin tool offset correction to the hand's
+    center-of-mass velocity. Preserve this convention for compatible checkpoints.
+    """
     return end_effector_velocity(
         env,
         robot_cfg=robot_cfg,

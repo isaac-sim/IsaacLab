@@ -363,10 +363,10 @@ class StackResetStateTable(ManagerTermBase):
             device=env.device,
         )
         self._build_table(
-            closed_finger_position=float(cfg.params.get("closed_finger_position", 0.020)),
-            placed_finger_position=float(cfg.params.get("placed_finger_position", 0.021)),
-            open_finger_position=float(cfg.params.get("open_finger_position", 0.040)),
-            table_rows_per_layout=int(cfg.params.get("table_rows_per_layout", self._TABLE_ROWS_PER_LAYOUT)),
+            closed_finger_position=float(cfg.params["closed_finger_position"]),
+            placed_finger_position=float(cfg.params["placed_finger_position"]),
+            open_finger_position=float(cfg.params["open_finger_position"]),
+            table_rows_per_layout=int(cfg.params["table_rows_per_layout"]),
         )
         self._validate_table()
         self._rows_by_recipe = tuple(
@@ -795,6 +795,13 @@ class StackResetStateTable(ManagerTermBase):
         has_held_cube = held_roles >= 0
         selected_cube_ids = role_to_cube.gather(1, held_roles.clamp_min(0).unsqueeze(1)).squeeze(1)
         held_cube_ids = torch.where(has_held_cube, selected_cube_ids, -1)
+
+        # Restore the fixed base before applying the selected joint and cube state.
+        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
