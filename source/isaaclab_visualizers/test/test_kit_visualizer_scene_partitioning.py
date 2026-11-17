@@ -214,9 +214,9 @@ def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend,
     sim = MagicMock(has_gui=True, stage=Usd.Stage.CreateInMemory(), device="cpu")
     sim.get_scene_data_provider.return_value.num_envs = 0
     fabric = sim.get_or_create_backend.return_value
-    fabric_module = ModuleType("isaaclab_physx.renderers.fabric")
+    fabric_module = ModuleType("isaaclab_isaacsim.renderers.fabric")
     fabric_module.FabricBackendCfg = MagicMock()
-    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric_module)
+    monkeypatch.setitem(sys.modules, "isaaclab_isaacsim.renderers.fabric", fabric_module)
     monkeypatch.setattr(KitVisualizer, "physics_backend", property(lambda _: physics_backend))
     monkeypatch.setattr(visualizer, "_ensure_simulation_app", MagicMock())
     monkeypatch.setattr(visualizer, "_setup_viewport", MagicMock())

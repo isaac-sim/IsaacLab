@@ -14,7 +14,7 @@ import shutil
 import tempfile
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+from isaaclab_isaacsim.sim.schemas import PhysxConvexHullCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 

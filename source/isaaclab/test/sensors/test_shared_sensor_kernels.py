@@ -191,7 +191,7 @@ def test_pva_rejects_unsupported_features_before_backend_initialization():
 
 
 def test_frame_outputs_preserve_coordinates_and_masked_rows():
-    from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
+    from isaaclab_isaacsim.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
 
     device = "cpu"
     with wp.ScopedDevice(device):
@@ -304,7 +304,7 @@ def test_pva_storage_has_one_owner(source_checkout_root):
         tree = ast.parse(path.read_text())
         imports = [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
         assert not any(
-            name and name.startswith(("isaaclab_newton", "isaaclab_ov", "isaaclab_physx")) for name in imports
+            name and name.startswith(("isaaclab_newton", "isaaclab_ov", "isaaclab_isaacsim")) for name in imports
         )
     for backend in ("newton", "ov", "physx"):
         package = source / f"isaaclab_{backend}/isaaclab_{backend}/sensors/pva"

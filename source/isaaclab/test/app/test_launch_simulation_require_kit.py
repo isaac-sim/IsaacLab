@@ -20,7 +20,7 @@ import signal
 import sys
 import types
 
-import isaaclab_physx.app as physx_app
+import isaaclab_isaacsim.app as physx_app
 import pytest
 
 from pxr import Gf

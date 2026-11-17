@@ -227,7 +227,7 @@ override is given:
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
     from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass

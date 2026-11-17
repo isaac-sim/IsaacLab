@@ -471,6 +471,15 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
+@pytest.mark.parametrize("selector", ["physics", "renderer", "presets"])
+def test_register_task_warns_when_a_global_selector_names_an_isaac_sim_backend(selector):
+    """Selecting an Isaac Sim (Kit) backend by name warns that it is deprecated."""
+    name = "isaacsim_rtx" if selector == "renderer" else "isaacsim_physx"
+    with pytest.warns(FutureWarning, match=rf"'{name}' runs on Isaac Sim"), pytest.raises(ValueError):
+        # The test task declares no such backend, so resolution fails after the warning.
+        _register(PresetCfgEnvCfg(), overrides=[f"{selector}={name}"])
+
+
 def test_register_task_warns_about_a_misspelled_field():
     """A misspelled env override warns that it adds a field beside the one it was meant to set."""
     with pytest.warns(UserWarning, match="has no field 'decimaton'"):

@@ -47,7 +47,7 @@ and experimental features are qualified in each cell.
    :widths: 22 16 16 16 15 15
 
    * - Capability
-     - :class:`PhysX <isaaclab_physx.physics.PhysxCfg>`
+     - :class:`PhysX <isaaclab_isaacsim.physics.PhysxCfg>`
      - :class:`Newton MJWarp <isaaclab_newton.physics.MJWarpSolverCfg>`
      - Newton Kamino
        (:class:`P-ADMM <isaaclab_newton.physics.KaminoPADMMSolverCfg>` /
@@ -120,7 +120,7 @@ PhysX surface and volume deformables use an experimental asset API and require
 CUDA. Their assets use ``UsdReplicateContext`` so PhysX can parse each environment's deformable from USD
 within the scene clone plan. Nodal kinematic targets are
 supported for volume deformables only. See :doc:`/source/concepts/deformables`
-and :class:`~isaaclab_physx.assets.DeformableObject` for the asset requirements.
+and :class:`~isaaclab_isaacsim.assets.DeformableObject` for the asset requirements.
 
 VBD's limited joint support does not replace a general robot articulation.
 The maintained Franka deformable tasks assign the robot to MJWarp and the
@@ -149,14 +149,14 @@ Friction and contact
 
 PhysX uses patch-based Coulomb friction: nearby contacts can be correlated
 into a friction patch. Its friction-correlation and offset controls are part
-of :class:`~isaaclab_physx.physics.PhysxCfg`. MJWarp uses MuJoCo's contact
+of :class:`~isaaclab_isaacsim.physics.PhysxCfg`. MJWarp uses MuJoCo's contact
 model, including its selectable pyramidal or elliptic friction cone and
 frictional impedance ratio. Kamino resolves hard frictional contacts in its
 maximal-coordinate constrained dynamics solve and exposes contact-material
 mixing and warm-start configuration through its generated API.
 
 The collision path also differs. PhysX exposes continuous collision detection
-through :attr:`~isaaclab_physx.physics.PhysxCfg.enable_ccd`, but Isaac Lab
+through :attr:`~isaaclab_isaacsim.physics.PhysxCfg.enable_ccd`, but Isaac Lab
 disables that option when GPU dynamics is enabled. MJWarp can use either its
 internal MuJoCo contact path or Newton's collision pipeline; those modes are
 mutually exclusive. Kamino can use Newton's collision pipeline or, when
@@ -182,7 +182,7 @@ unilateral joint limits, and unilateral contacts.
 
 These are different mechanisms, so copying a restitution or stabilization
 setting does not preserve resting-contact behavior. The exact configuration
-surface belongs in the :class:`~isaaclab_physx.physics.PhysxCfg`,
+surface belongs in the :class:`~isaaclab_isaacsim.physics.PhysxCfg`,
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, and
 :class:`~isaaclab_newton.physics.KaminoConstraintsCfg` API references.
 

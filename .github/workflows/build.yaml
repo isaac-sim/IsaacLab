@@ -38,7 +38,7 @@
 # 4. TEST LOCALLY LIKE CI:
 #    docker run -it --rm --gpus all --network=host --entrypoint bash \
 #      -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-#      -e TEST_FILTER_PATTERN="isaaclab_physx" \
+#      -e TEST_FILTER_PATTERN="isaaclab_isaacsim" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
 #      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
@@ -684,8 +684,8 @@ jobs:
         test-jobs: "4"
         container-name: isaac-lab-newton-test
 
-  test-isaaclab-physx:
-    name: isaaclab_physx
+  test-isaaclab-isaacsim:
+    name: isaaclab_isaacsim
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -702,7 +702,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_physx"
+        filter-pattern: "isaaclab_isaacsim"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"

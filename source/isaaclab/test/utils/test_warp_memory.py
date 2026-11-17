@@ -345,7 +345,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
                     "isaaclab.assets",
                     "isaaclab.sensors",
                     "isaaclab_newton",
-                    "isaaclab_physx",
+                    "isaaclab_isaacsim",
                     "isaaclab_ov",
                     "newton",
                     "isaacsim",

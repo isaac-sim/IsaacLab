@@ -13,8 +13,8 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_isaacsim.physics import IsaacEvents, PhysxCfg, PhysxManager
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent

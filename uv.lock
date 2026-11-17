@@ -1783,16 +1783,16 @@ source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
+    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-newton" },
-    { name = "isaaclab-physx" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
-    { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
 ]
 
 [[package]]
@@ -1828,9 +1828,9 @@ dependencies = [
     { name = "isaaclab-assets" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-experimental" },
+    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
-    { name = "isaaclab-physx" },
     { name = "isaaclab-ppisp" },
     { name = "isaaclab-rl" },
     { name = "isaaclab-tasks" },
@@ -2048,11 +2048,11 @@ requires-dist = [
     { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
     { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-    { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2164,6 +2164,17 @@ dependencies = [
 requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
+name = "isaaclab-isaacsim"
+version = "13.0.2"
+source = { editable = "source/isaaclab_isaacsim" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
 name = "isaaclab-mimic"
 version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
@@ -2205,17 +2216,6 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "ovstage", specifier = "==0.3.0.1791986420" },
 ]
-
-[[package]]
-name = "isaaclab-physx"
-version = "13.0.2"
-source = { editable = "source/isaaclab_physx" }
-dependencies = [
-    { name = "isaaclab" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ppisp"

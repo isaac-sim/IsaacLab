@@ -88,7 +88,7 @@ Understand the new package boundaries first, then make environment configuration
       .. code-block:: python
 
          from isaaclab.utils import configclass
-         from isaaclab_physx.physics import PhysxCfg
+         from isaaclab_isaacsim.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
          @configclass
@@ -116,7 +116,7 @@ When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Artic
    robot = Articulation(cfg=ArticulationCfg(...))
 
 The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
-imports the matching class from the active backend package. The ``isaaclab_physx``,
+imports the matching class from the active backend package. The ``isaaclab_isaacsim``,
 ``isaaclab_newton``, and ``isaaclab_ov`` packages mirror the ``isaaclab`` module structure.
 
 The concrete default remains task-specific so launching without an override stays predictable.
@@ -128,15 +128,15 @@ see :ref:`backend-architecture`. To add a new backend, see
 :doc:`/source/developer-tools/add_physics_backend`.
 
 
-.. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
+.. rubric:: New ``isaaclab_isaacsim`` and ``isaaclab_newton`` Extensions
 
 Two new backend extensions have been introduced:
 
-- **``isaaclab_physx``** — PhysX-specific implementations of asset and sensor classes.
+- **``isaaclab_isaacsim``** — PhysX-specific implementations of asset and sensor classes.
 - **``isaaclab_newton``** — Newton-specific implementations of supported asset classes, including
   articulations, rigid objects, and deformable objects.
 
-The following classes have been moved to ``isaaclab_physx``:
+The following classes have been moved to ``isaaclab_isaacsim``:
 
 .. list-table::
    :header-rows: 1
@@ -145,9 +145,9 @@ The following classes have been moved to ``isaaclab_physx``:
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
    * - ``from isaaclab.assets import SurfaceGripper``
-     - ``from isaaclab_physx.assets import SurfaceGripper``
+     - ``from isaaclab_isaacsim.assets import SurfaceGripper``
    * - ``from isaaclab.assets import SurfaceGripperCfg``
-     - ``from isaaclab_physx.assets import SurfaceGripperCfg``
+     - ``from isaaclab_isaacsim.assets import SurfaceGripperCfg``
 
 .. note::
 
@@ -158,7 +158,7 @@ The following classes have been moved to ``isaaclab_physx``:
 
 .. note::
 
-   The ``isaaclab_physx`` extension is installed automatically with Isaac Lab. No additional
+   The ``isaaclab_isaacsim`` extension is installed automatically with Isaac Lab. No additional
    installation steps are required.
 
 
@@ -192,16 +192,16 @@ implementation (PhysX by default), maintaining full backward compatibility.
    and linear acceleration. See :ref:`imu-to-pva-migration` below for details.
 
 If you need to import the PhysX sensor implementations directly (e.g., for type hints or subclassing),
-you can import from ``isaaclab_physx.sensors``:
+you can import from ``isaaclab_isaacsim.sensors``:
 
 .. code-block:: python
 
    # Direct PhysX implementation imports
-   from isaaclab_physx.sensors import ContactSensor, ContactSensorData
-   from isaaclab_physx.sensors import Imu, ImuData
-   from isaaclab_physx.sensors import Pva, PvaData  # Direct PvaData use is deprecated; prefer sensor.data
-   from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
-   from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
+   from isaaclab_isaacsim.sensors import ContactSensor, ContactSensorData
+   from isaaclab_isaacsim.sensors import Imu, ImuData
+   from isaaclab_isaacsim.sensors import Pva, PvaData  # Direct PvaData use is deprecated; prefer sensor.data
+   from isaaclab_isaacsim.sensors import FrameTransformer, FrameTransformerData
+   from isaaclab_isaacsim.sensors import JointWrenchSensor, JointWrenchSensorData
 
 
 .. rubric:: Newton Backend Implementations
@@ -238,7 +238,7 @@ If you need to import Newton implementations directly (e.g., for type hints or s
 
 In Isaac Lab 3.0, the spawner schema cfg classes are split into solver-common
 **base classes** (in ``isaaclab.sim.schemas``) and **backend-specific subclasses**
-in ``isaaclab_physx.sim.schemas`` and ``isaaclab_newton.sim.schemas``. This makes
+in ``isaaclab_isaacsim.sim.schemas`` and ``isaaclab_newton.sim.schemas``. This makes
 the same asset cfg portable across PhysX and Newton backends, and adds slots
 for backend-specific asset-level knobs (e.g., MuJoCo gravity compensation).
 
@@ -265,27 +265,27 @@ the new location and will be removed in 3.2.
      - Isaac Lab 3.0
    * - ``RigidBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` (solver-common fields) +
-       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` (PhysX-specific)
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyPropertiesCfg` (PhysX-specific)
    * - ``JointDrivePropertiesCfg``
      - :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointDrivePropertiesCfg`
    * - ``CollisionPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.CollisionBaseCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionPropertiesCfg`
    * - ``ArticulationRootPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationRootPropertiesCfg`
    * - ``RigidBodyMaterialCfg``
      - :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` +
-       :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+       :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
    * - ``MeshCollisionPropertiesCfg`` family (``ConvexHullPropertiesCfg``,
        ``ConvexDecompositionPropertiesCfg``, ``TriangleMeshPropertiesCfg``,
        ``TriangleMeshSimplificationPropertiesCfg``, ``SDFMeshPropertiesCfg``)
      - :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` +
-       ``Physx*PropertiesCfg`` family in :mod:`isaaclab_physx.sim.schemas`
+       ``Physx*PropertiesCfg`` family in :mod:`isaaclab_isaacsim.sim.schemas`
    * - ``FixedTendonPropertiesCfg``, ``SpatialTendonPropertiesCfg``
-     - :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
+     - :class:`~isaaclab_isaacsim.sim.schemas.PhysxFixedTendonPropertiesCfg`,
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxSpatialTendonPropertiesCfg`
 
 **Code migration**
 
@@ -303,7 +303,7 @@ Recommended 3.0 pattern when targeting PhysX:
 .. code-block:: python
 
    # Isaac Lab 3.0 — PhysX backend
-   from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyPropertiesCfg
    rigid_props = PhysxRigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
 
 Backend-portable 3.0 pattern (universal-physics fields only):
@@ -357,7 +357,7 @@ Recommended 3.0 pattern, PhysX-targeted:
 
 .. code-block:: python
 
-   from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxJointDrivePropertiesCfg
    PhysxJointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)
 
 **New Newton and MuJoCo cfg classes**
@@ -418,28 +418,28 @@ backend-specific fragment silently drops the inherited properties.
    * - ``RigidBodyBaseCfg``, ``PhysxRigidBodyPropertiesCfg``,
        ``RigidBodyPropertiesCfg``, ``NewtonRigidBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyCfg`
    * - ``MujocoRigidBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyCfg` +
        :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
    * - ``CollisionBaseCfg``, ``PhysxCollisionPropertiesCfg``,
        ``CollisionPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg`
    * - ``JointDriveBaseCfg``, ``PhysxJointDrivePropertiesCfg``,
        ``JointDrivePropertiesCfg``, ``NewtonJointDrivePropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg`
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg`
    * - ``MujocoJointDrivePropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg` +
        :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
    * - ``ArticulationRootBaseCfg``, ``PhysxArticulationRootPropertiesCfg``,
        ``ArticulationRootPropertiesCfg``
-     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`
+     - :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg`
    * - ``NewtonArticulationRootPropertiesCfg``
-     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` +
+     - :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
    * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
        ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
@@ -448,25 +448,25 @@ backend-specific fragment silently drops the inherited properties.
    * - ``Physx*MeshPropertiesCfg`` cooking family (``PhysxConvexHullPropertiesCfg``,
        ``PhysxConvexDecompositionPropertiesCfg``, ``PhysxTriangleMeshPropertiesCfg``,
        ``PhysxTriangleMeshSimplificationPropertiesCfg``, ``PhysxSDFMeshPropertiesCfg``)
-     - ``Physx*Cfg`` cooking fragments (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`), in the spawner's
+     - ``Physx*Cfg`` cooking fragments (:class:`~isaaclab_isaacsim.sim.schemas.PhysxConvexHullCfg`,
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxConvexDecompositionCfg`,
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxTriangleMeshCfg`,
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxSDFMeshCfg`), in the spawner's
        ``mesh_collision_props`` slot
    * - ``NewtonCollisionPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
    * - ``NewtonMeshCollisionPropertiesCfg``
      - ``collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`;
        ``mesh_collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`
    * - ``NewtonSDFCollisionPropertiesCfg``
      - ``collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`;
        ``mesh_collision_props``: :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
        (authors no ``physics:approximation`` token, like the deprecated class)
@@ -477,12 +477,12 @@ backend-specific fragment silently drops the inherited properties.
    * - ``OmniPhysicsDeformableBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
    * - ``PhysXDeformableBodyPropertiesCfg``
-     - :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+     - :class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
    * - ``PhysxDeformableBodyPropertiesCfg``, ``DeformableBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
-       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
    * - ``NewtonDeformableBodyPropertiesCfg``
      - None: the class has no fields. Set the matching deformable slot to an empty list,
        for example ``volume_deformable_props=[]``
@@ -507,8 +507,8 @@ including on Newton. Add only the fragments whose values you need to set. The ac
 chooses the deformable schemas, whereas the legacy cfg type chose them previously.
 
 PhysX properties split into :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
-for ``omniphysics:*``, :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` for
-solver properties, and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`
+for ``omniphysics:*``, :class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` for
+solver properties, and :class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg`
 for surface-only properties. Legacy PhysX cfgs explicitly authored
 ``kinematic_enabled=False`` and ``solver_position_iteration_count=16``; the fragment API
 uses the same schema defaults without authoring them. Set those values explicitly only
@@ -517,8 +517,8 @@ when preserving authored USD on a pre-authored asset matters.
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
-   from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
    cloth = sim_utils.MeshRectangleCfg(
        size=(0.2, 0.2),
@@ -539,7 +539,7 @@ when preserving authored USD on a pre-authored asset matters.
 
    # Recommended: one fragment per USD namespace, composed in the spawner slot
    from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
-   from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
    rigid_props = [
        UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
@@ -580,7 +580,7 @@ only swaps cfg classes drops them:
 The renamed joint-drive fields keep working on the fragments as well:
 ``max_effort`` is a deprecated alias of
 :attr:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg.max_force`, and ``max_velocity``
-of :attr:`~isaaclab_physx.sim.schemas.PhysxJointCfg.max_joint_velocity`.
+of :attr:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg.max_joint_velocity`.
 
 **Schema writers**
 
@@ -743,7 +743,7 @@ subclass that carries both a PhysX and a Newton variant.
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
-   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_isaacsim.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
@@ -845,7 +845,7 @@ been migrated off the deprecated paths so that Isaac Lab continues to load and r
 those modules are removed in a future Isaac Sim release.
 
 This is mostly a transparent change for users — Isaac Lab's own public Python API
-(:mod:`isaaclab`, :mod:`isaaclab_physx`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
+(:mod:`isaaclab`, :mod:`isaaclab_isaacsim`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
 :mod:`isaaclab_mimic`) is unchanged. The migration is only user-visible if you:
 
 1. Import Isaac Sim symbols **directly** in your project, or
@@ -892,7 +892,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
        For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
    * - ``isaacsim.core.simulation_manager.SimulationManager``
      - The simulation's manager instance, ``sim.backend_manager``: a
-       :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       :class:`isaaclab_isaacsim.physics.PhysxManager` (PhysX backend) or
        ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see the
        pattern below.
    * - ``isaacsim.core.cloner``
@@ -964,8 +964,8 @@ If you maintain a custom Kit experience derived from one of the Isaac Lab apps u
 **``SimulationManager`` is no longer re-exported**
 
 Earlier internal previews of this migration briefly exposed
-``isaaclab_physx.physics.SimulationManager`` as a public alias of
-:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
+``isaaclab_isaacsim.physics.SimulationManager`` as a public alias of
+:class:`~isaaclab_isaacsim.physics.PhysxManager`. **That alias has been removed**; use
 the ``sim.backend_manager`` instance, as shown above.
 
 
@@ -1055,7 +1055,7 @@ The rename applies across all backends:
    * - ``XformPrimView``
      - :class:`~isaaclab.sim.views.FrameView`
    * - ``FabricXformPrimView``
-     - :class:`~isaaclab_physx.sim.views.FabricFrameView`
+     - :class:`~isaaclab_isaacsim.sim.views.FabricFrameView`
    * - ``NewtonSiteXformPrimView``
      - :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
 
@@ -1070,7 +1070,7 @@ For most users, the only change needed is updating imports:
    from isaaclab.sim.views import FrameView
 
 The :class:`~isaaclab.sim.views.FrameView` factory automatically dispatches to the correct
-backend (:class:`~isaaclab_physx.sim.views.FabricFrameView` for PhysX,
+backend (:class:`~isaaclab_isaacsim.sim.views.FabricFrameView` for PhysX,
 :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` for Newton) based on the active
 physics backend. The deprecated ``XformPrimView`` alias continues to work but will be
 removed in a future release.
@@ -1303,8 +1303,8 @@ see :ref:`actuators-runtime-api`.
 
 .. rubric:: RigidObjectCollection API Renaming
 
-The :class:`~isaaclab_physx.assets.RigidObjectCollection` and
-:class:`~isaaclab_physx.assets.RigidObjectCollectionData` classes have undergone an API rename
+The :class:`~isaaclab_isaacsim.assets.RigidObjectCollection` and
+:class:`~isaaclab_isaacsim.assets.RigidObjectCollectionData` classes have undergone an API rename
 to provide consistency with other asset classes. The ``object_*`` naming convention has been
 deprecated in favor of ``body_*``.
 
@@ -1339,7 +1339,7 @@ future release:
 
 **Property Renames (Data Class)**
 
-The following properties on :class:`~isaaclab_physx.assets.RigidObjectCollectionData` have been
+The following properties on :class:`~isaaclab_isaacsim.assets.RigidObjectCollectionData` have been
 renamed. The old properties are deprecated and will be removed in a future release:
 
 +------------------------------------------+------------------------------------------+
@@ -1454,7 +1454,7 @@ Here's a complete example showing how to update your code:
 .. code-block:: python
 
    from isaaclab.assets import DeformableObject, DeformableObjectCfg
-   from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+   from isaaclab_isaacsim.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
    # Using the new backend-specific root_view property (PhysX shown)
@@ -2208,8 +2208,8 @@ the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` access
 change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
 :class:`~isaaclab.assets.DeformableObject`) and all sensor classes
-(:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
+(:class:`~isaaclab_isaacsim.sensors.ContactSensor`, :class:`~isaaclab_isaacsim.sensors.Imu`,
+:class:`~isaaclab_isaacsim.sensors.Pva`, :class:`~isaaclab_isaacsim.sensors.FrameTransformer`).
 
 To use a data property as a ``torch.Tensor``, append ``.torch``:
 
@@ -2259,21 +2259,21 @@ Common patterns that need updating:
    * - Class
      - Package
    * - :class:`~isaaclab.assets.Articulation`
-     - ``isaaclab`` / ``isaaclab_physx``
+     - ``isaaclab`` / ``isaaclab_isaacsim``
    * - :class:`~isaaclab.assets.RigidObject`
-     - ``isaaclab`` / ``isaaclab_physx``
+     - ``isaaclab`` / ``isaaclab_isaacsim``
    * - :class:`~isaaclab.assets.RigidObjectCollection`
-     - ``isaaclab`` / ``isaaclab_physx``
+     - ``isaaclab`` / ``isaaclab_isaacsim``
    * - :class:`~isaaclab.assets.DeformableObject`
-     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
-   * - :class:`~isaaclab_physx.sensors.ContactSensor`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Imu`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Pva`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.FrameTransformer`
-     - ``isaaclab_physx``
+     - ``isaaclab`` / ``isaaclab_isaacsim`` / ``isaaclab_newton``
+   * - :class:`~isaaclab_isaacsim.sensors.ContactSensor`
+     - ``isaaclab_isaacsim``
+   * - :class:`~isaaclab_isaacsim.sensors.Imu`
+     - ``isaaclab_isaacsim``
+   * - :class:`~isaaclab_isaacsim.sensors.Pva`
+     - ``isaaclab_isaacsim``
+   * - :class:`~isaaclab_isaacsim.sensors.FrameTransformer`
+     - ``isaaclab_isaacsim``
    * - :class:`~isaaclab.sensors.RayCaster`
      - ``isaaclab``
    * - :class:`~isaaclab.sensors.RayCasterCamera`
@@ -3312,7 +3312,7 @@ module and unified command.
 .. note::
 
    This consolidation affects only the *environment* benchmark suite. The PhysX
-   micro-benchmarks under ``source/isaaclab_physx/benchmark/`` (``benchmark_articulation.py``,
+   micro-benchmarks under ``source/isaaclab_isaacsim/benchmark/`` (``benchmark_articulation.py``,
    ``benchmark_rigid_object.py``, and friends) are unchanged — only the
    ``run_physx_benchmarks.sh`` wrapper that invoked them was removed, so run those scripts
    directly. The other standalone benchmark scripts under ``scripts/benchmarks/`` —
@@ -3423,7 +3423,7 @@ If you have custom benchmark scripts or CI based on Isaac Lab 2.x:
 3. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
    ``run_training_benchmarks.sh`` no longer exist; express their behavior with script
    arguments and ``presets=`` tokens. ``run_physx_benchmarks.sh`` is also gone — invoke the
-   PhysX micro-benchmarks under ``source/isaaclab_physx/benchmark/`` directly instead.
+   PhysX micro-benchmarks under ``source/isaaclab_isaacsim/benchmark/`` directly instead.
 
 4. **Select the backend with** ``presets=`` — replace any per-backend script choice with a
    ``presets=`` (and, if needed, rendering) token on a single unified script. Update custom
@@ -3679,13 +3679,13 @@ Thus, the same setup in Isaac Lab will become ``dt=1/120`` and ``decimation=2``.
 In Isaac Lab, actor-specific PhysX parameters such as solver iteration counts, ``contact_offset``, ``rest_offset``,
 and ``max_depenetration_velocity`` belong to the articulation or rigid-body schema configuration. Scene-wide settings,
 including ``bounce_threshold_velocity``, solver-iteration clamps, and GPU buffer sizes, remain on
-:class:`~isaaclab_physx.physics.PhysxCfg`.
+:class:`~isaaclab_isaacsim.physics.PhysxCfg`.
 
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~isaaclab_physx.physics.PhysxCfg` class provides access for
-setting the GPU buffer dimensions. Use :class:`~isaaclab_physx.physics.PhysxCfg` directly for a PhysX-only parity
+and the number of actors in the environment. The :class:`~isaaclab_isaacsim.physics.PhysxCfg` class provides access for
+setting the GPU buffer dimensions. Use :class:`~isaaclab_isaacsim.physics.PhysxCfg` directly for a PhysX-only parity
 port. For an environment that supports more than one backend, place the backend configurations in a
 :class:`~isaaclab_tasks.utils.PresetCfg` and assign that preset to ``SimulationCfg.physics``.
 
@@ -3727,7 +3727,7 @@ has been validated for those solvers:
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
-   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_isaacsim.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
@@ -3874,7 +3874,7 @@ including file path, simulation parameters, actuator properties, and initial sta
 Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by
 specifying the path to the robot file. Reuse an existing asset configuration when one is available, as shown above.
 For a custom asset, use backend-portable schema base classes from :mod:`isaaclab.sim.schemas` for common properties
-and backend-specific schema classes from :mod:`isaaclab_physx.sim.schemas` or
+and backend-specific schema classes from :mod:`isaaclab_isaacsim.sim.schemas` or
 :mod:`isaaclab_newton.sim.schemas` only for solver-specific settings. See :ref:`schema-cfgs` for the current class
 mapping. Joint properties are specified in the ``actuators`` dictionary, for example with
 :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped using regular expressions.
@@ -4970,8 +4970,8 @@ API is deprecated and replaced by two distinct deformable types:
 
 The type is determined by the physics material assigned to the object:
 
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
+- :class:`~isaaclab_isaacsim.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
+- :class:`~isaaclab_isaacsim.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
 - :class:`~isaaclab_newton.sim.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
 - :class:`~isaaclab_newton.sim.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface deformables.
 
@@ -4996,17 +4996,17 @@ backend-specific and move to the backend package:
    * - Old Import (``isaaclab.sim``)
      - New Import
    * - ``DeformableBodyPropertiesCfg``
-     - ``isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`` or
+     - ``isaaclab_isaacsim.sim.PhysxDeformableBodyPropertiesCfg`` or
        ``isaaclab_newton.sim.NewtonDeformableBodyPropertiesCfg``
    * - ``DeformableBodyMaterialCfg``
-     - ``isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg`` or
+     - ``isaaclab_isaacsim.sim.PhysxDeformableBodyMaterialCfg`` or
        ``isaaclab_newton.sim.NewtonDeformableBodyMaterialCfg``
    * - ``SurfaceDeformableBodyMaterialCfg``
-     - ``isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg`` or
+     - ``isaaclab_isaacsim.sim.PhysxSurfaceDeformableBodyMaterialCfg`` or
        ``isaaclab_newton.sim.NewtonSurfaceDeformableBodyMaterialCfg``
 
 :class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; the OmniPhysics deformable
-body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
+body fields are owned by :class:`~isaaclab_isaacsim.sim.PhysxDeformableBodyPropertiesCfg`.
 
 .. rubric:: Example: Volume Deformable
 
@@ -5036,7 +5036,7 @@ body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyProperti
 
    import isaaclab.sim as sim_utils
    from isaaclab.assets import DeformableObject, DeformableObjectCfg
-   from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg, PhysxDeformableBodyPropertiesCfg
+   from isaaclab_isaacsim.sim import PhysxDeformableBodyMaterialCfg, PhysxDeformableBodyPropertiesCfg
 
    cfg = DeformableObjectCfg(
        prim_path="/World/Origin.*/Cube",
@@ -5072,12 +5072,12 @@ The following fields no longer exist:
      - ``elasticity_damping``
    * - ``contact_offset`` / ``rest_offset`` and ``PhysxDeformableCollisionPropertiesCfg``
      - Set them on the mesh spawner instead, using
-       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`:
+       :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg`:
        ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
        PhysX reads collision offsets off the collider, which for a deformable is its simulation
        mesh, so authoring them on the body prim never reached the solver.
 
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` also gained fields from the new
+:class:`~isaaclab_isaacsim.sim.PhysxDeformableBodyPropertiesCfg` also gained fields from the new
 schema. See the class reference and the `PhysX deformable schema`_ for the current list.
 
 .. rubric:: Behavior Changes

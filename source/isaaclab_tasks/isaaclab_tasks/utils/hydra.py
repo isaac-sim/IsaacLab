@@ -53,6 +53,7 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
+from isaaclab.utils.backend_utils import warn_kit_selector
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
@@ -563,6 +564,9 @@ def register_task(
         else:
             override_items.append((key, val, arg))
 
+    for name in dict.fromkeys(global_presets):
+        warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
+
     # Literal values replace the resolved value after presets and play-mode overrides.
     explicit = {key: val for key, val, _arg in override_items if isinstance(_parse_val(val), str)}
     consumed_presets: set[str] = set()
@@ -843,7 +847,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    This function is safe to call after :class:`~isaaclab_isaacsim.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:

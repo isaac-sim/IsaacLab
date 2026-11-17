@@ -81,7 +81,7 @@ The system has three layers:
 
 3. Backend implementations:
 
-   - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_physx.physics`) wraps PhysX's
+   - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_isaacsim.physics`) wraps PhysX's
      ``RigidBodyView`` and exposes its transforms as :class:`SceneDataFormat.Transform`. When
      deformable bodies are present it also exposes flattened simulation nodal positions through
      :class:`SceneDataFormat.Points`.
@@ -114,7 +114,7 @@ managers nor requests a Newton model. Meshes, particle clouds, and cable curves 
 path.
 
 PhysX publishes native Fabric matrices through SDP without fetching packed poses.
-``isaaclab_physx.renderers.fabric.FabricBackend`` owns the stage and hierarchy
+``isaaclab_isaacsim.renderers.fabric.FabricBackend`` owns the stage and hierarchy
 handles, keyed by stage and device. After physics initializes, Kit, Isaac RTX, and
 explicit Fabric synchronization share the resource through
 ``sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))``.

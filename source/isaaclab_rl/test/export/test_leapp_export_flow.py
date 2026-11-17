@@ -290,7 +290,7 @@ def test_fast_export_has_no_simulator_dependency():
     export_dir = Path(__file__).parent
     for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
         assert not (export_dir / obsolete_file).exists()
-    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
+    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_isaacsim"}
     forbidden_calls = {"launch_simulation", "SimulationContext"}
     for filename in ("test_leapp_export_flow.py", "leapp_tensor_env.py"):
         for node in ast.walk(ast.parse((export_dir / filename).read_text())):

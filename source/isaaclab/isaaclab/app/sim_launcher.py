@@ -20,11 +20,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -37,6 +37,7 @@ from ..scene.interactive_scene_cfg import InteractiveSceneCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
 from ..sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
+from ..utils.backend_utils import warn_kit_selector
 from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
@@ -48,7 +49,7 @@ from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
 
-_KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
+_KIT_LAUNCHER = "isaaclab_isaacsim.app:KitLauncher"
 """Launcher for Kit needs that no config names, e.g. a default-renderer camera or ``require_kit``."""
 
 
@@ -194,6 +195,7 @@ def validate_launch(  # noqa: C901
             "newton_mjwarp": NewtonCfg,
             "newton_vbd": lambda: NewtonCfg(solver_cfg=VBDSolverCfg()),
         }
+        warn_kit_selector(launcher_args["physics"], stacklevel=3)
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
         "kit": KitBackendCfg,

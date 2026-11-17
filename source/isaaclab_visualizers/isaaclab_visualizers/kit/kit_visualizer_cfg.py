@@ -35,7 +35,7 @@ class KitBackendCfg(VisualizerBackendCfg):
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
 
-    launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
+    launcher_type: ClassVar[str] = "isaaclab_isaacsim.app:KitLauncher"
 
     deprecation_warning: bool = True
     """Whether creating the visualizer emits the deprecation warning.

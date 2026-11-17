@@ -17,7 +17,7 @@ name: Multi-GPU Training Tests
 on:
   pull_request:
     paths:
-      - "source/isaaclab_physx/isaaclab_physx/app/kit_launcher.py"
+      - "source/isaaclab_isaacsim/isaaclab_isaacsim/app/kit_launcher.py"
       - "source/isaaclab/isaaclab/app/sim_launcher.py"
       - "scripts/reinforcement_learning/train.py"
       - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"

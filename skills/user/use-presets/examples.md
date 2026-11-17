@@ -14,7 +14,7 @@ Use this when the environment has one supported physics setup and no user-select
 
 ```python
 from isaaclab.sim import SimulationCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 
 class MySimpleEnvCfg:
@@ -35,7 +35,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 
 

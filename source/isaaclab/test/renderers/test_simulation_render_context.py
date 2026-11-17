@@ -28,11 +28,11 @@ from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
 
-pytest.importorskip("isaaclab_physx")
+pytest.importorskip("isaaclab_isaacsim")
 pytest.importorskip("isaaclab_newton")
 
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

@@ -30,7 +30,7 @@ when the renderer must be fixed:
    * - Renderer configuration
      - Requires Isaac Sim
      - Characteristics
-   * - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   * - :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`
      - Yes
      - Replicator and RTX rendering through Isaac Sim
    * - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`

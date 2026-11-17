@@ -276,7 +276,7 @@ def _infer_implicit_physics_names(task_name: str) -> set[str]:
     alias. The preset CLI excludes ``default`` from help listings, but users
     still select PhysX via ``physics=physx`` (or by falling back to default).
     """
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     from isaaclab.physics import PhysicsCfg
 

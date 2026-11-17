@@ -9,8 +9,8 @@
 import argparse
 from types import SimpleNamespace
 
+import isaaclab_isaacsim.app as physx_app
 import isaaclab_ov.app as ov_app
-import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_visualizers.kit import KitBackendCfg

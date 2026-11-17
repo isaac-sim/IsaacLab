@@ -106,7 +106,7 @@ class KitVisualizer(BaseVisualizer):
     @property
     def visual_material_writer(self):
         """Write material channels directly through Fabric."""
-        from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+        from isaaclab_isaacsim.renderers.visual_material import FabricVisualMaterialWriter
 
         return FabricVisualMaterialWriter
 
@@ -164,7 +164,7 @@ class KitVisualizer(BaseVisualizer):
                 omni.ui.ImageWithProvider(self._camera_image_provider)
             asyncio.ensure_future(self._dock_window_async(title))
 
-        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+        from isaaclab_isaacsim.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
@@ -1012,9 +1012,9 @@ class KitVisualizer(BaseVisualizer):
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
         self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
-        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
+        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_isaacsim is not installed).
         try:
-            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
+            from isaaclab_isaacsim.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
 
             set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
         except (ImportError, ModuleNotFoundError):

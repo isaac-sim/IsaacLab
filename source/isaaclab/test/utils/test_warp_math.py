@@ -172,7 +172,7 @@ def test_shared_math_ownership(source_checkout_root):
                     "isaaclab.assets",
                     "isaaclab.sensors",
                     "isaaclab_newton",
-                    "isaaclab_physx",
+                    "isaaclab_isaacsim",
                     "isaaclab_ov",
                     "newton",
                     "isaacsim",

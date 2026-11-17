@@ -326,7 +326,7 @@ class RenderData:
         Newton writes ``0.0`` for rays that miss all geometry or fall beyond the far plane
         (``max_distance``), so ``"none"`` and ``"zero"`` both leave that ``0.0`` background. ``"max"``
         replaces the background with the far clip [m] to mirror the RTX renderer's
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`. No-op when no
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`. No-op when no
         depth output was requested or the camera did not provide a clipping range.
 
         """

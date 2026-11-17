@@ -697,13 +697,15 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     monkeypatch.setattr(
         coupler,
         "_build_proxy_coupled_solver",
-        lambda model, entries, proxies, cfg, mode: recorded_proxies.extend(proxies)
-        or SimpleNamespace(
-            kind="proxy",
-            solver=lambda name: None,
-            get_proxy_contacts=lambda source, destination: (
-                None if case in {"destination_fallback", "destination_factory_fallback"} else object()
-            ),
+        lambda model, entries, proxies, cfg, mode: (
+            recorded_proxies.extend(proxies)
+            or SimpleNamespace(
+                kind="proxy",
+                solver=lambda name: None,
+                get_proxy_contacts=lambda source, destination: (
+                    None if case in {"destination_fallback", "destination_factory_fallback"} else object()
+                ),
+            )
         ),
     )
     driver = CouplerSolver(proxy_cfg, model, _NG, _CELL_TEMPLATE)

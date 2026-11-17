@@ -833,7 +833,7 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
-        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+        from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
 
         material_kwargs = {}
         if stiff is not None:

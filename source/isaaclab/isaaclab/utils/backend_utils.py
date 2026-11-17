@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -15,33 +16,58 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+KIT_SELECTOR_REPLACEMENTS = {
+    "isaacsim_physx": "'ovphysx' or 'newton_mjwarp'",
+    "isaacsim_rtx": "'ovrtx' or 'newton_renderer'",
+}
+"""Selectors that run on Isaac Sim (Kit), mapped to the Kit-free alternatives that replace them."""
+
+
+def warn_kit_selector(name: str, stacklevel: int = 2) -> None:
+    """Warn that selecting ``name`` runs on Isaac Sim (Kit), which is deprecated.
+
+    The selector keeps working. Names outside :data:`KIT_SELECTOR_REPLACEMENTS` are ignored.
+
+    Args:
+        name: Selected physics, renderer, or preset name.
+        stacklevel: Stack level of the warning, relative to the caller of this function.
+    """
+    replacement = KIT_SELECTOR_REPLACEMENTS.get(name)
+    if replacement is not None:
+        warnings.warn(
+            f"Selecting '{name}' runs on Isaac Sim (Kit), which is deprecated in 3.1 and removed in 3.2. "
+            f"Use {replacement} instead.",
+            FutureWarning,
+            stacklevel=stacklevel + 1,
+        )
+
 
 def get_default_renderer_cfg() -> RendererCfg:
     """Return the default :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` for cameras.
 
-    Lazily imports :mod:`isaaclab_physx.renderers` and returns a new
-    :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` instance.
+    Lazily imports :mod:`isaaclab_isaacsim.renderers` and returns a new
+    :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg` instance.
 
     Returns:
         A new default Isaac RTX renderer configuration.
 
     Raises:
-        ImportError: If :mod:`isaaclab_physx.renderers` cannot be imported or does not
+        ImportError: If :mod:`isaaclab_isaacsim.renderers` cannot be imported or does not
             expose ``IsaacRtxRendererCfg``.
     """
     try:
-        renderers_mod = importlib.import_module("isaaclab_physx.renderers")
+        renderers_mod = importlib.import_module("isaaclab_isaacsim.renderers")
     except ImportError as e:
         raise ImportError(
-            "The default camera renderer configuration requires the optional 'isaaclab_physx' "
-            "package (import 'isaaclab_physx.renderers'). Install isaaclab_physx or set "
+            "The default camera renderer configuration requires the optional 'isaaclab_isaacsim' "
+            "package (import 'isaaclab_isaacsim.renderers'). Install isaaclab_isaacsim or set "
             "CameraCfg.renderer_cfg explicitly."
         ) from e
     try:
         default_cls = renderers_mod.IsaacRtxRendererCfg
     except AttributeError as e:
         raise ImportError(
-            "Module 'isaaclab_physx.renderers' is available but does not define 'IsaacRtxRendererCfg'."
+            "Module 'isaaclab_isaacsim.renderers' is available but does not define 'IsaacRtxRendererCfg'."
         ) from e
     return default_cls()
 
