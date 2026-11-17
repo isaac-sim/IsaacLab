@@ -76,6 +76,8 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
         self.gripper_open_val = 0.04
         self.gripper_threshold = 0.005
 
+        self.terminations.success.params["symmetric_height_tolerance"] = True
+
         # End-effector frame (the shared cubes/spawns come from the base scene).
         self.scene.ee_frame = make_ee_frame_cfg(
             base_prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
