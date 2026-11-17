@@ -36,9 +36,6 @@ from .franka_robot_cfg import FRANKA_PANDA_DEXSUITE_CFG
 class EventCfg:
     """Reset from a shared cache of validated full-task stack states."""
 
-    # Restore the authored robot root state before applying sampled joints and cubes.
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
     reset_from_state_buffer = EventTerm(
         func=mdp.StackResetStateTable,
         mode="reset",
