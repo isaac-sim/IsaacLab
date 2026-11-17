@@ -8,7 +8,7 @@
 import os
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -64,12 +64,12 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
     """
 
     robot: ArticulationCfg = replace(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    object: RigidObjectCfg = replace(lift.SceneCfg().object, spawn=KukaAllegroObjectCfg())
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,

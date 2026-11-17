@@ -656,7 +656,7 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
 def test_simready_search_maps_arguments_and_paths(monkeypatch):
     """Size, mass and features become service fields; hits keep service order under the asset root."""
     requests_sent = []
-    hits = [{"source": {"path": f"/Assets/Isaac/6.2/Isaac/SimReady/{name}.usd"}} for name in ("A/a", "B/b")]
+    hits = [{"source": {"path": f"/Assets/Isaac/6.2/Isaac/SimReady/{name}.usd"}} for name in ("B/b", "A/a")]
 
     def fake_post(url, json, timeout):
         requests_sent.append((url, json))
@@ -666,11 +666,11 @@ def test_simready_search_maps_arguments_and_paths(monkeypatch):
     paths = assets_utils.search_simready_usd_paths(
         query="mug", size_range=(0.02, 0.15), mass_range=(0.005, 3.0), features=["F3"], exclude_features=["F4"], limit=2
     )
-    assert paths == [f"{assets_utils.ISAAC_NUCLEUS_DIR}/SimReady/{name}.usd" for name in ("A/a", "B/b")]
+    assert paths == [f"{assets_utils.ISAAC_NUCLEUS_DIR}/SimReady/{name}.usd" for name in ("B/b", "A/a")]
     url, request = requests_sent[0]
     assert url.endswith("/search_hybrid") and request["limit"] == 2 and request["search_path"] == "/Isaac/SimReady/"
     assert request["hybrid_text_query"] == "mug" and "vector_queries" not in request
     assert [request[f"{bound}_bbox_{axis}"] for axis in "xyz" for bound in ("min", "max")] == [0.02, 0.15] * 3
     assert request["filter_by_properties_numeric"] == "simready_metadata_mass>=0.005,simready_metadata_mass<=3.0"
-    assert request["filter_by_properties"].endswith("__F3__passed=~True")
-    assert request["exclude_filter_by_properties"].endswith("__F4__passed=~True")
+    assert request["filter_by_properties"] == "*validation__validated_features__*__F3__passed=~True"
+    assert request["exclude_filter_by_properties"] == "*validation__validated_features__*__F4__passed=~True"

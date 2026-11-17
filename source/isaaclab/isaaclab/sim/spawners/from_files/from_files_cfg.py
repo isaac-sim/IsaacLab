@@ -297,7 +297,7 @@ class UsdFileCfg(FileCfg):
     needs every file to hold its body at the same path. The move happens before the rigid-body,
     mass, and collision overrides are applied.
 
-    Please check the :meth:`~isaaclab.sim.utils.move_rigid_body_to_root` function for more information.
+    Please check the :func:`~isaaclab.sim.utils.move_rigid_body_to_root` function for more information.
     """
 
 

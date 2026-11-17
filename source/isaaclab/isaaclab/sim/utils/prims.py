@@ -265,7 +265,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
         all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
-def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None = None):
+def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None = None) -> None:
     """Move the single rigid body below a prim onto the prim itself.
 
     Asset files often nest their rigid body under a file-specific path, such as ``/Root/Geometry/<name>``.

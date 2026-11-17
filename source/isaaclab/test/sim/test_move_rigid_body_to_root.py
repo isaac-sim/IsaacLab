@@ -44,9 +44,7 @@ def _write_asset(
 
 @pytest.fixture
 def stage():
-    stage = Usd.Stage.CreateInMemory()
-    with sim_utils.use_stage(stage):
-        yield stage
+    return Usd.Stage.CreateInMemory()
 
 
 def _reference(stage, asset_path: str) -> Usd.Prim:

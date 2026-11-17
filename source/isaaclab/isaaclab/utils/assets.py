@@ -277,14 +277,14 @@ NEWTON_ASSET_DIR: str = os.environ.get(
 )
 """URL or local checkout directory of the Newton asset repository; resolve files with :func:`retrieve_file_path`."""
 
+SIMREADY_SEARCH_SERVICE_ENDPOINT: str = "https://search.simready.omniverse.nvidia.com/"
+"""Default SimReady USD-Search service endpoint."""
+
 _MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
 """Suffix of the sidecar file recording the remote revision a locally cached asset came from."""
 
 _REMOTE_FINGERPRINTS: dict[str, dict] = {}
 """Successful remote metadata queries, refreshed by forced retrieval."""
-
-SIMREADY_SEARCH_SERVICE_ENDPOINT = "https://search.simready.omniverse.nvidia.com/"
-"""Default SimReady USD-Search service endpoint."""
 
 _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 """Cache directories already announced, so the banner is logged once per directory."""
@@ -644,7 +644,7 @@ def search_simready_usd_paths(
     exclude_features: Sequence[str] = (),
     limit: int = 100,
     service_endpoint: str = SIMREADY_SEARCH_SERVICE_ENDPOINT,
-    **params,
+    **params: Any,
 ) -> list[str]:
     """Search the SimReady USD-Search service and return the matching USD asset paths in service order.
 
