@@ -48,9 +48,7 @@ os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")
 import numpy as np
 import torch
 from fovi.sensing.coords import SamplingCoords
-from fovi.sensing.projection import CameraModel
 
-from .dense_calibrated_geometry import dense_camera_rays
 from .native_grid import native_grid_directions, native_grid_exit_uv
 
 # ── Optional dependencies ────────────────────────────────────────────────────
@@ -179,22 +177,6 @@ def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tens
 # =============================================================================
 # Core LUT tensor builders
 # =============================================================================
-
-
-def build_dense_calibrated_textures(camera: CameraModel, *, exit_size: int) -> tuple[torch.Tensor, torch.Tensor]:
-    """Build physical-lens direction texels and an analytic octahedral inverse map.
-
-    Direction texels use OpenCV integer pixel centers. The inverse map converts
-    those coordinates to half-integer normalized texture coordinates; rays
-    outside the calibrated raster, image circle, or angular domain map to -1.
-    """
-    directions, _ = dense_camera_rays(camera)
-    decoded = torch.stack(_octahedral_decode(exit_size, exit_size, device="cpu"), -1)
-    pixels, valid = camera.project(decoded * decoded.new_tensor((1, -1, -1)))
-    height, width = camera.image_size
-    uv = ((pixels + 0.5) / pixels.new_tensor((width, height))).float()
-    exit_texture = torch.where(valid[..., None], uv, torch.full_like(uv, -1))
-    return directions, exit_texture
 
 
 def build_native_grid_textures(
