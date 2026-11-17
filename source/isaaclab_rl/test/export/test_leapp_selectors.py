@@ -19,6 +19,8 @@ from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
 from isaaclab.utils.leapp.leapp_semantics import select_element_names
 
+pytestmark = pytest.mark.kitless
+
 
 def _make_warp_selector():
     return wp.array([0, 2], dtype=wp.int32, device="cpu")

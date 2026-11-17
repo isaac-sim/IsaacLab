@@ -32,6 +32,8 @@ from isaaclab.managers import ActionManager, ObservationManager
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 _UR10_TASK = "Isaac-Reach-UR10"
 _DIRECT_TASK = "Isaac-Leapp-Direct-Tensor"
 _CREATORS = {
