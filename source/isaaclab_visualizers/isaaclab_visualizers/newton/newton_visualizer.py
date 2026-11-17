@@ -1030,7 +1030,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         if renderers and self.rtx_rendering:
             # The cached RTX image predates the mesh, which matters while paused or between renders.
             view = self._image_views[self.rtx_view_index]
-            view.camera.update(0.0)
+            view.camera._invalidate_buffers()
             view.invalidate()
 
     @property

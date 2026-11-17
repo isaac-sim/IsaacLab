@@ -1448,12 +1448,12 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     visualizer.log_mesh("/m", points=None, indices=None)  # OpenGL is shown: publish, but do not render RTX
 
     renderer.log_mesh.assert_called_once()
-    camera.update.assert_not_called()
+    camera._invalidate_buffers.assert_not_called()
 
     visualizer.current_image_view = view
     visualizer.log_mesh("/m", points=None, indices=None)
 
-    camera.update.assert_called_once_with(0.0)
+    camera._invalidate_buffers.assert_called_once_with()
     view.invalidate.assert_called_once_with()
 
 
