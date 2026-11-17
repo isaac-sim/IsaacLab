@@ -276,7 +276,7 @@ class ManagerBasedEnvWarp:
     @property
     def env_origins_wp(self) -> wp.array:
         """Scene env origins as a warp ``vec3f`` array."""
-        return self.scene.env_origins.warp
+        return self.scene.env_origins_wp
 
     def resolve_env_mask(
         self,

@@ -93,12 +93,15 @@ def test_plane(num_envs, env_spacing):
         terrain_importer = TerrainImporter(terrain_importer_cfg)
 
         # These square grids are centered on the world origin.
-        origins = terrain_importer.env_origins.torch
+        origins = terrain_importer.env_origins
         half_span = (int(np.sqrt(num_envs)) - 1) * env_spacing / 2.0
         assert origins.shape == (num_envs, 3)
         assert origins.device == torch.device("cuda:0")
         torch.testing.assert_close(origins[0].cpu(), torch.tensor([half_span, -half_span, 0.0]))
         torch.testing.assert_close(origins[-1].cpu(), torch.tensor([-half_span, half_span, 0.0]))
+        # Warp code reads a view of the same memory
+        assert terrain_importer.env_origins_wp.ptr == origins.data_ptr()
+        assert terrain_importer.env_origins_wp.shape == (num_envs,)
 
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"

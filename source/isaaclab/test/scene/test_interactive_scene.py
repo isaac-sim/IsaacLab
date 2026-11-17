@@ -12,7 +12,6 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-import warp as wp
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -26,7 +25,6 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.integration
 
@@ -151,7 +149,7 @@ def test_relative_deformable_state():
     )
     scene = SimpleNamespace(
         device="cpu",
-        env_origins=ProxyArray(wp.from_torch(env_origins, dtype=wp.vec3f)),
+        env_origins=env_origins,
         _articulations={},
         _cable_objects={},
         _deformable_objects={"object": deformable},
@@ -258,7 +256,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         assert sim.get_clone_plan() is None
         env_template = scene.cfg.clone_cfg.clone_template
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
-        torch.testing.assert_close(scene.env_origins.torch, torch.from_numpy(grid_positions))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
         env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
         assert env_0 and not env_0.GetAttribute("xformOpOrder").Get()
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
@@ -279,7 +277,9 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
 
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
-        torch.testing.assert_close(scene.env_origins.torch, torch.from_numpy(positions))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
+        # the Warp view follows the origins of the new clone plan
+        assert scene.env_origins_wp.ptr == scene.env_origins.data_ptr()
         for env_id, position in enumerate(positions):
             np.testing.assert_allclose(
                 sim_utils.resolve_prim_pose(scene.stage.GetPrimAtPath(env_template.format(env_id)))[0], position
