@@ -5,9 +5,10 @@
 
 """Warp-owned snapshots for masked reset-state restoration."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
-from functools import cache
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import torch
 import warp as wp
@@ -42,7 +43,7 @@ class ResetStateBuffer:
 
     State: TypeAlias = dict[str, "wp.array | ProxyArray | torch.Tensor | ResetStateBuffer.State"]
 
-    def __init__(self, states: "ResetStateBuffer.State", *, num_states: int | None = None) -> None:
+    def __init__(self, states: ResetStateBuffer.State, *, num_states: int | None = None) -> None:
         if num_states is not None and (type(num_states) is not int or num_states < 0):
             raise ValueError("num_states must be a non-negative integer.")
         rows: int | None = None
@@ -77,7 +78,7 @@ class ResetStateBuffer:
         return self._num_states
 
     @property
-    def states(self) -> "ResetStateBuffer.State":
+    def states(self) -> ResetStateBuffer.State:
         """Copied :class:`ProxyArray` tree, preserving each field's shape, dtype, device, and units.
 
         This allocating export is intended for initialization, inspection, or persistence.
@@ -88,9 +89,9 @@ class ResetStateBuffer:
         self,
         state_ids: wp.array | ProxyArray | torch.Tensor,
         *,
-        out: "ResetStateBuffer.State | None" = None,
+        out: ResetStateBuffer.State | None = None,
         mask: wp.array | ProxyArray | torch.Tensor | None = None,
-    ) -> "ResetStateBuffer.State":
+    ) -> ResetStateBuffer.State:
         """Copy selected states into the output rows enabled by ``mask``.
 
         Args:
@@ -165,41 +166,37 @@ def _as_array(value, dtype=None) -> wp.array:
 def _gather(source, ids, mask, target) -> None:
     if target.size:
         wp.launch(
-            _gather_kernel(source.dtype, source.ndim, ids.dtype),
+            _gather_kernel,
             target.shape,
             [source, ids, mask, target],
             device=source.device,
         )
 
 
-@cache
-def _gather_kernel(dtype, ndim: int, id_dtype) -> wp.Kernel:
-    @wp.kernel(module="unique")
-    def gather(
-        source: wp.array(dtype=dtype, ndim=ndim),
-        ids: wp.array(dtype=id_dtype),
-        mask: wp.array(dtype=wp.bool),
-        target: wp.array(dtype=dtype, ndim=ndim),
-    ):
-        i, j, k, component = int(0), int(0), int(0), int(0)
-        if wp.static(ndim == 1):
-            i = wp.tid()
-        elif wp.static(ndim == 2):
-            i, j = wp.tid()
-        elif wp.static(ndim == 3):
-            i, j, k = wp.tid()
-        else:
-            i, j, k, component = wp.tid()
-        if mask and not mask[i]:
-            return
-        row = int(ids[i])
-        if wp.static(ndim == 1):
-            target[i] = source[row]
-        elif wp.static(ndim == 2):
-            target[i, j] = source[row, j]
-        elif wp.static(ndim == 3):
-            target[i, j, k] = source[row, j, k]
-        else:
-            target[i, j, k, component] = source[row, j, k, component]
-
-    return gather
+@wp.kernel
+def _gather_kernel(
+    source: Any,
+    ids: wp.array(dtype=Any),
+    mask: wp.array(dtype=wp.bool),
+    target: Any,
+):
+    i, j, k, component = int(0), int(0), int(0), int(0)
+    if wp.static(len(source.shape) == 1):
+        i = wp.tid()
+    elif wp.static(len(source.shape) == 2):
+        i, j = wp.tid()
+    elif wp.static(len(source.shape) == 3):
+        i, j, k = wp.tid()
+    else:
+        i, j, k, component = wp.tid()
+    if mask and not mask[i]:
+        return
+    row = int(ids[i])
+    if wp.static(len(source.shape) == 1):
+        target[i] = source[row]
+    elif wp.static(len(source.shape) == 2):
+        target[i, j] = source[row, j]
+    elif wp.static(len(source.shape) == 3):
+        target[i, j, k] = source[row, j, k]
+    else:
+        target[i, j, k, component] = source[row, j, k, component]

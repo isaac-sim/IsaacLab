@@ -19,7 +19,13 @@ pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 def test_buffer_owns_snapshots_and_returns_selected_copies() -> None:
     poses = torch.arange(12, dtype=torch.float64).reshape(3, 4).requires_grad_()
-    states = {"rigid_object": {"cube": {"root_pose": poses}}, "joint_ids": torch.tensor([7, 8, 9])}
+    history = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]], [[9, 10], [11, 12]]])
+    states = {
+        "rigid_object": {"cube": {"root_pose": poses}},
+        "joint_ids": torch.tensor([7, 8, 9]),
+        "history": history,
+        "batched_history": history[:, None],
+    }
     buffer = ResetStateBuffer(states)
     assert buffer.num_states == 3
     row_ids = torch.tensor([2, 0, 2])
@@ -28,6 +34,9 @@ def test_buffer_owns_snapshots_and_returns_selected_copies() -> None:
     torch.testing.assert_close(selected["rigid_object"]["cube"]["root_pose"].torch, expected)
     assert not selected["rigid_object"]["cube"]["root_pose"].torch.requires_grad
     torch.testing.assert_close(selected["joint_ids"].torch, torch.tensor([9, 7, 9]))
+    expected_history = torch.tensor([[[9, 10], [11, 12]], [[1, 2], [3, 4]], [[9, 10], [11, 12]]])
+    torch.testing.assert_close(selected["history"].torch, expected_history)
+    torch.testing.assert_close(selected["batched_history"].torch, expected_history[:, None])
     with torch.no_grad():
         poses.zero_()
     states.clear()

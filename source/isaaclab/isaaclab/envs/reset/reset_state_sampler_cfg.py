@@ -7,7 +7,7 @@
 
 from isaaclab.utils import configclass
 
-from .sampling_cfg import SamplingScoreCfg, TargetSuccessScoreCfg, UniformScoreCfg
+from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg, UniformScoreCfg
 
 
 @configclass

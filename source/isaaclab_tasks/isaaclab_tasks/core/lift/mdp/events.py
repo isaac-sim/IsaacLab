@@ -393,6 +393,43 @@ class conditional_reset(ManagerTermBase):
                 with :paramref:`reset_sampler`.
         """
 
+        if not self._prefilled:
+            env_ids = self._prefill(
+                env,
+                terms=terms,
+                valid_criteria=valid_criteria,
+                buffer_size_per_group=buffer_size_per_group,
+                max_prefill_iters=max_prefill_iters,
+                diversity_feature=diversity_feature,
+                oversample_factor=oversample_factor,
+                reset_sampler=reset_sampler,
+                success_reward_term=success_reward_term,
+            )
+
+        mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._mask)
+        # The viewer marks manual resets as terminated, but leaves this natural-outcome mask unchanged.
+        completed = wp.from_torch(env.reset_buf) if self._track_success else None
+        self.reset_mask(mask, completed=completed)
+
+    def _prefill(
+        self,
+        env: ManagerBasedEnv,
+        *,
+        terms: dict[str, EventTermCfg],
+        valid_criteria: dict[str, ManagerTermBaseCfg],
+        buffer_size_per_group: int,
+        max_prefill_iters: int | None,
+        diversity_feature: ManagerTermBaseCfg | None,
+        oversample_factor: float,
+        reset_sampler: ResetStateSamplerCfg | None,
+        success_reward_term: str,
+    ) -> torch.Tensor:
+        """Collect each asset group's valid starts and bind native replay once.
+
+        Generation perturbs every environment, so return all environment IDs for the
+        first restore, including when the caller requested only a partial reset.
+        """
+
         def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
             for term in terms.values():
                 term.func(env, roll_ids, **term.params)
@@ -403,83 +440,75 @@ class conditional_reset(ManagerTermBase):
                 ok &= criterion.func(env, roll_ids, **criterion.params)
             return ok
 
-        if not self._prefilled:
-            # The plan already identifies the world prototype selected by each environment.
-            _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
-            self._group = torch.as_tensor(group, device=env.device)
-            num_groups = int(self._group.max().item()) + 1
-            # without a descriptor there is nothing to spread over, so harvesting extra is waste
-            harvest_size = buffer_size_per_group
-            if diversity_feature is not None:
-                harvest_size = round(buffer_size_per_group * oversample_factor)
-            self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
-            iteration = 0
+        # The plan already identifies the world prototype selected by each environment.
+        _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
+        self._group = torch.as_tensor(group, device=env.device)
+        num_groups = int(self._group.max().item()) + 1
+        # without a descriptor there is nothing to spread over, so harvesting extra is waste
+        harvest_size = buffer_size_per_group
+        if diversity_feature is not None:
+            harvest_size = round(buffer_size_per_group * oversample_factor)
+        self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
+        iteration = 0
 
-            # prefill ignores env_ids and rolls every environment: a partial first reset may
-            # not cover all groups, and a group with no rolled envs could never fill
-            all_ids = torch.arange(env.num_envs, device=env.device)
+        # prefill ignores env_ids and rolls every environment: a partial first reset may
+        # not cover all groups, and a group with no rolled envs could never fill
+        all_ids = torch.arange(env.num_envs, device=env.device)
 
-            with tqdm(
-                total=num_groups * harvest_size,
-                desc="Prefilling reset buffer",
-                unit="state",
-                dynamic_ncols=True,
-            ) as progress:
-                while not bool((self._fill >= harvest_size).all()):
-                    if max_prefill_iters is not None and iteration >= max_prefill_iters:
-                        short = torch.nonzero(self._fill < harvest_size).view(-1)
-                        counts = {int(group): int(self._fill[group]) for group in short}
-                        raise RuntimeError(
-                            "conditional_reset: could not fill the reset-state buffer for every asset-combination "
-                            f"group. Required {harvest_size} valid states per group, got {counts} after "
-                            f"{max_prefill_iters} prefill iterations."
-                        )
-                    iteration += 1
-                    valid_ids = all_ids[roll_once(all_ids)]
-                    for group in torch.unique(self._group[valid_ids]).tolist():
-                        filled = int(self._fill[group])
-                        remaining = harvest_size - filled
-                        if remaining <= 0:
-                            continue
-                        take = valid_ids[self._group[valid_ids] == group][:remaining]
-                        if len(take) == 0:
-                            continue
-                        state = get_reset_state(env, take, self._reset_assets, is_relative=True)
-                        if self._buffer.numel() == 0:
-                            capacity = num_groups * harvest_size
-                            self._buffer = torch.empty(
-                                capacity, state.shape[-1], device=state.device, dtype=state.dtype
+        with tqdm(
+            total=num_groups * harvest_size,
+            desc="Prefilling reset buffer",
+            unit="state",
+            dynamic_ncols=True,
+        ) as progress:
+            while not bool((self._fill >= harvest_size).all()):
+                if max_prefill_iters is not None and iteration >= max_prefill_iters:
+                    short = torch.nonzero(self._fill < harvest_size).view(-1)
+                    counts = {int(group): int(self._fill[group]) for group in short}
+                    raise RuntimeError(
+                        "conditional_reset: could not fill the reset-state buffer for every asset-combination "
+                        f"group. Required {harvest_size} valid states per group, got {counts} after "
+                        f"{max_prefill_iters} prefill iterations."
+                    )
+                iteration += 1
+                valid_ids = all_ids[roll_once(all_ids)]
+                for group in torch.unique(self._group[valid_ids]).tolist():
+                    filled = int(self._fill[group])
+                    remaining = harvest_size - filled
+                    if remaining <= 0:
+                        continue
+                    take = valid_ids[self._group[valid_ids] == group][:remaining]
+                    if len(take) == 0:
+                        continue
+                    state = get_reset_state(env, take, self._reset_assets, is_relative=True)
+                    if self._buffer.numel() == 0:
+                        capacity = num_groups * harvest_size
+                        self._buffer = torch.empty(capacity, state.shape[-1], device=state.device, dtype=state.dtype)
+                    row = group * harvest_size + filled
+                    self._buffer[row : row + len(take)] = state
+                    if diversity_feature is not None:
+                        # measured now: the next roll overwrites the states these describe
+                        feature = diversity_feature.func(env, take, **diversity_feature.params)
+                        if self._descriptor.numel() == 0:
+                            self._descriptor = torch.empty(
+                                num_groups * harvest_size,
+                                feature.shape[-1],
+                                device=feature.device,
+                                dtype=feature.dtype,
                             )
-                        row = group * harvest_size + filled
-                        self._buffer[row : row + len(take)] = state
-                        if diversity_feature is not None:
-                            # measured now: the next roll overwrites the states these describe
-                            feature = diversity_feature.func(env, take, **diversity_feature.params)
-                            if self._descriptor.numel() == 0:
-                                self._descriptor = torch.empty(
-                                    num_groups * harvest_size,
-                                    feature.shape[-1],
-                                    device=feature.device,
-                                    dtype=feature.dtype,
-                                )
-                            self._descriptor[row : row + len(take)] = feature
-                        self._fill[group] += len(take)
-                        progress.update(len(take))
-            if diversity_feature is not None:
-                self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
-            self._initialize_replay(reset_sampler, num_groups, success_reward_term)
-            self._prefilled = True
-            # drop the prefill-only terms/criteria so their device memory is freed
-            terms.clear()
-            valid_criteria.clear()
-            # the rolls above perturbed every environment, so the first reset restores a
-            # banked state to all of them, not just the requested subset
-            env_ids = all_ids
-
-        mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._mask)
-        # The viewer marks manual resets as terminated, but leaves this natural-outcome mask unchanged.
-        completed = wp.from_torch(env.reset_buf) if self._track_success else None
-        self.reset_mask(mask, completed=completed)
+                        self._descriptor[row : row + len(take)] = feature
+                    self._fill[group] += len(take)
+                    progress.update(len(take))
+        if diversity_feature is not None:
+            self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
+        self._initialize_replay(reset_sampler, num_groups, success_reward_term)
+        self._prefilled = True
+        # drop the prefill-only terms/criteria so their device memory is freed
+        terms.clear()
+        valid_criteria.clear()
+        # the rolls above perturbed every environment, so the first reset restores a
+        # banked state to all of them, not just the requested subset
+        return all_ids
 
     def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.

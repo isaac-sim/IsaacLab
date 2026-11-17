@@ -24,7 +24,7 @@ class SamplingScoreCfg:
 class TargetSuccessScoreCfg(SamplingScoreCfg):
     """Configure an analytically normalized target-success score."""
 
-    class_type: type | str = "{DIR}.sampling:TargetSuccessScore"
+    class_type: type | str = "{DIR}.sampling_scores:TargetSuccessScore"
     metric: str = "success_rate"
     """Name of the per-entry metric, with values in [0, 1]."""
     target: float = 0.5
@@ -37,4 +37,4 @@ class TargetSuccessScoreCfg(SamplingScoreCfg):
 class UniformScoreCfg(SamplingScoreCfg):
     """Configure a score of one, requiring no metric."""
 
-    class_type: type | str = "{DIR}.sampling:UniformScore"
+    class_type: type | str = "{DIR}.sampling_scores:UniformScore"

@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fixed-storage, mask-native reset selection and completed-outcome attribution."""
+"""Select reset starts after crediting the completed episodes that used them.
+
+The public sampler owns catalog assignments, success history, and random streams.
+Private kernels below implement ID lookup, ordered history updates, and draws.
+"""
 
 from __future__ import annotations
 
@@ -20,179 +24,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from .reset_state_sampler_cfg import ResetStateSamplerCfg
-from .sampling import SamplingScore, sample_cdf
-
-
-@wp.kernel
-def _initialize_rng(seed: int, states: wp.array(dtype=wp.uint32)):
-    i = wp.tid()
-    states[i] = wp.rand_init(seed, i)
-
-
-@wp.kernel
-def _resolve_requests(
-    mask: wp.array(dtype=wp.bool),
-    requested: wp.array(dtype=Any),
-    catalog: wp.array(dtype=wp.int64),
-    order: wp.array(dtype=wp.int32),
-    groups: wp.array(dtype=wp.int32),
-    group_size: int,
-    dense: bool,
-    indices: wp.array(dtype=wp.int32),
-    invalid: wp.array(dtype=wp.bool),
-):
-    env = wp.tid()
-    invalid[env] = False
-    indices[env] = -1
-    if mask[env]:
-        value = wp.int64(requested[env])
-        index = int(-1)
-        if dense:
-            if value >= wp.int64(0) and value < wp.int64(catalog.shape[0]):
-                index = int(value)
-        else:
-            lo = int(0)
-            hi = catalog.shape[0]
-            while lo < hi:
-                mid = (lo + hi) // 2
-                if catalog[mid] < value:
-                    lo = mid + 1
-                else:
-                    hi = mid
-            if lo < catalog.shape[0] and catalog[lo] == value:
-                index = order[lo]
-        if index >= 0 and index // group_size == groups[env]:
-            indices[env] = index
-        else:
-            invalid[env] = True
-
-
-@wp.kernel
-def _outcome_keys(
-    mask: wp.array(dtype=wp.bool),
-    valid: wp.array(dtype=wp.bool),
-    indices: wp.array(dtype=wp.int32),
-    invalid: wp.array(dtype=wp.bool),
-    num_states: int,
-    keys: wp.array(dtype=wp.int32),
-    values: wp.array(dtype=wp.int32),
-):
-    env = wp.tid()
-    key = num_states
-    if mask[env] and valid[env] and not invalid[env] and indices[env] >= 0:
-        key = indices[env]
-    keys[env] = key
-    values[env] = env
-
-
-@wp.kernel
-def _outcome_ranges(
-    keys: wp.array(dtype=wp.int32),
-    size: int,
-    starts: wp.array(dtype=wp.int32),
-    ends: wp.array(dtype=wp.int32),
-):
-    i = wp.tid()
-    key = keys[i]
-    if key < starts.shape[0]:
-        if i == 0 or keys[i - 1] != key:
-            starts[key] = i
-        if i == size - 1 or keys[i + 1] != key:
-            ends[key] = i + 1
-
-
-@wp.kernel
-def _record_outcomes(
-    starts: wp.array(dtype=wp.int32),
-    ends: wp.array(dtype=wp.int32),
-    values: wp.array(dtype=wp.int32),
-    success: wp.array(dtype=Any),
-    history: wp.array2d(dtype=float),
-    episodes: wp.array(dtype=wp.int64),
-    rates: wp.array(dtype=float),
-):
-    state = wp.tid()
-    start = starts[state]
-    end = ends[state]
-    if end > start:
-        length = history.shape[1]
-        old_episodes = episodes[state]
-        for i in range(wp.max(start, end - length), end):
-            position = int((old_episodes + wp.int64(i - start)) % wp.int64(length))
-            history[state, position] = wp.where(float(success[values[i]]) > 0.5, 1.0, 0.0)
-        episodes[state] = old_episodes + wp.int64(end - start)
-        successes = float(0.0)
-        for i in range(length):
-            successes += history[state, i]
-        rates[state] = successes / float(wp.min(episodes[state], wp.int64(length)))
-
-
-@wp.kernel
-def _combine_scores(
-    scores: wp.array2d(dtype=float),
-    weights: wp.array(dtype=float),
-    eps: float,
-    out: wp.array(dtype=wp.float64),
-):
-    state = wp.tid()
-    value = eps
-    for term in range(weights.shape[0]):
-        value += weights[term] * scores[term, state]
-    out[state] = wp.float64(value)
-
-
-@wp.kernel
-def _probabilities(
-    weights: wp.array(dtype=wp.float64),
-    cumulative: wp.array(dtype=wp.float64),
-    group_size: int,
-    out: wp.array(dtype=float),
-):
-    state = wp.tid()
-    start = (state // group_size) * group_size
-    base = wp.float64(0.0)
-    if start > 0:
-        base = cumulative[start - 1]
-    total = cumulative[start + group_size - 1] - base
-    if total > wp.float64(0.0):
-        out[state] = float(weights[state] / total)
-    else:
-        out[state] = 1.0 / float(group_size)
-
-
-@wp.kernel
-def _assign(
-    mask: wp.array(dtype=wp.bool),
-    groups: wp.array(dtype=wp.int32),
-    group_size: int,
-    requested: wp.array(dtype=wp.int32),
-    use_requested: bool,
-    invalid: wp.array(dtype=wp.bool),
-    cumulative: wp.array(dtype=wp.float64),
-    catalog: wp.array(dtype=wp.int64),
-    rng: wp.array(dtype=wp.uint32),
-    indices: wp.array(dtype=wp.int32),
-    state_ids: wp.array(dtype=wp.int64),
-):
-    env = wp.tid()
-    if mask[env] and not invalid[env]:
-        index = int(-1)
-        if use_requested:
-            index = requested[env]
-        else:
-            start = groups[env] * group_size
-            state = rng[env]
-            uniform = wp.randf(state)
-            rng[env] = state
-            index = sample_cdf(cumulative, start, group_size, uniform)
-        indices[env] = index
-        state_ids[env] = catalog[index]
-
-
-def _warp_array(value: wp.array | ProxyArray | torch.Tensor) -> wp.array:
-    if isinstance(value, ProxyArray):
-        return value.warp
-    return wp.from_torch(value) if isinstance(value, torch.Tensor) else value
+from .sampling_scores import SamplingScore
 
 
 class ResetStateSampler:
@@ -261,40 +93,42 @@ class ResetStateSampler:
         self._group_size = num_states // num_groups
         self._all_mask = wp.ones(num_envs, dtype=wp.bool, device=self.device)
         self._scratch_mask = wp.empty_like(self._all_mask)
-        self._indices = wp.full(num_envs, -1, dtype=wp.int32, device=self.device)
-        self.indices = ProxyArray(self._indices)
+        # Assignments are dense storage positions plus their externally visible catalog labels.
+        self._assigned_indices = wp.full(num_envs, -1, dtype=wp.int32, device=self.device)
+        self.indices = ProxyArray(self._assigned_indices)
         self.state_ids = ProxyArray(wp.full(num_envs, -1, dtype=wp.int64, device=self.device))
         self.invalid_requests = ProxyArray(wp.zeros(num_envs, dtype=wp.bool, device=self.device))
         self._requested_indices = wp.empty(num_envs, dtype=wp.int32, device=self.device)
-        groups = np.zeros(num_envs, dtype=np.int32)
+        env_group_ids = np.zeros(num_envs, dtype=np.int32)
         if group_ids is not None:
-            values = self._input(group_ids, num_envs)
-            if values.dtype not in (wp.int32, wp.int64):
+            group_values = self._input(group_ids, num_envs)
+            if group_values.dtype not in (wp.int32, wp.int64):
                 raise ValueError("group_ids must use int32 or int64.")
-            groups = values.numpy()
-        if np.any((groups < 0) | (groups >= num_groups)):
+            env_group_ids = group_values.numpy()
+        if np.any((env_group_ids < 0) | (env_group_ids >= num_groups)):
             raise ValueError("group_ids must contain valid integer partition indices.")
-        self._groups = wp.array(groups, dtype=wp.int32, device=self.device)
+        self._env_group_ids = wp.array(env_group_ids, dtype=wp.int32, device=self.device)
         self._dense_ids = state_ids is None
-        catalog = np.arange(num_states, dtype=np.int64)
+        catalog_ids = np.arange(num_states, dtype=np.int64)
         if state_ids is not None:
-            values = self._input(state_ids, num_states)
-            if values.dtype not in (wp.int32, wp.int64):
+            catalog_values = self._input(state_ids, num_states)
+            if catalog_values.dtype not in (wp.int32, wp.int64):
                 raise ValueError("state_ids must use int32 or int64.")
-            catalog = values.numpy()
-        if np.unique(catalog).size != num_states or np.any(catalog == -1):
+            catalog_ids = catalog_values.numpy()
+        if np.unique(catalog_ids).size != num_states or np.any(catalog_ids == -1):
             raise ValueError("state_ids must be unique and cannot contain the unassigned label -1.")
-        self._catalog = wp.array(catalog, dtype=wp.int64, device=self.device)
-        order = np.argsort(catalog, kind="stable").astype(np.int32)
-        self._sorted_catalog = wp.array(catalog[order], dtype=wp.int64, device=self.device)
-        self._catalog_order = wp.array(order, dtype=wp.int32, device=self.device)
-        self._history = wp.zeros((num_states, cfg.history_length), dtype=float, device=self.device)
+        self._catalog_ids = wp.array(catalog_ids, dtype=wp.int64, device=self.device)
+        sorted_catalog_indices = np.argsort(catalog_ids, kind="stable").astype(np.int32)
+        self._sorted_catalog_ids = wp.array(catalog_ids[sorted_catalog_indices], dtype=wp.int64, device=self.device)
+        self._sorted_catalog_indices = wp.array(sorted_catalog_indices, dtype=wp.int32, device=self.device)
+        self._success_history = wp.zeros((num_states, cfg.history_length), dtype=float, device=self.device)
         self.episode_counts = ProxyArray(wp.zeros(num_states, dtype=wp.int64, device=self.device))
         self.success_rate = ProxyArray(wp.zeros(num_states, dtype=float, device=self.device))
-        self._keys = wp.empty(2 * num_envs, dtype=wp.int32, device=self.device)
-        self._values = wp.empty_like(self._keys)
-        self._starts = wp.zeros(num_states, dtype=wp.int32, device=self.device)
-        self._ends = wp.zeros_like(self._starts)
+        # Stable radix sort uses the second half of each array as workspace.
+        self._outcome_state_indices = wp.empty(2 * num_envs, dtype=wp.int32, device=self.device)
+        self._outcome_env_indices = wp.empty_like(self._outcome_state_indices)
+        self._state_outcome_start = wp.zeros(num_states, dtype=wp.int32, device=self.device)
+        self._state_outcome_end = wp.zeros_like(self._state_outcome_start)
         self._rng = wp.empty(num_envs, dtype=wp.uint32, device=self.device)
         self.reseed(cfg.seed)
         self._metrics = {"success_rate": self.success_rate.warp}
@@ -315,29 +149,6 @@ class ResetStateSampler:
         self._cdf = wp.empty_like(self._weights)
         self.probabilities = ProxyArray(wp.empty(num_states, dtype=float, device=self.device))
         self._update_probabilities()
-
-    def _input(self, value: wp.array | ProxyArray | torch.Tensor, size: int) -> wp.array:
-        result = _warp_array(value)
-        if not isinstance(result, wp.array) or result.shape != (size,) or result.device != self.device:
-            raise ValueError(f"Expected a same-device one-dimensional array of size {size}.")
-        return result
-
-    def _update_probabilities(self) -> None:
-        for i, score in enumerate(self._scores):
-            score.score(self._metrics, self.score_values.warp[i])
-        wp.launch(
-            _combine_scores,
-            self.num_states,
-            [self.score_values.warp, self._score_weights, self.cfg.eps, self._weights],
-            device=self.device,
-        )
-        wp.utils.array_scan(self._weights, self._cdf)
-        wp.launch(
-            _probabilities,
-            self.num_states,
-            [self._weights, self._cdf, self._group_size, self.probabilities.warp],
-            device=self.device,
-        )
 
     def reseed(self, seed: int) -> None:
         """Restart each environment's random stream in place, including streams retained by captured graphs.
@@ -372,86 +183,326 @@ class ResetStateSampler:
         if isinstance(mask, ProxyArray):
             mask = mask.warp
         selection = resolve_1d_mask(ids=env_ids, mask=mask, all_mask=self._all_mask, scratch_mask=self._scratch_mask)
+        # Resolve selection and explicit labels before touching the previous episode.
         self.invalid_requests.warp.zero_()
         if state_ids is not None:
-            requests = self._input(state_ids, self.num_envs)
-            if requests.dtype not in (wp.int32, wp.int64):
-                raise TypeError("Requested state_ids must use int32 or int64.")
-            wp.launch(
-                _resolve_requests,
-                self.num_envs,
-                [
-                    selection,
-                    requests,
-                    self._sorted_catalog,
-                    self._catalog_order,
-                    self._groups,
-                    self._group_size,
-                    self._dense_ids,
-                    self._requested_indices,
-                    self.invalid_requests.warp,
-                ],
-                device=self.device,
-            )
+            self._resolve_requested_indices(selection, state_ids)
+        # Credit the old assignments, then score and select their replacements.
         if success is not None:
-            outcomes = self._input(success, self.num_envs)
-            validity = self._all_mask if valid is None else self._input(valid, self.num_envs)
-            if validity.dtype != wp.bool:
-                raise TypeError("valid must use the boolean dtype.")
-            self._starts.zero_()
-            self._ends.zero_()
-            wp.launch(
-                _outcome_keys,
-                self.num_envs,
-                [
-                    selection,
-                    validity,
-                    self._indices,
-                    self.invalid_requests.warp,
-                    self.num_states,
-                    self._keys,
-                    self._values,
-                ],
-                device=self.device,
-            )
-            wp.utils.radix_sort_pairs(self._keys, self._values, self.num_envs)
-            wp.launch(
-                _outcome_ranges,
-                self.num_envs,
-                [self._keys, self.num_envs, self._starts, self._ends],
-                device=self.device,
-            )
-            wp.launch(
-                _record_outcomes,
-                self.num_states,
-                [
-                    self._starts,
-                    self._ends,
-                    self._values,
-                    outcomes,
-                    self._history,
-                    self.episode_counts.warp,
-                    self.success_rate.warp,
-                ],
-                device=self.device,
-            )
+            self._record_completed_outcomes(selection, success, valid)
         self._update_probabilities()
         wp.launch(
-            _assign,
+            _assign_reset_states,
             self.num_envs,
             [
                 selection,
-                self._groups,
+                self._env_group_ids,
                 self._group_size,
                 self._requested_indices,
                 state_ids is not None,
                 self.invalid_requests.warp,
                 self._cdf,
-                self._catalog,
+                self._catalog_ids,
                 self._rng,
-                self._indices,
+                self._assigned_indices,
                 self.state_ids.warp,
             ],
             device=self.device,
         )
         return self.state_ids
+
+    def _resolve_requested_indices(self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor) -> None:
+        """Resolve explicit catalog labels before any previous outcomes are credited."""
+        requests = self._input(state_ids, self.num_envs)
+        if requests.dtype not in (wp.int32, wp.int64):
+            raise TypeError("Requested state_ids must use int32 or int64.")
+        wp.launch(
+            _resolve_requests,
+            self.num_envs,
+            [
+                selection,
+                requests,
+                self._sorted_catalog_ids,
+                self._sorted_catalog_indices,
+                self._env_group_ids,
+                self._group_size,
+                self._dense_ids,
+                self._requested_indices,
+                self.invalid_requests.warp,
+            ],
+            device=self.device,
+        )
+
+    def _record_completed_outcomes(
+        self,
+        selection: wp.array,
+        success: wp.array | ProxyArray | torch.Tensor,
+        valid: wp.array | ProxyArray | torch.Tensor | None,
+    ) -> None:
+        """Append completed outcomes to their previous entries in stable environment order.
+
+        Several environments may finish the same entry together. Grouping them by entry
+        avoids competing ring-buffer writes; stable sorting retains environment order.
+        """
+        outcomes = self._input(success, self.num_envs)
+        validity = self._all_mask if valid is None else self._input(valid, self.num_envs)
+        if validity.dtype != wp.bool:
+            raise TypeError("valid must use the boolean dtype.")
+        self._state_outcome_start.zero_()
+        self._state_outcome_end.zero_()
+        wp.launch(
+            _index_completed_outcomes,
+            self.num_envs,
+            [
+                selection,
+                validity,
+                self._assigned_indices,
+                self.invalid_requests.warp,
+                self.num_states,
+                self._outcome_state_indices,
+                self._outcome_env_indices,
+            ],
+            device=self.device,
+        )
+        wp.utils.radix_sort_pairs(self._outcome_state_indices, self._outcome_env_indices, self.num_envs)
+        wp.launch(
+            _find_state_outcome_ranges,
+            self.num_envs,
+            [self._outcome_state_indices, self.num_envs, self._state_outcome_start, self._state_outcome_end],
+            device=self.device,
+        )
+        wp.launch(
+            _append_success_history,
+            self.num_states,
+            [
+                self._state_outcome_start,
+                self._state_outcome_end,
+                self._outcome_env_indices,
+                outcomes,
+                self._success_history,
+                self.episode_counts.warp,
+                self.success_rate.warp,
+            ],
+            device=self.device,
+        )
+
+    def _update_probabilities(self) -> None:
+        for i, score in enumerate(self._scores):
+            score.score(self._metrics, self.score_values.warp[i])
+        wp.launch(
+            _combine_scores,
+            self.num_states,
+            [self.score_values.warp, self._score_weights, self.cfg.eps, self._weights],
+            device=self.device,
+        )
+        wp.utils.array_scan(self._weights, self._cdf)
+        wp.launch(
+            _probabilities,
+            self.num_states,
+            [self._weights, self._cdf, self._group_size, self.probabilities.warp],
+            device=self.device,
+        )
+
+    def _input(self, value: wp.array | ProxyArray | torch.Tensor, size: int) -> wp.array:
+        result = _warp_array(value)
+        if not isinstance(result, wp.array) or result.shape != (size,) or result.device != self.device:
+            raise ValueError(f"Expected a same-device one-dimensional array of size {size}.")
+        return result
+
+
+@wp.kernel
+def _initialize_rng(seed: int, states: wp.array(dtype=wp.uint32)):
+    i = wp.tid()
+    states[i] = wp.rand_init(seed, i)
+
+
+@wp.kernel
+def _resolve_requests(
+    mask: wp.array(dtype=wp.bool),
+    requested: wp.array(dtype=Any),
+    catalog_ids: wp.array(dtype=wp.int64),
+    sorted_catalog_indices: wp.array(dtype=wp.int32),
+    env_group_ids: wp.array(dtype=wp.int32),
+    group_size: int,
+    dense: bool,
+    requested_indices: wp.array(dtype=wp.int32),
+    invalid: wp.array(dtype=wp.bool),
+):
+    env = wp.tid()
+    invalid[env] = False
+    requested_indices[env] = -1
+    if mask[env]:
+        value = wp.int64(requested[env])
+        index = int(-1)
+        if dense:
+            if value >= wp.int64(0) and value < wp.int64(catalog_ids.shape[0]):
+                index = int(value)
+        else:
+            lo = int(0)
+            hi = catalog_ids.shape[0]
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if catalog_ids[mid] < value:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            if lo < catalog_ids.shape[0] and catalog_ids[lo] == value:
+                index = sorted_catalog_indices[lo]
+        if index >= 0 and index // group_size == env_group_ids[env]:
+            requested_indices[env] = index
+        else:
+            invalid[env] = True
+
+
+@wp.kernel
+def _index_completed_outcomes(
+    mask: wp.array(dtype=wp.bool),
+    valid: wp.array(dtype=wp.bool),
+    assigned_indices: wp.array(dtype=wp.int32),
+    invalid: wp.array(dtype=wp.bool),
+    num_states: int,
+    outcome_state_indices: wp.array(dtype=wp.int32),
+    outcome_env_indices: wp.array(dtype=wp.int32),
+):
+    env = wp.tid()
+    key = num_states
+    if mask[env] and valid[env] and not invalid[env] and assigned_indices[env] >= 0:
+        key = assigned_indices[env]
+    outcome_state_indices[env] = key
+    outcome_env_indices[env] = env
+
+
+@wp.kernel
+def _find_state_outcome_ranges(
+    outcome_state_indices: wp.array(dtype=wp.int32),
+    size: int,
+    state_outcome_start: wp.array(dtype=wp.int32),
+    state_outcome_end: wp.array(dtype=wp.int32),
+):
+    i = wp.tid()
+    key = outcome_state_indices[i]
+    if key < state_outcome_start.shape[0]:
+        if i == 0 or outcome_state_indices[i - 1] != key:
+            state_outcome_start[key] = i
+        if i == size - 1 or outcome_state_indices[i + 1] != key:
+            state_outcome_end[key] = i + 1
+
+
+@wp.kernel
+def _append_success_history(
+    state_outcome_start: wp.array(dtype=wp.int32),
+    state_outcome_end: wp.array(dtype=wp.int32),
+    outcome_env_indices: wp.array(dtype=wp.int32),
+    success: wp.array(dtype=Any),
+    success_history: wp.array2d(dtype=float),
+    episode_counts: wp.array(dtype=wp.int64),
+    success_rate: wp.array(dtype=float),
+):
+    state_index = wp.tid()
+    start = state_outcome_start[state_index]
+    end = state_outcome_end[state_index]
+    if end > start:
+        length = success_history.shape[1]
+        old_episodes = episode_counts[state_index]
+        for i in range(wp.max(start, end - length), end):
+            position = int((old_episodes + wp.int64(i - start)) % wp.int64(length))
+            success_history[state_index, position] = wp.where(float(success[outcome_env_indices[i]]) > 0.5, 1.0, 0.0)
+        episode_counts[state_index] = old_episodes + wp.int64(end - start)
+        successes = float(0.0)
+        for i in range(length):
+            successes += success_history[state_index, i]
+        success_rate[state_index] = successes / float(wp.min(episode_counts[state_index], wp.int64(length)))
+
+
+@wp.kernel
+def _combine_scores(
+    scores: wp.array2d(dtype=float),
+    weights: wp.array(dtype=float),
+    eps: float,
+    out: wp.array(dtype=wp.float64),
+):
+    state_index = wp.tid()
+    value = eps
+    for term in range(weights.shape[0]):
+        value += weights[term] * scores[term, state_index]
+    out[state_index] = wp.float64(value)
+
+
+@wp.kernel
+def _probabilities(
+    weights: wp.array(dtype=wp.float64),
+    cumulative: wp.array(dtype=wp.float64),
+    group_size: int,
+    out: wp.array(dtype=float),
+):
+    state_index = wp.tid()
+    start = (state_index // group_size) * group_size
+    base = wp.float64(0.0)
+    if start > 0:
+        base = cumulative[start - 1]
+    total = cumulative[start + group_size - 1] - base
+    if total > wp.float64(0.0):
+        out[state_index] = float(weights[state_index] / total)
+    else:
+        out[state_index] = 1.0 / float(group_size)
+
+
+@wp.func
+def sample_cdf(cumulative: wp.array(dtype=Any), start: int, count: int, uniform: float) -> int:
+    """Draw from a cumulative-weight segment using a supplied sample in [0, 1).
+
+    ``count`` must be positive. A zero-total segment falls back to uniform selection.
+    Both float32 and float64 storage can be used by inlined MDP terms.
+    """
+    end = start + count
+    base = wp.float64(0.0)
+    if start > 0:
+        base = wp.float64(cumulative[start - 1])
+    total = wp.float64(cumulative[end - 1]) - base
+    if total <= wp.float64(0.0):
+        return start + wp.min(int(uniform * float(count)), count - 1)
+    draw = base + wp.float64(uniform) * total
+    lo = start
+    hi = end - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if wp.float64(cumulative[mid]) <= draw:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+@wp.kernel
+def _assign_reset_states(
+    mask: wp.array(dtype=wp.bool),
+    env_group_ids: wp.array(dtype=wp.int32),
+    group_size: int,
+    requested: wp.array(dtype=wp.int32),
+    use_requested: bool,
+    invalid: wp.array(dtype=wp.bool),
+    cumulative: wp.array(dtype=wp.float64),
+    catalog_ids: wp.array(dtype=wp.int64),
+    rng: wp.array(dtype=wp.uint32),
+    assigned_indices: wp.array(dtype=wp.int32),
+    state_ids: wp.array(dtype=wp.int64),
+):
+    env = wp.tid()
+    if mask[env] and not invalid[env]:
+        index = int(-1)
+        if use_requested:
+            index = requested[env]
+        else:
+            start = env_group_ids[env] * group_size
+            rng_state = rng[env]
+            uniform = wp.randf(rng_state)
+            rng[env] = rng_state
+            index = sample_cdf(cumulative, start, group_size, uniform)
+        assigned_indices[env] = index
+        state_ids[env] = catalog_ids[index]
+
+
+def _warp_array(value: wp.array | ProxyArray | torch.Tensor) -> wp.array:
+    if isinstance(value, ProxyArray):
+        return value.warp
+    return wp.from_torch(value) if isinstance(value, torch.Tensor) else value
