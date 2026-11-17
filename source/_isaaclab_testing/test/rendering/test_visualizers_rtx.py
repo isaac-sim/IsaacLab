@@ -140,7 +140,7 @@ def test_directly_spawned_camera_drives_rtx_window():
         physics=OvPhysxCfg(),
         visualizer_cfgs=[VisualizerCfg(
             headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64)),
-            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
+            backend=NewtonGLBackendCfg(),
         )],
     )  # fmt: skip
     target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
@@ -413,7 +413,8 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 
         visualizer._select_camera(1)
         image = visualizer.render_tiled_rgba_array()
-        np.testing.assert_array_equal(image.numpy(), camera.data.output["rgba"].warp.numpy()[0])
+        # The sensor view shows every environment side by side; the first tile is environment 0.
+        np.testing.assert_array_equal(image.numpy()[:, :128], camera.data.output["rgba"].warp.numpy()[0])
         assert image.device.is_cuda
         with monkeypatch.context() as gpu_display:
             gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
