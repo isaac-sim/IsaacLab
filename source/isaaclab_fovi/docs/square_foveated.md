@@ -8,7 +8,6 @@ FoveatedCameraCfg(
     foveated_style="warped_cartesian_as_grid",
     radius_norm=float("inf"),
     fov_type="square",
-    ndc_layout="native_grid",
     foveated_res=64,
 )
 ```
