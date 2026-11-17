@@ -6,9 +6,9 @@ realistic image the policy was trained on.
 
 ![Cosmos3 Sim-Transfer in the loop: physics, rendering, Cosmos post-processing and the GR00T policy](media/cosmos3-sim-transfer-workflow.jpg)
 
-Each step, Isaac Lab simulates the scene and renders the head camera's depth. The Cosmos
-service generates an RGB image from that depth and a prompt, the GR00T server predicts the
-next 16 actions from the image and the robot's joint positions, and Isaac Lab plays them.
+Isaac Lab simulates the scene and renders the head camera's depth. The Cosmos service
+generates an RGB image from that depth and a prompt, the GR00T server predicts the next 16
+actions from the image and the robot's joint positions, and Isaac Lab plays them.
 
 The task is `IsaacContrib-PickPlace-Apple-G1-Dex3`. Its scene, start states, prompt and
 controller settings follow an earlier Isaac Sim evaluation of this policy. It uses the rendered camera
@@ -183,10 +183,12 @@ uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
 Cosmos generates the image from depth alone, so the renderer's shading does not change it.
 The Cosmos task works with the other backends too.
 
-Check for `"ready": true` and `"session_active": false` first. The task sends the head
-camera's depth to the service with the prompt in
-`isaaclab_experimental/cosmos/tasks/prompts/apple_pick_place.json`, and the policy
-reads the generated image. Edit that file to change the appearance of the scene.
+Check for `"ready": true` and `"session_active": false` first. Every 4 policy steps
+(7.5 Hz), the task sends the head camera's depth to the service, so one 4-frame Cosmos update
+spans one 16-action chunk, and the policy reads the generated image. The prompt is the caption in
+`isaaclab_experimental/cosmos/tasks/prompts/apple_pick_place.json`, followed by a sentence asking
+Cosmos to follow the depth precisely, and the model is told 12.5 fps. The prompt, the rates and the
+sentence follow the earlier evaluation. Edit that file to change the appearance of the scene.
 
 ## 7. Optional: save the camera images
 
