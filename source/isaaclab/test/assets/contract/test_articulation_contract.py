@@ -472,6 +472,11 @@ def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, b
 
     The recording writes the root pose in place and invalidates the heading as the root pose writers do.
     """
+    if backend == "ovphysx":
+        pytest.skip(
+            "the test writes the root pose data buffer directly, while OVPhysX's writers write the binding, which each"
+            " read inside a capture copies into the buffer again"
+        )
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
     rotated = _payload((N,), 7, wp.transformf, cuda_device)
     art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))
