@@ -21,10 +21,8 @@ class SurfaceGripper(FactoryBase, BaseSurfaceGripper):
     """Create the active backend's surface gripper.
 
     Configure this asset with :class:`SurfaceGripperCfg` and access it through
-    :attr:`~isaaclab.scene.InteractiveScene.surface_grippers`. Commands above 0.3
-    close, commands below -0.3 open, and the middle band retains the vacuum state.
-    ``set_grippers_command`` stages commands; the scene's ``write_data_to_sim``
-    applies them. The state is -1 for open, 0 for closing, and 1 for sealed.
+    :attr:`~isaaclab.scene.InteractiveScene.surface_grippers`. See
+    :class:`BaseSurfaceGripper` for command, measurement and lifecycle contracts.
 
     Newton supports one four-pad tool per replicated world and single-box payloads.
     It automatically acquires an eligible payload unless ``set_target_ids`` restricts

@@ -234,7 +234,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
-        self._requested_solver_observables: set[str] = set()
+        self._requested_solver_observables: dict[object, set[str]] = {}
         self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
@@ -509,7 +509,7 @@ class NewtonManager(PhysicsManager):
             backend.init_solver(
                 None if plan is None else plan.env_template,
                 relaxed_capture=self._relaxed_capture,
-                observable_kinds=self._requested_solver_observables,
+                observable_kinds=set().union(*self._requested_solver_observables.values()),
             )
         if self._handled_actions is not None:
             self._handle_actions()
@@ -544,9 +544,28 @@ class NewtonManager(PhysicsManager):
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
 
-    def request_solver_observables(self, *kinds: str) -> None:
-        """Request solver outputs before initialization; requests survive hard resets."""
-        self._requested_solver_observables.update(kinds)
+    def request_solver_observables(self, *kinds: str, owner: object) -> None:
+        """Request an owner's solver outputs before initialization; requests survive hard resets.
+
+        Release the request with :meth:`release_solver_observables` when its consumer closes.
+        """
+        if self.backend is not None and self.backend.solver is not None:
+            raise RuntimeError("Request solver observables before the first simulation reset.")
+        self._requested_solver_observables[owner] = set(kinds)
+
+    def release_solver_observables(self, owner: object) -> None:
+        """Remove an owner's requests without reallocating arrays retained by other consumers."""
+        self._requested_solver_observables.pop(owner, None)
+        backend = self.backend
+        if backend is not None:
+            kinds = set().union(*self._requested_solver_observables.values())
+            if backend.solver_observables is not None:
+                backend.solver_observables = backend.solver_observables.select(kinds) if kinds else None
+            if backend.contact_observables is not None:
+                backend.contact_observables = backend.contact_observables.select(
+                    kinds | SensorContact.solver_observable_kinds
+                )
+            backend.invalidate_graph()
 
     def get_solver_observables(self) -> SolverBase.Observables | None:
         """Return the outputs populated by each solver substep, or ``None`` when unrequested."""

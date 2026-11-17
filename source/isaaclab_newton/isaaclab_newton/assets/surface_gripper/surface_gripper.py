@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Sequence
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -32,7 +34,7 @@ from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.memory import make_masked_copy, resolve_1d_indices, resolve_1d_mask, resolve_ids
 
-from isaaclab_newton.physics import NewtonManager
+from ...physics import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.assets.surface_gripper import SurfaceGripperCfg
@@ -58,115 +60,123 @@ def _box_seal_fits(seal: wp.transform, box: wp.transform, half_extents: wp.vec3,
     return fits
 
 
-@wp.kernel
-def _reset_pads(
-    mask: wp.array[wp.bool],
-    enabled: wp.array[wp.bool],
-    targets: wp.array[wp.int32],
-    engaged: wp.array[wp.bool],
-    command: wp.array[wp.float32],
-    state: wp.array[wp.float32],
-    previous: wp.array[wp.vec2i],
-    current: wp.array[wp.vec2i],
-    vacuum: wp.array[wp.float32],
-    load: wp.array[wp.vec4],
-    unclamped_load: wp.array[wp.vec4],
-):
-    world = wp.tid()
-    if not mask[world]:
-        return
-    enabled[world] = False
-    targets[world] = -1
-    engaged[world] = False
-    command[world] = 0.0
-    state[world] = -1.0
-    for offset in range(4):
-        pad = world * 4 + offset
-        previous[pad] = wp.vec2i(-1, -1)
-        current[pad] = wp.vec2i(-1, -1)
-        vacuum[pad] = 0.0
-        load[pad] = wp.vec4(0.0)
-        unclamped_load[pad] = wp.vec4(0.0)
-
-
-@wp.kernel
-def _apply_commands(mask: wp.array[wp.bool], command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
-    world = wp.tid()
-    if not mask[world]:
-        return
-    if command[world] > 0.3:
-        enabled[world] = True
-    elif command[world] < -0.3:
+@cache
+def make_reset_pads() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def reset_pads(
+        mask: wp.array[wp.bool],
+        enabled: wp.array[wp.bool],
+        targets: wp.array[wp.int32],
+        command: wp.array[wp.float32],
+        state: wp.array[wp.float32],
+        previous: wp.array[wp.vec2i],
+        current: wp.array[wp.vec2i],
+        vacuum: wp.array[wp.float32],
+        load: wp.array[wp.vec4],
+        unclamped_load: wp.array[wp.vec4],
+    ):
+        world = wp.tid()
+        if not mask[world]:
+            return
         enabled[world] = False
+        targets[world] = -1
+        command[world] = 0.0
+        state[world] = -1.0
+        for offset in range(4):
+            pad = world * 4 + offset
+            previous[pad] = wp.vec2i(-1, -1)
+            current[pad] = wp.vec2i(-1, -1)
+            vacuum[pad] = 0.0
+            load[pad] = wp.vec4(0.0)
+            unclamped_load[pad] = wp.vec4(0.0)
+
+    return reset_pads
 
 
-@wp.kernel
-def _update_engagement(
-    mask: wp.array[wp.bool],
-    enabled: wp.array[wp.bool],
-    target_ids: wp.array[wp.int32],
-    target_body: wp.array2d[wp.int32],
-    target_shape: wp.array2d[wp.int32],
-    tool_body: wp.array[wp.int32],
-    tool_transform: wp.array[wp.transform],
-    pad_transform: wp.array[wp.transform],
-    body_q: wp.array[wp.transform],
-    shape_transform: wp.array[wp.transform],
-    shape_scale: wp.array[wp.vec3],
-    anchor: wp.array[wp.transform],
-    previous: wp.array[wp.vec2i],
-    radius: wp.float32,
-    gap: wp.float32,
-    break_distance: wp.float32,
-    current: wp.array[wp.vec2i],
-    vacuum: wp.array[wp.float32],
-    engaged: wp.array[wp.bool],
-    gripper_state: wp.array[wp.float32],
-):
-    world = wp.tid()
-    if mask and not mask[world]:
-        return
-    first = world * 4
-    body = previous[first][0]
-    shape = previous[first][1]
-    active = enabled[world]
-    error = float(0.0)
-    tool = body_q[tool_body[world]] * tool_transform[world]
-    if body >= 0:
+@cache
+def make_apply_commands() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def apply_commands(mask: wp.array[wp.bool], command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
+        world = wp.tid()
+        if not mask[world]:
+            return
+        if command[world] > 0.3:
+            enabled[world] = True
+        elif command[world] < -0.3:
+            enabled[world] = False
+
+    return apply_commands
+
+
+@cache
+def make_update_engagement() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def update_engagement(
+        mask: wp.array[wp.bool],
+        enabled: wp.array[wp.bool],
+        target_ids: wp.array[wp.int32],
+        target_body: wp.array2d[wp.int32],
+        target_shape: wp.array2d[wp.int32],
+        tool_body: wp.array[wp.int32],
+        tool_transform: wp.array[wp.transform],
+        pad_transform: wp.array[wp.transform],
+        body_q: wp.array[wp.transform],
+        shape_transform: wp.array[wp.transform],
+        shape_scale: wp.array[wp.vec3],
+        anchor: wp.array[wp.transform],
+        previous: wp.array[wp.vec2i],
+        radius: wp.float32,
+        gap: wp.float32,
+        break_distance: wp.float32,
+        current: wp.array[wp.vec2i],
+        vacuum: wp.array[wp.float32],
+        gripper_state: wp.array[wp.float32],
+    ):
+        world = wp.tid()
+        if mask and not mask[world]:
+            return
+        first = world * 4
+        body = previous[first][0]
+        shape = previous[first][1]
+        active = enabled[world]
+        error = float(0.0)
+        tool = body_q[tool_body[world]] * tool_transform[world]
+        if body >= 0:
+            for offset in range(4):
+                pad = first + offset
+                expected = body_q[body] * anchor[pad]
+                actual = tool * pad_transform[pad]
+                error = wp.max(
+                    error, wp.length(wp.transform_get_translation(expected) - wp.transform_get_translation(actual))
+                )
+            active = active and error <= break_distance
+        else:
+            requested = target_ids[world]
+            for target in range(target_body.shape[1]):
+                if active and (requested == -1 or requested == target):
+                    candidate_body = target_body[world, target]
+                    candidate_shape = target_shape[world, target]
+                    box = body_q[candidate_body] * shape_transform[candidate_shape]
+                    fits = True
+                    for offset in range(4):
+                        fits = fits and _box_seal_fits(
+                            tool * pad_transform[first + offset], box, shape_scale[candidate_shape], radius, gap
+                        )
+                    if fits:
+                        body = candidate_body
+                        shape = candidate_shape
+                        break
+            active = active and body >= 0
+        gripper_state[world] = wp.where(active, 1.0, wp.where(enabled[world], 0.0, -1.0))
         for offset in range(4):
             pad = first + offset
-            expected = body_q[body] * anchor[pad]
-            actual = tool * pad_transform[pad]
-            error = wp.max(
-                error, wp.length(wp.transform_get_translation(expected) - wp.transform_get_translation(actual))
-            )
-        active = active and error <= break_distance
-    else:
-        requested = target_ids[world]
-        for target in range(target_body.shape[1]):
-            if active and (requested == -1 or requested == target):
-                candidate_body = target_body[world, target]
-                candidate_shape = target_shape[world, target]
-                box = body_q[candidate_body] * shape_transform[candidate_shape]
-                fits = True
-                for offset in range(4):
-                    fits = fits and _box_seal_fits(
-                        tool * pad_transform[first + offset], box, shape_scale[candidate_shape], radius, gap
-                    )
-                if fits:
-                    body = candidate_body
-                    shape = candidate_shape
-                    break
-        active = active and body >= 0
-    engaged[world] = active
-    gripper_state[world] = wp.where(active, 1.0, wp.where(enabled[world], 0.0, -1.0))
-    for offset in range(4):
-        pad = first + offset
-        pair = wp.vec2i(-1, -1)
-        if active:
-            pair = wp.vec2i(body, shape)
-        current[pad] = pair
-        vacuum[pad] = float(active)
+            pair = wp.vec2i(-1, -1)
+            if active:
+                pair = wp.vec2i(body, shape)
+            current[pad] = pair
+            vacuum[pad] = float(active)
+
+    return update_engagement
 
 
 class SurfaceGripper(BaseSurfaceGripper):
@@ -185,11 +195,21 @@ class SurfaceGripper(BaseSurfaceGripper):
         self.cfg = clone(cfg)
         sim = SimulationContext.instance() if sim is None else sim
         self._manager: NewtonManager = sim.backend_manager
-        for name in ("max_grip_distance", "coaxial_force_limit", "shear_force_limit", "retry_interval"):
-            if getattr(cfg, name) is not None:
+        for name, value in (
+            ("max_grip_distance", cfg.max_grip_distance),
+            ("coaxial_force_limit", cfg.coaxial_force_limit),
+            ("shear_force_limit", cfg.shear_force_limit),
+            ("retry_interval", cfg.retry_interval),
+        ):
+            if value is not None:
                 raise NotImplementedError(f"Newton surface grippers do not support the PhysX property {name!r}.")
-        for name in ("pad_spacing", "pad_radius", "contact_gap", "break_distance", "force_per_pad"):
-            value = getattr(cfg, name)
+        for name, value in (
+            ("pad_spacing", cfg.pad_spacing),
+            ("pad_radius", cfg.pad_radius),
+            ("contact_gap", cfg.contact_gap),
+            ("break_distance", cfg.break_distance),
+            ("force_per_pad", cfg.force_per_pad),
+        ):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"Surface-gripper {name} must be finite and positive.")
         if len(cfg.tool_offset) != 3 or not all(math.isfinite(value) for value in cfg.tool_offset):
@@ -202,12 +222,6 @@ class SurfaceGripper(BaseSurfaceGripper):
         template = DEFAULT_ENV_TEMPLATE if plan is None else plan.env_template
         self._tool_pattern = re.compile(expand_env_regex_ns(cfg.prim_path, template))
         self._target_pattern = re.compile(expand_env_regex_ns(cfg.target_prim_path, template))
-        self._tool_offset = cfg.tool_offset
-        self._pad_spacing = cfg.pad_spacing
-        self._pad_radius = cfg.pad_radius
-        self._contact_gap = cfg.contact_gap
-        self._break_distance = cfg.break_distance
-        self._force_per_pad = cfg.force_per_pad
         self._model = None
         self._ready_handle = self._manager.register_callback(
             self._queue_binding, PhysicsEvent.PHYSICS_READY, name="surface_gripper_solver_init"
@@ -236,25 +250,31 @@ class SurfaceGripper(BaseSurfaceGripper):
     @property
     def engaged(self) -> torch.Tensor:
         """Whether all pads currently hold a sealed parcel, shape ``(num_envs,)``."""
-        return self._engaged.torch
+        return self._state.torch == 1.0
 
     @property
     def target_ids(self) -> torch.Tensor:
         """Acquisition restrictions; -1 permits any eligible payload."""
         return self._target_ids.torch
 
-    def _indices(self, env_ids) -> wp.array:
-        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._world_ids))
-
-    def set_target_ids(self, target_ids: torch.Tensor | wp.array, env_ids=None) -> None:
+    def set_target_ids(
+        self,
+        target_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Restrict selected tools to payload IDs, or pass -1 to enable automatic acquisition."""
-        ids = self._indices(env_ids)
+        ids = resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._world_ids))
         values = wp.from_torch(target_ids.to(dtype=torch.int32)) if isinstance(target_ids, torch.Tensor) else target_ids
         wp.copy(wp.indexedarray(self._target_ids.warp, [ids]), values)
 
-    def set_grippers_command_index(self, states, env_ids=None, full_data: bool = False) -> None:
+    def set_grippers_command_index(
+        self,
+        states: torch.Tensor | wp.array | ProxyArray,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Stage compact commands, or full-size commands when ``full_data`` is true."""
-        ids = self._indices(env_ids)
+        ids = resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._world_ids))
         if isinstance(states, ProxyArray):
             states = states.warp
         values = wp.from_torch(states.to(dtype=torch.float32)) if isinstance(states, torch.Tensor) else states
@@ -264,7 +284,9 @@ class SurfaceGripper(BaseSurfaceGripper):
             values = wp.indexedarray(values, [ids])
         wp.copy(wp.indexedarray(self._command.warp, [ids]), values)
 
-    def set_grippers_command_mask(self, states, env_mask=None) -> None:
+    def set_grippers_command_mask(
+        self, states: torch.Tensor | wp.array | ProxyArray, env_mask: torch.Tensor | wp.array | None = None
+    ) -> None:
         """Stage full-size commands for the masked worlds without compacting CUDA masks."""
         if isinstance(states, ProxyArray):
             states = states.warp
@@ -280,21 +302,28 @@ class SurfaceGripper(BaseSurfaceGripper):
             device=self._model.device,
         )
 
-    def set_grippers_command(self, states, indices=None) -> None:
+    def set_grippers_command(
+        self,
+        states: torch.Tensor | wp.array | ProxyArray,
+        indices: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Stage commands for all or selected worlds."""
         self.set_grippers_command_index(states, indices)
 
-    def reset(self, env_ids=None, env_mask=None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Release selected tools without changing physical poses or unselected worlds."""
         mask = resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
-            _reset_pads,
+            make_reset_pads(),
             dim=self._num_envs,
             inputs=[mask],
             outputs=[
                 self._enabled.warp,
                 self._target_ids.warp,
-                self._engaged.warp,
                 self._command.warp,
                 self._state.warp,
                 self._previous.pad_engaged_bs,
@@ -309,7 +338,7 @@ class SurfaceGripper(BaseSurfaceGripper):
     def write_data_to_sim(self) -> None:
         """Apply staged close/open commands; values inside [-0.3, 0.3] retain the current vacuum."""
         wp.launch(
-            _apply_commands,
+            make_apply_commands(),
             dim=self._num_envs,
             inputs=[self._all_mask, self._command.warp],
             outputs=[self._enabled.warp],
@@ -317,7 +346,8 @@ class SurfaceGripper(BaseSurfaceGripper):
         )
 
     def update(self, dt: float) -> None:
-        """Native solver callbacks already publish the current seal state."""
+        """Refresh seal measurements from the completed physics step."""
+        self._update_seals(self._manager.backend.state_0)
 
     def refresh(self, env_ids: torch.Tensor | None = None) -> None:
         """Rebuild selected seals from restored geometry without stepping physics or applying forces.
@@ -329,7 +359,7 @@ class SurfaceGripper(BaseSurfaceGripper):
         self._manager.forward()
         mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
-            _apply_commands,
+            make_apply_commands(),
             dim=self._num_envs,
             inputs=[mask, self._command.warp],
             outputs=[self._enabled.warp],
@@ -389,7 +419,9 @@ class SurfaceGripper(BaseSurfaceGripper):
         target_shapes = [[collision_shapes[body][0] for body in bodies] for bodies in targets]
         builder = SurfaceGripperBuilder()
         for world, bodies in enumerate(tool_bodies):
-            gripper = NewtonSurfaceGripper(bodies[0], wp.transform(self._tool_offset, wp.quat_identity()), world=world)
+            gripper = NewtonSurfaceGripper(
+                bodies[0], wp.transform(self.cfg.tool_offset, wp.quat_identity()), world=world
+            )
             # Four compliant pads share each payload. These fixed hardware gains
             # keep the 30 g / 40 mm parcel stable at 120 Hz; the 200 g parcel's
             # static deflection is about 4 mm (m*g / (4*120 N/m)). The upstream
@@ -397,12 +429,12 @@ class SurfaceGripper(BaseSurfaceGripper):
             gripper.set_stiffness_damping(
                 120.0,
                 0.6,
-                self._force_per_pad,
+                self.cfg.force_per_pad,
                 50.0,
                 0.4,
                 50.0,
                 0.4,
-                self._force_per_pad,
+                self.cfg.force_per_pad,
                 0.001,
                 0.00003,
                 0.001,
@@ -414,8 +446,8 @@ class SurfaceGripper(BaseSurfaceGripper):
             )
             for x, y in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
                 gripper.add_pad(
-                    wp.transform((x * self._pad_spacing, y * self._pad_spacing, 0.0), wp.quat_identity()),
-                    self._pad_radius,
+                    wp.transform((x * self.cfg.pad_spacing, y * self.cfg.pad_spacing, 0.0), wp.quat_identity()),
+                    self.cfg.pad_radius,
                     0.0,
                 )
             builder.add_gripper(gripper)
@@ -433,13 +465,12 @@ class SurfaceGripper(BaseSurfaceGripper):
         self._target_ids = ProxyArray(wp.full(self._num_envs, -1, dtype=wp.int32, device=model.device))
         self._command = ProxyArray(wp.zeros(self._num_envs, dtype=wp.float32, device=model.device))
         self._state = ProxyArray(wp.full(self._num_envs, -1.0, dtype=wp.float32, device=model.device))
-        self._engaged = ProxyArray(wp.zeros(self._num_envs, dtype=wp.bool, device=model.device))
         self._manager.register_state_force_callback(self._apply)
 
     def _update_seals(self, state: State, mask: wp.array | None = None) -> None:
         gripper = self._gripper
         wp.launch(
-            _update_engagement,
+            make_update_engagement(),
             dim=self._num_envs,
             inputs=[
                 mask,
@@ -455,14 +486,13 @@ class SurfaceGripper(BaseSurfaceGripper):
                 self._model.shape_scale,
                 self._output.pad_anchor_b,
                 self._previous.pad_engaged_bs,
-                self._pad_radius,
-                self._contact_gap,
-                self._break_distance,
+                self.cfg.pad_radius,
+                self.cfg.contact_gap,
+                self.cfg.break_distance,
             ],
             outputs=[
                 self._current.pad_engaged_bs,
                 self._control.pad_grip_control,
-                self._engaged.warp,
                 self._state.warp,
             ],
             device=self._model.device,

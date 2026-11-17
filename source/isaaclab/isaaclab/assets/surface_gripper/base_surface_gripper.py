@@ -43,24 +43,55 @@ class BaseSurfaceGripper(ABC):
 
     @abstractmethod
     def set_grippers_command_index(
-        self, states: torch.Tensor | wp.array, env_ids: wp.array | None = None, full_data: bool = False
+        self,
+        states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
-        """Stage compact commands, or full-sized commands when ``full_data`` is true."""
+        """Stage commands without applying them to the simulation.
+
+        Args:
+            states: Float32 commands of shape ``(len(env_ids),)``; shape
+                ``(num_instances,)`` when ``full_data`` is true or all grippers are selected.
+            env_ids: Selected grippers, in compact command order. ``None`` selects all.
+            full_data: Whether commands contain every gripper and are indexed by ``env_ids``.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def set_grippers_command_mask(self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | None = None) -> None:
-        """Stage full-sized commands for only the masked grippers."""
+    def set_grippers_command_mask(
+        self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | wp.array | None = None
+    ) -> None:
+        """Stage full-sized commands for only the masked grippers.
+
+        Args:
+            states: Float32 commands of shape ``(num_instances,)``.
+            env_mask: Boolean mask of shape ``(num_instances,)``. ``None`` selects all.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
-        """Stage commands for selected indices; ``None`` selects every gripper."""
+        """Stage compact commands for selected indices.
+
+        Args:
+            states: Commands in selected-index order, or all commands if ``indices`` is ``None``.
+            indices: Selected grippers. ``None`` selects all.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
-        """Release selected grippers without changing other worlds or physical poses."""
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Release selected grippers without changing other worlds or physical poses.
+
+        Args:
+            env_ids: Selected grippers. ``None`` selects all unless ``env_mask`` is supplied.
+            env_mask: Boolean mask of shape ``(num_instances,)``; takes precedence over ``env_ids``.
+        """
         raise NotImplementedError
 
     @abstractmethod
