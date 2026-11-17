@@ -5,7 +5,8 @@
 
 """Dual-grid geometry and modality-specific pooling without a simulator."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -24,8 +25,9 @@ from isaaclab_fovi.sensors.pooling import (
 class SamplingConfig:
     """Sampling fields consumed by the shared pooling helpers."""
 
-    cmf_a: float = 0.1
-    cmf_a_frac: float | None = None
+    # A 90 degree planar window (focal length 1, aperture 2) with a CMF constant of a tenth of it.
+    cmf_a_deg: float = 9.0
+    spawn: SimpleNamespace = field(default_factory=lambda: SimpleNamespace(focal_length=1.0, horizontal_aperture=2.0))
     field_geometry: str = "planar"
     camera_calibration: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
     retinal_window_reference_side: str = "short"

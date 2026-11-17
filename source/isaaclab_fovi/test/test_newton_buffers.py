@@ -95,7 +95,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
         fixed_software_fov=False,
-        cmf_a=0.036021,
+        cmf_a_deg=0.591,
         pool_enabled=pooled,
         pool_mode="avg",
         pool_int_mode="avg",

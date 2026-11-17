@@ -99,8 +99,12 @@ def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
     from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
     from isaaclab_fovi.sensors.pooling import build_highres_coords, build_lowres_coords
 
+    from isaaclab.sim import PinholeCameraCfg
+
     cfg = FoveatedCameraCfg(
         prim_path="/World/Camera",
+        spawn=PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0),
+        cmf_a_deg=9.0,
         foveated_style="warped_cartesian_as_grid",
         fov_type=coverage,
         radius_norm=math.inf,

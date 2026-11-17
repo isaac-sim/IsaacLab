@@ -32,15 +32,13 @@ class FoveatedCameraCfg(CameraCfg):
 
     # -- Foveation parameters (no img_height/img_width/fixation_size) --------
 
-    cmf_a: float = 0.1
-    """Normalized CMF parameter relative to the selected field diameter.
-    Smaller values give stronger foveation. The public fovi API instead takes
-    an angular cmf_a; sampling_geometry performs that conversion once."""
+    cmf_a_deg: float = 0.591
+    """Cortical magnification constant *a* of ``M(e) = 1 / (e + a)`` [deg].
 
-    cmf_a_frac: float | None = None
-    """Normalized CMF parameter (= cmf_a / fov).  If set, ``cmf_a`` is
-    ignored. Planar sampling uses fov=1; spherical sampling resolves degrees
-    from the calibrated retinal window before scaling this fraction."""
+    Smaller values give stronger foveation; a value much larger than the field
+    of view gives nearly uniform sampling. The default is an estimate from human
+    data. It is passed to :class:`fovi.sensing.coords.SamplingCoords` unchanged
+    in both field geometries."""
 
     field_geometry: str = "planar"
     camera_calibration: CameraCalibration | None = None

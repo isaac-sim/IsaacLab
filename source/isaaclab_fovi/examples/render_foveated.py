@@ -109,7 +109,6 @@ def main() -> None:
         fov_type=args.fov_type,
         radius_norm=args.radius_norm,
         ndc_layout="native_grid" if args.style == "warped_cartesian_as_grid" else "cortical_disc",
-        cmf_a=0.1,
         field_geometry=args.field_geometry,
         camera_calibration=calibration,
         fixed_software_fov=args.virtual_gaze,
