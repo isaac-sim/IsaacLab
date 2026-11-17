@@ -51,3 +51,30 @@ Training and playback
 The state actor uses a fixed 100-input observation order. The flat asset's
 MuJoCo physics variant and passive finger change the dynamics relative to
 earlier stack runs. Revalidate earlier checkpoints against the current task.
+
+Camera PPO and distillation
+---------------------------
+
+``IsaacContrib-Stack-Cube-Franka-RL-Camera`` trains PPO with one fixed
+128 × 128 RGB camera and robot proprioception. Its actor uses the camera
+and robot signals. The critic also observes the simulator state. Training
+varies camera calibration at startup and image appearance between episodes.
+The variant uses a fixed role-to-color assignment so the visual student can
+identify the intended stacking order.
+
+``IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation`` trains the same camera
+actor using a compatible state PPO checkpoint as its frozen teacher.
+Teacher labels use the same action clipping as the student. The teacher
+uses the state task's 100-input observation order, so older 109-input
+checkpoints require retraining.
+
+.. code-block:: bash
+
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task IsaacContrib-Stack-Cube-Franka-RL-Camera \
+       physics=newton_mjwarp renderer=newton_renderer
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation \
+       --checkpoint /path/to/teacher.pt physics=newton_mjwarp renderer=newton_renderer
+
+The camera image is channel-first RGB scaled by ``1 / 255``. Checkpoint
+observation order, image size, and policy distribution must match the
+selected task and its agent configuration.
