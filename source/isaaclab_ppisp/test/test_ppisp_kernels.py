@@ -39,7 +39,7 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-from isaaclab.utils.tensor_processors import TensorProcessorCallInfo
+from isaaclab.utils.tensor_processors import TensorProcessorArgs
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -143,7 +143,7 @@ def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
     cfg = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.0}))
     processor = cfg.func(cfg, {"rgb_hdr": hdr})
     mask = wp.array([True, False], dtype=wp.bool, device=hdr.warp.device)
-    outputs = processor({"rgb_hdr": hdr}, info=TensorProcessorCallInfo(env_mask=mask))
+    outputs = processor({"rgb_hdr": hdr}, args=TensorProcessorArgs(env_mask=mask))
 
     expected = _rgba((2, 3, 4, 4))
     apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": 1.0})))
