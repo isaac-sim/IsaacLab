@@ -64,7 +64,7 @@ class OVRTXRendererCfg(RendererCfg):
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
     supports_render_product_split: ClassVar[bool] = True
-    """One camera sensor may own several render products with smaller tiled atlases."""
+    """This renderer can split one camera sensor over several render products, each with a smaller tiled atlas."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
     """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""

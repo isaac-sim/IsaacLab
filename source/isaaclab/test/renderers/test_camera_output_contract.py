@@ -5,6 +5,7 @@
 
 """Tests for the renderer→camera output contract."""
 
+import importlib.util
 import warnings
 from types import SimpleNamespace
 
@@ -16,13 +17,13 @@ pytest.importorskip("isaaclab_physx")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, RendererCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import clone, instantiate, replace, validate
+from isaaclab.utils import clone, configclass, instantiate, replace, validate
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -280,11 +281,39 @@ def test_camera_cfg_validates_render_product_split(max_envs, valid):
             validate(cfg)
 
 
-def test_camera_cfg_rejects_render_product_split_on_single_product_renderer():
-    """The default Isaac RTX renderer rejects a split at configuration time, before the scene loads."""
+def test_camera_rejects_render_product_split_on_single_product_renderer():
+    """The camera rejects a split when its renderer, here the default Isaac RTX one, cannot split."""
+    from isaaclab.sensors.camera.camera import check_render_product_split
+
     cfg = CameraCfg(height=64, width=64, prim_path="/World/Camera", spawn=_SPAWN, max_envs_per_render_product=3)
+    validate(cfg)
     with pytest.raises(ValueError, match="IsaacRtxRendererCfg.*max_envs_per_render_product"):
-        validate(cfg)
+        check_render_product_split(cfg, cfg.renderer_cfg)
+    if importlib.util.find_spec("isaaclab_ov") is not None:
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        check_render_product_split(cfg, OVRTXRendererCfg())
+
+
+def test_camera_cfg_accepts_render_product_split_for_a_placeholder_renderer():
+    """A launcher can replace a placeholder renderer after the configuration check, so that check accepts a split.
+
+    The "auto_rtx" preset of the task configurations becomes OVRTX or Isaac RTX only at launch.
+    """
+
+    @configclass
+    class PlaceholderRendererCfg(RendererCfg):
+        renderer_type: str = "auto_rtx"
+
+    cfg = CameraCfg(
+        height=64,
+        width=64,
+        prim_path="/World/Camera",
+        spawn=_SPAWN,
+        renderer_cfg=PlaceholderRendererCfg(),
+        max_envs_per_render_product=3,
+    )
+    validate(cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])

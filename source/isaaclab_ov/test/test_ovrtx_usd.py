@@ -192,7 +192,7 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
 
 @pytest.mark.parametrize("max_envs_per_render_product", [None, 4, 8], ids=["none", "equal", "larger"])
 def test_default_render_product_layout_is_single_product(camera_spec, max_envs_per_render_product):
-    """Without a split, or with a limit at or above the environment count, the legacy single product is kept."""
+    """With no limit, or a limit not below the environment count, the sensor keeps one product with its old name."""
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
 
     render_data = _make_render_data(camera_spec, max_envs_per_render_product)
@@ -209,7 +209,7 @@ def test_default_render_product_layout_is_single_product(camera_spec, max_envs_p
 
 
 def test_render_product_chunks_author_one_product_per_slice(camera_spec):
-    """Each product covers a contiguous environment slice with its own atlas and the shared RenderVars."""
+    """Each product has a contiguous range of environments and its own atlas. All products use the same RenderVars."""
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
 
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
@@ -237,7 +237,7 @@ def test_render_product_chunks_author_one_product_per_slice(camera_spec):
 
 
 def test_chunked_render_data_rejects_incomplete_camera_paths(camera_spec):
-    """A split needs one camera path per environment; a prototype-only path list cannot be sliced."""
+    """A split needs one camera path per environment. A list with only the prototype camera path cannot be split."""
     spec = CameraRenderSpec(
         cfg=camera_spec.cfg,
         device="cpu",

@@ -149,12 +149,14 @@ def build_render_product_as_string(
 ) -> str:
     """Build a complete render product USD layer as a string.
 
-    The layer sets the camera scope as its default prim for referencing into OVRTX. It authors one
-    ``RenderProduct`` prim per entry of ``render_data.products``, all sharing the scope's ``Vars``
-    RenderVar prims. Each product's initial camera relationship is a placeholder that targets the first
-    camera of its environment slice. Only the first product's target exists in the trimmed USD stage.
-    The later slices start in cloned environments that exist in Fabric alone. The renderer authors the
-    real targets of every product in Fabric right after the reference is applied.
+    The layer sets the camera scope as its default prim, so that OVRTX can reference it. The layer has one
+    ``RenderProduct`` prim for each entry of ``render_data.products``. All of them use the RenderVar prims
+    under ``Vars`` in the same scope.
+
+    In this text, the camera relationship of each product is only a placeholder. It points at the first
+    camera of the environment range of the product. Only the first product's camera exists in the trimmed
+    USD stage. The cameras of the later ranges are in cloned environments that exist only in Fabric. Right
+    after the reference is applied, the renderer writes the real camera list of every product in Fabric.
 
     Args:
         spec: Camera configuration, environment count, and camera paths. ISP configurations

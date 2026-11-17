@@ -34,10 +34,11 @@ class RendererCfg(BackendCfg):
     """Clone contexts that build this renderer's scene representation from the asset plan."""
 
     supports_render_product_split: ClassVar[bool] = False
-    """Whether the renderer honors :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`.
+    """Whether the renderer can split a camera sensor over several render products.
 
-    Renderers that render every environment of a camera sensor through one render product keep the
-    default ``False``, so the camera configuration rejects a split before the scene loads.
+    See :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. A renderer that renders all
+    environments of a camera sensor through one render product keeps the default ``False``. The camera
+    then rejects a split when it gets its renderer, before the scene is cloned.
     """
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:

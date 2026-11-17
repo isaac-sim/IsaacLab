@@ -302,24 +302,36 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
+.. _camera-render-products-per-sensor:
+
 Render products per sensor
 --------------------------
 
-A camera sensor renders all of its environments into one tiled atlas through one render product.
-Every renderer buffer that scales with the atlas belongs to that product, and one buffer of the RTX
-path tracer cannot exceed 4 GiB. These buffers grow with the atlas resolution and with the path
-tracing sample count per pixel. Above the limit, OVRTX 0.7 and later fail the frame. OVRTX 0.6 renders
-black tiles without an error.
+A camera sensor has one camera in every environment. By default, the renderer draws the images of
+all these cameras side by side into one large image, the tiled atlas. One render product describes
+this atlas.
 
-:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits the sensor into
-``ceil(num_envs / M)`` render products of at most ``M`` environments each. Each product renders its
-own smaller atlas, and the outputs stay one ``(num_envs, height, width, channels)`` buffer per data
-type.
+To render the atlas, the renderer uses GPU buffers that each hold data for every pixel of the
+atlas. More environments give a larger atlas, so these buffers get larger too. In the RTX path
+tracer, some of them also get larger with the number of samples per pixel. One such buffer can hold
+at most 4 GiB. If a buffer needs more, OVRTX 0.7 and later fail the frame. OVRTX 0.6 gives no error,
+but some tiles come back black.
 
-With the default ``None``, the OVRTX renderer searches the split. It starts with one render product.
-While the first frame fails, it halves the largest render product and renders the frame again. A
-warning then names the value of ``M`` that renders. The search runs once at startup, and the next
-frame reuses most of the scene work of a failed frame. Set the logged value to skip the search:
+The renderer creates these buffers once for each render product. So you can split one camera sensor
+over several render products to make each buffer smaller.
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` sets the largest number of environments ``M``
+in one render product. The sensor then gets ``ceil(num_envs / M)`` render products. The first one
+renders the first ``M`` environments, the next one the next ``M``, and so on. Each render product
+has its own, smaller atlas. The outputs do not change: each data type still has one
+``(num_envs, height, width, channels)`` buffer, in the same environment order.
+
+With the default ``None``, the OVRTX renderer finds a value by itself. It starts with one render
+product. If the first frame fails, it halves the largest render product and renders the frame again.
+It repeats this, at most four times, until a frame renders. A warning then gives the value of ``M``
+that worked. For
+example, 2560 environments of 128 x 128 pixels at 16 samples per pixel give 1280. The search runs
+only once, at startup. The next frame reuses most of the scene preparation of a failed frame. To
+skip the search on later runs, set the logged value:
 
 .. code-block:: python
 
@@ -329,19 +341,24 @@ frame reuses most of the scene work of a failed frame. Set the logged value to s
 
 The search has these limits:
 
-* It needs OVRTX 0.7 or later, because OVRTX 0.6 does not fail the frame.
-* One frame tries at most four smaller layouts, for all camera sensors together. The renderer error
-  then reaches the caller.
-* It can need more GPU memory than the layout it finds. The renderer can keep the buffers of a failed
-  layout for some time.
+* With several sensors, it halves one sensor per failed frame. It takes the sensor with the most atlas
+  pixels times samples per pixel, because the largest renderer buffers grow with both. This is a guess.
+  A wrong guess costs extra failed frames: halving a sensor lowers its rank, so the next failed frame
+  can pick another sensor.
+* It needs OVRTX 0.7 or later. OVRTX 0.6 does not fail the frame, so the search never starts.
+* One frame tries at most four smaller layouts, counted over all camera sensors together. If the
+  frame still fails, the renderer error reaches the caller. The camera then renders no more frames,
+  and every later render of it raises an error at once.
+* While it searches, it can need more GPU memory than the final layout. The renderer can keep the
+  buffers of a failed layout for some time.
 
-The renderer uses an integer as given and does not search. A frame that fails then raises the
-renderer error. To find the integer without the search, start with half of the environment count.
-Halve it again until the frame renders and no tile is black. Every extra product adds a fixed cost
-per frame, so prefer the largest value that renders.
+If you set an integer, the renderer uses it as given and does not search. If a frame then fails, you
+get the renderer error. To find a good integer by hand, start with half the number of environments.
+Halve it again until the frame renders and no tile is black. Each extra render product adds a fixed
+cost to every frame. So use the largest value that renders.
 
-Only the OVRTX renderer supports this field. The Isaac RTX and Newton Warp renderers reject a value
-other than ``None`` at configuration time.
+Only the OVRTX renderer supports this field. The Isaac RTX and Newton Warp renderers reject any value
+other than ``None`` when the camera is created.
 
 Post-render image signal processing
 -----------------------------------

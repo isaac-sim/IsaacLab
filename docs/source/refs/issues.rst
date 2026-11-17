@@ -248,7 +248,12 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-As a workaround, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
+With the OVRTX renderer (``renderer=ovrtx``), split the camera sensor over several render products
+with :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. Each render product then has
+a smaller atlas. With OVRTX 0.7 or later, the default ``None`` finds a working split by itself. With
+OVRTX 0.6, set an integer. See :ref:`camera-render-products-per-sensor`.
+
+With other RTX renderers, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
 images from all cameras before training. Reducing the camera count may leave the atlas dimensions
 unchanged because of tile padding. Path-tracing SPP is distinct from the direct-lighting
 ``samples_per_pixel`` setting.

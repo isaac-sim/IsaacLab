@@ -222,7 +222,13 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
 def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovstage, expected_events):
     renderer, events = _renderer(use_ovstage=use_ovstage)
     renderer._camera_render_data = [
-        SimpleNamespace(render_product_path=path, render_product_paths=(path,), ppisp_pipeline=None, warp_buffers={})
+        SimpleNamespace(
+            render_product_path=path,
+            render_product_paths=(path,),
+            ppisp_pipeline=None,
+            warp_buffers={},
+            first_frame_error=None,
+        )
         for path in ("/Render/Product0", "/Render/Product1")
     ]
     renderer.backend.render_products = {camera.render_product_path for camera in renderer._camera_render_data}
@@ -250,7 +256,9 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
     renderer, events = _renderer(use_ovstage=True)
     path = "/RenderCamera_0/Product"
     renderer._camera_render_data = [
-        SimpleNamespace(render_product_path=path, render_product_paths=(path,), ppisp_pipeline=None)
+        SimpleNamespace(
+            render_product_path=path, render_product_paths=(path,), ppisp_pipeline=None, first_frame_error=None
+        )
     ]
 
     class Writer:

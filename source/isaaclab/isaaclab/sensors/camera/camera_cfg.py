@@ -105,17 +105,19 @@ class CameraCfg(SensorBaseCfg):
     """
 
     max_envs_per_render_product: int | None = None
-    """Maximum number of environments rendered through one render product. Defaults to None.
+    """Maximum number of environments in one render product. Defaults to None.
 
-    ``None`` starts with one render product and one tiled atlas for every environment of this
-    sensor. An integer ``M`` splits the sensor into ``ceil(num_envs / M)`` render products over
-    contiguous environment slices. The outputs stay one ``(num_envs, height, width, channels)``
-    buffer per data type.
+    The renderer draws the images of all environments side by side into one large image, the tiled
+    atlas. One render product describes one atlas. With ``None``, the sensor starts with one render
+    product for all its environments. With an integer ``M``, the sensor gets ``ceil(num_envs / M)``
+    render products. The first one renders the first ``M`` environments, the next one the next ``M``,
+    and so on. The outputs stay one ``(num_envs, height, width, channels)`` buffer per data type.
 
-    One atlas can exceed the renderer's 4 GiB per-buffer limit. With ``None``, the OVRTX renderer
-    (OVRTX 0.7 or later) then halves the largest render product while the first frame fails, and
-    logs the integer that skips this search. The camera sensor documentation
-    (``docs/source/concepts/sensors/camera.rst``) explains the limit and the search.
+    A large atlas can need a renderer buffer larger than 4 GiB, which the renderer does not support.
+    With ``None``, the OVRTX renderer (OVRTX 0.7 or later) then halves the largest render product
+    while the first frame fails. It logs the integer to set here to skip this search next time. The
+    camera sensor documentation (``docs/source/concepts/sensors/camera.rst``) explains the limit and
+    the search.
 
     Only renderers whose configuration sets
     :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept a value other than
@@ -285,14 +287,10 @@ class CameraCfg(SensorBaseCfg):
             raise ValueError(
                 f"CameraCfg.max_envs_per_render_product must be None or an integer >= 1, got {max_envs!r}."
             )
+        # Whether the renderer can split is checked when the camera gets its renderer. A launcher can still
+        # replace a placeholder renderer configuration here, for example the "auto_rtx" preset.
         if self.renderer_cfg is None:
             return
-        if max_envs is not None and not self.renderer_cfg.supports_render_product_split:
-            raise ValueError(
-                f"Renderer {type(self.renderer_cfg).__name__} renders every environment through one render product,"
-                " so CameraCfg.max_envs_per_render_product must be None. Only renderers whose configuration sets"
-                " supports_render_product_split accept another value."
-            )
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return

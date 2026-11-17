@@ -438,7 +438,7 @@ def _make_search_cameras(monkeypatch, use_ovstage: bool, num_envs: int, cameras:
 
 
 def _install_step(renderer: OVRTXRenderer, fails: Callable[[set[str]], bool], error: str = _FAILED_FRAME) -> list:
-    """Install native steps that raise ``error`` while ``fails`` accepts the submitted render products.
+    """Replace the native steps with fakes that raise ``error`` when ``fails`` returns True for their render products.
 
     Returns:
         The render product set of every native step, in submission order.
@@ -466,7 +466,7 @@ def _install_step(renderer: OVRTXRenderer, fails: Callable[[set[str]], bool], er
 
 
 def _assert_no_product_stepped_twice(submissions: list[set[str]]) -> None:
-    """OVRTX can abort when it steps a failed render product again, so failed steps share no product."""
+    """Check that no render product is in two steps. OVRTX can abort when it renders a failed render product again."""
     assert sum(map(len, submissions)) == len(set().union(*submissions))
 
 
@@ -479,7 +479,7 @@ def test_ovrtx_render_batch_halves_render_products_while_the_first_frame_fails(
     """A sensor without a limit starts with one product, and each failed first frame halves its products."""
     renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, 5, [(None, 64)])
     renderer.cfg.async_rendering = asynchronous
-    # The legacy pipeline fails in its zero-delta step, the asynchronous one in the wait of its operation.
+    # The legacy path fails in its first step with zero time. The asynchronous mode fails in the wait for the operation.
     renderer._needs_transform_initialization = not use_ovstage and not asynchronous
     fail_all = False
     submissions = _install_step(renderer, lambda products: fail_all or len(products) < 3)
@@ -494,7 +494,7 @@ def test_ovrtx_render_batch_halves_render_products_while_the_first_frame_fails(
         {"/RenderCamera_1/RenderProduct_0", "/RenderCamera_1/RenderProduct_1"},
         {f"/RenderCamera_2/RenderProduct_{k}" for k in range(3)},
     ]
-    # The legacy pipeline steps the layout that renders two times: the zero-delta step, then the frame.
+    # On the legacy path, the working layout is stepped two times: first with zero time, then for the frame.
     assert submissions == layouts + ([] if use_ovstage or asynchronous else [layouts[2]])
     assert [product.num_envs for product in camera.products] == [2, 2, 1]
     assert [product.camera_paths for product in camera.products] == [
@@ -546,12 +546,14 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_layout_limit(monkey
         " Smaller render products do not fix a lack of GPU memory."
     ]
 
-    # The search does not start again. A later render batch steps the last layout one time, in a new scope.
-    with pytest.raises(RuntimeError, match="failed to produce a frame"):
+    # The camera left the steps. A later render batch raises at once and steps nothing.
+    assert camera not in renderer.backend.unrendered
+    assert renderer.backend.render_products == set()
+    with pytest.raises(RuntimeError, match="renders no frames") as later:
         renderer.render_batch([camera])
-    assert [len(products) for products in submissions] == [1, 2, 4, 8, 16, 16]
+    assert later.value.__cause__ is error.value
+    assert [len(products) for products in submissions] == [1, 2, 4, 8, 16]
     _assert_no_product_stepped_twice(submissions)
-    assert camera in renderer.backend.unrendered
     assert not caplog.records
 
 
@@ -620,8 +622,28 @@ def test_ovrtx_split_search_halves_the_largest_sensor_without_a_limit(monkeypatc
     assert [record.args[0] for record in caplog.records] == [large.spec.cfg.prim_path]
 
 
+def test_ovrtx_split_search_halves_the_sensor_with_more_samples_first(monkeypatch):
+    """A smaller atlas with many samples per pixel goes before a larger atlas with one sample per pixel."""
+    renderer, cameras = _make_search_cameras(monkeypatch, False, 16, [(None, 64), (None, 32)])
+    large, sampled = cameras
+    # 32 samples per pixel on a quarter of the pixels outrank the larger atlas at the shared sample count.
+    sampled.spec.cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", 32)}
+    # The scene is a mock, and the CPU test device has no device id for the authored render settings.
+    monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", lambda *args, **kwargs: "")
+
+    def fails(products):
+        return sampled.products[0].num_envs > 8
+
+    submissions = _install_step(renderer, fails)
+
+    renderer.render_batch(cameras)
+
+    assert len(submissions) == 2
+    assert [[product.num_envs for product in camera.products] for camera in cameras] == [[16], [8, 8]]
+
+
 def test_ovrtx_split_search_halves_each_sensor_above_the_limit(monkeypatch):
-    """Two sensors above the limit are halved in turn, and each failed step holds new render products only."""
+    """Two sensors that are too large are halved one after the other. No render product is in two failed steps."""
     renderer, cameras = _make_search_cameras(monkeypatch, False, 16, [(None, 64), (None, 64)])
 
     def fails(products):
@@ -637,7 +659,7 @@ def test_ovrtx_split_search_halves_each_sensor_above_the_limit(monkeypatch):
 
 
 def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch):
-    """A step submits the products of every renderer on the engine, so the search halves a sensor of another one."""
+    """One step renders the products of every renderer on the engine, so the search can halve another one's sensor."""
     renderer, (small,) = _make_search_cameras(monkeypatch, True, 16, [(None, 32)])
     other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True), sim=SimulationContext.instance())
     other.backend = other.scene = renderer.backend
@@ -1106,6 +1128,142 @@ def test_ovrtx_chunked_products_match_single_product(monkeypatch, use_ovstage):
             SimulationContext.instance().close_backend(renderer.scene)
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
+def test_ovrtx_split_sensor_segmentation_matches_single_product(monkeypatch, use_ovstage):
+    """A split sensor gives the same segmentation IDs and the same label maps as one render product.
+
+    The label maps of a split sensor come from its first render product. An object that only the cameras of a
+    later render product see must still be in them.
+    """
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner import make_clone_plan, replicate
+    from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
+    num_envs = 5
+    SimulationContext.instance().device = "cuda:0"
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+    env_template = "/Lab/Cells/Cell{}" if use_ovstage else "/World/envs/env_{}"
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
+    for index in range(1 if use_ovstage else num_envs):
+        UsdGeom.Xform.Define(stage, env_template.format(index))
+    for index in range(2):
+        camera = UsdGeom.Camera.Define(stage, env_template.format(0) + f"/cam{index}")
+        camera.CreateProjectionAttr("orthographic")
+        camera.CreateHorizontalApertureAttr(4.0)
+        camera.CreateVerticalApertureAttr(4.0)
+        camera.AddTranslateOp().Set(Gf.Vec3d(0, 0, 5))
+
+    def labeled_cube(name, x, label):
+        cube = UsdGeom.Cube.Define(stage, env_template.format(0) + f"/{name}")
+        cube.CreateSizeAttr(1.0)
+        cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, 0))
+        prim = cube.GetPrim()
+        prim.AddAppliedSchema("SemanticsAPI:class")
+        prim.CreateAttribute("semantic:class:params:semanticType", Sdf.ValueTypeNames.String).Set("class")
+        prim.CreateAttribute("semantic:class:params:semanticData", Sdf.ValueTypeNames.String).Set(label)
+
+    # Every environment has both cubes. The cameras of environments 0 to 3 look at the first cube, the camera
+    # of environment 4 looks at the second one, 10 m away. So only the last render product of the split sees it.
+    labeled_cube("near", 0.0, "near_cube")
+    labeled_cube("far", 10.0, "far_cube")
+
+    cfg = OVRTXRendererCfg(colorize_semantic_segmentation=False, colorize_instance_segmentation=False)
+    renderer = SimulationContext.instance().get_or_create_backend(cfg)
+    renderer._sdp = SceneDataProvider(
+        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
+    )
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        num_envs,
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
+        env_template=env_template,
+    )
+    SimulationContext.instance().plan = plan
+    replicate(plan)
+
+    positions = torch.zeros((num_envs, 3), device="cuda:0")
+    positions[:, 2] = 5.0
+    positions[num_envs - 1, 0] = 10.0
+    quats = convert_camera_frame_orientation_convention(
+        torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
+    )
+    data_types = ["semantic_segmentation", "instance_segmentation"]
+
+    def add_camera(index, max_envs):
+        camera_cfg = _make_camera_cfg(data_types)
+        camera_cfg.height = camera_cfg.width = 64
+        camera_cfg.max_envs_per_render_product = max_envs
+        spec = CameraRenderSpec(
+            cfg=camera_cfg,
+            device="cuda:0",
+            num_instances=num_envs,
+            view_count=num_envs,
+            camera_prim_paths=tuple(
+                env_template.format(i) + f"/cam{index}" for i in range(1 if use_ovstage else num_envs)
+            ),
+        )
+        rd = renderer.create_render_data(spec)
+        data = CameraData.allocate(
+            data_types=data_types,
+            height=64,
+            width=64,
+            num_views=num_envs,
+            device="cuda:0",
+            supported_specs=renderer.supported_output_types(),
+        )
+        renderer.set_outputs(rd, data.output)
+        renderer.update_camera(
+            rd,
+            ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
+            ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
+            None,
+        )
+        return rd, data
+
+    try:
+        renderer.prepare_stage(stage, num_envs)
+        cameras = [add_camera(index, max_envs) for index, max_envs in enumerate((None, 2))]
+        (single, single_data), (split, split_data) = cameras
+        assert [product.num_envs for product in split.products] == [2, 2, 1]
+        renderer.render_batch([single, split])
+        for rd, data in cameras:
+            renderer.read_output(rd, data)
+
+        for output in data_types:
+            single_ids = single_data.output[output].torch[:, 32, 32, 0]
+            split_ids = split_data.output[output].torch[:, 32, 32, 0]
+            # The near cube in environments 0 to 3, the far cube in environment 4: two different nonzero IDs.
+            assert bool((single_ids > 0).all()), f"{output}: {single_ids.tolist()}"
+            assert single_ids[0] != single_ids[num_envs - 1], f"{output}: {single_ids.tolist()}"
+            torch.testing.assert_close(split_ids, single_ids)
+            single_info = single_data.info[output]
+            split_info = split_data.info[output]
+            assert split_info["idToLabels"] == single_info["idToLabels"], output
+            # Semantic IDs map to the class label, instance IDs to the prim path of the instance.
+            far_label = str(split_info["idToLabels"].get(int(split_ids[num_envs - 1])))
+            expected = "far_cube" if output == "semantic_segmentation" else "/far"
+            assert expected in far_label, split_info["idToLabels"]
+        assert (
+            split_data.info["instance_segmentation"]["idToSemantics"]
+            == (single_data.info["instance_segmentation"]["idToSemantics"])
+        )
+    finally:
+        renderer.close()
+        SimulationContext.instance().close_backend(renderer.backend)
+        if use_ovstage:
+            SimulationContext.instance().close_backend(renderer.scene)
+
+
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
 def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
     """Real captures match delayed metadata; generated images and other cameras cannot replace them."""
@@ -1367,7 +1525,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_process_frame_stitches_chunk_frames_in_env_order(monkeypatch, use_ovstage):
-    """A split sensor registers one product per slice and writes each product's frame into its env slice."""
+    """A split sensor registers one product per environment range and writes each product's frame into that range."""
     from .test_ovrtx_annotator_utils import _encode_identifier_map
 
     num_envs = 5
@@ -1430,6 +1588,14 @@ def test_ovrtx_process_frame_stitches_chunk_frames_in_env_order(monkeypatch, use
     assert {key: value for key, value in labels.items() if key >= 2} == {2: {"class": "label2"}}
     with pytest.raises(ValueError):
         renderer._process_render_frame(render_data, frames[:2], buffers)
+    # A product whose label map differs would give wrong labels for its IDs, so the sensor raises.
+    frames[2].render_vars[render_data.render_var_keys["SemanticIdMap"]] = semantic_map(
+        [((2, 0, 0, 0), "class: label2;"), ((3, 0, 0, 0), "class: label3;")]
+    )
+    with pytest.raises(
+        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_2'"
+    ):
+        renderer._process_render_frame(render_data, frames, buffers)
     render_data.cleanup()
     assert renderer.backend.render_products == set()
 
