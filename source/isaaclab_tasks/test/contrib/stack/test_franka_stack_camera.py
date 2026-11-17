@@ -42,9 +42,10 @@ def test_episode_camera_noise_resamples_only_reset_environments() -> None:
 def test_camera_student_loads_the_ppo_actor_and_uses_clipped_teacher_labels() -> None:
     """A native PPO actor checkpoint is a teacher, while the student runs on RGB and proprioception."""
     pytest.importorskip("rsl_rl")
-    from rsl_rl.algorithms import Distillation
     from rsl_rl.models import MLPModel
     from tensordict import TensorDict
+
+    from isaaclab_tasks.contrib.stack.config.franka.agents.distillation import ClippedTeacherDistillation
 
     state_task = "IsaacContrib-Stack-Cube-Franka-RL"
     student_task = "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation"
@@ -67,13 +68,13 @@ def test_camera_student_loads_the_ppo_actor_and_uses_clipped_teacher_labels() ->
     visual_obs = TensorDict({"policy": torch.zeros(1, 33), "base_image": torch.zeros(1, 3, 128, 128)}, [1])
     camera_obs = visual_obs.clone().set("privileged", state)
     distillation_cfg["multi_gpu"] = None
-    env_spec = SimpleNamespace(num_actions=8, num_envs=1)
-    algorithm = Distillation.construct_algorithm(camera_obs, env_spec, distillation_cfg, device="cpu")
+    env_spec = SimpleNamespace(num_actions=8, num_envs=1, clip_actions=0.5)
+    algorithm = ClippedTeacherDistillation.construct_algorithm(camera_obs, env_spec, distillation_cfg, device="cpu")
     algorithm.load({"actor_state_dict": state_actor.state_dict()}, load_cfg=None, strict=True)
 
     with torch.no_grad():
         assert algorithm.get_policy()(visual_obs).shape == (1, 8)
         algorithm.act(camera_obs)
 
-    expected_labels = torch.tensor([[-1.0, 1.0, 0.25, 0, 0, 0, 0, 0]])
+    expected_labels = torch.tensor([[-0.5, 0.5, 0.25, 0, 0, 0, 0, 0]])
     torch.testing.assert_close(algorithm.transition.privileged_actions, expected_labels)
