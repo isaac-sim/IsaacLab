@@ -365,7 +365,6 @@ class NewtonManager(PhysicsManager):
         if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
             backend.geometry_change_version += 1
 
-
     def invalidate_fk(
         self,
         env_mask: wp.array | None = None,
@@ -476,10 +475,7 @@ class NewtonManager(PhysicsManager):
             device=device,
         ):
             cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
-            initial = () if self._clone is None else self._clone.initial_body_variants
-            self.backend = sim.get_or_create_backend(
-                cfg, builder=builder, dt=self.get_physics_dt(), initial_body_variants=initial
-            )
+            self.backend = sim.get_or_create_backend(cfg, builder=builder, dt=self.get_physics_dt())
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation
@@ -510,7 +506,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+            backend.init_solver(
+                None if plan is None else plan.env_template,
+                relaxed_capture=self._relaxed_capture,
+                initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
+            )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()

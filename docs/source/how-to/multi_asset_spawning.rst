@@ -141,7 +141,9 @@ Multi-asset spawning keeps its initial choice unless ``static=False`` is set. Re
 body variants with XPBD or MJWarp with external contacts and sleeping disabled, and at least two alternatives. Every
 alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
 different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
-randomizing contact materials because Newton restores the variant's materials. MJWarp with MuJoCo contacts rejects
+randomizing contact materials because Newton restores the variant's materials. Initial world selections are applied
+after solver construction so MuJoCo compiles a shared layout even when alternatives differ in shape type or count.
+MJWarp with MuJoCo contacts rejects
 body variants when the solver initializes. Other physics backends keep the initial choice.
 
 With supported Newton physics, ``static=False`` authors every alternative under ``/World/IsaacLabPrototypes`` and

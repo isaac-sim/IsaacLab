@@ -3,3 +3,4 @@
   contacts and disabled sleeping; XPBD also supports selection. All variant sources are authored in one prototype
   namespace before cloning.
   Apply contact-material randomization after selecting a variant.
+  Initial selections are applied after solver compilation, allowing alternatives with different collider types and counts.

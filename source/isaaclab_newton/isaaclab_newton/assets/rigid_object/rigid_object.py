@@ -19,8 +19,8 @@ from newton.selection import ArticulationView
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.utils.warp import ProxyArray, memory
-from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels

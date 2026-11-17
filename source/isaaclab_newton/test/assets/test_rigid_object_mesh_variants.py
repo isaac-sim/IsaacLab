@@ -32,6 +32,16 @@ def _spawn_named_cone(prim_path, cfg, **kwargs):
     return sim_utils.spawn_mesh_cone(prim_path + "/large_part", cfg, **kwargs)
 
 
+def _spawn_compound_cone(prim_path, cfg, **kwargs):
+    prim = sim_utils.spawn_mesh_cone(prim_path, cfg, **kwargs)
+    sim_utils.spawn_sphere(
+        prim_path + "/ExtraCollider",
+        sim_utils.SphereCfg(radius=0.01, collision_props=sim_utils.UsdPhysicsCollisionCfg()),
+        translation=(0.0, 0.0, 0.04),
+    )
+    return prim
+
+
 def _variant_object() -> RigidObjectCfg:
     return RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
@@ -70,6 +80,7 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
     scene_cfg.object.spawn.assets_cfg[1].func = sim_utils.spawn_mesh_cone
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
+    third.func = _spawn_compound_cone
     scene_cfg.object.spawn.assets_cfg.append(third)
     scene_cfg.object.mesh_variant_inertia_diagonal_offset = 1.0e-5
     sim_cfg = SimulationCfg(
@@ -98,8 +109,18 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
         )
         torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([8.0, 1.0]))
         assert model.shape_count == shape_count
+        forces = torch.zeros((2, 1, 3), device=device)
+        forces[:, 0, 0] = 8.0
+        asset.permanent_wrench_composer.set_forces_and_torques_index(forces=forces)
+        scene.write_data_to_sim()
         sim.step()
         scene.update(sim.cfg.dt)
+        torch.testing.assert_close(
+            asset.data.root_com_vel_w.torch[:, 0],
+            torch.tensor([sim.cfg.dt, 8.0 * sim.cfg.dt], device=device),
+            rtol=1.0e-4,
+            atol=1.0e-6,
+        )
         assert torch.isfinite(asset.data.root_link_pose_w.torch).all()
         assert torch.isfinite(asset.data.root_com_vel_w.torch).all()
 
