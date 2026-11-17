@@ -55,12 +55,12 @@ launcher = AppLauncher(args)
 def main() -> None:
     """Render RGB of a static cube, optionally moving the fixation."""
     # Isaac Sim plugins must be available before importing simulator-bound types.
-    import isaaclab.sim as sim_utils
     import torch
     import warp as wp
-    from isaaclab.utils.warp import ProxyArray
-
     from isaaclab_fovi.sensors import FoveatedTiledCamera, FoveatedTiledCameraCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.utils.warp import ProxyArray
 
     if args.backend == "newton":
         from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg

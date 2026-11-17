@@ -6,7 +6,6 @@
 """Reject atlas layouts that destroy spatial neighborhoods before rendering."""
 
 import pytest
-
 from isaaclab_fovi.sensors.foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
 
 

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+
 from isaaclab import sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
@@ -330,17 +331,12 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
 
         # OVRTX owns its runtime; Kit extensions belong only to Isaac RTX.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
-            try:
-                import omni.kit.app
+            import omni.kit.app
 
-                ext_manager = omni.kit.app.get_app().get_extension_manager()
-                for ext_name in ("omni.sensors.nv.common", "omni.sensors.nv.camera"):
-                    try:
-                        ext_manager.set_extension_enabled_immediate(ext_name, True)
-                    except Exception:
-                        pass
-            except ImportError:
-                pass
+            ext_manager = omni.kit.app.get_app().get_extension_manager()
+            for ext_name in ("omni.sensors.nv.common", "omni.sensors.nv.camera"):
+                if not ext_manager.set_extension_enabled_immediate(ext_name, True):
+                    logger.warning("Could not enable Kit extension '%s'; the lens lookup may not render.", ext_name)
 
         # Moving-gaze DLSS quality still needs validation with native LUTs;
         # geometry smoke tests disable temporal accumulation.

@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Tuple
 
 # Must be set before cv2 is first imported anywhere in the process.
 os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")
@@ -131,7 +130,7 @@ def _octahedral_decode(
     width: int,
     height: int,
     device="cuda",
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Decode octahedral-LUT texel centres to unit directions (camera −Z convention).
 
     Returns:
@@ -219,7 +218,7 @@ def build_generalized_projection_textures(
     exit_height: int,
     chunk: int = 8192,
     device="cuda",
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Build direction and exit LUT tensors from a labelled set of sensor samples.
 
     Both tensors are filled by **nearest-neighbour assignment**.
@@ -307,7 +306,7 @@ def save_generalized_projection_textures(
     exit_texture: torch.Tensor,
     output_dir: str,
     basename: str,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """Save direction and exit LUT tensors as EXR files.
 
     Returns:

@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
 
 
-def build_lowres_coords(cfg: "FoveatedTiledCameraCfg", device: str) -> tuple["SamplingCoords", int]:
+def build_lowres_coords(cfg: FoveatedTiledCameraCfg, device: str) -> tuple[SamplingCoords, int]:
     """Build the lowres (RGC / public output) SamplingCoords.
 
     Returns ``(lowres_coords, matched_res)`` where ``matched_res`` is the
@@ -76,7 +76,7 @@ def build_lowres_coords(cfg: "FoveatedTiledCameraCfg", device: str) -> tuple["Sa
     return lowres, matched_res
 
 
-def build_highres_coords(cfg: "FoveatedTiledCameraCfg", matched_res: int, device: str) -> "SamplingCoords | None":
+def build_highres_coords(cfg: FoveatedTiledCameraCfg, matched_res: int, device: str) -> SamplingCoords | None:
     """Build the highres (photoreceptor) SamplingCoords when pooling is on."""
     if not cfg.pool_enabled:
         return None
@@ -101,12 +101,12 @@ def build_highres_coords(cfg: "FoveatedTiledCameraCfg", matched_res: int, device
 
 
 def build_pooler(
-    cfg: "FoveatedTiledCameraCfg",
-    lowres: "SamplingCoords",
-    highres: "SamplingCoords | None",
+    cfg: FoveatedTiledCameraCfg,
+    lowres: SamplingCoords,
+    highres: SamplingCoords | None,
     device: str,
     mode: str | None = None,
-) -> tuple["KNNPoolingLayer | GridPoolingLayer | None", int | None]:
+) -> tuple[KNNPoolingLayer | GridPoolingLayer | None, int | None]:
     """Build a retinal pooling layer. Both coord sets must already be on ``device``.
 
     If ``mode`` is None, uses ``cfg.pool_mode`` — the standard pooler for
@@ -142,7 +142,7 @@ def is_segmentation_output(name: str) -> bool:
     return "segmentation" in name
 
 
-def pool_hwc_buffer(pooler: "KNNPoolingLayer | GridPoolingLayer", buf: torch.Tensor) -> torch.Tensor:
+def pool_hwc_buffer(pooler: KNNPoolingLayer | GridPoolingLayer, buf: torch.Tensor) -> torch.Tensor:
     """Pool a ``(B, N_hi, 1, C)`` sensor buffer into ``(B, N_lo, 1, C)``.
 
     Both poolers expect ``(B, C, N)`` inputs, so we permute in and out.

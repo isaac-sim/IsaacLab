@@ -8,11 +8,11 @@
 import pytest
 
 Usd = pytest.importorskip("pxr.Usd")
-from pxr import UsdGeom  # noqa: E402
-
 from isaaclab_fovi.sensors.generalized_projection import (  # noqa: E402
     apply_generalized_projection_to_prim,
 )
+
+from pxr import UsdGeom  # noqa: E402
 
 
 def test_lut_schema_has_explicit_model_and_assets_after_export() -> None:

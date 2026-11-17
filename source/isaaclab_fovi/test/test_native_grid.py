@@ -10,7 +10,6 @@ import math
 import pytest
 import torch
 from fovi.sensing.coords import SamplingCoords
-
 from isaaclab_fovi.sensors.generalized_projection import build_native_grid_textures
 from isaaclab_fovi.sensors.native_grid import (
     allocate_grid_outputs,
