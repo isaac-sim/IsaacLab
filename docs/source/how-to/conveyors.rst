@@ -26,9 +26,9 @@ contains a ``Belt`` collision surface and five parcels named ``Parcel0`` through
    conveyor.start(env_ids=[0])        # Restore its authored speed.
    conveyor.set_speed_scale(-1.0)      # Reverse the authored travel directions.
 
-``speed_scale`` contains the requested multiplier for each environment.
-``surface_velocities`` contains the commanded signed centerline speeds in m/s, before the
-startup traction ramp. Commands persist across episode and hard resets. Call ``reset(env_ids)``
+``speed_scale`` contains the requested multiplier for each environment. It multiplies
+the configured signed centerline velocity before the startup ramp. Commands persist across
+episode and hard resets. Call ``reset(env_ids)``
 after restoring bodies to clear stale forces for those environments, and ``close()`` before
 destroying the simulation.
 
@@ -38,5 +38,6 @@ Same-device masks and indices reuse native storage without a host round trip.
 
 The Newton MJWarp implementation uses Newton's conveyor force model. Straight and curved
 sections retain their authored relative speeds under each environment's multiplier. Independent
-speed profiles can use separate controllers with disjoint collision surfaces. Surface geometry
-is stationary; the prescribed motion acts through contact forces.
+speed profiles can use separate controllers with disjoint collision surfaces. Newton requires
+world-attached static collision shapes for the belt surfaces. Contact forces produce the
+prescribed surface motion.

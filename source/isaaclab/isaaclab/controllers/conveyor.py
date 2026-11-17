@@ -39,9 +39,6 @@ class BaseConveyor(ABC):
         self.num_envs = num_envs
         self.device = sim.device
         self._speed_scale = ProxyArray(wp.ones(num_envs, dtype=wp.float32, device=self.device))
-        self._surface_velocities = ProxyArray(
-            wp.array([surface.velocity for surface in self.cfg.surface_specs], dtype=wp.float32, device=self.device)
-        )
         self._all_env_ids = wp.array(range(num_envs), dtype=wp.int32, device=self.device)
         self._all_env_mask = wp.ones(num_envs, dtype=wp.bool, device=self.device)
         self._selection_mask = wp.empty(num_envs, dtype=wp.bool, device=self.device)
@@ -56,15 +53,6 @@ class BaseConveyor(ABC):
     def speed_scale(self) -> torch.Tensor:
         """Copy of the target multiplier for each environment, shape ``(N,)``."""
         return self._speed_scale.torch.clone()
-
-    @property
-    def surface_velocities(self) -> torch.Tensor:
-        """Commanded signed centerline velocities [m/s], shape ``(N, S)``.
-
-        These are the targets before the startup traction ramp. Collision surfaces
-        remain stationary; the backend imparts their prescribed motion to contacts.
-        """
-        return self._speed_scale.torch[:, None] * self._surface_velocities.torch[None, :]
 
     def set_speed_scale(
         self,

@@ -91,6 +91,9 @@ def test_box_acquisition_lift_release_and_rebind(device):
                 distant = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube0")]
                 if reset_index:
                     gripper.set_target_ids(torch.ones(2, dtype=torch.long, device=device))
+                else:
+                    with pytest.raises(ValueError, match="one command per gripper"):
+                        gripper.set_grippers_command_mask(wp.ones(3, dtype=wp.float32, device=device))
                 gripper.set_grippers_command_mask(
                     wp.ones(2, dtype=wp.float32, device=device),
                     wp.full(2, True, dtype=wp.bool, device=device),

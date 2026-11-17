@@ -259,6 +259,8 @@ class SurfaceGripper(BaseSurfaceGripper):
             states = states.warp
         values = wp.from_torch(states.to(dtype=torch.float32)) if isinstance(states, torch.Tensor) else states
         if full_data:
+            if values.shape != (self._num_envs,):
+                raise ValueError("Full-size commands require one command per gripper.")
             values = wp.indexedarray(values, [ids])
         wp.copy(wp.indexedarray(self._command.warp, [ids]), values)
 
@@ -267,6 +269,8 @@ class SurfaceGripper(BaseSurfaceGripper):
         if isinstance(states, ProxyArray):
             states = states.warp
         values = wp.from_torch(states.to(dtype=torch.float32)) if isinstance(states, torch.Tensor) else states
+        if values.shape != (self._num_envs,):
+            raise ValueError("Masked commands require one command per gripper.")
         mask = resolve_1d_mask(mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
             make_masked_copy(wp.float32, 1),
