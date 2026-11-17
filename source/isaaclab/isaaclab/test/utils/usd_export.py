@@ -185,6 +185,8 @@ def export_task(env_cfg, task: str, path: str, read_live: Callable[[Any], Any]) 
     """Build a registered task with one environment, which exports it to ``path`` at initialization, and read the
     live engine there.
 
+    A generated terrain has 2 x 2 sub-terrains, whose mesh the engines load in a fraction of the full one's time.
+
     Args:
         env_cfg: The task's environment configuration, with its physics preset resolved.
         task: Registered task name.
@@ -204,6 +206,9 @@ def export_task(env_cfg, task: str, path: str, read_live: Callable[[Any], Any]) 
     env_cfg.scene.num_envs = 1
     env_cfg.scene.export_usd_path = path
     env_cfg.seed = 0  # the same terrain and reset state every run
+    terrain = getattr(env_cfg.scene, "terrain", None)
+    if getattr(terrain, "terrain_generator", None) is not None:
+        terrain.terrain_generator.num_rows = terrain.terrain_generator.num_cols = 2
     export, live = BaseUsdExporter.export, []
 
     def export_and_read_live(exporter, destination):

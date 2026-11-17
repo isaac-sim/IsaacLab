@@ -61,16 +61,23 @@ def _read_live(scene, path: str) -> tuple:
     return read_live_engine(scene, path, lambda stage, *prims: readings(stage, read(physx, *prims, scene.device)))
 
 
-def _read_import(stage, articulations: list[str], bodies: list[str]) -> dict:
-    """Readings of a fresh OVPhysX import of ``stage``, in a spawned process: a process has one attached simulation."""
+@pytest.fixture(scope="module")
+def importer():
+    """A spawned process that imports this module's exports one at a time, each into a new OVPhysX instance: a
+    process has one attached simulation."""
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        yield pool
+
+
+def _read_import(importer, stage, articulations: list[str], bodies: list[str]) -> dict:
+    """Readings of a fresh OVPhysX import of ``stage``, in the ``importer`` process."""
     from usd_export_read_import import read_import, readings
 
-    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
-        raw = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+    raw = importer.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
     return readings(stage, raw)
 
 
-def _round_trip(cfg, sim_cfg, before_reset=None):
+def _round_trip(importer, cfg, sim_cfg, before_reset=None):
     """Export the initialized scene of ``cfg``, then read the live engine and a fresh OVPhysX import of the file.
 
     ``before_reset`` changes the stage before the engine loads it.
@@ -88,11 +95,11 @@ def _round_trip(cfg, sim_cfg, before_reset=None):
         sim.reset()
         stage, articulations, bodies, live = _read_live(scene, scene.export_to_usd(cfg.export_usd_path))
         gravity = np.asarray(sim.backend_manager.get_gravity())
-    return stage, live, _read_import(stage, articulations, bodies), gravity
+    return stage, live, _read_import(importer, stage, articulations, bodies), gravity
 
 
 # Without a box per environment, environment 1 exists in physics only.
-def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
+def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, importer):
     """Every exported value of a fresh OVPhysX import equals the live engine's, including config overrides.
 
     A value the engine derives is not restated: the box collider's contact offset, which its USD leaves to PhysX
@@ -114,7 +121,10 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=OvPhysxCfg())
     colliders = []
     stage, live, loaded, gravity = _round_trip(
-        make_export_scene_cfg(tmp_path), sim_cfg, lambda stage: colliders.append(derived_box_contact_offset(stage))
+        importer,
+        make_export_scene_cfg(tmp_path),
+        sim_cfg,
+        lambda stage: colliders.append(derived_box_contact_offset(stage)),
     )
 
     hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
@@ -134,7 +144,7 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
 
 
 @pytest.mark.parametrize("task", TASKS)
-def test_importing_the_export_of_a_task_reproduces_the_live_engine(tmp_path, task):
+def test_importing_the_export_of_a_task_reproduces_the_live_engine(tmp_path, importer, task):
     """A fresh OVPhysX import of a task's export holds the live engine's values and initial joint state."""
     from isaaclab.test.utils.usd_export import (
         assert_differences_match,
@@ -151,7 +161,7 @@ def test_importing_the_export_of_a_task_reproduces_the_live_engine(tmp_path, tas
     env_cfg.sim.device = "cuda:0"
     path = str(tmp_path / "exported.usda")
     stage, articulations, bodies, live = export_task(env_cfg, task, path, lambda scene: _read_live(scene, path))
-    loaded = _read_import(stage, articulations, bodies)
+    loaded = _read_import(importer, stage, articulations, bodies)
     assert_differences_match(find_reading_differences(live, loaded), TASKS[task], reading_pairs(live))
 
 
@@ -214,7 +224,7 @@ def test_importing_the_export_starts_a_volume_deformable_at_its_reset_state(tmp_
     ],
 )
 def test_joint_values_ovphysx_reads_from_other_attributes_are_restated(
-    tmp_path, schema, authored, actuator, live_armature
+    tmp_path, importer, schema, authored, actuator, live_armature
 ):
     """A joint value OVPhysX 0.7 reads from another attribute than the live engine's source is restated as the
     attribute an import reads."""
@@ -234,7 +244,7 @@ def test_joint_values_ovphysx_reads_from_other_attributes_are_restated(
     robot.GetRootLayer().Save()
     for name, value in actuator.items():
         setattr(cfg.robot.actuators["hinge"], name, value)
-    _, live, loaded, _ = _round_trip(cfg, SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg()))
+    _, live, loaded, _ = _round_trip(importer, cfg, SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg()))
 
     key = "/World/envs/env_0/Robot/Hinge", "angular"
     assert live[key]["armature"] == pytest.approx(live_armature)

@@ -36,8 +36,8 @@ TASKS = {
     "Isaac-Ant": _DRIVELESS_GAINS,
     # the export of a DirectRLEnv
     "Isaac-Cartpole-Direct": {},
-    # the export of a DirectMARLEnv; two hands with fixed tendons
-    "Isaac-Shadow-Handover-Direct": {},
+    # the export of a DirectMARLEnv
+    "Isaac-Pendulum-MARL-Direct": {},
 }
 """Task -> values the import holds differently: reading name -> regular expression of entities."""
 
