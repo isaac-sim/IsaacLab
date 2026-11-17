@@ -100,13 +100,19 @@ class _GroundSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _ground_distance_along_gaze(tilt_deg: float, pan_deg: float) -> float:
+def _look_at(eye, target) -> tuple[float, float, float, float]:
+    """OpenGL camera orientation (x, y, z, w) at ``eye`` looking at ``target`` with world +Z up."""
+    matrix = create_rotation_matrix_from_view(torch.tensor([eye]), torch.tensor([target]), up_axis="Z")
+    return tuple(quat_from_matrix(matrix)[0].tolist())
+
+
+def _ground_distance_along_gaze(tilt_deg: float, pan_deg: float, eye=CAM_EYE, target=CAM_TARGET) -> float:
     """Distance [m] from the camera to the ground along the gaze (tilt, pan) [deg]; up and left are positive."""
     tilt, pan = math.radians(tilt_deg), math.radians(pan_deg)
     # OpenGL camera frame: +X right, +Y up, looking along -Z.
     ray_camera = np.array((-math.cos(tilt) * math.sin(pan), math.sin(tilt), -math.cos(tilt) * math.cos(pan)))
-    eye = np.asarray(CAM_EYE)
-    forward = np.asarray(CAM_TARGET) - eye
+    eye = np.asarray(eye)
+    forward = np.asarray(target) - eye
     z_axis = -forward / np.linalg.norm(forward)
     x_axis = np.cross(np.array((0.0, 0.0, 1.0)), z_axis)
     x_axis /= np.linalg.norm(x_axis)
@@ -115,8 +121,12 @@ def _ground_distance_along_gaze(tilt_deg: float, pan_deg: float) -> float:
     return float(-eye[2] / ray_world[2])
 
 
-def _render(backend: str, gaze: torch.Tensor, **camera_overrides) -> tuple[torch.Tensor, torch.Tensor]:
+def _render(
+    backend: str, gaze: torch.Tensor, moved_mount: tuple | None = None, **camera_overrides
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
+
+    With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set.
 
     Returns:
         The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
@@ -126,13 +136,9 @@ def _render(backend: str, gaze: torch.Tensor, **camera_overrides) -> tuple[torch
     sim_cfg = SimulationCfg(physics=physics_cfg, device=DEVICE)
     with build_simulation_context(device=DEVICE, sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        rot = tuple(
-            quat_from_matrix(
-                create_rotation_matrix_from_view(torch.tensor([CAM_EYE]), torch.tensor([CAM_TARGET]), up_axis="Z")
-            )[0].tolist()
-        )
         scene_cfg = _GroundSceneCfg(num_envs=len(gaze), env_spacing=20.0)
         scene_cfg.camera.renderer_cfg = renderer_cfg()
+        rot = _look_at(CAM_EYE, CAM_TARGET)
         scene_cfg.camera.offset = FoveatedCameraCfg.OffsetCfg(pos=CAM_EYE, rot=rot, convention="opengl")
         for name, value in camera_overrides.items():
             setattr(scene_cfg.camera, name, value)
@@ -141,6 +147,12 @@ def _render(backend: str, gaze: torch.Tensor, **camera_overrides) -> tuple[torch
         assert isinstance(camera, camera_class)
         sim.reset()
         camera.set_gaze_angles(gaze.to(sim.device))
+        if moved_mount is not None:
+            last = len(gaze) - 1
+            eye, target = moved_mount
+            position = scene.env_origins[last : last + 1] + torch.tensor([eye], device=sim.device)
+            orientation = torch.tensor([_look_at(eye, target)], device=sim.device)
+            camera.set_world_poses(position, orientation, env_ids=[last], convention="opengl")
         for _ in range(WARMUP_STEPS):
             sim.step()
             camera.update(sim.get_physics_dt(), force_recompute=True)
@@ -182,6 +194,20 @@ def test_foveated_camera_follows_gaze(backend, source):
 
     # Looking right moves part of the retina past the edge of the physical camera, and those samples are zeroed.
     assert (distance[1] == 0).sum() > (distance[0] == 0).sum()
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_gaze_stays_relative_to_a_moved_mount(backend):
+    """Moving one environment's camera keeps its gaze relative to the new mount and leaves the other alone."""
+    gaze = torch.tensor([[0.0, -10.0], [0.0, -10.0]])
+    eye, target = (0.3, -0.4, 3.2), (2.0, 0.3, 0.0)
+    distance, field = _render(backend, gaze, moved_mount=(eye, target))
+
+    row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
+    assert float(distance[0, row, column]) == pytest.approx(_ground_distance_along_gaze(0.0, -10.0), rel=0.01)
+    assert float(distance[1, row, column]) == pytest.approx(
+        _ground_distance_along_gaze(0.0, -10.0, eye, target), rel=0.01
+    )
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
