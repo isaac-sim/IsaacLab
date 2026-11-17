@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate, string_to_callable
-from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCallInfo
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorArgs
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class ImageTransferProcessor(TensorProcessor):
 
     Cameras using this processor must render synchronously so repeated or delayed images do not advance history.
 
-    Each call queues one control for every view in ``info.env_mask``, or for every view without one. With
+    Each call queues one control for every view in ``args.env_mask``, or for every view without one. With
     ``update_period > 0``, environments that reset independently capture at different steps, so a capture can
     cover only some views; the others keep their last render, which is not a new frame. Views advance together:
     when every view starts an episode, the stream generates once each has ``initial_frames``; otherwise it
@@ -80,14 +80,12 @@ class ImageTransferProcessor(TensorProcessor):
         self._outputs = {cfg.outputs[0]: ProxyArray(output)}
         self._output = self._outputs[cfg.outputs[0]].torch
 
-    def __call__(
-        self, data: dict[str, ProxyArray], info: TensorProcessorCallInfo | None = None
-    ) -> dict[str, ProxyArray]:
+    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
         """Queue one control per captured view and generate a chunk when every view has one.
 
         Args:
             data: Named input buffers: the controls of shape ``(N, H, W, 3)``, dtype uint8.
-            info: Call information whose ``env_mask`` marks the views captured in this call. Defaults to None;
+            args: Arguments whose ``env_mask`` marks the views captured in this call. Defaults to None;
                 None, or an ``env_mask`` of None, means every view.
 
         Returns:
@@ -105,7 +103,7 @@ class ImageTransferProcessor(TensorProcessor):
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
         # The queues are host-side lists, so the mask is read on the host.
-        env_mask = info.env_mask if info is not None else None
+        env_mask = args.env_mask if args is not None else None
         captured = wp.to_torch(env_mask).tolist() if env_mask is not None else [True] * len(self._pending)
         # Only views that capture now add a control; a full view that skips this capture does not block the others.
         if any(captured[row] and len(queue) >= cfg.max_pending_frames for row, queue in enumerate(self._pending)):
@@ -209,9 +207,7 @@ class FunctionProcessor(TensorProcessor):
         self._outputs = {cfg.outputs[0]: ProxyArray(output)}
         self._output = self._outputs[cfg.outputs[0]].torch
 
-    def __call__(
-        self, data: dict[str, ProxyArray], info: TensorProcessorCallInfo | None = None
-    ) -> dict[str, ProxyArray]:
+    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
         """Apply the function to the input and copy the result into the output buffer."""
         with torch.no_grad():
             self._output.copy_(self._function(data[self._cfg.inputs[0]].torch, **self._cfg.params))
