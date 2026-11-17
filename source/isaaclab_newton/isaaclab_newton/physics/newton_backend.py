@@ -355,6 +355,11 @@ class NewtonBackend:
             # a capture records the work without running it
             self.kinematics_dirty = False
 
+    def _resolves_in_step_graph(self) -> bool:
+        """Whether the step graph resolves the flagged worlds: once state writes were recorded into a graph, unless
+        the solver's reset reads the host, which then resolves before the step (see :meth:`forward`)."""
+        return self.transforms_may_change_on_graph_replay and self.solver_ops.reset_is_capturable
+
     def _resolve_flagged(self) -> None:
         """Reset solver internals and evaluate FK for the worlds and articulations flagged on the device, then clear
         the device flags."""
@@ -502,8 +507,9 @@ class NewtonBackend:
         with wp.ScopedDevice(self.device):
             if actuators is None or actuators.is_all_graphable:
                 # A solver reset may read the world mask on the host, so it stays outside the step graph until writes
-                # were recorded into a graph; their replays flag worlds on the device only.
-                replay_writes = self.transforms_may_change_on_graph_replay
+                # were recorded into a graph; their replays flag worlds on the device only. A reset that reads the
+                # host (reset_is_capturable False) always stays outside, as before.
+                replay_writes = self._resolves_in_step_graph()
                 if replay_writes:
                     self.notify_model_changes()
                 else:
@@ -631,7 +637,7 @@ class NewtonBackend:
         A captured step then resolves the flags on every replay, since replayed writes flag worlds on the device only;
         with nothing flagged the masked kernels do no work.
         """
-        if self.transforms_may_change_on_graph_replay:
+        if self._resolves_in_step_graph():
             self._resolve_flagged()
         actuators = self.actuators
         self._stage_body_forces()

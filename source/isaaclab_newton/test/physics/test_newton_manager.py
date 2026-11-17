@@ -638,6 +638,28 @@ def test_a_captured_step_resolves_the_worlds_a_replayed_write_flagged():
     assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
 
 
+def test_a_reset_that_reads_the_host_resolves_before_the_captured_step():
+    """A solver reset that reads the world mask on the host, such as an MPM coupler with one world, runs before the
+    step graph on every step, also once state writes were recorded; the step graph never holds it."""
+    backend = _recording_backend([], captures=True)
+    backend.transforms_may_change_on_graph_replay = True  # as recording a state write sets it
+    ops = backend.solver_ops
+    type(ops).reset_is_capturable = property(lambda self: False)
+    resets = []
+    ops.reset = lambda state, worlds: resets.append(worlds.numpy().tolist())  # a host read
+    ops.eval_fk = lambda state, worlds, articulations: None
+
+    backend.step()  # resolves eagerly with nothing flagged, then captures the step without the reset
+    assert backend.graphs
+    for _ in range(2):
+        backend.world_mask.assign(wp.array([True, False], dtype=wp.bool, device="cpu"))
+        backend.step()
+
+    # one eager reset per step, each reading the flags of that step
+    assert resets == [[False, False], [True, False], [True, False]]
+    assert not backend.world_mask.numpy().any()
+
+
 def test_forward_recorded_in_an_abandoned_capture_leaves_the_flags_pending():
     """FK recorded in a capture runs only when the graph is launched, so a capture that is abandoned leaves the host
     flag and the device flags pending for the next eager forward."""

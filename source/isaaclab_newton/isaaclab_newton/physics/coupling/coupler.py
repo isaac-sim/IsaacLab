@@ -356,11 +356,15 @@ class CouplerSolver(NewtonSolver):
             kwargs["shape_pairs_filtered"] = self.native.view(self.cfg.outer_contact_entry).shape_contact_pairs
         return super().create_collision_pipeline(**kwargs)
 
+    @property
+    def reset_is_capturable(self) -> bool:
+        """False for a single world with an MPM entry, whose :meth:`reset` reads the world mask on the host."""
+        return not self._resets_single_mpm_world()
+
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Reset every entry for masked worlds, promoting a selected single MPM world to the full-reset path."""
         solver = self.native
-        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in self.cfg.entries)
-        if solver.model.world_count == 1 and has_mpm_entry:
+        if self._resets_single_mpm_world():
             selected = world_mask.numpy()
             if not selected.any():
                 return
@@ -368,6 +372,11 @@ class CouplerSolver(NewtonSolver):
                 solver.reset(state, world_mask=None, flags=0)
                 return
         solver.reset(state, world_mask=world_mask, flags=0)
+
+    def _resets_single_mpm_world(self) -> bool:
+        """Whether the model has one world and an MPM entry, whose reset reads the world mask on the host."""
+        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in self.cfg.entries)
+        return self.native.model.world_count == 1 and has_mpm_entry
 
     def check_step(self, captured: bool, debug: bool) -> None:
         """Raise asynchronous failures, and log diagnostics, of every entry's solver."""

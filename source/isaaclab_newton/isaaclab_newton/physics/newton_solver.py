@@ -173,6 +173,12 @@ class NewtonSolver:
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""
 
+    @property
+    def reset_is_capturable(self) -> bool:
+        """Whether :meth:`reset` reads no host data, so a recorded step graph can hold it. A reset that reads the
+        world mask on the host runs before the step graph instead, as without recorded state writes."""
+        return True
+
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver-owned history for the worlds of a ``(world_count + 1,)`` mask, keeping authored joint state."""
         self.native.reset(state, world_mask=world_mask, flags=0)
