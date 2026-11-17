@@ -259,9 +259,14 @@ def validate_launch(  # noqa: C901
             node.visualizer_cfgs = viewers
         if livestream or launcher_args.get("xr", False):
             # Livestreaming and XR need Kit and have no replacement yet, so their Kit visualizer does not warn.
-            kit_viewers = [viewer for viewer in node.visualizer_cfgs if isinstance(viewer.backend, KitBackendCfg)]
-            for viewer in kit_viewers:
-                viewer.backend.deprecation_warning = False
+            # Replace the caller's Kit viewers with copies, so reusing their config for a normal launch still warns.
+            kit_viewers = False
+            for index, viewer in enumerate(node.visualizer_cfgs):
+                if isinstance(viewer.backend, KitBackendCfg):
+                    node.visualizer_cfgs[index] = viewer.replace(
+                        backend=viewer.backend.replace(deprecation_warning=False)
+                    )
+                    kit_viewers = True
             if not kit_viewers:
                 node.visualizer_cfgs.append(
                     template.replace(

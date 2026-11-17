@@ -230,13 +230,16 @@ def test_livestream_keeps_kit_without_the_deprecation_warning(configured):
 
     from isaaclab_visualizers.kit import KitBackendCfg
 
+    callers_backend = KitBackendCfg()
     cfg = SimpleNamespace(
-        sim=SimulationCfg(device="cpu", visualizer_cfgs=[VisualizerCfg(backend=KitBackendCfg())] if configured else [])
+        sim=SimulationCfg(device="cpu", visualizer_cfgs=[VisualizerCfg(backend=callers_backend)] if configured else [])
     )
     sim_launcher.validate_launch(cfg, {"livestream": 1})
     kit_backends = [viz.backend for viz in cfg.sim.visualizer_cfgs if isinstance(viz.backend, KitBackendCfg)]
     assert len(kit_backends) == 1
     assert not kit_backends[0].deprecation_warning
+    # The exception is scoped to this launch: the caller's own config still warns when reused.
+    assert callers_backend.deprecation_warning
 
 
 def test_launching_kit_warns_with_the_reason_it_is_needed(kit_branch_taken):
