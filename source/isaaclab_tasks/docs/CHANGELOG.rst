@@ -3,6 +3,75 @@ Changelog
 
 .. towncrier release notes start
 
+30.4.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Newton (MuJoCo-Warp) physics preset to the assemble trocar task, selected with
+  ``physics=newton_mjwarp``. PhysX remains the default.
+* Added ``Isaac-Velocity-Flat-H2`` and ``Isaac-Velocity-Rough-H2`` with RSL-RL PPO configurations
+  for training Unitree H2 velocity-tracking policies from scratch. Falls terminate on excessive
+  root tilt, with an additional minimum root height on flat terrain.
+* Added foot-flight, foot-separation, contact-conditioned knee-flexion, and walking yaw-momentum
+  penalties for humanoid locomotion.
+* The biped air-time reward optionally penalizes ongoing swings beyond its duration threshold.
+* Enabled minimal collision geometry for H2 velocity tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced ``G1_29DOF_BODY_JOINT_INDICES`` and ``G1_DEX3_JOINT_INDICES`` in the assemble trocar
+  config with ``G1_29DOF_BODY_JOINT_NAMES`` and ``G1_DEX3_JOINT_NAMES``. The observations now select joints by
+  name, since the joint order differs between physics backends.
+
+Fixed
+^^^^^
+
+* Fixed the assemble trocar task never advancing its stage. The ``update_stage`` reward term had weight 0, which
+  the reward manager skips, so no stage reward or success termination was ever triggered.
+* Added the RLinf patch weight syncer configuration required to start training.
+* Matched the Newton trocar bore friction to PhysX's average-combine result without changing PhysX.
+* Stiffened only the Newton trocar bore contact to prevent the obturator from penetrating the bore wall and wedging,
+  while leaving the hand-facing grip colliders unchanged.
+* Stiffened the Newton hand-trocar contact so the closed fingers no longer sink into and hook the held trocar, which
+  kept the hand from releasing it during placement.
+* Scoped the healthcare G1 and tray USD compatibility adaptations to the assemble trocar task instead of changing
+  Newton's importer globally.
+
+
+30.3.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
+
+
+30.3.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``IsaacContrib-Velocity-Rough-Asimov1`` velocity-tracking task for the Asimov-1 humanoid,
+  using the shared velocity configuration, reward terms, and observation delay. Robot-specific terms
+  include episode-aware swing heights, foot-height rewards relative to the last ground contact,
+  whole-body angular momentum, and joint-zero calibration offsets owned by the action term.
+
+
+30.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tuned ``presets=newton_steel`` configurations to supported rigid-body tasks without changing their substep counts.
+* Selected driven Franka assets for Steel and enabled parallel streams for the SO101 keyboard contact solve.
+
+
 30.1.3 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

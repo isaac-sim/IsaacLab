@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+3.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``InteractiveSceneWarp``. :class:`~isaaclab.scene.InteractiveScene` now resets every asset
+  and sensor from ``env_mask``; the Warp environments use it directly.
+
+
 2.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~
 

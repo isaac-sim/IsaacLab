@@ -832,10 +832,14 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia [kg*m^2].
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        The tensors are flattened in row-major order and can be non-diagonal; their principal axes are given by
+        :attr:`body_com_quat_b`. World-frame inertia is ``R @ I @ R.transpose(-1, -2)``, where ``R`` is the
+        rotation matrix from :attr:`body_link_quat_w` and ``I`` is the reshaped 3-by-3 tensor.
 
         The buffer refreshes from the tensor view at most once per simulation timestamp. Direct tensor-view writes
         after that refresh become visible after the next update; use
@@ -1057,9 +1061,9 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
         if self._mass_matrix.timestamp < self._sim_timestamp:
             source = self._root_view.get_generalized_mass_matrices()
+            if self._mass_matrix.data is None:
+                self._mass_matrix.data = ProxyArray(wp.empty_like(source))
             if self.has_joint_ordering or self._has_reversed_joints:
-                if self._mass_matrix.data is None:
-                    self._mass_matrix.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
                     "mass_matrix",
                     wp.launch,
@@ -1074,8 +1078,13 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._mass_matrix.data],
                 )
-            elif self._mass_matrix.data is None:
-                self._mass_matrix.data = ProxyArray(source)
+            else:
+                wp.copy(self._mass_matrix.data.warp, source)
+            # PhysX mass-matrix queries omit the joint armature used by the solver (PhysX#575).
+            # TODO: Remove once PhysX#575 is fixed upstream, or armature will be counted twice.
+            self._mass_matrix.data.torch.diagonal(dim1=-2, dim2=-1)[:, self._num_base_dofs :].add_(
+                self.joint_armature.torch
+            )
             self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix.data
 
@@ -1765,6 +1774,8 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = wp.clone(self._root_view.get_fixed_tendon_rest_lengths(), device=device)
             self._fixed_tendon_offset = wp.clone(self._root_view.get_fixed_tendon_offsets(), device=device)
             self._fixed_tendon_pos_limits = wp.clone(self._root_view.get_fixed_tendon_limits(), device=device)
+            # scratch for the masked target setter: rest_length - target before the masked write
+            self._fixed_tendon_offset_scratch = wp.zeros_like(self._fixed_tendon_offset)
         else:
             self._fixed_tendon_stiffness = None
             self._fixed_tendon_damping = None
@@ -1772,6 +1783,7 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = None
             self._fixed_tendon_offset = None
             self._fixed_tendon_pos_limits = None
+            self._fixed_tendon_offset_scratch = None
         # -- Spatial tendon properties
         if self._num_spatial_tendons > 0:
             self._spatial_tendon_stiffness = wp.clone(self._root_view.get_spatial_tendon_stiffnesses(), device=device)
@@ -2040,10 +2052,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a position array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: Structured Warp array with dtype wp.transformf. Logical shape is (N,) for roots
+                or (N, B) for bodies.
 
         Returns:
-            The position array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=transform.ptr,
@@ -2057,10 +2071,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a quaternion array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: Structured Warp array with dtype wp.transformf. Logical shape is (N,) for roots
+                or (N, B) for bodies.
 
         Returns:
-            The quaternion array. Shape is (N, 4).
+            A wp.quatf view with the same logical shape as the input, in (x, y, z, w) order.
+            Torch conversion appends a component dimension of size 4.
         """
         return wp.array(
             ptr=transform.ptr + 3 * 4,
@@ -2074,10 +2090,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a linear velocity array from a spatial vector array.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: Structured Warp array with dtype wp.spatial_vectorf. Logical shape is (N,)
+                for roots or (N, B) for bodies.
 
         Returns:
-            The linear velocity array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=spatial_vector.ptr,
@@ -2091,10 +2109,12 @@ class ArticulationData(BaseArticulationData):
         """Generates an angular velocity array from a spatial vector array.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: Structured Warp array with dtype wp.spatial_vectorf. Logical shape is (N,)
+                for roots or (N, B) for bodies.
 
         Returns:
-            The angular velocity array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=spatial_vector.ptr + 3 * 4,
@@ -2267,8 +2287,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principal inertia.
+        world. The orientation is that of the principal axes of inertia, as in :attr:`body_com_pose_w`.
         """
         warnings.warn(
             "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "

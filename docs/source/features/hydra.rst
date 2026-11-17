@@ -168,7 +168,8 @@ preset is paired with a Newton physics configuration:
 **When it runs:**
 
 1. All ``MISSING`` fields are checked first — if any remain, ``TypeError`` is raised.
-2. Only then is ``validate_config()`` called on the **top-level** config object.
+2. Only then is ``validate_config()`` called on every nested configclass and on the top-level config object
+   (nested configs are validated before the configs that own them).
 3. The hook should raise ``ValueError`` with a clear message and migration guidance.
 
 **Common validation patterns:**
@@ -379,7 +380,7 @@ It additionally verifies that the name resolved a physics configuration; the fre
 Typed Preset Selectors
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The preset CLI layer recognizes three ``key=value`` tokens (no leading dashes)
+The preset CLI layer recognizes four ``key=value`` tokens (no leading dashes)
 that can be appended to any training or play script command:
 
 .. list-table::
@@ -392,6 +393,8 @@ that can be appended to any training or play script command:
      - Typed selector for :class:`~isaaclab.physics.PhysicsCfg` variants
    * - ``renderer=NAME``
      - Typed selector for :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` variants
+   * - ``visualizer=NAME[,NAME,...]``
+     - Selects the :class:`~isaaclab.visualizers.VisualizerBackendCfg` backend of each configured viewer (``none`` disables viewers)
    * - ``presets=NAME[,NAME,...]``
      - Broadcast: applied to every matching :class:`~isaaclab_tasks.utils.hydra.PresetCfg` in the config tree
 
@@ -558,19 +561,17 @@ so the ambiguity is caught early:
 Real-World Example
 ^^^^^^^^^^^^^^^^^^
 
-The ANYmal-C locomotion environment shows both ``PresetCfg`` and ``preset()``
-working together:
+The ANYmal-C locomotion environment inherits its physics presets from the base
+velocity configuration:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py
     :language: python
-    :start-at: class AnymalCRoughEnvCfg
+    :start-at: class RoughPhysicsCfg(PresetCfg):
+    :end-at: default = newton_mjwarp
 
-The base velocity configuration also defines ``newton_mjwarp`` alternatives for
-physics and a center-of-mass randomization event that MJWarp disables. An explicit
-``physics=newton_mjwarp`` resolves the physics config and every active dependent
-alternative with that name: the event is disabled and the ANYmal-C actuator
-armature becomes ``0.01``. The typed selector also verifies that a physics preset
-was actually selected.
+An explicit ``physics=newton_mjwarp`` resolves the physics config and every active
+dependent alternative with that name. The typed selector also verifies that a
+physics preset was actually selected.
 
 .. code-block:: bash
 

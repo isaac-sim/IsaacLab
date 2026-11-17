@@ -2504,7 +2504,7 @@ The same pattern applies to the play workflow:
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
-``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
+``sb3``, ``rlinf``, and ``torchrl``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
 unified commands instead.
 
 For distributed launchers that execute a Python script directly, use the unified
@@ -2695,8 +2695,8 @@ renderer and ``--viz newton_gl`` through pyglet's EGL backend.
      - Extra requirement
    * - ``kit``
      - Replicator offscreen renderer (no display)
-     - Must also pass ``--enable_cameras``; without it, ``render_rgb_array()`` returns
-       black frames. ``--video`` sets this automatically.
+     - ``--enable_cameras`` is removed; the launcher enables the Kit camera rendering that
+       ``render_rgb_array()`` needs itself, for example for ``--video viz:kit``.
    * - ``newton_gl``
      - pyglet EGL backend (no display)
      - None — ``NewtonGLVisualizer`` auto-detects a missing ``$DISPLAY`` and selects EGL.

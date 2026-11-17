@@ -474,8 +474,7 @@ class ObservationManager(ManagerBase):
         in the data.
 
         Args:
-            group_name: The name of the group for which to compute the observations. Defaults to None,
-                in which case observations for all the groups are computed and returned.
+            group_name: The name of the group for which to compute the observations.
             update_history: The boolean indicator without return obs should be appended to observation group's history.
                 Default to False, in which case calling compute_group does not modify history. This input is no-ops
                 if the group's history_length == 0.

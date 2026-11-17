@@ -52,7 +52,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         observation_space = [3, 96, 96]
         state_space = 4
 
-        # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
+        # scene: fewer, more-spaced envs so the camera renders cleanly
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
         # reset: smaller initial pole angle than the proprioceptive task

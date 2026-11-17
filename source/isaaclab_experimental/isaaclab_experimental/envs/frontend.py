@@ -46,8 +46,6 @@ import torch
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
-
 logger = logging.getLogger(__name__)
 
 
@@ -159,7 +157,6 @@ class WarpFrontend:
             cls._assert_direct_warp_registration(task_id)
         else:
             cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
-        env_cfg.scene.class_type = InteractiveSceneWarp
         if env_class is None:
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
         return env_class(cfg=env_cfg, **construct_kwargs)
@@ -175,7 +172,8 @@ class WarpFrontend:
         Idempotent: re-running on an already-adapted cfg is a no-op (the steps
         below skip warp-origin symbols and already-promoted entities).
 
-        Three steps, each independently testable:
+        Four steps, each independently testable (the fourth, :meth:`_swap_noise_cfgs`, replaces
+        stable observation-noise cfgs with their warp-native twins):
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
            is :class:`~isaaclab_newton.physics.NewtonCfg`.

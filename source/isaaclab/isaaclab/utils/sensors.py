@@ -19,7 +19,8 @@ def convert_camera_intrinsics_to_usd(
         width: Width of the image (in pixels).
         height: Height of the image (in pixels).
         focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None,
-            in which case, the focal length will be calculated as 1 / width.
+            in which case the pixel size is set to ``1 / width`` and the returned focal length is
+            ``(f_x + f_y) / (2 * width)``.
 
     Returns:
         A dictionary of USD camera parameters for focal_length, horizontal_aperture, vertical_aperture,

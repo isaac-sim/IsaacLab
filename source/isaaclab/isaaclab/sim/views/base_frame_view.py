@@ -116,7 +116,7 @@ class BaseFrameView(abc.ABC):
             .. code-block:: python
 
                 with view.xform_local_space_writer() as w:
-                    w.set_poses(translations=t, orientations=o)
+                    w.set_poses(positions=t, orientations=o)
                     w.set_scales(scales=s)
         """
         return self._make_local_space_writer()

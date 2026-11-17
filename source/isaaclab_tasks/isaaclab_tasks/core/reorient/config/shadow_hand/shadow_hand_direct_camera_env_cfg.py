@@ -91,8 +91,9 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
 class ShadowHandTiledCameraCfg(PresetCfg):
     """Camera data-type presets for the shadow hand vision environment.
 
-    Each preset selects which image modalities are captured. The selected data types must
-    match :attr:`FeatureExtractorCfg.data_types` so the CNN receives the expected channels.
+    Each preset selects which image modalities are captured. The
+    :class:`~isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor.FeatureExtractor`
+    derives the CNN input channels from the selected data types.
 
     Select a data-type preset via the ``presets`` CLI argument, e.g.::
 

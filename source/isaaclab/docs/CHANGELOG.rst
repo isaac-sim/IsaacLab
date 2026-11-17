@@ -3,6 +3,133 @@ Changelog
 
 .. towncrier release notes start
 
+47.0.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body-tilt and absolute joint-target penalties, and a linear scalar schedule for
+  ``modify_term_cfg`` curricula.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab.managers.ActionTermCfg.clip` keys for
+  :class:`~isaaclab.envs.mdp.actions.RMPFlowAction` and :class:`~isaaclab.envs.mdp.actions.NonHolonomicAction`
+  that name joints now raise a :class:`ValueError`. Use the action names instead: ``pos_x``, ``pos_y``,
+  ``pos_z`` and ``rot_x``, ``rot_y``, ``rot_z`` for RMPFlow, and ``lin_vel_x``, ``ang_vel_z`` for the
+  non-holonomic action.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ActionTermCfg.clip` for :class:`~isaaclab.envs.mdp.actions.RMPFlowAction`
+  and :class:`~isaaclab.envs.mdp.actions.NonHolonomicAction`. Both resolved the ranges against joint names
+  and indexed the action vector with joint indices (an index error, or joint ranges applied to the wrong
+  action components). They now match the keys against
+  :attr:`~isaaclab.envs.mdp.actions.RMPFlowAction.action_names` (``pos_x``, ``rot_x``, ``quat_x``, ...) and
+  :attr:`~isaaclab.envs.mdp.actions.NonHolonomicAction.action_names` (``lin_vel_x``, ``ang_vel_z``).
+  RMPFlow also rejects keys that match a quaternion component.
+
+
+46.1.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded automatic cyclic garbage collection from timed asset benchmark samples and restored its previous state on success and failure.
+* Added missing packed root and body state readers to articulation and rigid-object benchmarks, with untimed pose and velocity preparation.
+
+
+46.1.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.warp.memory.resolve_ids`, which resolves an index selection given as ids or as a
+  boolean mask to ids on a device, as :func:`~isaaclab.utils.warp.memory.resolve_1d_mask` does to a mask.
+* Added :func:`~isaaclab.utils.warp.memory.write_2d_with_mask`, which writes 2-D data or one scalar into a Warp array
+  where a row mask and a column mask are both true, launching over the mask lengths.
+* Added ``PhysicsManager.binding_init_event`` and ``SensorBase.initialize_event`` attributes
+  so assets and backend sensors could select their initialization phase through documented interfaces.
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of :class:`~isaaclab.utils.wrench_composer.WrenchComposer` and
+  :class:`~isaaclab.sensors.Camera` to resolve ``env_ids`` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`.
+  Any integer sequence and slices with a negative step are accepted, ids on another device are moved to the owner's
+  device, and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected with a :class:`TypeError`. The
+  :class:`~isaaclab.sensors.Camera` now rejects floating-point ``env_ids`` with a :class:`TypeError` and
+  multi-dimensional ``env_ids`` with a :class:`ValueError` instead of casting and flattening them.
+* Changed :class:`~isaaclab.utils.wrench_composer.WrenchComposer` to resolve ``body_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` as well, so slices other than ``slice(None)`` are accepted.
+* Changed :func:`~isaaclab.utils.warp.memory.resolve_1d_mask` to make ``scratch_mask`` optional for callers that never
+  pass ids. Their masks are returned as given. Ids without a ``scratch_mask`` raise a :class:`ValueError`, and so
+  does a mask longer than ``all_mask``.
+* Changed :func:`~isaaclab.utils.warp.memory.resolve_ids` to use given ids over a mask: the mask is converted to ids
+  only when no ids (or ``slice(None)``) are given. When both ``env_ids`` and ``env_mask`` are given, PhysX assets now
+  use the ids, which their views take without a host synchronization; mask-native consumers still use the mask.
+
+Fixed
+^^^^^
+
+* Fixed the ``write_nodal_*_to_sim_mask`` methods of :class:`~isaaclab.assets.BaseDeformableObject`, which the
+  OVPhysX deformable object inherits, raising a :class:`RuntimeError` whenever ``env_mask`` was given.
+* Fixed :meth:`~isaaclab.sensors.Camera.reset` with an ``env_mask`` on another device than the camera: the camera
+  poses are now updated through the mask resolved on the camera's device, like the timestamps and buffers.
+* Enabled physics backends to initialize asset and contact bindings before public readiness callbacks,
+  so shared OVStage render copies complete before startup gravity edits and camera preparation,
+  while preserving callback priority order when early binding is unnecessary.
+
+
+46.0.1 (2026-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed CPU graph capture of actuator target writes with Torch values and index
+  selectors, preserving shared storage so replay observes updated commands.
+
+
+46.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``env_mask`` to :meth:`~isaaclab.actuators.ActuatorCollection.reset`,
+  :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.reset`, the stateful tensor processors and
+  :class:`~isaaclab.utils.noise.NoiseModelWithAdditiveBias`. A mask resets only the selected environments and does
+  not synchronize the device.
+* Added boolean-mask support to the ``batch_ids`` of :meth:`~isaaclab.utils.buffers.DelayBuffer.reset`: a Torch
+  boolean tensor resets the selected batches without synchronizing the device.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab.assets.AssetBase.reset`, :meth:`~isaaclab.actuators.ActuatorBase.reset`,
+  :meth:`~isaaclab.utils.tensor_processors.TensorProcessor.reset` and
+  :meth:`~isaaclab.utils.noise.NoiseModel.reset` now take ``env_ids=None, env_mask=None``. Subclasses must accept
+  ``env_mask`` (a ``wp.bool`` array of shape ``(num_envs,)``), let it take precedence over ``env_ids`` and leave
+  the unselected environments unchanged without synchronizing the device.
+* Changed :meth:`~isaaclab.scene.InteractiveScene.reset` to take ``env_mask`` and pass ``env_ids`` and
+  ``env_mask`` to every asset and sensor.
+* Changed ray-caster drift resampling to select environments with the reset mask instead of compacting it into
+  indices on the host.
+
+Fixed
+^^^^^
+
+* Recognized Newton Steel in runtime benchmark metadata so its task results could be compared with MJWarp.
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
 45.1.0 (2026-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

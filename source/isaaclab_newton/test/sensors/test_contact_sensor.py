@@ -30,7 +30,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, SteelSolverCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics.newton_backend import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -367,6 +367,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
             ("vbd", VBDSolverCfg()),
             ("kamino", KaminoPADMMSolverCfg()),
             ("kamino_native", KaminoPADMMSolverCfg(use_collision_detector=True)),
+            ("steel", SteelSolverCfg()),
         )
     ],
 )

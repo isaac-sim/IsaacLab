@@ -450,7 +450,7 @@ have dedicated commands below.
      - The curated ``ov``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
        extras. Isaac Sim is not included.
    * - ``test``
-     - Developer test and documentation tooling.
+     - Developer test tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
 (``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
@@ -992,8 +992,8 @@ No visualizer is selected by default, so
 training runs headless unless you ask for one. The ``kit`` visualizer is the exception: it comes from
 Omniverse Kit, which this image does not contain.
 
-Unlike the base image, it bind-mounts ``apps`` in addition to ``source``, ``scripts``, ``tools``, and
-``docs``, and it keeps a uv cache and a Warp cache of its own.
+Like the base image, it bind-mounts ``apps``, ``source``, ``scripts``, ``tools``, and ``docs`` and
+mounts the shared uv and Warp cache volumes, but it mounts none of the Isaac Sim cache volumes.
 
 You do not have to build it locally. It is published alongside each Isaac Lab release in the same
 registry repository, distinguished by a ``-kitless`` tag suffix:
