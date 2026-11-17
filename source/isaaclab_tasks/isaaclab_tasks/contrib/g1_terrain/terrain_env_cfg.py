@@ -218,9 +218,7 @@ class TerrainSceneCfg(InteractiveSceneCfg):
     depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera",
         offset=CameraCfg.OffsetCfg(pos=(0.0576, 0.0175, 0.4299), rot=(0.915, 0.0, -0.4035, 0.0), convention="world"),
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=1.93, horizontal_aperture=3.663003227519435, clipping_range=(0.05, 10.0)
-        ),
+        spawn=sim_utils.PinholeCameraCfg(focal_length=1.93, horizontal_aperture=3.663, clipping_range=(0.05, 10.0)),
         width=DepthPolicyCfg().depth_shape[2],
         height=DepthPolicyCfg().depth_shape[1],
         data_types=["distance_to_image_plane"],
@@ -337,9 +335,9 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
     warmup_height: float | None = 1.38
     duration: float = 7.76
     heading: float = math.pi
-    camera_eye: tuple[float, float, float] = (3.5777457457175097, -0.8435508432753542, 2.1149220372215085)
-    camera_target: tuple[float, float, float] = (1.1391558425933481, 3.3213482163422823, 0.8084400788397561)
-    camera_vfov: float = 45.571061887967865
+    camera_eye: tuple[float, float, float] = (3.578, -0.844, 2.115)
+    camera_target: tuple[float, float, float] = (1.139, 3.321, 0.808)
+    camera_vfov: float = 45.571
     sim = sim_utils.SimulationCfg(
         dt=preset(default=0.005, isaacsim_physx=0.0025, physx=0.0025),
         render_interval=preset(default=4, isaacsim_physx=8, physx=8),
@@ -364,7 +362,7 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
     episode_length_s = 1000.0
 
     def __post_init__(self) -> None:
-        self.scene.robot.init_state.pos = (3.25, 2.15, 1.3400013446807861)
+        self.scene.robot.init_state.pos = (3.25, 2.15, 1.340)
         self.scene.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
 
 
@@ -372,17 +370,17 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
 class G1RampsEnvCfg(G1PlatformsEnvCfg):
     """Depth-based locomotion over wooden ramps."""
 
-    warmup_height = 1.363555205562947
+    warmup_height = 1.364
     duration = 8.68
     heading = 0.0
-    camera_eye = (6.230492542938942, -3.910147672506915, 3.1521005517604688)
-    camera_target = (2.7742890567655323, -0.7747420522966051, 1.3565813903711013)
-    camera_vfov = 20.408707665145386
+    camera_eye = (6.230, -3.910, 3.152)
+    camera_target = (2.774, -0.775, 1.357)
+    camera_vfov = 20.409
     scene: TerrainSceneCfg = G1PlatformsEnvCfg().scene
     scene.terrain.usd_path = f"{TERRAIN_ASSET_DIR}/ramps.usdc"
 
     def __post_init__(self) -> None:
-        self.scene.robot.init_state.pos = (0.22, -0.3, 1.308342456817627)
+        self.scene.robot.init_state.pos = (0.22, -0.3, 1.308)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
 
 
@@ -395,9 +393,9 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
     warmup_height = None
     duration = 23.04
     heading = 0.0
-    camera_eye = (12.640227474658403, -1.9951440805141667, 1.529737129878094)
-    camera_target = (6.525763654021182, 1.2626086601986954, 0.5295475146069122)
-    camera_vfov = 30.974660215824073
+    camera_eye = (12.640, -1.995, 1.530)
+    camera_target = (6.526, 1.263, 0.530)
+    camera_vfov = 30.975
     seed = 42
     scene: GranularSceneCfg = GranularSceneCfg(num_envs=1, env_spacing=20.0)
     sim = G1PlatformsEnvCfg().sim
@@ -446,7 +444,7 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
     sim.physics.default = sim.physics.newton_mjwarp
 
     def __post_init__(self) -> None:
-        self.scene.robot.init_state.pos = (5.1, 0.0, 1.2338175773620605)
+        self.scene.robot.init_state.pos = (5.1, 0.0, 1.234)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
         self.scene.light.spawn.intensity = 750.0
         self.scene.light.spawn.texture_file = (
