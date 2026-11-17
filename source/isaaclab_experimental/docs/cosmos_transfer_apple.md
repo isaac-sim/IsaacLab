@@ -193,8 +193,15 @@ reads the generated image. Edit that file to change the appearance of the scene.
 ### Different appearances and seeds per environment
 
 The same folder holds four variations of the prompt: dark lighting, a green apple, a red plate, and a green
-apple on a red plate on a white cloth. `env.cosmos.prompt_files` takes one prompt per environment and
-`env.cosmos_seed` one Cosmos seed per environment:
+apple on a red plate on a white cloth. Cosmos images of the same moment, 5 s into an episode, with the
+default prompt and three of the variations:
+
+| Default | Green apple | Red plate | Green apple, red plate, white cloth |
+| --- | --- | --- | --- |
+| ![Cosmos image with the default prompt](media/cosmos-apple-appearance-default.jpg) | ![Cosmos image with a green apple](media/cosmos-apple-appearance-green-apple.jpg) | ![Cosmos image with a red plate](media/cosmos-apple-appearance-red-plate.jpg) | ![Cosmos image with a green apple on a red plate on a white cloth](media/cosmos-apple-appearance-green-apple-red-plate-white-cloth.jpg) |
+
+`env.cosmos.prompt_files` takes one prompt per environment and `env.cosmos_seed` one Cosmos seed per
+environment:
 
 ```bash
 cd "$ISAAC_LAB"
