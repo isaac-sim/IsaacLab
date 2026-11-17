@@ -54,3 +54,8 @@ def stack_progress(env: ManagerBasedRLEnv) -> torch.Tensor:
     lift = ((cube[:, 2] - bottom[:, 2]) / height).clamp(0.0, 1.0)
     place = 1.0 - torch.tanh(torch.linalg.vector_norm(target_error, dim=1) / 0.1)
     return middle_placed.float() + 0.25 * ((1.0 - lift) * reach + lift) + 0.75 * lift * place
+
+
+def stack_success(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Reward the per-environment success signal even when the episode limit also fires."""
+    return env.termination_manager.get_term("success").float()

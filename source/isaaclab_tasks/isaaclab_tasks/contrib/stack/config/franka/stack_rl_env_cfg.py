@@ -11,7 +11,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.utils import configclass
 
 from ... import mdp
-from ...mdp.rewards import stack_progress
+from ...mdp.rewards import stack_progress, stack_success
 from .stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
 
 
@@ -36,7 +36,7 @@ class RewardsCfg:
     """Guide both placements and reward the existing success termination."""
 
     progress = RewTerm(func=stack_progress, weight=1.0)
-    success = RewTerm(func=mdp.is_terminated_term, params={"term_keys": "success"}, weight=1000.0)
+    success = RewTerm(func=stack_success, weight=1000.0)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1.0e-4)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1.0e-4)
 
