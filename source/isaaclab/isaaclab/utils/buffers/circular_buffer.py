@@ -229,6 +229,9 @@ class CircularBuffer:
             return data.unsqueeze(1).expand(-1, self.max_length, *data.shape[1:]).clone()
         data = data.to(dtype=self._buffer.dtype)
         history = torch.cat((self.buffer[:, 1:], data.unsqueeze(1)), dim=1)
+        if not self._need_reset:
+            # every batch has history since the last append, so the fresh-row fill is a no-op
+            return history
         fresh = (self._num_pushes == 0).view(self.batch_size, *([1] * data.ndim))
         return torch.where(fresh, data.unsqueeze(1), history)
 
