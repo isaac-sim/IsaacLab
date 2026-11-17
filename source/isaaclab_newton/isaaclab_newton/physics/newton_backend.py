@@ -8,17 +8,19 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import gc
 import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache, partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import warp as wp
-from newton import CollisionPipeline, Contacts, ModelBuilder, State
+from newton import CollisionPipeline, Contacts, Gaussian, GeoType, Model, ModelBuilder, State
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
@@ -36,6 +38,7 @@ from .newton_manager_cfg import NewtonCfg
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene_data import SceneDataProvider
 
     from .newton_backend_cfg import NewtonBackendCfg
     from .newton_solver import NewtonSolver
@@ -91,6 +94,79 @@ def _flag_worlds(env_mask: wp.array(dtype=wp.bool), consume_mask: bool, world_ma
     world_mask[world] = True
     if consume_mask:
         env_mask[world] = False
+
+
+_BOUNDS_BLOCKS = wp.constant(64)
+"""Blocks that share the bounds reduction of one Gaussian."""
+
+
+@wp.struct
+class _GaussianBounds:
+    """Node bounds of one Gaussian's BVH [m]."""
+
+    lowers: wp.array(dtype=wp.vec3f)
+    uppers: wp.array(dtype=wp.vec3f)
+
+
+@wp.kernel(enable_backward=False)
+def _write_gaussian_centers(
+    centers: wp.array(dtype=wp.vec3f),
+    offsets: wp.array(dtype=wp.int32),
+    counts: wp.array(dtype=wp.int32),
+    shapes: wp.array(dtype=wp.int32),
+    shape_transform: wp.array(dtype=wp.transformf),
+    shape_scale: wp.array(dtype=wp.vec3f),
+    shape_source_ptr: wp.array(dtype=wp.uint64),
+    gaussians: Any,  # ``Gaussian.Data`` arrays; naming the type would break imports under the docs' mocked Newton.
+):
+    """Write world-space centers into each Gaussian's shape frame, keeping the authored orientation."""
+    target, index = wp.tid()
+    if index >= counts[target]:
+        return
+    shape = shapes[target]
+    local = wp.transform_point(wp.transform_inverse(shape_transform[shape]), centers[offsets[target] + index])
+    data = gaussians[shape_source_ptr[shape]]
+    rotation = wp.transform_get_rotation(data.transforms[index])
+    data.transforms[index] = wp.transformf(wp.cw_div(local, shape_scale[shape]), rotation)
+
+
+@wp.kernel(enable_backward=False)
+def _reset_gaussian_shape_bounds(shapes: wp.array(dtype=wp.int32), shape_bounds: wp.array2d(dtype=wp.vec3f)):
+    shape_bounds[shapes[wp.tid()], 0] = wp.vec3f(1.0e30)
+    shape_bounds[shapes[wp.tid()], 1] = wp.vec3f(-1.0e30)
+
+
+@wp.kernel(enable_backward=False)
+def _update_gaussian_shape_bounds(
+    bounds: wp.array(dtype=_GaussianBounds), shapes: wp.array(dtype=wp.int32), shape_bounds: wp.array2d(dtype=wp.vec3f)
+):
+    """Reduce each refit Gaussian BVH to the local shape bounds that Newton's shape BVH reads.
+
+    Every block reduces a strided slice of its Gaussian's nodes and merges it with one atomic update.
+    """
+    target, block, lane = wp.tid()
+    lower = wp.vec3f(1.0e30)
+    upper = wp.vec3f(-1.0e30)
+    for node in range(block * wp.block_dim() + lane, bounds[target].lowers.shape[0], _BOUNDS_BLOCKS * wp.block_dim()):
+        lower = wp.min(lower, bounds[target].lowers[node])
+        upper = wp.max(upper, bounds[target].uppers[node])
+    lower = wp.tile_reduce(wp.min, wp.tile(lower, preserve_type=True))[0]
+    upper = wp.tile_reduce(wp.max, wp.tile(upper, preserve_type=True))[0]
+    if lane == 0:
+        wp.atomic_min(shape_bounds, shapes[target], 0, lower)
+        wp.atomic_max(shape_bounds, shapes[target], 1, upper)
+
+
+@dataclass
+class _GaussianSplats:
+    """Gaussian shapes whose centers a deformable drives, and the arrays that update them."""
+
+    sources: list[Gaussian]
+    shapes: wp.array
+    offsets: wp.array
+    counts: wp.array
+    max_count: int
+    bounds: wp.array
 
 
 @dataclass
@@ -156,6 +232,12 @@ class NewtonBackend:
             {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
         )
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
+        self.gaussian_offsets: dict[str, int] = {}
+        """Offset in :attr:`gaussian_centers` of each Gaussian splat visual that a deformable drives; see
+        :meth:`bind_gaussian_splats`."""
+        self.gaussian_centers: wp.array | None = None
+        """World-space splat centers [m], shape [splat_count], filled by the scene data provider before a refit."""
+        self._gaussian_splats: _GaussianSplats | None = None
         self.bvh_refit = TimestampedBuffer()
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
@@ -237,6 +319,7 @@ class NewtonBackend:
         """Drop native handles after consumers release their bindings."""
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
+        self.gaussian_offsets, self.gaussian_centers, self._gaussian_splats = {}, None, None
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
@@ -524,6 +607,99 @@ class NewtonBackend:
         state = self.state_0
         return tuple(0 if array is None else array.ptr for array in (state.body_q, state.particle_q))
 
+    def bind_gaussian_splats(self, provider: SceneDataProvider) -> None:
+        """Bind the Gaussian shapes whose splat centers follow a deformable.
+
+        Consumers then fill :attr:`gaussian_centers` through the scene data provider before each
+        :meth:`refit_bvh`, which writes them into the shapes. Repeated calls keep the first binding.
+
+        Args:
+            provider: Scene data provider publishing a center for each splat of the deformable visuals.
+        """
+        if self._gaussian_splats is not None:
+            return
+        labels = {label: index for index, label in enumerate(self.model.shape_label)}
+        types = self.model.shape_type.numpy()
+        if not (types == GeoType.GAUSSIAN).any():
+            return
+        splat_counts = {
+            path: count for _, ranges in provider.backend.get_geometry_batches() for path, (_, count) in ranges.items()
+        }
+        paths = [path for path in splat_counts if path in labels and types[labels[path]] == GeoType.GAUSSIAN]
+        if not paths:
+            return
+        sources = [self.model.shape_source[labels[path]] for path in paths]
+        counts = [splat_counts[path] for path in paths]
+        if any(source.count != count for source, count in zip(sources, counts, strict=True)):
+            raise ValueError("A Gaussian splat visual does not have one published center per splat.")
+        shapes = [labels[path] for path in paths]
+        if len(set(self.model.shape_source_ptr.numpy()[shapes].tolist())) != len(shapes):
+            raise ValueError(
+                "Gaussian splat visuals share one data buffer, so their clones would follow one deformable."
+            )
+        starts = np.cumsum([0, *counts[:-1]]).tolist()
+        self.gaussian_offsets = dict(zip(paths, starts, strict=True))
+        self.gaussian_centers = wp.empty(sum(counts), dtype=wp.vec3f, device=self.device)
+        bounds = []
+        for source in sources:
+            node_bounds = _GaussianBounds()
+            node_bounds.lowers, node_bounds.uppers = source.bvh.lowers, source.bvh.uppers
+            bounds.append(node_bounds)
+        # Refits cached or captured before the binding lack the splat updates.
+        self.bvh_refit = TimestampedBuffer()
+        self._gaussian_splats = _GaussianSplats(
+            sources=sources,
+            shapes=wp.array(shapes, dtype=wp.int32, device=self.device),
+            offsets=wp.array(starts, dtype=wp.int32, device=self.device),
+            counts=wp.array(counts, dtype=wp.int32, device=self.device),
+            max_count=max(counts),
+            bounds=wp.array(bounds, dtype=_GaussianBounds, device=self.device),
+        )
+
+    def create_render_model(self) -> Model:
+        """Return the model to ray trace, without the simulation meshes that Gaussian splats replace.
+
+        Newton's ray tracer draws every deformable triangle and particle. The returned shallow copy drops the
+        triangles of deformables with a splat visual and zeroes their particle radii, so the bodies keep simulating
+        in :attr:`model` without appearing in the image. It shares :attr:`model`'s BVHs and state.
+        """
+        model = self.model
+        hidden = np.zeros(model.particle_count, dtype=bool)
+        for path in self.gaussian_offsets:
+            while path:
+                if (native := self.deformable_ranges.get(path)) is not None:
+                    hidden[native[0] : native[0] + native[1]] = True
+                path = path.rpartition("/")[0]
+        if not hidden.any():
+            return model
+        view = copy.copy(model)
+        triangles = model.tri_indices.numpy().reshape(-1, 3)
+        visible = ~hidden[triangles].any(axis=1)
+        view.tri_indices = wp.array(triangles[visible].reshape(-1), dtype=wp.int32, device=self.device)
+        view.tri_count = int(visible.sum())
+        for name, spec in model._iter_attribute_specs():
+            # Every other per-triangle array keeps the rows of the visible triangles.
+            if spec.frequency == Model.AttributeFrequency.TRIANGLE and name != "tri_indices":
+                if (values := getattr(model, name)) is not None:
+                    setattr(view, name, wp.array(values.numpy()[visible], dtype=values.dtype, device=self.device))
+        radius = model.particle_radius.numpy().copy()
+        radius[hidden] = 0.0
+        view.particle_radius = wp.array(radius, dtype=wp.float32, device=self.device)
+        return view
+
+    def publish_geometry(self, provider: SceneDataProvider) -> None:
+        """Fill the particle and Gaussian-center destinations from the scene data provider.
+
+        Call this before :meth:`refit_bvh`, which consumes the published geometry.
+
+        Args:
+            provider: Scene data provider publishing this resource's deformable geometry.
+        """
+        if self.geometry_offsets:
+            provider.get_geometry_points(output=self.state_0.particle_q, offsets=self.geometry_offsets)
+        if self.gaussian_offsets:
+            provider.get_geometry_points(output=self.gaussian_centers, offsets=self.gaussian_offsets)
+
     def refit_bvh(self, timestamp: int, *, use_cuda_graph: bool = True) -> None:
         """Refit the model's shape and particle BVHs to :attr:`state_0` once per state ``timestamp``.
 
@@ -692,6 +868,37 @@ class NewtonBackend:
 
     def _refit_bvh(self) -> None:
         model, state = self.model, self.state_0
+        if (splats := self._gaussian_splats) is not None:
+            wp.launch(
+                _write_gaussian_centers,
+                dim=(len(splats.sources), splats.max_count),
+                inputs=[
+                    self.gaussian_centers,
+                    splats.offsets,
+                    splats.counts,
+                    splats.shapes,
+                    model.shape_transform,
+                    model.shape_scale,
+                    model.shape_source_ptr,
+                    model.gaussians_data,
+                ],
+                device=self.device,
+            )
+            for source in splats.sources:
+                source.bvh_refit()
+            wp.launch(
+                _reset_gaussian_shape_bounds,
+                dim=len(splats.sources),
+                inputs=[splats.shapes, model.bvh_shape_bounds],
+                device=self.device,
+            )
+            wp.launch_tiled(
+                _update_gaussian_shape_bounds,
+                dim=(len(splats.sources), _BOUNDS_BLOCKS),
+                block_dim=256,
+                inputs=[splats.bounds, splats.shapes, model.bvh_shape_bounds],
+                device=self.device,
+            )
         if model.shape_count:
             model.bvh_refit_shapes(state)
         if model.particle_count:

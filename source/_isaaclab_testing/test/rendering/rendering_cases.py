@@ -203,6 +203,7 @@ GAUSSIAN_KIT_CASES = (
     ),
     RenderCase("physx", "isaac_rtx", (RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,), scene="gaussian_splats_valiant_1env"),
     RenderCase("newton", "newton_warp", _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_valiant_1env"),
+    RenderCase("newton", "isaac_rtx", (RenderBufferKind.RGB,), scene="gaussian_splats_raspberry_deformable_2envs"),
     *(
         RenderCase(physics, renderer, _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_endeavor_4envs")
         for physics, renderer in (("physx", "isaac_rtx"), ("newton", "newton_warp"))
@@ -227,21 +228,24 @@ GAUSSIAN_KITLESS_CASES = tuple(
                 ),
             ),
         ),
-        RenderCase(
-            "newton",
-            "ovrtx",
-            (RenderBufferKind.RGB,),
-            scene="gaussian_splats_raspberry_4envs",
-            # Full-suite captures can be flat red on 0.6/0.3 even when the isolated case passes.
-            # The OVStage case passes with 0.7/0.4 (6.89% diff, SSIM 0.9754).
-            marks=(
-                pytest.mark.xfail(
-                    _sdk_version_before("ovrtx", (0, 7)) or _sdk_version_before("ovstage", (0, 4)),
-                    reason="OVRTX 0.6 / OVStage 0.3 can render Raspberry as flat red silhouettes; upgrade to 0.7/0.4.",
-                    raises=AssertionError,
-                    strict=False,
+        *(
+            RenderCase(
+                "newton",
+                "ovrtx",
+                (RenderBufferKind.RGB,),
+                scene=scene,
+                # Full-suite captures can be flat red on 0.6/0.3 even when the isolated case passes.
+                # The OVStage case passes with 0.7/0.4 (6.89% diff, SSIM 0.9754).
+                marks=(
+                    pytest.mark.xfail(
+                        _sdk_version_before("ovrtx", (0, 7)) or _sdk_version_before("ovstage", (0, 4)),
+                        reason="OVRTX 0.6 / OVStage 0.3 can render Raspberry as flat red silhouettes; upgrade to 0.7/0.4.",
+                        raises=AssertionError,
+                        strict=False,
+                    ),
                 ),
-            ),
+            )
+            for scene in ("gaussian_splats_raspberry_4envs", "gaussian_splats_raspberry_deformable_2envs")
         ),
     )
     for stage in ("legacy", "ovstage")
@@ -278,6 +282,12 @@ KITLESS_RENDERING_CASES = (
     + (
         *((stage, RenderCase("newton", "ovrtx", _CABLE_AOVS, scene="franka_cable")) for stage in ("legacy", "ovstage")),
         ("legacy", RenderCase("newton", "newton_warp", (RenderBufferKind.RGB,), scene="kuka_materials")),
+        (
+            "legacy",
+            RenderCase(
+                "newton", "newton_warp", (RenderBufferKind.RGB,), scene="gaussian_splats_raspberry_deformable_2envs"
+            ),
+        ),
         (
             "legacy",
             RenderCase("newton", "newton_warp", (RenderBufferKind.RGB, RenderBufferKind.DEPTH), scene="franka_cable"),

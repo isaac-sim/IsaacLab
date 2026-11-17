@@ -342,8 +342,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
             backend.state_0.body_q = poses.transforms
-        if backend.geometry_offsets:
-            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+        backend.publish_geometry(provider)
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)

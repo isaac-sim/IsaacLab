@@ -237,6 +237,13 @@ class PhysxSceneDataBackend(SceneDataBackend):
             ordered = [by_path[path] for path in view.prim_paths]
             if sorted(entry.root_path for entry in ordered) != sorted(paths):
                 raise RuntimeError("PhysX deformable view does not cover the declared clone-plan entries.")
+            for entry in ordered:
+                if entry.vis_mesh_is_gaussian_splats:
+                    # PhysX deforms only mesh visuals in Fabric, so Isaac RTX leaves a splat at its rest pose.
+                    logger.warning(
+                        "PhysX does not update the Gaussian splat visual %s in Fabric, so Isaac RTX leaves it at rest.",
+                        entry.vis_mesh_path,
+                    )
             counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
             if np.any(counts > view.max_simulation_nodes_per_body):
                 raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")

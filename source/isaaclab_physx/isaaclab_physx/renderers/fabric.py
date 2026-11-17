@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import field
 
+import numpy as np
 import warp as wp
 
 import usdrt
@@ -19,6 +21,8 @@ from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.buffers import TimestampedBuffer
+
+logger = logging.getLogger(__name__)
 
 
 @wp.kernel(enable_backward=False)
@@ -130,7 +134,7 @@ class FabricBackend:
             self._bind_geometries(provider, tuple(path for _, ranges in batches for path in ranges))
         timestamp = provider.backend.geometry_timestamp
         for index, binding in enumerate(self._geometry_bindings):
-            selections, frequency, cached, offsets, frame_last_update = binding
+            selections, frequency, cached, offsets, frame_last_update, attribute = binding
             selection, write_selection = selections
             changed = selection.PrepareForReuse()
             if (
@@ -147,40 +151,51 @@ class FabricBackend:
                 rows = {int(value): row for row, value in enumerate(indices)}
                 offsets = {path: rows[row] for row, path in enumerate(offsets)}
                 output = SceneDataFormat.FabricPoints()
-                output.points = wp.fabricarrayarray(data=write_selection, attrib="points", dtype=wp.vec3f)
+                output.points = wp.fabricarrayarray(data=write_selection, attrib=attribute, dtype=wp.vec3f)
             provider.get_geometry_points(output=output, offsets=offsets)
             cached.data, cached.timestamp = output, provider.backend.geometry_timestamp
-            self._geometry_bindings[index] = (selections, frequency, cached, offsets, frame)
+            self._geometry_bindings[index] = (selections, frequency, cached, offsets, frame, attribute)
 
     def _bind_geometries(self, provider: SceneDataProvider, paths: tuple[str, ...]) -> None:
         """Bind declared destinations by device and cadence; SDP owns all data movement."""
         # Foreign physics publishes world points. Author the sink once so Kit's USD refresh agrees.
         groups = {}
+        xform_cache = UsdGeom.XformCache()
         for path in paths:
             geometry = UsdGeom.Xformable(self.usd_stage.GetPrimAtPath(path))
+            prim_type = geometry.GetPrim().GetTypeName()
+            if prim_type == "ParticleField3DGaussianSplat":
+                linear = np.array(xform_cache.GetLocalToWorldTransform(geometry.GetPrim()))[:3, :3]
+                if not np.allclose(linear, np.eye(3)):
+                    logger.warning(
+                        "Isaac RTX renders the deformable Gaussian splat %s without its authored rotation and scale.",
+                        path,
+                    )
             geometry.ClearXformOpOrder()
             geometry.SetResetXformStack(True)
-            prim_type = geometry.GetPrim().GetTypeName()
+            attribute = "points"
             if prim_type == "Mesh":
                 device, frequency = self.device, 1
+            elif prim_type == "ParticleField3DGaussianSplat":
+                device, frequency, attribute = self.device, 1, "positions"
             elif prim_type in {"BasisCurves", "Points"}:
                 # RTX Hydra reads these points from CPU Fabric (BasisCurves: NVBug 6502662).
                 device = "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
             else:
                 raise TypeError(f"Unsupported Fabric point destination {path}: {prim_type}.")
-            groups.setdefault((device, frequency), []).append(path)
+            groups.setdefault((device, frequency, attribute), []).append(path)
         self.stage.SynchronizeToFabric()
         self._geometry_bindings = []
         for index, (group, group_paths) in enumerate(groups.items()):
-            device, frequency = group
+            device, frequency, attribute = group
             tag = f"isaaclab:geometryIndex:group{index}"
             for row, path in enumerate(group_paths):
                 prim = self.stage.GetPrimAtPath(path)
                 usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
                 prim.CreateAttribute(tag, usdrt.Sdf.ValueTypeNames.Int, custom=True).Set(row)
             attrs = [
-                (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.Read),
+                (usdrt.Sdf.ValueTypeNames.Point3fArray, attribute, usdrt.Usd.Access.Read),
                 (usdrt.Sdf.ValueTypeNames.Int, tag, usdrt.Usd.Access.Read),
             ]
             selection = self.stage.SelectPrims(require_attrs=attrs, device=device)
@@ -189,7 +204,7 @@ class FabricBackend:
             )
             offsets = dict.fromkeys(group_paths, 0)
             self._geometry_bindings.append(
-                ((selection, write_selection), frequency, TimestampedBuffer(), offsets, -frequency)
+                ((selection, write_selection), frequency, TimestampedBuffer(), offsets, -frequency, attribute)
             )
 
     def close(self) -> None:

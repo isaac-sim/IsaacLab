@@ -811,6 +811,17 @@ class RaspberryGaussianSplatsSceneCfg(GaussianSplatsSceneCfg):
     )
 
 
+@configclass
+class DeformableRaspberryGaussianSplatsSceneCfg(RaspberryGaussianSplatsSceneCfg):
+    """The raspberry as a VBD deformable, whose splats follow its simulation nodes."""
+
+    gaussian_splats = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Scene", spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Objects/Berries/deformable_raspberry_omniphysics_vbd.usd"
+        ),
+    )
+
+
 # Scene name -> scene config, environment count, env spacing, the asset transform to freeze at its first frame
 # (relative to the referenced scene prim; ``None`` when nothing animates), and how environment ``i`` turns its camera
 # about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in the environment frame, or around the
@@ -839,6 +850,14 @@ _GAUSSIAN_SPLATS_SCENES = {
         "animated_xform": None,
         "orbit_step_deg": 90.0,
         "orbit_pivot": (0.0, 0.0, 0.01),
+    },
+    "gaussian_splats_raspberry_deformable_2envs": {
+        "cfg": DeformableRaspberryGaussianSplatsSceneCfg,
+        "num_envs": 2,
+        "env_spacing": 1.0,
+        "animated_xform": None,
+        "orbit_step_deg": 0.0,
+        "orbit_pivot": None,
     },
 }
 
@@ -893,6 +912,22 @@ def _turn_gaussian_splats_cameras(
     runtime.render_camera()
 
 
+def _deform_first_raspberry(runtime: RenderingScene) -> None:
+    """Compress and shear the first environment's raspberry; the second keeps its rest shape as the control."""
+    berry = runtime.scene["gaussian_splats"]
+    origin = runtime.scene.env_origins[0]
+    nodes = berry.data.nodal_pos_w.torch[0] - origin
+    pivot = nodes.mean(dim=0)
+    affine = torch.tensor([[1.0, 0.0, 0.25], [0.0, 1.0, 0.0], [0.0, 0.0, 0.7]], device=nodes.device)
+    berry.write_nodal_pos_to_sim_index(
+        ((nodes - pivot) @ affine.T + pivot + origin)[None],
+        env_ids=torch.tensor([0], device=nodes.device, dtype=torch.int32),
+    )
+    runtime.sim.forward()
+    # OVRTX converges over several frames after loading or a geometry update.
+    runtime.stabilize_camera(render_updates=16)
+
+
 @dataclass(frozen=True)
 class RenderingSceneSpec:
     """Scene-owned inputs and golden-image tolerances consumed by the shared runner."""
@@ -935,10 +970,12 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
     tolerances = {
         ("gaussian_splats_valiant_1env", "isaac_rtx"): (12.0, 0.90),
         ("gaussian_splats_endeavor_4envs", "isaac_rtx"): (20.0, 0.70),
+        ("gaussian_splats_raspberry_deformable_2envs", "isaac_rtx"): (12.0, 0.90),
     }
     overrides = {(renderer, RenderBufferKind.RGB): tol for (name, renderer), tol in tolerances.items() if name == scene}
     pixel_l2_thresholds = {key: _GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD for key in overrides}
-    if scene == "gaussian_splats_raspberry_4envs":
+    deformable = scene == "gaussian_splats_raspberry_deformable_2envs"
+    if scene.startswith("gaussian_splats_raspberry"):
         # The legacy and ovstage scene readers share one golden and shade the berries slightly differently: 7.06 % of
         # pixels at 0.975 SSIM, above the 3 % cap OVRTX otherwise gets.
         overrides[("ovrtx", RenderBufferKind.RGB)] = (10.0, 0.95)
@@ -946,8 +983,18 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         overrides[("isaac_rtx", RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)] = (40.0, 0.0)
     animated_xform = config["animated_xform"]
     orbit_step_deg = config["orbit_step_deg"]
+    after_reset = (
+        partial(_turn_gaussian_splats_cameras, orbit_step_deg=orbit_step_deg, orbit_pivot=config["orbit_pivot"])
+        if orbit_step_deg
+        else None
+    )
     return RenderingSceneSpec(
         cfg=cfg,
+        physics_cfg=(
+            NewtonCfg(solver_cfg=VBDSolverCfg(iterations=3), load_visual_shapes=True, use_cuda_graph=False)
+            if deformable
+            else None
+        ),
         image_max_diff_pct=8.0,
         min_ssim=0.95,
         image_tolerance_overrides=overrides,
@@ -955,11 +1002,7 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         on_scene_created=(
             partial(_freeze_gaussian_splats_xform, prim_rel_path=animated_xform) if animated_xform else None
         ),
-        after_reset=(
-            partial(_turn_gaussian_splats_cameras, orbit_step_deg=orbit_step_deg, orbit_pivot=config["orbit_pivot"])
-            if orbit_step_deg
-            else None
-        ),
+        after_reset=_deform_first_raspberry if deformable else after_reset,
     )
 
 

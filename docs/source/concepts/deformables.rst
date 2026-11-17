@@ -83,6 +83,8 @@ that combine a rigid robot with deformables.
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/physics-backends/ovphysx`.
 
+Volume deformables can also render as Gaussian splats instead of a mesh; see :ref:`deformable-gaussian-splats`.
+
 
 Volume and surface deformables
 ------------------------------
@@ -271,6 +273,48 @@ Like every other asset, a :class:`~isaaclab.assets.DeformableObject` integrates 
 .. note::
     The unsuffixed writers (``write_nodal_state_to_sim`` and friends) are deprecated in favor of the
     ``_to_sim_index`` and ``_to_sim_mask`` variants. The mask variants are CUDA-graph capturable.
+
+.. _deformable-gaussian-splats:
+
+Gaussian splat visuals
+^^^^^^^^^^^^^^^^^^^^^^
+
+
+A volume deformable can render as a Gaussian splat instead of a mesh. Author a ``ParticleField3DGaussianSplat``
+prim beneath the deformable body, beside its simulation mesh. A splat takes precedence over visual meshes
+under the same body, and the body then keeps a single visual: a visual mesh beside the splat is no longer
+driven or drawn. Author the splat centers as float ``positions``.
+
+At scene creation, Isaac Lab embeds each splat center in the simulation tetrahedron that contains it, using
+barycentric weights. Centers slightly outside the mesh use extrapolated weights of the nearest tetrahedron.
+Every update moves the centers with the simulation nodes. A splat keeps its authored orientation, scale, and
+appearance, so the visual follows the body's motion but not its local stretching or rotation.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 22 78
+
+    * - Renderer
+      - Behavior
+    * - Newton Warp
+      - Moves the splats with Newton VBD. The simulation mesh stays in the physics model but is not drawn.
+    * - OVRTX
+      - Moves the splats in legacy and OVStage modes. OVStage ignores the first two writes to a splat field,
+        so Isaac Lab repeats them for the first frames. The splats render in world space, without the
+        authored rotation and scale of their prim, and Isaac Lab logs a warning when it drops them.
+    * - Isaac RTX
+      - Moves the splats with Newton VBD, through Fabric. The splats render in world space, without the
+        authored rotation and scale of their prim, and Isaac Lab logs a warning when it drops them. With PhysX
+        deformables the splat stays at its rest pose, because PhysX deforms only mesh visuals, and Isaac Lab
+        warns once per splat.
+
+Splats beneath a surface deformable are skipped with a warning, and the body renders as its simulation mesh.
+Each clone of the body owns its splat data, so memory grows with the splat count and the number of
+environments.
+
+Run ``scripts/tutorials/01_assets/run_deformable_gaussian_splats.py`` to hold a raspberry by its top nodes and
+shake it; see :ref:`tutorial-deformable-gaussian-splats`.
+
 
 Cables
 ------
@@ -634,6 +678,7 @@ Where to go next
 ----------------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
+* :ref:`tutorial-deformable-gaussian-splats` renders a deformable as Gaussian splats that follow it.
 * :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton
   material tables, cloth self-contact, and the tuning workflow.
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one

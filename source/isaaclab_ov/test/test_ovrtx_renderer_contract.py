@@ -1228,7 +1228,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     if use_ovstage:
         renderer.scene.render_copies_pending = False
         monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
-        monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
+        monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda _stage: None)
         renderer.scene.resources = contextlib.ExitStack()
         renderer.prepare_stage(SimulationContext.instance().stage, 2)
         partition_write = next(
@@ -1381,7 +1381,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
         render_data.resources.callback(render_data.camera_xform_binding.unbind)
     renderer.scene.clone_copies = []
     renderer._setup_xform_bindings(SimulationContext.instance().stage)
-    renderer._setup_geometry_bindings()
+    renderer._setup_geometry_bindings(SimulationContext.instance().stage)
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -1411,7 +1411,8 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
             assert events.index(f"release_query:{name}") < events.index(f"destroy_path_list:{name}")
     else:
         assert sorted(events) == ["unbind:camera", "unbind:geometry", "unbind:object"]
-    assert renderer._object_xform_binding is renderer._geometry_points_binding is None
+    assert renderer._object_xform_binding is None
+    assert not renderer._geometry_groups
     SimulationContext.instance().close_backend(renderer.backend)
     assert events[-1] == "destroy_renderer"
     if use_ovstage:
@@ -1468,7 +1469,7 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     # New OVStage builds expose rendering domains only; scene policy must not query physics flags.
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PopulationDomain", types.SimpleNamespace(NONE=0, RENDERING=1))
     monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
-    monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
+    monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda _stage: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
 
     export_stage = ovrtx_renderer_module.export_stage_to_string

@@ -91,6 +91,47 @@ def test_deformable_entry_surface_mesh():
     assert entry.vis_vertex_count == 5
 
 
+def test_deformable_entry_gaussian_splats_replace_visual_meshes():
+    """A volume deformable's splat visual wins over visual meshes and exposes its centers in the parent frame."""
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/World/Body").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
+    tet = UsdGeom.TetMesh.Define(stage, "/World/Body/simulation")
+    tet.CreatePointsAttr([Gf.Vec3f(0, 0, 0), Gf.Vec3f(1, 0, 0), Gf.Vec3f(0, 1, 0), Gf.Vec3f(0, 0, 1)])
+    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    mesh = UsdGeom.Mesh.Define(stage, "/World/Body/visual")
+    mesh.CreatePointsAttr([Gf.Vec3f(0, 0, 0), Gf.Vec3f(1, 0, 0), Gf.Vec3f(0, 1, 0)])
+    splats = stage.DefinePrim("/World/Body/splats", "ParticleField3DGaussianSplat")
+    centers = [(0.25, 0.25, 0.25), (0.5, 0.0, 0.25)]
+    splats.CreateAttribute("positions", Sdf.ValueTypeNames.Float3Array).Set(centers)
+    UsdGeom.Xformable(splats).AddTranslateOp().Set(Gf.Vec3d(0.0, 2.0, 0.0))
+
+    entry = deformable_entry(root)
+    assert entry.vis_mesh_is_gaussian_splats
+    assert entry.vis_mesh_path == "/World/Body/splats"
+    np.testing.assert_allclose(entry.vis_vertices, np.array(centers) + [0.0, 2.0, 0.0], atol=1e-3)
+
+
+def test_deformable_entry_gaussian_splats_do_not_follow_surface_deformables(caplog):
+    """Splats under a surface deformable are skipped, leaving the simulation mesh as the visual."""
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/World/Cloth").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
+    mesh = UsdGeom.Mesh.Define(stage, "/World/Cloth/simulation")
+    _add_api_schemas(mesh.GetPrim(), ["OmniPhysicsSurfaceDeformableSimAPI"])
+    mesh.CreatePointsAttr([Gf.Vec3f(0, 0, 0), Gf.Vec3f(1, 0, 0), Gf.Vec3f(0, 1, 0)])
+    mesh.CreateFaceVertexCountsAttr([3])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+    stage.DefinePrim("/World/Cloth/splats", "ParticleField3DGaussianSplat").CreateAttribute(
+        "positions", Sdf.ValueTypeNames.Float3Array
+    ).Set([(0.1, 0.1, 0.0)])
+
+    entry = deformable_entry(root)
+    assert not entry.vis_mesh_is_gaussian_splats
+    assert entry.vis_mesh_path == entry.sim_mesh_path
+    assert "do not follow it" in caplog.text
+
+
 def test_deformable_entry_skips_missing_mesh(caplog):
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/EmptyDeformable").GetPrim()

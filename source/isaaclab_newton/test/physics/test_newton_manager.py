@@ -842,6 +842,7 @@ def test_queries_share_one_bvh_refit_per_publication(monkeypatch, cloth, device)
     provider = SceneDataProvider(publication)
     renderer = object.__new__(NewtonWarpRenderer)
     renderer.backend = backend
+    renderer._render_model = backend.model
     renderer._scene_data_provider = provider
     renderer._transform_mapping = provider.create_mapping(list(backend.model.body_label))
     # Triangle rendering performs host work and must stay eager even when capture is enabled.

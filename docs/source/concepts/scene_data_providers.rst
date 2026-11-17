@@ -108,6 +108,8 @@ For deformables with separate simulation and visual meshes, the producer compute
 barycentric indices and weights once. SDP interpolates directly into the Newton
 representation's ``particle_q`` slots. It borrows padded PhysX nodal arrays without
 packing; consumers need no intermediate buffer or remapping.
+A visual can also be a Gaussian splat; its centers are then the visual vertices (see
+:ref:`deformable-gaussian-splats`).
 
 OVRTX receives the same exact visual-path publications through SDP. It neither imports Newton
 managers nor requests a Newton model. Meshes, particle clouds, and cable curves use one point-binding

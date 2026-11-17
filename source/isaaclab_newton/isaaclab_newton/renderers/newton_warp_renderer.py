@@ -440,6 +440,8 @@ class NewtonWarpRenderer(BaseRenderer):
         """Pre-physics initialization."""
         super().__init__(cfg, sim=sim)
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+        # Model the sensor draws; differs from the physics model when Gaussian splats replace deformable meshes.
+        self._render_model: newton.Model | None = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
@@ -454,8 +456,10 @@ class NewtonWarpRenderer(BaseRenderer):
         self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
+        self.backend.bind_gaussian_splats(self._scene_data_provider)
+        self._render_model = self.backend.create_render_model()
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            self.backend.model,
+            self._render_model,
             default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
@@ -588,10 +592,9 @@ class NewtonWarpRenderer(BaseRenderer):
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
             backend.state_0.body_q = poses.transforms
-        if backend.geometry_offsets:
-            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+        backend.publish_geometry(provider)
         # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
-        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
+        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and self._render_model.tri_count == 0
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
         if not use_graph or backend.device.is_capturing:
@@ -688,3 +691,4 @@ class NewtonWarpRenderer(BaseRenderer):
     def close(self) -> None:
         """Release borrowed native handles and SDP bindings after camera cleanup."""
         self.newton_sensor = self.backend = self._scene_data_provider = self._transform_mapping = None
+        self._render_model = None

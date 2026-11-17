@@ -47,6 +47,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer.scene = renderer.backend
+    renderer.scene.clone_copies = []
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer._device = "cpu"
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
@@ -96,25 +97,25 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         renderer.scene.stage = MagicMock()
         renderer.scene.stage.query_from_path_list.side_effect = contextlib.nullcontext
         publication.points = {}
-        renderer._setup_geometry_bindings()
+        renderer._setup_geometry_bindings(Usd.Stage.CreateInMemory())
         renderer.update_geometries()
         renderer.scene.stage.write_attribute.assert_not_called()
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
-        renderer._setup_geometry_bindings()
-        assert renderer._geometry_points_binding == list(points)
+        renderer._setup_geometry_bindings(Usd.Stage.CreateInMemory())
+        assert renderer._geometry_groups[0].binding == list(points)
         write = renderer.scene.stage.write_attribute
         assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
         np.testing.assert_array_equal(write.call_args_list[0].kwargs["tensors"], np.ones(len(points), dtype=np.bool_))
         write.reset_mock()
     else:
         publication.points = {}
-        renderer._setup_geometry_bindings()
+        renderer._setup_geometry_bindings(Usd.Stage.CreateInMemory())
         renderer.update_geometries()
         native.bind_array_attribute.assert_not_called()
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
-        renderer._setup_geometry_bindings()
+        renderer._setup_geometry_bindings(Usd.Stage.CreateInMemory())
         assert native.bind_array_attribute.call_args.kwargs["prim_paths"] == list(points)
         np.testing.assert_array_equal(
             native.write_attribute.call_args_list[0].kwargs["tensor"], np.ones(len(points), dtype=np.bool_)
@@ -122,7 +123,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         np.testing.assert_array_equal(
             native.write_attribute.call_args_list[1].kwargs["tensor"], np.tile(np.eye(4), (len(points), 1, 1))
         )
-        binding = renderer._geometry_points_binding
+        binding = renderer._geometry_groups[0].binding
         write = binding.write_async if mode == "async" else binding.write
 
     write.side_effect = RuntimeError("native write failed")
@@ -172,6 +173,71 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         write.return_value.wait.assert_called()
         assert write.call_args.args[0][0].ptr == snapshots[0][0].ptr
         binding.write.assert_not_called()
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_gaussian_splat_visuals_write_positions_and_settle(use_ovstage, caplog):
+    """Splat centers bind to ``positions`` through clone prototypes; ovstage rewrites its dropped first writes."""
+    import ovstage
+
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    renderer, native = _make_renderer_without_backend()
+    renderer.cfg.async_rendering = False
+    renderer._use_ovstage = use_ovstage
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=42))
+    stage = Usd.Stage.CreateInMemory()
+    splats = UsdGeom.Xformable(stage.DefinePrim("/World/envs/env_0/Splats", "ParticleField3DGaussianSplat"))
+    splats.AddTranslateOp().Set(Gf.Vec3d(5, 6, 7))
+    splats.AddScaleOp().Set(Gf.Vec3d(2, 2, 2))
+    UsdGeom.Mesh.Define(stage, "/World/Mesh")
+    # The clone exists only natively, so its type comes from the authored prototype.
+    renderer.scene.clone_copies = [("/World/envs/env_0", ["/World/envs/env_1"])]
+    points = {
+        path: wp.array(np.zeros((3, 3), dtype=np.float32), dtype=wp.vec3f, device="cpu")
+        for path in ("/World/Mesh", "/World/envs/env_1/Splats")
+    }
+    publication = SimpleNamespace(geometry_timestamp=0)
+
+    def read_points(_format):
+        batches = []
+        for path, array in points.items():
+            source = SceneDataFormat.Points()
+            source.points = array
+            batches.append((source, {path: (0, len(array))}))
+        return batches
+
+    publication.get_geometry_batches = read_points
+    renderer._sdp = SceneDataProvider(publication)
+    if use_ovstage:
+        renderer.scene.ordinal = 7
+        renderer.scene.paths = SimpleNamespace(
+            create_path_list_from_strings=lambda paths: paths, destroy_path_list=lambda paths: None
+        )
+        renderer.scene.stage = MagicMock()
+        renderer.scene.stage.query_from_path_list.side_effect = contextlib.nullcontext
+    renderer._setup_geometry_bindings(stage)
+    assert "without its authored rotation and scale" in caplog.text
+    assert {group.attribute: group.paths for group in renderer._geometry_groups} == {
+        "points": ["/World/Mesh"],
+        "positions": ["/World/envs/env_1/Splats"],
+    }
+    if not use_ovstage:
+        bound = {
+            call.kwargs["attribute_name"]: call.kwargs["prim_paths"]
+            for call in native.bind_array_attribute.call_args_list
+        }
+        assert bound == {"points": ["/World/Mesh"], "positions": ["/World/envs/env_1/Splats"]}
+        return
+
+    write = renderer.scene.stage.write_attribute
+    write.reset_mock()
+    for _ in range(4):
+        renderer.update_geometries()
+    written = [(call.args[1], call.kwargs["semantic"]) for call in write.call_args_list]
+    # The first frame writes everything; the positions repeat for the two frames that ovstage drops.
+    assert written.count(("points", ovstage.AttributeSemantic.POINT)) == 1
+    assert written.count(("positions", ovstage.AttributeSemantic.NONE)) == 3
 
 
 @pytest.mark.parametrize("mode, scaled", [("sync", False), ("async", True), ("ovstage", True)])
