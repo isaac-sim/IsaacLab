@@ -10,94 +10,108 @@ has one attached PhysX simulation::
 
     python usd_export_read_import.py <stage.usda> <output.pkl> '[[articulations], [bodies]]'
 
-or, to step deformables from a given nodal state (:func:`simulate_deformables`), with a JSON object of its arguments.
+or, to read the nodal positions of volume deformables (:func:`read_import_nodal_positions`), with
+``'{"paths": [...]}'``.
 """
 
 import json
+import os
 import pickle
+import subprocess
 import sys
+import tempfile
 from collections import Counter
 
 import numpy as np
 
 
-def main(source: str, output: str, articulations: list[str], bodies: list[str]):
-    """Import ``source`` and write the readings of the given objects to ``output``."""
-    from isaaclab.app import AppLauncher
+def read_import(stage, articulations: list[str], bodies: list[str]) -> dict:
+    """Import ``stage`` into a new headless Isaac Sim process and read the given objects there.
 
-    app = AppLauncher(headless=True).app
-    try:
-        import omni.physics.tensors
-        import omni.physx
-        import omni.usd
+    The import runs on the CPU, with the broadphase that needs no GPU.
 
-        context = omni.usd.get_context()
-        if not context.open_stage(source):
-            raise RuntimeError(f"Could not open '{source}'.")
-        physx = omni.physx.get_physx_interface()
-        physx.force_load_physics_from_usd()
-        physx.start_simulation()
-        view = omni.physics.tensors.create_simulation_view("numpy", stage_id=context.get_stage_id())
-        view.set_subspace_roots("/")
-        with open(output, "wb") as file:
-            pickle.dump(read(view, articulations, bodies), file)
-    finally:
-        app.close()
+    Args:
+        stage: Stage to import, flattened before writing it to a file.
+        articulations: Articulation root paths.
+        bodies: Rigid bodies outside articulations.
 
-
-def simulate_deformables(source: str, output: str, bodies: dict, dt: float, steps: int):
-    """Import ``source`` on the GPU, set each deformable's nodal state, step, and write its nodal positions.
-
-    A deformable given no positions keeps the import's, which are written as its ``initial`` positions.
+    Returns:
+        Raw readings as returned by :func:`read`.
     """
+    from pxr import Sdf, Usd, UsdPhysics
+
+    flat = Usd.Stage.Open(stage.Flatten())
+    for prim in flat.Traverse():
+        if prim.IsA(UsdPhysics.Scene):
+            prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(False)
+            prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("MBP")
+    return _run_in_isaac_sim(flat, [articulations, bodies])
+
+
+def read_import_nodal_positions(stage, paths: list[str]) -> dict[str, np.ndarray]:
+    """Import ``stage`` into a new headless Isaac Sim process on the GPU and read its volume deformables' nodes.
+
+    Args:
+        stage: Stage to import, flattened before writing it to a file.
+        paths: Volume deformable prim paths.
+
+    Returns:
+        Per path, the simulation mesh's nodal positions [m] in world coordinates.
+    """
+    from pxr import Usd
+
+    return _run_in_isaac_sim(Usd.Stage.Open(stage.Flatten()), {"paths": paths})
+
+
+def _run_in_isaac_sim(stage, request):
+    """Run this script on ``stage``, written to a file, in a new headless Isaac Sim process, and return its result."""
+    with tempfile.TemporaryDirectory() as directory:
+        source, output = os.path.join(directory, "stage.usda"), os.path.join(directory, "result.pkl")
+        stage.Export(source)
+        subprocess.run([sys.executable, __file__, source, output, json.dumps(request)], check=True)
+        with open(output, "rb") as file:
+            return pickle.load(file)
+
+
+def main(source: str, output: str, request):
+    """Import ``source`` and write to ``output`` the readings of ``[articulations, bodies]``, or, on the GPU, the nodal
+    positions of the volume deformables ``{"paths": [...]}``."""
     from isaaclab.app import AppLauncher
 
     app = AppLauncher(headless=True).app
     try:
-        import torch
-
         import carb
         import omni.physics.tensors
         import omni.physx
         import omni.usd
 
-        # Settings for GPU tensor access, as PhysxManager sets them; the stage enables GPU dynamics itself.
-        settings = carb.settings.get_settings()
-        settings.set_int("/physics/cudaDevice", 0)
-        settings.set_bool("/physics/suppressReadback", True)
+        deformables = isinstance(request, dict)
+        if deformables:
+            # Settings for GPU tensor access, as PhysxManager sets them; the stage enables GPU dynamics itself.
+            carb.settings.get_settings().set_int("/physics/cudaDevice", 0)
+            carb.settings.get_settings().set_bool("/physics/suppressReadback", True)
         context = omni.usd.get_context()
         if not context.open_stage(source):
             raise RuntimeError(f"Could not open '{source}'.")
         physx = omni.physx.get_physx_interface()
-        simulation = omni.physx.get_physx_simulation_interface()
         physx.force_load_physics_from_usd()
         physx.start_simulation()
-        # GPU tensor writes need one step; the state written afterwards replaces its result.
-        simulation.simulate(dt, 0.0)
-        simulation.fetch_results()
-        sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=context.get_stage_id())
-        sim_view.set_subspace_roots("/")
-        views, initial = {}, {}
-        for path, (kind, positions, velocities) in bodies.items():
-            create = (
-                sim_view.create_volume_deformable_body_view
-                if kind == "volume"
-                else sim_view.create_surface_deformable_body_view
-            )
-            view = create(path)
-            indices = torch.arange(view.count, dtype=torch.int32, device="cuda:0")
-            if positions is None:
-                initial[path] = view.get_simulation_nodal_positions().cpu().numpy()
-            else:
-                view.set_simulation_nodal_positions(torch.tensor(positions, device="cuda:0"), indices)
-            view.set_simulation_nodal_velocities(torch.tensor(velocities, device="cuda:0"), indices)
-            views[path] = view
-        for step in range(steps):
-            simulation.simulate(dt, (step + 1) * dt)
-            simulation.fetch_results()
+        if deformables:
+            # GPU tensor access needs the warm-up step, after which Isaac Lab also reads a deformable's reset state.
+            omni.physx.get_physx_simulation_interface().simulate(1 / 120, 0.0)
+            omni.physx.get_physx_simulation_interface().fetch_results()
+        frontend = "torch" if deformables else "numpy"
+        view = omni.physics.tensors.create_simulation_view(frontend, stage_id=context.get_stage_id())
+        view.set_subspace_roots("/")
+        if deformables:
+            result = {
+                path: view.create_volume_deformable_body_view(path).get_simulation_nodal_positions()[0].cpu().numpy()
+                for path in request["paths"]
+            }
+        else:
+            result = read(view, *request)
         with open(output, "wb") as file:
-            final = {path: view.get_simulation_nodal_positions().cpu().numpy() for path, view in views.items()}
-            pickle.dump({"initial": initial, "final": final}, file)
+            pickle.dump(result, file)
     finally:
         app.close()
 
@@ -195,8 +209,4 @@ def _get(values) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    request = json.loads(sys.argv[3])
-    if isinstance(request, dict):
-        simulate_deformables(sys.argv[1], sys.argv[2], **request)
-    else:
-        main(sys.argv[1], sys.argv[2], *request)
+    main(sys.argv[1], sys.argv[2], json.loads(sys.argv[3]))

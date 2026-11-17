@@ -5,8 +5,11 @@
 
 """Read OVPhysX engine values by prim path, and load a USD file into a new OVPhysX instance to read them.
 
-Run :func:`read_import` in a separate process: a process has one attached OVPhysX simulation.
+Run :func:`read_import` and :func:`read_nodal_positions` in a separate process: a process has one attached OVPhysX
+simulation.
 """
+
+import contextlib
 
 import numpy as np
 from isaaclab_ov import tensor_types as TT
@@ -15,6 +18,29 @@ from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from pxr import Usd, UsdPhysics
 
 from isaaclab.test.utils.usd_export import articulation_scope
+
+
+@contextlib.contextmanager
+def _import(source: str, device: str):
+    """A new OVPhysX instance on ``device`` with a USD layer string attached, as its physics interface."""
+    import ovstage
+    from isaaclab_ov.physics import OvPhysxManager, ovphysx_compat
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
+    from isaaclab_ov.stage import create_ovstage
+
+    OvPhysxManager._ensure_physx_schemas_registered()
+    backend = OvPhysxBackend(OvPhysxBackendCfg(device=device))
+    try:
+        backend.stage = create_ovstage("usd_export_test")
+        ovstage.population.open_usd_from_string(backend.stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
+        backend.stage.advance_write_floor(ordinal=1).wait()
+        ovphysx_compat.finish_stage_operation(
+            backend.physx, backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
+        )
+        yield backend.physx
+    finally:
+        backend.close()
 
 
 def read_import(source: str, articulations: list[str], bodies: list[str]) -> dict:
@@ -28,82 +54,33 @@ def read_import(source: str, articulations: list[str], bodies: list[str]) -> dic
     Returns:
         Raw readings as returned by :func:`read`.
     """
-    import ovstage
-    from isaaclab_ov.physics import OvPhysxManager, ovphysx_compat
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
-    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
-    from isaaclab_ov.stage import create_ovstage
-
-    OvPhysxManager._ensure_physx_schemas_registered()
-    backend = OvPhysxBackend(OvPhysxBackendCfg(device="cpu"))
-    try:
-        backend.stage = create_ovstage("usd_export_test")
-        ovstage.population.open_usd_from_string(backend.stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
-        backend.stage.advance_write_floor(ordinal=1).wait()
-        ovphysx_compat.finish_stage_operation(
-            backend.physx, backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
-        )
-        return read(backend.physx, articulations, bodies, "cpu")
-    finally:
-        backend.close()
+    with _import(source, "cpu") as physx:
+        return read(physx, articulations, bodies, "cpu")
 
 
-def simulate_deformables(source: str, bodies: dict, dt: float, steps: int) -> dict:
-    """Import a USD layer string into a new OVPhysX instance on the GPU, set nodal states, step, and read positions.
+def read_nodal_positions(source: str, paths: list[str]) -> dict[str, np.ndarray]:
+    """Import a USD layer string into a new OVPhysX instance on the GPU and read its volume deformables' nodes.
 
     Args:
         source: USD layer contents.
-        bodies: Per deformable prim path, its kind (``"volume"`` or ``"surface"``), nodal positions (None keeps the
-            import's) and nodal velocities [m/s], in world coordinates.
-        dt: Step size [s].
-        steps: Number of steps.
+        paths: Volume deformable prim paths.
 
     Returns:
-        The ``initial`` positions of the deformables given none, and the ``final`` positions of all.
+        Per path, the simulation mesh's nodal positions [m] in world coordinates.
     """
-    import ovstage
-    import warp as wp
-    from isaaclab_ov.physics import OvPhysxManager, ovphysx_compat
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
-    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
-    from isaaclab_ov.stage import create_ovstage
-
-    OvPhysxManager._ensure_physx_schemas_registered()
-    backend = OvPhysxBackend(OvPhysxBackendCfg(device="cuda:0"))
-    try:
-        backend.stage = create_ovstage("usd_export_deformables")
-        ovstage.population.open_usd_from_string(backend.stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
-        backend.stage.advance_write_floor(ordinal=1).wait()
-        ovphysx_compat.finish_stage_operation(
-            backend.physx, backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
-        )
-        views, initial = {}, {}
-        for path, (kind, positions, velocities) in bodies.items():
-            position, velocity = DEFORMABLE_TENSORS[kind]
-            view = OvPhysxView(
-                backend.physx, prim_paths=[path], device="cuda:0", tensor_types=[position, velocity], eager=True
-            )
-            if positions is None:
-                initial[path] = view.get_attribute(position).numpy().copy()
-            else:
-                view.set_attribute(position, wp.array(np.asarray(positions, dtype=np.float32), device="cuda:0"))
-            view.set_attribute(velocity, wp.array(np.asarray(velocities, dtype=np.float32), device="cuda:0"))
-            views[path] = view, position
-        for _ in range(steps):
-            backend.physx.step_sync(dt=dt)
-        final = {path: view.get_attribute(position).numpy().copy() for path, (view, position) in views.items()}
-        for view, _ in views.values():
+    with _import(source, "cuda:0") as physx:
+        views = {
+            path: OvPhysxView(physx, prim_paths=[path], device="cuda:0", tensor_types=[NODAL_POSITION], eager=True)
+            for path in paths
+        }
+        positions = {path: view.get_attribute(NODAL_POSITION).numpy().copy() for path, view in views.items()}
+        for view in views.values():
             view.close()
-        return {"initial": initial, "final": final}
-    finally:
-        backend.close()
+        return positions
 
 
-DEFORMABLE_TENSORS = {
-    "volume": (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.DEFORMABLE_SIM_NODAL_VELOCITY),
-    "surface": (TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.SURFACE_DEFORMABLE_SIM_VELOCITY),
-}
-"""Deformable kind -> OVPhysX nodal position and velocity bindings."""
+NODAL_POSITION = TT.DEFORMABLE_SIM_NODAL_POSITION
+"""OVPhysX binding of a volume deformable's simulation mesh nodal positions."""
 
 _DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 

@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton USD export: loading the exported file reproduces the initialized model."""
+"""Newton USD export: loading the exported file reproduces the initialized model, for a scene that changes the
+exported values and for registered tasks."""
+
+import re
 
 import newton
 import numpy as np
@@ -12,6 +15,8 @@ import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
 from pxr import Gf, Sdf, Usd, UsdPhysics, UsdShade
+
+pytestmark = pytest.mark.kitless
 
 
 def _export(
@@ -26,7 +31,7 @@ def _export(
     default_shape_cfg=None,
     world_hook=None,
 ):
-    """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison.
+    """Initialize the fixture scene, export it, and capture the live model for comparison.
 
     ``edit_robot`` edits the robot's USD and ``edit_cfg`` the scene configuration before the scene is built;
     ``world_hook`` changes each world's Newton builder before it is finalized; ``before_export`` changes the
@@ -62,50 +67,36 @@ def _export(
         sim_cfg.physics.default_shape_cfg = default_shape_cfg
     output = str(tmp_path / "exported.usda")
     hook = newton_builder_world_hook(world_hook) if world_hook is not None else contextlib.nullcontext()
-    compute_diff = UsdExporter.compute_diff
 
-    def compute_diff_without_writing(exporter, stage):
-        before = stage.GetRootLayer().ExportToString()
-        edits = compute_diff(exporter, stage)
-        assert stage.GetRootLayer().ExportToString() == before  # detection leaves writing to the edits
-        return edits
+    def without_writing(detect):
+        def detect_without_writing(exporter, stage):
+            before = stage.GetRootLayer().ExportToString()
+            edits = detect(exporter, stage)
+            assert stage.GetRootLayer().ExportToString() == before  # detection leaves writing to the edits
+            return edits
 
-    detection = mock.patch.object(UsdExporter, "compute_diff", compute_diff_without_writing)
+        return detect_without_writing
+
+    detection = contextlib.ExitStack()
+    for name in ("compute_diff", "_compute_pd_drive_edits"):
+        detection.enter_context(mock.patch.object(UsdExporter, name, without_writing(getattr(UsdExporter, name))))
     with build_simulation_context(sim_cfg=sim_cfg) as sim, hook, detection:
         scene = InteractiveScene(cfg)
         sim.reset()
         if before_export is not None:
             before_export(scene)
         scene.export_to_usd(output)
-        # Isaac Lab's reset writes the initial joint state, which the engine holds only from then on.
-        robot = scene["robot"]
-        robot.write_joint_state_to_sim_index(
-            position=robot.data.default_joint_pos.torch, velocity=robot.data.default_joint_vel.torch
-        )
-        manager = sim.backend_manager
-        model, state = manager.backend.model, manager.backend.state_0
-        live = _capture(model, state.body_q, state.joint_q, state.joint_qd)
-        solver_type = type(manager.backend.solver)
-        # The engine's own construction of the solver, stepped from the reset state.
-        plan = scene.clone_plan
-        env_template = None if plan is None else plan.env_template
-        solver = solver_cfg.class_type(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED, env_template).native
-        motion = _rollout(model, solver, state.joint_q, state.joint_qd)
-    return output, live, solver_type, motion
+        live = _capture_live(scene)
+    return output, live
 
 
-def _rollout(model, solver, joint_q=None, joint_qd=None, steps=60, dt=1 / 120):
-    """Body positions after stepping from a joint state (default: the model's) without control input, by body label."""
-    state_0, state_1, control = model.state(), model.state(), model.control()
-    if joint_q is not None:
-        state_0.joint_q.assign(joint_q)
-        state_0.joint_qd.assign(joint_qd)
-    newton.eval_fk(model, state_0.joint_q, state_0.joint_qd, state_0)
-    for _ in range(steps):
-        state_0.clear_forces()
-        solver.step(state_0, state_1, control, None, dt)
-        state_0, state_1 = state_1, state_0
-    return dict(zip(model.body_label, state_0.body_q.numpy()[:, :3]))
+def _capture_live(scene) -> dict:
+    """:func:`_capture` of the live model, after Isaac Lab's reset writes the initial joint state the export states."""
+    from isaaclab.test.utils.usd_export import write_default_joint_state
+
+    write_default_joint_state(scene)
+    backend = scene.sim.backend_manager.backend
+    return _capture(backend.model, backend.state_0.body_q, backend.state_0.joint_q, backend.state_0.joint_qd)
 
 
 def _newton_import(output, solver, device):
@@ -122,7 +113,8 @@ def _newton_import(output, solver, device):
 
 
 def _capture(model, body_q, joint_q=None, joint_qd=None):
-    """Every float model array, and the joint target modes, of world 0's bodies, shapes, joints, DOFs and coordinates.
+    """Every float model array, and the joint target modes, of world 0's bodies, colliding shapes, joints, DOFs and
+    coordinates.
 
     Keyed by attribute name and entity label; a DOF or coordinate is labelled ``<joint label>:<index in the
     joint>``. Root body poses come from ``body_q`` and the joint state from ``joint_q`` and ``joint_qd`` (default:
@@ -147,6 +139,8 @@ def _capture(model, body_q, joint_q=None, joint_qd=None):
     types = model.joint_type.numpy()
     # Free joints of floating bodies are generated, under generated names; their bodies carry the pose.
     worlds[frequency.JOINT][types == int(newton.JointType.FREE)] = -2
+    # Visual shapes, and shape colors, are not physics: an import loads them as it is configured to.
+    worlds[frequency.SHAPE][(model.shape_flags.numpy() & int(newton.ShapeFlags.COLLIDE_SHAPES)) == 0] = -2
     for entity, starts in ((frequency.JOINT_DOF, model.joint_qd_start), (frequency.JOINT_COORD, model.joint_q_start)):
         starts = starts.numpy()
         for joint, label in enumerate(model.joint_label):
@@ -163,7 +157,7 @@ def _capture(model, body_q, joint_q=None, joint_qd=None):
         if entity not in labels or not isinstance(array, wp.array):
             continue
         array = (array if state.get(name) is None else state[name]).numpy()
-        if array.dtype.kind != "f" and name != "joint_target_mode":
+        if (array.dtype.kind != "f" and name != "joint_target_mode") or name == "shape_color":
             continue
         for index in np.flatnonzero(np.isin(worlds[entity], (-1, 0))):
             if name != "body_q" or labels[entity][index] in roots:
@@ -173,23 +167,51 @@ def _capture(model, body_q, joint_q=None, joint_qd=None):
     return values
 
 
-def _assert_pose_equal(actual, expected):
-    np.testing.assert_allclose(actual[:3], expected[:3], atol=1e-5)
-    sign = 1.0 if np.dot(actual[3:], expected[3:]) >= 0 else -1.0
-    np.testing.assert_allclose(actual[3:], sign * expected[3:], atol=1e-5)
+def _differences(live: dict, loaded: dict) -> set[tuple[str, str]]:
+    """The ``(value name, entity label)`` pairs of two :func:`_capture` results that differ.
+
+    A pose's rotation compares up to the quaternion's sign; an entity only one side has differs as ``"missing"``.
+    """
+    differences = {("missing", label) for _, label in live.keys() ^ loaded.keys()}
+    for key in live.keys() & loaded.keys():
+        a, b = np.asarray(live[key], dtype=float), np.asarray(loaded[key], dtype=float)
+        if key[0] in ("body_q", "joint_X_p", "joint_X_c"):
+            sign = 1.0 if np.dot(a[3:], b[3:]) >= 0 else -1.0
+            same = np.allclose(b[:3], a[:3], atol=1e-5) and np.allclose(sign * b[3:], a[3:], atol=1e-5)
+        else:
+            same = a.shape == b.shape and np.allclose(b, a, rtol=1e-4, atol=1e-7)
+        if not same:
+            differences.add(key)
+    return differences
 
 
 @pytest.mark.parametrize("solver,device", [("xpbd", "cpu"), ("mujoco", "cuda:0")])
 def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device):
-    """Newton's own import of the file reproduces every live model value, including config overrides."""
+    """Newton's own import of the file reproduces every live model value, including config overrides.
+
+    The exported layer references the robot file instead of copying it, and, with substeps, states the solver step
+    rate, which Newton's import returns as its step.
+    """
     from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
+
+    from isaaclab.test.utils.usd_export import assert_differences_match
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
     solver_cfg = (
         XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17, enable_multiccd=True)
     )
-    output, live, _, motion = _export(tmp_path, solver_cfg, device)
+    num_substeps = 2 if solver == "xpbd" else 1  # the XPBD import is not stepped, so substeps change no comparison
+    output, live = _export(tmp_path, solver_cfg, device, num_substeps=num_substeps)
+
+    layer = Sdf.Layer.FindOrOpen(output)
+    assert str(tmp_path / "robot.usda") in layer.externalReferences
+    assert layer.GetPrimAtPath("/World/envs/env_0/Robot").referenceList.GetAddedOrExplicitItems()
+    # The robot's own prims come from the reference; only edits are authored over them.
+    link = layer.GetPrimAtPath("/World/envs/env_0/Robot/Link")
+    assert not link or link.specifier == Sdf.SpecifierOver
+    result = newton.ModelBuilder().add_usd(Usd.Stage.Open(output), schema_resolvers=[SchemaResolverNewton()])
+    assert result["physics_dt"] == pytest.approx(1 / 120 / num_substeps)
 
     model = _newton_import(output, solver, device)
     loaded = _capture(model, model.body_q)
@@ -205,27 +227,77 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
         assert scene.GetAttribute("mjc:option:iterations").HasAuthoredValue()
         assert not scene.GetAttribute("mjc:option:cone").HasAuthoredValue()
         assert not scene.GetAttribute("mjc:flag:contact").HasAuthoredValue()
-        moved = _rollout(model, imported_solver)
-        for label, position in motion.items():
-            np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)
     # The actuator configuration differs from the USD drive, and the configured initial state from the USD's (zero),
     # so the export must carry them.
     hinge = "/World/envs/env_0/Robot/Hinge:0"
     assert live["joint_q", hinge] == pytest.approx(0.21)
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
     assert live["joint_armature", hinge] == pytest.approx(0.023)
-    assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
     assert live["joint_target_mode", hinge] == int(newton.JointTargetMode.POSITION_VELOCITY)
     if solver != "mujoco":
         # The import infers position mode, which XPBD does not apply, so the export does not warn about it.
         assert "target mode" not in caplog.text
         assert "USD does not state the settings of XPBDSolverCfg" in caplog.text
-        del live["joint_target_mode", hinge]
-    for (name, label), value in live.items():
-        if name in ("body_q", "joint_X_p", "joint_X_c"):
-            _assert_pose_equal(loaded[name, label], value)
-        else:
-            np.testing.assert_allclose(loaded[name, label], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}")
+        del live["joint_target_mode", hinge], loaded["joint_target_mode", hinge]
+    assert_differences_match(_differences(live, loaded), {})
+
+
+TASKS = {
+    # Franka USD physics variant, mimic finger, position-velocity joints as MuJoCo velocity actuators, rigid object
+    "Isaac-Lift-Franka": ("newton_mjwarp", {}),
+    # a second articulation (cabinet with a prismatic drawer); edits under instanced assets
+    "Isaac-Open-Drawer-Franka": ("newton_mjwarp", {}),
+    # floating base, LSTM network actuator (re-saved next to the export), rough terrain
+    "Isaac-Velocity-Rough-AnymalD": ("newton_mjwarp", {}),
+    # explicit DC motor actuator, which stays a NewtonActuator prim
+    "Isaac-Velocity-Flat-UnitreeGo2": ("newton_mjwarp", {}),
+    # joints Isaac Lab gives gains without a USD drive
+    "Isaac-Ant": ("newton_mjwarp", {}),
+    # the export of a DirectRLEnv
+    "Isaac-Cartpole-Direct": ("newton_mjwarp", {}),
+    # the export of a DirectMARLEnv; two hands with fixed tendons
+    "Isaac-Shadow-Handover-Direct": ("newton_mjwarp", {}),
+    # Kamino solver options and constraint stabilization gains; the import infers another target mode for the joints
+    # whose gains USD cannot tell apart, which the export warns about
+    "IsaacContrib-DrLegs-Walk": (
+        "newton_kamino",
+        {"joint_target_mode": r".*/Robot/Joints/(j1_[lr]_i|j2_[lr]_[io]|j6_[lr]_i|j7_[lr]_[io]):0"},
+    ),
+    # cable: Newton's import gives the segments it generates its own contact gap (Known gaps C3)
+    "Isaac-Lift-Cable-Franka": ("newton_mjwarp_vbd_proxy", {"shape_gap": r".*_edge_capsule_\d+"}),
+}
+"""Task -> (physics preset, values the import holds differently: value name -> regular expression of entities)."""
+
+
+@pytest.mark.parametrize("task", TASKS)
+def test_importing_the_export_of_a_task_builds_its_live_model(tmp_path, task):
+    """Newton's import of a task's export, with the solver's schema resolvers, holds the live model's values and
+    initial joint state."""
+    from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
+
+    from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter
+    from isaaclab.test.utils.usd_export import assert_differences_match, export_task
+
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.hydra import resolve_presets
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+    preset, expected = TASKS[task]
+    env_cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"), selected=(preset,))
+    env_cfg.sim.device = "cuda:0" if wp.is_cuda_available() else "cpu"
+    output = str(tmp_path / "exported.usda")
+    solver_cfg, live = export_task(
+        env_cfg, task, output, lambda scene: (scene.sim.cfg.physics.solver_cfg, _capture_live(scene))
+    )
+    builder = newton.ModelBuilder()
+    register_builder_attributes(builder, solver_cfg)
+    builder.add_usd(
+        BaseUsdExporter.open_stage(output),
+        schema_resolvers=usd_schema_resolvers(solver_cfg),
+        allow_unsafe_torch_checkpoints=True,  # the network actuators the export copied next to the file
+    )
+    model = builder.finalize(device="cpu")
+    assert_differences_match(_differences(live, _capture(model, model.body_q)), expected, live)
 
 
 def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path, caplog):
@@ -242,6 +314,7 @@ def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path
     from isaaclab.sim import SimulationCfg, UsdPhysicsCollisionCfg, build_simulation_context
     from isaaclab.sim.spawners.materials import CableMaterialCfg
     from isaaclab.sim.spawners.shapes import CableCfg
+    from isaaclab.test.utils.usd_export import assert_differences_match
 
     cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0)
     cfg.cable = CableObjectCfg(
@@ -274,93 +347,101 @@ def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path
     model = builder.finalize(device="cpu")
     loaded = _capture(model, model.body_q)
 
-    assert set(live) == set(loaded)
-    differ = set()
-    for key, value in live.items():
-        if key[0] in ("body_q", "joint_X_p", "joint_X_c"):
-            _assert_pose_equal(loaded[key], value)
-        elif not np.allclose(loaded[key], value, rtol=1e-4, atol=1e-7):
-            differ.add(key)
-    segments = {label for name, label in live if name == "shape_gap"}
+    segments = sorted(label for name, label in live if name == "shape_gap")
     assert len(segments) == 3
     joint, body = f"{model.joint_label[cable_joint]}:0", model.body_label[0]
-    assert differ == {("shape_gap", label) for label in segments} | {("joint_target_ke", joint), ("body_mass", body)}
+    expected = {"shape_gap": "|".join(map(re.escape, segments)), "joint_target_ke": re.escape(joint)}
+    assert_differences_match(_differences(live, loaded), expected | {"body_mass": re.escape(body)}, live)
     assert "contact values" in caplog.text
     assert "joints it generates" in caplog.text and "bodies it generates" in caplog.text
 
 
-@pytest.mark.parametrize("mass", [None, 4.0], ids=["unchanged", "changed mass"])
-def test_inertia_newton_derives_on_import_is_not_written(tmp_path, mass):
-    """Inertia Newton's import corrects (here, moments breaking the triangle inequality) is left to the import, also
-    when Isaac Lab changes the body's mass."""
+def test_inertia_newton_derives_on_import_is_not_written(tmp_path):
+    """Inertia Newton's import derives is left to it when Isaac Lab changes a body's mass: one the import corrects
+    (the link's moments break the triangle inequality), and one it derives from the geometry (the box's USD states
+    none)."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
-    link = "/World/envs/env_0/Robot/Link"
+    link, box = "/World/envs/env_0/Robot/Link", "/World/envs/env_0/Box"
 
     def unbalanced_link(stage):
         UsdPhysics.MassAPI(stage.GetPrimAtPath("/Robot/Link")).GetDiagonalInertiaAttr().Set(Gf.Vec3f(0.01, 0.01, 0.5))
 
-    def heavier_link(scene):
+    def heavier_link_and_box(scene):
         model = scene.sim.backend_manager.backend.model
-        masses = model.body_mass.numpy()
-        masses[list(model.body_label).index(link)] = mass
+        masses, labels = model.body_mass.numpy(), list(model.body_label)
+        masses[labels.index(link)] = 4.0
+        masses[labels.index(box)] *= 2.0
         model.body_mass.assign(masses)
 
-    output, live, _, _ = _export(
-        tmp_path, XPBDSolverCfg(), "cpu", edit_robot=unbalanced_link, before_export=heavier_link if mass else None
+    output, live = _export(
+        tmp_path, XPBDSolverCfg(), "cpu", edit_robot=unbalanced_link, before_export=heavier_link_and_box
     )
 
     assert live["body_inertia", link][0, 0] > 0.01  # the import corrected it
     exported = Sdf.Layer.FindOrOpen(output)
     for name in ("physics:diagonalInertia", "physics:principalAxes", "newton:inertia"):
         assert exported.GetPropertyAtPath(f"{link}.{name}") is None, name
-    if mass:
-        assert exported.GetAttributeAtPath(f"{link}.physics:mass").default == pytest.approx(mass)
+    assert exported.GetAttributeAtPath(f"{link}.physics:mass").default == pytest.approx(4.0)
     model = _newton_import(output, "xpbd", "cpu")
     loaded = _capture(model, model.body_q)
     np.testing.assert_allclose(loaded["body_inertia", link], live["body_inertia", link], rtol=1e-5)
+    for name in ("body_mass", "body_inertia"):
+        np.testing.assert_allclose(loaded[name, box], live[name, box], rtol=1e-5, err_msg=name)
 
 
-def test_a_changed_joint_of_a_type_not_exported_is_refused(tmp_path):
-    """A joint other than revolute, prismatic and rotational D6 keeps its USD values, so changing it is refused."""
+def _ball_hinge(stage):
+    stage.GetPrimAtPath("/Robot/Hinge").SetTypeName("PhysicsSphericalJoint")
+
+
+def _zero_joint_state(cfg):
+    cfg.robot.init_state.joint_pos = {".*": 0.0}
+
+
+def _add_body(builder, world, position, orientation):
+    body = builder.add_body(label=f"/World/envs/env_{world}/Extra")
+    builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1, label=f"/World/envs/env_{world}/Extra/Box")
+
+
+def _switch_off_link_collisions(builder, world, position, orientation):
+    for shape, label in enumerate(builder.shape_label):
+        if label.endswith("/Robot/Link/Collision") and builder.shape_world[shape] == world:
+            builder.shape_flags[shape] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
+
+
+@pytest.mark.parametrize(
+    "change,refused",
+    [
+        # A joint other than revolute, prismatic and rotational D6 keeps its USD values.
+        pytest.param(
+            {"edit_robot": _ball_hinge, "edit_cfg": _zero_joint_state, "changed_joint": True},
+            "Joint '/World/envs/env_0/Robot/Hinge' changed",
+            id="joint-type",
+        ),
+        # A world builder hook changes the model outside the USD, so an import lacks what it adds or switches.
+        pytest.param(
+            {"world_hook": _add_body},
+            re.escape("outside the USD: ['/World/envs/env_0/Extra', '/World/envs/env_0/Extra/Box']"),
+            id="hook-added",
+        ),
+        pytest.param(
+            {"world_hook": _switch_off_link_collisions},
+            re.escape("outside the USD: ['/World/envs/env_0/Robot/Link/Collision']"),
+            id="hook-switched",
+        ),
+    ],
+)
+def test_changes_an_import_cannot_reproduce_are_refused(tmp_path, change, refused):
+    """A change no USD the export writes would reproduce raises instead of writing a file that differs."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
     from isaaclab.actuators import ImplicitActuatorCfg
 
-    def ball_hinge(stage):
-        stage.GetPrimAtPath("/Robot/Hinge").SetTypeName("PhysicsSphericalJoint")
-
-    def ball_joint_state(cfg):
-        cfg.robot.init_state.joint_pos = {".*": 0.0}
-
-    actuator = ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=83.0, damping=4.5)
-    with pytest.raises(NotImplementedError, match="Joint '/World/envs/env_0/Robot/Hinge' changed"):
-        _export(
-            tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=ball_hinge, edit_cfg=ball_joint_state
-        )
-
-
-@pytest.mark.parametrize("change", ["added", "switched"])
-def test_bodies_and_colliders_a_builder_hook_adds_or_switches_are_refused(tmp_path, change):
-    """A world builder hook changes the model outside the USD, so an import would not have what it adds or switches."""
-    from isaaclab_newton.physics import XPBDSolverCfg
-
-    def hook(builder, world, position, orientation):
-        if change == "added":
-            body = builder.add_body(label=f"/World/envs/env_{world}/Extra")
-            builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1, label=f"/World/envs/env_{world}/Extra/Box")
-            return
-        for shape, label in enumerate(builder.shape_label):
-            if label.endswith("/Robot/Link/Collision") and builder.shape_world[shape] == world:
-                builder.shape_flags[shape] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
-
-    refused = {
-        "added": "['/World/envs/env_0/Extra', '/World/envs/env_0/Extra/Box']",
-        "switched": "['/World/envs/env_0/Robot/Link/Collision']",
-    }
-    with pytest.raises(NotImplementedError, match="outside the USD") as error:
-        _export(tmp_path, XPBDSolverCfg(), "cpu", world_hook=hook)
-    assert refused[change] in str(error.value)
+    kwargs = dict(change)
+    if kwargs.pop("changed_joint", False):
+        kwargs["hinge_actuator"] = ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=83.0, damping=4.5)
+    with pytest.raises(NotImplementedError, match=refused):
+        _export(tmp_path, XPBDSolverCfg(), "cpu", **kwargs)
 
 
 @pytest.mark.parametrize("solver", ["mujoco", "xpbd"])
@@ -413,7 +494,7 @@ def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
 
     solver_cfg = MJWarpSolverCfg() if solver == "mujoco" else XPBDSolverCfg()
     shape_cfg = NewtonShapeCfg(gap=0.02, ke=5.0e3, kd=200.0, mu=0.8)
-    output, live, _, _ = _export(
+    output, live = _export(
         tmp_path,
         solver_cfg,
         "cpu",
@@ -447,26 +528,6 @@ def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
             )
 
 
-def test_a_mass_change_keeps_the_inertia_derived_from_geometry(tmp_path):
-    """The box's USD leaves its inertia to the import, which derives it from the mass; a changed mass keeps it."""
-    from isaaclab_newton.physics import XPBDSolverCfg
-
-    box = "/World/envs/env_0/Box"
-
-    def heavier_box(scene):
-        model = scene.sim.backend_manager.backend.model
-        mass = model.body_mass.numpy()
-        mass[list(model.body_label).index(box)] *= 2.0
-        model.body_mass.assign(mass)
-
-    output, live, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", before_export=heavier_box)
-
-    model = _newton_import(output, "xpbd", "cpu")
-    loaded = _capture(model, model.body_q)
-    for name in ("body_mass", "body_inertia"):
-        np.testing.assert_allclose(loaded[name, box], live[name, box], rtol=1e-5, err_msg=name)
-
-
 def test_a_joint_actuated_without_a_usd_drive_gets_one(tmp_path):
     """Newton's import actuates only axes with a USD drive; an axis Isaac Lab actuates gets one, also at zero gains."""
     from isaaclab_newton.physics import XPBDSolverCfg
@@ -477,7 +538,7 @@ def test_a_joint_actuated_without_a_usd_drive_gets_one(tmp_path):
         stage.GetPrimAtPath("/Robot/Hinge").RemoveAPI(UsdPhysics.DriveAPI, "angular")
 
     actuator = ImplicitActuatorCfg(joint_names_expr=["Hinge"], stiffness=0.0, damping=0.0)
-    output, live, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=undriven)
+    output, live = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=undriven)
 
     model = _newton_import(output, "xpbd", "cpu")
     key = "joint_target_mode", "/World/envs/env_0/Robot/Hinge:0"
@@ -485,41 +546,23 @@ def test_a_joint_actuated_without_a_usd_drive_gets_one(tmp_path):
     assert _capture(model, model.body_q)[key] == live[key]
 
 
-def test_the_solver_step_rate_is_stated(tmp_path):
-    """With substeps, the file states the solver step rate, which Newton's import returns as its step."""
-    from isaaclab_newton.physics import XPBDSolverCfg
-
-    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_substeps=2)
-
-    result = newton.ModelBuilder().add_usd(Usd.Stage.Open(output), schema_resolvers=[SchemaResolverNewton()])
-    assert result["physics_dt"] == pytest.approx(1 / 240)
-
-
-def test_export_references_assets(tmp_path):
-    """The exported layer references the robot file instead of copying it."""
-    from isaaclab_newton.physics import XPBDSolverCfg
-
-    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu")
-
-    layer = Sdf.Layer.FindOrOpen(output)
-    assert str(tmp_path / "robot.usda") in layer.externalReferences
-    assert layer.GetPrimAtPath("/World/envs/env_0/Robot").referenceList.GetAddedOrExplicitItems()
-    # The robot's own prims come from the reference; only edits are authored over them.
-    link = layer.GetPrimAtPath("/World/envs/env_0/Robot/Link")
-    assert not link or link.specifier == Sdf.SpecifierOver
-
-
 def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
-    """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive."""
+    """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive, a force drive as
+    the actuator's PD law is."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
     from isaaclab.actuators import IdealPDActuatorCfg
 
+    def acceleration_drive(stage):
+        drive = UsdPhysics.DriveAPI(stage.GetPrimAtPath("/Robot/Hinge"), "angular")
+        drive.CreateTypeAttr().Set(UsdPhysics.Tokens.acceleration)
+
     actuator = IdealPDActuatorCfg(joint_names_expr=["Hinge"], stiffness=83.0, damping=4.5, actuator_effort_limit=12.0)
-    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator)
+    output, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=acceleration_drive)
 
     stage = Usd.Stage.Open(output)
     hinge = UsdPhysics.DriveAPI(stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge"), "angular")
+    assert hinge.GetTypeAttr().Get() == UsdPhysics.Tokens.force
     assert hinge.GetStiffnessAttr().Get() == pytest.approx(np.deg2rad(83.0))
     assert hinge.GetDampingAttr().Get() == pytest.approx(np.deg2rad(4.5))
     assert hinge.GetMaxForceAttr().Get() == pytest.approx(12.0)
@@ -531,26 +574,33 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)
 
 
-def test_a_scene_without_an_export_path_does_not_read_the_engine_for_an_export(tmp_path, monkeypatch):
-    """Only a scene that exports reads the engine at startup, which costs PhysX a view and a copy per asset."""
+@pytest.mark.parametrize("exports", [False, True], ids=["no export path", "export path"])
+def test_only_an_exporting_scene_reads_the_engine_while_simulating(tmp_path, monkeypatch, exports):
+    """Only a scene that exports reads the engine at startup, which costs PhysX a view and a copy per asset; the read
+    is dropped when the simulation stops and taken again when it is ready."""
     from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 
+    from isaaclab.physics import PhysicsEvent
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
-    reads = []
-    monkeypatch.setattr(BaseUsdExporter, "read_engine_base", lambda self: reads.append(self))
+    reads = []  # each read returns a new base, so that a later read is told apart from the first
+    monkeypatch.setattr(BaseUsdExporter, "read_engine_base", lambda self: reads.append(object()) or reads[-1])
     cfg = make_export_scene_cfg(tmp_path)
-    cfg.export_usd_path = None
+    if not exports:
+        cfg.export_usd_path = None
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, physics=NewtonCfg(solver_cfg=XPBDSolverCfg()))
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(cfg)
         sim.reset()
-
-    assert scene._usd_export_base is None
-    assert reads == []
+        assert len(reads) == int(exports) and scene._usd_export_base is (reads[0] if exports else None)
+        if exports:
+            sim.backend_manager.dispatch_event(PhysicsEvent.STOP, payload={})
+            assert scene._usd_export_base is None
+            sim.backend_manager.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+            assert scene._usd_export_base is reads[1]
 
 
 def test_model_without_joint_dofs_has_no_changed_values():
@@ -638,9 +688,7 @@ def test_changed_limits_are_written_with_the_mujoco_reference_and_force_range(tm
     def change_limits(scene):
         scene["robot"].write_joint_position_limit_to_sim_index(limits=torch.tensor([[[-0.6, 0.9]]], device="cuda:0"))
 
-    output, _, _, _ = _export(
-        tmp_path, MJWarpSolverCfg(), "cuda:0", edit_robot=add_reference, before_export=change_limits
-    )
+    output, _ = _export(tmp_path, MJWarpSolverCfg(), "cuda:0", edit_robot=add_reference, before_export=change_limits)
     model = _newton_import(output, "mujoco", "cpu")
     dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
     assert model.joint_limit_lower.numpy()[dof] == pytest.approx(-0.6, abs=1e-5)

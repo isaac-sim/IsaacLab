@@ -25,6 +25,8 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 from isaaclab.utils import assets as assets_utils
 
+pytestmark = pytest.mark.kitless
+
 
 class _Exporter(PhysxUsdExporter):
     """Reads the live collider values of rigid objects from ``colliders``, keyed by prim path."""
@@ -107,8 +109,34 @@ def _scene(base=None, **assets):
         **assets,
     }
     base = {name: _articulation_engine(a) for name, a in assets["articulations"].items()} | (base or {})
-    sim = SimpleNamespace(get_physics_step_count=lambda: 0)
-    return SimpleNamespace(num_envs=1, sim=sim, _usd_export_base=base, **assets)
+    sim = SimpleNamespace(
+        get_physics_step_count=lambda: 0, backend_manager=SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+    )
+    return SimpleNamespace(num_envs=1, sim=sim, physics_scene_path="/physicsScene", _usd_export_base=base, **assets)
+
+
+def _stage():
+    """An in-memory metric stage whose physics scene states Earth gravity down the Z axis."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
+    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    return stage
+
+
+def _rigid_object(path, mass, com=(0.0, 0.0, 0.0), inertia=np.eye(3)):
+    """A rigid object whose data holds one row per mass in ``mass``, or one row for a single mass."""
+    masses = torch.tensor(mass, dtype=torch.float32).reshape(-1, 1)
+    rows = len(masses)
+    data = SimpleNamespace(
+        body_mass=SimpleNamespace(torch=masses),
+        body_com_pose_b=SimpleNamespace(torch=torch.tensor([*com, 0.0, 0.0, 0.0, 1.0]).repeat(rows, 1, 1)),
+        body_inertia=SimpleNamespace(
+            torch=torch.tensor(inertia, dtype=torch.float32).reshape(1, 1, 9).repeat(rows, 1, 1)
+        ),
+    )
+    return SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
 
 
 @pytest.mark.parametrize(
@@ -128,56 +156,21 @@ def test_names_must_match_one_prim(joint_names, body_names, name):
         _Exporter(scene).compute_diff(stage)
 
 
-@pytest.mark.parametrize(
-    "joint_type,converted",
-    [(UsdPhysics.RevoluteJoint, True), (UsdPhysics.SphericalJoint, False)],
-    ids=["revolute joint", "spherical joint"],
-)
-def test_pd_actuator_becomes_a_drive_of_single_axis_joints_only(joint_type, converted):
-    """A PD actuator becomes a revolute or prismatic joint's drive; on other joints it stays an actuator prim."""
+def test_a_pd_actuator_of_a_multi_axis_joint_stays_an_actuator_prim():
+    """A USD drive is per axis, so a PD actuator of a joint other than a revolute or prismatic one stays its prim."""
     stage = Usd.Stage.CreateInMemory()
-    joint = joint_type.Define(stage, "/Robot/Joint").GetPrim()
+    joint = UsdPhysics.SphericalJoint.Define(stage, "/Robot/Joint").GetPrim()
     actuator = stage.DefinePrim("/Robot/Actuator", "NewtonActuator")
     actuator.AddAppliedSchema("NewtonPDControlAPI")
     actuator.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
     actuator.CreateAttribute("newton:kp", Sdf.ValueTypeNames.Float).Set(80.0)
 
-    before = stage.GetRootLayer().ExportToString()
-    edits = _Exporter(_scene())._compute_pd_drive_edits(stage)
-    assert stage.GetRootLayer().ExportToString() == before  # detecting the conversion writes nothing
-    for edit in edits:
-        edit.apply(stage)
-
-    assert actuator.IsActive() != converted
-    assert bool([schema for schema in joint.GetAppliedSchemas() if schema.startswith("PhysicsDriveAPI")]) == converted
-
-
-def test_gains_of_a_joint_without_a_usd_drive_add_no_drive():
-    """PhysX drives only joints whose USD states a drive, so gains the engine holds elsewhere are not exported."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
-    for name in ("Base", "Link"):
-        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
-    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge")
-    robot = _articulation(["Hinge"], ["Base", "Link"])
-    robot.data.joint_damping.torch.fill_(0.1)
-    scene = _scene(articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
-
-    edits = _Exporter(scene).compute_diff(stage)
-
-    assert not [edit for edit in edits if edit.path == "/Robot/Hinge" and edit.attribute.startswith("drive:")]
+    assert _Exporter(_scene())._compute_pd_drive_edits(stage) == []
 
 
 def test_reordered_joints_compare_with_their_own_engine_values():
     """Isaac Lab may order joints differently from the engine; each joint is compared with its own loaded value."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    stage = _stage()
     for name in ("Base", "Link"):
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
     for name in ("A", "B"):
@@ -188,65 +181,60 @@ def test_reordered_joints_compare_with_their_own_engine_values():
     base = _articulation_engine(robot)
     base[0]["joint_stiffness"][0] = [0.0, 5.0]  # engine order: B, A
     scene = _scene({"robot": base}, articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
 
     edits = {edit.path: edit.value for edit in _Exporter(scene).compute_diff(stage) if "stiffness" in edit.attribute}
 
     assert edits == {"/Robot/B": pytest.approx(7.0 * np.pi / 180.0)}
 
 
-def test_attributes_a_new_api_schema_enables_are_written():
-    """PhysX ignores an attribute whose API schema the prim lacks; once an edit applies the schema, it states live."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
+def test_values_authored_without_their_api_schema_are_written_live_with_it():
+    """PhysX ignores an attribute whose API schema the prim lacks, so the engine loaded the schema's default.
+
+    An edit that applies the schema puts every authored attribute of it in effect, so the export states those live
+    (joint ``Ignored``, collider of ``/Box``); an authored value equal to the live one is written with its schema
+    (joint ``Configured``).
+    """
+    stage = _stage()
     for name in ("Base", "Link"):
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
-    hinge = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge").GetPrim()
-    hinge.CreateAttribute("physxJointAxis:angular:armature", Sdf.ValueTypeNames.Float).Set(0.5)  # without its schema
-    robot = _articulation(["Hinge"], ["Base", "Link"])
-    robot.data.joint_vel_limits.torch.fill_(2.0)  # loaded as 0: Isaac Lab's, written with PhysxJointAxisAPI
-    scene = _scene(articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+    for name in ("Ignored", "Configured"):
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/Robot/{name}").GetPrim()
+        joint.CreateAttribute("physxJointAxis:angular:armature", Sdf.ValueTypeNames.Float).Set(0.5)
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Box").GetPrim())
+    collider = UsdGeom.Cube.Define(stage, "/Box/Collider").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(collider)
+    collider.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(5.0)
+    robot = _articulation(["Ignored", "Configured"], ["Base", "Link"])
+    robot.data.joint_vel_limits.torch[0] = torch.tensor([2.0, 0.0])  # loaded as 0, so written with the schema
+    robot.data.joint_armature.torch[0] = torch.tensor([0.0, 0.5])  # loaded as 0 (ignored)
+    live = {"material": np.array([[0.5, 0.5, 0.0]]), "contact_offset": [0.02], "rest_offset": [0.004]}
+    mass = {"body_mass": [1.0], "body_com_pos_b": [np.zeros(3)], "body_inertia": [np.eye(3).ravel()]}
+    scene = _scene(
+        {"box": _engine(**mass, **live | {"rest_offset": [0.0]})},
+        articulations={"robot": robot},
+        rigid_objects={"box": _rigid_object("/Box", 1.0)},
+    )
+    exporter = _Exporter(scene)
+    exporter.colliders = {"/Box": live}
 
-    edits = {edit.attribute: edit.value for edit in _Exporter(scene).compute_diff(stage) if edit.path == "/Robot/Hinge"}
+    edits = exporter.compute_diff(stage)
 
-    assert edits["physxJointAxis:angular:armature"] == pytest.approx(0.0)  # live, as the engine ignored the 0.5
-    assert "physxJointAxis:angular:maxJointVelocity" in edits
+    def written(path):
+        return {edit.attribute: edit.value for edit in edits if edit.path == path}
 
-
-def test_a_value_authored_without_its_schema_is_written_with_it():
-    """An authored value equal to the live one states nothing without its API schema, so the export applies it."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
-    for name in ("Base", "Link"):
-        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
-    hinge = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge").GetPrim()
-    hinge.CreateAttribute("physxJointAxis:angular:armature", Sdf.ValueTypeNames.Float).Set(0.5)  # without its schema
-    robot = _articulation(["Hinge"], ["Base", "Link"])
-    robot.data.joint_armature.torch.fill_(0.5)  # loaded as 0 (ignored), configured to the authored value
-    scene = _scene(articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
-
-    edits = [
-        edit for edit in _Exporter(scene).compute_diff(stage) if edit.attribute == "physxJointAxis:angular:armature"
-    ]
-
-    assert len(edits) == 1 and edits[0].schema == "PhysxJointAxisAPI:angular"
+    assert written("/Robot/Ignored")["physxJointAxis:angular:armature"] == pytest.approx(0.0)
+    assert "physxJointAxis:angular:maxJointVelocity" in written("/Robot/Ignored")
+    configured = [edit for edit in edits if edit.path == "/Robot/Configured" and "armature" in edit.attribute]
+    assert len(configured) == 1 and configured[0].schema == "PhysxJointAxisAPI:angular"
+    assert written("/Box/Collider") == {
+        "physxCollision:restOffset": pytest.approx(0.004),
+        "physxCollision:contactOffset": pytest.approx(0.02),
+    }
 
 
 def test_axes_of_a_rotational_d6_joint_map_to_its_usd_axes():
     """PhysX names the DOFs of a multi-axis joint "<joint>:<n>" after the axis index (0 rotX, 1 rotY, 2 rotZ)."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    stage = _stage()
     for name in ("Base", "Link"):
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
     joint = UsdPhysics.Joint.Define(stage, "/Robot/Waist").GetPrim()
@@ -262,8 +250,6 @@ def test_axes_of_a_rotational_d6_joint_map_to_its_usd_axes():
     robot.data.joint_effort_limits.torch.fill_(150.0)
     robot.data.joint_armature.torch[0] = torch.tensor([0.01, 0.02])
     scene = _scene(articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
 
     edits = {edit.attribute: edit.value for edit in _Exporter(scene).compute_diff(stage) if edit.path == "/Robot/Waist"}
 
@@ -283,8 +269,6 @@ def test_a_changed_joint_of_a_type_not_exported_is_refused():
     UsdPhysics.SphericalJoint.Define(stage, "/Robot/Ball")
     robot = _articulation(["Ball:0", "Ball:1", "Ball:2"], ["Base", "Link"])
     scene = _scene(articulations={"robot": robot})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
 
     assert not [edit for edit in _Exporter(scene).compute_diff(stage) if edit.path == "/Robot/Ball"]
     robot.data.joint_armature.torch.fill_(0.01)
@@ -318,10 +302,7 @@ def test_gravity_is_written_only_where_the_scene_resolves_to_another(meters_per_
     if stated is not None:
         physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*stated[0]))
         physics_scene.CreateGravityMagnitudeAttr(stated[1])
-    scene = _scene()
-    scene.physics_scene_path = "/physicsScene"
-
-    edits = _Exporter(scene)._compute_gravity_edits(stage, live)
+    edits = _Exporter(_scene())._compute_gravity_edits(stage, live)
 
     assert bool(edits) == written
 
@@ -331,11 +312,8 @@ def test_only_values_that_differ_from_what_the_engine_loaded_are_written():
 
     A value Isaac Lab did not change is therefore not written, whether the USD states it or the engine derives it.
     """
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
     for name in ("Unchanged", "Changed"):
         body = UsdGeom.Xform.Define(stage, f"/{name}").GetPrim()
         UsdPhysics.RigidBodyAPI.Apply(body)
@@ -346,12 +324,7 @@ def test_only_values_that_differ_from_what_the_engine_loaded_are_written():
     )
 
     def rigid_object(path):
-        data = SimpleNamespace(
-            body_mass=SimpleNamespace(torch=torch.full((1, 1), 3.0)),
-            body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]])),
-            body_inertia=SimpleNamespace(torch=(2.0 * torch.eye(3)).reshape(1, 1, 9)),
-        )
-        return SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
+        return _rigid_object(path, 3.0, com=(0.1, 0.0, 0.0), inertia=2.0 * np.eye(3))
 
     live = {"material": np.array([[0.5, 0.5, 0.0]]), "contact_offset": [0.02], "rest_offset": [0.001]}
     loaded = {
@@ -362,8 +335,6 @@ def test_only_values_that_differ_from_what_the_engine_loaded_are_written():
     }
     base = {"unchanged": _engine(**loaded), "changed": _engine(**loaded | {"body_mass": [1.0], "rest_offset": [0.0]})}
     scene = _scene(base, rigid_objects={"unchanged": rigid_object("/Unchanged"), "changed": rigid_object("/Changed")})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
     exporter = _Exporter(scene)
     exporter.colliders = {"/Unchanged": live, "/Changed": live}
 
@@ -385,10 +356,7 @@ def test_collider_values_its_shapes_disagree_on_are_written_only_if_unchanged():
 
     PhysX derives an unset contact offset per collider, so a body with several colliders reports several.
     """
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    stage = _stage()
     table = UsdGeom.Xform.Define(stage, "/Table").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(table)
     UsdPhysics.MassAPI.Apply(table).CreateMassAttr().Set(1.0)
@@ -397,19 +365,11 @@ def test_collider_values_its_shapes_disagree_on_are_written_only_if_unchanged():
         UsdPhysics.CollisionAPI.Apply(collider)
         for attribute in ("physxCollision:contactOffset", "physxCollision:restOffset"):
             collider.CreateAttribute(attribute, Sdf.ValueTypeNames.Float).Set(0.0)
-
-    data = SimpleNamespace(
-        body_mass=SimpleNamespace(torch=torch.full((1, 1), 3.0)),
-        body_com_pose_b=SimpleNamespace(torch=torch.zeros(1, 1, 7)),
-        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
-    )
     material = np.full((3, 3), 0.5)
     live = {"material": material, "contact_offset": [0.002, 0.016, 0.016], "rest_offset": np.full(3, 0.001)}
     loaded = {"material": material, "contact_offset": [0.002, 0.016, 0.016], "rest_offset": np.zeros(3)}
     base = {"table": _engine(body_mass=[1.0], body_com_pos_b=[np.zeros(3)], body_inertia=[np.eye(3).ravel()], **loaded)}
-    scene = _scene(base, rigid_objects={"table": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Table"), data=data)})
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+    scene = _scene(base, rigid_objects={"table": _rigid_object("/Table", 3.0)})
     exporter = _Exporter(scene)
     exporter.colliders = {"/Table": live}
 
@@ -431,10 +391,7 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
 
     A body without colliders, which reports empty per-shape arrays, gets no collider values.
     """
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    stage = _stage()
     stage.DefinePrim("/PhysicsMaterials/Material_0", "Material")
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Box").GetPrim())
     UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Box/Collider").GetPrim())
@@ -443,11 +400,6 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     UsdPhysics.CollisionAPI.Apply(other_collider)
     UsdShade.MaterialBindingAPI.Apply(other_collider).Bind(UsdShade.Material.Define(stage, "/Looks/Render"))
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Bare").GetPrim())
-    data = SimpleNamespace(
-        body_mass=SimpleNamespace(torch=torch.full((1, 1), 1.0)),
-        body_com_pose_b=SimpleNamespace(torch=torch.zeros(1, 1, 7)),
-        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
-    )
     live = {"material": np.array([[0.8, 0.6, 0.1]]), "contact_offset": [0.02], "rest_offset": [0.0]}
     loaded = {"body_mass": [1.0], "body_com_pos_b": [np.zeros(3)], "body_inertia": [np.eye(3).ravel()], **live}
     bare = {"material": np.zeros((0, 3)), "contact_offset": np.zeros(0), "rest_offset": np.zeros(0)}
@@ -457,12 +409,9 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
         "bare": _engine(**loaded | bare | {"body_mass": [2.0]}),
     }
     rigid_objects = {
-        name: SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
-        for name, path in (("box", "/Box"), ("other", "/Other"), ("bare", "/Bare"))
+        name: _rigid_object(path, 1.0) for name, path in (("box", "/Box"), ("other", "/Other"), ("bare", "/Bare"))
     }
     scene = _scene(base, rigid_objects=rigid_objects)
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
     exporter = _Exporter(scene)
     other = live | {"material": np.array([[0.9, 0.9, 0.0]])}
     exporter.colliders = {"/Box": live, "/Other": other, "/Bare": bare}
@@ -506,31 +455,6 @@ def test_values_of_a_prim_an_edit_defines_are_kept():
     assert list(stage.GetPrimAtPath("/Robot/VelocityActuator").GetAttribute("mjc:gainPrm").Get()) == gain
 
 
-def test_the_exported_environment_rows_keep_a_one_row_axis():
-    """The exported environment's rows of asset data readings keep a one-row axis; a shared asset keeps its one row."""
-    scene = _scene()
-    scene.num_envs = 3
-    exporter = _Exporter(scene, env_id=2)
-    rows = exporter._copy_selected_env_to_host({"body_mass": torch.arange(6.0).reshape(3, 2)})
-    shared = exporter._copy_selected_env_to_host({"body_mass": torch.ones(1, 2)})
-
-    assert rows["body_mass"].tolist() == [[4.0, 5.0]]
-    assert shared["body_mass"].tolist() == [[1.0, 1.0]]
-    with pytest.raises(NotImplementedError, match="2 instances for 3 environments"):
-        exporter._copy_selected_env_to_host({"body_mass": torch.ones(2, 2)})
-
-
-def test_remote_asset_references_are_reported(caplog):
-    """An import resolves a remote asset only with a resolver that fetches it, so the export warns about it."""
-    layer = Sdf.Layer.CreateAnonymous(".usda")
-    stage = Usd.Stage.Open(layer)
-    stage.DefinePrim("/Robot").GetReferences().AddReference("https://example.com/robot.usda")
-
-    _Exporter(_scene())._make_asset_paths_portable(layer, "exported.usda")
-
-    assert "https://example.com/robot.usda" in caplog.text
-
-
 def test_relative_references_of_a_scene_opened_from_a_file_resolve_in_another_directory(tmp_path):
     """The export copies the scene's root layer, so its relative asset paths are anchored to the scene's file."""
     (tmp_path / "scene").mkdir()
@@ -548,8 +472,11 @@ def test_relative_references_of_a_scene_opened_from_a_file_resolve_in_another_di
     assert exported.GetPrimAtPath("/World/Robot").GetTypeName() == "Xform"
 
 
-def test_a_cached_remote_asset_is_referenced_by_its_url_without_opening_it(tmp_path, capfd):
-    """The export names a cached remote asset by its URL in a copy no stage composes, so nothing opens the URL."""
+def test_a_cached_remote_asset_is_referenced_by_its_url_without_opening_it(tmp_path, capfd, caplog):
+    """The export names a cached remote asset by its URL in a copy no stage composes, so nothing opens the URL.
+
+    An import resolves the URL only with a resolver that fetches it, so the export warns about it.
+    """
     url = "https://example.com/Robots/robot.usda"
     cached = Path(assets_utils._mirror_path(url, str(tmp_path / "cache")))
     cached.parent.mkdir(parents=True)
@@ -567,76 +494,32 @@ def test_a_cached_remote_asset_is_referenced_by_its_url_without_opening_it(tmp_p
 
     assert f"@{url}@" in exported.read_text()
     assert "Could not open asset" not in capfd.readouterr().err
+    assert url in caplog.text
 
 
-def test_a_collision_schema_the_export_applies_states_the_other_offsets():
-    """Writing one offset applies PhysxCollisionAPI, which enables the collider's other authored offset."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
-    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Box").GetPrim())
-    collider = UsdGeom.Cube.Define(stage, "/Box/Collider").GetPrim()
-    UsdPhysics.CollisionAPI.Apply(collider)
-    collider.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(5.0)  # ignored
-    data = SimpleNamespace(
-        body_mass=SimpleNamespace(torch=torch.full((1, 1), 1.0)),
-        body_com_pose_b=SimpleNamespace(torch=torch.zeros(1, 1, 7)),
-        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
-    )
-    live = {"material": np.array([[0.5, 0.5, 0.0]]), "contact_offset": [0.02], "rest_offset": [0.004]}
-    loaded = {
-        "body_mass": [1.0],
-        "body_com_pos_b": [np.zeros(3)],
-        "body_inertia": [np.eye(3).ravel()],
-        **live,
-        "rest_offset": [0.0],
-    }
-    scene = _scene(
-        {"box": _engine(**loaded)},
-        rigid_objects={"box": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Box"), data=data)},
-    )
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
-    exporter = _Exporter(scene)
-    exporter.colliders = {"/Box": live}
-
-    edits = {edit.attribute: edit.value for edit in exporter.compute_diff(stage) if edit.path == "/Box/Collider"}
-
-    assert edits == {
-        "physxCollision:restOffset": pytest.approx(0.004),
-        "physxCollision:contactOffset": pytest.approx(0.02),
-    }
-
-
-def test_an_asset_outside_the_environments_is_read_from_its_one_row():
-    """A rigid object outside the environment namespace has one engine row, whichever environment is exported."""
-    stage = Usd.Stage.CreateInMemory()
-    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
-    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
-    physics_scene.CreateGravityMagnitudeAttr(9.81)
-    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Shared").GetPrim())
-    UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath("/Shared")).CreateMassAttr().Set(1.0)
-    data = SimpleNamespace(
-        body_mass=SimpleNamespace(torch=torch.full((1, 1), 3.0)),
-        body_com_pose_b=SimpleNamespace(torch=torch.zeros(1, 1, 7)),
-        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
-    )
+def test_assets_are_read_from_the_exported_environments_row_or_their_one_row():
+    """An asset in the environments has one engine row per environment, of which the exported one's is read; an asset
+    outside the environment namespace has one row, whichever environment is exported. Other row counts are refused."""
+    stage = _stage()
+    for path in ("/Shared", "/World/envs/env_2/Box"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, path).GetPrim())
+        UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath(path)).CreateMassAttr().Set(1.0)
     live = {"material": np.zeros((0, 3)), "contact_offset": np.zeros(0), "rest_offset": np.zeros(0)}
     loaded = {"body_mass": [1.0], "body_com_pos_b": [np.zeros(3)], "body_inertia": [np.eye(3).ravel()], **live}
-    scene = _scene(
-        {"shared": _engine(**loaded)},
-        rigid_objects={"shared": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Shared"), data=data)},
-    )
-    scene.num_envs = 2
-    scene.physics_scene_path = "/physicsScene"
-    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
-    exporter = _Exporter(scene, env_id=1)
-    exporter.colliders = {"/Shared": live}
+    box = "/World/envs/env_.*/Box"
+    rigid_objects = {"shared": _rigid_object("/Shared", 3.0), "box": _rigid_object(box, [1.0, 2.0, 4.0])}
+    scene = _scene({"shared": _engine(**loaded), "box": _engine(**loaded)}, rigid_objects=rigid_objects)
+    scene.num_envs = 3
+    exporter = _Exporter(scene, env_id=2)
+    exporter.colliders = {"/Shared": live, box: live}
 
-    edits = {edit.attribute: edit.value for edit in exporter.compute_diff(stage) if edit.path == "/Shared"}
+    edits = {(edit.path, edit.attribute): edit.value for edit in exporter.compute_diff(stage)}
 
-    assert edits["physics:mass"] == pytest.approx(3.0)
+    assert edits["/Shared", "physics:mass"] == pytest.approx(3.0)
+    assert edits["/World/envs/env_2/Box", "physics:mass"] == pytest.approx(4.0)
+    rigid_objects["box"] = _rigid_object(box, [1.0, 2.0])
+    with pytest.raises(NotImplementedError, match="2 instances for 3 environments"):
+        exporter.compute_diff(stage)
 
 
 def test_an_environment_cloned_in_physics_only_is_exported_from_its_prototype():
@@ -659,6 +542,36 @@ def test_an_environment_cloned_in_physics_only_is_exported_from_its_prototype():
     assert exported.IsDefined() and exported.GetTypeName() == "Cube"
     assert not stage.GetPrimAtPath("/World/envs/env_0")
     assert UsdGeom.XformCache().GetLocalToWorldTransform(exported).ExtractTranslation()[0] == pytest.approx(3.0)
+
+
+def test_environments_a_weaker_layer_defines_are_left_out():
+    """Only the exported environment remains, also where a sublayer defines the other environments."""
+    weaker = Usd.Stage.CreateInMemory()
+    for index in range(2):
+        weaker.DefinePrim(f"/World/envs/env_{index}", "Xform")
+    stage = Usd.Stage.CreateInMemory()
+    stage.GetRootLayer().subLayerPaths.append(weaker.GetRootLayer().identifier)
+    scene = _scene()
+    scene.num_envs, scene.clone_plan = 2, None
+    scene.env_prim_paths = ["/World/envs/env_0", "/World/envs/env_1"]
+
+    _Exporter(scene)._reduce_stage_to_environment(stage)
+
+    assert [str(prim.GetPath()) for prim in stage.Traverse()] == ["/World", "/World/envs", "/World/envs/env_0"]
+
+
+def test_temporary_files_of_the_same_name_keep_their_own_copies(tmp_path):
+    """Files the run wrote to the temporary directory are copied next to the export, each under a name of its own."""
+    sources = []
+    for folder, contents in (("a", "first"), ("b", "second")):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "network.pt").write_text(contents)
+        sources.append(str(tmp_path / folder / "network.pt"))
+    export_path = str(tmp_path / "export" / "exported.usda")
+
+    copies = [BaseUsdExporter._copy_temporary_file(source, export_path) for source in sources]
+
+    assert [(tmp_path / "export" / copy).read_text() for copy in copies] == ["first", "second"]
 
 
 def test_scenes_with_deformable_or_cable_objects_are_refused():
@@ -708,65 +621,90 @@ def test_material_shared_with_a_collider_not_exported_is_not_changed():
         PhysxUsdExporter._compute_material_edits(stage, {"/Exported": {"physics:dynamicFriction": 0.7}})
 
 
-def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
-    """The engine's center of mass includes the body's scale, which importers apply to the USD value again."""
+_SCALED_COM = {"scale": 2.0, "physics:centerOfMass": (0.01, -0.02, 0.03)}
+
+
+@pytest.mark.parametrize(
+    "authored,engine,expected",
+    [
+        # The engine's center of mass includes the body's scale, which importers apply to the USD value again.
+        pytest.param(_SCALED_COM, {"com": (0.02, -0.04, 0.06)}, {"physics:centerOfMass": None}, id="scaled-com-kept"),
+        pytest.param(
+            _SCALED_COM, {"com": (0.04, -0.04, 0.06)}, {"physics:centerOfMass": (0.02, -0.02, 0.03)}, id="scaled-com"
+        ),
+        # USD states an unset mass as zero, from which an import derives one, so a zero engine mass is reported.
+        pytest.param(
+            {"physics:mass": 2.0},
+            {"mass": 0.0, "inertia": np.zeros((3, 3)), "changed": {"body_mass", "body_inertia"}},
+            {},
+            id="zero-mass",
+        ),
+        # An importer derives an unset inertia from the mass, so a changed mass also states it; a stated one is kept.
+        pytest.param(
+            {"physics:mass": 2.0, "physics:diagonalInertia": (1.0, 1.0, 1.0)},
+            {"mass": 4.0, "changed": {"body_mass"}},
+            {"physics:mass": 4.0, "physics:diagonalInertia": None},
+            id="stated-inertia",
+        ),
+        # A zero diagonal inertia is unspecified, as an unset one is.
+        pytest.param(
+            {"physics:mass": 1.0, "physics:diagonalInertia": (0.0, 0.0, 0.0)},
+            {"mass": 2.0, "inertia": 0.5 * np.eye(3), "changed": {"body_mass"}},
+            {"physics:mass": 2.0, "physics:diagonalInertia": (0.5, 0.5, 0.5)},
+            id="zero-inertia",
+        ),
+        # The edits apply the mass schema, which turns on a center of mass authored without it; that is restated.
+        pytest.param(
+            {"PhysicsMassAPI": False, "physics:centerOfMass": (0.4, 0.0, 0.0)},
+            {"mass": 2.0, "changed": {"body_mass"}},
+            {"physics:mass": 2.0, "physics:centerOfMass": (0.0, 0.0, 0.0)},
+            id="com-without-schema",
+        ),
+        # Newton reads newton:inertia ahead of the diagonal inertia, so a changed inertia updates it too.
+        pytest.param(
+            {"newton:inertia": [1.0, 2.0, 2.0, 0.0, 0.0, 0.0]},
+            {"inertia": np.diag([2.0, 3.0, 3.0])},
+            {"newton:inertia": [2.0, 3.0, 3.0, 0.0, 0.0, 0.0]},
+            id="newton-compact-inertia",
+        ),
+    ],
+)
+def test_mass_edits_state_engine_values_as_an_import_reads_them(caplog, authored, engine, expected):
+    """A body's mass edits for the engine's values; ``None`` marks an attribute left unwritten, and no expected edit an
+    engine value USD cannot state, which is reported. ``authored`` may leave the mass schema unapplied."""
     from pxr import Gf
 
     stage = Usd.Stage.CreateInMemory()
     body = UsdGeom.Xform.Define(stage, "/Body")
-    body.AddScaleOp().Set(Gf.Vec3f(2.0, 2.0, 2.0))
-    mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
-    mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.01, -0.02, 0.03))
+    applied = authored.get("PhysicsMassAPI", True)
+    mass = UsdPhysics.MassAPI.Apply(body.GetPrim()) if applied else UsdPhysics.MassAPI(body.GetPrim())
+    create = {
+        "physics:mass": mass.CreateMassAttr,
+        "physics:centerOfMass": mass.CreateCenterOfMassAttr,
+        "physics:diagonalInertia": mass.CreateDiagonalInertiaAttr,
+    }
+    for name, value in authored.items():
+        if name == "PhysicsMassAPI":
+            continue
+        if name == "scale":
+            body.AddScaleOp().Set(Gf.Vec3f(value, value, value))
+        elif name == "newton:inertia":
+            body.GetPrim().AddAppliedSchema("NewtonMassAPI")
+            body.GetPrim().CreateAttribute(name, Sdf.ValueTypeNames.DoubleArray).Set(value)
+        else:
+            create[name]().Set(Gf.Vec3f(*value) if isinstance(value, tuple) else value)
+    engine = {"mass": 1.0, "com": (0.0, 0.0, 0.0), "inertia": np.eye(3)} | engine
+    changed = {"changed": engine.pop("changed")} if "changed" in engine else {}
 
-    edits = PhysxUsdExporter._compute_mass_edits(body.GetPrim(), 1.0, np.array([0.02, -0.04, 0.06]), np.eye(3))
-    assert "physics:centerOfMass" not in {edit.attribute for edit in edits}
-    edits = PhysxUsdExporter._compute_mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
-    com = next(edit.value for edit in edits if edit.attribute == "physics:centerOfMass")
-    np.testing.assert_allclose(np.asarray(com), [0.02, -0.02, 0.03], rtol=1e-6)
-
-
-def test_a_zero_mass_usd_cannot_state_is_reported_not_written(caplog):
-    """USD states an unset mass as zero, from which an import derives one, so a zero engine mass is reported."""
-    stage = Usd.Stage.CreateInMemory()
-    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
-    UsdPhysics.MassAPI.Apply(body).CreateMassAttr().Set(2.0)
-
-    assert (
-        PhysxUsdExporter._compute_mass_edits(
-            body, 0.0, np.zeros(3), np.zeros((3, 3)), changed={"body_mass", "body_inertia"}
-        )
-        == []
+    edits = PhysxUsdExporter._compute_mass_edits(
+        body.GetPrim(), engine["mass"], np.asarray(engine["com"]), engine["inertia"], **changed
     )
-    assert "cannot state the zero mass of '/Body'" in caplog.text
 
-
-@pytest.mark.parametrize("stated", [False, True], ids=["inertia derived", "inertia stated"])
-def test_a_changed_mass_writes_an_inertia_the_import_would_derive_from_it(stated):
-    """An importer derives an unset inertia from the mass, so a changed mass also states the inertia."""
-    from pxr import Gf
-
-    stage = Usd.Stage.CreateInMemory()
-    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
-    mass = UsdPhysics.MassAPI.Apply(body)
-    mass.CreateMassAttr().Set(2.0)
-    if stated:
-        mass.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(1.0, 1.0, 1.0))
-
-    edits = PhysxUsdExporter._compute_mass_edits(body, 4.0, np.zeros(3), np.eye(3), changed={"body_mass"})
-
-    written = {edit.attribute for edit in edits}
-    assert "physics:mass" in written
-    assert ("physics:diagonalInertia" in written) is not stated
-
-
-def test_newton_compact_inertia_is_updated_with_the_inertia():
-    """Newton reads ``newton:inertia`` ahead of the diagonal inertia, so a changed inertia updates it too."""
-    stage = Usd.Stage.CreateInMemory()
-    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
-    UsdPhysics.MassAPI.Apply(body)
-    body.AddAppliedSchema("NewtonMassAPI")
-    body.CreateAttribute("newton:inertia", Sdf.ValueTypeNames.DoubleArray).Set([1.0, 2.0, 2.0, 0.0, 0.0, 0.0])
-
-    edits = PhysxUsdExporter._compute_mass_edits(body, 1.0, np.zeros(3), np.diag([2.0, 3.0, 3.0]))
-    compact = next(edit.value for edit in edits if edit.attribute == "newton:inertia")
-    np.testing.assert_allclose(compact, [2.0, 3.0, 3.0, 0.0, 0.0, 0.0])
+    written = {edit.attribute: edit.value for edit in edits}
+    if not expected:
+        assert written == {} and "cannot state the zero mass of '/Body'" in caplog.text
+    for name, value in expected.items():
+        if value is None:
+            assert name not in written, name
+        else:
+            np.testing.assert_allclose(np.asarray(written[name], dtype=float), value, rtol=1e-6, err_msg=name)
