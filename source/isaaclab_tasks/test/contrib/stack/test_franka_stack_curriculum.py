@@ -23,6 +23,8 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
     num_envs = 4
     robot = Mock()
     robot.data.default_joint_pos.torch = torch.zeros(num_envs, 9)
+    robot.data.default_root_pose.torch = torch.zeros(num_envs, 7)
+    robot.data.default_root_vel.torch = torch.zeros(num_envs, 6)
     robot.find_joints.side_effect = [(list(range(7)), []), ([7, 8], [])]
     cubes = [Mock() for _ in range(3)]
     for cube in cubes:

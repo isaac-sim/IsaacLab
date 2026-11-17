@@ -796,6 +796,13 @@ class StackResetStateTable(ManagerTermBase):
         selected_cube_ids = role_to_cube.gather(1, held_roles.clamp_min(0).unsqueeze(1)).squeeze(1)
         held_cube_ids = torch.where(has_held_cube, selected_cube_ids, -1)
 
+        # Restore the fixed base before applying the selected joint and cube state.
+        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
         joint_positions[:, self._arm_joint_ids] = self._arm_positions[row_ids]
