@@ -92,6 +92,11 @@ class CosmosModelCfg(BackendCfg):
     from it and rejects frames beyond it.
     """
 
+    fps: float = 30.0
+    """Frame rate of the images, as the model is told [Hz]. Defaults to 30, the Sim-Transfer recipe's rate. A task
+    whose prompt and settings were calibrated at another rate sets that rate here; it need not equal the camera's
+    capture rate."""
+
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
     """How images move between the camera and the service. ``"cuda_ipc"`` keeps them on the GPU through shared
     device memory; it needs the service on the same Linux machine, on the camera's GPU or on another GPU that both

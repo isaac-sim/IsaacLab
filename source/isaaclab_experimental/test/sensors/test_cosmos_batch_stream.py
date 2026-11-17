@@ -134,7 +134,7 @@ def batch(monkeypatch):
         owner.capabilities = {"partial_resets": partial}
         owner._stream = None
         owner._closed = False
-        monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text]})
+        monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text], "fps": [args[-1]]})
         stream = owner.open_stream(
             num_views=views,
             seeds=tuple(range(views)),
@@ -288,14 +288,18 @@ def test_warmup_fills_the_history_window(window, frames, monkeypatch):
     assert opened == {"budget": frames, "frames": frames, "closed": True}
 
 
-def test_text_conditioning_marks_the_batch_as_a_transfer_request(monkeypatch):
-    """The model selects its Transfer numerics from the batch, as it does for the Framework's own Transfer requests."""
+def test_text_conditioning_marks_a_transfer_request_at_the_requested_frame_rate(monkeypatch):
+    """The model selects its Transfer numerics from the batch, as it does for the Framework's own Transfer requests.
+
+    The native metadata takes a whole frame rate; the conditioning keeps a fractional one.
+    """
 
     class Overrides:
         model_fields = {}
 
         def __init__(self, **settings):
             self.prompt = settings["prompt"]
+            self.fps = settings["fps"]
 
         def build_sample(self, model_config):
             return self
@@ -303,7 +307,7 @@ def test_text_conditioning_marks_the_batch_as_a_transfer_request(monkeypatch):
     framework = {
         "cosmos_framework.inference.args": {"OmniSampleOverrides": Overrides},
         "cosmos_framework.inference.inference": {
-            "_get_prompt_sample_data": lambda sample, model, **_: {"caption": [sample.prompt]}
+            "_get_prompt_sample_data": lambda sample, model, **_: {"caption": [sample.prompt], "native_fps": sample.fps}
         },
         "cosmos_framework.model.generator.reasoner.qwen3_vl.utils": {"_SYSTEM_PROMPT_TRANSFER": "transfer"},
     }
@@ -315,18 +319,19 @@ def test_text_conditioning_marks_the_batch_as_a_transfer_request(monkeypatch):
     owner._pipeline = SimpleNamespace(model=SimpleNamespace(config=None))
     owner._metadata_dir = SimpleNamespace(name="unused")
 
-    data = owner._prompt_batch("A lab.", HEIGHT, WIDTH, 13)
+    data = owner._prompt_batch("A lab.", HEIGHT, WIDTH, 13, 12.5)
 
     assert data["caption"] == ["A lab."]
     assert data["dataset_name"] == "video_transfer" and data["system_prompt"] == "transfer"
     assert data["_preserve_transfer_numerics"] is True
+    assert data["native_fps"] == 12 and data["fps"] == [12.5]
 
 
 def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():
     rows = [
-        {"caption": ["A lab."], "neg_caption": [""], "system_prompt": "S", "fps": [30.0]},
-        {"caption": ["A kitchen."], "neg_caption": [""], "system_prompt": "S", "fps": [30.0]},
+        {"caption": ["A lab."], "neg_caption": [""], "system_prompt": "S", "fps": [12.5]},
+        {"caption": ["A kitchen."], "neg_caption": [""], "system_prompt": "S", "fps": [12.5]},
     ]
     data = _framework._merge_prompt_rows(rows, "caption")
     assert data["caption"] == ["A lab.", "A kitchen."]
-    assert data["neg_caption"] == ["", ""] and data["fps"] == [30.0, 30.0] and data["system_prompt"] == "S"
+    assert data["neg_caption"] == ["", ""] and data["fps"] == [12.5, 12.5] and data["system_prompt"] == "S"

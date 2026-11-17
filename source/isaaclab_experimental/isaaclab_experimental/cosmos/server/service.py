@@ -189,6 +189,7 @@ class _Model(Protocol):
         height: int,
         width: int,
         max_episode_frames: int,
+        fps: float = ...,
     ) -> _Stream: ...
 
     def close(self) -> None: ...
@@ -278,6 +279,8 @@ def _handle_connection(
                         "width",
                         "max_episode_frames",
                     }
+                    # Protocol 3 clients that omit fps get the model's default.
+                    | ({"fps"} if "fps" in metadata else set())
                     | ({"transport", "ipc"} if "transport" in metadata else set()),
                     arrays,
                 )
