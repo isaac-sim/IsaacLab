@@ -38,7 +38,6 @@ def test_transport_reset_rebind_and_close(device):
         template = "/World/envs/env_{}"
         if device != "cpu":
             template = "/World/cells/cell_{}"
-            sim.set_clone_plan(make_clone_plan((), [()], 2, env_template=template))
         for world in range(2):
             builder.begin_world()
             root = template.format(world)
@@ -78,6 +77,8 @@ def test_transport_reset_rebind_and_close(device):
             2,
             sim=sim,
         )
+        if device != "cpu":
+            sim.set_clone_plan(make_clone_plan((), [()], 2, env_template=template))
 
         def transport():
             before = manager.backend.state_0.body_q.numpy().copy()
