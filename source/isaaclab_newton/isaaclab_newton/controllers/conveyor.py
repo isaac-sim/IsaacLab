@@ -192,9 +192,6 @@ class Conveyor(BaseConveyor):
                 f"Body pattern {self._body_pattern.pattern!r} expected {self.cfg.body_count_per_env} bodies per world, "
                 f"got {tracked_counts.tolist()}."
             )
-        if not np.any(body_is_tracked):
-            raise RuntimeError(f"Body pattern {self._body_pattern.pattern!r} matched no Newton bodies.")
-
         conveyor = ConveyorForceModel(model, solver_type="mujoco")
         transforms = model.shape_transform.numpy()
         surface_worlds = []

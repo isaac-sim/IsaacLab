@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -65,7 +64,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
 
     def load_managers(self) -> None:
         """Create slot identities before command, reward, and observation terms inspect cubes."""
-        assets = tuple(self.scene[f"cube_{i}"] for i in range(self.cfg.conveyor_force.transported_body_count_per_env))
+        assets = tuple(self.scene[f"cube_{i}"] for i in range(self.cfg.conveyor.body_count_per_env))
         self.conveyor_cube_pool = ConveyorCubePool(assets, self.num_envs, self.device)
         self._parcel_start_positions = torch.tensor(warehouse_parcel_positions(), device=self.device)
         self._warehouse_arm_joint_ids = self.scene["robot"].find_joints(
@@ -111,7 +110,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         elif attribute == "root_quat_w":
             waiting[..., 3] = 1.0
         else:
-            waiting[..., 0] = self.cfg.conveyor_force.speed
+            waiting[..., 0] = self.cfg.belt_speed
         return torch.where(remote[..., None], waiting, values)
 
     def _animate_warehouse(self) -> None:
@@ -122,24 +121,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         with Sdf.ChangeBlock():
             for source, target in self._warehouse_animation:
                 target.Set(source.Get(time_code))
-
-    def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
-        """Shuffle a mixed batch across the authored feeds in selected environments."""
-        if isinstance(env_ids, slice):
-            env_ids = self.scene._ALL_INDICES[env_ids]
-        pool = self.conveyor_cube_pool
-        pool.reset(env_ids)
-        super()._reset_idx(env_ids)
-        if self.cfg.commands.transfer.randomize_arrivals:
-            assignments = torch.rand((len(env_ids), len(pool.assets)), device=self.device).argsort(dim=1)
-        else:
-            assignments = torch.arange(len(pool.assets), device=self.device).expand(len(env_ids), -1)
-        for cube_id, cube in enumerate(pool.assets):
-            pose = cube.data.root_pose_w.torch[env_ids].clone()
-            pose[:, :3] = self._parcel_start_positions[assignments[:, cube_id]] + self.scene.env_origins[env_ids]
-            pose[:, 3:] = pose.new_tensor((0.0, 0.0, 0.0, 1.0))
-            cube.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
-            cube.write_root_velocity_to_sim_index(root_velocity=pose.new_zeros((len(env_ids), 6)), env_ids=env_ids)
 
     @staticmethod
     def _in_workcell(positions: torch.Tensor) -> torch.Tensor:

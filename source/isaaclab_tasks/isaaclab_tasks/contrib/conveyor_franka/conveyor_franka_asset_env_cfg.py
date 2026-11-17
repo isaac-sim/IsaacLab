@@ -15,13 +15,13 @@ from typing import TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.controllers import ConveyorSurfaceCfg
+from isaaclab.managers import EventTermCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd
 
-from . import mdp
 from .conveyor_franka_env_cfg import (
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
@@ -335,25 +335,19 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
     def __post_init__(self) -> None:
         """Frame the presentation scene and allow packages to travel along its extended returns."""
         super().__post_init__()
-        from .mdp.sorting import ConveyorSortCommandCfg
+        from .mdp.sorting import ConveyorSortCommandCfg, reset_inventory
 
         self.commands.transfer = ConveyorSortCommandCfg()
-        # Warehouse arrivals replace the phase reset bank; fine-tuning starts from home.
-        self.curriculum = None
-        self.events.reset_from_state_table.params.update(
-            fixed_recipe=int(mdp.ConveyorResetRecipe.BELT),
-            fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT,
-            cube_position_noise=0.0,
-            arm_joint_noise=0.0,
-        )
+        self.events.reset_from_state_table = None
+        self.events.reset_inventory = EventTermCfg(func=reset_inventory, mode="reset")
         # Kit renders the authored USD directly; Newton needs only the physical geometry.
         self.sim.physics.load_visual_shapes = False
         # Adjacent static belt sections must not consume the parcel contact budget.
         self.sim.physics.collision_cfg.include_static_kinematic_pairs = False
-        self.conveyor_force.transported_body_count_per_env = len(self.commands.transfer.parcel_destinations)
+        self.conveyor.body_count_per_env = len(self.commands.transfer.parcel_destinations)
         self.sim.physics.solver_cfg.nconmax = 400
         self.sim.physics.solver_cfg.njmax = 600
-        self.conveyor_force.transported_body_pattern = r"(?:^|/)Cube_?[0-9]+(?:/|$)"
+        self.conveyor.body_pattern = r"(?:^|/)Cube_?[0-9]+(?:/|$)"
         self.terminations.cube_out_of_workspace.params = {
             "minimum": (-0.4, -1.2, -0.05),
             "maximum": (2.85, 1.2, 0.8),

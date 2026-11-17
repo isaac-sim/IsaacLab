@@ -27,9 +27,10 @@ pytestmark = pytest.mark.kitless
 
 def _environment(task):
     cfg = parse_env_cfg(task, device="cpu", num_envs=2)
-    cfg.events.reset_from_state_table.params.update(
-        fixed_recipe=int(mdp.ConveyorResetRecipe.BELT), fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT
-    )
+    if task == _BASE:
+        cfg.events.reset_from_state_table.params.update(
+            fixed_recipe=int(mdp.ConveyorResetRecipe.BELT), fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT
+        )
     cfg.sim.physics.use_cuda_graph = False
     cfg.sim.visualizer_cfgs = []
     cfg.sim.use_fabric = False
@@ -136,8 +137,28 @@ def test_warehouse_slot_mapping_and_selected_reset_counters():
         velocity = pool.assets[-1].data.root_vel_w.torch.clone()
         velocity[1].fill_(0.2)
         pool.assets[-1].write_root_velocity_to_sim_index(root_velocity=velocity)
+        robot = env.scene["robot"]
+        joint_positions = robot.data.joint_pos.torch.clone()
+        joint_positions[1, 0] += 0.2
+        robot.write_joint_position_to_sim_index(position=joint_positions)
+        joint_velocities = torch.full_like(joint_positions, 0.3)
+        robot.write_joint_velocity_to_sim_index(velocity=joint_velocities)
+        robot.actuators.target_command.set_position_index(value=joint_positions)
+        robot.actuators.target_command.set_velocity_index(value=joint_velocities)
+        before_joints = robot.data.joint_pos.torch[0].clone()
+        before_joint_velocities = robot.data.joint_vel.torch[0].clone()
         env._reset_idx(slice(1, 2))
 
+        torch.testing.assert_close(robot.data.joint_pos.torch[1], robot.data.default_joint_pos.torch[1])
+        torch.testing.assert_close(
+            robot.actuators.target_command.position.torch[1], robot.data.default_joint_pos.torch[1]
+        )
+        assert not robot.data.joint_vel.torch[1].any()
+        assert not robot.actuators.target_command.velocity.torch[1].any()
+        torch.testing.assert_close(robot.data.joint_pos.torch[0], before_joints)
+        torch.testing.assert_close(robot.data.joint_vel.torch[0], before_joint_velocities)
+        torch.testing.assert_close(robot.actuators.target_command.position.torch[0], joint_positions[0])
+        torch.testing.assert_close(robot.actuators.target_command.velocity.torch[0], joint_velocities[0])
         assert not pool.transfer_counts[1].any(), "Selected reset must clear the completed batch's transfer counters."
         torch.testing.assert_close(pool.assignment_counts[1], torch.tensor([1] * 4 + [0] * 20))
         assert (pool.assignment_counts[0] == 7).all() and (pool.transfer_counts[0] == 3).all()

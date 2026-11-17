@@ -90,21 +90,10 @@ def _reset_pads(
 
 
 @wp.kernel
-def _stage_vacuum(
-    enabled: wp.array[wp.bool],
-    world_ids: wp.array[wp.int32],
-    vacuum: wp.array[wp.bool],
-    command: wp.array[wp.float32],
-):
-    i = wp.tid()
-    world = world_ids[i]
-    vacuum[world] = enabled[i]
-    command[world] = wp.where(enabled[i], 1.0, -1.0)
-
-
-@wp.kernel
-def _apply_commands(command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
+def _apply_commands(mask: wp.array[wp.bool], command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
     world = wp.tid()
+    if not mask[world]:
+        return
     if command[world] > 0.3:
         enabled[world] = True
     elif command[world] < -0.3:
@@ -291,18 +280,6 @@ class SurfaceGripper(BaseSurfaceGripper):
         """Stage commands for all or selected worlds."""
         self.set_grippers_command_index(states, indices)
 
-    def set_command(self, enabled: torch.Tensor | wp.array, target_ids: torch.Tensor | wp.array, env_ids=None) -> None:
-        """Apply vacuum and target restrictions together, preserving the task reset interface."""
-        ids = self._indices(env_ids)
-        wp.launch(
-            _stage_vacuum,
-            dim=ids.shape[0],
-            inputs=[wp.from_torch(enabled) if isinstance(enabled, torch.Tensor) else enabled, ids],
-            outputs=[self._enabled.warp, self._command.warp],
-            device=self._model.device,
-        )
-        self.set_target_ids(target_ids, ids)
-
     def reset(self, env_ids=None, env_mask=None) -> None:
         """Release selected tools without changing physical poses or unselected worlds."""
         mask = resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
@@ -330,7 +307,7 @@ class SurfaceGripper(BaseSurfaceGripper):
         wp.launch(
             _apply_commands,
             dim=self._num_envs,
-            inputs=[self._command.warp],
+            inputs=[self._all_mask, self._command.warp],
             outputs=[self._enabled.warp],
             device=self._model.device,
         )
@@ -341,12 +318,19 @@ class SurfaceGripper(BaseSurfaceGripper):
     def refresh(self, env_ids: torch.Tensor | None = None) -> None:
         """Rebuild selected seals from restored geometry without stepping physics or applying forces.
 
-        Call after restoring robot and parcel states and setting their vacuum commands. Attachment
+        Apply staged commands after restoring robot and parcel states. Attachment
         still requires every pad to fit the actual parcel face; this does not force a grasp.
-        Unselected worlds retain their attachment state.
+        Unselected worlds retain their attachments and pending commands.
         """
         self._manager.forward()
         mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._selection_mask)
+        wp.launch(
+            _apply_commands,
+            dim=self._num_envs,
+            inputs=[mask, self._command.warp],
+            outputs=[self._enabled.warp],
+            device=self._model.device,
+        )
         self._update_seals(self._manager.backend.state_0, mask)
         wp.copy(self._previous.pad_engaged_bs, self._current.pad_engaged_bs)
 

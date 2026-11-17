@@ -24,6 +24,28 @@ if TYPE_CHECKING:
     from ..conveyor_franka_warehouse_env import ConveyorFrankaWarehouseEnv
 
 
+def reset_inventory(env: ConveyorFrankaWarehouseEnv, env_ids: torch.Tensor) -> None:
+    """Restore the home robot and one mixed inventory directly, without racetrack recipes."""
+    pool = env.conveyor_cube_pool
+    pool.reset(env_ids)
+    robot = env.scene["robot"]
+    positions = robot.data.default_joint_pos.torch[env_ids]
+    velocities = torch.zeros_like(positions)
+    robot.write_joint_position_to_sim_index(position=positions, env_ids=env_ids)
+    robot.write_joint_velocity_to_sim_index(velocity=velocities, env_ids=env_ids)
+    robot.actuators.target_command.set_position_index(value=positions, env_ids=env_ids)
+    robot.actuators.target_command.set_velocity_index(value=velocities, env_ids=env_ids)
+    if env.cfg.commands.transfer.randomize_arrivals:
+        assignments = torch.rand((len(env_ids), len(pool.assets)), device=env.device).argsort(dim=1)
+    else:
+        assignments = torch.arange(len(pool.assets), device=env.device).expand(len(env_ids), -1)
+    for cube_id, cube in enumerate(pool.assets):
+        pose = cube.data.default_root_pose.torch[env_ids].clone()
+        pose[:, :3] = env._parcel_start_positions[assignments[:, cube_id]] + env.scene.env_origins[env_ids]
+        cube.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
+        cube.write_root_velocity_to_sim_index(root_velocity=pose.new_zeros((len(env_ids), 6)), env_ids=env_ids)
+
+
 class ConveyorSortCommand(ConveyorTransferCommand):
     """Transfer misplaced cartons and leave correctly sorted inventory circulating.
 
@@ -66,9 +88,10 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         super().evaluate()
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
-        # Reset metadata remains compatible with the shared reward and observation terms.
         if self._resampling_from_reset:
-            super()._resample_command(env_ids)
+            idle = torch.zeros_like(self.target_cube_ids[env_ids])
+            self._assign_goal(env_ids, idle, idle)
+            self.subgoal_start_steps[env_ids] = 0
         self.has_target[env_ids] = False
         self.held_cube_ids[env_ids] = -1
         self.pending_success[env_ids] = False

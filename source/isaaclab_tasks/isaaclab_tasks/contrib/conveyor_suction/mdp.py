@@ -228,7 +228,7 @@ class SizeSortCommand(CommandTerm):
             & (center[:, 0] + half_extents[:, 0] <= RECEIVING_PAD_RADIAL_BOUNDS[1])
             & (center[:, 1].abs() + half_extents[:, 1] <= RECEIVING_PAD_HALF_WIDTH)
         )
-        belt_velocity = env.bin_directions[ids, self.destination_ids[ids], :2] * env.cfg.conveyor_force.speed
+        belt_velocity = env.bin_directions[ids, self.destination_ids[ids], :2] * env.cfg.belt_speed
         horizontal_speed = torch.minimum(
             torch.linalg.vector_norm(state[:, 7:9], dim=-1),
             torch.linalg.vector_norm(state[:, 7:9] - belt_velocity, dim=-1),
@@ -583,7 +583,7 @@ class ResetParcels(ManagerTermBase):
         pick_positions[:, 1] = INTAKE_CENTER[1] + INTAKE_RADIUS * angle.cos()
         pick_yaw = angle
         parcel_velocities = torch.zeros((self.row_count, 6), device=self.device)
-        speed = env.cfg.conveyor_force.speed
+        speed = env.cfg.belt_speed
         unheld = phase_ids >= 2
         parcel_velocities[unheld, 0] = speed * angle[unheld].cos()
         parcel_velocities[unheld, 1] = speed * angle[unheld].sin()

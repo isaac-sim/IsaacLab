@@ -8,7 +8,7 @@
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
-from isaaclab.controllers import DifferentialIKControllerCfg
+from isaaclab.controllers import ConveyorCfg, DifferentialIKControllerCfg
 from isaaclab.envs import mdp as common_mdp
 from isaaclab.envs.reset import ResetStateSamplerCfg, TargetSuccessScoreCfg, UniformScoreCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -17,7 +17,7 @@ from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from ..conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg, ConveyorFrankaEnvCfg
+from ..conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from ..conveyor_franka.mdp.rewards import transfer_success_reward
 from ..conveyor_franka.mdp.terminations import invalid_action as invalid_policy_action
 from . import mdp, observations
@@ -116,17 +116,16 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
     episode_length_s: float = 120.0
     parcel_count: int = 5
     """Number of physical parcels instantiated in each environment, from 1 to 12."""
-    conveyor_force: ConveyorForceCfg = ConveyorForceCfg(
-        speed=0.25,
-        friction=0.6,
-        transported_body_pattern=r"(?:^|/)Cube[0-9]+(?:/|$)",
-        transported_body_count_per_env=5,
+    belt_speed: float = 0.25
+    belt_friction: float = 0.6
+    conveyor: ConveyorCfg = ConveyorCfg(
+        surface_specs=(), body_pattern=r"(?:^|/)Cube[0-9]+(?:/|$)", body_count_per_env=5
     )
 
     def __post_init__(self) -> None:
         super().__post_init__()
         # Match moving-parcel resets at operating speed after full and partial resets.
-        self.conveyor_force.startup_duration_s = self.sim.dt
+        self.conveyor.startup_duration_s = self.sim.dt
         for index in range(len(PARCEL_SIZES)):
             asset_cfg = SceneEntityCfg(f"parcel_{index}")
             setattr(

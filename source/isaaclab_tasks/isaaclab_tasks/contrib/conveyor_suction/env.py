@@ -27,7 +27,7 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
             setattr(self.cfg.scene, f"parcel_{index}", None)
             setattr(self.cfg.events, f"parcel_{index}_mass", None)
             setattr(self.cfg.events, f"parcel_{index}_material", None)
-        self.cfg.conveyor_force.transported_body_count_per_env = self.cfg.parcel_count
+        self.cfg.conveyor.body_count_per_env = self.cfg.parcel_count
         self.parcel_sizes = torch.tensor(PARCEL_SIZES[: self.cfg.parcel_count], device=self.device)
         self.parcel_classes = torch.tensor(
             PARCEL_CLASS_IDS[: self.cfg.parcel_count], dtype=torch.long, device=self.device
@@ -45,5 +45,6 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
         super()._reset_idx(env_ids)
         reset = self.event_manager.get_term_cfg("reset_parcels").func
         ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-        self.gripper.set_command(reset.held_rows[ids], self.active_ids[ids], env_ids=ids)
+        self.gripper.set_target_ids(self.active_ids[ids], env_ids=ids)
+        self.gripper.set_grippers_command(torch.where(reset.held_rows[ids], 1.0, -1.0), indices=ids)
         self.gripper.refresh(env_ids=ids)

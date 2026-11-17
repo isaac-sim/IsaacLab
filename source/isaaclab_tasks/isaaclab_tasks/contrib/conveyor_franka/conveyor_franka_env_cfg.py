@@ -8,14 +8,13 @@
 from __future__ import annotations
 
 import math
-import re
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg, NewtonMaterialPropertiesCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers import ConveyorSurfaceCfg
+from isaaclab.controllers import ConveyorCfg, ConveyorSurfaceCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -220,49 +219,6 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class ConveyorForceCfg:
-    """Configuration for force-based conveyor traction."""
-
-    speed: float = 0.35
-    """Tangential conveyor surface speed [m/s]."""
-
-    friction: float = 0.5
-    """Coulomb friction coefficient used to limit traction."""
-
-    normal_threshold: float = 0.997
-    """Minimum upward contact-normal alignment in the range [0, 1]."""
-
-    startup_duration_s: float = 1.0
-    """Duration over which conveyor traction ramps to full speed [s]."""
-
-    transported_body_pattern: str = r"(?:^|/)Cube_?[0-3](?:/|$)"
-    """Regular expression selecting rigid bodies that receive conveyor forces."""
-
-    transported_body_count_per_env: int = 4
-    """Expected number of transported rigid bodies in each environment."""
-
-    def validate_config(self) -> None:
-        """Validate final conveyor-force values after overrides are applied."""
-        if not math.isfinite(self.speed) or self.speed < 0.0:
-            raise ValueError(f"Conveyor speed must be non-negative, got {self.speed}.")
-        if not math.isfinite(self.friction) or self.friction < 0.0:
-            raise ValueError(f"Conveyor friction must be non-negative, got {self.friction}.")
-        if not math.isfinite(self.normal_threshold) or not 0.0 <= self.normal_threshold <= 1.0:
-            raise ValueError(f"Conveyor normal threshold must be in [0, 1], got {self.normal_threshold}.")
-        if not math.isfinite(self.startup_duration_s) or self.startup_duration_s <= 0.0:
-            raise ValueError(f"Conveyor startup duration must be positive, got {self.startup_duration_s}.")
-        if self.transported_body_count_per_env <= 0:
-            raise ValueError(
-                "Conveyor transported body count per environment must be positive, got "
-                f"{self.transported_body_count_per_env}."
-            )
-        try:
-            re.compile(self.transported_body_pattern)
-        except re.error as exc:
-            raise ValueError(f"Invalid conveyor transported-body pattern: {self.transported_body_pattern!r}.") from exc
-
-
 def _static_cuboid(
     prim_path: str,
     size: tuple[float, float, float],
@@ -428,7 +384,15 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "{DIR}.conveyor_franka_env:ConveyorFrankaEnv"
     scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=256, env_spacing=3.0)
-    conveyor_force: ConveyorForceCfg = ConveyorForceCfg()
+    conveyor: ConveyorCfg = ConveyorCfg(
+        surface_specs=(), body_pattern=r"(?:^|/)Cube_?[0-3](?:/|$)", body_count_per_env=4
+    )
+    belt_speed: float = 0.35
+    """Centerline speed used when authoring the scene's surface profiles [m/s]."""
+    belt_friction: float = 0.5
+    """Coulomb limit used when authoring the scene's surface profiles."""
+    belt_contact_threshold: float = 0.997
+    """Minimum upward-normal alignment accepted by the generated surface profiles."""
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
     observations: ObservationsCfg = ObservationsCfg()
@@ -487,6 +451,8 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
             raise ValueError("The conveyor Franka requires the shared Newton-actuator execution path.")
         if not math.isfinite(self.sim.dt) or self.sim.dt <= 0.0 or self.decimation <= 0:
             raise ValueError("Simulation dt and environment decimation must be positive.")
+        if self.belt_speed < 0.0:
+            raise ValueError(f"Conveyor belt_speed must be non-negative, got {self.belt_speed}.")
         arm_action = self.actions.arm_action
         if arm_action.joint_names != list(_ARM_JOINT_NAMES) or not arm_action.preserve_order:
             raise ValueError("Arm actions must preserve the explicit panda_joint1-to-panda_joint7 ordering.")
@@ -502,9 +468,13 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
         """Run continuing transfers from evenly distributed moving-belt starts."""
         super().play_mode()
         self.scene.num_envs = min(self.scene.num_envs, 8)
-        self.events.reset_from_state_table.params["fixed_recipe"] = int(mdp.ConveyorResetRecipe.BELT)
-        self.events.reset_from_state_table.params["fixed_variant_id"] = mdp.BELT_DEPLOYMENT_VARIANT
-        self.events.reset_from_state_table.params["cube_position_noise"] = 0.0
+        reset = self.events.reset_from_state_table
+        if reset is not None:
+            reset.params.update(
+                fixed_recipe=int(mdp.ConveyorResetRecipe.BELT),
+                fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT,
+                cube_position_noise=0.0,
+            )
         # Successful placements already transition to a new commanded cube.
         # Playback removes training-only refreshes and runs until physics leaves
         # the recoverable workspace.

@@ -56,11 +56,6 @@ class ConveyorTransferCommand(CommandTerm):
         self._validate_cfg(cfg)
         super().__init__(cfg, env)
 
-        reset_term = env.event_manager.get_term_cfg(cfg.reset_event_name).func
-        required_reset_fields = ("row_ids", "target_cube_ids", "source_side_ids", "held_rows")
-        if not all(hasattr(reset_term, name) for name in required_reset_fields):
-            raise RuntimeError("ConveyorTransferCommand requires ConveyorResetStateTable reset metadata.")
-        self._reset_term = reset_term
         self._robot: Articulation = env.scene["robot"]
         self._finger_joint_ids = self._robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)[0]
 
@@ -114,6 +109,9 @@ class ConveyorTransferCommand(CommandTerm):
         self.metrics["transfer_count"][ids] = self.transfer_counts[ids].float()
         self.metrics["left_to_right_transfers"][ids] = self.direction_transfer_counts[ids, 0].float()
         self.metrics["right_to_left_transfers"][ids] = self.direction_transfer_counts[ids, 1].float()
+        self.transfer_counts[ids] = 0
+        self.direction_transfer_counts[ids] = 0
+        self.ever_success[ids] = False
 
         self._resampling_from_reset = True
         try:
@@ -182,13 +180,11 @@ class ConveyorTransferCommand(CommandTerm):
         if ids.numel() == 0:
             return
         if self._resampling_from_reset:
-            rows = self._reset_term.row_ids[ids]
-            target_cube_ids = self._reset_term.target_cube_ids[rows]
-            source_side_ids = self._reset_term.source_side_ids[rows]
-            held_rows = self._reset_term.held_rows[rows]
-            self.transfer_counts[ids] = 0
-            self.direction_transfer_counts[ids] = 0
-            self.ever_success[ids] = False
+            reset_term = self._env.event_manager.get_term_cfg(self.cfg.reset_event_name).func
+            rows = reset_term.row_ids[ids]
+            target_cube_ids = reset_term.target_cube_ids[rows]
+            source_side_ids = reset_term.source_side_ids[rows]
+            held_rows = reset_term.held_rows[rows]
             self._assign_goal(ids, target_cube_ids, source_side_ids)
             self.held_cube_ids[ids] = torch.where(held_rows, target_cube_ids, -1)
             self.subgoal_start_steps[ids] = 0

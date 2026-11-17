@@ -8,13 +8,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.controllers import Conveyor, ConveyorCfg
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils import instantiate
 
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
+
+if TYPE_CHECKING:
+    from isaaclab.controllers import Conveyor
 
 
 class ConveyorFrankaEnv(ManagerBasedRLEnv):
@@ -47,18 +51,15 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
 
     def _init_sim(self) -> None:
         """Register solved-contact hooks before the first reset captures the solver."""
-        controller_cfg = ConveyorCfg(
+        controller_cfg = self.cfg.conveyor.replace(
             surface_specs=self.cfg.scene.build_conveyor_belt_specs(
-                velocity=self.cfg.conveyor_force.speed,
-                friction_coefficient=self.cfg.conveyor_force.friction,
-                contact_threshold=self.cfg.conveyor_force.normal_threshold,
+                velocity=self.cfg.belt_speed,
+                friction_coefficient=self.cfg.belt_friction,
+                contact_threshold=self.cfg.belt_contact_threshold,
             ),
-            startup_duration_s=self.cfg.conveyor_force.startup_duration_s,
             env_path_format=self.cfg.scene.clone_cfg.clone_template,
-            body_pattern=self.cfg.conveyor_force.transported_body_pattern,
-            body_count_per_env=self.cfg.conveyor_force.transported_body_count_per_env,
         )
-        driver = Conveyor(controller_cfg, self.cfg.scene.num_envs, sim=self.sim)
+        driver = instantiate(controller_cfg, self.cfg.scene.num_envs, sim=self.sim)
         self.conveyor = driver
         try:
             super()._init_sim()

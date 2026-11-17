@@ -87,7 +87,8 @@ def test_qualified_receipt_rewards_once_and_preserves_other_world(device):
         env.gripper.reset(ids)
         env.sim.forward()
         env.scene.update(env.step_dt)
-        env.gripper.set_command(torch.ones(2, dtype=torch.bool, device=device), parcels)
+        env.gripper.set_target_ids(parcels)
+        env.gripper.set_grippers_command(torch.ones(2, device=device))
         env.gripper.refresh()
         for _ in range(10):
             env.step(actions)

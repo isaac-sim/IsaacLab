@@ -112,6 +112,13 @@ def test_box_acquisition_lift_release_and_rebind(device):
             for _ in range(30):
                 step_tools(0.15)
             assert wp.to_torch(gripper.state).tolist() == [-1.0, 1.0]
+            # A selected refresh applies its staged close without consuming the
+            # other world's pending open command or releasing its held parcel.
+            gripper.set_grippers_command(torch.tensor([1.0, -1.0], device=device))
+            gripper.refresh(env_ids=torch.tensor([0], device=device))
+            for _ in range(10):
+                step_tools(0.15)
+            assert wp.to_torch(gripper.state).tolist() == [0.0, 1.0]
             gripper.set_grippers_command(-torch.ones(2, device=device))
             gripper.write_data_to_sim()
             for _ in range(200):

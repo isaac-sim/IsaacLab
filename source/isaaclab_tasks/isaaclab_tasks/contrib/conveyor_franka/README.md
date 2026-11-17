@@ -9,6 +9,8 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
 reporting. The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
 reset lifecycle; the task owns its geometry, transfer commands, and reset recipes.
+`env.conveyor` uses the public `ConveyorCfg`; `env.belt_speed`, `env.belt_friction` and
+`env.belt_contact_threshold` configure the scene-generated surface profiles.
 
 ## Run
 
@@ -81,9 +83,9 @@ DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
 For a static GL approximation, use `--viz newton_gl` and
 `env.sim.physics.load_visual_shapes=True`. External assets download on first use.
 Compatible policy shapes do not establish successful warehouse sorting; evaluate
-physical transfers and `batch_complete` separately. Training starts at home on the
-actual feeds, with the racetrack reset curriculum disabled. Playback parks the arm
-between assignments.
+physical transfers and `batch_complete` separately. One direct reset restores the home robot
+and all 24 parcels on the actual feeds; warehouse sorting builds no racetrack reset bank.
+Playback parks the arm between assignments.
 
 The task-owned USDA layers define routes, supports, parcel color bands and presentation.
 NVIDIA geometry and textures remain references to their original remote assets under
