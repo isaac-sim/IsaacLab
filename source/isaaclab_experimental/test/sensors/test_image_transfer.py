@@ -78,8 +78,8 @@ def _buffers(controls):
     return {"control": ProxyArray(wp.from_torch(controls))}
 
 
-def _processor(**kwargs):
-    cfg = ImageTransferProcessorCfg(backend=RecordingModelCfg(), seed=7, **kwargs)
+def _processor(seed=7, **kwargs):
+    cfg = ImageTransferProcessorCfg(backend=RecordingModelCfg(), seed=seed, **kwargs)
     processor = cfg.func(cfg, _buffers(_controls(0)))
     return processor, processor._owned_model
 
@@ -123,7 +123,21 @@ def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection
     _rgb(processor, 10)
 
     # View 1 starts again from its seed 8, advanced by the number of views for its second episode.
+    assert model.opened[-1] == (2, (7, 8))
     assert model.steps[-1][1:] == ((1,), (10,))
+
+
+def test_a_seed_list_gives_each_view_its_own_seed(no_sim):
+    processor, model = _processor(seed=[101, 202], initial_frames=1, update_frames=1)
+    _rgb(processor, 10)
+    processor.reset(env_ids=torch.tensor([1]))
+    _rgb(processor, 10)
+
+    # View 1 starts from its listed seed, advanced by the number of views for its second episode.
+    assert model.opened[-1] == (2, (101, 202))
+    assert model.steps[-1][1:] == ((1,), (204,))
+    with pytest.raises(ValueError, match="one seed per view"):
+        _processor(seed=[101])
 
 
 def test_a_capture_queues_controls_only_for_the_views_in_env_mask(no_sim):
