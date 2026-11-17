@@ -1199,7 +1199,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _draw_focal_length(self, imgui) -> None:
         """Draw the focal length of the free camera or the Tracking Camera; sensors have fixed intrinsics."""
         view = self._pose_source_view()
-        rtx_view = self._image_views[self.rtx_view_index] if self.rtx_view_index is not None else None
+        rtx_index = getattr(self, "rtx_view_index", None)
+        rtx_view = self._image_views[rtx_index] if rtx_index is not None else None
         if view.camera is not None and view is not rtx_view:
             return
         task = self._is_task_view(view)
@@ -1433,7 +1434,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """
         self._remember_perspective_pose()
         self.current_image_view = self._image_views[index]
-        if index != self.rtx_view_index:
+        if index != getattr(self, "rtx_view_index", None):
             self._rtx_pose_view = None
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
