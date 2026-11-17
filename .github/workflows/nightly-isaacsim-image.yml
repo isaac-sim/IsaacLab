@@ -154,20 +154,27 @@ jobs:
         run: |
           set -euo pipefail
 
+          remote_ref="refs/heads/$UPDATE_BRANCH"
+          remote_sha=""
+          if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
+            git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
+            remote_sha=$(git rev-parse "refs/remotes/origin/$UPDATE_BRANCH")
+            branch_base=$(git merge-base HEAD "$remote_sha")
+            # Review fixes on the rolling PR must land in main before the bot reconstructs its branch.
+            if ! git diff --quiet "$branch_base" "$remote_sha" -- . ":(exclude)$CONFIG_PATH"; then
+              echo "::error::$UPDATE_BRANCH contains changes beyond the image pin. Merge or preserve those changes before refreshing it."
+              exit 1
+            fi
+          fi
+
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
           git switch -C "$UPDATE_BRANCH"
           git add "$CONFIG_PATH"
           git commit -m "Bump Isaac Sim CI image digest"
 
-          remote_ref="refs/heads/$UPDATE_BRANCH"
-          if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
-            git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
-            remote_sha=$(git rev-parse "refs/remotes/origin/$UPDATE_BRANCH")
-            git push --force-with-lease="$remote_ref:$remote_sha" origin "HEAD:$remote_ref"
-          else
-            git push --force-with-lease="$remote_ref:" origin "HEAD:$remote_ref"
-          fi
+          # Lease the exact revision inspected above, including when the branch did not exist.
+          git push --force-with-lease="$remote_ref:$remote_sha" origin "HEAD:$remote_ref"
 
       - name: Open or refresh the draft PR
         if: ${{ steps.pin.outputs.changed == 'true' && !inputs.dry_run }}
