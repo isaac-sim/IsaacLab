@@ -18,8 +18,8 @@ from isaaclab_fovi.sensors.calibrated_geometry import (
     rotate_camera_rays,
     sampling_geometry,
 )
-from isaaclab_fovi.sensors.foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
-from isaaclab_fovi.sensors.foveated_rtx_tiled_camera import FoveatedRTXTiledCamera
+from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
+from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 from isaaclab_fovi.sensors.virtual_gaze import CalibratedVirtualGaze
 
@@ -128,7 +128,7 @@ def test_newton_fixation_preserves_camera_rotation_with_tf32(
     angles[1::2] = 0
     expected = matrix_from_quat(source.double()) @ conversion
     if mode == "planar":
-        camera = object.__new__(FoveatedNewtonTiledCamera)
+        camera = object.__new__(FoveatedNewtonCamera)
         camera._data = SimpleNamespace(quat_w_world=SimpleNamespace(torch=source))
         camera._fixation = angles
         camera._renderer = None
@@ -249,7 +249,7 @@ def test_rtx_calibrated_pose_writer_is_stable_inside_model_autocast(device: str,
     for enabled in [False, True]:
         with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
             camera.set_calibrated_angles(angles)
-            FoveatedRTXTiledCamera._write_calibrated_local_pose(camera)
+            FoveatedRTXCamera._write_calibrated_local_pose(camera)
     assert torch.isfinite(written[1]).all()
     assert written[1].dtype == torch.float32
     torch.testing.assert_close(written[1].norm(dim=-1), torch.ones(48, device=device))

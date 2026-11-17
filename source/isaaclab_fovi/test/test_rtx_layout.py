@@ -6,23 +6,23 @@
 """Reject atlas layouts that destroy spatial neighborhoods before rendering."""
 
 import pytest
-from isaaclab_fovi.sensors.foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
 
 @pytest.mark.parametrize("layout", ["row_major", "unknown"])
 def test_unsupported_layout_rejected_at_configuration(layout: str) -> None:
     with pytest.raises(ValueError, match="ndc_layout.*cortical_disc"):
-        FoveatedTiledCameraCfg(ndc_layout=layout)
+        FoveatedCameraCfg(ndc_layout=layout)
 
 
 def test_cortical_disc_remains_default() -> None:
-    assert FoveatedTiledCameraCfg().ndc_layout == "cortical_disc"
+    assert FoveatedCameraCfg().ndc_layout == "cortical_disc"
 
 
 def test_native_grid_requires_matching_sensor() -> None:
     with pytest.raises(ValueError, match="native_grid requires"):
-        FoveatedTiledCameraCfg(ndc_layout="native_grid")
+        FoveatedCameraCfg(ndc_layout="native_grid")
     with pytest.raises(ValueError, match="requires ndc_layout"):
-        FoveatedTiledCameraCfg(foveated_style="warped_cartesian_as_grid")
-    cfg = FoveatedTiledCameraCfg(ndc_layout="native_grid", foveated_style="warped_cartesian_as_grid")
+        FoveatedCameraCfg(foveated_style="warped_cartesian_as_grid")
+    cfg = FoveatedCameraCfg(ndc_layout="native_grid", foveated_style="warped_cartesian_as_grid")
     assert cfg.fov_type == "circular"

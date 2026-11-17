@@ -9,7 +9,7 @@ Subclasses :class:`isaaclab.sensors.Camera` to render foveated images
 via the RTX path tracer using ``OmniLensDistortionLutAPI`` textures.
 Per-sample values are extracted from the rendered 2D texture to produce
 vector ``(B, N, 1, C)`` or upright native-grid ``(B, H, W, C)`` output buffers,
-identical to :class:`FoveatedNewtonTiledCamera`.
+identical to :class:`FoveatedNewtonCamera`.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ from .fixed_software_fov import (
     retinal_ray_directions,
     validate_fixed_software_fov,
 )
+from .foveated_camera import FoveatedCamera
 from .native_grid import (
     GRID_STYLE,
     allocate_grid_outputs,
@@ -50,18 +51,17 @@ from .pooling import (
     is_segmentation_output,
     pool_hwc_buffer,
 )
-from .virtual_gaze import CalibratedVirtualGaze
 
 if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import BaseRenderer
 
-    from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from .foveated_camera_cfg import FoveatedCameraCfg
 
 logger = logging.getLogger(__name__)
 
 
-class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
-    """RTX tiled camera that renders with foveated (CMF-distributed) rays.
+class FoveatedRTXCamera(FoveatedCamera):
+    """RTX camera that renders with foveated (CMF-distributed) rays.
 
     Instead of Newton's Warp ray arrays, this sensor creates
     ``OmniLensDistortionLutAPI`` Camera prims with LUT textures that define
@@ -74,14 +74,14 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
     a physical or idealized actuator.
     """
 
-    cfg: FoveatedTiledCameraCfg
+    cfg: FoveatedCameraCfg
 
     @property
     def supports_batch_update(self) -> bool:
         return True
 
     @staticmethod
-    def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXTiledCamera]) -> None:
+    def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXCamera]) -> None:
         Camera._update_buffers_batch_impl(sensors)
         if sim_utils.SimulationContext.instance() is None:
             return  # The base implementation already invoked scalar capture.
@@ -93,7 +93,7 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
         """Renderer shared with task-owned visual animation bindings."""
         return self._renderer
 
-    def __init__(self, cfg: FoveatedTiledCameraCfg):
+    def __init__(self, cfg: FoveatedCameraCfg):
         if cfg.field_geometry == "spherical":
             cfg.update_latest_camera_pose = True
         if cfg.camera_fov_deg is not None:
@@ -296,7 +296,7 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
         )
         print(
             f"\n{'=' * 60}\n"
-            f"  FoveatedRTXTiledCamera\n"
+            f"  FoveatedRTXCamera\n"
             f"    HFOV:       {self._camera_hfov_deg:.1f}°\n"
             f"    Samples:    N={self._num_valid_samples}\n"
             f"    Texture:    {tw}x{th}\n"
@@ -402,7 +402,7 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
             self._data.output = new_output
 
         logger.info(
-            "FoveatedRTXTiledCamera: %d samples, %dx%d texture, layout=%s",
+            "FoveatedRTXCamera: %d samples, %dx%d texture, layout=%s",
             self._num_ray_samples,
             tw,
             th,
@@ -461,7 +461,7 @@ class FoveatedRTXTiledCamera(CalibratedVirtualGaze, Camera):
                     mode=self.cfg.pool_int_mode,
                 )
             logger.info(
-                "FoveatedRTXTiledCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
+                "FoveatedRTXCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
                 self.cfg.pool_mode,
                 self._pool_k,
                 self.cfg.pool_sample_cortex,

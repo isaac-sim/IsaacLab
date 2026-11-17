@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared retinal-pooling helpers for FoveatedTiledCamera backends.
+"""Shared retinal-pooling helpers for FoveatedCamera backends.
 
 Builds a pair of (lowres, highres) :class:`SamplingCoords` and a retinal
 pooler analogous to :class:`fovi.sensing.samplers.PoolingGridSampler`, but driven by a
-:class:`FoveatedTiledCameraCfg` and operating on rays rather than images.
+:class:`FoveatedCameraCfg` and operating on rays rather than images.
 
 Key deviation from ``PoolingGridSampler``: the highres grid shares ``cmf_a`` with
 the lowres grid (no ``cmf_a_mult``).  Only ``res`` is scaled by
@@ -37,10 +37,10 @@ if TYPE_CHECKING:
     from fovi.arch.pooling import GridPoolingLayer
     from fovi.sensing.coords import SamplingCoords
 
-    from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from .foveated_camera_cfg import FoveatedCameraCfg
 
 
-def build_lowres_coords(cfg: FoveatedTiledCameraCfg, device: str) -> tuple[SamplingCoords, int]:
+def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCoords, int]:
     """Build the lowres (RGC / public output) SamplingCoords.
 
     Returns ``(lowres_coords, matched_res)`` where ``matched_res`` is the
@@ -76,7 +76,7 @@ def build_lowres_coords(cfg: FoveatedTiledCameraCfg, device: str) -> tuple[Sampl
     return lowres, matched_res
 
 
-def build_highres_coords(cfg: FoveatedTiledCameraCfg, matched_res: int, device: str) -> SamplingCoords | None:
+def build_highres_coords(cfg: FoveatedCameraCfg, matched_res: int, device: str) -> SamplingCoords | None:
     """Build the highres (photoreceptor) SamplingCoords when pooling is on."""
     if not cfg.pool_enabled:
         return None
@@ -101,7 +101,7 @@ def build_highres_coords(cfg: FoveatedTiledCameraCfg, matched_res: int, device: 
 
 
 def build_pooler(
-    cfg: FoveatedTiledCameraCfg,
+    cfg: FoveatedCameraCfg,
     lowres: SamplingCoords,
     highres: SamplingCoords | None,
     device: str,

@@ -32,6 +32,7 @@ from .fixed_software_fov import (
     retinal_ray_directions,
     validate_fixed_software_fov,
 )
+from .foveated_camera import FoveatedCamera
 from .foveated_rays import compute_explicit_ray_array, compute_foveated_ray_array
 from .native_grid import (
     GRID_STYLE,
@@ -49,10 +50,9 @@ from .pooling import (
     is_segmentation_output,
     pool_hwc_buffer,
 )
-from .virtual_gaze import CalibratedVirtualGaze
 
 if TYPE_CHECKING:
-    from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
+    from .foveated_camera_cfg import FoveatedCameraCfg
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,8 @@ def _pack_vector_rays(
     target[i, 1] = source[source_i, 1]
 
 
-class FoveatedNewtonTiledCamera(CalibratedVirtualGaze, Camera):
-    """Newton tiled camera that renders with foveated (CMF-distributed) rays.
+class FoveatedNewtonCamera(FoveatedCamera):
+    """Newton camera that renders with foveated (CMF-distributed) rays.
 
     Instead of a uniform pixel grid, this sensor shoots *N* rays whose
     directions are derived from :class:`fovi.sensing.coords.SamplingCoords`
@@ -81,9 +81,9 @@ class FoveatedNewtonTiledCamera(CalibratedVirtualGaze, Camera):
     full scene.  Fixation is applied as a per-environment camera rotation.
     """
 
-    cfg: FoveatedTiledCameraCfg
+    cfg: FoveatedCameraCfg
 
-    def __init__(self, cfg: FoveatedTiledCameraCfg):
+    def __init__(self, cfg: FoveatedCameraCfg):
         if cfg.field_geometry == "spherical":
             cfg.update_latest_camera_pose = True
         if cfg.camera_fov_deg is not None:
@@ -157,7 +157,7 @@ class FoveatedNewtonTiledCamera(CalibratedVirtualGaze, Camera):
         )
         print(
             f"\n{'=' * 60}\n"
-            f"  FoveatedNewtonTiledCamera\n"
+            f"  FoveatedNewtonCamera\n"
             f"    HFOV:       {self._camera_hfov_deg:.1f}°\n"
             f"    Projection: {self.cfg.projection}\n"
             f"    Samples:    N={self._num_valid_samples}\n"
@@ -317,7 +317,7 @@ class FoveatedNewtonTiledCamera(CalibratedVirtualGaze, Camera):
         # 6. Inject foveated rays into render_data immediately.
         self._render_data.camera_rays = self._foveated_rays
         logger.info(
-            "FoveatedNewtonTiledCamera: injected foveated rays shape=%s onto render_data",
+            "FoveatedNewtonCamera: injected foveated rays shape=%s onto render_data",
             self._foveated_rays.shape,
         )
 
@@ -368,12 +368,12 @@ class FoveatedNewtonTiledCamera(CalibratedVirtualGaze, Camera):
                 )
             dtypes_summary = {n: str(t.dtype).removeprefix("torch.") for n, t in self._highres_output.items()}
             print(
-                f"[FoveatedNewtonTiledCamera] pool outputs={dtypes_summary} "
+                f"[FoveatedNewtonCamera] pool outputs={dtypes_summary} "
                 f"pool_mode={self.cfg.pool_mode!r} int_mode={self.cfg.pool_int_mode!r} "
                 f"int_pooler_built={self._pooler_int is not None}"
             )
             logger.info(
-                "FoveatedNewtonTiledCamera: KNN pooling enabled "
+                "FoveatedNewtonCamera: KNN pooling enabled "
                 "(mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) "
                 "outputs=%s int_pooler=%s int_mode=%s",
                 self.cfg.pool_mode,

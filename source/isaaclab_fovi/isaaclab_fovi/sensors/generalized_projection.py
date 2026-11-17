@@ -26,7 +26,7 @@ camera prim:
   returns the sensor NDC ``(u, v)`` of the nearest sample.
 
 Ported from ``fovi-rtx/generalized_projection.py`` — contains only the
-subset of functions required by :class:`FoveatedRTXTiledCamera`.
+subset of functions required by :class:`FoveatedRTXCamera`.
 
 Coordinate conventions:
 

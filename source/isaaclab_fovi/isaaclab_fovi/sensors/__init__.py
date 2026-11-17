@@ -3,75 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Camera sensors and simulator-independent projection helpers.
+"""Foveated camera sensors and simulator-independent projection helpers.
 
-Backend classes are imported on demand so Newton and pure geometry callers
-do not load the RTX runtime.
+Names are imported on first access, so reading the configuration or the geometry
+helpers does not load a renderer runtime.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+import importlib
+from typing import Any
 
-if TYPE_CHECKING:
-    import warp as wp
+_LAZY_EXPORTS = {
+    "FoveatedCamera": "foveated_camera",
+    "FoveatedCameraCfg": "foveated_camera_cfg",
+    "FoveatedNewtonCamera": "foveated_newton_camera",
+    "FoveatedRTXCamera": "foveated_rtx_camera",
+    "compute_foveated_ray_array": "foveated_rays",
+}
 
-    from .foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
-    from .foveated_rays import compute_foveated_ray_array
-    from .foveated_rtx_tiled_camera import FoveatedRTXTiledCamera
-    from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
-
-__all__ = [
-    "FoveatedNewtonTiledCamera",
-    "FoveatedRTXTiledCamera",
-    "FoveatedTiledCamera",
-    "FoveatedTiledCameraCfg",
-    "compute_foveated_ray_array",
-]
+__all__ = list(_LAZY_EXPORTS)
 
 
-def FoveatedTiledCamera(
-    cfg: FoveatedTiledCameraCfg,
-) -> FoveatedNewtonTiledCamera | FoveatedRTXTiledCamera:
-    """Construct a foveated camera for the explicitly selected renderer.
-
-    Args:
-        cfg: Camera configuration with a concrete renderer configuration.
-
-    Raises:
-        ValueError: The renderer is not supported.
-        NotImplementedError: Non-tiled Isaac RTX rendering is requested.
-    """
-    renderer_type = cfg.renderer_cfg.renderer_type
-    if renderer_type == "newton_warp":
-        from .foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
-
-        return FoveatedNewtonTiledCamera(cfg)
-    if renderer_type in ("isaac_rtx", "ovrtx"):
-        if not cfg.tiled:
-            raise NotImplementedError("Non-tiled foveated RTX rendering is not implemented. Use tiled=True.")
-        from .foveated_rtx_tiled_camera import FoveatedRTXTiledCamera
-
-        return FoveatedRTXTiledCamera(cfg)
-    raise ValueError(f"Unsupported foveated renderer {renderer_type!r}; select 'newton_warp', 'isaac_rtx', or 'ovrtx'.")
-
-
-def __getattr__(name: str) -> type | Callable[..., wp.array]:
-    if name == "FoveatedTiledCameraCfg":
-        from .foveated_tiled_camera_cfg import FoveatedTiledCameraCfg
-
-        return FoveatedTiledCameraCfg
-    if name == "FoveatedNewtonTiledCamera":
-        from .foveated_newton_tiled_camera import FoveatedNewtonTiledCamera
-
-        return FoveatedNewtonTiledCamera
-    if name == "FoveatedRTXTiledCamera":
-        from .foveated_rtx_tiled_camera import FoveatedRTXTiledCamera
-
-        return FoveatedRTXTiledCamera
-    if name == "compute_foveated_ray_array":
-        from .foveated_rays import compute_foveated_ray_array
-
-        return compute_foveated_ray_array
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+def __getattr__(name: str) -> Any:
+    module = _LAZY_EXPORTS.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(importlib.import_module(f"{__name__}.{module}"), name)
