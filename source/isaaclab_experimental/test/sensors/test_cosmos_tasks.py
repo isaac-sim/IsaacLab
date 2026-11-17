@@ -5,6 +5,7 @@
 
 """Cosmos on camera tasks: ``cosmos_camera`` on an unmodified task, and the registered Cosmos tasks."""
 
+import os
 import subprocess
 import sys
 import textwrap
@@ -271,6 +272,13 @@ def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
     assert longer_model.max_episode_frames >= 901
     # The prompt describes the real demonstrations' appearance.
     assert "apple" in read_prompt_files([model.prompt_files])[0]
+    # ``env.cosmos`` overrides choose other appearances, here every bundled prompt in sorted order.
+    pattern = os.path.join(os.path.dirname(model.prompt_files), "apple_pick_place*.json")
+    varied = parse_env_cfg(APPLE_TASK, overrides=(f"env.cosmos.prompt_files={pattern}",))
+    processors = varied.scene.head_camera.tensor_processors
+    assert next(p.backend for p in processors if isinstance(p, CosmosTransferProcessorCfg)).prompt_files == pattern
+    prompts = read_prompt_files([pattern])
+    assert len(prompts) == 5 and prompts[0] == read_prompt_files([model.prompt_files])[0]
     # The core task keeps the rendered image.
     assert not parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=()).scene.head_camera.tensor_processors
 

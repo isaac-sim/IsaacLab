@@ -37,9 +37,22 @@ class G1ApplePickPlaceCosmosEnvCfg(G1ApplePickPlaceEnvCfg):
         num_envs=1, env_spacing=3.0, head_camera=APPLE_COSMOS_HEAD_CAMERA_CFG
     )
 
+    @property
+    def cosmos(self) -> CosmosModelCfg:
+        """The head camera's Cosmos settings; overrides such as ``env.cosmos.prompt_files=...`` set them."""
+        return self._cosmos_transfer().backend
+
+    @cosmos.setter
+    def cosmos(self, settings: CosmosModelCfg):
+        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
+        self._cosmos_transfer().backend = settings
+
     def validate_config(self):
         """Size the Cosmos episode to the task's final duration and capture rate."""
+        if self.cosmos.max_episode_frames is None:
+            self.cosmos.max_episode_frames = episode_frame_budget(self, self.scene.head_camera.update_period)[2]
+
+    def _cosmos_transfer(self) -> CosmosTransferProcessorCfg:
+        """Return the head camera's Cosmos step."""
         processors = self.scene.head_camera.tensor_processors
-        model = next(cfg.backend for cfg in processors if isinstance(cfg, CosmosTransferProcessorCfg))
-        if model.max_episode_frames is None:
-            model.max_episode_frames = episode_frame_budget(self, self.scene.head_camera.update_period)[2]
+        return next(cfg for cfg in processors if isinstance(cfg, CosmosTransferProcessorCfg))
