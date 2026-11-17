@@ -66,6 +66,8 @@ class BaseRayCaster(SensorBase):
     (e.g. CUDA) when multiple simulation contexts or tests use different devices in the same Python process."""
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
+    _num_created: ClassVar[int] = 0
+    """The number of ray casters constructed so far; each takes the count as its creation index."""
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -79,6 +81,9 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled = False
         # Drift random states, allocated when the rays initialize; every configure_seed reseeds them.
         self._drift_rng_state: wp.array | None = None
+        # The scene constructs sensors in config order, so the creation index is stable for a given scene.
+        self._creation_index = BaseRayCaster._num_created
+        BaseRayCaster._num_created += 1
         add_seed_listener(self._seed_drift)
 
     def __str__(self) -> str:
@@ -269,10 +274,11 @@ class BaseRayCaster(SensorBase):
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 
     def _seed_drift(self, seed: int) -> None:
-        """Seed the drift random states from ``seed`` mixed with the prim path, so each ray caster draws its own drift.
+        """Seed the drift random states from ``seed`` mixed with the prim path and the creation index.
 
-        Runs when the rays initialize and on every :func:`~isaaclab.utils.seed.configure_seed`, on the host where
-        the seed is set, never inside a recorded reset.
+        Each ray caster draws its own drift, including ray casters mounted on the same prim. Runs when the rays
+        initialize and on every :func:`~isaaclab.utils.seed.configure_seed`, on the host where the seed is set, never
+        inside a recorded reset.
         """
         # No states before the rays initialize, and none in the ray-caster cameras, which do not resample drift.
         if self._drift_rng_state is None:
@@ -280,7 +286,7 @@ class BaseRayCaster(SensorBase):
         wp.launch(
             initialize_rng_state,
             dim=self._view_count,
-            inputs=[(seed ^ zlib.crc32(self.cfg.prim_path.encode())) & 0x7FFFFFFF],
+            inputs=[(seed ^ zlib.crc32(self.cfg.prim_path.encode()) ^ self._creation_index) & 0x7FFFFFFF],
             outputs=[self._drift_rng_state],
             device=self._device,
         )

@@ -260,27 +260,31 @@ def test_drift_follows_the_environment_seed(sim):
     """An explicit seed, as ``env.reset(seed=...)`` sets, restarts the drift sequence; unseeded resets advance it.
 
     Resets do not draw from torch's generator, and new storage, as after a simulation stop and play, starts the
-    drift sequence of the current seed again. Two ray casters with the same drift ranges draw different drift:
-    each mixes its prim path into the seed.
+    drift sequence of the current seed again. Two ray casters on the same prim with the same drift ranges draw
+    different drift after every seed.
     """
     scene_cfg = RaycastTestSceneCfg(num_envs=2)
     scene_cfg.raycast.drift_range = (0.01, 0.05)
-    scene_cfg.raycast_box = replace(scene_cfg.raycast, prim_path="{ENV_REGEX_NS}/Box")
+    twin_offset = NewtonRaycastSensorCfg.OffsetCfg(pos=(0.1, 0.0, -RAY_OFFSET))
+    scene_cfg.raycast_twin = replace(scene_cfg.raycast, offset=twin_offset)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     sensor: NewtonRaycastSensor = scene["raycast"]
+    twin: NewtonRaycastSensor = scene["raycast_twin"]
 
     configure_seed(123)
     sensor.reset()
     first = sensor.drift.torch.clone()
-    scene["raycast_box"].reset()
-    assert not torch.allclose(scene["raycast_box"].drift.torch, first)
+    twin.reset()
+    assert not torch.allclose(twin.drift.torch, first)
     sensor.reset()
     assert not torch.allclose(sensor.drift.torch, first)
     configure_seed(123)
     state = torch.cuda.get_rng_state(sensor.device)
     sensor.reset()
     torch.testing.assert_close(sensor.drift.torch, first)
+    twin.reset()
+    assert not torch.allclose(twin.drift.torch, first)
     sensor._initialize_rays_impl()
     sensor.reset()
     torch.testing.assert_close(sensor.drift.torch, first)

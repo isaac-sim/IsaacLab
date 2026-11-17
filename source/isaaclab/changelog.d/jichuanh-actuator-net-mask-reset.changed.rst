@@ -5,5 +5,5 @@
   recorded in a CUDA graph resamples the drift of the selected environments on every replay. The states are seeded
   from the environment seed when the sensor initializes and again by every
   :func:`~isaaclab.utils.seed.configure_seed`, including the one ``env.reset(seed=...)`` makes, so a seeded reset
-  repeats the drift and unseeded resets keep advancing it. Drift no longer draws from Torch's generator. The drift
-  ranges are unchanged; the drawn values differ.
+  repeats the drift and unseeded resets keep advancing it. Each ray caster draws its own drift. Drift no longer draws
+  from Torch's generator. The drift ranges are unchanged; the drawn values differ.
