@@ -15,6 +15,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.assets.surface_gripper import BaseSurfaceGripper
+from isaaclab.assets.surface_gripper import SurfaceGripperCfg as LabSurfaceGripperCfg
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
@@ -78,7 +79,7 @@ class SurfaceGripper(AssetBase, BaseSurfaceGripper):
         Use `--device cpu` to run the simulation on CPU.
     """
 
-    def __init__(self, cfg: SurfaceGripperCfg, *, sim=None):
+    def __init__(self, cfg: SurfaceGripperCfg, *, sim: sim_utils.SimulationContext | None = None) -> None:
         """Initialize the surface gripper.
 
         Args:
@@ -87,6 +88,18 @@ class SurfaceGripper(AssetBase, BaseSurfaceGripper):
         """
         if sim is not None and sim is not sim_utils.SimulationContext.instance():
             raise ValueError("PhysX surface grippers require the current simulation context.")
+        defaults = LabSurfaceGripperCfg()
+        for name, value, default in (
+            ("target_prim_path", cfg.target_prim_path, defaults.target_prim_path),
+            ("tool_offset", tuple(cfg.tool_offset), defaults.tool_offset),
+            ("pad_spacing", cfg.pad_spacing, defaults.pad_spacing),
+            ("pad_radius", cfg.pad_radius, defaults.pad_radius),
+            ("contact_gap", cfg.contact_gap, defaults.contact_gap),
+            ("break_distance", cfg.break_distance, defaults.break_distance),
+            ("force_per_pad", cfg.force_per_pad, defaults.force_per_pad),
+        ):
+            if value != default:
+                raise NotImplementedError(f"PhysX surface grippers do not support the Newton property {name!r}.")
 
         # copy the configuration
         self._cfg = clone(cfg)

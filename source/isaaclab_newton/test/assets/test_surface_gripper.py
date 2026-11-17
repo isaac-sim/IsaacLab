@@ -10,6 +10,9 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
+from isaaclab_physx.assets import SurfaceGripper as PhysxSurfaceGripper
+from isaaclab_physx.assets import SurfaceGripperCfg as PhysxSurfaceGripperCfg
+from newton import eval_fk
 
 from isaaclab.assets import SurfaceGripper, SurfaceGripperCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -22,13 +25,15 @@ pytestmark = pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_box_acquisition_lift_release_and_rebind(device):
     """Payloads lift after hard resets, release on command, and reset independently."""
-    legacy_cfg = SurfaceGripperCfg(*([None] * 8), 0.01, 5.0, 3.0, 0.1)
+    legacy_cfg = PhysxSurfaceGripperCfg(*([None] * 8), 0.01, 5.0, 3.0, 0.1)
     assert (
         legacy_cfg.max_grip_distance,
         legacy_cfg.coaxial_force_limit,
         legacy_cfg.shear_force_limit,
         legacy_cfg.retry_interval,
     ) == (0.01, 5.0, 3.0, 0.1)
+    with pytest.raises(NotImplementedError, match="Newton property 'pad_radius'"):
+        PhysxSurfaceGripper(legacy_cfg.replace(pad_radius=0.02))
     cfg = SimulationCfg(
         device=device,
         dt=1 / 120,
@@ -66,20 +71,26 @@ def test_box_acquisition_lift_release_and_rebind(device):
                     # Compound bodies are outside the single-box payload contract.
                     builder.add_shape_sphere(parcel, radius=0.005)
             builder.end_world()
-        gripper = SurfaceGripper(
-            SurfaceGripperCfg(prim_path=r".*/Robot/panda_hand", target_prim_path=r".*/Cube[0-9]+"), sim=sim
+
+        def make_cfg_only_gripper(cfg):
+            return SurfaceGripper(cfg)
+
+        scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=0.0)
+        scene_cfg.suction = SurfaceGripperCfg(
+            prim_path=r".*/Robot/panda_hand", target_prim_path=r".*/Cube[0-9]+", class_type=make_cfg_only_gripper
         )
-        scene = InteractiveScene(InteractiveSceneCfg(num_envs=2, env_spacing=0.0))
-        scene.surface_grippers["suction"] = gripper
+        scene = InteractiveScene(scene_cfg)
+        gripper = scene["suction"]
 
         def step_tools(lift, vertical_velocity=0.0):
             # Drive standalone kinematic tools; tasks drive the robot through actuators.
             state = manager.backend.state_0
-            pose, velocity = state.body_q.numpy(), state.body_qd.numpy()
-            pose[tools, 2] = 2 * half_sizes[:, 2] + 0.105 + lift
-            velocity[tools, 2] = vertical_velocity
-            state.body_q.assign(pose)
-            state.body_qd.assign(velocity)
+            pose, velocity = state.joint_q.numpy(), state.joint_qd.numpy()
+            pose[tool_q + 2] = 2 * half_sizes[:, 2] + 0.105 + lift
+            velocity[tool_qd + 2] = vertical_velocity
+            state.joint_q.assign(pose)
+            state.joint_qd.assign(velocity)
+            eval_fk(model, state.joint_q, state.joint_qd, state)
             sim.step(render=False)
 
         try:
@@ -89,8 +100,11 @@ def test_box_acquisition_lift_release_and_rebind(device):
                 tools = [body for body, label in enumerate(model.body_label) if label.endswith("/panda_hand")]
                 parcels = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube2")]
                 distant = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube0")]
+                tool_joints = np.flatnonzero(np.isin(model.joint_child.numpy(), tools))
+                tool_q = model.joint_q_start.numpy()[tool_joints]
+                tool_qd = model.joint_qd_start.numpy()[tool_joints]
                 if reset_index:
-                    gripper.set_target_ids(torch.ones(2, dtype=torch.long, device=device))
+                    gripper.set_target_ids(torch.zeros(2, dtype=torch.long, device=device))
                 else:
                     with pytest.raises(ValueError, match="one command per gripper"):
                         gripper.set_grippers_command_mask(wp.ones(3, dtype=wp.float32, device=device))
@@ -99,6 +113,11 @@ def test_box_acquisition_lift_release_and_rebind(device):
                     wp.full(2, True, dtype=wp.bool, device=device),
                 )
                 gripper.write_data_to_sim()
+                if reset_index:
+                    for _ in range(20):
+                        step_tools(0.0)
+                    assert wp.to_torch(gripper.state).tolist() == [0.0, 0.0]
+                    gripper.set_target_ids(torch.ones(2, dtype=torch.long, device=device))
                 for step in range(400):
                     step_tools(min(max(step - 100, 0), 250) * 0.0006, 0.072 if 100 <= step < 350 else 0.0)
                 assert wp.to_torch(gripper.state).tolist() == [1.0, 1.0]
@@ -106,6 +125,14 @@ def test_box_acquisition_lift_release_and_rebind(device):
                 assert np.all(lifted > half_sizes[:, 2] + 0.12)
                 assert np.all(manager.backend.state_0.body_q.numpy()[distant, 2] < half_sizes[:, 2] + 0.01)
                 if not reset_index:
+                    velocities = manager.backend.state_0.joint_qd.numpy()
+                    parcel_joint = np.flatnonzero(model.joint_child.numpy() == parcels[0])[0]
+                    velocities[model.joint_qd_start.numpy()[parcel_joint] + 2] = -20.0
+                    manager.backend.state_0.joint_qd.assign(velocities)
+                    step_tools(0.15)
+                    assert abs(manager.backend.state_0.body_q.numpy()[parcels[0], 2] - lifted[0]) > 0.025
+                    scene.update(sim.cfg.dt)
+                    assert wp.to_torch(gripper.state).tolist() == [0.0, 1.0]
                     scene.reset_to(
                         {"gripper": {"suction": -torch.ones(1, device=device)}},
                         env_ids=torch.tensor([0], device=device),

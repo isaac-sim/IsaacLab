@@ -1,1 +1,1 @@
-* Preserved existing surface-gripper imports while implementing the common Isaac Lab surface-gripper interface and explicit scene teardown.
+* Preserved existing surface-gripper imports while implementing the common Isaac Lab surface-gripper interface and explicit scene teardown. Rejected unsupported nondefault Newton tool settings instead of silently ignoring them.
