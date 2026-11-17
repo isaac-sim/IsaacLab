@@ -131,3 +131,36 @@ def test_ray_caster_rejects_partial_native_mounts(device):
         with pytest.raises(RuntimeError, match="found 2 instances in 4 environments"):
             sim.reset()
         assert not scene["scanner"].is_initialized
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_ray_caster_mounted_on_environment_root_follows_environment_origins(device):
+    """A scanner mounted on the cloned environment root casts from each environment's native placement."""
+    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0)
+    scene_cfg.target = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Target",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.5, 0.5, 0.5),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, -0.5, 0.0)),
+    )
+    scene_cfg.scanner = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}",
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.5, -0.5, 1.0)),
+        mesh_prim_paths=[MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Target")],
+        pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+        ray_alignment="world",
+    )
+    cfg = sim_utils.SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with sim_utils.build_simulation_context(sim_cfg=cfg) as sim:
+        scene = instantiate(scene_cfg)
+        sim.reset()
+        sensor = scene["scanner"]
+        sensor.update(dt=0.0, force_recompute=True)
+        assert scene.env_origins.norm(dim=-1).max() > 0.0
+        torch.testing.assert_close(sensor.data.pos_w.torch, scene.env_origins)
+        expected = (scene.env_origins + torch.tensor([0.5, -0.5, 0.25], device=sim.device))[:, None, :]
+        torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
