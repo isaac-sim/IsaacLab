@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import filecmp
 import functools
+import itertools
 import logging
 import math
 import os
@@ -412,6 +414,9 @@ class BaseUsdExporter(ABC):
         for index, env_path in enumerate(self.scene.env_prim_paths):
             if index != self.env_id:
                 stage.RemovePrim(env_path)
+                # That removes the root layer's opinions only; a weaker layer may still define the environment.
+                if prim := stage.GetPrimAtPath(env_path):
+                    prim.SetActive(False)
 
     @staticmethod
     def _apply_edits(stage: Usd.Stage, edits: list[UsdEdit]):
@@ -458,6 +463,9 @@ class BaseUsdExporter(ABC):
                 UsdEdit(path, drive + "stiffness", kp, schema=schema),
                 UsdEdit(path, drive + "damping", kd, schema=schema),
             ]
+            # The actuator's PD law outputs a force; an acceleration drive would scale its gains by the inertia.
+            if self._get_authored_value(joint, drive + "type") not in (None, UsdPhysics.Tokens.force):
+                edits.append(UsdEdit(path, drive + "type", UsdPhysics.Tokens.force, "token", schema))
             # The engine clamps at the joint effort limit; the actuator clamps its output as well.
             max_effort, max_force = (
                 prim.GetAttribute("newton:maxEffort").Get(),
@@ -507,7 +515,13 @@ class BaseUsdExporter(ABC):
         directory = os.path.dirname(os.path.abspath(export_path))
         folder = os.path.splitext(os.path.abspath(export_path))[0] + "_files"
         os.makedirs(folder, exist_ok=True)
-        return "./" + os.path.relpath(shutil.copy2(source, folder), directory)
+        # Files of the same name with other contents, e.g. from other folders, get copies of their own.
+        stem, extension = os.path.splitext(os.path.basename(source))
+        for index in itertools.count():
+            target = os.path.join(folder, f"{stem}_{index}{extension}" if index else stem + extension)
+            if not os.path.exists(target) or filecmp.cmp(source, target, shallow=False):
+                break
+        return "./" + os.path.relpath(shutil.copy2(source, target), directory)
 
     """
     Edits.
@@ -577,7 +591,9 @@ class BaseUsdExporter(ABC):
             # USD states an unset mass as zero, and an import derives it from the geometry.
             logger.warning(f"USD cannot state the zero mass of '{prim.GetPath()}'; an import derives one.")
             return []
-        if "body_mass" in changed and cls._get_authored_value(prim, "physics:diagonalInertia") is None:
+        moments = cls._get_authored_value(prim, "physics:diagonalInertia")
+        if "body_mass" in changed and (moments is None or not np.any(np.asarray(moments))):
+            # A zero diagonal inertia is unspecified as an unset one is.
             changed = {*changed, "body_inertia"}
         scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
         com = np.asarray(com, dtype=float) / scale
@@ -592,7 +608,6 @@ class BaseUsdExporter(ABC):
             value = [inertia[0, 0], inertia[1, 1], inertia[2, 2], inertia[0, 1], inertia[0, 2], inertia[1, 2]]
             if not cls._is_close(np.asarray(compact, dtype=float), value):
                 edits.append(UsdEdit(str(prim.GetPath()), "newton:inertia", [float(v) for v in value], "double[]"))
-        moments = cls._get_authored_value(prim, "physics:diagonalInertia")
         rotation = np.asarray(
             Gf.Matrix3d(Gf.Quatd(cls._get_authored_value(prim, "physics:principalAxes") or Gf.Quatf(1)))
         ).T
@@ -602,7 +617,12 @@ class BaseUsdExporter(ABC):
             edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
             edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
         stated = {attribute: name for name, attributes in _MASS_ATTRIBUTES.items() for attribute in attributes}
-        return [edit for edit in edits if edit is not None and stated[edit.attribute] in changed]
+        written = [edit for edit in edits if edit is not None and stated[edit.attribute] in changed]
+        if written and "PhysicsMassAPI" not in prim.GetAppliedSchemas():
+            # The edits apply the schema, which turns on the mass properties authored without it; restate those.
+            changed = {*changed, *(name for a, name in stated.items() if cls._get_authored_value(prim, a) is not None)}
+            written = [edit for edit in edits if edit is not None and stated[edit.attribute] in changed]
+        return written
 
     @classmethod
     def _compute_pose_edit(cls, prim: Usd.Prim, pose: np.ndarray) -> UsdEdit | None:
