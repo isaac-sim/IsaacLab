@@ -486,6 +486,15 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_parser_accepts_env_overrides_between_flags(backend) -> None:
+    """Trailing KEY=VALUE env overrides may be mixed with the RLinf options."""
+    args = backend._parse_args(["--config_name", "ppo", "physics=newton_mjwarp", "--seed", "1", "a.b=2"])
+
+    assert args.env_overrides == ["physics=newton_mjwarp", "a.b=2"]
+    assert args.seed == 1
+
+
 def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
     """TorchRL accepts the same run-name option exposed by the other training frontends."""
     from isaaclab_rl.entrypoints.backends import train_torchrl
