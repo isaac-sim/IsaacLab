@@ -421,7 +421,7 @@ Visualizer Overview
          Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
          (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
          Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
-         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
+         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``,
          or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
@@ -429,7 +429,7 @@ Visualizer Overview
       .. deprecated:: 3.2.0
 
          The Rerun visualizer is deprecated and will be removed in Isaac Lab 3.3. Use the Viser
-         visualizer (``--viz viser``) instead. Selecting it emits a :class:`FutureWarning`.
+         visualizer (``--viz viser``) instead. Creating the visualizer at launch emits a :class:`FutureWarning`.
 
       Like Viser, `Rerun <https://rerun.io/>`_ streams simulation state to a local web server, for
       remote monitoring, timeline playback, and recording to ``.rrd`` files.
@@ -1035,7 +1035,7 @@ Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
-Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
+Use ``--viz newton_gl`` or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
 **Newton RTX: incompatible with Kit**
@@ -1044,7 +1044,7 @@ Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets,
 ``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
 a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
 ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
-to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+to ``--viz newton_gl``, ``--viz viser``, or ``--viz kit`` with a Kit-compatible
 physics backend.
 
 **Rerun: large environment performance**
