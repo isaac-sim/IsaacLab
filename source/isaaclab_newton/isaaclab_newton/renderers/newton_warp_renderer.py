@@ -204,9 +204,9 @@ class RenderData:
                         f"Output '{output_name}' requires a segmentation mapper, but none was created. "
                         "Ensure the camera's data_types includes the segmentation output."
                     )
-                # Colorized outputs are packed RGBA and raw ids are int32; both are written as uint32.
+                # Colorized outputs are packed RGBA (uint32); raw ids are int32.
                 seg_mapping = self._seg_mapper.get_mapping(output_name, colorize)
-                self._seg_dests[output_name] = (self._view(proxy, wp.uint32), seg_mapping)
+                self._seg_dests[output_name] = (self._view(proxy, wp.uint32 if colorize else wp.int32), seg_mapping)
                 continue
             mapping = self._OUTPUT_MAP.get(output_name)
             if mapping is None:
@@ -225,7 +225,7 @@ class RenderData:
             self.outputs.hdr_color_image = wp.array(
                 ptr=self._hdr_scratch_wp.ptr, dtype=wp.vec3f, shape=shape, device=self.device, copy=False
             )
-        # Newton clears HDR to black, so a hit mask is needed to fill the background without darkening geometry.
+        # Newton clears HDR to black; a hit mask fills only the missed rays, so dark geometry keeps its color.
         if (
             self.outputs.hdr_color_image is not None
             and self._hdr_background_color is not None
@@ -321,8 +321,6 @@ class NewtonWarpRenderer(BaseRenderer):
         self.newton_sensor: SensorCamera | None = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
-        # State timestamp of the last OptiX shape refit.
-        self._optix_timestamp: int | None = None
 
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.renderer_type]
@@ -335,27 +333,23 @@ class NewtonWarpRenderer(BaseRenderer):
         self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        cfg = self.cfg
-        optix = isinstance(cfg, NewtonOptixRendererCfg)
         self.newton_sensor = SensorCamera(
             self.backend.model,
-            backend="optix" if optix else "warp",
+            backend="optix" if isinstance(self.cfg, NewtonOptixRendererCfg) else "warp",
             default_render_config=SensorCamera.RenderConfig(
-                enable_textures=cfg.enable_textures,
-                enable_shadows=cfg.enable_shadows,
-                enable_ambient_lighting=cfg.enable_ambient_lighting,
-                enable_backface_culling=cfg.enable_backface_culling,
-                max_distance=cfg.max_distance,
-                render_order=SensorCamera.RenderOrder[cfg.render_order.upper()],
-                tile_width=cfg.tile_rendering_width,
-                tile_height=cfg.tile_rendering_height,
-                block_dim=cfg.kernel_block_dim,
+                enable_textures=self.cfg.enable_textures,
+                enable_shadows=self.cfg.enable_shadows,
+                enable_ambient_lighting=self.cfg.enable_ambient_lighting,
+                enable_backface_culling=self.cfg.enable_backface_culling,
+                max_distance=self.cfg.max_distance,
+                render_order=SensorCamera.RenderOrder[self.cfg.render_order.upper()],
+                tile_width=self.cfg.tile_rendering_width,
+                tile_height=self.cfg.tile_rendering_height,
+                block_dim=self.cfg.kernel_block_dim,
             ),
         )
-        if optix:
-            self.backend.model.bvh_build_shapes(self.backend.state_0, backend="optix")
-        if cfg.create_default_light:
-            self.newton_sensor.create_default_light(enable_shadows=cfg.enable_shadows)
+        if self.cfg.create_default_light:
+            self.newton_sensor.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
     @property
     def visual_material_writer(self):
@@ -468,9 +462,7 @@ class NewtonWarpRenderer(BaseRenderer):
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         if isinstance(self.cfg, NewtonOptixRendererCfg):
             # OptiX work cannot be recorded in CUDA graphs.
-            if self._optix_timestamp != timestamp:
-                backend.model.bvh_refit_shapes(backend.state_0, backend="optix")
-                self._optix_timestamp = timestamp
+            backend.refit_optix(timestamp)
             self._launch_render(render_data)
         else:
             # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
@@ -531,7 +523,10 @@ class NewtonWarpRenderer(BaseRenderer):
             # Newton writes 0 for misses and rays beyond the far plane; "max" replaces them with the far clip.
             if clip_depth:
                 for dest in render_data._depth_dests.values():
-                    replace_background_depth_wp(dest, render_data.far_clip, device=dest.device)
+                    # The helper takes (N, H, W, C) buffers.
+                    replace_background_depth_wp(
+                        dest.reshape((*dest.shape, 1)), render_data.far_clip, device=dest.device
+                    )
 
         for dest, seg_mapping in render_data._seg_dests.values():
             seg_mapping.convert_shape_index_to_output(outputs.shape_index_image, dest)

@@ -8,7 +8,8 @@ Renderers produce camera images for policy observations and synthetic data.
 :doc:`Visualizers <visualization>` provide interactive views for inspection and
 recording. All renderers implement :class:`~isaaclab.renderers.BaseRenderer`.
 
-Isaac Lab supports three rendering backends. See :ref:`renderer-details` for their execution models,
+Isaac Lab supports three rendering backends; the Newton renderer ray traces with Warp or, on RTX GPUs,
+with OptiX (``renderer=newton_optix``). See :ref:`renderer-details` for their execution models,
 output coverage, and limitations, and :ref:`camera-supported-annotators` for the output-by-backend
 support matrix.
 

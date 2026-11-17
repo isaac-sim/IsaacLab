@@ -260,8 +260,8 @@ class _RecordingScreen:
         (["physics=ovphysx", "renderer=rtx"], "ovphysx", "ovrtx"),
         (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "isaacsim_rtx"),
         (["physics=physx", "renderer=rtx"], "ovphysx", "ovrtx"),
-        ([], "newton_mjwarp", "newton_warp"),
-        (["physics=physx", "presets=depth"], "ovphysx", "newton_warp"),
+        ([], "newton_mjwarp", "newton_renderer"),
+        (["physics=physx", "presets=depth"], "ovphysx", "newton_renderer"),
     ],
 )
 def test_run_summary_reports_concrete_backends(

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -67,7 +68,8 @@ parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabri
 parser.add_argument(
     "--renderer",
     type=str,
-    choices=["newton_warp", "isaac_rtx"],
+    # ``newton_renderer`` is the deprecated name of ``newton_warp``.
+    choices=["newton_warp", "isaac_rtx", "newton_renderer"],
     default="newton_warp",
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",
 )
@@ -95,6 +97,9 @@ add_launcher_args(parser)
 # Camera output is required, but the example does not need an interactive visualizer.
 parser.set_defaults(enable_cameras=True)
 args_cli = parser.parse_args()
+if args_cli.renderer == "newton_renderer":
+    warnings.warn("--renderer newton_renderer is deprecated. Use --renderer newton_warp instead.", FutureWarning)
+    args_cli.renderer = "newton_warp"
 # the Gaussian particle-field scene (and remote scene URLs) need Kit's USD plugins and asset resolver,
 # even with the Newton renderer, so always start Kit
 args_cli.require_kit = True

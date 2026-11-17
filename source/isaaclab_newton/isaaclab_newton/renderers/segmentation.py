@@ -196,8 +196,8 @@ class NewtonSegmentationMapping:
 
         Args:
             shape_index: Newton ``shape_index_image`` scratch, ``(view_count, H, W)`` uint32.
-            out_view: Destination view aliasing the camera output buffer as ``(view_count, H, W)`` uint32;
-                raw int32 ids share the bit pattern.
+            out_view: Destination view aliasing the camera output buffer as ``(view_count, H, W)``,
+                dtype uint32 when colorized and int32 otherwise.
         """
         if self.shape_count == 0:
             out_view.zero_()
@@ -206,11 +206,13 @@ class NewtonSegmentationMapping:
             table, miss, unlabelled = self.shape_to_color, 0, _UNLABELLED_COLOR
         else:
             table, miss, unlabelled = self.shape_to_id, BACKGROUND_ID, UNLABELLED_ID
+        # Raw int32 ids share the bit pattern of the uint32 table entries.
+        out = wp.array(ptr=out_view.ptr, dtype=wp.uint32, shape=out_view.size, device=out_view.device, copy=False)
         wp.launch(
             _remap_shape_index,
             shape_index.size,
             [shape_index.flatten(), table, miss, unlabelled],
-            [out_view.flatten()],
+            [out],
             device=out_view.device,
         )
 

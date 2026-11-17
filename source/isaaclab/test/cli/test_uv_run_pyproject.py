@@ -194,6 +194,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
     assert newton_spec in dependencies
     assert f"{newton_spec} ; extra != 'optix'" in overrides
+    assert f"{newton_spec.replace('[sim]', '[sim,optix]')} ; extra == 'optix'" in overrides
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
