@@ -18,7 +18,6 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils import index_fill_
-from isaaclab.utils.leapp import Axis, AxisKind, Kind
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -100,11 +99,8 @@ class UniformVelocityCommand(CommandTerm):
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
-        self.cfg.cmd_kind = self.cfg.cmd_kind or Kind.FRAME_TWIST
-        self.cfg.axes = self.cfg.axes or [
-            Axis(AxisKind.SYSTEM),
-            Axis(AxisKind.COMPONENT, names=["x", "y", "angular_z"]),
-        ]
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "frame/twist"
+        self.cfg.element_names = self.cfg.element_names or ["x", "y", "angular_z"]
         self.cfg.cmd_expressed_in = self.cfg.cmd_expressed_in or self.robot.backend_body_names[0]
 
     def __str__(self) -> str:

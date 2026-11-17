@@ -1,10 +1,10 @@
 * **Breaking:** Updated the optional LEAPP integration from 0.7.2 to 0.8.1. New bundles used
   quantity kinds and per-dimension ``axes`` instead of ``element_names``. Isaac Lab deployment
   retained support for reading legacy bundles.
-* **Breaking:** Replaced ``element_names`` and ``element_names_resolver`` in
-  ``leapp_tensor_semantics`` and ``LeappTensorSemantics`` with ``axes`` and ``axes_resolver``.
-  Command configurations used ``axes`` instead of ``element_names``. Replaced component-label
-  constants with ``*_COMPONENT_AXIS`` descriptors and body/joint resolvers with axis resolvers.
+* Retained ``element_names``, ``element_names_resolver``, and the list-returning label helpers.
+  Added optional ``axes`` and ``axes_resolver`` for detailed layouts, taking precedence over simple
+  labels. Converted simple labels to LEAPP axes during export without requiring LEAPP objects in
+  command configurations. Accepted legacy velocity component spellings for built-in velocity kinds.
 * Labeled environment dimensions as ``AxisKind.SYSTEM`` while preserving tensor shapes,
   explicit user layouts, element ordering, and raw recurrent feedback.
 * Standardized velocity and twist components as ``x``, ``y``, ``z``, ``angular_x``, ``angular_y``,

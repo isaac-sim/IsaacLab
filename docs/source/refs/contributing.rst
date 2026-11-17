@@ -501,7 +501,12 @@ annotates them. Metadata on a property is insufficient if the observation bypass
 * Declare ``@leapp_tensor_semantics`` on the shared data property or write method. Concrete backend
   overrides inherit the metadata through the exporter. Prefer a built-in ``Kind``; use a descriptive
   custom kind when LEAPP has no matching quantity.
-* Declare ``axes`` or ``axes_resolver`` for known coordinate, joint, body, and time dimensions. Match
+* Use ``element_names`` or ``element_names_resolver`` for simple labels without constructing LEAPP
+  objects. A flat list labels a vector; nested lists label each non-environment dimension in order.
+  Export marks the leading environment dimension as a system, the trailing dimension of frame/vector
+  quantities as components, and other named dimensions as elements.
+* Use ``axes`` or ``axes_resolver`` for layouts with unspecified dimensions, time sampling, or custom
+  dimension meanings. Explicit axes take precedence over simple names. Match
   the actual Torch layout with one entry per dimension. Mark the leading environment dimension
   as ``Axis(AxisKind.SYSTEM)`` for environment-batched scene data, commands, and action targets.
   Use ``None`` for unspecified dimensions; do not infer a system axis from its size being one.

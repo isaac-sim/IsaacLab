@@ -239,6 +239,31 @@ backend-specific and launcher arguments (see :func:`~isaaclab.app.add_launcher_a
    explicit checkpoint path. See :ref:`pretrained-checkpoints` for checkpoint availability.
 
 
+Command labels and detailed layouts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Command configurations accept plain ``element_names``. For example, a planar velocity command
+uses ``["x", "y", "angular_z"]``. A flat list labels a vector command; nested lists label each
+non-environment dimension in order. The exporter adds the system dimension and uses the quantity
+kind to distinguish spatial components from named elements such as joints or bodies.
+
+For detailed layouts, ``axes`` accepts one LEAPP axis descriptor per tensor dimension, including
+the environment dimension. It takes precedence over ``element_names``. Use it for unnamed
+dimensions, sampled time axes with a period, or custom dimension meanings. Neither interface
+changes the tensor shape or reorders its values. Legacy velocity labels such as ``lin_vel_x`` and
+``ang_vel_z`` are normalized to ``x`` and ``angular_z`` for built-in velocity kinds.
+
+Data-property and actuator-write annotations support the same choice through
+``@leapp_tensor_semantics``. Their dynamic label resolvers receive the data object;
+``axes_resolver`` also receives the tensor. Explicit axes or an axis resolver's result take
+precedence over simple names.
+
+Existing bundles with legacy ``element_names`` remain readable. ``isaaclab_connection`` identifies
+the source property or destination method, while the names preserve joint subsets and ordering.
+New exports use the LEAPP 0.8.1 axis format regardless of which configuration interface supplied
+the labels.
+
+
 How It Works (High Level)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

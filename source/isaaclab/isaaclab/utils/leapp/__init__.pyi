@@ -4,6 +4,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "XYZ_ELEMENT_NAMES",
+    "QUAT_XYZW_ELEMENT_NAMES",
+    "POSE7_ELEMENT_NAMES",
+    "POSE6_ELEMENT_NAMES",
+    "WRENCH6_ELEMENT_NAMES",
+    "joint_names_resolver",
+    "body_xyz_resolver",
+    "body_pose_resolver",
+    "body_pose6_resolver",
+    "body_quat_resolver",
+    "body_wrench_resolver",
+    "target_frame_xyz_resolver",
+    "target_frame_quat_resolver",
+    "target_frame_pose_resolver",
+    "resolve_leapp_element_names",
     "LINEAR_VELOCITY_COMPONENT_AXIS",
     "ANGULAR_VELOCITY_COMPONENT_AXIS",
     "TWIST_COMPONENT_AXIS",
@@ -44,6 +59,21 @@ __all__ = [
 
 from .export_annotator import ExportPatcher, patch_env_for_export
 from .leapp_semantics import (
+    XYZ_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
+    POSE7_ELEMENT_NAMES,
+    POSE6_ELEMENT_NAMES,
+    WRENCH6_ELEMENT_NAMES,
+    joint_names_resolver,
+    body_xyz_resolver,
+    body_pose_resolver,
+    body_pose6_resolver,
+    body_quat_resolver,
+    body_wrench_resolver,
+    target_frame_xyz_resolver,
+    target_frame_quat_resolver,
+    target_frame_pose_resolver,
+    resolve_leapp_element_names,
     LINEAR_VELOCITY_COMPONENT_AXIS,
     ANGULAR_VELOCITY_COMPONENT_AXIS,
     TWIST_COMPONENT_AXIS,

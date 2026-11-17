@@ -374,6 +374,7 @@ def _make_pose_command(
         curr_pose_visualizer_cfg=object(),
         position_only=True,
         cmd_kind=None,
+        element_names=None,
         axes=None,
         cmd_reference=None,
     )

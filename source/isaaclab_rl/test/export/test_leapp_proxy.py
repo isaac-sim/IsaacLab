@@ -815,6 +815,47 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
 
 
+@pytest.mark.parametrize("declaration", ["names", "resolver", "axes", "wrong_rank"])
+def test_simple_property_labels_export_as_axes(monkeypatch, declaration):
+    """Simple labels and explicit axes describe the same ordered body-pose tensor."""
+    from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES, body_pose_resolver, leapp_tensor_semantics
+
+    names = [["tip", "base"], POSE7_ELEMENT_NAMES]
+    expected_axes = [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.ELEMENT, names=names[0]),
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=names[1]),
+    ]
+    kwargs = {"element_names": names}
+    if declaration == "resolver":
+        kwargs = {"element_names_resolver": body_pose_resolver}
+    elif declaration == "axes":
+        kwargs = {"element_names": ["ignored"], "axes": expected_axes}
+    elif declaration == "wrong_rank":
+        kwargs = {"element_names": POSE7_ELEMENT_NAMES}
+
+    class PoseData:
+        body_names = names[0]
+
+        @property
+        @leapp_tensor_semantics(kind=Kind.FRAME_POSE, **kwargs)
+        def pose(self):
+            return self._pose
+
+    values = torch.arange(28, dtype=torch.float32).reshape(2, 2, 7)
+    data = PoseData()
+    data._pose = ProxyArray(wp.from_torch(values))
+    captured = _capture_leapp_inputs(monkeypatch)
+    proxy = _DataProxy(data, "robot", "pose", {}, {}, lambda name: name)
+    if declaration == "wrong_rank":
+        with pytest.raises(ValueError, match="use axes"):
+            proxy.pose.torch
+        return
+    torch.testing.assert_close(proxy.pose.torch, values)
+    assert captured[0][1].axes == expected_axes
+    assert captured[0][1].kind == Kind.FRAME_POSE
+
+
 @pytest.mark.parametrize(
     ("command_type", "custom_axes"),
     [
@@ -825,6 +866,8 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
         ("planar", False),
         ("velocity", True),
         ("velocity", "duplicates"),
+        ("velocity", "names"),
+        ("velocity", "legacy_names"),
     ],
 )
 def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type, custom_axes):
@@ -850,7 +893,11 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         sim=SimpleNamespace(vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None)),
     )
     common = {"asset_name": "robot", "resampling_time_range": (1.0, 1.0)}
-    if custom_axes == "duplicates":
+    if custom_axes in ("names", "legacy_names"):
+        common["element_names"] = (
+            ["x", "y", "angular_z"] if custom_axes == "names" else ["lin_vel_x", "lin_vel_y", "ang_vel_z"]
+        )
+    elif custom_axes == "duplicates":
         common["axes"] = [
             leapp.Axis(leapp.AxisKind.SYSTEM),
             leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "x", "angular_z"]),
@@ -923,7 +970,7 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             "planar": "command/body/pose",
         }[command_type]
     )
-    if custom_axes:
+    if custom_axes is True:
         assert semantics.axes == common["axes"]
     else:
         names = {

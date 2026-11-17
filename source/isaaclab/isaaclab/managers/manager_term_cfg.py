@@ -131,8 +131,10 @@ class CommandTermCfg:
 
     cmd_kind: str | None = None
     """Type hint for the command for deployment."""
+    element_names: list[str] | list[list[str]] | None = None
+    """Labels for non-environment dimensions. A flat list labels a vector command."""
     axes: list[Axis | None] | None = None
-    """LEAPP axes for each command tensor dimension, including the environment dimension."""
+    """Advanced LEAPP layout, including the environment dimension. Overrides :attr:`element_names`."""
     cmd_reference: str | None = None
     """Frame relative to which a spatial command is defined. None uses the generator's default."""
     cmd_expressed_in: str | None = None

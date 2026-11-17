@@ -51,7 +51,7 @@ from .. import images as image_utils
 from .. import math as math_utils
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
-from .leapp_semantics import select_element_names
+from .leapp_semantics import LeappTensorSemantics, resolve_semantics_axes, select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
     TracedProxyArray,
@@ -696,7 +696,15 @@ class ExportPatcher:
             sem = constructor(
                 name=leapp_input_name,
                 ref=result,
-                axes=getattr(command_cfg, "axes", None) or [Axis(AxisKind.SYSTEM)] + [None] * (result.ndim - 1),
+                axes=resolve_semantics_axes(
+                    LeappTensorSemantics(
+                        kind=kind,
+                        element_names=getattr(command_cfg, "element_names", None),
+                        axes=getattr(command_cfg, "axes", None),
+                    ),
+                    None,
+                    result,
+                ),
                 is_setpoint=True,
                 **spatial,
             )
