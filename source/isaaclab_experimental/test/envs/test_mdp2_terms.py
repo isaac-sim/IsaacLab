@@ -40,7 +40,7 @@ legs = robot.joints(*LEG_NAMES)
 
 @pytest.fixture(scope="module")
 def env() -> Iterator[MDP2Env]:
-    """Two-legged floating robots in random joint and root states."""
+    """Two-legged floating robots in random joint and root states, with random joint efforts."""
     scene_cfg = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=3.0)
     scene_cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -72,6 +72,8 @@ def env() -> Iterator[MDP2Env]:
         quat = torch.nn.functional.normalize(rand(NUM_ENVS, 4), dim=-1)
         articulation.write_root_pose_to_sim_index(root_pose=torch.cat([position, quat], -1))
         articulation.write_root_velocity_to_sim_index(root_velocity=rand(NUM_ENVS, 6, scale=3.0))
+        articulation.set_joint_effort_target_index(target=rand(NUM_ENVS, 6, scale=5.0))
+        articulation.write_data_to_sim()
         env.sim.forward()
         env.scene.update(dt=0.0)
 
@@ -199,6 +201,7 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
     }
 
     assert values["joint_pos_limits"].abs().sum() > 0.0  # Some joints are beyond their limits.
+    assert (values["joint_torques_l2"] > 0.0).all()  # The actuators apply efforts.
     for name, value in expected.items():
         torch.testing.assert_close(values[name], value.reshape(NUM_ENVS, -1), msg=name)
 
@@ -278,12 +281,10 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
         model = builder.finalize(device=env.device, backend=backend)
         state = model.state(env.scene_data, seed=3)
 
-        before = {name: env.scene_data.data("robot", name).torch.clone() for name in ("root_link_pose_w", "joint_pos")}
+        fields = ("root_link_pose_w", "root_com_vel_w", "joint_pos", "joint_vel")
+        before = {name: env.scene_data.data("robot", name).torch.clone() for name in fields}
         mdp2.reset(model, state, ProxyArray(wp.from_torch(mask)))
-        results[backend] = {
-            name: env.scene_data.data("robot", name).torch.clone()
-            for name in ("root_link_pose_w", "root_com_vel_w", "joint_pos", "joint_vel")
-        }
+        results[backend] = {name: env.scene_data.data("robot", name).torch.clone() for name in fields}
 
         for name, value in before.items():
             assert torch.equal(results[backend][name][~mask], value[~mask]), name
@@ -356,13 +357,13 @@ def test_heading_command_steers_towards_its_heading(env: MDP2Env):
     assert heading[standing].isnan().all() and (updated[standing] == 0.0).all()
 
 
-def test_startup_events_randomize_the_model_alike_on_both_backends(env: MDP2Env):
-    """Startup events scale the base mass and offset its center of mass by the same samples on both backends."""
+def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MDP2Env):
+    """Events scale the base mass and offset its center of mass by the same samples on both backends, each time from
+    the values at startup, so resets do not compound them."""
     base = robot.bodies("base")
     events = {
         "base_mass": mdp2.Event(
             mdp.randomize_rigid_body_mass,
-            mode=mdp2.EventMode.STARTUP,
             inputs={"body_ids": base},
             params={
                 "mass_distribution_params": (0.8, 1.25),
@@ -372,13 +373,13 @@ def test_startup_events_randomize_the_model_alike_on_both_backends(env: MDP2Env)
         ),
         "base_com": mdp2.Event(
             mdp.randomize_rigid_body_com,
-            mode=mdp2.EventMode.STARTUP,
             inputs={"body_ids": base},
             params={"com_range": ((-0.05, 0.05), (-0.05, 0.05), (-0.01, 0.01))},
         ),
     }
     data = env.scene["robot"].data
     default_mass = data.body_mass.torch.clone()
+    default_inertia = data.body_inertia.torch.clone()
     default_com = data.body_com_pos_b.torch.clone()
     base_id = env.scene["robot"].find_bodies("base")[0][0]
 
@@ -388,11 +389,14 @@ def test_startup_events_randomize_the_model_alike_on_both_backends(env: MDP2Env)
         for name, event in events.items():
             builder.add_event(name, event)
         model = builder.finalize(device=env.device, backend=backend)
-        assert model.is_fully_capturable  # Eager startup events run once, so they do not prevent capture.
+        state = model.state(env.scene_data, seed=2)
 
-        mdp2.startup(model, model.state(env.scene_data, seed=2))
+        mdp2.startup(model, state)
+        for _ in range(2):
+            mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
         results[backend] = (data.body_mass.torch.clone(), data.body_com_pos_b.torch.clone())
         env.scene["robot"].set_masses_index(masses=default_mass)
+        env.scene["robot"].set_inertias_index(inertias=default_inertia)
         env.scene["robot"].set_coms_index(coms=default_com)
 
     for value, expected in zip(results["warp"], results["torch"]):
@@ -404,3 +408,40 @@ def test_startup_events_randomize_the_model_alike_on_both_backends(env: MDP2Env)
     assert torch.equal(mass[:, base_id + 1 :], default_mass[:, base_id + 1 :])
     offset = com[:, base_id] - default_com[:, base_id]
     assert (offset[:, :2].abs() <= 0.05 + 1e-6).all() and (offset[:, 2].abs() <= 0.01 + 1e-6).all()
+
+
+def test_model_events_reject_unsupported_randomizations(env: MDP2Env):
+    """Like MDP1, model events raise on an operation or distribution that they do not support, at startup."""
+    for params in ({"operation": "multiply"}, {"operation": "scale", "distribution": "normal"}):
+        builder = mdp2.MDPBuilder(env.scene_data.schema)
+        event = mdp2.Event(
+            mdp.randomize_rigid_body_mass,
+            inputs={"body_ids": robot.bodies("base")},
+            params={"mass_distribution_params": (0.8, 1.25), **params},
+        )
+        builder.add_event("base_mass", event)
+        model = builder.finalize(device=env.device, backend="torch")
+        with pytest.raises(ValueError, match="Unsupported"):
+            mdp2.startup(model, model.state(env.scene_data))
+
+
+@pytest.mark.parametrize("backend", ["torch", "warp"])
+def test_difficulty_scheduler_starts_at_its_initial_difficulty(env: MDP2Env, backend: str):
+    """Difficulties start at ``init_difficulty``, as in MDP1, so failed first episodes demote them from there."""
+    builder = mdp2.MDPBuilder(env.scene_data.schema)
+    root_state = {"root_link_pose_w": robot.root_link_pose_w, "root_com_vel_w": robot.root_com_vel_w}
+    builder.add_quantity("succeeded", mdp2.Quantity(mdp.lin_vel_z_l2, inputs=root_state))
+    curriculum = mdp2.Event(
+        mdp.difficulty_scheduler,
+        inputs={"succeeded": mdp2.quantities.succeeded},
+        params={"init_difficulty": 4, "min_difficulty": 2, "max_difficulty": 10, "min_progress": 0.0},
+    )
+    builder.add_event("curriculum", curriculum)
+    model = builder.finalize(device=env.device, backend=backend)
+    state = model.state(env.scene_data)
+
+    # The quantity is not computed yet, so no episode succeeded.
+    mdp2.startup(model, state)
+    mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+    progress = state.arrays[mdp2.term_state("events.curriculum", "progress")].torch
+    torch.testing.assert_close(progress, torch.full_like(progress, 0.3))

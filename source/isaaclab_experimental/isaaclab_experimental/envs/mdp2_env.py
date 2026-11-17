@@ -95,11 +95,18 @@ class MDP2Env:
                 builder.replicate(task_builder, num_worlds if cfg.task_worlds is None else cfg.task_worlds[index])
         self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
+        self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
         mdp2.startup(self.mdp, self.state)
+        if self.mdp.startup_writes:
+            # Startup events write scene fields in place, which the scene commits to the solver.
+            self.scene_data.commit(self._all_envs.warp, self.mdp.startup_writes)
         self.transition = self.mdp.transition()
 
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
-        self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
+        # The worlds whose scene writes a step commits: those reset, and those where an interval event wrote.
+        self._interval_worlds = self.state.arrays.get("interval_worlds")
+        if self._interval_worlds is not None:
+            self._commit_mask = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
         self.common_step_counter = 0
         self.extras: dict[str, Any] = {}
 
@@ -159,7 +166,9 @@ class MDP2Env:
             self._is_closed = True
 
     def _step_or_replay(self, action: torch.Tensor) -> None:
-        """Run a control step: eagerly the first time, then as CUDA graphs."""
+        """Run a control step: eagerly the first time, then as CUDA graphs. Render after it if rendering is on."""
+        if action.shape != self.actions.torch.shape:
+            raise ValueError(f"Expected actions of shape {tuple(self.actions.torch.shape)}, got {tuple(action.shape)}.")
         self.actions.torch.copy_(action)
 
         if self._runs is None and self._capturable and self._stepped:
@@ -176,6 +185,13 @@ class MDP2Env:
 
         self._stepped = True
         self.common_step_counter += 1
+
+        # Rendering runs on the host, outside the graphs, so at most once per control step, after it: when one of
+        # its physics steps reaches the render interval, as in MDP1.
+        interval, decimation = self.cfg.sim.render_interval, self.cfg.decimation
+        physics_steps = self.common_step_counter * decimation
+        if physics_steps // interval > (physics_steps - decimation) // interval and self.sim.is_rendering:
+            self.sim.render()
 
     def _capture_step(self) -> list[Callable[[], None]]:
         """Capture each run of capturable work of a step as one graph, and bind the eager launches between them.
@@ -195,7 +211,7 @@ class MDP2Env:
         work += [(True, self._after_evaluate)]
         work += [(True, functools.partial(self._reset_scene, mask))]
         work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
-        work += [(True, commit)]
+        work += [(True, functools.partial(self._commit, mask))]
         work += [(launch.capturable, functools.partial(launch, observe)) for launch in launches.observe]
 
         runs = []
@@ -236,9 +252,18 @@ class MDP2Env:
         # Reset events write scene fields in place, which the scene commits to the solver.
         commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
         mdp2.reset(self.mdp, self.state, mask, commit)
-        commit()
+        self._commit(mask)
 
         mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
+
+    def _commit(self, mask: ProxyArray) -> None:
+        """Commit the writes of the reset events in the masked worlds, and of the interval events of the last step in
+        the worlds where they ran. Part of the captured step."""
+        if self._interval_worlds is None:
+            self.scene_data.commit(mask.warp, self.mdp.reset_writes)
+            return
+        torch.logical_or(mask.torch, self._interval_worlds.torch, out=self._commit_mask.torch)
+        self.scene_data.commit(self._commit_mask.warp, self.mdp.reset_writes | self.mdp.interval_writes)
 
     def _reset_scene(self, mask: ProxyArray) -> None:
         """Reset the assets and sensors of the masked worlds, before the MDP's reset events."""
@@ -303,6 +328,13 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             for op in self.mdp.ops[mdp2.Phase.QUANTITIES]
             if op.log
         }
+        # The time limit is not an op: whether it ended the last episode of each world is kept apart, under its name.
+        tasks = [cfg.task] if isinstance(cfg.task, mdp2.TaskCfg) else cfg.task
+        time_limits = [
+            name for task in tasks for name, term in task.terminations.items() if isinstance(term, mdp2.TimeLimit)
+        ]
+        self._time_limit = time_limits[0] if time_limits else None
+        self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.obs_buf: VecEnvObs = {}
 
     @property
@@ -353,10 +385,13 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         )
 
     def _after_evaluate(self) -> None:
-        """Keep the logged quantities of the worlds that ended, before their reset recomputes them."""
+        """Keep the logged quantities of the worlds that ended, and whether they timed out, before their reset."""
         done = self.transition.done.torch
         for value, last, _ in self._metrics.values():
             torch.where(done, value, last, out=last)
+        if self._time_limit is not None:
+            timed_out = self.state.episode_length.torch >= self.max_episode_length
+            torch.where(done, timed_out, self._last_time_outs, out=self._last_time_outs)
 
     def _log_episodes(self) -> None:
         """Add the step's term rewards to the episode sums, and record the episodes that ended in ``extras["log"]``."""
@@ -374,6 +409,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         terminations = self._last_terminations.sum(dim=0) / self._active_worlds[mdp2.Phase.TERMINATIONS]
         log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
         log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
+        if self._time_limit is not None:
+            log[f"Episode_Termination/{self._time_limit}"] = self._last_time_outs.float().mean()
         # A quantity that only some worlds compute is averaged over them.
         for name, (_, last, worlds) in self._metrics.items():
             log[f"Metrics/{name}"] = last[worlds].mean()

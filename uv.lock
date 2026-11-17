@@ -2158,10 +2158,14 @@ version = "3.0.0"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "isaaclab-newton" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
+]
 
 [[package]]
 name = "isaaclab-mimic"

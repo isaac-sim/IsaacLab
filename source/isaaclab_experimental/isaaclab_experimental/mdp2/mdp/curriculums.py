@@ -14,6 +14,7 @@ from __future__ import annotations
 import torch
 import warp as wp
 
+from ..eager import TermContext
 from ..terms import State, Term
 
 
@@ -88,9 +89,16 @@ def _difficulty_scheduler_torch(
     progress.copy_(torch.where(mean >= min_progress, mean, progress))
 
 
+def _init_difficulty(ctx: TermContext, *, init_difficulty: float = 0, **params) -> None:
+    """Start every world at ``init_difficulty``, as MDP1 does."""
+    ctx.state["difficulty"].fill_(init_difficulty)
+    ctx.state["total"].fill_(ctx.state["difficulty"].sum())
+
+
 difficulty_scheduler = Term(
     torch=_difficulty_scheduler_torch,
     warp=_difficulty_scheduler,
+    init=_init_difficulty,
     state={
         "difficulty": State(persistent=True),
         "progress": State(persistent=True),
@@ -99,8 +107,9 @@ difficulty_scheduler = Term(
 )
 """Adaptive difficulty, like MDP1's ``DifficultyScheduler`` with ``initial_final_interpolate_fn``.
 
-Each world's difficulty rises by one when the episode that ended ``succeeded`` (an input, such as a sticky success
-quantity) and falls by one otherwise, unless ``promotion_only``, within ``[min_difficulty, max_difficulty]``.
+Each world's difficulty starts at ``init_difficulty``, rises by one when the episode that ended ``succeeded`` (an
+input, such as a sticky success quantity) and falls by one otherwise, unless ``promotion_only``, within
+``[min_difficulty, max_difficulty]``.
 Its ``progress`` state is the mean difficulty over ``max_difficulty``, once that reaches ``min_progress``: dependent
 terms interpolate between their initial and final values by it, and keep their initial values until then. The same in
 every world.

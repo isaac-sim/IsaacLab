@@ -24,7 +24,7 @@ The tasks ``Isaac-Cartpole-MDP2``, ``Isaac-Velocity-Flat-UnitreeGo2-MDP2``,
 .. code-block:: bash
 
    uv run python scripts/reinforcement_learning/train.py --rl_library rsl_rl \
-       --task Isaac-Cartpole-MDP2 presets=newton_mjwarp
+       --task Isaac-Cartpole-MDP2 physics=newton_mjwarp
 
 
 Terms and uses
@@ -66,8 +66,9 @@ The built-in terms are in :mod:`isaaclab_experimental.mdp2.mdp` and keep the nam
   episode unless it is persistent. Other terms read it with :func:`~isaaclab_experimental.mdp2.term_state`.
 - **Quantities.** A :class:`~isaaclab_experimental.mdp2.Quantity` computes a value per world once per step, which
   rewards, terminations, and events read as ``mdp2.quantities.<name>``.
-- **Events** write scene fields in place. Before an event with ``commit=True``, and after all reset events, the scene
-  makes the simulation see the written fields: joint and root state, fixed-base root poses, and gravity.
+- **Events** write scene fields in place. After the startup events, after the interval events in the worlds where
+  they ran, after all reset events, and before an event with ``commit=True``, the scene makes the simulation see the
+  written fields: joint and root state, fixed-base root poses, and gravity.
 - **Randomness** comes from per-world streams that each use owns (``Term(random=True)`` passes ``rng``), so the Torch
   and Warp backends draw the same numbers.
 
@@ -116,6 +117,13 @@ Limitations
 - Asset resets with a mask reset the actuator state of every world, so the environments support implicit, ideal PD,
   and DC motor actuators only, which keep no state, and refuse delayed, actuator-network, and BAM actuators.
 - Joint orderings (``ArticulationCfg.joint_ordering``) are not supported: terms see the solver's joint order.
+- Rendering runs on the host after each control step, outside the CUDA graphs: at most once per control step, when
+  one of its physics steps reaches ``sim.render_interval``, and after the step's resets (MDP1 renders inside the
+  decimation loop, before resets). ``render_enabled`` and ``num_rerenders_on_reset`` are not supported.
+- A step that replays as a CUDA graph skips the host bookkeeping of ``SimulationContext.step``: the physics step
+  count and the simulation time stop advancing after the first steps, a visualizer that pauses training does not
+  block the training loop, and the solver's post-step host checks do not run. Consumers that key frames by the
+  physics step count, such as video recorders, are not supported.
 - Asset data that is derived on demand, such as ``root_lin_vel_b``, is not refreshed by a captured step. Terms read
   the fields of the scene data, which alias the solver state; code outside the MDP that reads asset data between
   steps should use those too, for example ``root_com_vel_w`` rotated by ``root_link_pose_w``.

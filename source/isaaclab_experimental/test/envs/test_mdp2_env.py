@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg
 from isaaclab_experimental.mdp2 import mdp
@@ -20,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
@@ -186,8 +187,9 @@ def shift_root_torch(mask, root_link_pose_w, default_root_pose, env_origins, *, 
     root_link_pose_w.copy_(torch.where(mask[:, None], pose, root_link_pose_w))
 
 
-def test_env_follows_the_gym_interface_and_commits_resets():
-    """Steps follow the Gym interface, and the solver sees the reset joint state and the moved fixed base."""
+def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
+    """Steps follow the Gym interface, render when rendering is on, and the solver sees the reset joint state and the
+    moved fixed base."""
     cfg = cartpole_cfg()
     cfg.task.events["shift_root"] = mdp2.Event(
         mdp2.Term(torch=shift_root_torch),
@@ -206,7 +208,12 @@ def test_env_follows_the_gym_interface_and_commits_resets():
 
         assert observations["policy"].shape == (NUM_ENVS, 4) and extras == {}
         assert (robot_data.joint_pos.torch[:, 0].abs() <= 1.0).all() and robot_data.joint_pos.torch.std(0).min() > 0
+        with pytest.raises(ValueError, match=r"Expected actions of shape \(16, 1\), got \(1, 1\)"):
+            env.step(torch.ones(1, 1, device=env.device))
 
+        renders = []
+        monkeypatch.setattr(SimulationContext, "is_rendering", property(lambda sim: True))
+        monkeypatch.setattr(env.sim, "render", lambda: renders.append(env.common_step_counter))
         ended = torch.zeros(NUM_ENVS, dtype=torch.bool, device=env.device)
         for _ in range(env.max_episode_length):
             observations, rewards, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
@@ -219,6 +226,8 @@ def test_env_follows_the_gym_interface_and_commits_resets():
             torch.testing.assert_close(cart_x, robot_data.joint_pos.torch[:, 0], atol=1e-5, rtol=0.0)
 
         assert env.is_captured and ended.all()
+        # Every control step renders once, after it, also when it replays as a graph.
+        assert renders == list(range(1, env.max_episode_length + 1))
         # The fixed base stays where the reset moved it, through the solver's steps.
         base_x = env.scene.env_origins[:, 0] + robot_data.default_root_pose.torch[:, 0] + 0.5
         torch.testing.assert_close(robot_data.body_pos_w.torch[:, 0, 0], base_x, atol=1e-5, rtol=0.0)
@@ -290,8 +299,49 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
 
         # Unpushed carts stay in bounds, so every world was alive for its whole episode.
         assert extras["log"]["Episode_Termination/cart_out_of_bounds"] == 0.0
+        assert extras["log"]["Episode_Termination/time_out"] == 1.0
         assert extras["log"]["Episode_Reward/alive"].item() == pytest.approx(1.0)
         # The episodes ended at their last step, not at the restart of the next one.
         assert extras["log"]["Metrics/steps"].item() == env.max_episode_length - 1
+    finally:
+        env.close()
+
+
+@wp.func
+def zero_gravity_warp(world: int, gravity_w: wp.array(dtype=wp.vec3f)):
+    gravity_w[world] = wp.vec3f(0.0, 0.0, 0.0)
+
+
+def test_startup_and_interval_events_reach_the_solver():
+    """A startup event that removes gravity, and an interval event that holds the joints, reach a solver that
+    otherwise ignores writes to its state: every step starts from the held joints, without gravity."""
+    cfg = cartpole_cfg()
+    cfg.sim.physics.solver_cfg.update_data_interval = 0
+    cfg.task.events["zero_gravity"] = mdp2.Event(
+        mdp2.Term(warp=zero_gravity_warp),
+        outputs={"gravity_w": mdp2.Entity("scene").gravity_w},
+        mode=mdp2.EventMode.STARTUP,
+    )
+    hold = reset_joints(joints, (0.1, 0.1), (0.0, 0.0))
+    cfg.task.events["hold"] = replace(hold, mode=mdp2.EventMode.INTERVAL, interval_range_s=(0.01, 0.01))
+    # The joint speed after the physics of a step, before the interval event.
+    cfg.task.quantities["speed"] = mdp2.Quantity(
+        mdp.joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": joints}
+    )
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        actions[::2] = 1.0
+        speeds = []
+        for _ in range(10):
+            env.step(actions)
+            speeds.append(env.state.arrays[mdp2.quantities.speed].torch.clone())
+
+        # After the first step, the joints start each step held at rest: pushed carts reach the same speed every
+        # step, and the joints of the others do not move.
+        speeds = torch.stack(speeds[1:])
+        assert env.is_captured and (speeds[:, ::2] > 0.0).all() and (speeds[:, 1::2] < 1e-5).all()
+        torch.testing.assert_close(speeds, speeds[:1].expand_as(speeds))
     finally:
         env.close()

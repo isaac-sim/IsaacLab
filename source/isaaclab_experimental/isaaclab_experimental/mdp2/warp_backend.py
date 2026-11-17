@@ -132,6 +132,10 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     time_out = "False"
     if mdp.max_episode_length is not None:
         time_out = f"{length}[world] >= {code.constant(int, mdp.max_episode_length)}"
+    lines, writes = [], []
+    if mdp.interval_writes:
+        lines.append(f"{_array(code, 'interval_worlds', wp.array(dtype=wp.bool))}[world] = False")
+        writes.append("interval_worlds")
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = {length}[world] + 1",
@@ -140,7 +144,8 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         f"{truncated}[world] = {time_out}",
         f"{done}[world] = {truncated}[world]",
         f"{rewards}[world] = 0.0",
-        writes=["rng", episode_length, terminated, "terminated", "truncated", "done", "rewards"],
+        *lines,
+        writes=["rng", episode_length, terminated, "terminated", "truncated", "done", "rewards", *writes],
     )
 
     _emit(code, mdp, mdp.plan.evaluate, stepping=True)
@@ -179,7 +184,12 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
             case StepKind.COMPUTE:
                 _compute(code, mdp, op, active, stepping)
             case StepKind.COMPUTE_IF_DUE:
-                _compute(code, mdp, op, [*active, f"if {_due(code, mdp, op, active)}:"], stepping)
+                due = [*active, f"if {_due(code, mdp, op, active)}:"]
+                _compute(code, mdp, op, due, stepping)
+                if _writes_scene(op):
+                    # The scene commits the event's writes in the worlds where it ran.
+                    ran = _array(code, "interval_worlds", wp.array(dtype=wp.bool))
+                    code.world(*_under(due, f"{ran}[world] = True"), writes=["interval_worlds"])
             case StepKind.UPDATE_STATE:
                 # A function hook gets the worlds where the op runs, None for every world.
                 running = None if op.worlds is None else lambda call, op=op: call.state.arrays["active", op.name].warp
@@ -418,14 +428,22 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
 
 
 def _due(code: Fusion, mdp: MDP, op: TermOp, active: Sequence[str]) -> str:
-    """Return source that counts down an op's timer and is true where it expired. Function hooks get a mask."""
+    """Return source that counts down an op's timer and is true where it expired.
+
+    Function hooks get it as a mask, and events that write scene fields read it again, so it is kept in a buffer.
+    """
     tick = f"{code.function(_tick)}({_timer(code, op)}, {code.constant(float, mdp.step_dt)})"
-    if isinstance(op.compute, wp.Function):
+    if isinstance(op.compute, wp.Function) and not _writes_scene(op):
         return tick
 
     due = _array(code, ("selected", op.name), wp.array(dtype=wp.bool))
     code.world(*_under(active, f"{due}[world] = {tick}"), writes=[("timer", op.name), ("selected", op.name)])
     return f"{due}[world]"
+
+
+def _writes_scene(op: TermOp) -> bool:
+    """Return whether an op writes scene fields, which the scene must commit."""
+    return any(selector.scene for selector in op.writes)
 
 
 def _active(code: Fusion, op: TermOp) -> list[str]:

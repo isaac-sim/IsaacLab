@@ -55,9 +55,10 @@ class Fusion:
 
     All threads of a kernel run concurrently, so a new kernel starts whenever a statement would read or write an
     argument that another thread writes. Statements declare the arguments they write, except their own output
-    elements. Hooks that launch their own work run between kernels: a hook that declares what it reads and writes
-    runs before the statements of the current kernel if they do not depend on each other, so that consecutive hooks
-    do not split it; any other hook ends the current kernel.
+    elements. Hooks that launch their own work run between kernels: a capturable hook that declares what it reads
+    and writes runs before the statements of the current kernel if they do not depend on each other, so that
+    consecutive hooks do not split it; any other hook ends the current kernel. Hooks that cannot be captured, such as
+    eager terms, may reach the scene beyond what they declare, so they always keep their place.
     """
 
     def __init__(self, name: str, num_worlds: int, device: str, mask: Callable[[Any], wp.array] | None = None) -> None:
@@ -114,7 +115,7 @@ class Fusion:
         writes: Iterable[Hashable] | None = None,
     ) -> None:
         """Append a hook that launches its own work. ``reads`` and ``writes`` are the keys of the arguments it uses."""
-        if reads is None or writes is None or self._depends(reads, writes):
+        if not capturable or reads is None or writes is None or self._depends(reads, writes):
             self._cut()
         self._steps.append(Launch(step, capturable))
 

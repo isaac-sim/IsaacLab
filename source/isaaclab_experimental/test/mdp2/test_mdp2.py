@@ -682,6 +682,10 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         limit = mdp2.Termination(joint_pos_out_of_manual_limit, inputs={"joint_pos": robot.joint_pos})
         limit.params["limit"] = 0.01
         builder.add_termination("out_of_bounds", limit)
+        far = mdp2.Termination(
+            joint_pos_out_of_manual_limit, inputs={"joint_pos": robot.joint_pos}, params={"limit": 5e-5}, time_out=True
+        )
+        builder.add_termination("far", far)
 
         mdp = builder.finalize(device=DEVICE, backend=backend, diagnostics=True)
         limit.params["limit"] = 1.0e6  # A finalized MDP keeps its params.
@@ -697,7 +701,9 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         assert torch.equal(scene.data("robot", "joint_effort_target").torch, actions[:, [1, 2, 0]])
         expected = torch.cat([actions, torch.ones(2, 1, device=DEVICE), joint_pos[:, [0, 2]]], dim=-1)
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
-        assert transition.terminated.torch.tolist() == transition.done.torch.tolist() == [False, True]
+        # A termination with time_out truncates instead.
+        assert transition.terminated.torch.tolist() == [False, True]
+        assert transition.truncated.torch.tolist() == transition.done.torch.tolist() == [True, True]
         assert torch.equal(transition.termination_terms.torch[:, 0], transition.terminated.torch)
         torch.testing.assert_close(transition.reward_terms.torch.sum(dim=-1), transition.rewards.torch)
 
@@ -869,9 +875,8 @@ def test_captured_mdp_replays_like_eager_calls():
                 history.append(step)
             runs.append(torch.stack(history))
 
-        # Warp runs hooks ahead of the kernel statements they do not depend on, which can merge graphs.
         num_segments = sum(segment.capturable for function in mdp.segments.values() for segment in function)
-        assert captured.num_graphs == num_segments if backend == "torch" else captured.num_graphs < num_segments
+        assert captured.num_graphs == num_segments
         assert torch.equal(runs[1], runs[0])
 
 
@@ -1029,6 +1034,28 @@ def test_library_action_and_termination_terms():
         torch.testing.assert_close(policy[:, 2], steps[1].square().sum(-1))
         torch.testing.assert_close(policy[:, 3], (steps[1] - steps[0]).square().sum(-1))
         assert policy[:, 4].tolist() == [1.0, 0.0] and policy[:, 5].tolist() == [0.0, 1.0]
+
+
+def test_observation_noise_then_clip_then_scale():
+    """An observation adds its noise, then clips, then scales, as in MDP1."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=1, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        observation = mdp2.Observation(
+            joint_vel,
+            inputs={"joint_vel": robot.joint_vel},
+            noise=mdp2.UniformNoise(0.25, 0.25),
+            clip=(-1.5, 1.5),
+            scale=0.5,
+        )
+        builder.add_observation("policy", "joint_vel", observation)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, observations = mdp.state(scene), mdp.observations()
+
+        scene.data("robot", "joint_vel").torch.copy_(torch.tensor([[1.0, 2.0]], device=DEVICE))
+        mdp2.observe(mdp, state, observations, ProxyArray(wp.ones(1, dtype=wp.bool, device=DEVICE)))
+
+        assert observations["policy"].torch.tolist() == [[0.625, 0.75]]
 
 
 def test_observation_history():
@@ -1403,26 +1430,35 @@ def test_world_configs_keep_python_hooks_in_their_worlds():
 
 
 def test_uses_that_read_each_other_are_reported_as_a_cycle():
-    """A quantity that reads the state of an event that reads the quantity cannot be ordered: the only error."""
+    """A quantity that reads the state of an event that reads the quantity cannot be ordered: the only error, also
+    in one world config of several."""
     counting = mdp2.Term(torch=lambda mask, value, count: None, state={"count": mdp2.State()})
-    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
+    schema = PointMassScene(num_worlds=2).schema
+    cyclic = make_builder(schema)
     count = mdp2.term_state("events.counting", "count")
-    builder.add_quantity("mirror", mdp2.Quantity(mdp2.mdp.value, inputs={"value": count}))
-    builder.add_event("counting", mdp2.Event(counting, inputs={"value": mdp2.quantities.mirror}))
+    cyclic.add_quantity("mirror", mdp2.Quantity(mdp2.mdp.value, inputs={"value": count}))
+    cyclic.add_event("counting", mdp2.Event(counting, inputs={"value": mdp2.quantities.mirror}))
+    builder = mdp2.MDPBuilder(schema)
+    builder.replicate(cyclic, 1)
+    builder.replicate(make_builder(schema), 1)
     with pytest.raises(ValueError) as error:
         builder.validate()
     assert "in a cycle: quantities.mirror, events.counting" in str(error.value)
-    assert "unknown field" not in str(error.value)
+    assert "unknown field" not in str(error.value) and "time limit" not in str(error.value)
 
 
 def test_reset_commits_before_events_that_ask_for_it():
-    """The scene commits the writes of the earlier reset events before an event that asks for it."""
+    """The scene commits the writes of the earlier reset events before an event that asks for it. An eager event,
+    which may read the scene without declaring it, runs after them."""
     for backend in ("torch", "warp"):
         scene = PointMassScene(num_worlds=2, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_event("push", mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}))
         scale = mdp2.Event(scale_joint_vel, outputs={"joint_vel": robot.joint_vel}, params={"factor": 3.0}, commit=True)
         builder.add_event("scale", scale)
+        seen = []
+        record = mdp2.Term(eager=lambda ctx: seen.append(ctx.scene_data.data("robot", "joint_vel").torch.clone()))
+        builder.add_event("record", mdp2.Event(record))
         mdp = builder.finalize(device=DEVICE, backend=backend)
         state = mdp.state(scene)
         joint_velocities = scene.data("robot", "joint_vel").torch
@@ -1432,4 +1468,4 @@ def test_reset_commits_before_events_that_ask_for_it():
         mdp2.reset(mdp, state, mask, commit=lambda: committed.append(joint_velocities.clone()))
 
         assert len(committed) == 1 and (committed[0] == 1.0).all()
-        assert (joint_velocities == 3.0).all()
+        assert (joint_velocities == 3.0).all() and (seen[0] == 3.0).all()

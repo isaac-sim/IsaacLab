@@ -47,7 +47,9 @@ class MDPState:
     - ``("history", op)``: ``(num_worlds, history_length, size)``, for an observation with a history;
     - ``("scratch", op)``: the output of an eager term or of a Warp hook that launches its own kernels;
     - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
-    - ``("active", op)``: the worlds where an op is active, for an op that is active in only some.
+    - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
+    - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
+      ``evaluate``, for an MDP with such events.
     """
 
     arrays: dict[Hashable, ProxyArray]
@@ -152,9 +154,22 @@ class MDP:
         return all(segment.capturable for segments in functions for segment in segments)
 
     @property
+    def startup_writes(self) -> frozenset[FieldSelector]:
+        """Scene fields that the startup events write, which the scene commits after startup."""
+        return self._scene_writes(Phase.STARTUP_EVENTS)
+
+    @property
     def reset_writes(self) -> frozenset[FieldSelector]:
         """Scene fields that the reset events write, which the scene commits after a reset."""
-        return frozenset(selector for op in self.ops[Phase.RESET_EVENTS] for selector in op.writes if selector.scene)
+        return self._scene_writes(Phase.RESET_EVENTS)
+
+    @property
+    def interval_writes(self) -> frozenset[FieldSelector]:
+        """Scene fields that the interval events write, which the scene commits in the worlds where one ran."""
+        return self._scene_writes(Phase.INTERVAL_EVENTS)
+
+    def _scene_writes(self, phase: Phase) -> frozenset[FieldSelector]:
+        return frozenset(selector for op in self.ops[phase] for selector in op.writes if selector.scene)
 
     def describe(self) -> str:
         """Return the compiled MDP as readable text: ops by phase with their layout, then each function's steps."""
@@ -246,6 +261,8 @@ class MDP:
         for index, config in enumerate(self.world_configs):
             weights[config.worlds.start : config.worlds.stop] = [op.weights[index] for op in self.ops[Phase.REWARDS]]
         arrays["reward_weights"] = ProxyArray(wp.array(weights, dtype=wp.float32, device=self.device))
+        if self.interval_writes:
+            arrays["interval_worlds"] = self._zeros(self.num_worlds, dtype=wp.bool)
 
         # Buffers of single ops.
         events = (Phase.STARTUP_EVENTS, Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)

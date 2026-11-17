@@ -389,7 +389,11 @@ class MDPBuilder:
     ) -> tuple[CompileContext, float | None]:
         """Compile the ops of one world config, and return them with its episode length in seconds."""
         context = CompileContext(backend, _dependency_errors(schedule))
-        time_limits = []
+        # The time limit compiles to no op, so it is known even when the other uses cannot be ordered.
+        time_limits = [entry for entry in schedule if isinstance(entry.cfg, TimeLimit)]
+        if len(time_limits) > 1:
+            context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
+        time_limit = time_limits[0].cfg.episode_length_s if time_limits else None
 
         # Actions compile first, for the size of the last action. Every other use compiles after the uses that
         # provide the commands, quantities, and term state it reads.
@@ -407,13 +411,13 @@ class MDPBuilder:
                 f"Uses read each other's fields in a cycle: {', '.join(map('.'.join, error.args[1]))}. A use is"
                 " compiled after the uses whose commands, quantities, and state it reads."
             )
-            return context, None
+            return context, time_limit
 
         actions = [entry for entry in schedule if entry.phase is Phase.ACTIONS]
         for entry in (*actions, *(entries[path] for path in order if entries[path].phase is not Phase.ACTIONS)):
             if isinstance(entry.cfg, TimeLimit):
-                time_limits.append(entry)
-            elif isinstance(entry.cfg, DirectAction):
+                continue
+            if isinstance(entry.cfg, DirectAction):
                 self._compile_action(entry, context)
             else:
                 self._compile_term(entry, context)
@@ -442,9 +446,7 @@ class MDPBuilder:
                     observation = replace(observation, columns=slice(start, stop))
                 ops[k] = replace(op, index=k, observation=observation)
 
-        if len(time_limits) > 1:
-            context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
-        return context, time_limits[0].cfg.episode_length_s if time_limits else None
+        return context, time_limit
 
     def _compile_action(self, entry: ScheduleEntry, context: CompileContext) -> None:
         """Compile an action use into an op, or record why it cannot be compiled."""
