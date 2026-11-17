@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to activate certain terminations for the lift task.
+"""Common functions that can be used to activate certain terminations for the stack task.
 
 The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
 the termination introduced by the function.
@@ -21,6 +21,22 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def cube_pair_is_aligned(
+    separation: torch.Tensor, xy_threshold: float, height_diff: float, height_threshold: float
+) -> torch.Tensor:
+    """Check adjacent cubes given their upper-minus-lower center displacement.
+
+    The upper cube must lie above the lower cube, within `xy_threshold` horizontally and
+    `height_threshold` of the expected vertical separation `height_diff`. All distances are in meters.
+    """
+    height = separation[:, 2]
+    return (
+        (torch.linalg.norm(separation[:, :2], dim=1) < xy_threshold)
+        & (height > 0.0)
+        & (torch.abs(height - height_diff) < height_threshold)
+    )
 
 
 def cubes_stacked(
@@ -46,7 +62,7 @@ def cubes_stacked(
         cube_3_cfg: Scene entity configuration for the cube above cube_2. None disables
             the third-cube checks for a two-cube task.
         xy_threshold: Maximum horizontal distance [m] between adjacent cube centers.
-        height_threshold: Upper tolerance [m] on the vertical center separation minus height_diff.
+        height_threshold: Tolerance [m] on either side of the expected vertical center separation.
         height_diff: Expected vertical center separation [m] between adjacent cubes.
         atol: Absolute tolerance for gripper joint positions [m or rad, depending on
             joint type] when checking the configured open value.
@@ -59,33 +75,13 @@ def cubes_stacked(
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
 
-    pos_diff_c12 = cube_1.data.root_pos_w.torch - cube_2.data.root_pos_w.torch
-
-    # Compute cube position difference in x-y plane
-    xy_dist_c12 = torch.linalg.norm(pos_diff_c12[:, :2], dim=1)
-
-    # Compute cube height difference
-    h_dist_c12 = torch.linalg.norm(pos_diff_c12[:, 2:], dim=1)
-
-    # Check cube positions
-    stacked = xy_dist_c12 < xy_threshold
-    stacked = torch.logical_and(h_dist_c12 - height_diff < height_threshold, stacked)
-    stacked = torch.logical_and(pos_diff_c12[:, 2] < 0.0, stacked)
+    separation_c12 = cube_2.data.root_pos_w.torch - cube_1.data.root_pos_w.torch
+    stacked = cube_pair_is_aligned(separation_c12, xy_threshold, height_diff, height_threshold)
 
     if cube_3_cfg is not None:
         cube_3: RigidObject = env.scene[cube_3_cfg.name]
-        pos_diff_c23 = cube_2.data.root_pos_w.torch - cube_3.data.root_pos_w.torch
-
-        # Compute cube position difference in x-y plane
-        xy_dist_c23 = torch.linalg.norm(pos_diff_c23[:, :2], dim=1)
-
-        # Compute cube height difference
-        h_dist_c23 = torch.linalg.norm(pos_diff_c23[:, 2:], dim=1)
-
-        # Check cube positions
-        stacked = torch.logical_and(xy_dist_c23 < xy_threshold, stacked)
-        stacked = torch.logical_and(h_dist_c23 - height_diff < height_threshold, stacked)
-        stacked = torch.logical_and(pos_diff_c23[:, 2] < 0.0, stacked)
+        separation_c23 = cube_3.data.root_pos_w.torch - cube_2.data.root_pos_w.torch
+        stacked &= cube_pair_is_aligned(separation_c23, xy_threshold, height_diff, height_threshold)
 
     # Check gripper positions
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
