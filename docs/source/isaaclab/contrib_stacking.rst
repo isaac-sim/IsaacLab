@@ -66,7 +66,9 @@ identify the intended stacking order.
 actor using a compatible state PPO checkpoint as its frozen teacher.
 Teacher labels use the same action clipping as the student. The teacher
 uses the state task's 100-input observation order, so older 109-input
-checkpoints require retraining.
+checkpoints require retraining. Add ``--checkpoint`` with the path to the
+teacher when starting distillation from the environment browser's base
+training command.
 
 .. code-block:: bash
 
