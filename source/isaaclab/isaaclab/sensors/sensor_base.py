@@ -29,7 +29,21 @@ from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
 from ..utils import index_fill_
-from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
+from .kernels import (
+    initialize_elapsed_time_kernel,
+    reset_envs_elapsed_kernel,
+    update_outdated_envs_elapsed_kernel,
+    update_timestamp_elapsed_kernel,
+)
+from .kernels import (
+    reset_envs_kernel as reset_envs_kernel,
+)
+from .kernels import (
+    update_outdated_envs_kernel as update_outdated_envs_kernel,
+)
+from .kernels import (
+    update_timestamp_kernel as update_timestamp_kernel,
+)
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -47,6 +61,9 @@ class SensorBase(ABC):
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
     """
+
+    _elapsed_timestamp: wp.array | None = None
+    _elapsed_timestamp_last_update: wp.array | None = None
 
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
@@ -187,7 +204,7 @@ class SensorBase(ABC):
         """
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         wp.launch(
-            reset_envs_kernel,
+            reset_envs_elapsed_kernel,
             dim=self._num_envs,
             inputs=[
                 env_mask,
@@ -207,7 +224,7 @@ class SensorBase(ABC):
         self._data_dirty = True
         # Update the timestamp for the sensors
         wp.launch(
-            update_timestamp_kernel,
+            update_timestamp_elapsed_kernel,
             dim=self._num_envs,
             inputs=[
                 self._is_outdated,
@@ -430,14 +447,33 @@ class SensorBase(ABC):
     def _create_timing_buffers(self) -> None:
         """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
 
-        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
-        reallocating their environment masks.
+        Sensors can call this again after changing :attr:`_num_envs` and reallocating their environment masks.
         """
         # timestamp and outdated flags
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
-        self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+        self._elapsed_time_buffer = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+        self._elapsed_timestamp = self._timestamp
+        self._elapsed_timestamp_last_update = self._timestamp_last_update
+
+    @property
+    def _elapsed_since_update(self) -> wp.array:
+        """Elapsed time since refresh, adopting timestamp buffers allocated by custom sensors."""
+        if (
+            self._elapsed_timestamp is not self._timestamp
+            or self._elapsed_timestamp_last_update is not self._timestamp_last_update
+        ):
+            self._elapsed_time_buffer = wp.empty(self._timestamp.shape, dtype=wp.float64, device=self._timestamp.device)
+            wp.launch(
+                initialize_elapsed_time_kernel,
+                dim=self._num_envs,
+                inputs=[self._timestamp, self._timestamp_last_update, self._elapsed_time_buffer],
+                device=self._device,
+            )
+            self._elapsed_timestamp = self._timestamp
+            self._elapsed_timestamp_last_update = self._timestamp_last_update
+        return self._elapsed_time_buffer
 
     def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
@@ -450,7 +486,7 @@ class SensorBase(ABC):
         """Commit capture timestamps after the sensor's output buffers have been filled."""
         # update timestamps and clear outdated flags
         wp.launch(
-            update_outdated_envs_kernel,
+            update_outdated_envs_elapsed_kernel,
             dim=self._num_envs,
             inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
             device=self._device,

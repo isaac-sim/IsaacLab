@@ -25,7 +25,8 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
     """
     data = ContactSensorData()
     data.create_buffers(2, 1, 1, 3, True, False, False, "cpu", track_friction_forces=True)
-    elapsed_since_update = wp.ones((2,), dtype=wp.float64, device="cpu")
+    timestamp = wp.ones((2,), dtype=wp.float32, device="cpu")
+    timestamp_last_update = wp.zeros((2,), dtype=wp.float32, device="cpu")
 
     # Each buffer gets a distinct scale so a mis-wired history shows up as a wrong value.
     buffers = {
@@ -53,7 +54,8 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
                 data._normal_force_matrix_w,
                 data._net_friction_forces_w,
                 data._friction_force_matrix_w,
-                elapsed_since_update,
+                timestamp,
+                timestamp_last_update,
                 data._net_forces_w_history,
                 data._force_matrix_w_history,
                 data._net_normal_forces_w_history,

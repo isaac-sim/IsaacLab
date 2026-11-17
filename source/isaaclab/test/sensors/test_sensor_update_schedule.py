@@ -16,9 +16,10 @@ import pytest
 import warp as wp
 
 from isaaclab.sensors import SensorBase, SensorBaseCfg
+from isaaclab.sensors.kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _RefreshLogSensor(SensorBase):
@@ -49,6 +50,15 @@ class _RefreshLogSensor(SensorBase):
     def _update_buffers_impl(self, env_mask: wp.array):
         for env in np.flatnonzero(env_mask.numpy()):
             self.refreshes[env].append(self.step)
+
+
+class _LegacyTimingSensor(_RefreshLogSensor):
+    """Custom sensor that allocates only the timing buffers available before this fix."""
+
+    def _create_timing_buffers(self):
+        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
 
 def _run(sensor: _RefreshLogSensor, dts: list[float], read_every: int = 1) -> list[list[int]]:
@@ -84,3 +94,56 @@ def test_refresh_follows_the_time_passed_to_update(device):
     sensor = _RefreshLogSensor(update_period=0.02, device=device)
     refreshes = _run(sensor, [0.005, 0.015] * 2000)
     assert refreshes == [list(range(1, 4001, 2))] * 2
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_custom_sensor_adopts_legacy_timing_buffers(device):
+    """Custom allocation, reset-before-update, lazy reads and replacement preserve refresh timing."""
+    sensor = _LegacyTimingSensor(update_period=0.02, device=device)
+    mask = wp.ones(2, dtype=wp.bool, device=device)
+    sensor.reset(env_mask=mask)
+    assert _run(sensor, [0.005] * 5) == [[1, 5]] * 2
+
+    sensor.update(0.005)
+    sensor.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
+    sensor.refreshes = [[], []]
+    assert _run(sensor, [0.005] * 3) == [[1], [3]]
+
+    # Replace buffers at the same size, retaining time accumulated since a previous refresh.
+    sensor._timestamp = wp.full(2, 0.01, dtype=wp.float32, device=device)
+    sensor._timestamp_last_update = wp.zeros_like(sensor._timestamp)
+    sensor._is_outdated = wp.zeros(2, dtype=wp.bool, device=device)
+    sensor.refreshes = [[], []]
+    assert _run(sensor, [0.005] * 2) == [[2]] * 2
+
+    # Resize without calling the new SensorBase timing allocator, then read before stepping.
+    sensor._num_envs = 3
+    sensor._create_timing_buffers()
+    sensor.refreshes = [[], [], []]
+    sensor.step = 0
+    sensor._data_dirty = True
+    _ = sensor.data
+    assert _run(sensor, [0.005] * 4) == [[0, 4]] * 3
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_timestamp_kernel_signatures_remain_compatible(device):
+    """Direct callers can still advance, refresh and partially reset with float32 timestamp arrays."""
+    outdated = wp.zeros(2, dtype=wp.bool, device=device)
+    timestamp = wp.array([1.0, 2.0], dtype=wp.float32, device=device)
+    last_update = wp.clone(timestamp)
+    for _ in range(2):
+        wp.launch(update_timestamp_kernel, dim=2, inputs=[outdated, timestamp, last_update, 0.005, 0.01], device=device)
+    np.testing.assert_array_equal(outdated.numpy(), [True, True])
+    np.testing.assert_allclose(timestamp.numpy(), [1.01, 2.01], atol=1e-6, rtol=0)
+    np.testing.assert_array_equal(last_update.numpy(), [1.0, 2.0])
+
+    wp.launch(update_outdated_envs_kernel, dim=2, inputs=[outdated, timestamp, last_update], device=device)
+    np.testing.assert_array_equal(outdated.numpy(), [False, False])
+    np.testing.assert_allclose(last_update.numpy(), [1.01, 2.01], atol=1e-6, rtol=0)
+
+    mask = wp.array([True, False], dtype=wp.bool, device=device)
+    wp.launch(reset_envs_kernel, dim=2, inputs=[mask, outdated, timestamp, last_update], device=device)
+    np.testing.assert_array_equal(outdated.numpy(), [True, False])
+    np.testing.assert_allclose(timestamp.numpy(), [0.0, 2.01], atol=1e-6, rtol=0)
+    np.testing.assert_allclose(last_update.numpy(), [0.0, 2.01], atol=1e-6, rtol=0)

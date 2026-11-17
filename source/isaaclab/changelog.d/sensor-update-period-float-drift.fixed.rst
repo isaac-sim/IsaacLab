@@ -4,3 +4,7 @@
   with ``update_period`` set to a multiple of the physics time step skipped refreshes (for example, the height
   scanner of the locomotion tasks from 16 s into an episode, and sensors with long update periods at small
   time steps within the first second). The time since the last refresh is now accumulated in float64.
+  Existing timestamp buffers and Warp kernel signatures were preserved. Custom sensors that allocate or
+  replace their own timestamp buffers automatically acquire elapsed-time tracking on first use.
+  Built-in sensors use the new ``*_elapsed_kernel`` entry points; direct callers of the existing kernels
+  continue to work with their original timestamp-based timing behavior.

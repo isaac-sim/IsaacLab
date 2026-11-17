@@ -158,8 +158,10 @@ def reset_contact_sensor_kernel(
         last_contact_time[env, sensor] = 0.0
 
 
-@wp.kernel
-def update_contact_sensor_kernel(
+@wp.func
+def _update_contact_sensor(
+    env: int,
+    sensor: int,
     # in
     history_length: int,
     num_filter_objects: int,
@@ -171,7 +173,7 @@ def update_contact_sensor_kernel(
     normal_force_matrix: wp.array3d(dtype=wp.vec3f),
     net_friction_forces: wp.array2d(dtype=wp.vec3f),
     friction_force_matrix: wp.array3d(dtype=wp.vec3f),
-    elapsed_since_update: wp.array(dtype=wp.float64),
+    elapsed_time: wp.float32,
     # in-out
     net_forces_history: wp.array3d(dtype=wp.vec3f),
     force_matrix_history: wp.array4d(dtype=wp.vec3f),
@@ -185,11 +187,7 @@ def update_contact_sensor_kernel(
     last_air_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
 ):
-    """Update the contact sensor data (history and air/contact time tracking).
-
-    Launch with dim=(num_envs, num_sensors).
-    """
-    env, sensor = wp.tid()
+    """Update force buffers and advance contact timers by the supplied elapsed time."""
 
     if env_mask:
         if not env_mask[env]:
@@ -233,7 +231,6 @@ def update_contact_sensor_kernel(
 
     # Update air/contact time tracking from normal force magnitude.
     if current_air_time:
-        elapsed_time = wp.float32(elapsed_since_update[env])
         in_contact = wp.length_sq(net_normal_forces[env, sensor]) > contact_force_threshold * contact_force_threshold
 
         cat = current_air_time[env, sensor]
@@ -248,6 +245,131 @@ def update_contact_sensor_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
+
+@wp.kernel
+def update_contact_sensor_kernel(
+    # in
+    history_length: int,
+    num_filter_objects: int,
+    contact_force_threshold: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    net_forces: wp.array2d(dtype=wp.vec3f),
+    force_matrix: wp.array3d(dtype=wp.vec3f),
+    net_normal_forces: wp.array2d(dtype=wp.vec3f),
+    normal_force_matrix: wp.array3d(dtype=wp.vec3f),
+    net_friction_forces: wp.array2d(dtype=wp.vec3f),
+    friction_force_matrix: wp.array3d(dtype=wp.vec3f),
+    timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+    # in-out
+    net_forces_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    net_normal_forces_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    # out
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+):
+    """Update the contact sensor data (history and air/contact time tracking).
+
+    Launch with dim=(num_envs, num_sensors).
+    """
+    env, sensor = wp.tid()
+    elapsed_time = wp.float32(0.0)
+    if current_air_time:
+        elapsed_time = timestamp[env] - timestamp_last_update[env]
+    _update_contact_sensor(
+        env,
+        sensor,
+        history_length,
+        num_filter_objects,
+        contact_force_threshold,
+        env_mask,
+        net_forces,
+        force_matrix,
+        net_normal_forces,
+        normal_force_matrix,
+        net_friction_forces,
+        friction_force_matrix,
+        elapsed_time,
+        net_forces_history,
+        force_matrix_history,
+        net_normal_forces_history,
+        normal_force_matrix_history,
+        net_friction_forces_history,
+        friction_force_matrix_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+    )
+
+
+@wp.kernel
+def update_contact_sensor_elapsed_kernel(
+    # in
+    history_length: int,
+    num_filter_objects: int,
+    contact_force_threshold: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    net_forces: wp.array2d(dtype=wp.vec3f),
+    force_matrix: wp.array3d(dtype=wp.vec3f),
+    net_normal_forces: wp.array2d(dtype=wp.vec3f),
+    normal_force_matrix: wp.array3d(dtype=wp.vec3f),
+    net_friction_forces: wp.array2d(dtype=wp.vec3f),
+    friction_force_matrix: wp.array3d(dtype=wp.vec3f),
+    elapsed_since_update: wp.array(dtype=wp.float64),
+    # in-out
+    net_forces_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    net_normal_forces_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    # out
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+):
+    """Update the contact sensor data (history and air/contact time tracking).
+
+    Launch with dim=(num_envs, num_sensors).
+    """
+    env, sensor = wp.tid()
+    elapsed_time = wp.float32(0.0)
+    if current_air_time:
+        elapsed_time = wp.float32(elapsed_since_update[env])
+    _update_contact_sensor(
+        env,
+        sensor,
+        history_length,
+        num_filter_objects,
+        contact_force_threshold,
+        env_mask,
+        net_forces,
+        force_matrix,
+        net_normal_forces,
+        normal_force_matrix,
+        net_friction_forces,
+        friction_force_matrix,
+        elapsed_time,
+        net_forces_history,
+        force_matrix_history,
+        net_normal_forces_history,
+        normal_force_matrix_history,
+        net_friction_forces_history,
+        friction_force_matrix_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+    )
 
 
 @wp.kernel

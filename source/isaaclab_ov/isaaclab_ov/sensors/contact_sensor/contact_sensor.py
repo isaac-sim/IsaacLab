@@ -33,7 +33,10 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
-    update_net_forces_ovphysx_kernel,
+    update_net_forces_ovphysx_elapsed_kernel,
+)
+from .kernels import (
+    update_net_forces_ovphysx_kernel as update_net_forces_ovphysx_kernel,
 )
 
 if TYPE_CHECKING:
@@ -409,7 +412,7 @@ class ContactSensor(BaseContactSensor):
             friction_matrix_flat = None
 
         wp.launch(
-            update_net_forces_ovphysx_kernel,
+            update_net_forces_ovphysx_elapsed_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
                 normal_forces_flat,

@@ -248,8 +248,10 @@ def compute_first_transition_kernel(
         result[env, sensor] = 0.0
 
 
-@wp.kernel
-def update_net_forces_kernel(
+@wp.func
+def _update_net_forces(
+    env: int,
+    sensor: int,
     # in
     normal_forces_flat: wp.array(dtype=wp.vec3f),
     friction_forces_flat: wp.array(dtype=wp.vec3f),
@@ -261,7 +263,7 @@ def update_net_forces_kernel(
     history_length: int,
     contact_force_threshold: wp.float32,
     timestamp: wp.array(dtype=wp.float32),
-    elapsed_since_update: wp.array(dtype=wp.float64),
+    elapsed_time: wp.float32,
     # out
     net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
     net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
@@ -280,50 +282,7 @@ def update_net_forces_kernel(
     friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
     friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
 ):
-    """Update the net forces, force matrix and air/contact time for each (env, sensor) pair.
-
-    Launch with dim=(num_envs, num_sensors). The flat arrays are body-major (view created
-    from one pattern per body): ``src_idx = sensor_id * num_envs + env_id``.
-
-    Args:
-        normal_forces_flat: Flat net normal forces. Shape is (num_sensors*num_envs,).
-        friction_forces_flat: Flat net friction forces. Shape is (num_sensors*num_envs,), or None
-            with Isaac Sim 6.1.
-        normal_forces_matrix_flat: Flat normal force matrix. Shape is
-            (num_sensors*num_envs, num_filter_shapes).
-        friction_forces_matrix_flat: Flat friction force matrix. Shape is
-            (num_sensors*num_envs, num_filter_shapes), or None with Isaac Sim 6.1.
-        mask: Mask array. Shape is (num_envs,).
-        num_envs: Number of environments.
-        num_filter_shapes: Number of filter shapes.
-        history_length: Length of history.
-        contact_force_threshold: Threshold for the contact force.
-        timestamp: Timestamp array. Shape is (num_envs,).
-        elapsed_since_update: Time since the last sensor refresh [s]. Shape is (num_envs,).
-        net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
-        net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
-        normal_force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
-        normal_force_matrix_w_history: Force matrix history array. Shape is
-            (num_envs, history_length, num_sensors, num_filter_shapes).
-        current_air_time: Current air time array. Shape is (num_envs, num_sensors).
-        current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
-        last_air_time: Last air time array. Shape is (num_envs, num_sensors).
-        last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
-        net_forces_w: Optional total net forces array. Shape is (num_envs, num_sensors).
-        net_forces_w_history: Optional total net force history. Shape is
-            (num_envs, history_length, num_sensors).
-        force_matrix_w: Optional total force matrix. Shape is (num_envs, num_sensors, num_filter_shapes).
-        force_matrix_w_history: Optional total force matrix history. Shape is
-            (num_envs, history_length, num_sensors, num_filter_shapes).
-        net_friction_forces_w: Optional net friction forces. Shape is (num_envs, num_sensors).
-        net_friction_forces_w_history: Optional net friction force history. Shape is
-            (num_envs, history_length, num_sensors).
-        friction_force_matrix_w: Optional friction force matrix. Shape is
-            (num_envs, num_sensors, num_filter_shapes).
-        friction_force_matrix_w_history: Optional friction force matrix history. Shape is
-            (num_envs, history_length, num_sensors, num_filter_shapes).
-    """
-    env, sensor = wp.tid()
+    """Update force buffers and advance contact timers by the supplied elapsed time."""
 
     if mask:
         if not mask[env]:
@@ -387,7 +346,6 @@ def update_net_forces_kernel(
 
     # Update air/contact time tracking
     if current_air_time:
-        elapsed_time = wp.float32(elapsed_since_update[env])
         in_contact = wp.length_sq(net_normal_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
 
         cat = current_air_time[env, sensor]
@@ -402,6 +360,192 @@ def update_net_forces_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
+
+@wp.kernel
+def update_net_forces_kernel(
+    # in
+    normal_forces_flat: wp.array(dtype=wp.vec3f),
+    friction_forces_flat: wp.array(dtype=wp.vec3f),
+    normal_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    friction_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    mask: wp.array(dtype=wp.bool),
+    num_envs: int,
+    num_filter_shapes: int,
+    history_length: int,
+    contact_force_threshold: wp.float32,
+    timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+    # out
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+    net_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_friction_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+):
+    """Update the net forces, force matrix and air/contact time for each (env, sensor) pair.
+
+    Launch with dim=(num_envs, num_sensors). The flat arrays are body-major (view created
+    from one pattern per body): ``src_idx = sensor_id * num_envs + env_id``.
+
+    Args:
+        normal_forces_flat: Flat net normal forces. Shape is (num_sensors*num_envs,).
+        friction_forces_flat: Flat net friction forces. Shape is (num_sensors*num_envs,), or None
+            with Isaac Sim 6.1.
+        normal_forces_matrix_flat: Flat normal force matrix. Shape is
+            (num_sensors*num_envs, num_filter_shapes).
+        friction_forces_matrix_flat: Flat friction force matrix. Shape is
+            (num_sensors*num_envs, num_filter_shapes), or None with Isaac Sim 6.1.
+        mask: Mask array. Shape is (num_envs,).
+        num_envs: Number of environments.
+        num_filter_shapes: Number of filter shapes.
+        history_length: Length of history.
+        contact_force_threshold: Threshold for the contact force.
+        timestamp: Timestamp array. Shape is (num_envs,).
+        timestamp_last_update: Timestamp last update array. Shape is (num_envs,).
+        net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
+        net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
+        normal_force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
+        normal_force_matrix_w_history: Force matrix history array. Shape is
+            (num_envs, history_length, num_sensors, num_filter_shapes).
+        current_air_time: Current air time array. Shape is (num_envs, num_sensors).
+        current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
+        last_air_time: Last air time array. Shape is (num_envs, num_sensors).
+        last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
+        net_forces_w: Optional total net forces array. Shape is (num_envs, num_sensors).
+        net_forces_w_history: Optional total net force history. Shape is
+            (num_envs, history_length, num_sensors).
+        force_matrix_w: Optional total force matrix. Shape is (num_envs, num_sensors, num_filter_shapes).
+        force_matrix_w_history: Optional total force matrix history. Shape is
+            (num_envs, history_length, num_sensors, num_filter_shapes).
+        net_friction_forces_w: Optional net friction forces. Shape is (num_envs, num_sensors).
+        net_friction_forces_w_history: Optional net friction force history. Shape is
+            (num_envs, history_length, num_sensors).
+        friction_force_matrix_w: Optional friction force matrix. Shape is
+            (num_envs, num_sensors, num_filter_shapes).
+        friction_force_matrix_w_history: Optional friction force matrix history. Shape is
+            (num_envs, history_length, num_sensors, num_filter_shapes).
+    """
+    env, sensor = wp.tid()
+    elapsed_time = wp.float32(0.0)
+    if current_air_time:
+        elapsed_time = timestamp[env] - timestamp_last_update[env]
+    _update_net_forces(
+        env,
+        sensor,
+        normal_forces_flat,
+        friction_forces_flat,
+        normal_forces_matrix_flat,
+        friction_forces_matrix_flat,
+        mask,
+        num_envs,
+        num_filter_shapes,
+        history_length,
+        contact_force_threshold,
+        timestamp,
+        elapsed_time,
+        net_normal_forces_w,
+        net_normal_forces_w_history,
+        normal_force_matrix_w,
+        normal_force_matrix_w_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+        net_forces_w,
+        net_forces_w_history,
+        force_matrix_w,
+        force_matrix_w_history,
+        net_friction_forces_w,
+        net_friction_forces_w_history,
+        friction_force_matrix_w,
+        friction_force_matrix_w_history,
+    )
+
+
+@wp.kernel
+def update_net_forces_elapsed_kernel(
+    # in
+    normal_forces_flat: wp.array(dtype=wp.vec3f),
+    friction_forces_flat: wp.array(dtype=wp.vec3f),
+    normal_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    friction_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    mask: wp.array(dtype=wp.bool),
+    num_envs: int,
+    num_filter_shapes: int,
+    history_length: int,
+    contact_force_threshold: wp.float32,
+    timestamp: wp.array(dtype=wp.float32),
+    elapsed_since_update: wp.array(dtype=wp.float64),
+    # out
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+    net_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_friction_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+):
+    """Update forces and contact timers using float64 elapsed time since the last refresh.
+
+    Uses the force buffers and launch dimensions of the timestamp-based kernel, with
+    ``elapsed_since_update`` [s] replacing ``timestamp_last_update``.
+    """
+    env, sensor = wp.tid()
+    elapsed_time = wp.float32(0.0)
+    if current_air_time:
+        elapsed_time = wp.float32(elapsed_since_update[env])
+    _update_net_forces(
+        env,
+        sensor,
+        normal_forces_flat,
+        friction_forces_flat,
+        normal_forces_matrix_flat,
+        friction_forces_matrix_flat,
+        mask,
+        num_envs,
+        num_filter_shapes,
+        history_length,
+        contact_force_threshold,
+        timestamp,
+        elapsed_time,
+        net_normal_forces_w,
+        net_normal_forces_w_history,
+        normal_force_matrix_w,
+        normal_force_matrix_w_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+        net_forces_w,
+        net_forces_w_history,
+        force_matrix_w,
+        force_matrix_w_history,
+        net_friction_forces_w,
+        net_friction_forces_w_history,
+        friction_force_matrix_w,
+        friction_force_matrix_w_history,
+    )
 
 
 @wp.kernel

@@ -28,7 +28,10 @@ from .contact_sensor_kernels import (
     compute_first_transition_kernel,
     copy_from_newton_kernel,
     reset_contact_sensor_kernel,
-    update_contact_sensor_kernel,
+    update_contact_sensor_elapsed_kernel,
+)
+from .contact_sensor_kernels import (
+    update_contact_sensor_kernel as update_contact_sensor_kernel,
 )
 
 if TYPE_CHECKING:
@@ -503,7 +506,7 @@ class ContactSensor(BaseContactSensor):
 
         # Update history and air/contact time tracking
         wp.launch(
-            update_contact_sensor_kernel,
+            update_contact_sensor_elapsed_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
                 self._history_length,

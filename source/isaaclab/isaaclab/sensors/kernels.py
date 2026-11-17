@@ -10,6 +10,76 @@ import warp as wp
 def update_timestamp_kernel(
     is_outdated: wp.array(dtype=wp.bool),
     timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+    dt: wp.float32,
+    update_period: wp.float32,
+):
+    """Updates timestamp and marks environments as outdated if update period elapsed.
+
+    Args:
+        is_outdated: Boolean array indicating which envs need update.
+        timestamp: Current timestamp per env.
+        timestamp_last_update: Last update timestamp per env.
+        dt: Simulation time step (scalar).
+        update_period: Period after which sensor should be updated.
+    """
+    env = wp.tid()
+    new_timestamp = timestamp[env] + dt
+    timestamp[env] = new_timestamp
+    if new_timestamp - timestamp_last_update[env] + 1e-6 >= update_period:
+        is_outdated[env] = True
+
+
+@wp.kernel
+def update_outdated_envs_kernel(
+    is_outdated: wp.array(dtype=wp.bool),
+    timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+):
+    """Updates timestamp and clears outdated flag for outdated environments.
+
+    Args:
+        is_outdated: Boolean array indicating which envs need update. Will be set to False.
+        timestamp: Current timestamp per env.
+        timestamp_last_update: Last update timestamp per env. Will be set to current timestamp.
+    """
+    env = wp.tid()
+    if is_outdated[env]:
+        timestamp_last_update[env] = timestamp[env]
+        is_outdated[env] = False
+
+
+@wp.kernel
+def reset_envs_kernel(
+    reset_mask: wp.array(dtype=wp.bool),
+    is_outdated: wp.array(dtype=wp.bool),
+    timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+):
+    """Resets the current and last update timestamps and marks environments as outdated for those being reset.
+
+    Args:
+        reset_mask: Boolean array indicating which envs to reset.
+        is_outdated: Boolean array indicating which envs need update. Will be set to True for reset envs.
+        timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
+        timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
+    """
+    env = wp.tid()
+    if not reset_mask[env]:
+        return
+
+    # Reset the timestamp for the sensors
+    timestamp[env] = 0.0
+
+    timestamp_last_update[env] = 0.0
+    # Set all reset sensors to outdated so that they are updated when data is called the next time.
+    is_outdated[env] = True
+
+
+@wp.kernel
+def update_timestamp_elapsed_kernel(
+    is_outdated: wp.array(dtype=wp.bool),
+    timestamp: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
     dt: wp.float64,
     due_threshold: wp.float64,
@@ -36,7 +106,7 @@ def update_timestamp_kernel(
 
 
 @wp.kernel
-def update_outdated_envs_kernel(
+def update_outdated_envs_elapsed_kernel(
     is_outdated: wp.array(dtype=wp.bool),
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
@@ -58,7 +128,7 @@ def update_outdated_envs_kernel(
 
 
 @wp.kernel
-def reset_envs_kernel(
+def reset_envs_elapsed_kernel(
     reset_mask: wp.array(dtype=wp.bool),
     is_outdated: wp.array(dtype=wp.bool),
     timestamp: wp.array(dtype=wp.float32),
@@ -85,3 +155,14 @@ def reset_envs_kernel(
     elapsed_since_update[env] = wp.float64(0.0)
     # Set all reset sensors to outdated so that they are updated when data is called the next time.
     is_outdated[env] = True
+
+
+@wp.kernel
+def initialize_elapsed_time_kernel(
+    timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
+    elapsed_since_update: wp.array(dtype=wp.float64),
+):
+    """Initialize elapsed time from existing sensor timestamps when adopting timing buffers."""
+    env = wp.tid()
+    elapsed_since_update[env] = wp.float64(timestamp[env]) - wp.float64(timestamp_last_update[env])
