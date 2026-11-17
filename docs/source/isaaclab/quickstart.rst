@@ -285,6 +285,8 @@ Choose a checkpoint with one of the following options:
    * - ``--checkpoint pretrained``
      - A pretrained checkpoint hosted by Isaac Lab. Available only for
        supported tasks.
+   * - ``--checkpoint wandb:<entity>/<project>/<run_id>``
+     - The latest checkpoint of a W&B run (RSL-RL only).
 
 
 Benchmark a task
