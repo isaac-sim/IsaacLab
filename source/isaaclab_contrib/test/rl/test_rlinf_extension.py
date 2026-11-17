@@ -357,14 +357,20 @@ class TestEmbodimentTagPatching:
         assert "my_custom_robot" in mapping
         assert mapping["my_custom_robot"] == 42
 
-    def test_existing_tag_skipped(self) -> None:
-        """A tag already in the registry should not be overwritten."""
-        cfg = {"embodiment_tag": "gr1", "embodiment_tag_id": 99}
-        ext._patch_embodiment_tags(cfg)
+    def test_existing_tag_kept_without_configured_id(self) -> None:
+        """A tag already in the registry keeps its ID when the config does not pin one."""
+        ext._patch_embodiment_tags({"embodiment_tag": "gr1"})
 
         mapping = _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING
-        # Should keep original value 24, not 99
         assert mapping["gr1"] == 24
+
+    def test_existing_tag_overridden_by_configured_id(self) -> None:
+        """A configured ID replaces the registry's ID, e.g. RLinf's new_embodiment=10 vs. N1.5's 31."""
+        mapping = _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING
+        mapping["new_embodiment"] = 10
+        ext._patch_embodiment_tags({"embodiment_tag": "new_embodiment", "embodiment_tag_id": 31})
+
+        assert mapping["new_embodiment"] == 31
 
     def test_default_tag_values(self) -> None:
         """Defaults should be ``new_embodiment`` with ID 31."""
