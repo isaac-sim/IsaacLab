@@ -12,3 +12,4 @@ torchvision==0.26.0
 fsspec>=2026.6.0
 packaging>=20,<27
 urllib3>=2.8.0
+scipy>=1.18.0
