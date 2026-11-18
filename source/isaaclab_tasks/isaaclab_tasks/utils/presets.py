@@ -15,7 +15,11 @@ from isaaclab_visualizers.viser import ViserBackendCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import REMOVED_VISUALIZERS, VISUALIZER_ALIASES, VisualizerBackendCfg
+from isaaclab.visualizers.visualizer_cfg import (
+    DEPRECATED_VISUALIZER_ALIASES,
+    VISUALIZER_ALIASES,
+    VisualizerBackendCfg,
+)
 
 from .hydra import PresetCfg
 
@@ -63,5 +67,5 @@ class MultiBackendVisualizerCfg(PresetCfg):
     default: list[VisualizerBackendCfg] = []
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
-    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES)
-    _removed: ClassVar[dict[str, str]] = REMOVED_VISUALIZERS
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES) - frozenset(DEPRECATED_VISUALIZER_ALIASES)
+    _alias_messages: ClassVar[dict[str, str]] = DEPRECATED_VISUALIZER_ALIASES

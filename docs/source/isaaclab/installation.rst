@@ -980,7 +980,8 @@ included. Use ``--viz newton`` for local visualization with a display available 
 path tracer. Both can render offscreen without Isaac Sim. To open its window from a direct
 ``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
 ``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. ``--viz newton_gl`` is an alias of
-``--viz newton``; ``--viz newton_rtx`` is no longer accepted.
+``--viz newton``; ``--viz newton_rtx`` is a deprecated alias that launches ``--viz newton`` with a warning and is
+removed in the next release.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
 ``docker run`` commands, pass ``--gpus all -e NVIDIA_DRIVER_CAPABILITIES=all``. The NVIDIA

@@ -2599,8 +2599,8 @@ The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
-  ``"newton_gl"`` is an alias for ``"newton"``. ``"newton_rtx"`` is rejected with an error; use ``"newton"``,
-  which renders with OpenGL or RTX.
+  ``"newton_gl"`` is an alias for ``"newton"``. ``"newton_rtx"`` is a deprecated alias that launches ``"newton"`` with a warning and is removed
+  in the next release; ``"newton"`` renders with OpenGL or RTX.
 - ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``. A concrete backend
   runs as declared; ``--viz`` selects backends while preserving the common view and window settings.
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
@@ -2868,7 +2868,8 @@ The Newton visualizer is one window that renders with OpenGL or RTX (OVRTX path 
      - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` with ``initial_renderer="rtx"``
      - OVRTX path tracer; the HUD **Renderer** selector switches at runtime
 
-``--viz newton_rtx`` raises an error that points at ``newton``. Update scripts and config files:
+``--viz newton_rtx`` launches the ``newton`` visualizer with a ``FutureWarning`` that says the option is deprecated and
+is removed in the next release. Update scripts and config files:
 
 .. code-block:: bash
 
@@ -2884,8 +2885,8 @@ The Newton visualizer is one window that renders with OpenGL or RTX (OVRTX path 
    VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
 
 The RTX view needs the ``ovrtx`` package, a physics backend other than PhysX, and no Kit in the process. A
-:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source of ``"viz:newton_rtx"`` is rejected
-the same way; use ``"viz:newton"``. ``"viz:newton_gl"`` and ``"visualizer:newton_gl"`` remain accepted aliases.
+:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source of ``"viz:newton_rtx"`` warns
+the same way and records the ``newton`` visualizer; use ``"viz:newton"``. ``"viz:newton_gl"`` and ``"visualizer:newton_gl"`` remain accepted aliases.
 
 
 .. rubric:: Window settings and RTX scene ownership

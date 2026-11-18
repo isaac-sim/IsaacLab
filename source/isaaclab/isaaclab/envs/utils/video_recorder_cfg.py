@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from ...utils import configclass
-from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg, reject_removed_visualizer
+from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg, warn_deprecated_visualizer
 
 CAPTURE_VISUALIZER_TYPES = ("kit", "newton")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
@@ -29,7 +29,6 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     Raises:
         ValueError: If *source* does not follow the source grammar of :class:`VideoRecorderCfg`.
     """
-    reject_removed_visualizer(source)
     if source in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
         source = f"viz:{source}"
     kind, *parts = source.split(":")
@@ -38,7 +37,7 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     if kind == "viz" and not parts:
         return kind, "", ""
     if kind == "viz":
-        reject_removed_visualizer(name)
+        warn_deprecated_visualizer(name, stacklevel=3)
     if (
         kind == "viz"
         and parts[1:] in ([], ["streaming_view"], ["tracking"])
@@ -87,7 +86,8 @@ class VideoRecorderCfg:
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
     ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). ``newton_gl`` is an
-    alias of ``newton``, and ``newton_rtx`` was removed (use ``newton`` with RTX rendering). A bare visualizer type
+    alias of ``newton``, and ``newton_rtx`` is a deprecated alias of it that warns (the ``newton`` visualizer
+    supports RTX rendering). A bare visualizer type
     is shorthand for ``viz:<type>`` (e.g. ``"newton"`` is ``"viz:newton"``).
     """
 

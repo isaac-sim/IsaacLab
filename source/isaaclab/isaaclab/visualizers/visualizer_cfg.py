@@ -25,31 +25,31 @@ if TYPE_CHECKING:
 VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
-VISUALIZER_ALIASES = {"newton_gl": "newton"}
+VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
 """Alternative ``--visualizer`` names and the identifiers they select."""
 
-
-REMOVED_VISUALIZERS = {
+DEPRECATED_VISUALIZER_ALIASES = {
     "newton_rtx": (
-        "The 'newton_rtx' visualizer was removed. Use the 'newton' visualizer, which supports RTX rendering:"
-        " switch the Renderer to RTX in its window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start"
-        " in RTX."
+        "The 'newton_rtx' visualizer option is deprecated and will be removed in the next release; launching the"
+        " 'newton' visualizer instead. It supports RTX rendering: switch the Renderer to RTX in its window, or set"
+        " NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
     )
 }
-"""Removed ``--visualizer`` names and what to use instead."""
+"""Names in :data:`VISUALIZER_ALIASES` that are deprecated, each with the warning that says what happens instead."""
 
 
-def reject_removed_visualizer(name: str) -> None:
-    """Raise a :class:`ValueError` that points a removed visualizer name at its replacement.
+def warn_deprecated_visualizer(name: str, stacklevel: int = 2) -> None:
+    """Warn that a ``--visualizer`` name is deprecated, saying which visualizer launches instead.
+
+    Names that are not deprecated are ignored.
 
     Args:
         name: Visualizer identifier supplied by the user.
-
-    Raises:
-        ValueError: If *name* is ``newton_rtx``, which the ``newton`` visualizer replaced.
+        stacklevel: Stack level of the warning, relative to the caller of this function.
     """
-    if name in REMOVED_VISUALIZERS:
-        raise ValueError(REMOVED_VISUALIZERS[name])
+    message = DEPRECATED_VISUALIZER_ALIASES.get(name)
+    if message is not None:
+        warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)
 
 
 def with_free_view(

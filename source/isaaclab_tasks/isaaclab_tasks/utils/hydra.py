@@ -125,6 +125,7 @@ def _normalize_preset_name(
     known_names: set[str],
     aliases: Mapping[str, str] | None = None,
     quiet: Collection[str] = (),
+    messages: Mapping[str, str] | None = None,
 ) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
@@ -136,13 +137,14 @@ def _normalize_preset_name(
           legitimately reusing the deprecated spelling shadows the alias).
 
     No warning is emitted for names in ``quiet``, which are alternative spellings rather than deprecated ones.
+    ``messages`` replaces the default warning text of the names it lists.
     """
     replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     if name not in quiet:
         warnings.warn(
-            f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+            (messages or {}).get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
             FutureWarning,
             stacklevel=user_stacklevel(),
         )
@@ -190,6 +192,9 @@ class PresetCfg:
     _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
     """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
 
+    _alias_messages: ClassVar[dict[str, str]] = {}
+    """Warning texts that replace the default one for deprecated names in :attr:`_aliases`."""
+
     _removed: ClassVar[dict[str, str]] = {}
     """Names that were removed from this preset, each with a message that says what to use instead."""
 
@@ -207,7 +212,7 @@ class PresetCfg:
         if replacement is not None and replacement in fields and name not in fields:
             if name not in self._quiet_aliases:
                 warnings.warn(
-                    f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                    self._alias_messages.get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
                     FutureWarning,
                     stacklevel=user_stacklevel(),
                 )
@@ -342,7 +347,7 @@ def _pick_alternative(
     field_names = set(fields)
     if explicit_name is not None:
         explicit_name = _normalize_preset_name(
-            explicit_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases
+            explicit_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
         )
         if explicit_name in fields:
             return fields[explicit_name]
@@ -361,7 +366,9 @@ def _pick_alternative(
     match_value = None
     for name in selected:
         raw_name = name
-        name = _normalize_preset_name(raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases)
+        name = _normalize_preset_name(
+            raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
+        )
         if name not in fields or name == match_name:
             continue
         val = fields[name]

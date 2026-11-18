@@ -41,7 +41,7 @@ from ..utils.device import set_cuda_device
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
 from ..visualizers import ImageViewCfg, VisualizerBackendCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs, reject_removed_visualizer
+from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs, warn_deprecated_visualizer
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -254,7 +254,7 @@ def validate_launch(  # noqa: C901
         selection = selection.split(",")
     if selection is not None:
         for name in selection:
-            reject_removed_visualizer(name)
+            warn_deprecated_visualizer(name, stacklevel=3)
         selection = list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in selection))
         if selection == ["none"]:
             selection = []

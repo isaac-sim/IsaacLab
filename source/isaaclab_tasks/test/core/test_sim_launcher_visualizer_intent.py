@@ -99,8 +99,9 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
 
     with pytest.raises(ValueError, match="Unknown preset"):
         resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "missing"})
-    with pytest.raises(ValueError, match="'newton_rtx' visualizer was removed"):
-        resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton_rtx"})
+    with pytest.warns(FutureWarning, match="'newton_rtx' visualizer option is deprecated.*next release"):
+        deprecated = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton_rtx"})
+    assert isinstance(deprecated, NewtonGLBackendCfg)
     viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
     assert isinstance(viewer, NewtonGLBackendCfg)
 

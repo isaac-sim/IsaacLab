@@ -129,9 +129,10 @@ def test_parse_video_source(source, expected):
 
 
 @pytest.mark.parametrize("source", ["newton_rtx", "viz:newton_rtx", "visualizer:newton_rtx:streaming_view"])
-def test_parse_video_source_points_newton_rtx_at_newton(source):
-    with pytest.raises(ValueError, match="newton_rtx.*Use the 'newton' visualizer"):
-        parse_video_source(source)
+def test_parse_video_source_warns_that_newton_rtx_is_an_alias_of_newton(source):
+    with pytest.warns(FutureWarning, match="'newton_rtx' visualizer option is deprecated.*next release"):
+        kind, name, _channel = parse_video_source(source)
+    assert (kind, name) == ("viz", "newton")
 
 
 # ---------------------------------------------------------------------------
