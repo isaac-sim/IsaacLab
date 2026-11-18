@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from isaaclab_experimental.image_transfer import ImageTransferProcessorCfg
-
+from ...image_transfer import ImageTransferProcessorCfg
 from .._protocol import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:

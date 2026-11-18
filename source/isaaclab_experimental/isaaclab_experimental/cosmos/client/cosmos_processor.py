@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab_experimental.image_transfer import ImageTransferProcessor
-
+from ...image_transfer import ImageTransferProcessor
 from .._protocol import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:

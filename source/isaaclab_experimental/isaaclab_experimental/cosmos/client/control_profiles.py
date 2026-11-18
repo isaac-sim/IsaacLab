@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg, depth_to_control
-
+from ...image_transfer import FunctionProcessorCfg, depth_to_control
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 if TYPE_CHECKING:

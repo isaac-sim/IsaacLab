@@ -19,8 +19,7 @@ from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg
-
+from ...image_transfer import FunctionProcessorCfg
 from .._protocol import CANVAS_ASPECT_RATIOS
 from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
 from .cosmos_model_cfg import CosmosModelCfg
