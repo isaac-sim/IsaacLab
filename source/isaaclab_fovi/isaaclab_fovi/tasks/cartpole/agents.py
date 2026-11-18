@@ -3,17 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The stock camera PPO with gaze supervision; the actor and critic also see the gaze."""
+"""The stock camera PPO with gaze supervision and a fixed gaze noise; the actor and critic also see the gaze."""
 
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cartpole.agents.rsl_rl_ppo_cfg import CartpoleCameraPPORunnerCfg
 
-from ..agents import gaze_supervised
+from ..agents import gaze_actor, gaze_supervised
 
 
 @configclass
 class CartpoleFoviPPORunnerCfg(CartpoleCameraPPORunnerCfg):
     experiment_name = "cartpole_fovi"
     obs_groups = {"actor": ["policy", "gaze"], "critic": ["critic", "gaze"]}
+    actor = gaze_actor(CartpoleCameraPPORunnerCfg().actor)
     algorithm = gaze_supervised(CartpoleCameraPPORunnerCfg().algorithm)

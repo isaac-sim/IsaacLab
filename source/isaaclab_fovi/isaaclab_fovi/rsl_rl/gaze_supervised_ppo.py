@@ -36,7 +36,8 @@ class GazeSupervisedPPO(PPO):
 
     The gaze is the last two actions. The teacher's labels are the observation group ``oracle_group``, as
     :class:`isaaclab_fovi.mdp.gaze_teacher_labels` computes them; they never enter the actor or the critic. Only the
-    means of the gaze actions are supervised; PPO tunes their standard deviations like any other action's.
+    means of the gaze actions are supervised; pair it with
+    :class:`~isaaclab_fovi.rsl_rl.gaze_distribution.GazeGaussianDistribution`, which fixes their noise.
 
     Args:
         oracle_loss_coef: Weight of the gaze loss. Zero trains plain PPO.
