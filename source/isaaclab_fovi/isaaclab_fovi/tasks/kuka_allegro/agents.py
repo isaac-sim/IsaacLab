@@ -3,16 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The stock single-camera PPO with gaze supervision; the actor and critic also see the gaze."""
+"""The stock single-camera PPO with gaze supervision and a fixed gaze noise; the actor and critic also see the gaze."""
 
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.lift.config.kuka_allegro.agents.rsl_rl_ppo_cfg import (
     CAMERA_ALGO_CFG,
+    CNN_POLICY_CFG,
     KukaAllegroSingleCameraPPORunnerCfg,
 )
 
-from ..agents import gaze_supervised
+from ..agents import gaze_actor, gaze_supervised
 
 
 @configclass
@@ -22,4 +23,5 @@ class KukaAllegroFoviPPORunnerCfg(KukaAllegroSingleCameraPPORunnerCfg):
         "actor": ["policy", "proprio", "base_image", "gaze"],
         "critic": ["policy", "proprio", "perception", "gaze"],
     }
+    actor = gaze_actor(CNN_POLICY_CFG)
     algorithm = gaze_supervised(CAMERA_ALGO_CFG)

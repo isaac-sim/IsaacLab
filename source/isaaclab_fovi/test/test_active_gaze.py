@@ -24,6 +24,8 @@ from isaaclab_fovi.mdp.gaze import (
     teacher_labels_kernel,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
+from isaaclab_fovi.rsl_rl.gaze_distribution import GazeGaussianDistribution
+from isaaclab_fovi.rsl_rl.gaze_distribution_cfg import GazeGaussianDistributionCfg
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.algorithms import PPO
@@ -318,7 +320,7 @@ def test_gaze_loss_ignores_invalid_labels():
 
 
 def _algorithm(
-    oracle_loss_coef: float = 1.0, with_labels: bool = True, stock: bool = False
+    oracle_loss_coef: float = 1.0, with_labels: bool = True, stock: bool = False, gaze_head: bool = False
 ) -> tuple[PPO | GazeSupervisedPPO, TensorDict]:
     torch.manual_seed(0)
     labels = torch.rand(NUM_ENVS, 3) * 2 - 1
@@ -328,6 +330,9 @@ def _algorithm(
     obs = TensorDict(groups, batch_size=[NUM_ENVS])
     model_groups = {"actor": ["policy"], "critic": ["policy"]}
     distribution = {"class_name": "GaussianDistribution", "init_std": 1.0}
+    if gaze_head:
+        head = GazeGaussianDistributionCfg(init_std=1.0, gaze_std=0.1)
+        distribution = {"class_name": head.class_name, "init_std": 1.0, "gaze_std": head.gaze_std}
     actor = MLPModel(obs, model_groups, "actor", 3, hidden_dims=[32], distribution_cfg=distribution)
     critic = MLPModel(obs, model_groups, "critic", 1, hidden_dims=[32])
     storage = RolloutStorage("rl", NUM_ENVS, STEPS, obs, [3], "cpu")
@@ -383,3 +388,39 @@ def test_zero_coefficient_update_matches_stock_ppo_without_labels():
     for param, stock_param in zip(gaze_params, stock_params, strict=True):
         torch.testing.assert_close(param, stock_param, atol=0, rtol=0)
     assert all(not torch.equal(param, start) for param, start in zip(gaze_params, initial, strict=True))
+
+
+def test_gaze_head_keeps_the_gaze_noise_fixed_while_ppo_learns_the_rest():
+    """The entropy bonus and the surrogate move the other actions' noise, never the gaze's."""
+    algorithm, obs = _algorithm(gaze_head=True)
+    algorithm.entropy_coef = 0.5
+    head = algorithm.actor.distribution
+    assert isinstance(head, GazeGaussianDistribution)
+    assert head.std_param.shape == (1,)
+    _train(algorithm, obs, iterations=3)
+    with torch.no_grad():
+        head.update(torch.zeros(1, 3))
+    std = head.std[0]
+    torch.testing.assert_close(std[1:], torch.full((2,), 0.1))
+    assert abs(float(std[0]) - 1.0) > 1e-3
+    # The gaze noise is part of the saved policy, so a checkpoint restores it.
+    assert torch.equal(head.state_dict()["gaze_std"], torch.full((2,), 0.1))
+
+
+@pytest.mark.parametrize("std_type", ["scalar", "log"])
+def test_gaze_head_samples_with_the_fixed_gaze_noise(std_type):
+    head = GazeGaussianDistribution(5, init_std=2.0, std_type=std_type, gaze_std=0.05)
+    assert head.input_dim == 5
+    head.update(torch.zeros(4096, 5))
+    torch.testing.assert_close(head.std[0], torch.tensor([2.0, 2.0, 2.0, 0.05, 0.05]))
+    samples = head.sample()
+    assert samples.shape == (4096, 5)
+    torch.testing.assert_close(samples.std(dim=0)[3:], torch.full((2,), 0.05), atol=5e-3, rtol=0)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [dict(gaze_std=0.0), dict(gaze_std=float("inf")), dict(gaze_dims=5), dict(gaze_dims=0)]
+)
+def test_gaze_head_rejects_invalid_settings(kwargs):
+    with pytest.raises(ValueError, match="gaze"):
+        GazeGaussianDistribution(5, **kwargs)

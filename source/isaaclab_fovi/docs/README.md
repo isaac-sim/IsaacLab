@@ -126,12 +126,16 @@ physical camera's image at the current gaze.
 `isaaclab_fovi.rsl_rl.GazeSupervisedPPOCfg` trains PPO with an added loss that
 pulls the means of the gaze actions toward the teacher's. The labels come from
 an `oracle` observation group that the actor and critic never see.
+`GazeGaussianDistributionCfg` is the actor's action head for it: the gaze
+actions' noise is fixed (`gaze_std`, 0.1 by default) instead of learned. The gaze
+step clamps its actions, so a learned gaze noise meets no resistance from the
+reward and the entropy bonus grows it until the sampled gaze random-walks.
 
 ### Tasks
 
 Each task is its stock camera counterpart with the camera foveated at the same
 mount and optics, two gaze actions, and gaze supervision. The vision model and
-the PPO settings are the stock ones.
+the PPO settings are the stock ones; the gaze actions' noise is fixed.
 
 | Task | Retina | Teacher looks at |
 | --- | --- | --- |
