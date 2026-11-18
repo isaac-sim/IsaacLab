@@ -463,6 +463,34 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
     assert len(cosmos_service.resource.streams) == 1
 
 
+def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service, monkeypatch):
+    """Views a capture does not select keep their image, and a capture that selects no view changes nothing."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=2, timeout=2
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((2, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((2, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+
+    def capture(*views: bool) -> list[int]:
+        mask = wp.array(list(views), dtype=wp.bool, device="cpu")
+        return [int(image.float().mean()) for image in processor(buffers, env_mask=mask)["rgb"].torch]
+
+    try:
+        # A capture of no view does not count, so the next capture is still a decision point.
+        assert capture(False, False) == [0, 0]
+        assert capture(True, False) == [127, 0]
+        assert capture(False, True) == [127, 50]
+        assert len(cosmos_service.resource.streams[0].steps) == 1
+    finally:
+        processor.close()
+
+
 def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service):
     from isaaclab_experimental.cosmos.client import cli
 

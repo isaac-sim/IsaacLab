@@ -35,7 +35,8 @@ class CosmosTransferProcessor(ImageTransferProcessor):
 
     With :attr:`CosmosModelCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
     from the current capture's control, every ``decision_interval`` captures from the latest reset and with
-    probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``.
+    probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Only the
+    views a capture selects publish a new image, and a capture that selects no view changes nothing.
     """
 
     def __init__(self, cfg: CosmosTransferProcessorCfg, data: dict[str, ProxyArray]):
@@ -86,9 +87,9 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             )
         if not self._single_frame:
             return super().__call__(data, env_mask=env_mask)
-        return self._generate_single_frame(data)
+        return self._generate_single_frame(data, env_mask)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Discard the selected views' episode state; in single-frame mode the next capture is a decision point."""
         super().reset(env_ids, env_mask)
         if self._single_frame:
@@ -97,19 +98,27 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             if selected:
                 self._capture_index = 0
 
-    def _generate_single_frame(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
-        """Publish one generated image per view at a decision point, or the rendered rgb otherwise."""
+    def _generate_single_frame(self, data: dict[str, ProxyArray], env_mask: wp.array) -> dict[str, ProxyArray]:
+        """Publish, for the captured views, one generated image at a decision point, or the rendered rgb otherwise."""
         if self._closed or self._failed:
             raise RuntimeError("Image transfer processor is closed or failed; recreate it.")
         cfg = self._cfg
         frames = data[cfg.inputs[0]].torch
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
+        # Read on the host, as the base class reads it; only the captured views advance.
+        rows = [row for row, captured in enumerate(wp.to_torch(env_mask).tolist()) if captured]
+        if not rows:
+            return dict(self._outputs)
         decision = self._capture_index % cfg.backend.decision_interval == 0
         self._capture_index += 1
         with torch.no_grad():
             if not decision or self._random.random() >= cfg.backend.augmentation_probability:
-                self._output.copy_(data["rgb"].torch[..., :3])
+                rgb = data["rgb"].torch[..., :3]
+                if len(rows) == len(self._output):
+                    self._output.copy_(rgb)
+                else:
+                    self._output[rows] = rgb[rows]
                 return dict(self._outputs)
             num_views = self._data_dim[0]
             resets = tuple(sorted(self._reset_rows)) if self._started else ()
@@ -124,8 +133,9 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             except Exception:
                 self._failed = True
                 raise
-            for row, images in enumerate(generated):
-                self._output[row].copy_(images[0])
+            # The batch generates every view; views not captured now keep their image.
+            for row in rows:
+                self._output[row].copy_(generated[row][0])
             self._started = True
             self._reset_rows.clear()
         return dict(self._outputs)
