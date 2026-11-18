@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import math
 import os
@@ -87,6 +88,7 @@ class CosmosInferenceModel:
         from cosmos_framework.inference.args import OmniSetupOverrides
 
         self._closed = False
+        self._active = True
         self._device = selected_device
         self._stream: _CosmosInferenceStream | None = None
         self._pipeline = None
@@ -161,7 +163,13 @@ class CosmosInferenceModel:
             "device": str(selected_device),
             "kv_window": kv_window,
             "attention_sink": attention_sink,
+            "model_offload": True,
         }
+
+    @property
+    def active(self) -> bool:
+        """Whether the weights are on the GPU; :meth:`offload` moves them to host memory."""
+        return self._active
 
     def open_stream(
         self,
@@ -194,8 +202,7 @@ class CosmosInferenceModel:
         Returns:
             A session whose close releases generation history, retaining model weights.
         """
-        if self._closed:
-            raise RuntimeError("The Cosmos model is closed.")
+        self._check_active()
         if self._stream is not None:
             raise RuntimeError("The Cosmos model already has an active camera session.")
         if type(num_views) is not int or num_views < 1 or len(seeds) != num_views:
@@ -226,9 +233,57 @@ class CosmosInferenceModel:
             data = rows[prompts[0]]
             self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, fps)
         else:
-            data = _merge_prompt_rows([rows[text] for text in prompts], self._pipeline.model.input_caption_key)
-            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames)
+            self._stream = _CosmosBatchStream(self, rows, prompts, seeds, height, width, max_episode_frames, fps)
         return self._stream
+
+    def offload(self) -> None:
+        """Move the weights to host memory, for example while a learner uses the GPU between rollouts.
+
+        An open session keeps its views, prompts, and seeds but loses its generation history, so its next step must
+        restart every view, as single-frame cameras do on every generation. Compiled graphs hold the weights' device
+        addresses and are discarded, so the first generations after :meth:`activate` compile again.
+        """
+        import torch
+
+        if self._closed:
+            raise RuntimeError("The Cosmos model is closed.")
+        if not self._active:
+            return
+        with torch.cuda.device(self._device):
+            torch.cuda.synchronize()
+            if self._stream is not None:
+                self._stream.suspend()
+            model = self._pipeline.model
+            # The Framework keeps history workspaces and CUDA-graph captures on the model between generations.
+            runtime = getattr(model, "_ar_forward_cuda_graph_runtime", None)
+            if runtime is not None:
+                runtime.reset_for_new_generation()
+            if hasattr(model, "_ar_kv_buffer_pool"):
+                model._ar_kv_buffer_pool = None
+            torch.compiler.reset()
+            model.to("cpu")
+            self._active = False
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    def activate(self) -> None:
+        """Move the weights back to the service's GPU after :meth:`offload`."""
+        import torch
+
+        if self._closed:
+            raise RuntimeError("The Cosmos model is closed.")
+        if self._active:
+            return
+        with torch.cuda.device(self._device):
+            self._pipeline.model.to(self._device)
+            torch.cuda.synchronize()
+        self._active = True
+
+    def _check_active(self) -> None:
+        if self._closed:
+            raise RuntimeError("The Cosmos model is closed.")
+        if not self._active:
+            raise RuntimeError("The Cosmos weights are offloaded; activate them before generating.")
 
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
         """Warm one canvas through finite-history saturation using a disposable session.
@@ -365,6 +420,7 @@ class _CosmosInferenceStream:
         self._fps = fps
         self._frame_count = 0
         self._closed = False
+        self._suspended = False
         self._cache_scope: ExitStack | None = None
         self._next_control: torch.Tensor | None = None
         self._iterator = self._make_iterator()
@@ -392,8 +448,11 @@ class _CosmosInferenceStream:
             raise ValueError("A Cosmos prompt must be text or None and can change only with an episode reset.")
         if self._closed:
             raise RuntimeError("The Cosmos camera session is closed.")
+        self._owner._check_active()
         if reset_rows not in ((), (0,)) or len(seeds) != len(reset_rows):
             raise ValueError("Cosmos supports a full single-view reset with exactly one replacement seed.")
+        if self._suspended and self._frame_count and not reset_rows:
+            raise ValueError("The Cosmos weights were offloaded during this episode; reset the view to continue.")
         if seeds:
             _validate_seed(seeds[0])
         expected_frames = 1 if self._frame_count == 0 or reset_rows else 4
@@ -417,16 +476,18 @@ class _CosmosInferenceStream:
             # Service connections run in separate threads, whose default CUDA
             # device can differ from the worker's selected model device.
             with torch.cuda.device(self._owner._device), torch.inference_mode():
-                if reset_rows:
+                if reset_rows or self._suspended:
                     self._close_episode()
                     if prompt is not _KEEP_PROMPT:
                         height, width, _ = self._canvas
                         self._data_batch = self._owner._prompt_batch(
                             prompt, height, width, self._max_episode_frames, self._fps
                         )
-                    self._seed = seeds[0]
-                    self._frame_count = 0
+                    if reset_rows:
+                        self._seed = seeds[0]
+                        self._frame_count = 0
                     self._iterator = self._make_iterator()
+                    self._suspended = False
                 if self._cache_scope is None:
                     self._cache_scope = ExitStack()
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
@@ -449,6 +510,12 @@ class _CosmosInferenceStream:
         except BaseException:
             self.close()
             raise
+
+    def suspend(self) -> None:
+        """Discard the generation history before the weights leave the GPU; the next step restarts every view."""
+        if not self._closed:
+            self._close_episode()
+            self._suspended = True
 
     def close(self) -> None:
         """Discard this session's history and allow a new camera to use the loaded model."""
@@ -504,22 +571,28 @@ class _CosmosBatchStream(_CosmosInferenceStream):
     def __init__(
         self,
         owner: CosmosInferenceModel,
-        data_batch: dict[str, Any],
+        prompt_rows: dict[str | None, dict[str, Any]],
+        prompts: list[str | None],
         seeds: tuple[int, ...],
         height: int,
         width: int,
         max_episode_frames: int,
+        fps: float,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
         self._vae = _vae_cache_owner(self._model.tokenizer_vision_gen)
-        self._data_batch = data_batch
         self._seeds = tuple(seeds)
         self._canvas = (height, width, 3)
         self._max_episode_frames = max_episode_frames
+        self._fps = fps
+        # Text conditioning per prompt, kept so that restarts with earlier prompts do not rebuild it.
+        self._prompt_rows = prompt_rows
+        self._data_batch = self._merge(prompts)
         self._frames = [0] * len(seeds)
         self._started = False
         self._closed = False
+        self._suspended = False
         self._cache_scope: ExitStack | None = None
         self._next_control = None
         self._vae_states = [self._fresh_vae_state() for _ in seeds]
@@ -530,18 +603,29 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         controls: list[np.ndarray] | list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
-        **episode: object,
+        *,
+        prompt: list[str | None] | object = _KEEP_PROMPT,
     ) -> list[np.ndarray] | list[torch.Tensor]:
         """Generate uint8 THWC RGB for every view: one frame for starting views, four for the others.
 
         ``reset_rows`` restarts those views' episodes with ``seeds``; the other views continue. Restarting some
-        views needs the compiled runtime; restarting all views also works eagerly. Views keep their prompts.
+        views needs the compiled runtime; restarting all views also works eagerly. Views keep their prompts, except
+        that a restart of every view may bring ``prompt``, one per view, which starts a new generation batch.
         """
         num_views = len(self._frames)
-        if episode:
-            raise ValueError("Cosmos views of a batched session keep their prompts across resets.")
         if self._closed:
             raise RuntimeError("The Cosmos camera session is closed.")
+        self._owner._check_active()
+        restart_all = len(reset_rows) == num_views
+        if prompt is not _KEEP_PROMPT and (
+            not restart_all
+            or not isinstance(prompt, list)
+            or len(prompt) != num_views
+            or any(text is not None and not isinstance(text, str) for text in prompt)
+        ):
+            raise ValueError("Views of a batched Cosmos session change prompts only together: one prompt per view.")
+        if self._suspended and self._started and not restart_all:
+            raise ValueError("The Cosmos weights were offloaded during this session; restart every view to continue.")
         if (
             not isinstance(reset_rows, tuple)
             or list(reset_rows) != sorted(set(reset_rows))
@@ -553,7 +637,6 @@ class _CosmosBatchStream(_CosmosInferenceStream):
             _validate_seed(seed)
         if reset_rows and not self._started:
             raise ValueError("Cosmos views start their first episode fresh; reset them after the first step.")
-        restart_all = len(reset_rows) == num_views
         if reset_rows and not restart_all and not self._owner.capabilities["partial_resets"]:
             raise ValueError(
                 "Resetting some camera views while others continue needs the compiled Cosmos server; start "
@@ -582,11 +665,20 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         try:
             with torch.cuda.device(self._owner._device), torch.inference_mode():
                 model_resets = tuple(reset_rows)
-                if restart_all and not self._owner.capabilities["partial_resets"]:
-                    # Eager runtimes cannot restart rows; restarting every view starts a new batch instead.
+                if (
+                    (restart_all and not self._owner.capabilities["partial_resets"])
+                    or prompt is not _KEEP_PROMPT
+                    or self._suspended
+                ):
+                    # Eager runtimes cannot restart rows, new prompts need new text conditioning, and offloading
+                    # ended the generation; restarting every view starts a new batch instead.
                     self._close_episode()
-                    self._seeds = tuple(seeds)
+                    if prompt is not _KEEP_PROMPT:
+                        self._data_batch = self._merge(prompt)
+                    if reset_rows:
+                        self._seeds = tuple(seeds)
                     self._iterator = self._make_iterator()
+                    self._suspended = False
                     model_resets = ()
                 if self._cache_scope is None:
                     self._cache_scope = ExitStack()
@@ -627,6 +719,12 @@ class _CosmosBatchStream(_CosmosInferenceStream):
             self.close()
             raise
 
+    def suspend(self) -> None:
+        """Discard every view's history and causal VAE caches before the weights leave the GPU."""
+        super().suspend()
+        if not self._closed:
+            self._vae_states = [self._fresh_vae_state() for _ in self._frames]
+
     def close(self) -> None:
         """Discard every view's history and causal VAE caches and allow a new camera to use the loaded model."""
         try:
@@ -647,6 +745,16 @@ class _CosmosBatchStream(_CosmosInferenceStream):
             normalize_cfg=False,
             sampler_mode="distilled",
         )
+
+    def _merge(self, prompts: list[str | None]) -> dict[str, Any]:
+        """Return the batch's text conditioning with one prompt per view, building it for prompts not seen yet."""
+        height, width, _ = self._canvas
+        for text in prompts:
+            if text not in self._prompt_rows:
+                self._prompt_rows[text] = self._owner._prompt_batch(
+                    text, height, width, self._max_episode_frames, self._fps
+                )
+        return _merge_prompt_rows([self._prompt_rows[text] for text in prompts], self._model.input_caption_key)
 
     def _fresh_vae_state(self) -> tuple[list, None, list]:
         return self._vae._new_enc_cache(), None, self._vae._new_dec_cache()

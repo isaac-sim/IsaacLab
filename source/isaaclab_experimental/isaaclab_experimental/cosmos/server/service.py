@@ -264,8 +264,13 @@ def _handle_connection(
                             "pci_bus_id": state.pci_bus_id,
                         },
                         "session_active": active,
+                        "model_active": getattr(state.model, "active", True),
                     },
                 )
+            elif operation in ("offload", "activate"):
+                _check_fields(metadata, {"op", "version"}, arrays)
+                _change_residency(state, token, operation)
+                send_message(connection, {"ok": True})
             elif operation == "open":
                 _check_fields(
                     metadata,
@@ -347,7 +352,9 @@ def _handle_connection(
                 state.stopping.set()
                 break
             else:
-                raise ProtocolError("Unknown Cosmos operation; expected status, open, step, close, or shutdown.")
+                raise ProtocolError(
+                    "Unknown Cosmos operation; expected status, open, step, close, offload, activate, or shutdown."
+                )
     except ConnectionError:
         # The camera disconnected. It releases the output buffer first, and a process's mappings end with it. The
         # service's own shutdown also ends the connection, which confirms nothing.
@@ -386,6 +393,28 @@ def _handle_connection(
                 with connections_lock:
                     connections.discard(connection)
                 connection.close()
+
+
+def _change_residency(state: _ServiceState, token: object, operation: str) -> None:
+    """Offload or activate the weights for the connection that owns the session, or for any connection while idle.
+
+    An idle service is reserved for the change, so no session opens while the weights move.
+    """
+    method = getattr(state.model, operation, None)
+    if method is None:
+        raise ValueError(f"This Cosmos service cannot {operation} its model.")
+    with state.ownership_lock:
+        if state.owner is not None and state.owner is not token:
+            raise RuntimeError("Another connection owns the Cosmos session; offload or activate through it.")
+        idle = state.owner is None
+        state.owner = token
+    try:
+        _run_inference(state, method)
+    finally:
+        if idle:
+            with state.ownership_lock:
+                if state.owner is token:
+                    state.owner = None
 
 
 def _await_disconnect(connection: socket.socket, stopping: threading.Event) -> bool:
@@ -474,9 +503,13 @@ def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
         return {}
     if not resets:
         raise ValueError("A Cosmos prompt can change only with an episode reset.")
-    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
-        raise ValueError("Cosmos prompt must be a string or None.")
-    return {"prompt": metadata["prompt"]}
+    prompt = metadata["prompt"]
+    prompts = prompt if isinstance(prompt, list) else [prompt]
+    if (isinstance(prompt, list) and len(prompt) != len(resets)) or any(
+        text is not None and not isinstance(text, str) for text in prompts
+    ):
+        raise ValueError("Cosmos prompt must be a string or None, or one per reset view.")
+    return {"prompt": prompt}
 
 
 def _channel_frames(frames: object, num_views: int) -> list[int]:
