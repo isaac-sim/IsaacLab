@@ -287,7 +287,8 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
-        ValueError: If the prim does not hold exactly one rigid body, or if the body is inside an instance.
+        ValueError: If the prim does not hold exactly one rigid body, if the body is inside an instance, or if a
+            collider below the prim is outside the body.
     """
     from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
@@ -300,7 +301,8 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
-    bodies = [p for p in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()) if p.HasAPI(UsdPhysics.RigidBodyAPI)]
+    prims = list(Usd.PrimRange(prim, Usd.TraverseInstanceProxies()))
+    bodies = [p for p in prims if p.HasAPI(UsdPhysics.RigidBodyAPI)]
     if bodies == [prim]:
         return
     if len(bodies) != 1:
@@ -308,6 +310,14 @@ def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None =
     body = bodies[0]
     if body.IsInstanceProxy():
         raise ValueError(f"Rigid body '{body.GetPath()}' is inside an instance. Make the prim uninstanceable first.")
+    # a collider outside the body has no body above it and is static; below the moved body it would join the body
+    static = [
+        str(p.GetPath())
+        for p in prims
+        if p.HasAPI(UsdPhysics.CollisionAPI) and not p.GetPath().HasPrefix(body.GetPath())
+    ]
+    if static:
+        raise ValueError(f"Colliders {static} are outside the rigid body '{body.GetPath()}' and would join it.")
     # the prim's frame becomes the body frame; values authored in the old body frame are re-expressed in it
     offset, _ = UsdGeom.XformCache().ComputeRelativeTransform(body, prim)
     rotation = Gf.Quatf(Gf.Transform(offset).GetRotation().GetQuat())

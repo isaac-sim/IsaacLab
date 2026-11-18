@@ -13,7 +13,13 @@ import isaaclab.sim as sim_utils
 
 
 def _write_asset(
-    path, *, body_offset=(0.0, 0.0, 0.0), center_of_mass=None, second_body=False, instanced_body=False
+    path,
+    *,
+    body_offset=(0.0, 0.0, 0.0),
+    center_of_mass=None,
+    second_body=False,
+    static_collider=False,
+    instanced_body=False,
 ) -> str:
     """Write an asset whose rigid body sits at ``/Root/Geometry/body`` above a collider with its own mass.
 
@@ -35,6 +41,8 @@ def _write_asset(
     UsdPhysics.MassAPI.Apply(collider).CreateMassAttr(0.1)
     if second_body:
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Prototype/lid").GetPrim())
+    if static_collider:
+        UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Prototype/base").GetPrim())
     geometry = UsdGeom.Scope.Define(stage, "/Root/Geometry").GetPrim()
     geometry.GetReferences().AddInternalReference("/Prototype")
     geometry.SetInstanceable(instanced_body)
@@ -73,12 +81,14 @@ def test_moves_body_schemas_and_values_onto_prim(stage, tmp_path):
     ("asset_kwargs", "match"),
     [
         ({"second_body": True}, "Expected one rigid body"),
+        ({"static_collider": True}, "outside the rigid body"),
         ({"instanced_body": True}, "inside an instance"),
     ],
-    ids=["two-bodies", "instanced-body"],
+    ids=["two-bodies", "static-collider", "instanced-body"],
 )
 def test_refuses_moves_that_change_physics(stage, tmp_path, asset_kwargs, match):
-    """A move that would merge bodies or edit an instance proxy is refused."""
+    """A move that would merge bodies, make a static collider part of the body, or edit an instance proxy is
+    refused."""
     _reference(stage, _write_asset(tmp_path / "asset.usda", **asset_kwargs))
 
     with pytest.raises(ValueError, match=match):
