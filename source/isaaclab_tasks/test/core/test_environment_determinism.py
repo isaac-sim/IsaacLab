@@ -114,12 +114,14 @@ def _test_environment_determinism(
         deterministic=deterministic,
     )
 
+    # A requested determinism guarantee must hold at every step, including the exact floating-point results.
+    tolerances = {"atol": 0.0, "rtol": 0.0} if deterministic_mode is not None or deterministic else {}
     # check everything is as expected
     # -- rewards should be the same
-    torch.testing.assert_close(rew_1, rew_2)
+    torch.testing.assert_close(rew_1, rew_2, **tolerances)
     # -- observations should be the same
     for key in obs_1.keys():
-        torch.testing.assert_close(obs_1[key], obs_2[key])
+        torch.testing.assert_close(obs_1[key], obs_2[key], **tolerances)
 
 
 def _obtain_transition_tuples(
@@ -132,7 +134,7 @@ def _obtain_transition_tuples(
     deterministic_mode: str | None = None,
     deterministic: bool = False,
 ) -> tuple[dict, torch.Tensor]:
-    """Run random actions and obtain transition tuples after fixed number of steps."""
+    """Run random actions and retain transitions at every step."""
     # create a new stage
     sim_utils.create_new_stage()
     try:
@@ -170,7 +172,9 @@ def _obtain_transition_tuples(
     env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
     # reset environment
-    obs, _ = env.reset()
+    env.reset()
+    observation_history = {}
+    reward_history = []
     # simulate environment for fixed steps
     with torch.inference_mode():
         for _ in range(num_steps):
@@ -178,8 +182,11 @@ def _obtain_transition_tuples(
             actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
             # apply actions and get initial observation
             obs, rewards = env.step(actions)[:2]
+            for key, value in obs.items():
+                observation_history.setdefault(key, []).append(value.clone())
+            reward_history.append(rewards.clone())
 
     # close the environment
     env.close()
 
-    return obs, rewards
+    return {key: torch.stack(values) for key, values in observation_history.items()}, torch.stack(reward_history)

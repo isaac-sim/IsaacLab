@@ -1,6 +1,6 @@
 numpy>=2
 mujoco~=3.17.0
-mujoco-warp~=3.17.0
+mujoco-warp @ git+https://github.com/ooctipus/mujoco_warp.git@d2c0b79561791d9dae794a45d5b1cd1d36ff4b87
 newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra != 'optix'
 newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra == 'optix'
 newton-usd-schemas>=0.5.0
