@@ -331,7 +331,7 @@ reads. Camera resets call each processor's ``reset`` with the reset environments
            depth = data["distance_to_image_plane"].torch  # (N, H, W, 1)
            self._rgb = ProxyArray(wp.zeros((*depth.shape[:3], 3), dtype=wp.uint8, device=str(depth.device)))
 
-       def __call__(self, data, args=None):
+       def __call__(self, data, env_mask=None):
            depth = data["distance_to_image_plane"].torch
            shade = (255 * (1 - depth / 10).clamp(0, 1)).to(torch.uint8)
            self._rgb.torch.copy_(shade.expand(-1, -1, -1, 3))
@@ -350,12 +350,11 @@ raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraDat
 :attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
-capture renders every environment. The camera calls each processor with ``args``, a
-:class:`~sensors.SensorTensorProcessorArgs` whose ``env_mask`` is a boolean mask of the environments
-due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal filters, video
-generation) use it to advance only those rows.
+capture renders every environment. The camera calls each processor with ``env_mask``, a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
+filters, video generation) use it to advance only those rows.
 
-With asynchronous rendering, images may be delayed or repeated, and ``args.env_mask`` is None.
+With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
 Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
 
 Post-render image signal processing

@@ -8,7 +8,6 @@ __all__ = [
     "DigitalFilterCfg",
     "IntegratorCfg",
     "TensorProcessor",
-    "TensorProcessorArgs",
     "TensorProcessorData",
     "DigitalFilter",
     "Integrator",
@@ -18,5 +17,5 @@ __all__ = [
 ]
 
 from .tensor_processor_cfg import TensorProcessorCfg, DigitalFilterCfg, IntegratorCfg
-from .tensor_processor import TensorProcessor, TensorProcessorArgs, TensorProcessorData
+from .tensor_processor import TensorProcessor, TensorProcessorData
 from .processors import DigitalFilter, Integrator, bias, clip, scale
