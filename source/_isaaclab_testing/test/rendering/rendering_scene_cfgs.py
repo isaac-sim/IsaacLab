@@ -66,11 +66,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
-from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_FRICTION_REPLACEMENTS,
-    SHADOW_HAND_NEWTON_CFG,
-    SHADOW_HAND_PHYSX_CFG,
-)
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG, SHADOW_HAND_PHYSX_CFG
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
 
@@ -1227,11 +1223,7 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         return RenderingSceneSpec(
             cfg=cfg,
             expected_instances={f"/World/envs/env_{env_id}/object": "cube" for env_id in range(4)},
-            physics_cfg=(
-                OvPhysxCfg(legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS)
-                if physics == "ovphysx"
-                else None
-            ),
+            physics_cfg=OvPhysxCfg() if physics == "ovphysx" else None,
             image_max_diff_pct=5.0,
             dt=1.0 / 120.0,
             image_tolerance_overrides={
