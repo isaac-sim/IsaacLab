@@ -322,8 +322,8 @@ class FeatureExtractor:
             gt_pose: Ground truth pose tensor (position and keypoint corners). Shape: (N, 27).
 
         Returns:
-            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training,
-                when the network is disabled, or when every view's held image is black) and the
+            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training
+                or when the network is disabled; zero when every view's held image is black) and the
                 predicted pose embedding of shape (N, 27).
         """
         if self.cfg.write_image_to_file:
@@ -358,10 +358,12 @@ class FeatureExtractor:
                     predicted_pose = self.feature_extractor(img_input)
                     if trained is None:
                         pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
-                    elif trained.any():
-                        pose_loss = self.l2_loss(predicted_pose[trained], gt_pose[trained]) * 100
                     else:
-                        return None, predicted_pose
+                        # The mean over the views with an image, weighted on the GPU instead of selected on the
+                        # host; with every view black, the loss is zero.
+                        weights = trained.to(predicted_pose.dtype)[:, None]
+                        squared = (predicted_pose - gt_pose).square() * weights
+                        pose_loss = squared.sum() / (weights.sum() * predicted_pose.shape[1]).clamp(min=1) * 100
 
                     self.optimizer.zero_grad()
                     pose_loss.backward()

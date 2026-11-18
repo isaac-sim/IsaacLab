@@ -369,10 +369,10 @@ def test_feature_extractor_pairs_each_view_with_its_own_image_update_and_skips_b
     expected_loss, _ = pair.step({"rgb": torch.cat((lit, lit + 1))}, torch.cat((pose, pose + 7.0)))
     torch.testing.assert_close(loss, expected_loss)
 
-    # When every view is black there is nothing to train on.
+    # When every view is black there is nothing to train on, so the loss is zero.
     extractor.reset()
-    none_loss, embeddings = extractor.step({"rgb": torch.cat((black, black))}, torch.cat((pose, pose)))
-    assert none_loss is None and embeddings.shape == (2, 27)
+    zero_loss, embeddings = extractor.step({"rgb": torch.cat((black, black))}, torch.cat((pose, pose)))
+    assert float(zero_loss.detach()) == 0.0 and embeddings.shape == (2, 27)
 
 
 @pytest.fixture
