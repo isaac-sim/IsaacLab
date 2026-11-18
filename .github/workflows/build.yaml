@@ -80,7 +80,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' || github.event.label.name == 'ci:run-ovstage' || startsWith(github.event.label.name, 'ci:run-docker:') }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' || github.event.label.name == 'ci:run-ovstage' }}
 
 permissions:
   contents: read
@@ -116,9 +116,6 @@ jobs:
             const normalized = typeof label === 'string' ? label.toLowerCase() : '';
             if (normalized === 'ci:run-docker') return [];
             if (normalized === 'ci:run-ovstage') return ['ovstage'];
-            if (normalized.startsWith('ci:run-docker:')) {
-              return normalized.slice('ci:run-docker:'.length).split('+').filter(Boolean);
-            }
             return null;
           };
           core.setOutput('activated', 'false');
@@ -127,8 +124,6 @@ jobs:
             core.setOutput('activated', 'true');
             return;
           }
-          const attachedExtras = (context.payload.pull_request?.labels ?? [])
-            .flatMap(l => parseTriggerExtras(l?.name) ?? []);
           const directExtras = context.payload.action === 'labeled'
             ? parseTriggerExtras(context.payload.label?.name)
             : null;
@@ -136,11 +131,13 @@ jobs:
             core.setOutput('activated', 'true');
           }
           if (directExtras !== null) {
-            core.setOutput('ci_extras', JSON.stringify([...new Set([...directExtras, ...attachedExtras])]));
+            core.setOutput('ci_extras', JSON.stringify(directExtras));
             return;
           }
-          let activated = context.payload.action !== 'synchronize';
-          let historyExtras = [];
+          let currentExtras = [
+            ...new Set((context.payload.pull_request?.labels ?? []).flatMap(l => parseTriggerExtras(l?.name) ?? [])),
+          ];
+          core.setOutput('ci_extras', JSON.stringify(currentExtras));
           for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
             ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
             request: {timeout: 60000},
@@ -153,22 +150,22 @@ jobs:
               if (event.event === 'unlabeled' && event.actor.login !== 'isaaclab-bot[bot]') {
                 const removed = parseTriggerExtras(event.label?.name);
                 if (removed?.length) {
-                  historyExtras = historyExtras.filter(opt => !removed.includes(opt));
+                  currentExtras = currentExtras.filter(opt => !removed.includes(opt));
+                  core.setOutput('ci_extras', JSON.stringify(currentExtras));
                 }
                 continue;
               }
               if (event.event !== 'labeled') {
                 continue;
               }
-              activated = true;
+              core.setOutput('activated', 'true');
               const extras = parseTriggerExtras(event.label?.name);
               if (extras !== null) {
-                historyExtras = extras;
+                currentExtras = extras;
+                core.setOutput('ci_extras', JSON.stringify(currentExtras));
               }
             }
           }
-          core.setOutput('activated', String(activated));
-          core.setOutput('ci_extras', JSON.stringify([...new Set([...historyExtras, ...attachedExtras])]));
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1

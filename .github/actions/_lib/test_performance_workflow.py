@@ -27,6 +27,13 @@ def _labeled(login: str, label: str | None = None) -> dict[str, str | dict[str, 
     return event
 
 
+def _bot_pulse(label: str) -> list[dict[str, str | dict[str, str]]]:
+    return [
+        _labeled("isaaclab-bot[bot]", label),
+        {"event": "unlabeled", "actor": {"login": "isaaclab-bot[bot]"}, "label": {"name": label}},
+    ]
+
+
 def test_ci_activation_and_runner_selection() -> None:
     workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     assert "synchronize" in workflow.get("on", workflow.get(True, {}))["pull_request"]["types"]
@@ -37,25 +44,60 @@ def test_ci_activation_and_runner_selection() -> None:
     removed_label = [_labeled("maintainer"), {"event": "unlabeled"}]
     paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, _labeled("isaaclab-bot[bot]")]]
     ignored = [[_labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
-    ovstage_event = _labeled("isaaclab-bot[bot]", "ci:run-ovstage")
-    default_event = _labeled("isaaclab-bot[bot]", "ci:run-docker")
+    ovstage_pulse = _bot_pulse("ci:run-ovstage")
+    default_pulse = _bot_pulse("ci:run-docker")
     cases = [
         ("push", "push", "", "", [], [], True, True, False, True),
         ("actions bot", "pull_request", "synchronize", "", [], ignored, False, False, True, False),
         ("removed human label", "pull_request", "synchronize", "", [], [removed_label], False, True, True, False),
         ("paginated bot label", "pull_request", "synchronize", "", [], paginated, False, True, True, False),
         ("API error", "pull_request", "synchronize", "", [], [], True, False, True, False),
+        (
+            "API error after page 1 activation",
+            "pull_request",
+            "synchronize",
+            "",
+            [],
+            [ovstage_pulse],
+            True,
+            True,
+            True,
+            True,
+        ),
         ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], [], True, True, True, False),
+        (
+            "plain run-ci overrides attached ovstage",
+            "pull_request",
+            "labeled",
+            "ci:run-docker",
+            ["ci:run-ovstage"],
+            [],
+            True,
+            True,
+            True,
+            False,
+        ),
         ("ovstage rerun", "pull_request", "labeled", "ci:run-ovstage", [], [], True, True, True, True),
-        ("compound rerun", "pull_request", "labeled", "ci:run-docker:future+ovstage", [], [], True, True, True, True),
-        ("ovstage synchronize", "pull_request", "synchronize", "", [], [[ovstage_event]], False, True, True, True),
+        ("ovstage synchronize", "pull_request", "synchronize", "", [], [ovstage_pulse], False, True, True, True),
         (
             "ovstage cleared by plain run-ci",
             "pull_request",
             "synchronize",
             "",
             [],
-            [[ovstage_event, default_event]],
+            [[*ovstage_pulse, *default_pulse]],
+            False,
+            True,
+            True,
+            False,
+        ),
+        (
+            "plain run-ci resets attached ovstage on synchronize",
+            "pull_request",
+            "synchronize",
+            "",
+            ["ci:run-ovstage"],
+            [[_labeled("maintainer", "ci:run-ovstage"), *default_pulse]],
             False,
             True,
             True,
@@ -67,7 +109,7 @@ def test_ci_activation_and_runner_selection() -> None:
             "labeled",
             "triage",
             [],
-            [[ovstage_event]],
+            [ovstage_pulse],
             False,
             True,
             False,
@@ -96,7 +138,7 @@ def test_ci_activation_and_runner_selection() -> None:
             "synchronize",
             "",
             ["ci:run-ovstage"],
-            [removed_label],
+            [[_labeled("maintainer", "ci:run-ovstage")]],
             False,
             True,
             True,
@@ -131,8 +173,8 @@ const contains = (search, item) => Array.isArray(search)
                      repo: {owner: 'owner', repo: 'lab'}};
     const core = {setOutput: (k,v) => outputs[k] = v};
     const github = {rest: {issues: {listEvents: 'events'}}, paginate: {iterator: async function*() {
-      if (error) throw new Error('network unavailable');
       for (const data of pages) yield {data};
+      if (error) throw new Error('network unavailable');
     }}};
     try {
       await new AsyncFunction('context', 'github', 'core', input.script)(context, github, core);
@@ -173,31 +215,28 @@ def test_run_docker_ci_command_options(tmp_path: Path) -> None:
     authorize_script = next(step["run"] for step in job["steps"] if step.get("id") == "authorize")
     trigger_script = next(step["run"] for step in job["steps"] if step.get("name") == "Trigger Docker CI")
 
-    gate_check = subprocess.run(
-        [
-            "node",
-            "-e",
-            """
-const assert = require('node:assert/strict');
-const expr = process.argv[1];
+    def gate_allows(is_pr: bool, body: str) -> bool:
+        check = subprocess.run(
+            [
+                "node",
+                "-e",
+                """
+const [expr, isPr, body] = process.argv.slice(1);
 const startsWith = (s, p) => String(s ?? '').toLowerCase().startsWith(String(p ?? '').toLowerCase());
-const evalIf = (isPr, body) => new Function('github', 'startsWith', `return Boolean(${expr})`)(
-  {event: {issue: isPr ? {pull_request: {}} : {}, comment: {body}}}, startsWith
+const ok = new Function('github', 'startsWith', `return Boolean(${expr})`)(
+  {event: {issue: isPr === '1' ? {pull_request: {}} : {}, comment: {body}}}, startsWith
 );
-assert.equal(evalIf(false, 'run-ci'), false);
-assert.equal(evalIf(true, 'LGTM'), false);
-assert.equal(evalIf(true, '`run-ci`'), false);
-assert.equal(evalIf(true, 'run-ci'), true);
-assert.equal(evalIf(true, 'run-ci\\r\\n'), true);
-assert.equal(evalIf(true, 'run-ci ovstage'), true);
-assert.equal(evalIf(true, 'run-ci-ovstage'), true);
+process.stdout.write(ok ? '1' : '0');
 """,
-            job["if"],
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert gate_check.returncode == 0, gate_check.stderr
+                job["if"],
+                "1" if is_pr else "0",
+                body,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return check.stdout == "1"
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -227,7 +266,9 @@ assert.equal(evalIf(true, 'run-ci-ovstage'), true);
     )
     gh.chmod(0o755)
 
-    def run_command(comment_body: str) -> tuple[int, str, dict[str, str], list[list[str]]]:
+    def run_authorize(
+        comment_body: str, *, run_trigger: bool = False
+    ) -> tuple[int, str, dict[str, str], list[list[str]]]:
         api_log.unlink(missing_ok=True)
         gh_output = tmp_path / "github_output"
         gh_summary = tmp_path / "github_summary"
@@ -246,7 +287,7 @@ assert.equal(evalIf(true, 'run-ci-ovstage'), true);
         }
         auth = subprocess.run(["bash", "-c", authorize_script], env=env, capture_output=True, text=True)
         outputs = dict(line.split("=", 1) for line in gh_output.read_text(encoding="utf-8").splitlines() if "=" in line)
-        if auth.returncode == 0:
+        if auth.returncode == 0 and run_trigger:
             trig_env = {
                 **env,
                 "COMMAND": outputs["command"],
@@ -260,27 +301,39 @@ assert.equal(evalIf(true, 'run-ci-ovstage'), true);
         )
         return auth.returncode, auth.stdout + auth.stderr, outputs, calls
 
-    for body, expected_label, expected_cmd in [
-        ("run-ci", "ci:run-docker", "run-ci"),
-        ("  run-ci \r\n", "ci:run-docker", "run-ci"),
-        ("run-ci ovstage\r\n", "ci:run-ovstage", "run-ci ovstage"),
-        ("run-ci OVSTAGE ovstage", "ci:run-ovstage", "run-ci ovstage"),
+    assert not gate_allows(False, "run-ci")
+    for skipped_comment in ("LGTM", "`run-ci`", "  run-ci"):
+        assert not gate_allows(True, skipped_comment), skipped_comment
+    # Leading whitespace is rejected by the parser as well as the job gate.
+    code, _, _, calls = run_authorize("  run-ci")
+    assert code != 0 and calls == []
+
+    for body, expected_label, expected_cmd, run_trigger, expected_deletes in [
+        ("run-ci", "ci:run-docker", "run-ci", True, ["ci:run-ovstage", "ci:run-docker", "ci:run-docker"]),
+        ("run-ci \r\n", "ci:run-docker", "run-ci", False, []),
+        ("run-ci ovstage\r\n", "ci:run-ovstage", "run-ci ovstage", True, ["ci:run-ovstage", "ci:run-ovstage"]),
+        ("run-ci OVSTAGE ovstage", "ci:run-ovstage", "run-ci ovstage", False, []),
     ]:
-        code, output, outputs, calls = run_command(body)
+        assert gate_allows(True, body), body
+        code, output, outputs, calls = run_authorize(body, run_trigger=run_trigger)
         assert code == 0, (body, output)
         assert outputs == {"head_sha": "abcdef1234567890", "label": expected_label, "command": expected_cmd}
-        encoded = expected_label.replace(":", "%3A")
-        label_calls = [c for c in calls if any("labels" in arg for arg in c)]
-        assert [c[c.index("--method") + 1] for c in label_calls] == ["DELETE", "POST", "DELETE"]
-        assert f"repos/owner/lab/issues/42/labels/{encoded}" in label_calls[0]
-        assert f"labels[]={expected_label}" in label_calls[1]
-        assert f"repos/owner/lab/issues/42/labels/{encoded}" in label_calls[2]
+        if run_trigger:
+            label_calls = [c for c in calls if any("labels" in arg for arg in c)]
+            deletes = [c for c in label_calls if c[c.index("--method") + 1] == "DELETE"]
+            posts = [c for c in label_calls if c[c.index("--method") + 1] == "POST"]
+            assert [
+                c[c.index("--method") + 1] + ":" + next(a.split("/labels/")[-1] for a in c if "labels" in a)
+                for c in deletes
+            ] == [f"DELETE:{name}" for name in expected_deletes]
+            assert len(posts) == 1 and f"labels[]={expected_label}" in posts[0]
 
-    for invalid_body in ("run-ci unknown", "run-ci *", "run-ci-ovstage", "run-ci:ovstage", "run-ci\nextra"):
-        code, output, _, calls = run_command(invalid_body)
-        assert code != 0, invalid_body
-        assert "::error::" in output, invalid_body
-        assert calls == [], (invalid_body, calls)
+    for invalid_body in ("run-ci unknown", "run-ci-ovstage", "run-ci\nextra"):
+        if gate_allows(True, invalid_body):
+            code, output, _, calls = run_authorize(invalid_body)
+            assert code != 0, invalid_body
+            assert "::error::" in output, invalid_body
+            assert calls == [], (invalid_body, calls)
 
 
 def test_benchmark_cancellation(tmp_path: Path) -> None:

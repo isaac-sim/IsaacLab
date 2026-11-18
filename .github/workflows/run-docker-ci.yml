@@ -40,13 +40,12 @@ jobs:
         run: |
           set -efuo pipefail
 
-          # Normalize CRLF and trim surrounding whitespace so trailing newlines from
-          # web or mobile comments still match ``run-ci [option ...]``.
+          # Normalize CRLF and trim trailing whitespace/newlines so web or mobile
+          # comments ending in a line break still match ``run-ci [option ...]``.
           body="${COMMENT_BODY//$'\r'/}"
-          body="${body#"${body%%[![:space:]]*}"}"
           body="${body%"${body##*[![:space:]]}"}"
-          if [[ "$body" == *$'\n'* ]]; then
-            echo "::error::'run-ci' must be a single-line command: 'run-ci [option ...]' (supported options: ovstage)."
+          if [[ -z "$body" || "${body:0:1}" =~ [[:space:]] || "$body" == *$'\n'* ]]; then
+            echo "::error::'run-ci' must be a single-line command without leading whitespace: 'run-ci [option ...]' (supported options: ovstage)."
             exit 1
           fi
 
@@ -57,14 +56,11 @@ jobs:
             exit 1
           fi
 
-          options=()
+          use_ovstage=false
           for raw_opt in "${tokens[@]:1}"; do
-            opt="${raw_opt,,}"
-            case "$opt" in
+            case "${raw_opt,,}" in
               ovstage)
-                if [[ " ${options[*]-} " != *" $opt "* ]]; then
-                  options+=("$opt")
-                fi
+                use_ovstage=true
                 ;;
               *)
                 echo "::error::Unknown run-ci option '$raw_opt'. Supported options: ovstage."
@@ -73,18 +69,12 @@ jobs:
             esac
           done
 
-          if [ "${#options[@]}" -eq 0 ]; then
+          if [ "$use_ovstage" = true ]; then
+            label="ci:run-ovstage"
+            canonical_command="run-ci ovstage"
+          else
             label="ci:run-docker"
             canonical_command="run-ci"
-          else
-            mapfile -t sorted_options < <(printf '%s\n' "${options[@]}" | LC_ALL=C sort)
-            if [ "${#sorted_options[@]}" -eq 1 ] && [ "${sorted_options[0]}" = "ovstage" ]; then
-              label="ci:run-ovstage"
-            else
-              joined_options="$(IFS=+; printf '%s' "${sorted_options[*]}")"
-              label="ci:run-docker:${joined_options}"
-            fi
-            canonical_command="run-ci ${sorted_options[*]}"
           fi
 
           read -r pr_author pr_state head_sha < <(
@@ -143,10 +133,12 @@ jobs:
           fi
 
           endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
-          label_uri="$(jq -rn --arg v "$LABEL" '$v | @uri')"
-          gh api --method DELETE "$endpoint/$label_uri" --silent >/dev/null 2>&1 || true
+          if [ "$LABEL" = "ci:run-docker" ]; then
+            gh api --method DELETE "$endpoint/ci:run-ovstage" --silent >/dev/null 2>&1 || true
+          fi
+          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
           gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
-          gh api --method DELETE "$endpoint/$label_uri" --silent
+          gh api --method DELETE "$endpoint/$LABEL" --silent
 
           # A push can still land between the check above and GitHub processing
           # the label; nothing can make those two steps atomic. Re-read the head
