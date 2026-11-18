@@ -2254,10 +2254,16 @@ version = "0.1.0"
 source = { editable = "source/isaaclab_fovi" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-rl", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-tasks", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
+    { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
+]
 
 [[package]]
 name = "isaaclab-mimic"
