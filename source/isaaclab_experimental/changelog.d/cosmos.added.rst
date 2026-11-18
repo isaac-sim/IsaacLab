@@ -24,4 +24,4 @@
   set them. The package registers them through the ``isaaclab.tasks`` entry point.
 * Added ``python -m isaaclab_experimental.cosmos.client.cli status``, which reports whether a running Cosmos
   service is ready and has an active camera session.
-* Added the Cosmos camera integration guide, which covers serving Cosmos, and the Shadow Hand demo.
+* Added the Cosmos Transfer camera integration guide, which covers serving Cosmos, and the Shadow Hand demo.
