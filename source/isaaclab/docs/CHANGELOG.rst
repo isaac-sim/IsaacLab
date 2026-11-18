@@ -3,6 +3,46 @@ Changelog
 
 .. towncrier release notes start
 
+47.0.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body-tilt and absolute joint-target penalties, and a linear scalar schedule for
+  ``modify_term_cfg`` curricula.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab.managers.ActionTermCfg.clip` keys for
+  :class:`~isaaclab.envs.mdp.actions.RMPFlowAction` and :class:`~isaaclab.envs.mdp.actions.NonHolonomicAction`
+  that name joints now raise a :class:`ValueError`. Use the action names instead: ``pos_x``, ``pos_y``,
+  ``pos_z`` and ``rot_x``, ``rot_y``, ``rot_z`` for RMPFlow, and ``lin_vel_x``, ``ang_vel_z`` for the
+  non-holonomic action.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ActionTermCfg.clip` for :class:`~isaaclab.envs.mdp.actions.RMPFlowAction`
+  and :class:`~isaaclab.envs.mdp.actions.NonHolonomicAction`. Both resolved the ranges against joint names
+  and indexed the action vector with joint indices (an index error, or joint ranges applied to the wrong
+  action components). They now match the keys against
+  :attr:`~isaaclab.envs.mdp.actions.RMPFlowAction.action_names` (``pos_x``, ``rot_x``, ``quat_x``, ...) and
+  :attr:`~isaaclab.envs.mdp.actions.NonHolonomicAction.action_names` (``lin_vel_x``, ``ang_vel_z``).
+  RMPFlow also rejects keys that match a quaternion component.
+
+
+46.1.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded automatic cyclic garbage collection from timed asset benchmark samples and restored its previous state on success and failure.
+* Added missing packed root and body state readers to articulation and rigid-object benchmarks, with untimed pose and velocity preparation.
+
+
 46.1.0 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
