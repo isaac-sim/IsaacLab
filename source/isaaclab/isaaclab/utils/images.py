@@ -530,8 +530,8 @@ _CAMERA_CHANNEL_KEYS = {
     "rgb": (
         "rgb",
         "rgba",
-        "albedo",
         "simple_shading_full_mdl",
+        "albedo",
         "simple_shading_diffuse_mdl",
         "simple_shading_constant_diffuse",
     ),

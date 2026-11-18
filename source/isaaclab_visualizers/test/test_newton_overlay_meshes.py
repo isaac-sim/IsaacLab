@@ -16,7 +16,7 @@ from isaaclab_visualizers.newton.newton_overlay_meshes import (
     segment_indices,
 )
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _Renderer:

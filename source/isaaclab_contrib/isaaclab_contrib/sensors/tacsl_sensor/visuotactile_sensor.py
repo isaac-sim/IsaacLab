@@ -337,8 +337,10 @@ class VisuoTactileSensor(SensorBase):
 
         mesh, mesh_expr = sim_utils.resolve_matching_prims_from_source(
             self.cfg.contact_object_prim_path_expr,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.MeshCollisionAPI)
-            and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
+            predicate=lambda prim: (
+                prim.HasAPI(UsdPhysics.MeshCollisionAPI)
+                and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf"
+            ),
             expected_num_matches=1,
         )[0]
 

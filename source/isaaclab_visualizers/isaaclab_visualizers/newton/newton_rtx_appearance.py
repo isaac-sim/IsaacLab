@@ -132,7 +132,7 @@ class RtxAppearance:
         self.lights = find_scene_lights(stage)
         self._dome_reference = self._sun_reference = None
         self._texture_thread: threading.Thread | None = None
-        self._texture_result: str | Exception | None = None
+        self._texture_result: tuple[str, str | Exception] | None = None
         self.error = ""
         self.reset_settings()
 
@@ -256,6 +256,7 @@ class RtxAppearance:
                 shows once :meth:`poll` reports that the file is ready.
         """
         self.dome_texture = source
+        self._texture_result = None  # a download that finished for an earlier choice must not be applied
         if not source:
             self._dome_texture_file, self.texture_status = "", ""
             self._apply_texture()
@@ -269,16 +270,17 @@ class RtxAppearance:
                 logger.exception("[NewtonRtxAppearance] Could not load the sky texture %s.", source)
                 result = exc
             if self.dome_texture == source:  # A newer choice, a removal, or a reset supersedes this download.
-                self._texture_result = result
+                self._texture_result = (source, result)
 
         self._texture_thread = threading.Thread(target=work, name="rtx-sky-texture", daemon=True)
         self._texture_thread.start()
 
     def poll(self) -> bool:
         """Apply a sky texture that finished loading; returns whether the image changed."""
-        result, self._texture_result = self._texture_result, None
-        if result is None:
+        finished, self._texture_result = self._texture_result, None
+        if finished is None or finished[0] != self.dome_texture:
             return False
+        result = finished[1]
         if isinstance(result, Exception):
             self.texture_status, self.dome_texture = f"Could not load the sky: {result}", ""
             return False

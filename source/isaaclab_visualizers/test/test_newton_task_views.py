@@ -19,6 +19,8 @@ from pyglet.math import Vec3
 from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 from isaaclab.visualizers.camera_follower import CameraFollower
 
+pytestmark = pytest.mark.kitless
+
 
 class _Camera:
     """The viewer camera: a position, a look-at target, angles, and a field of view."""
@@ -61,7 +63,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera)
     viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
     viz._image_views = list(views)
-    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_task_view(view)}
+    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_tracking_view(view)}
     viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_poses = False, None, {}
     return viz
 
@@ -71,7 +73,7 @@ def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_cam
     viz = _visualizer([free, task])
 
     assert viz._view_labels([0, 1]) == ["Perspective", "Tracking Camera"]
-    assert [viz._is_task_view(view) for view in viz._image_views] == [False, True]
+    assert [viz._is_tracking_view(view) for view in viz._image_views] == [False, True]
 
 
 def test_views_are_numbered_only_when_several_share_a_name():

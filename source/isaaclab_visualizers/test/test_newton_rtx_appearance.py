@@ -223,16 +223,31 @@ def test_a_sky_download_superseded_by_another_choice_is_not_applied(monkeypatch)
     appearance, _ = _appearance()
     appearance.use_sky("https://assets/first.hdr")
     assert first_started.wait(5)
+    first_download = appearance._texture_thread
     appearance.use_sky("https://assets/second.hdr")
     deadline = time.time() + 5
     while not appearance.poll():
         assert time.time() < deadline
         time.sleep(0.01)
     release_first.set()
-    time.sleep(0.1)
+    first_download.join(5)
+    assert not first_download.is_alive()
 
     assert appearance._dome_texture_file == "/cache/second.hdr"
     assert appearance.poll() is False  # The first download finished late and was dropped.
+
+
+def test_a_sky_download_that_finished_before_another_choice_is_not_applied(monkeypatch):
+    monkeypatch.setattr(module, "retrieve_file_path", lambda source: f"/cache/{source.rsplit('/', 1)[-1]}")
+    appearance, _ = _appearance()
+    appearance.use_sky("https://assets/first.hdr")
+    appearance._texture_thread.join(5)
+    assert appearance._texture_result is not None  # finished, but not polled yet
+
+    appearance.use_sky("")
+
+    assert appearance.poll() is False
+    assert appearance._dome_texture_file == ""
 
 
 def test_removing_the_sky_texture_restores_the_sky_blue_dome_without_a_download():
