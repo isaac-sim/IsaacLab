@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 def explicit_rays(directions: torch.Tensor, height: int, width: int) -> wp.array:
-    """Newton's ray array, shape (1, height, width, 2): a zero origin and a unit direction per ray.
+    """Newton's ray array, shape (height, width, 1, 2): a zero origin and a unit direction per ray, shared by every
+    camera.
 
     Args:
         directions: Unit ray directions in the OpenGL camera frame, in sample order, shape (N, 3).
@@ -50,8 +51,8 @@ def explicit_rays(directions: torch.Tensor, height: int, width: int) -> wp.array
     if height * width < len(directions):
         raise ValueError(f"A {height}x{width} render cannot hold {len(directions)} rays.")
     index = torch.arange(height * width, device=directions.device).clamp_max(len(directions) - 1)
-    rays = directions.new_zeros(1, height, width, 2, 3, dtype=torch.float32)
-    rays[..., 1, :] = directions.float()[index].reshape(1, height, width, 3)
+    rays = directions.new_zeros(height, width, 1, 2, 3, dtype=torch.float32)
+    rays[..., 1, :] = directions.float()[index].reshape(height, width, 1, 3)
     # The Warp view keeps the tensor alive.
     return wp.from_torch(rays, dtype=wp.vec3f)
 

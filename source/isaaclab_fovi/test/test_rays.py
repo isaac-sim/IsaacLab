@@ -23,9 +23,9 @@ def test_explicit_rays_preserve_sample_order_and_optical_center() -> None:
         torch.tensor([[0.7, 0.3, -1.0], [-0.2, 0.6, -1.0], [0.0, 0.0, -1.0]]), dim=-1
     )
     rays = explicit_rays(directions, 3, 1)
-    assert rays.shape == (1, 3, 1, 2)
+    assert rays.shape == (3, 1, 1, 2)
     assert rays.dtype == wp.vec3f
-    rays = wp.to_torch(rays)[0, :, 0]
+    rays = wp.to_torch(rays)[:, 0, 0]
     torch.testing.assert_close(rays[:, 0], torch.zeros_like(directions))
     torch.testing.assert_close(rays[:, 1], directions)
 
