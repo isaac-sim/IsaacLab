@@ -13,6 +13,7 @@ Start with a demo to see Cosmos Transfer run from setup to result. Each demo ins
 | Demo | What it shows |
 | --- | --- |
 | [Shadow Hand](cosmos_transfer_shadow_hand.md) | Training an RL policy on Cosmos images, with the Direct and Manager-based Shadow Hand camera tasks |
+| [Apple pick-and-place](cosmos_transfer_apple_pick_place.md) | Running a trained GR00T policy on a Unitree G1 with Cosmos images, on Isaac Sim, OVRTX or Newton, with a different appearance and seed per environment |
 
 The rest of this page is for your own camera task: serving Cosmos, configuring the camera, and running with several
 environments, cameras, and GPUs.

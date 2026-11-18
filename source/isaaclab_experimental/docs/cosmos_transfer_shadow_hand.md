@@ -22,7 +22,8 @@ This demo applies the [Cosmos Transfer camera integration](cosmos_transfer.md) t
 Steps 1 to 4 install and start the service described in [Serve Cosmos](cosmos_transfer.md#serve-cosmos), and the
 task replaces its camera with `cosmos_camera`, as in
 [Put Cosmos on a camera task](cosmos_transfer.md#put-cosmos-on-a-camera-task). Use that guide to put Cosmos on
-another task or to change the service's options.
+another task or to change the service's options. To run a trained GR00T policy on a G1 robot with Cosmos, see the
+[apple pick-and-place demo](cosmos_transfer_apple_pick_place.md).
 
 ## 1. Set paths
 

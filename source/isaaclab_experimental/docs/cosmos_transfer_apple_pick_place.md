@@ -28,7 +28,12 @@ run. Cosmos needs **48 GB of VRAM for one environment**, with approximately **8 
 each additional environment**. Give the GR00T server a GPU too; the examples put it on GPU 1.
 Use **uv 0.11.29** for the Cosmos Framework environment.
 
-For service options and camera configuration, see [Cosmos camera integration](cosmos.md).
+This demo applies the [Cosmos Transfer camera integration](cosmos_transfer.md) to a policy that is already trained:
+steps 2, 3 and 6 install and start the service described in [Serve Cosmos](cosmos_transfer.md#serve-cosmos), and
+the Cosmos task replaces the head camera with `cosmos_camera`, as in
+[Put Cosmos on a camera task](cosmos_transfer.md#put-cosmos-on-a-camera-task). Use that guide to put Cosmos on
+another task or to change the service's options. To train a policy on Cosmos images instead, see the
+[Shadow Hand demo](cosmos_transfer_shadow_hand.md).
 
 ## 1. Set paths
 
@@ -217,7 +222,9 @@ Environment `v` uses the `v`-th prompt and seed. It keeps its prompt across rese
 advances its seed by the number of environments. Without `env.cosmos_seed`, environment `v` starts
 from seed `v`. With one environment, a list of prompts changes the appearance each episode. Each
 environment needs its own Cosmos GPU memory: on one 96 GB GPU shared with Isaac Lab and the GR00T
-server, 4 environments fit and 8 did not.
+server, 4 environments fit and 8 did not. For how environments share a Cosmos session, and for running
+Cosmos on a GPU of its own, see [Several environments](cosmos_transfer.md#several-environments); for prompt
+lists and files, see [A different prompt per episode](cosmos_transfer.md#a-different-prompt-per-episode).
 
 ## 7. Optional: save the camera images
 
