@@ -774,7 +774,13 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
-_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:02:00.0"}
+_IPC_SERVICE = {
+    "transports": ["socket", "cuda_ipc"],
+    "host_id": "this-boot",
+    "pci_bus_id": "0000:02:00.0",
+    "visible_gpus": ["0000:01:00.0", "0000:02:00.0"],
+}
+_CAMERA_GPU = "0000:01:00.0"
 
 
 @pytest.mark.parametrize(
@@ -787,6 +793,8 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "p
         # A local endpoint tunneled to another machine whose GPU has a PCI bus ID this machine also uses.
         ("auto", "cuda:0", {**_IPC_SERVICE, "host_id": "other-boot"}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, None, True, "socket"),
+        # A service restricted to its own GPU cannot open the camera's buffers.
+        ("auto", "cuda:0", {**_IPC_SERVICE, "visible_gpus": ["0000:02:00.0"]}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, False, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 0, False, "cuda_ipc"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, True, "cuda_ipc"),
@@ -801,6 +809,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
     monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: _CAMERA_GPU)
     # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
     monkeypatch.setattr(
         _cuda_ipc, "device_by_bus_id", lambda bus_id: service_gpu if bus_id == _IPC_SERVICE["pci_bus_id"] else None
@@ -825,6 +834,7 @@ def test_transport_identifies_this_machine_by_boot_id_not_by_address(monkeypatch
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
     monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: _CAMERA_GPU)
     monkeypatch.setattr(_cuda_ipc, "device_by_bus_id", lambda bus_id: 0)
     monkeypatch.setattr(_cuda_ipc, "can_access_peer", lambda index, peer_index: True)
     cfg = CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.0.0.5:5555")

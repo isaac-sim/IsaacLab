@@ -511,8 +511,9 @@ The **transport** is how control images go to the service, and generated images 
 | `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
 
 `CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it, runs on this machine (the same
-boot ID), and uses the camera's GPU or a GPU with direct access to it, the socket otherwise. `cuda_ipc` fails when
-it is unavailable instead of falling back. `status` lists the service's transports. With the defaults on one Linux
+boot ID), sees the camera's GPU, and uses that GPU or a GPU with direct access to it, the socket otherwise.
+`cuda_ipc` fails when it is unavailable instead of falling back. `status` lists the service's transports and the
+GPUs it can see. With the defaults on one Linux
 machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
 IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
 

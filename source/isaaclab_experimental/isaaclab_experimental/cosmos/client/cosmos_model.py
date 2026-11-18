@@ -500,7 +500,8 @@ class _CosmosStream:
         """Choose CUDA IPC or the socket, per the configuration.
 
         CUDA IPC needs the service on this machine, on this GPU or on another one this process can see and that
-        can access this GPU's memory directly. Choosing it records this process's index of the service's GPU.
+        can access this GPU's memory directly, and the service must see this GPU. Choosing it records this process's
+        index of the service's GPU.
         """
         import torch
 
@@ -520,6 +521,9 @@ class _CosmosStream:
             elif capabilities.get("host_id") is None or capabilities["host_id"] != _cuda_ipc.host_id():
                 # A local endpoint can be a tunnel; the other machine's GPU can have a PCI bus ID this one uses.
                 reason = "the service runs on another machine"
+            elif _cuda_ipc.pci_bus_id(device.index or 0) not in capabilities.get("visible_gpus", ()):
+                # The service opens the camera's buffers on the camera's GPU, so it must see that GPU too.
+                reason = "the service cannot see this camera's GPU"
             else:
                 service_gpu = _cuda_ipc.device_by_bus_id(capabilities.get("pci_bus_id"))
                 if service_gpu is None:
