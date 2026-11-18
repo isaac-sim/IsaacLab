@@ -123,14 +123,8 @@ def build_lut_textures(
             k_nn = _nn_chunk(texel_uv, uv_t, chunk)
             dir_out.reshape(-1, 3)[:] = dirs_t[k_nn]
 
-    # Exit texture.
-    # The exit texture is an octahedral inverse map: given a ray direction
-    # (encoded over [0,1]² via octahedral projection), it returns the sensor
-    # NDC (u, v) of the nearest foveated sample.  The octahedral grid covers
-    # the full hemisphere, but only texels whose decoded direction falls within
-    # the camera's FOV (r ≤ max_r) are populated; the rest hold the invalid UV (-1, -1), as in native-grid LUTs.
-    # Resolution (exit_width × exit_height) should be large enough to resolve
-    # individual samples — typically 4× the direction texture dimension.
+    # Exit texture: only texels whose direction lies within the samples' field (r <= max_r) map to a sample; the rest
+    # hold the invalid UV (-1, -1), as in native-grid LUTs, so rays outside the field never reach the fovea.
     d = dirs_t.to(torch.float64)
     r_s = (torch.atan2((d[:, 0] ** 2 + d[:, 1] ** 2).sqrt(), (-d[:, 2]).clamp(min=1e-20)) * (180.0 / math.pi)).float()
     th_s = torch.atan2(d[:, 1], d[:, 0]).float()

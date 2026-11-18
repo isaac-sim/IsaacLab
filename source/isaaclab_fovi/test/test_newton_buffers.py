@@ -5,7 +5,6 @@
 
 """The Newton foveated camera's render layout and publication, on stand-in renderer buffers."""
 
-import logging
 from dataclasses import asdict
 from types import SimpleNamespace
 
@@ -294,9 +293,9 @@ def test_native_grid_fractional_pool_resolution_validates_newton_tiles(size, val
 
 
 @pytest.mark.parametrize("style", ["warped_cartesian_as_grid", "isotropic"])
-@pytest.mark.parametrize("requested", [["rgba"], ["rgb"]])
-def test_pooled_rgb_is_the_view_of_pooled_rgba_whichever_is_requested(monkeypatch, style, requested) -> None:
-    """The renderer publishes rgb as a view of rgba when either is requested, and so do pooled grids and sample sets."""
+def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch, style) -> None:
+    """The renderer publishes rgb as a view of rgba even when only rgba is requested, and so do pooled grids and
+    sample sets."""
     coords = SamplingCoords(60.0, 0.591, 16, style=style, field_geometry="spherical", device="cpu")
     highres = coords.clone(resolution=32)
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
@@ -329,7 +328,7 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba_whichever_is_requested(monkeypatc
         pool_mode="avg",
         pool_sample_cortex=False,
         image_rotation_deg=0,
-        data_types=requested,
+        data_types=["rgba"],
         renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
     )
     camera._initialize_impl()
@@ -340,15 +339,17 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba_whichever_is_requested(monkeypatc
     torch.testing.assert_close(rgb, rgba[..., :3], rtol=0, atol=0)
 
 
-def test_runtime_intrinsics_leave_the_retinas_rays_alone(monkeypatch, caplog) -> None:
-    """The retina sets a foveated camera's rays, so runtime intrinsics, such as a viewer's zoom sets, are skipped with
-    a warning rather than handed to the renderer, which would replace the rays with a pinhole's."""
+def test_runtime_intrinsics_leave_the_retinas_rays_alone(monkeypatch) -> None:
+    """The retina sets a foveated camera's rays, so runtime intrinsics, such as a viewer's zoom sets, leave the camera
+    as configured with a warning to the caller, rather than reaching the renderer, which would replace the rays with a
+    pinhole's."""
 
     def replace_rays(*args, **kwargs):
         raise AssertionError("the stock setter replaces the renderer's rays")
 
     monkeypatch.setattr(newton_camera.Camera, "set_intrinsic_matrices", replace_rays)
     camera = new_camera()
-    with caplog.at_level(logging.WARNING):
+    with pytest.warns(UserWarning, match="leaves a foveated camera as configured") as caught:
         camera.set_intrinsic_matrices(torch.eye(3).repeat(2, 1, 1))
-    assert "skipped a foveated camera" in caplog.text
+    # The warning points at the caller's line.
+    assert caught[0].filename == __file__

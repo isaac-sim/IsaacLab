@@ -5,6 +5,7 @@
 
 """Rendering, gaze and software-sampling contracts, without launching a simulator."""
 
+import math
 from dataclasses import asdict
 from types import SimpleNamespace
 
@@ -26,6 +27,7 @@ from isaaclab.utils.math import (
     matrix_from_quat,
     quat_apply,
     quat_from_matrix,
+    quat_mul,
 )
 from isaaclab.utils.warp import ProxyArray
 
@@ -145,6 +147,17 @@ class RtxGazeHarness(GazeHarness, FoveatedRTXCamera):
         self.mount_turns = 0
 
 
+MOUNT = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
+"""Two cameras' mount orientations (x, y, z, w), OpenGL convention, for the prim-writing harness."""
+
+
+def write_prims(camera, positions=None, orientations=None, env_ids=None, convention="ros"):
+    """Stand-in for the stock pose write on :class:`RtxGazeHarness`: the orientations become the prims' poses."""
+    if orientations is not None:
+        ids = slice(None) if env_ids is None else torch.as_tensor(env_ids)
+        camera._view.local[ids] = convert_camera_frame_orientation_convention(orientations, convention, "opengl")
+
+
 def gaze_direction(angles_deg: torch.Tensor) -> torch.Tensor:
     """OpenCV camera-frame unit direction of (tilt, pan) gaze angles [deg]: up and left are positive."""
     tilt, pan = angles_deg.deg2rad().unbind(-1)
@@ -242,18 +255,31 @@ def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: fl
 
 
 def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
-    """The fixed-mount teacher reads the live camera position, so only successful turns of the mount count."""
-    monkeypatch.setattr(Camera, "set_world_poses", lambda *args, **kwargs: None)
+    """The fixed-mount teacher reads the live camera position, so only writes that turn a mount count: not a position
+    move, and not writing back the reported mount (of either quaternion sign), even with a gaze held in the prims."""
+    monkeypatch.setattr(Camera, "set_world_poses", write_prims)
     monkeypatch.setattr(Camera, "set_world_poses_from_view", lambda *args, **kwargs: None)
     eyes = torch.zeros(2, 3)
+
+    def reported(camera, env_ids=None):
+        return camera.get_world_poses(env_ids, convention="ros")[1]
+
+    def turn_second(camera):
+        # One degree about the second camera's optical axis.
+        half = torch.tensor(math.radians(1.0) / 2)
+        roll = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, float(half.sin()), float(half.cos())]])
+        camera.set_world_poses(orientations=quat_mul(reported(camera), roll))
+
     for move, turned in (
         (lambda camera: camera.set_world_poses(positions=torch.zeros(2, 3)), False),
-        (lambda camera: camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2)), True),
+        (lambda camera: camera.set_world_poses(orientations=reported(camera)), False),
+        (lambda camera: camera.set_world_poses(orientations=-reported(camera, [1]), env_ids=[1]), False),
+        (turn_second, True),
         (lambda camera: camera.set_world_poses_from_view(eyes, eyes), False),
         (lambda camera: camera.set_world_poses_from_view(eyes, torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])), True),
     ):
-        camera = GazeHarness()
-        camera.mount_turns = 0
+        camera = RtxGazeHarness(MOUNT)
+        camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
         move(camera)
         assert camera.mount_turns == int(turned)
 
@@ -263,8 +289,8 @@ def test_a_rejected_mount_move_is_not_recorded(monkeypatch) -> None:
         raise ValueError("rejected")
 
     monkeypatch.setattr(Camera, "set_world_poses", reject)
-    camera = GazeHarness()
-    camera.mount_turns = 0
+    # The identity differs from both mounts, so only the rejection keeps the count.
+    camera = RtxGazeHarness(MOUNT)
     with pytest.raises(ValueError, match="rejected"):
         camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2))
     assert camera.mount_turns == 0
@@ -414,14 +440,9 @@ def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_
 def test_rtx_world_poses_are_the_mount_so_a_round_trip_keeps_mount_and_gaze(monkeypatch) -> None:
     """Isaac RTX holds the gaze in its prims; its world poses still report the bare mount, as the other renderers'
     do, so writing them back (as a viewer navigating the camera does) neither moves the mount nor doubles the gaze."""
-
-    def write_prims(camera, positions=None, orientations=None, env_ids=None, convention="ros"):
-        ids = slice(None) if env_ids is None else torch.as_tensor(env_ids)
-        camera._view.local[ids] = convert_camera_frame_orientation_convention(orientations, convention, "opengl")
-
     monkeypatch.setattr(Camera, "set_world_poses", write_prims)
-    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
-    camera = RtxGazeHarness(mount)
+    camera = RtxGazeHarness(MOUNT)
+    mount = MOUNT
     camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
     gazed = camera._view.local.clone()
     assert not torch.allclose(matrix_from_quat(gazed), matrix_from_quat(mount), atol=1e-3)

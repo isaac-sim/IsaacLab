@@ -29,17 +29,6 @@ RETINA_RES = 32
 """Retina samples across; the stock camera is 96 pixels across."""
 
 
-@configclass
-class SceneCfg(CartpoleCameraSceneCfg):
-    tiled_camera = select_presets(foveated_presets(CartpoleTiledCameraCfg(), RETINA_RES), ("rgb", "depth"))
-
-
-@configclass
-class ActionsCfg(CartpoleActionsCfg):
-    # The gaze must be the last action term.
-    gaze = mdp.GazeActionCfg(asset_name="tiled_camera")
-
-
 def observations(data_type: str, image_term) -> object:
     """The stock camera observations of ``data_type``, the gaze, and the teacher's labels."""
 
@@ -67,6 +56,17 @@ def observations(data_type: str, image_term) -> object:
         oracle: ObservationGroupCfg = oracle_observations(SceneEntityCfg("robot", body_names="pole"), POLE_TIP)
 
     return ObservationsCfg()
+
+
+@configclass
+class SceneCfg(CartpoleCameraSceneCfg):
+    tiled_camera = select_presets(foveated_presets(CartpoleTiledCameraCfg(), RETINA_RES), ("rgb", "depth"))
+
+
+@configclass
+class ActionsCfg(CartpoleActionsCfg):
+    # The gaze must be the last action term.
+    gaze = mdp.GazeActionCfg(asset_name="tiled_camera")
 
 
 @configclass
