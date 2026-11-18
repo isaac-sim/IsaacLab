@@ -88,7 +88,7 @@ Choose a selector
      - ``physics=newton_mjwarp``
      - Selects a physics configuration, including its backend and solver.
    * - ``renderer=NAME``
-     - ``renderer=newton_renderer``
+     - ``renderer=newton_warp``
      - Selects a renderer configuration for tasks that produce camera data.
    * - ``visualizer=NAME[,NAME,...]``
      - ``visualizer=newton_gl``
@@ -110,7 +110,7 @@ solver, the Newton Warp renderer, and RGB observations:
 
    uv run isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Camera-Direct \
-      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+      physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Use values listed for the task. Incompatible physics, renderer, sensor, or
 observation settings fail configuration validation.
@@ -156,7 +156,7 @@ conventions:
      - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
        visualization, livestreaming, or another runtime choice requires Kit;
        otherwise OVRTX is used for a fully kit-less run.
-   * - ``newton_renderer``
+   * - ``newton_warp``
      - Newton Warp renderer. This is the default for tasks that use the
        multi-backend renderer preset.
    * - ``ovrtx``

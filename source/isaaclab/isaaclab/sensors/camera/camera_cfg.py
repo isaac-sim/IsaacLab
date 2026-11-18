@@ -16,6 +16,7 @@ from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
+    from ...utils.tensor_processors import TensorProcessorCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -231,6 +232,14 @@ class CameraCfg(SensorBaseCfg):
     package is imported only when this option is enabled.
     """
 
+    tensor_processors: list[TensorProcessorCfg] = []
+    """Processors that compute camera outputs from render outputs, run in order after each capture.
+    Defaults to an empty list.
+
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
+    documentation for inputs, outputs, ``env_mask``, and asynchronous rendering support.
+    """
+
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
 
@@ -261,17 +270,44 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate the requested data types against the selected renderer contract."""
+        """Validate the processors and the requested data types against the selected renderer contract."""
+        for processor_cfg in self.tensor_processors:
+            # Import strings become callable lazily; any other string fails only at the first capture.
+            if not callable(processor_cfg.func):
+                raise ValueError(
+                    "Camera tensor processor func must be a TensorProcessor class or an import string"
+                    f" 'module:Class', not {processor_cfg.func!r}."
+                )
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(self.data_types) - supported)
+        produced: set[str] = set()
+        for processor_cfg in self.tensor_processors:
+            missing = sorted(set(processor_cfg.inputs) - produced - supported)
+            if missing:
+                name = getattr(processor_cfg.func, "__name__", str(processor_cfg.func))
+                raise ValueError(
+                    f"Camera tensor processor {name} reads {missing}, which no earlier processor produces and"
+                    f" renderer {type(self.renderer_cfg).__name__} does not render. Order the processors so the"
+                    " producer comes first, or select a renderer that supports the input."
+                )
+            produced.update(processor_cfg.outputs)
+        unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )
+
+
+def _render_data_types(cfg: CameraCfg) -> list[str]:
+    """Return the data types that no processor produces and the inputs that no earlier processor produces."""
+    produced, inputs = set(), []
+    for processor_cfg in cfg.tensor_processors:
+        inputs += [name for name in processor_cfg.inputs if name not in produced]
+        produced.update(processor_cfg.outputs)
+    return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

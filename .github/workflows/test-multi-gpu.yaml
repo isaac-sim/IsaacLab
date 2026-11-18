@@ -56,7 +56,7 @@ jobs:
           - physics: physx
             renderer: newton-warp
             task: Isaac-Cartpole-Camera-Direct
-            extra_args: "env.tiled_camera.renderer_cfg=newton_renderer"
+            extra_args: "env.tiled_camera.renderer_cfg=newton_warp"
             trainer: skrl
 
           # Newton physics-only
@@ -69,7 +69,7 @@ jobs:
           - physics: newton
             renderer: newton-warp
             task: Isaac-Cartpole-Camera-Direct
-            extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_renderer"
+            extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_warp"
             trainer: skrl
 
           # Newton + Isaac RTX renderer (hybrid)

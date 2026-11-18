@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for Newton renderer backends (Newton Warp)."""
+"""Sub-module for Newton renderer backends (Newton Warp and Newton OptiX)."""
 
 from isaaclab.utils.module import lazy_export
 

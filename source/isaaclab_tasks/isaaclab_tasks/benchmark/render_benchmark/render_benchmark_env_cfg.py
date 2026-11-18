@@ -112,7 +112,7 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
         width: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
         height: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
-            newton_renderer=NewtonWarpRendererCfg(enable_shadows=True),
+            newton_warp=NewtonWarpRendererCfg(enable_shadows=True),
         )
 
     default = BaseRenderBenchmarkCameraCfg(data_types=["rgb"])

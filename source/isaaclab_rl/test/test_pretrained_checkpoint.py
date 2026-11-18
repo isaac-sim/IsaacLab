@@ -54,7 +54,7 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     [
         (("presets=depth",), ("depth",)),
         (("presets=rgb",), ()),
-        (("physics=newton_mjwarp", "renderer=newton_renderer"), ()),
+        (("physics=newton_mjwarp", "renderer=newton_warp"), ()),
     ],
 )
 def test_get_pretrained_checkpoint_preset_names_uses_non_default_domain_presets(overrides, expected):

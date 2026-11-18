@@ -3361,8 +3361,8 @@ RL libraries.
 **Running Benchmarks**
 
 Physics and rendering use task presets, as in training: ``physics=newton_mjwarp`` and
-``renderer=newton_renderer``. The equivalent flags are ``--physics newton_mjwarp`` and
-``--renderer newton_renderer``; there is no ``--render`` flag.
+``renderer=newton_warp``. The equivalent flags are ``--physics newton_mjwarp`` and
+``--renderer newton_warp``; there is no ``--render`` flag.
 
 **Before (Isaac Lab 2.x):**
 

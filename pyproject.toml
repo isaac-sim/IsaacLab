@@ -113,6 +113,8 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
+optix = ["newton[optix]"]
+
 importers = [
     "isaacsim-asset-isolated==6.2.0.1",
     "tinyobjloader==2.0.0rc13",
@@ -418,7 +420,8 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra != 'optix'",
+    "newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra == 'optix'",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.

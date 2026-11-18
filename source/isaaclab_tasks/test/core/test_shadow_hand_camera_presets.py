@@ -157,7 +157,7 @@ _RENDERER_PRESETS = [
     # preset_name, expected_class
     ("default", NewtonWarpRendererCfg),
     ("isaacsim_rtx", IsaacRtxRendererCfg),
-    ("newton_renderer", NewtonWarpRendererCfg),
+    ("newton_warp", NewtonWarpRendererCfg),
 ]
 
 
@@ -170,7 +170,7 @@ def test_renderer_presets_resolve_to_expected_configs(shadow_hand_camera_presets
     assert isinstance(resolved, expected_class), (
         f"Renderer preset '{preset_name}': expected {expected_class.__name__}, got {type(resolved).__name__}"
     )
-    if preset_name == "newton_renderer":
+    if preset_name == "newton_warp":
         assert resolved.renderer_type == "newton_warp"
 
     rtx_cfg = renderer_presets["rtx"]
@@ -199,7 +199,7 @@ _WARP_CAMERA_PRESETS = [
 def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_preset, raises):
     """Warp support must match the camera preset's requested data types."""
     camera_cfg = shadow_hand_camera_presets["scene.tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]["newton_renderer"]
+    warp_cfg = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]["newton_warp"]
     enabled = camera_cfg.data_types != ["depth"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     if raises:
@@ -214,7 +214,7 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
     [
         (
             ShadowHandCameraManagerEnvCfg,
-            ("newton_mjwarp", "newton_renderer"),
+            ("newton_mjwarp", "newton_warp"),
             "Isaac-Reorient-Cube-Shadow-Camera_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
         ),
         (
@@ -229,7 +229,7 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
         ),
         (
             ShadowHandCameraEnvCfg,
-            ("newton_mjwarp", "newton_renderer"),
+            ("newton_mjwarp", "newton_warp"),
             "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
         ),
         (

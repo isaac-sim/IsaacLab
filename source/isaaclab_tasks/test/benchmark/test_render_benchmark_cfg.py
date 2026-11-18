@@ -203,7 +203,7 @@ def test_camera_presets_resolve_to_expected_data_types(render_benchmark_presets)
         assert resolved.data_types == (["rgb"] if preset_name == "default" else [preset_name])
         assert resolved.width > 0
         assert resolved.height > 0
-        assert isinstance(resolved.renderer_cfg.newton_renderer, NewtonWarpRendererCfg)
+        assert isinstance(resolved.renderer_cfg.newton_warp, NewtonWarpRendererCfg)
 
 
 def test_camera_resolution_defaults_to_256():

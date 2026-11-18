@@ -320,7 +320,12 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
     physics = next(name for name in physics_names.values() if name in solvers)
 
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    renderer_names = {
+        "isaac_rtx": "isaacsim_rtx",
+        "ovrtx": "ovrtx",
+        "newton_warp": "newton",
+        "newton_optix": "newton_optix",
+    }
     rendering = None
     for node in _iter_config_nodes(env_cfg):
         rendering = renderer_names.get(getattr(node, "renderer_type", None))

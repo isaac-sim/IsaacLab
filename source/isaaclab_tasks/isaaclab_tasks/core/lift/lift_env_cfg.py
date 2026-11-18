@@ -9,6 +9,7 @@ from dataclasses import MISSING
 
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -29,7 +30,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -53,7 +54,9 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 """Table the object rests on."""
 
 OBJECT_PHYSICS = {
-    "physics_material": RigidBodyMaterialBaseCfg(static_friction=0.5),
+    "physics_material": PhysxRigidBodyMaterialCfg(
+        static_friction=0.5, compliant_contact_stiffness=2500.0, compliant_contact_damping=100.0
+    ),
     "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
 }
 """Physics properties shared by the graspable object shapes."""
@@ -93,7 +96,9 @@ class ObjectCfg(PresetCfg):
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.5),
+        physics_material=PhysxRigidBodyMaterialCfg(
+            static_friction=0.5, compliant_contact_stiffness=2500.0, compliant_contact_damping=100.0
+        ),
         rigid_props=PhysxRigidBodyCfg(
             solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),

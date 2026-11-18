@@ -98,7 +98,7 @@ For camera tasks that expose physics, renderer, and data-type variants, combine 
 
 ```bash
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_warp presets=depth
 ```
 
 Before using a name, list the task's exposed presets:
