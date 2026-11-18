@@ -324,7 +324,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     This field is applied by :meth:`build` and is not forwarded to Newton.
     """
 
-    def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "dvi"], dict[str, Any]]:
+    def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "scc"], dict[str, Any]]:
         """Return the selected Newton solver name and its configuration keyword arguments."""
         raise NotImplementedError
 
@@ -338,10 +338,10 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
             CollisionDetectorConfig,
             ConstrainedDynamicsConfig,
             ConstraintStabilizationConfig,
-            DVISolverConfig,
             ForwardKinematicsSolverConfig,
             MaterialManagerConfig,
             PADMMSolverConfig,
+            SCCSolverConfig,
         )
         from newton.solvers import SolverKamino
 
@@ -358,7 +358,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
         # Initialize all solver configs with default values.
         solver_config_types = {
             "padmm": PADMMSolverConfig,
-            "dvi": DVISolverConfig,
+            "scc": SCCSolverConfig,
         }
         solver_configs = {name: config_type() for name, config_type in solver_config_types.items()}
 
@@ -408,6 +408,6 @@ class KaminoDVISolverCfg(_KaminoSolverCfgBase):
     dynamics_solver_cfg: KaminoDVICfg = field(default_factory=KaminoDVICfg)
     """DVI forward-dynamics solver parameters."""
 
-    def _get_dynamics_solver_config(self) -> tuple[Literal["dvi"], dict[str, Any]]:
-        """Return DVI and its configuration keyword arguments."""
-        return "dvi", _cfg_to_dict(self.dynamics_solver_cfg)
+    def _get_dynamics_solver_config(self) -> tuple[Literal["scc"], dict[str, Any]]:
+        """Return DVI, which Newton names SCC, and its configuration keyword arguments."""
+        return "scc", _cfg_to_dict(self.dynamics_solver_cfg)
