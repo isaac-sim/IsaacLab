@@ -24,8 +24,9 @@ The three images show the same moment of one run, with the hand holding the appl
 plate.
 
 This demo runs three processes: the GR00T policy server, the Cosmos service and the Isaac Lab
-run. Cosmos needs **48 GB of VRAM for one environment**, with approximately **8 GB more for
-each additional environment**. Give the GR00T server a GPU too; the examples put it on GPU 1.
+run. Cosmos needs about **47 GB of VRAM for one environment**, with about **9 GB more for
+each additional environment**, and the GR00T server about **7 GB**. Give the GR00T server a GPU too; the examples
+put it on GPU 1.
 Use **uv 0.11.29** for the Cosmos Framework environment.
 
 This demo applies the [Cosmos Transfer camera integration](cosmos_transfer.md) to a policy that is already trained:
