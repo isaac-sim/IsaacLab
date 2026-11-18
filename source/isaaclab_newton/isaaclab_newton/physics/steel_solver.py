@@ -20,7 +20,7 @@ class SteelSolver(NewtonSolver):
     """Build and drive Newton's reduced-coordinate Steel solver."""
 
     solver_class = SolverSteel
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.RUN_TO_RUN
 
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverBase:
         """Construct Steel after applying the model edits its configuration selects."""
