@@ -666,7 +666,7 @@ class RendererBCfg:
 @configclass
 class RendererPresetCfg(PresetCfg):
     default: RendererACfg = RendererACfg()
-    newton_renderer: RendererBCfg = RendererBCfg()
+    newton_warp: RendererBCfg = RendererBCfg()
 
 
 @configclass
@@ -704,7 +704,7 @@ def test_root_presetcfg_with_nested_preset_collect():
     assert "sensor" in presets
     assert set(presets["sensor"].keys()) == {"default", "depth"}
     assert "sensor.renderer" in presets
-    assert set(presets["sensor.renderer"].keys()) == {"default", "newton_renderer"}
+    assert set(presets["sensor.renderer"].keys()) == {"default", "newton_warp"}
 
 
 def test_root_presetcfg_resolve_defaults():
