@@ -9,6 +9,6 @@ The algorithm is resolved by name from :attr:`GazeSupervisedPPOCfg.class_name`, 
 import RSL-RL.
 """
 
-from .gaze_supervised_ppo_cfg import GazeSupervisedPPOCfg
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["GazeSupervisedPPOCfg"]
+lazy_export()

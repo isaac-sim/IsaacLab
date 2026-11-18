@@ -14,6 +14,8 @@ from isaaclab_fovi.sensors.generalized_projection import (  # noqa: E402
 
 from pxr import UsdGeom  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 
 def test_lut_schema_has_explicit_model_and_assets_after_export() -> None:
     stage = Usd.Stage.CreateInMemory()

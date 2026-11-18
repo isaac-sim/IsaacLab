@@ -14,11 +14,18 @@ import warp as wp
 from fovi.sensing.projection import CameraModel, angular_directions
 from fovi.sensing.retina import RetinalTransform
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions, sampling_geometry
+from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
-from isaaclab_fovi.sensors.virtual_gaze import VirtualGaze
 
-from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_from_matrix
+from isaaclab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    matrix_from_quat,
+    quat_apply,
+    quat_from_matrix,
+)
+
+pytestmark = pytest.mark.kitless
 
 
 @pytest.fixture
@@ -70,9 +77,16 @@ def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
     assert torch.isfinite(actual).all()
 
 
-class GazeHarness(VirtualGaze):
-    def __init__(self) -> None:
+class GazeHarness(FoveatedCamera):
+    """The foveated camera's gaze state and kernels on stand-in pose buffers, without a simulator."""
+
+    def __new__(cls, **overrides):
+        return object.__new__(cls)
+
+    def __init__(self, **overrides) -> None:
         self.cfg = camera_config()
+        for name, value in overrides.items():
+            setattr(self.cfg, name, value)
         self._sampling_coords, _ = build_lowres_coords(self.cfg, "cpu")
         self._sampling_coords_highres = None
         self._gaze_rotation = None
@@ -153,6 +167,40 @@ def test_gaze_preserves_camera_rotation_with_tf32(
     torch.testing.assert_close(source.norm(dim=-1), torch.ones(len(source), device=device), atol=1e-6, rtol=0)
     torch.testing.assert_close(matrix_from_quat(source.double()), expected, atol=1e-6, rtol=0)
     assert torch.get_float32_matmul_precision() == "high"
+
+
+@pytest.mark.parametrize("rotation_deg", [0.0, 30.0, -75.0])
+def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: float) -> None:
+    """The mask sees exactly the rays the turned camera renders, found here through the camera pose instead."""
+    # An off-center, wide image makes a roll change which samples the camera sees.
+    model = CameraModel("pinhole", (80, 120), (60.0, 60.0, 45.0, 30.0))
+    camera = GazeHarness(camera_model=asdict(model), image_rotation_deg=rotation_deg)
+    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
+    mount = camera._data.quat_w_world.clone()
+    camera._apply_gaze_pose()
+
+    # Rendered rays leave the turned camera along its OpenGL frame; express them in the mount's OpenGL frame.
+    def opengl(orientation: torch.Tensor) -> torch.Tensor:
+        return matrix_from_quat(convert_camera_frame_orientation_convention(orientation, "world", "opengl"))
+
+    turn = opengl(mount).transpose(-1, -2) @ opengl(camera._data.quat_w_world)
+    coords = camera._sampling_coords
+    rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
+    seen = (turn[:, None] @ rays[None, :, :, None]).squeeze(-1) * torch.tensor([1.0, -1.0, -1.0])
+    expected = model.project(seen)[1]
+    assert expected.any() and (~expected).any()
+    assert (camera._gaze_validity(2) == expected).float().mean() > 0.999
+
+
+def test_pose_update_records_the_mount_before_the_gaze() -> None:
+    camera = GazeHarness()
+    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
+    camera._data.quat_w_world = mount.clone()
+    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
+    camera._apply_gaze_pose()
+    expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
+    torch.testing.assert_close(matrix_from_quat(camera._mount_quat_ros), matrix_from_quat(expected), atol=1e-6, rtol=0)
+    assert not torch.allclose(camera._data.quat_w_world, mount)
 
 
 def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pose() -> None:

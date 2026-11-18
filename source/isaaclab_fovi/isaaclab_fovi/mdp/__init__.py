@@ -5,30 +5,6 @@
 
 """Manager terms for active gaze with a foveated camera."""
 
-from .gaze import (
-    GazeAction,
-    GazeActionCfg,
-    angles_to_direction,
-    clamp_gaze,
-    direction_to_angles,
-    entity_point,
-    gaze_state,
-    gaze_teacher_labels,
-    motor_action_l2,
-    random_gaze,
-    teacher_labels,
-)
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "GazeAction",
-    "GazeActionCfg",
-    "angles_to_direction",
-    "clamp_gaze",
-    "direction_to_angles",
-    "entity_point",
-    "gaze_state",
-    "gaze_teacher_labels",
-    "motor_action_l2",
-    "random_gaze",
-    "teacher_labels",
-]
+lazy_export()

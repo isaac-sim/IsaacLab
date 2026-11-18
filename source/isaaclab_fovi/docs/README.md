@@ -89,13 +89,18 @@ env.scene.eye.cmf_a_deg=1000
 
 ### Gaze
 
-The retina can turn while the camera prim stays in place:
+The retina turns relative to the physical camera's optical axis:
 
 ```python
 # (tilt, pan) [deg] from the physical camera's optical axis, shape (num_envs, 2).
 # Positive tilt looks up and positive pan looks left.
 camera.set_gaze_angles(angles)
 ```
+
+Newton and OVRTX turn the rendered camera pose in each pose update, so the
+camera prim keeps its mount pose. Isaac RTX renders from the prims, so it
+writes the turned pose into them. On every renderer the gaze stays relative to
+the mount when `set_world_poses` moves it.
 
 Set `mask_to_sensor_fov=True` to zero the samples that fall outside the
 physical camera's image at the current gaze.
@@ -106,8 +111,13 @@ physical camera's image at the current gaze.
 
 - `GazeActionCfg`: two actions that move the gaze by up to `step_size` field
   radii (half the retina's field of view) per step, within `gaze_limit` field
-  radii of the optical axis. Make it the last action term.
-- `gaze_state`: the gaze and its velocity, in field radii.
+  radii of the optical axis. Make it the last action term. With the default
+  `mount="fixed"` the camera hangs on the environment and the teacher aims from
+  its configured mount; `mount="tracked"` lets the camera ride a moving body,
+  such as a turning head, and the teacher follows each camera's current mount
+  (Newton or OVRTX).
+- `gaze_state`: the gaze, in field radii, and its velocity, in field radii per
+  second.
 - `gaze_teacher_labels`: a teacher's gaze action toward a point fixed to an
   asset, and whether that point is a valid target. `teacher_labels` takes any
   world points, for a task whose target changes during an episode.
@@ -131,7 +141,7 @@ the PPO settings are the stock ones.
 
 The Kuka-Allegro tasks take the stock base-camera presets, such as
 `presets=depth128`. Set the retina's resolution with, for example,
-`env.scene.tiled_camera.foveated_res=96`.
+`env.scene.base_camera.foveated_res=96`.
 
 ```bash
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Fovi

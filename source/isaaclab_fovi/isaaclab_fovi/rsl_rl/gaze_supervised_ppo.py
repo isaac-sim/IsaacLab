@@ -26,7 +26,7 @@ def gaze_loss(mean: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         labels: The teacher's gaze actions and their validity, shape (batch, 3).
     """
     valid = labels[:, 2] > 0.5
-    # Select valid rows before subtracting, so an invalid label cannot reach the gradients.
+    # Invalid rows may hold NaN; replacing it keeps their (discarded) residuals finite, so no NaN reaches the gradients.
     residual = torch.where(valid[:, None], mean - torch.nan_to_num(labels[:, :2]), 0.0)
     return residual.norm(dim=-1).sum() / valid.sum().clamp_min(1)
 
@@ -87,14 +87,15 @@ class GazeSupervisedPPO(PPO):
                     clipped = batch.values + (values - batch.values).clamp(-self.clip_param, self.clip_param)
                     value_error = torch.max(value_error, (clipped - batch.returns).pow(2))
                 value_loss = value_error.mean()
-                labels = batch.observations[self.oracle_group].float()
-                oracle = gaze_loss(self.actor.output_mean[:, -2:].float(), labels)
-                loss = (
-                    surrogate
-                    + self.value_loss_coef * value_loss
-                    - self.entropy_coef * entropy
-                    + self.oracle_loss_coef * oracle
-                )
+                loss = surrogate + self.value_loss_coef * value_loss - self.entropy_coef * entropy
+                if self.oracle_loss_coef > 0:
+                    labels = batch.observations[self.oracle_group].float()
+                    oracle = gaze_loss(self.actor.output_mean[:, -2:].float(), labels)
+                    valid = (labels[:, 2] > 0.5).float().mean()
+                    loss = loss + self.oracle_loss_coef * oracle
+                else:
+                    # Plain PPO: the teacher's labels are neither needed nor read.
+                    oracle = valid = torch.zeros((), device=self.device)
             self.optimizer.zero_grad()
             loss.backward()
             if self.is_multi_gpu:
@@ -102,7 +103,6 @@ class GazeSupervisedPPO(PPO):
             nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
             nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
-            valid = (labels[:, 2] > 0.5).float().mean()
             totals += torch.stack((value_loss, surrogate, entropy, oracle, valid)).detach().float()
         obs = self.storage.observations.flatten(0, 1)
         self.actor.update_normalization(obs)

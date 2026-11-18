@@ -22,8 +22,9 @@ segmentation keep their usual dtypes.
 No cell is masked by the sensor footprint. With `mask_to_sensor_fov=True`,
 samples outside the physical camera's image are still zeroed.
 
-The mode works in both field geometries. The grid keeps its two-dimensional
-topology; "square" refers to the region of the visual field the grid covers.
+The camera samples spherical field coordinates only; the lens lookup rejects
+planar coordinates. The grid keeps its two-dimensional topology; "square"
+refers to the region of the visual field the grid covers.
 The mapping is not smooth across the diagonals of the square, which matters
 when a temporal filter such as DLSS is applied to the rendered grid.
 

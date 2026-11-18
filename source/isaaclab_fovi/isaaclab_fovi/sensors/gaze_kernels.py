@@ -176,23 +176,43 @@ def set_gaze_kernel(
     rotation[i] = gaze_rotation(angles)
 
 
+@wp.func
+def turn_pose(
+    i: wp.int32,
+    gaze: wp.mat33f,
+    basis: wp.mat33f,
+    to_opengl: wp.quatf,
+    to_world: wp.quatf,
+    to_ros: wp.quatf,
+    orientation: wp.array(dtype=wp.quatf),
+    mount: wp.array(dtype=wp.quatf),
+):
+    """Record camera ``i``'s mount in the ROS convention, then turn its world orientation by its gaze."""
+    base = orientation[i]
+    mount[i] = wp.normalize(base * to_ros)
+    orientation[i] = gaze_pose(base, gaze, basis, to_opengl, to_world)
+
+
 @wp.kernel(enable_backward=False)
 def apply_gaze_kernel(
     angles_deg: wp.array(dtype=wp.vec2f),
     basis: wp.mat33f,
     to_opengl: wp.quatf,
     to_world: wp.quatf,
+    to_ros: wp.quatf,
     mask: wp.array(dtype=wp.bool),
     use_mask: wp.int32,
     orientation: wp.array(dtype=wp.quatf),
     rotation: wp.array(dtype=wp.mat33f),
+    mount: wp.array(dtype=wp.quatf),
 ):
-    """Turn each camera's world orientation by its gaze, or only the masked ones, and record every gaze rotation."""
+    """Turn each camera's world orientation by its gaze, or only the masked ones, record their mounts, and record
+    every gaze rotation."""
     i = wp.tid()
     gaze = gaze_rotation(angles_deg[i])
     rotation[i] = gaze
     if use_mask == 0 or mask[i]:
-        orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
+        turn_pose(i, gaze, basis, to_opengl, to_world, to_ros, orientation, mount)
 
 
 @wp.kernel(enable_backward=False)
@@ -201,27 +221,36 @@ def apply_gaze_indexed_kernel(
     basis: wp.mat33f,
     to_opengl: wp.quatf,
     to_world: wp.quatf,
+    to_ros: wp.quatf,
     indices: wp.array(dtype=wp.int32),
     orientation: wp.array(dtype=wp.quatf),
     rotation: wp.array(dtype=wp.mat33f),
+    mount: wp.array(dtype=wp.quatf),
 ):
-    """Turn the indexed cameras' world orientations by their gaze, and record their gaze rotations."""
+    """Turn the indexed cameras' world orientations by their gaze, and record their mounts and gaze rotations."""
     i = indices[wp.tid()]
     gaze = gaze_rotation(angles_deg[i])
     rotation[i] = gaze
-    orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
+    turn_pose(i, gaze, basis, to_opengl, to_world, to_ros, orientation, mount)
+
+
+@wp.func
+def sees(ray: wp.vec3f, gaze: wp.mat33f, frame: wp.mat33f, camera: CameraParams) -> wp.bool:
+    """Whether the physical camera sees a rendered ray (ROS frame) turned by a gaze; ``frame`` is the mount roll."""
+    return project_direction(frame * gaze * wp.transpose(frame) * ray, camera)[2] > 0.5
 
 
 @wp.kernel(enable_backward=False)
 def sensor_visibility_kernel(
     rays: wp.array(dtype=wp.vec3f),
     rotation: wp.array(dtype=wp.mat33f),
+    frame: wp.mat33f,
     camera: CameraParams,
     valid: wp.array2d(dtype=wp.bool),
 ):
-    """Whether the physical camera sees each canonical ray turned by each environment's gaze."""
+    """Whether the physical camera sees each rendered ray turned by each environment's gaze."""
     env, sample = wp.tid()
-    valid[env, sample] = project_direction(rotation[env] * rays[sample], camera)[2] > 0.5
+    valid[env, sample] = sees(rays[sample], rotation[env], frame, camera)
 
 
 @wp.kernel(enable_backward=False)
@@ -229,24 +258,28 @@ def publish_grid_kernel(
     source: wp.array3d(dtype=wp.uint8),
     indices: wp.array(dtype=wp.int32),
     footprint: wp.array(dtype=wp.bool),
+    updated: wp.array(dtype=wp.bool),
     rays: wp.array(dtype=wp.vec3f),
     rotation: wp.array(dtype=wp.mat33f),
+    frame: wp.mat33f,
     camera: CameraParams,
     mask_to_sensor: wp.int32,
     record_visible: wp.int32,
     visible: wp.array2d(dtype=wp.bool),
     target: wp.array3d(dtype=wp.uint8),
 ):
-    """Copy rendered samples into the upright grid, zeroing samples outside the footprint or, when masking, the
-    physical camera's view.
+    """Copy the updated environments' rendered samples into the upright grid, zeroing samples outside the footprint
+    or, when masking, the physical camera's view.
 
     ``source`` and ``target`` hold each sample's channels as raw bytes, so one kernel serves every output type.
     """
     env, cell = wp.tid()
+    if not updated[env]:
+        return
     sample = indices[cell]
     keep = footprint[sample]
     if mask_to_sensor != 0:
-        seen = project_direction(rotation[env] * rays[sample], camera)[2] > 0.5
+        seen = sees(rays[sample], rotation[env], frame, camera)
         if record_visible != 0:
             visible[env, sample] = seen
         keep = keep and seen

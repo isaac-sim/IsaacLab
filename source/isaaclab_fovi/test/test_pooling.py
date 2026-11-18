@@ -11,12 +11,15 @@ import pytest
 import torch
 from fovi.arch.knn import KNNPoolingLayer
 from fovi.arch.pooling import GridPoolingLayer
+from isaaclab_fovi.sensors import pooling
 from isaaclab_fovi.sensors.pooling import (
+    ModalPooler,
     build_highres_coords,
     build_lowres_coords,
     build_pooler,
-    is_segmentation_output,
     pool_hwc_buffer,
+    pool_segmentation_buffer,
+    segmentation_neighbor_indices,
 )
 
 from isaaclab.sim import PinholeCameraCfg
@@ -71,32 +74,107 @@ def test_disabled_pooling_uses_only_output_grid() -> None:
     assert build_pooler(cfg, lowres, None, "cpu") == (None, None)
 
 
-def test_segmentation_pooler_override_preserves_discrete_label_values() -> None:
-    cfg = SamplingConfig(pool_mode="avg")
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
-    assert highres is not None
-    pooler, _ = build_pooler(cfg, lowres, highres, "cpu", mode="max")
-    assert pooler is not None
-    labels = torch.tensor([2.0, 7.0, 19.0])
-    rendered = labels[torch.arange(len(highres)) % len(labels)].reshape(1, -1, 1, 1)
-    pooled = pool_hwc_buffer(pooler, rendered)
-    assert pooled.shape == (1, len(lowres), 1, 1)
-    assert torch.isin(pooled, labels).all()
+DEVICES = [
+    "cpu",
+    pytest.param("cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")),
+]
+
+# Three output samples over five input samples; 5 marks an excluded neighbour. Columns are outputs, rows are
+# neighbour slots nearest first.
+HAND_TABLE = torch.tensor([[0, 3, 5], [1, 4, 5], [2, 5, 5]])
+
+
+def hand_pooler(device: str) -> ModalPooler:
+    return ModalPooler(HAND_TABLE, num_inputs=5).to(device)
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_modal_pooling_keeps_majority_color_vector(device: str) -> None:
+    # Output 0 sees [0,0,0,255] twice and [0,0,1,255] once; a per-channel max would give [0,0,1,255].
+    # Output 1 sees one vote each for two colors (its third slot is excluded): the nearest neighbour wins.
+    # Output 2 has no valid neighbour and is zero.
+    colors = torch.tensor(
+        [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 1, 255], [10, 20, 30, 255], [200, 100, 0, 255]], dtype=torch.uint8
+    )
+    rendered = colors[None, :, None, :].to(device)
+    pooled = pool_segmentation_buffer(hand_pooler(device), rendered)
+    expected = torch.tensor([[0, 0, 0, 255], [10, 20, 30, 255], [0, 0, 0, 0]], dtype=torch.uint8)
+    assert pooled.dtype == torch.uint8
+    assert torch.equal(pooled.cpu(), expected[None, :, None, :])
+    # Swapping the tied neighbours' order flips the winner.
+    swapped = ModalPooler(HAND_TABLE[[1, 0, 2]], num_inputs=5).to(device)
+    assert torch.equal(pool_segmentation_buffer(swapped, rendered)[0, 1, 0].cpu(), colors[4])
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("dtype", [torch.int32, torch.int64])
+def test_modal_pooling_preserves_ids_above_float_precision(device: str, dtype: torch.dtype) -> None:
+    # 2**24 + 1 and 2**24 + 3 round to other values in float32; the IDs must come back exactly.
+    big = 2**30 if dtype == torch.int32 else 2**40
+    ids = torch.tensor([2**24 + 1, 2**24 + 1, 2**24 + 3, big + 7, big + 7], dtype=dtype)
+    batch = torch.stack([ids, ids.flip(0)])[:, :, None, None].to(device)
+    pooled = pool_segmentation_buffer(hand_pooler(device), batch)
+    expected = torch.tensor([[2**24 + 1, big + 7, 0], [big + 7, 2**24 + 1, 0]], dtype=dtype)
+    assert pooled.dtype == dtype
+    assert torch.equal(pooled[..., 0, 0].cpu(), expected)
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_modal_pooling_compares_wide_vectors_exactly(device: str) -> None:
+    # Two int64 channels exceed the 8-byte packed key; vectors differing only in the second channel stay distinct.
+    vectors = torch.tensor([[1, 2**40], [1, 2**40 + 1], [1, 2**40 + 1], [5, 6], [7, 8]], dtype=torch.int64)
+    pooled = pool_segmentation_buffer(hand_pooler(device), vectors[None, :, None, :].to(device))
+    expected = torch.tensor([[1, 2**40 + 1], [5, 6], [0, 0]])
+    assert torch.equal(pooled[0, :, 0].cpu(), expected)
+
+
+def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Tensor:
+    """Brute-force modal pooling of ``(B, N_hi, C)`` values over a ``(k, N_lo)`` neighbour table."""
+    batch, num_inputs, channels = values.shape
+    out = torch.zeros(batch, table.shape[1], channels, dtype=values.dtype)
+    for b in range(batch):
+        for n in range(table.shape[1]):
+            neighbours = [tuple(values[b, i].tolist()) for i in table[:, n].tolist() if i != num_inputs]
+            if neighbours:
+                # max() keeps the first of equally common values, i.e. the earliest neighbour slot.
+                out[b, n] = torch.tensor(max(neighbours, key=neighbours.count), dtype=values.dtype)
+    return out
 
 
 @pytest.mark.parametrize(
-    ("name", "expected"),
+    ("style", "pool_k", "sample_cortex"),
     [
-        ("rgb", False),
-        ("distance_to_camera", False),
-        ("semantic_segmentation", True),
-        ("instance_segmentation_fast", True),
-        ("instance_id_segmentation_fast", True),
+        ("warped_cartesian_as_grid", 4, False),
+        ("warped_cartesian_as_grid", 9, False),
+        ("warped_cartesian", 3, True),
+        ("isotropic", 3, False),
     ],
 )
-def test_segmentation_dispatch_uses_semantics(name: str, expected: bool) -> None:
-    assert is_segmentation_output(name) is expected
+def test_modal_pooler_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex: bool) -> None:
+    cfg = SamplingConfig(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
+    lowres, matched = build_lowres_coords(cfg, "cpu")
+    highres = build_highres_coords(cfg, matched, "cpu")
+    fovi_max, k = build_pooler(cfg, lowres, highres, "cpu", mode="max")
+    modal, modal_k = build_pooler(cfg, lowres, highres, "cpu", mode="mode")
+    assert isinstance(modal, ModalPooler)
+    assert modal_k == k
+    table = modal.neighbor_indices
+    assert table.shape == (k, len(lowres))
+
+    # The table holds exactly the samples fovi's max pooler reduces over: a max over the table matches it.
+    values = torch.rand(1, len(highres), 1, 1, generator=torch.Generator().manual_seed(0)) + 1
+    padded = torch.cat([values[0, :, 0, 0], torch.zeros(1)])
+    torch.testing.assert_close(padded[table].max(dim=0).values, pool_hwc_buffer(fovi_max, values)[0, :, 0, 0])
+    # A raw fovi pooler exposes the same neighbourhoods.
+    assert torch.equal(segmentation_neighbor_indices(fovi_max), table)
+
+    # Few labels so neighbourhoods hold repeats and ties; tiny chunks exercise the batched loop.
+    monkeypatch.setattr(pooling, "_MODAL_CHUNK_ELEMENTS", 1)
+    labels = torch.randint(0, 3, (3, len(highres), 1, 2), generator=torch.Generator().manual_seed(1))
+    labels = labels.to(torch.uint8)
+    pooled = pool_segmentation_buffer(modal, labels)
+    assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
+    assert torch.equal(pool_hwc_buffer(modal, labels), pooled)
 
 
 @pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])
