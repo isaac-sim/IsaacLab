@@ -18,15 +18,62 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
-from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
+from isaaclab.managers import ActionTerm, ActionTermCfg, ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import convert_camera_frame_orientation_convention, quat_apply, quat_apply_inverse
 
 from ..sensors.calibrated_geometry import resolve_camera_model, sampling_geometry
+from ..sensors.gaze_kernels import (
+    DEG_TO_RAD,
+    CameraParams,
+    camera_params,
+    project_direction,
+    project_directions,
+    torch_stream,
+)
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+
+RAD_TO_DEG = 180.0 / math.pi
+
+
+@wp.kernel(enable_backward=False)
+def teacher_kernel(
+    points: wp.array(dtype=wp.vec3f),
+    positions: wp.array(dtype=wp.vec3f),
+    mount: wp.quatf,
+    gaze: wp.array(dtype=wp.vec2f),
+    field_radius_deg: wp.float32,
+    step_size: wp.float32,
+    gaze_limit: wp.float32,
+    camera: CameraParams,
+    action: wp.array(dtype=wp.vec2f),
+    valid: wp.array(dtype=wp.bool),
+    error_deg: wp.array(dtype=wp.float32),
+):
+    """The teacher's action toward each point, whether the point is a valid target, and the gaze's error to it."""
+    i = wp.tid()
+    d = wp.normalize(wp.quat_rotate_inv(mount, points[i] - positions[i]))
+    tilt = -wp.atan2(d[1], wp.sqrt(d[0] * d[0] + d[2] * d[2])) * wp.float32(RAD_TO_DEG)
+    pan = -wp.atan2(d[0], d[2]) * wp.float32(RAD_TO_DEG)
+    desired = wp.vec2f(tilt, pan) / field_radius_deg
+    g = gaze[i]
+    ok = project_direction(d, camera)[2] > 0.5 and wp.length(desired) <= gaze_limit
+    step = wp.vec2f(0.0, 0.0)
+    if ok:
+        step = wp.vec2f(
+            wp.clamp((desired[0] - g[0]) / step_size, -1.0, 1.0), wp.clamp((desired[1] - g[1]) / step_size, -1.0, 1.0)
+        )
+    action[i] = step
+    valid[i] = ok
+    g_tilt = g[0] * field_radius_deg * wp.float32(DEG_TO_RAD)
+    g_pan = g[1] * field_radius_deg * wp.float32(DEG_TO_RAD)
+    looking = wp.vec3f(-wp.cos(g_tilt) * wp.sin(g_pan), -wp.sin(g_tilt), wp.cos(g_tilt) * wp.cos(g_pan))
+    # atan2 stays accurate near perfect alignment, unlike acos of the dot product.
+    error_deg[i] = wp.atan2(wp.length(wp.cross(looking, d)), wp.dot(looking, d)) * wp.float32(RAD_TO_DEG)
 
 
 def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
@@ -72,6 +119,7 @@ class GazeAction(ActionTerm):
         if camera_cfg.prim_path.rpartition("/")[0] not in ("{ENV_REGEX_NS}", env.scene.env_regex_ns):
             raise ValueError(f"Gaze needs a camera mounted on the environment, got {camera_cfg.prim_path!r}.")
         self.camera_model = resolve_camera_model(camera_cfg)
+        self._camera = camera_params(self.camera_model)
         self.field_radius_deg = sampling_geometry(camera_cfg)[0] / 2
         """Half the retina's field of view [deg]."""
         offset = camera_cfg.offset
@@ -80,6 +128,7 @@ class GazeAction(ActionTerm):
             rotation, origin=offset.convention, target="ros"
         )[0]
         """Orientation (x, y, z, w) of the physical camera in the environment frame, ROS convention."""
+        self._mount = wp.quatf(*self.mount_rotation.tolist())
         self._raw = torch.zeros(self.num_envs, 2, device=self.device)
         self._gaze = torch.zeros_like(self._raw)
         self._velocity = torch.zeros_like(self._raw)
@@ -140,25 +189,39 @@ class GazeAction(ActionTerm):
 
     def visible(self, direction: torch.Tensor) -> torch.Tensor:
         """Whether camera-frame directions fall inside the physical camera's image."""
-        return self.camera_model.project(direction)[1]
+        return project_directions(direction, self._camera)[1]
 
-    def teacher_action(self, points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """The action that moves the gaze toward world points, and whether each point is a valid target.
+    def teacher(self, points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """The teacher's action toward one world point per environment, in one launch.
 
-        A point is valid when the physical camera sees it and the gaze can reach it within the limit.
+        A point is a valid target when the physical camera sees it and the gaze can reach it within the limit; the
+        action toward an invalid target is zero.
+
+        Returns:
+            The actions, shape (num_envs, 2); whether each point is a valid target, shape (num_envs,); and the angle
+            between the gaze and each point [deg], shape (num_envs,).
         """
-        direction = self.directions(points)
-        desired = direction_to_angles(direction) / self.field_radius_deg
-        valid = self.visible(direction) & (desired.norm(dim=-1) <= self.cfg.gaze_limit)
-        action = ((desired - self._gaze) / self.cfg.step_size).clamp(-1, 1)
-        return torch.where(valid[:, None], action, 0.0), valid
-
-    def fixation_error_deg(self, points: torch.Tensor) -> torch.Tensor:
-        """Angle [deg] between the gaze and the direction to world points, shape (num_envs,)."""
-        direction = self.directions(points)
-        gaze = angles_to_direction(self.angles_deg)
-        # atan2 stays accurate near perfect alignment, unlike acos of the dot product.
-        return torch.atan2(torch.cross(gaze, direction, dim=-1).norm(dim=-1), (gaze * direction).sum(-1)).rad2deg()
+        points = points.float().contiguous()
+        action = torch.empty(len(points), 2, device=self.device)
+        valid = torch.empty(len(points), dtype=torch.bool, device=self.device)
+        error = torch.empty(len(points), device=self.device)
+        with torch_stream(self.device):
+            wp.launch(
+                teacher_kernel,
+                dim=len(points),
+                inputs=[
+                    wp.from_torch(points, dtype=wp.vec3f),
+                    self.camera.data.pos_w.warp,
+                    self._mount,
+                    wp.from_torch(self._gaze, dtype=wp.vec2f),
+                    self.field_radius_deg,
+                    self.cfg.step_size,
+                    self.cfg.gaze_limit,
+                    self._camera,
+                ],
+                outputs=[wp.from_torch(action, dtype=wp.vec2f), wp.from_torch(valid), wp.from_torch(error)],
+            )
+        return action, valid, error
 
 
 @configclass
@@ -183,7 +246,9 @@ def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
 
 
 def entity_point(
-    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg,
+    offset: tuple[float, float, float] | torch.Tensor = (0.0, 0.0, 0.0),
 ) -> torch.Tensor:
     """World position of a point fixed to an asset's root, or to its first selected body, shape (num_envs, 3).
 
@@ -197,7 +262,8 @@ def entity_point(
     else:
         body = asset_cfg.body_ids[0]
         position, orientation = data.body_pos_w.torch[:, body], data.body_quat_w.torch[:, body]
-    return position + quat_apply(orientation, torch.tensor(offset, device=env.device).expand_as(position))
+    offset = torch.as_tensor(offset, dtype=position.dtype, device=position.device)
+    return position + quat_apply(orientation, offset.expand_as(position))
 
 
 def teacher_labels(env: ManagerBasedEnv, points: torch.Tensor, action_name: str = "gaze") -> torch.Tensor:
@@ -207,22 +273,34 @@ def teacher_labels(env: ManagerBasedEnv, points: torch.Tensor, action_name: str 
     the object is grasped, choose the points and call this.
     """
     term: GazeAction = env.action_manager.get_term(action_name)
-    action, valid = term.teacher_action(points)
-    error = term.fixation_error_deg(points)
+    action, valid, error = term.teacher(points)
     log = env.extras.setdefault("log", {})
     log["Gaze/target_error_deg"] = torch.where(valid, error, 0.0).sum() / valid.sum().clamp_min(1)
     log["Gaze/valid_target_fraction"] = valid.float().mean()
     return torch.cat((action, valid[:, None].float()), dim=-1)
 
 
-def gaze_teacher_labels(
-    env: ManagerBasedEnv,
-    target_cfg: SceneEntityCfg,
-    offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    action_name: str = "gaze",
-) -> torch.Tensor:
-    """The teacher's gaze action toward a point fixed to an asset, and its validity, shape (num_envs, 3)."""
-    return teacher_labels(env, entity_point(env, target_cfg, offset), action_name)
+class gaze_teacher_labels(ManagerTermBase):
+    """The teacher's gaze action toward a point fixed to an asset, and its validity, shape (num_envs, 3).
+
+    Args:
+        target_cfg: The asset, and optionally one body by ``body_names``.
+        offset: The point in the root's or the body's frame [m].
+        action_name: The gaze action term.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self._offset = torch.tensor(cfg.params.get("offset", (0.0, 0.0, 0.0)), device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        target_cfg: SceneEntityCfg,
+        offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        action_name: str = "gaze",
+    ) -> torch.Tensor:
+        return teacher_labels(env, entity_point(env, target_cfg, self._offset), action_name)
 
 
 def motor_action_l2(env: ManagerBasedRLEnv, gaze_action_name: str = "gaze") -> torch.Tensor:

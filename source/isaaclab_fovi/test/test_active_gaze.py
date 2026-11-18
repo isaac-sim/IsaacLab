@@ -7,11 +7,17 @@
 
 import pytest
 import torch
+import warp as wp
+from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angles
+from isaaclab_fovi.mdp.gaze import teacher_kernel
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
+from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.models import MLPModel
 from rsl_rl.storage import RolloutStorage
 from tensordict import TensorDict
+
+from isaaclab.utils.math import quat_apply, quat_apply_inverse
 
 NUM_ENVS = 64
 STEPS = 8
@@ -29,6 +35,52 @@ def test_gaze_angles_round_trip_and_follow_the_camera_convention():
 def test_clamp_gaze_is_radial():
     gaze = torch.tensor([[0.3, 0.4], [3.0, 4.0]])
     torch.testing.assert_close(clamp_gaze(gaze, 1.0), torch.tensor([[0.3, 0.4], [0.6, 0.8]]))
+
+
+def test_teacher_kernel_matches_the_torch_teacher():
+    camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5), distortion=(-0.1, 0.02, 0.0, 0.0))
+    field_radius, step, limit = 30.0, 0.1, 1.0
+    generator = torch.Generator().manual_seed(3)
+    count = 4096
+    mount = torch.nn.functional.normalize(torch.randn(4, generator=generator), dim=0)
+    positions = torch.randn(count, 3, generator=generator)
+    # Points mostly in front of the camera, spread across and beyond its field of view.
+    lateral = torch.randn(count, 2, generator=generator) * 0.6
+    local = torch.cat((lateral, torch.rand(count, 1, generator=generator) + 0.2), -1)
+    points = positions + quat_apply(mount.expand(count, -1), local)
+    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
+
+    # The torch teacher the kernel replaces.
+    direction = torch.nn.functional.normalize(quat_apply_inverse(mount.expand(count, -1), points - positions), dim=-1)
+    desired = direction_to_angles(direction) / field_radius
+    expected_valid = camera.project(direction)[1] & (desired.norm(dim=-1) <= limit)
+    expected_action = torch.where(expected_valid[:, None], ((desired - gaze) / step).clamp(-1, 1), 0.0)
+    looking = angles_to_direction(gaze * field_radius)
+    expected_error = torch.atan2(torch.cross(looking, direction, dim=-1).norm(dim=-1), (looking * direction).sum(-1))
+
+    action = torch.empty(count, 2)
+    valid = torch.empty(count, dtype=torch.bool)
+    error = torch.empty(count)
+    with torch_stream("cpu"):
+        wp.launch(
+            teacher_kernel,
+            dim=count,
+            inputs=[
+                wp.from_torch(points.contiguous(), dtype=wp.vec3f),
+                wp.from_torch(positions.contiguous(), dtype=wp.vec3f),
+                wp.quatf(*mount.tolist()),
+                wp.from_torch(gaze.contiguous(), dtype=wp.vec2f),
+                field_radius,
+                step,
+                limit,
+                camera_params(camera),
+            ],
+            outputs=[wp.from_torch(action, dtype=wp.vec2f), wp.from_torch(valid), wp.from_torch(error)],
+        )
+    agree = valid == expected_valid
+    assert agree.float().mean() > 0.999 and expected_valid.any() and (~expected_valid).any()
+    torch.testing.assert_close(action[agree], expected_action[agree], atol=1e-4, rtol=0)
+    torch.testing.assert_close(error, expected_error.rad2deg(), atol=1e-3, rtol=0)
 
 
 def test_gaze_loss_ignores_invalid_labels():
