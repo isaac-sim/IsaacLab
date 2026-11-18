@@ -10,7 +10,13 @@ import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angles
-from isaaclab_fovi.mdp.gaze import gaze_step_kernel, teacher_kernel, teacher_labels_kernel
+from isaaclab_fovi.mdp.gaze import (
+    gaze_reset_kernel,
+    gaze_step_kernel,
+    teacher_block_dim,
+    teacher_kernel,
+    teacher_labels_kernel,
+)
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.models import MLPModel
@@ -21,6 +27,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_inverse
 
 NUM_ENVS = 64
 STEPS = 8
+DEVICES = ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"]
 
 
 def test_gaze_angles_round_trip_and_follow_the_camera_convention():
@@ -112,11 +119,12 @@ def test_gaze_step_kernel_matches_the_torch_update():
     torch.testing.assert_close(state, torch.cat((gaze, velocity), dim=-1))
 
 
-def test_teacher_labels_kernel_matches_the_torch_labels():
+@pytest.mark.parametrize("device", DEVICES)
+def test_teacher_labels_kernel_matches_the_torch_labels(device):
     camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5))
     field_radius, step, limit = 30.0, 0.1, 1.0
     generator = torch.Generator().manual_seed(5)
-    count = 4096
+    count = 4099
     mount = torch.nn.functional.normalize(torch.randn(4, generator=generator), dim=0)
     positions = torch.randn(count, 3, generator=generator)
     lateral = torch.randn(count, 2, generator=generator) * 0.6
@@ -136,34 +144,74 @@ def test_teacher_labels_kernel_matches_the_torch_labels():
     error = torch.atan2(torch.cross(looking, direction, dim=-1).norm(dim=-1), (looking * direction).sum(-1)).rad2deg()
     expected = torch.cat((action, valid[:, None].float()), dim=-1)
 
-    labels = torch.empty(count, 3)
-    sums = torch.zeros(2)
-    with torch_stream("cpu"):
+    labels = torch.empty(count, 3, device=device)
+    log = torch.full((2,), float("nan"), device=device)
+    block = teacher_block_dim(device)
+    with torch_stream(device):
         wp.launch(
             teacher_labels_kernel,
-            dim=count,
+            dim=(1, block),
             inputs=[
-                wp.from_torch(targets, dtype=wp.vec3f),
-                wp.from_torch(orientations, dtype=wp.quatf),
+                wp.from_torch(targets.to(device), dtype=wp.vec3f),
+                wp.from_torch(orientations.to(device), dtype=wp.quatf),
                 wp.vec3f(*offset.tolist()),
                 1,
-                wp.from_torch(positions, dtype=wp.vec3f),
+                wp.from_torch(positions.to(device), dtype=wp.vec3f),
                 wp.quatf(*mount.tolist()),
-                wp.from_torch(gaze, dtype=wp.vec2f),
+                wp.from_torch(gaze.to(device), dtype=wp.vec2f),
                 field_radius,
                 step,
                 limit,
                 camera_params(camera),
             ],
-            outputs=[wp.from_torch(labels), wp.from_torch(sums)],
+            outputs=[wp.from_torch(labels), wp.from_torch(log)],
+            block_dim=block,
         )
+    labels, log = labels.cpu(), log.cpu()
     agree = (labels[:, 2] > 0.5) == valid
     assert agree.float().mean() > 0.999 and valid.any() and (~valid).any()
     torch.testing.assert_close(labels[agree], expected[agree], atol=1e-4, rtol=0)
-    both = agree & valid
-    assert float(sums[1]) == pytest.approx(float((labels[:, 2] > 0.5).sum()))
-    assert float(sums[0]) == pytest.approx(float(torch.where(labels[:, 2] > 0.5, error, 0.0).sum()), rel=1e-4)
-    assert both.sum() > 0
+    labelled = labels[:, 2] > 0.5
+    assert float(log[1]) == pytest.approx(float(labelled.float().mean()))
+    assert float(log[0]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
+
+
+@pytest.mark.parametrize("ids", [None, [3, 0, 7]])
+@pytest.mark.parametrize("random_start", [False, True])
+def test_gaze_reset_kernel_matches_the_torch_reset(ids, random_start):
+    count, radius = 10, 23.6
+    generator = torch.Generator().manual_seed(6)
+    gaze, velocity, angles, state = (torch.randn(count, size, generator=generator) for size in (2, 2, 2, 4))
+    selected = torch.arange(count) if ids is None else torch.tensor(ids)
+    start = torch.randn(len(selected), 2, generator=generator) if random_start else torch.zeros(len(selected), 2)
+    expected_gaze, expected_velocity = gaze.clone(), velocity.clone()
+    expected_angles, expected_state = angles.clone(), state.clone()
+    # The torch reset the kernel replaces.
+    expected_gaze[selected] = start
+    expected_velocity[selected] = 0.0
+    expected_angles[selected] = expected_gaze[selected] * radius
+    expected_state[selected] = torch.cat((expected_gaze[selected], expected_velocity[selected]), dim=-1)
+
+    with torch_stream("cpu"):
+        wp.launch(
+            gaze_reset_kernel,
+            dim=len(selected),
+            inputs=[
+                wp.from_torch(selected.to(torch.int32)) if ids is not None else wp.zeros(1, dtype=wp.int32),
+                int(ids is not None),
+                wp.from_torch(start, dtype=wp.vec2f) if random_start else wp.zeros(1, dtype=wp.vec2f),
+                int(random_start),
+                radius,
+            ],
+            outputs=[
+                *(wp.from_torch(buffer, dtype=wp.vec2f) for buffer in (gaze, velocity, angles)),
+                wp.from_torch(state, dtype=wp.vec4f),
+            ],
+        )
+    for actual, expected in zip(
+        (gaze, velocity, angles, state), (expected_gaze, expected_velocity, expected_angles, expected_state)
+    ):
+        torch.testing.assert_close(actual, expected, atol=0, rtol=0)
 
 
 def test_gaze_loss_ignores_invalid_labels():

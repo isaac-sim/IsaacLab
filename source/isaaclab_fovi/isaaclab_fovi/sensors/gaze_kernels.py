@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels of the virtual gaze, one launch each per gaze change, camera pose update and sensor mask.
+"""Warp kernels of the virtual gaze, one launch each per camera pose update and published output.
 
 :func:`project_direction` follows :meth:`fovi.sensing.projection.CameraModel.project` operation for operation, in
 float32. Camera-frame directions follow the ROS (OpenCV) convention: x right, y down, z forward.
@@ -53,10 +53,14 @@ def torch_stream(device: torch.device | str) -> wp.ScopedStream | wp.ScopedDevic
     return wp.ScopedStream(stream, sync_enter=False, sync_exit=False)
 
 
-def record_launch(kernel, dim, inputs, outputs=(), device: torch.device | str = "cpu") -> wp.Launch:
+def record_launch(
+    kernel, dim, inputs, outputs=(), device: torch.device | str = "cpu", block_dim: int = 256
+) -> wp.Launch:
     """A launch recorded once and replayed each step with :meth:`warp.Launch.launch`, skipping argument packing."""
     wp.init()
-    return wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=str(device), record_cmd=True)
+    return wp.launch(
+        kernel, dim=dim, inputs=inputs, outputs=outputs, device=str(device), block_dim=block_dim, record_cmd=True
+    )
 
 
 @wp.struct
@@ -150,47 +154,62 @@ def gaze_rotation(angles_deg: wp.vec2f) -> wp.mat33f:
     return wp.mat33f(cp, sp * sr, sp * cr, 0.0, cr, -sr, -sp, cp * sr, cp * cr)
 
 
+@wp.func
+def gaze_pose(
+    orientation: wp.quatf, gaze: wp.mat33f, basis: wp.mat33f, to_opengl: wp.quatf, to_world: wp.quatf
+) -> wp.quatf:
+    """The world orientation (world convention) of a camera at ``orientation`` turned by a gaze rotation."""
+    relative = basis * gaze * wp.transpose(basis)
+    return wp.normalize(orientation * (to_opengl * wp.quat_from_matrix(relative) * to_world))
+
+
 @wp.kernel(enable_backward=False)
 def set_gaze_kernel(
+    angles_deg: wp.array(dtype=wp.vec2f),
+    stored_angles: wp.array(dtype=wp.vec2f),
+    rotation: wp.array(dtype=wp.mat33f),
+):
+    """Store each environment's gaze angles and their gaze rotation."""
+    i = wp.tid()
+    angles = angles_deg[i]
+    stored_angles[i] = angles
+    rotation[i] = gaze_rotation(angles)
+
+
+@wp.kernel(enable_backward=False)
+def apply_gaze_kernel(
     angles_deg: wp.array(dtype=wp.vec2f),
     basis: wp.mat33f,
     to_opengl: wp.quatf,
     to_world: wp.quatf,
+    mask: wp.array(dtype=wp.bool),
+    use_mask: wp.int32,
+    orientation: wp.array(dtype=wp.quatf),
     rotation: wp.array(dtype=wp.mat33f),
-    pose_delta: wp.array(dtype=wp.quatf),
 ):
-    """The gaze rotation of each environment, and the change it makes to the camera's world orientation.
-
-    A camera at world orientation ``q`` (world convention) looks along ``q * pose_delta``.
-    """
+    """Turn each camera's world orientation by its gaze, or only the masked ones, and record every gaze rotation."""
     i = wp.tid()
     gaze = gaze_rotation(angles_deg[i])
     rotation[i] = gaze
-    relative = basis * gaze * wp.transpose(basis)
-    pose_delta[i] = to_opengl * wp.quat_from_matrix(relative) * to_world
-
-
-@wp.kernel(enable_backward=False)
-def apply_gaze_kernel(orientation: wp.array(dtype=wp.quatf), pose_delta: wp.array(dtype=wp.quatf)):
-    i = wp.tid()
-    orientation[i] = wp.normalize(orientation[i] * pose_delta[i])
-
-
-@wp.kernel(enable_backward=False)
-def apply_gaze_masked_kernel(
-    orientation: wp.array(dtype=wp.quatf), pose_delta: wp.array(dtype=wp.quatf), mask: wp.array(dtype=wp.bool)
-):
-    i = wp.tid()
-    if mask[i]:
-        orientation[i] = wp.normalize(orientation[i] * pose_delta[i])
+    if use_mask == 0 or mask[i]:
+        orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
 
 
 @wp.kernel(enable_backward=False)
 def apply_gaze_indexed_kernel(
-    orientation: wp.array(dtype=wp.quatf), pose_delta: wp.array(dtype=wp.quatf), indices: wp.array(dtype=wp.int32)
+    angles_deg: wp.array(dtype=wp.vec2f),
+    basis: wp.mat33f,
+    to_opengl: wp.quatf,
+    to_world: wp.quatf,
+    indices: wp.array(dtype=wp.int32),
+    orientation: wp.array(dtype=wp.quatf),
+    rotation: wp.array(dtype=wp.mat33f),
 ):
+    """Turn the indexed cameras' world orientations by their gaze, and record their gaze rotations."""
     i = indices[wp.tid()]
-    orientation[i] = wp.normalize(orientation[i] * pose_delta[i])
+    gaze = gaze_rotation(angles_deg[i])
+    rotation[i] = gaze
+    orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
 
 
 @wp.kernel(enable_backward=False)

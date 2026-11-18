@@ -12,6 +12,8 @@ from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import CameraModel, gaze_rotation
 from isaaclab_fovi.sensors.calibrated_geometry import compose_rotations, convert_camera_frame_quaternion
 from isaaclab_fovi.sensors.gaze_kernels import (
+    apply_gaze_indexed_kernel,
+    apply_gaze_kernel,
     camera_params,
     project_directions,
     publish_grid_kernel,
@@ -74,40 +76,43 @@ def test_projection_matches_fovi(name):
     )
 
 
-def _set_gaze(angles: torch.Tensor, basis: torch.Tensor):
-    identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=DEVICE)
-    to_opengl = convert_camera_frame_quaternion(identity, origin="world", target="opengl")[0]
-    to_world = convert_camera_frame_quaternion(identity, origin="opengl", target="world")[0]
+def _set_gaze(angles: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """The stored angles and gaze rotations :func:`set_gaze_kernel` writes."""
+    stored = torch.empty_like(angles)
     rotation = torch.empty(len(angles), 3, 3, device=DEVICE)
-    delta = torch.empty(len(angles), 4, device=DEVICE)
     with torch_stream(DEVICE):
         wp.launch(
             set_gaze_kernel,
             dim=len(angles),
-            inputs=[
-                wp.from_torch(angles.contiguous(), dtype=wp.vec2f),
-                wp.mat33f(*basis.flatten().tolist()),
-                wp.quatf(*to_opengl.tolist()),
-                wp.quatf(*to_world.tolist()),
-            ],
-            outputs=[wp.from_torch(rotation, dtype=wp.mat33f), wp.from_torch(delta, dtype=wp.quatf)],
+            inputs=[wp.from_torch(angles.contiguous(), dtype=wp.vec2f)],
+            outputs=[wp.from_torch(stored, dtype=wp.vec2f), wp.from_torch(rotation, dtype=wp.mat33f)],
         )
-    return rotation, delta
+    return stored, rotation
 
 
-def test_gaze_kernel_matches_the_torch_composition():
+def _gaze_frames(basis: torch.Tensor) -> list:
+    identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=DEVICE)
+    to_opengl = convert_camera_frame_quaternion(identity, origin="world", target="opengl")[0]
+    to_world = convert_camera_frame_quaternion(identity, origin="opengl", target="world")[0]
+    return [wp.mat33f(*basis.flatten().tolist()), wp.quatf(*to_opengl.tolist()), wp.quatf(*to_world.tolist())]
+
+
+@pytest.mark.parametrize("selection", ["all", "mask", "indices"])
+def test_gaze_kernels_match_the_torch_composition(selection):
     generator = torch.Generator().manual_seed(1)
-    angles = ((torch.rand(64, 2, generator=generator) * 2 - 1) * 40).to(DEVICE)
-    base = torch.nn.functional.normalize(torch.randn(64, 4, generator=generator), dim=-1).to(DEVICE)
+    count = 64
+    angles = ((torch.rand(count, 2, generator=generator) * 2 - 1) * 40).to(DEVICE)
+    base = torch.nn.functional.normalize(torch.randn(count, 4, generator=generator), dim=-1).to(DEVICE)
     angle = torch.tensor(0.3)
     c, s = float(angle.cos()), float(angle.sin())
     basis = torch.tensor(((c, s, 0.0), (s, -c, 0.0), (0.0, 0.0, -1.0)), device=DEVICE)
 
-    rotation, delta = _set_gaze(angles, basis)
+    stored, set_rotation = _set_gaze(angles)
     tilt, pan = angles.deg2rad().unbind(-1)
     direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
     expected_rotation = gaze_rotation(direction, "pan_tilt")
-    torch.testing.assert_close(rotation, expected_rotation, atol=1e-5, rtol=0)
+    torch.testing.assert_close(stored, angles, atol=0, rtol=0)
+    torch.testing.assert_close(set_rotation, expected_rotation, atol=1e-5, rtol=0)
 
     # The torch composition the camera used per frame.
     relative = compose_rotations(compose_rotations(basis, expected_rotation), basis.T)
@@ -115,11 +120,27 @@ def test_gaze_kernel_matches_the_torch_composition():
     composed = quat_from_matrix(compose_rotations(matrix_from_quat(opengl), relative))
     expected = convert_camera_frame_quaternion(composed, origin="opengl", target="world")
 
-    result = torch.empty_like(base)
-    for i in range(len(base)):
-        product = wp.normalize(wp.quatf(*base[i].tolist()) * wp.quatf(*delta[i].tolist()))
-        result[i] = torch.tensor([product[0], product[1], product[2], product[3]])
-    torch.testing.assert_close(matrix_from_quat(result), matrix_from_quat(expected), atol=1e-5, rtol=0)
+    selected = torch.arange(count, device=DEVICE) % 3 == 0
+    orientation = base.clone()
+    rotation = torch.zeros(count, 3, 3, device=DEVICE)
+    inputs = [wp.from_torch(angles, dtype=wp.vec2f), *_gaze_frames(basis)]
+    outputs = [wp.from_torch(orientation, dtype=wp.quatf), wp.from_torch(rotation, dtype=wp.mat33f)]
+    with torch_stream(DEVICE):
+        if selection == "indices":
+            ids = wp.from_torch(torch.nonzero(selected).flatten().to(torch.int32))
+            wp.launch(apply_gaze_indexed_kernel, dim=len(ids), inputs=[*inputs, ids], outputs=outputs)
+        else:
+            mask = wp.from_torch(selected) if selection == "mask" else wp.zeros(1, dtype=wp.bool, device=DEVICE)
+            wp.launch(apply_gaze_kernel, dim=count, inputs=[*inputs, mask, int(selection == "mask")], outputs=outputs)
+    turned = torch.ones(count, dtype=torch.bool, device=DEVICE) if selection == "all" else selected
+    torch.testing.assert_close(
+        matrix_from_quat(orientation[turned]), matrix_from_quat(expected[turned]), atol=1e-5, rtol=0
+    )
+    torch.testing.assert_close(orientation[~turned], base[~turned], atol=0, rtol=0)
+    # Every environment's rotation is recorded, except that the indexed kernel touches only its own.
+    recorded = selected if selection == "indices" else torch.ones_like(selected)
+    torch.testing.assert_close(rotation[recorded], set_rotation[recorded], atol=0, rtol=0)
+    assert not rotation[~recorded].any()
 
 
 def test_publish_kernel_matches_masking_then_copying_to_the_grid():
@@ -135,7 +156,7 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid():
     rays = (native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))).float().contiguous()
     generator = torch.Generator().manual_seed(2)
     angles = ((torch.rand(6, 2, generator=generator) * 2 - 1) * 25).to(DEVICE)
-    rotation, _ = _set_gaze(angles, torch.eye(3, device=DEVICE))
+    _, rotation = _set_gaze(angles)
     count = len(coords)
     outputs = {
         "rgba": torch.randint(1, 255, (6, count, 1, 4), generator=generator, dtype=torch.uint8).to(DEVICE),

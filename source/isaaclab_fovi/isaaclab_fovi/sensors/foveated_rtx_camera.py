@@ -89,7 +89,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         return self._renderer
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        self._gaze_rotation = None
+        self._gaze_angles = self._gaze_rotation = None
         # Texture buffers are owned by the parent ``Camera`` (allocated in
         # ``_create_buffers`` and bound to the renderer via ``set_outputs``).
         # Foveated / pooled buffers are allocated in ``_initialize_impl``
