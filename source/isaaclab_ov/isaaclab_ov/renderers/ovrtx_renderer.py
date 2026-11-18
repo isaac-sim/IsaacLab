@@ -1430,7 +1430,8 @@ class OVRTXRenderer(BaseRenderer):
         highest :func:`_split_priority`, and renders the frame again. It repeats this until the frame
         renders or the search gives up. When a smaller layout renders, a warning gives the value of
         ``max_envs_per_render_product`` that skips this search. A sensor with ``"all"`` or an integer keeps
-        its layout, so its failed frame raises.
+        its layout. So its failed frame raises, unless the search halves another ``"auto"`` sensor and the
+        frame then renders.
 
         Args:
             render_data: Cameras whose poses and output buffers have been prepared. An empty
