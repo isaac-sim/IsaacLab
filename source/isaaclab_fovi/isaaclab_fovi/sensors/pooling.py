@@ -26,7 +26,6 @@ Construction happens in two stages to accommodate Isaac's sensor init order:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -109,35 +108,18 @@ MODAL_POOL_MODE = "mode"
 _MODAL_CHUNK_ELEMENTS = 2**22
 
 
-@dataclass(frozen=True)
-class ModalPooler:
-    """Neighbour table for modal pooling of segmentation outputs, built by :func:`build_pooler` with ``mode="mode"``.
-
-    Pool with :func:`pool_segmentation_buffer`.  The table stays on the device it is built on, the sensor's device.
-    """
-
-    neighbor_indices: torch.Tensor
-    """``(k, N_lo)`` int64 input-sample indices of each output's neighbours, ordered by tie-break preference
-    (nearest first).  The value :attr:`num_inputs` marks an excluded neighbour."""
-
-    num_inputs: int
-    """Number of input samples ``N_hi``."""
-
-
 def build_pooler(
     cfg: FoveatedCameraCfg,
     lowres: SamplingCoords,
     highres: SamplingCoords | None,
     device: str,
     mode: str | None = None,
-) -> tuple[KNNPoolingLayer | GridPoolingLayer | ModalPooler | None, int | None]:
+) -> tuple[KNNPoolingLayer | GridPoolingLayer | None, int | None]:
     """Build a retinal pooling layer. Both coord sets must already be on ``device``.
 
-    If ``mode`` is None, uses ``cfg.pool_mode`` — the standard pooler for
-    floating-point outputs.  ``mode="mode"`` (the default ``cfg.pool_int_mode``)
-    builds a :class:`ModalPooler` over the same neighbourhoods for segmentation
-    outputs; pool those with :func:`pool_segmentation_buffer`.  Other modes are
-    passed to fovi (``"max"``, ``"avg"``, ``"sum"``, ``"gaussian"``).
+    If ``mode`` is None, uses ``cfg.pool_mode`` — the standard pooler for floating-point outputs. Modes are fovi's
+    (``"max"``, ``"avg"``, ``"sum"``, ``"gaussian"``). Modal pooling (``"mode"``) needs no pooler of its own: pass the
+    standard pooler's :func:`segmentation_neighbor_indices` to :func:`pool_segmentation_buffer`.
     """
     if highres is None:
         return None, None
@@ -145,22 +127,20 @@ def build_pooler(
     from fovi.arch.pooling import build_retinal_pooler
 
     mode = mode if mode is not None else cfg.pool_mode
-    pooler, k = build_retinal_pooler(
+    if mode == MODAL_POOL_MODE:
+        raise ValueError("Modal pooling uses the standard pooler's neighbourhoods: see segmentation_neighbor_indices.")
+    return build_retinal_pooler(
         highres,
         lowres,
         k=cfg.pool_k,
-        # The modal pooler only reuses the fovi neighbourhoods; "max" needs no Gaussian weights.
-        mode="max" if mode == MODAL_POOL_MODE else mode,
+        mode=mode,
         device=device,
         sample_cortex=cfg.pool_sample_cortex,
         gauss_sigma=cfg.pool_gauss_sigma,
     )
-    if mode == MODAL_POOL_MODE:
-        pooler = ModalPooler(segmentation_neighbor_indices(pooler), len(highres))
-    return pooler, k
 
 
-def segmentation_neighbor_indices(pooler: KNNPoolingLayer | GridPoolingLayer | ModalPooler) -> torch.Tensor:
+def segmentation_neighbor_indices(pooler: KNNPoolingLayer | GridPoolingLayer) -> torch.Tensor:
     """Return a pooler's ``(k, N_lo)`` neighbour table in tie-break order.
 
     Entries are input-sample indices; ``N_hi`` (the number of input samples)
@@ -175,8 +155,6 @@ def segmentation_neighbor_indices(pooler: KNNPoolingLayer | GridPoolingLayer | M
     from fovi.arch.knn import KNNPoolingLayer
     from fovi.arch.pooling import GridPoolingLayer
 
-    if isinstance(pooler, ModalPooler):
-        return pooler.neighbor_indices
     if isinstance(pooler, KNNPoolingLayer):
         return pooler.knn_indices_pad_token
     if not isinstance(pooler, GridPoolingLayer):
@@ -227,9 +205,7 @@ def pool_hwc_buffer(pooler: KNNPoolingLayer | GridPoolingLayer, buf: torch.Tenso
     return y.transpose(1, 2).unsqueeze(2).contiguous()  # (B, N_lo, 1, C)
 
 
-def pool_segmentation_buffer(
-    pooler: KNNPoolingLayer | GridPoolingLayer | ModalPooler, buf: torch.Tensor
-) -> torch.Tensor:
+def pool_segmentation_buffer(neighbors: torch.Tensor, buf: torch.Tensor) -> torch.Tensor:
     """Pool a ``(B, N_hi, 1, C)`` segmentation buffer into ``(B, N_lo, 1, C)`` by majority vote.
 
     Each output sample takes the most common full channel vector among its
@@ -244,16 +220,15 @@ def pool_segmentation_buffer(
     vote, and outputs without any valid neighbour are zero, as in fovi.
 
     Args:
-        pooler: A :class:`ModalPooler` from ``build_pooler(..., mode="mode")``, or a fovi KNN or grid pooler
-            whose neighbourhoods to use.
-        buf: ``(B, N_hi, 1, C)`` buffer of any dtype, on the pooler's device.
+        neighbors: ``(k, N_lo)`` neighbour table from :func:`segmentation_neighbor_indices`, on the buffer's device.
+        buf: ``(B, N_hi, 1, C)`` buffer of any dtype.
 
     Returns:
         ``(B, N_lo, 1, C)`` pooled buffer with the dtype of ``buf``.
     """
     B, N_hi, one, C = buf.shape
     assert one == 1, f"expected (B, N, 1, C) buffer, got {buf.shape}"
-    indices = segmentation_neighbor_indices(pooler)  # (k, N_lo), N_hi = excluded
+    indices = neighbors  # (k, N_lo), N_hi = excluded
     k, N_lo = indices.shape
     values = buf[:, :, 0, :].contiguous()  # (B, N_hi, C)
     # Equality keys, padded with one never-voting sample at index N_hi.

@@ -8,12 +8,16 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 from fovi.sensing.coords import RADIUS_NORMS, WARPED_CARTESIAN_STYLES
 from fovi.sensing.projection import CameraCalibration
 
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .foveated_camera import FoveatedCamera
 
 
 def validate_radius_norm(radius_norm: float, style: str, fov_type: str) -> None:
@@ -36,11 +40,11 @@ class FoveatedCameraCfg(CameraCfg):
     from :class:`fovi.sensing.coords.SamplingCoords`; ``height`` and ``width``
     are computed from the number of samples.
 
-    :class:`~isaaclab_fovi.sensors.FoveatedCamera` selects its Newton or RTX
-    implementation from ``renderer_cfg.renderer_type``.
+    :class:`~isaaclab_fovi.sensors.FoveatedCamera` selects its Newton (Warp or
+    OptiX) or RTX implementation from ``renderer_cfg.renderer_type``.
     """
 
-    class_type: type | str = "isaaclab_fovi.sensors:FoveatedCamera"
+    class_type: type[FoveatedCamera] | str = "{DIR}.foveated_camera:FoveatedCamera"
 
     # -- Foveation parameters (no img_height/img_width/fixation_size) --------
 
@@ -95,10 +99,7 @@ class FoveatedCameraCfg(CameraCfg):
     upright; the sensor mask and the gaze use the same roll."""
 
     mask_to_sensor_fov: bool = False
-    """Zero the samples that fall outside the physical camera's image at the current gaze.
-
-    With gaze the retina can look past the edge of the physical camera; this
-    keeps what the sensor reports to what that camera could have seen."""
+    """Zero the samples that fall outside the physical camera's image at the current gaze."""
 
     retinal_window_short_side_fraction: float = 1.0
     """Diameter of the retinal window as a fraction of the reference image side."""

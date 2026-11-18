@@ -19,15 +19,14 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ActionsCfg as 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ObservationsCfg as CartpoleObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_fovi import mdp
-
+from ... import mdp
 from ..active_gaze import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
 
 POLE_TIP = (0.0, 0.0, 1.0)
 """The pole's tip in the pole's frame [m]."""
 
 RETINA_RES = 32
-"""Retina samples across. The stock camera's 96 pixels train no better on this task, at several times the cost."""
+"""Retina samples across; the stock camera is 96 pixels across."""
 
 
 @configclass

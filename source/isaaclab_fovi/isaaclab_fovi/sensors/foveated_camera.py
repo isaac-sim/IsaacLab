@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+from fovi.sensing.projection import CameraModel
 
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.warp import ProxyArray
@@ -30,7 +31,14 @@ from .gaze_kernels import (
     warp_stream,
 )
 from .native_grid import GRID_STYLE, native_grid_directions
-from .pooling import ModalPooler, is_segmentation_output, pool_hwc_buffer, pool_segmentation_buffer
+from .pooling import (
+    MODAL_POOL_MODE,
+    build_pooler,
+    is_segmentation_output,
+    pool_hwc_buffer,
+    pool_segmentation_buffer,
+    segmentation_neighbor_indices,
+)
 
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
@@ -45,8 +53,8 @@ class FoveatedCamera(Camera):
     The sample layout comes from :class:`fovi.sensing.coords.SamplingCoords`. Constructing this class returns the
     implementation for the renderer selected by :attr:`FoveatedCameraCfg.renderer_cfg`:
 
-    * ``newton_warp``: :class:`~isaaclab_fovi.sensors.foveated_newton_camera.FoveatedNewtonCamera`, which injects
-      the foveated rays into the Newton Warp renderer.
+    * ``newton_warp`` and ``newton_optix``: :class:`~isaaclab_fovi.sensors.foveated_newton_camera.FoveatedNewtonCamera`,
+      which injects the foveated rays into Newton's renderer.
     * ``isaac_rtx`` and ``ovrtx``: :class:`~isaaclab_fovi.sensors.foveated_rtx_camera.FoveatedRTXCamera`, which
       authors a lens lookup table on the camera prim.
 
@@ -62,7 +70,7 @@ class FoveatedCamera(Camera):
 
     _gaze_pose_reads_angles: bool = False
     """Whether the camera turns its pose by the stored gaze in each pose update, rather than writing prim poses when
-    the gaze is set. A writer of :meth:`gaze_angles_buffer` then needs no other launch."""
+    the gaze is set; see :attr:`turns_pose_by_gaze`."""
 
     def __new__(cls, cfg: FoveatedCameraCfg, *args, **kwargs):
         """Create the implementation that matches the configured renderer.
@@ -76,7 +84,7 @@ class FoveatedCamera(Camera):
         if cls is not FoveatedCamera:
             return super().__new__(cls)
         renderer_type = cfg.renderer_cfg.renderer_type
-        if renderer_type == "newton_warp":
+        if renderer_type in ("newton_warp", "newton_optix"):
             from .foveated_newton_camera import FoveatedNewtonCamera
 
             return super().__new__(FoveatedNewtonCamera)
@@ -85,7 +93,8 @@ class FoveatedCamera(Camera):
 
             return super().__new__(FoveatedRTXCamera)
         raise ValueError(
-            f"Unsupported foveated renderer {renderer_type!r}; select 'newton_warp', 'isaac_rtx', or 'ovrtx'."
+            f"Unsupported foveated renderer {renderer_type!r}; select 'newton_warp', 'newton_optix', 'isaac_rtx', or"
+            " 'ovrtx'."
         )
 
     def __init__(self, cfg: FoveatedCameraCfg):
@@ -95,24 +104,84 @@ class FoveatedCamera(Camera):
         self._visibility = None
         self._grid_publish = None
         self._published_shape: tuple[int, int] | None = None
-        self.mount_moved = False
-        """Whether :meth:`set_world_poses` or :meth:`set_world_poses_from_view` has moved the camera's mount since
-        construction."""
+        self._pooler_int = None
+        self._segmentation_neighbors: torch.Tensor | None = None
+        self.mount_turns = 0
+        """How many times :meth:`set_world_poses` or :meth:`set_world_poses_from_view` has turned the camera's mount."""
         super().__init__(cfg)
 
-    # ------------------------------------------------------------------
-    #  Gaze
-    # ------------------------------------------------------------------
+    @property
+    def image_shape(self) -> tuple[int, int]:
+        """(height, width) of the published outputs: the retina's grid, or (num_samples, 1) for sample sets."""
+        return self._published_shape if self._published_shape is not None else super().image_shape
 
-    def gaze_angles_buffer(self) -> torch.Tensor:
-        """The camera's stored gaze angles [deg], shape (num_envs, 2).
+    @property
+    def sampling_coords(self):
+        """The :class:`SamplingCoords` of the published samples."""
+        return self._sampling_coords
 
-        A writer that moves the gaze every step can update this buffer in place and pass it to
+    @property
+    def image_rotation_deg(self) -> float:
+        """Roll [deg] of the rendered rays around the optical axis, which undoes a rolled mount."""
+        return float(self.cfg.image_rotation_deg)
+
+    @property
+    def num_valid_samples(self) -> int:
+        """Number of published foveated samples."""
+        return self._num_valid_samples
+
+    @property
+    def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
+        """Per-environment fraction of samples inside the physical camera, or None before the first masked frame."""
+        valid = getattr(self, "_sensor_fov_valid", None)
+        return None if valid is None else valid.float().mean(dim=1)
+
+    @property
+    def camera_model(self) -> CameraModel:
+        """The physical camera the retina looks through, as resolved at initialization."""
+        return self._camera_model
+
+    @property
+    def projection_params(self) -> CameraParams:
+        """:attr:`camera_model` as a Warp struct, for kernels that project camera-frame directions."""
+        return self._gaze_camera
+
+    @property
+    def image_frame(self) -> wp.mat33f:
+        """Rotation from the upright image frame, in which gazes are measured, to the physical camera's frame (ROS
+        convention); it undoes :attr:`image_rotation_deg`."""
+        return self._mask_frame
+
+    @property
+    def turns_pose_by_gaze(self) -> bool:
+        """Whether each pose update turns the rendered pose by the stored gaze (Newton and OVRTX with
+        ``update_latest_camera_pose``). A writer of :attr:`gaze_angles` then needs no other launch."""
+        return self._gaze_pose_reads_angles and self.cfg.update_latest_camera_pose
+
+    @property
+    def gaze_angles(self) -> ProxyArray:
+        """The camera's stored gaze angles [deg], shape (num_envs,) of ``vec2f`` (Torch view (num_envs, 2)).
+
+        A writer that moves the gaze every step can update this buffer in place and pass its Torch view to
         :meth:`set_gaze_angles`, which then copies nothing. Writes take effect when :meth:`set_gaze_angles` is called.
         """
         if self._gaze_angles is None:
             self._allocate_gaze()
-        return self._gaze_angles.torch
+        return self._gaze_angles
+
+    @property
+    def mount_quat_w_ros(self) -> ProxyArray:
+        """World orientation (x, y, z, w) of the physical camera before the gaze turns it, ROS convention, shape
+        (num_envs,) of ``quatf``.
+
+        Refreshed by each pose update that turns the gaze, so it follows a mount that moves, for example a camera on
+        a robot's head. Only cameras whose pose update turns the gaze (Newton and OVRTX) record it.
+        """
+        if not self._gaze_pose_reads_angles:
+            raise RuntimeError("Only cameras whose pose update turns the gaze (Newton, OVRTX) record their mount.")
+        if self._gaze_angles is None:
+            self._allocate_gaze()
+        return self._mount_quat_ros
 
     def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
         """Turn the retina to (tilt, pan) [deg] from the physical camera's optical axis.
@@ -127,13 +196,13 @@ class FoveatedCamera(Camera):
             ValueError: The angles do not hold one row per camera.
         """
         stored = self._gaze_angles is not None and angles_deg is self._gaze_angles.torch
-        if stored and self._gaze_pose_reads_angles and self.cfg.update_latest_camera_pose:
+        if stored and self.turns_pose_by_gaze:
             # The next pose update reads the stored angles; nothing has to happen now.
             return
         count = self._view.count
         if tuple(angles_deg.shape) != (count, 2):
             raise ValueError(f"Gaze angles must have shape ({count}, 2), got {tuple(angles_deg.shape)}.")
-        gaze = self.gaze_angles_buffer()
+        gaze = self.gaze_angles.torch
         angles = angles_deg if stored else angles_deg.detach().to(device=gaze.device, dtype=torch.float32).contiguous()
         # Callers usually pass the same buffer every step; record its launch once.
         key = angles.data_ptr()
@@ -148,18 +217,22 @@ class FoveatedCamera(Camera):
             )
         self._set_gaze_launch.launch(warp_stream(gaze.device))
 
-    @property
-    def mount_quat_w_ros(self) -> torch.Tensor:
-        """World orientation (x, y, z, w) of the physical camera before the gaze turns it, ROS convention, shape
+    def ungazed_quat_w_ros(self) -> torch.Tensor:
+        """World orientation (x, y, z, w) of the physical camera now, before the gaze turns it, ROS convention, shape
         (num_envs, 4).
 
-        Refreshed by each pose update that turns the gaze, so it follows a mount that moves, for example a camera on
-        a robot's head. Only cameras whose pose update turns the gaze (Newton and OVRTX) record it.
+        Raises:
+            RuntimeError: A gaze is set on a camera that writes it into its prims (Isaac RTX), so the current pose
+                includes it.
         """
-        if not self._gaze_pose_reads_angles:
-            raise RuntimeError("Only cameras whose pose update turns the gaze (Newton, OVRTX) record their mount.")
-        self.gaze_angles_buffer()
-        return self._mount_quat_ros.torch
+        if self._gaze_angles is None:
+            orientation = self._data.quat_w_world
+            orientation = orientation.torch if hasattr(orientation, "torch") else orientation
+            opengl = convert_camera_frame_quaternion(orientation.float(), origin="world", target="opengl")
+            return convert_camera_frame_quaternion(opengl, origin="opengl", target="ros")
+        if self._gaze_pose_reads_angles:
+            return self._mount_quat_ros.torch.clone()
+        raise RuntimeError("The camera's prims already hold a gaze; read its mount before setting one.")
 
     def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
         """Move the camera's mount; the gaze stays relative to the new mount.
@@ -167,9 +240,9 @@ class FoveatedCamera(Camera):
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
         """
         super().set_world_poses(positions, orientations, env_ids, convention)
-        # The teachers read the camera's live position, so only a turned mount counts as moved.
+        # The teachers read the camera's live position, so only a turned mount counts.
         if orientations is not None:
-            self.mount_moved = True
+            self.mount_turns += 1
 
     def set_world_poses_from_view(self, eyes, targets, env_ids=None):
         """Point the camera's mount from ``eyes`` at ``targets``; the gaze stays relative to the new mount.
@@ -178,71 +251,7 @@ class FoveatedCamera(Camera):
         """
         super().set_world_poses_from_view(eyes, targets, env_ids)
         if self._turned_by_view(eyes, targets).any():
-            self.mount_moved = True
-
-    def _turned_by_view(self, eyes, targets) -> torch.Tensor:
-        """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""
-        return (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
-
-    def _allocate_gaze(self) -> None:
-        """Allocate one stored gaze per camera, on the optical axis, its rotation and the mount, on the sensor
-        device."""
-        count, device = self._view.count, str(self._device)
-        self._gaze_angles = ProxyArray(wp.zeros(count, dtype=wp.vec2f, device=device))
-        self._gaze_rotation = ProxyArray(
-            wp.from_torch(torch.eye(3, device=device).repeat(count, 1, 1), dtype=wp.mat33f)
-        )
-        self._mount_quat_ros = ProxyArray(wp.zeros(count, dtype=wp.quatf, device=device))
-        self._gaze_angles_key = None
-        self._gaze_pose_launches: dict[str, tuple[wp.Launch, tuple]] = {}
-        self._gaze_no_mask = wp.zeros(1, dtype=wp.bool, device=device)
-
-    def _apply_gaze_pose(
-        self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None
-    ) -> None:
-        """Turn the camera's world orientation by the stored gaze, and record the gaze rotations and the mount."""
-        if self._gaze_angles is None:
-            return
-        orientation = self._data.quat_w_world
-        orientation = orientation.warp if hasattr(orientation, "warp") else wp.from_torch(orientation, dtype=wp.quatf)
-        device = self._gaze_angles.torch.device
-        frames = (self._gaze_angles, *self._gaze_frames)
-        outputs = [orientation, self._gaze_rotation, self._mount_quat_ros]
-        indexed = env_ids is not None and env_mask is None
-        if indexed and not isinstance(env_ids, wp.array):
-            env_ids = wp.from_torch(torch.as_tensor(env_ids, dtype=torch.int32, device=device).contiguous())
-        # Every pose update writes the same pose buffer: for all environments, under the camera's update mask, or
-        # for the indexed ones, whose indices each call swaps in.
-        mode = "ids" if indexed else ("all" if env_mask is None else "mask")
-        launch, sources = self._gaze_pose_launches.get(mode, (None, None))
-        if sources is None or sources[0] is not orientation or (mode == "mask" and sources[1] is not env_mask):
-            if indexed:
-                launch = record_launch(apply_gaze_indexed_kernel, len(env_ids), [*frames, env_ids], outputs, device)
-            else:
-                mask = [self._gaze_no_mask if env_mask is None else env_mask, int(env_mask is not None)]
-                launch = record_launch(apply_gaze_kernel, self._view.count, [*frames, *mask], outputs, device)
-            self._gaze_pose_launches[mode] = (launch, (orientation, env_mask))
-        if indexed:
-            if len(env_ids) == 0:
-                return
-            launch.set_param_by_name("indices", env_ids)
-            launch.set_dim(len(env_ids))
-        launch.launch(warp_stream(device))
-
-    def _update_camera_state(
-        self,
-        env_ids: wp.array | None = None,
-        env_mask: wp.array | None = None,
-        pos_src: wp.array | None = None,
-        quat_src: wp.array | None = None,
-        update_pose: bool = False,
-        frame_op: int = 0,
-    ):
-        """Update the camera state; when the pose update turns the gaze, turn freshly read poses before the renderer
-        sees them."""
-        super()._update_camera_state(env_ids, env_mask, pos_src, quat_src, update_pose, frame_op)
-        if update_pose and self._gaze_pose_reads_angles:
-            self._apply_gaze_pose(env_ids, env_mask)
+            self.mount_turns += 1
 
     def _initialize_gaze(self) -> None:
         """Prepare the gaze geometry: the rendered rays in the physical camera's frame and the pose conversions."""
@@ -280,9 +289,69 @@ class FoveatedCamera(Camera):
             wp.quatf(*to_ros),
         )
 
-    # ------------------------------------------------------------------
-    #  Sensor mask and publication
-    # ------------------------------------------------------------------
+    def _allocate_gaze(self) -> None:
+        """Allocate one stored gaze per camera, on the optical axis, its rotation and the mount, on the sensor
+        device."""
+        count, device = self._view.count, str(self._device)
+        self._gaze_angles = ProxyArray(wp.zeros(count, dtype=wp.vec2f, device=device))
+        self._gaze_rotation = ProxyArray(
+            wp.from_torch(torch.eye(3, device=device).repeat(count, 1, 1), dtype=wp.mat33f)
+        )
+        self._mount_quat_ros = ProxyArray(wp.zeros(count, dtype=wp.quatf, device=device))
+        self._gaze_angles_key = None
+        self._gaze_pose_launches: dict[str, tuple[wp.Launch, tuple]] = {}
+        self._gaze_no_mask = wp.zeros(1, dtype=wp.bool, device=device)
+
+    def _update_camera_state(
+        self,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        pos_src: wp.array | None = None,
+        quat_src: wp.array | None = None,
+        update_pose: bool = False,
+        frame_op: int = 0,
+    ):
+        """Update the camera state; when the pose update turns the gaze, turn freshly read poses before the renderer
+        sees them."""
+        super()._update_camera_state(env_ids, env_mask, pos_src, quat_src, update_pose, frame_op)
+        if update_pose and self._gaze_pose_reads_angles:
+            self._apply_gaze_pose(env_ids, env_mask)
+
+    def _apply_gaze_pose(
+        self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None
+    ) -> None:
+        """Turn the camera's world orientation by the stored gaze, and record the gaze rotations and the mount."""
+        if self._gaze_angles is None:
+            return
+        orientation = self._data.quat_w_world
+        orientation = orientation.warp if hasattr(orientation, "warp") else wp.from_torch(orientation, dtype=wp.quatf)
+        device = self._gaze_angles.torch.device
+        frames = (self._gaze_angles, *self._gaze_frames)
+        outputs = [orientation, self._gaze_rotation, self._mount_quat_ros]
+        indexed = env_ids is not None and env_mask is None
+        if indexed and not isinstance(env_ids, wp.array):
+            env_ids = wp.from_torch(torch.as_tensor(env_ids, dtype=torch.int32, device=device).contiguous())
+        # Every pose update writes the same pose buffer: for all environments, under the camera's update mask, or
+        # for the indexed ones, whose indices each call swaps in.
+        mode = "ids" if indexed else ("all" if env_mask is None else "mask")
+        launch, sources = self._gaze_pose_launches.get(mode, (None, None))
+        if sources is None or sources[0] is not orientation or (mode == "mask" and sources[1] is not env_mask):
+            if indexed:
+                launch = record_launch(apply_gaze_indexed_kernel, len(env_ids), [*frames, env_ids], outputs, device)
+            else:
+                mask = [self._gaze_no_mask if env_mask is None else env_mask, int(env_mask is not None)]
+                launch = record_launch(apply_gaze_kernel, self._view.count, [*frames, *mask], outputs, device)
+            self._gaze_pose_launches[mode] = (launch, (orientation, env_mask))
+        if indexed:
+            if len(env_ids) == 0:
+                return
+            launch.set_param_by_name("indices", env_ids)
+            launch.set_dim(len(env_ids))
+        launch.launch(warp_stream(device))
+
+    def _turned_by_view(self, eyes, targets) -> torch.Tensor:
+        """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""
+        return (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
 
     def _visibility_buffers(self) -> dict:
         """The sensor mask's camera-owned buffers, allocated once: the rendered rays, an unturned rotation per camera,
@@ -334,6 +403,37 @@ class FoveatedCamera(Camera):
             if name == "rgb" and "rgba" in tensors:
                 continue
             tensor.masked_fill_(hidden, 0)
+
+    def _prepare_segmentation_pooling(self, names) -> None:
+        """Choose how pooled segmentation outputs among ``names`` are reduced: by modal label over the main pooler's
+        neighbourhoods (``pool_int_mode="mode"``), or by a second fovi pooler for another ``pool_int_mode``."""
+        self._pooler_int = None
+        self._segmentation_neighbors = None
+        if self._pooler is None or not any(is_segmentation_output(name) for name in names):
+            return
+        if self.cfg.pool_int_mode == MODAL_POOL_MODE:
+            self._segmentation_neighbors = segmentation_neighbor_indices(self._pooler)
+        elif self.cfg.pool_int_mode != self.cfg.pool_mode:
+            self._pooler_int, _ = build_pooler(
+                self.cfg,
+                self._sampling_coords,
+                self._sampling_coords_highres,
+                device=str(self._device),
+                mode=self.cfg.pool_int_mode,
+            )
+
+    def _pool_output(self, name: str, samples: torch.Tensor) -> torch.Tensor:
+        """Pool one output's high-resolution samples (B, N_hi, 1, C) to the retina's (B, N_lo, 1, C), in its dtype.
+
+        Segmentation takes each sample's modal label in its native dtype by default; other outputs are pooled in
+        float.
+        """
+        if is_segmentation_output(name):
+            if self._segmentation_neighbors is not None:
+                return pool_segmentation_buffer(self._segmentation_neighbors, samples)
+            if self._pooler_int is not None:
+                return pool_hwc_buffer(self._pooler_int, samples.float()).to(samples.dtype)
+        return pool_hwc_buffer(self._pooler, samples.float()).to(samples.dtype)
 
     def _prepare_grid_publish(self, sources: Mapping[str, torch.Tensor]) -> None:
         """Byte views of each rendered output, shape (num_envs, num_samples, channels), and of its public grid, for
@@ -408,50 +508,9 @@ class FoveatedCamera(Camera):
         if mask:
             self._sensor_fov_valid = self._visibility["valid"].torch
 
-    def _pool_output(self, name: str, samples: torch.Tensor) -> torch.Tensor:
-        """Pool one output's high-resolution samples (B, N_hi, 1, C) to the retina's (B, N_lo, 1, C), in its dtype.
-
-        Segmentation takes each sample's modal label in its native dtype; other outputs are pooled in float.
-        """
-        if self._pooler_int is not None and is_segmentation_output(name):
-            if isinstance(self._pooler_int, ModalPooler):
-                return pool_segmentation_buffer(self._pooler_int, samples)
-            return pool_hwc_buffer(self._pooler_int, samples.float()).to(samples.dtype)
-        return pool_hwc_buffer(self._pooler, samples.float()).to(samples.dtype)
-
-    # ------------------------------------------------------------------
-    #  Output description
-    # ------------------------------------------------------------------
-
     def _set_published_shape(self, outputs: Mapping[str, torch.Tensor]) -> None:
         """Report the (height, width) of the published outputs, which differ from the rendered ones."""
         first = next(iter(outputs.values()))
         tensor = first.torch if hasattr(first, "torch") else first
         self._published_shape = (int(tensor.shape[1]), int(tensor.shape[2]))
         self._data.image_shape = self._published_shape
-
-    @property
-    def image_shape(self) -> tuple[int, int]:
-        """(height, width) of the published outputs: the retina's grid, or (num_samples, 1) for sample sets."""
-        return self._published_shape if self._published_shape is not None else super().image_shape
-
-    @property
-    def sampling_coords(self):
-        """The :class:`SamplingCoords` of the published samples."""
-        return self._sampling_coords
-
-    @property
-    def image_rotation_deg(self) -> float:
-        """Roll [deg] of the rendered rays around the optical axis, which undoes a rolled mount."""
-        return float(self.cfg.image_rotation_deg)
-
-    @property
-    def num_valid_samples(self) -> int:
-        """Number of published foveated samples."""
-        return self._num_valid_samples
-
-    @property
-    def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
-        """Per-environment fraction of samples inside the physical camera, or None before the first masked frame."""
-        valid = getattr(self, "_sensor_fov_valid", None)
-        return None if valid is None else valid.float().mean(dim=1)

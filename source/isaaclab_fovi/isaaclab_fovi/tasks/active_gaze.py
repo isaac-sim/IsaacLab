@@ -15,8 +15,8 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_fovi import mdp
-from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
+from .. import mdp
+from ..sensors.foveated_camera_cfg import FoveatedCameraCfg
 
 
 def foveated_camera(camera: CameraCfg, foveated_res: int | None = None) -> FoveatedCameraCfg:

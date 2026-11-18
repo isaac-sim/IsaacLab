@@ -21,8 +21,7 @@ from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
     KukaAllegroReorientEnvCfg,
 )
 
-from isaaclab_fovi import mdp
-
+from ... import mdp
 from ..active_gaze import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
 
 BASE_CAMERAS = foveated_presets(BaseTiledCameraCfg())
@@ -53,11 +52,6 @@ class ObservationsCfg(SingleCameraObservationsCfg):
     oracle = oracle_observations(SceneEntityCfg("object"))
 
 
-def _foveate(env_cfg):
-    # Moving the gaze is free; the action penalty applies to the hand and arm only.
-    env_cfg.rewards.action_l2.func = mdp.motor_action_l2
-
-
 @configclass
 class KukaAllegroLiftFoviEnvCfg(KukaAllegroLiftEnvCfg):
     scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3)
@@ -66,7 +60,8 @@ class KukaAllegroLiftFoviEnvCfg(KukaAllegroLiftEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _foveate(self)
+        # Moving the gaze is free; the action penalty applies to the hand and arm only.
+        self.rewards.action_l2.func = mdp.motor_action_l2
 
 
 @configclass
@@ -77,4 +72,5 @@ class KukaAllegroReorientFoviEnvCfg(KukaAllegroReorientEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _foveate(self)
+        # Moving the gaze is free; the action penalty applies to the hand and arm only.
+        self.rewards.action_l2.func = mdp.motor_action_l2

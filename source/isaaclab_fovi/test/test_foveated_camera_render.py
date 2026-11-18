@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Render tests for the foveated camera on the Newton Warp and Isaac RTX renderers.
+"""Render tests for the foveated camera on the Newton (Warp and OptiX) and Isaac RTX renderers.
 
 The cases live in :mod:`foveated_render_cases`; OVRTX runs them without Kit in ``test_foveated_camera_render_ovrtx``.
 """
+
+import os
 
 from isaaclab.test.utils import launch_test_simulation
 
@@ -16,7 +18,7 @@ import foveated_render_cases as cases  # noqa: E402
 import pytest  # noqa: E402
 from isaaclab_fovi.sensors import FoveatedNewtonCamera, FoveatedRTXCamera  # noqa: E402
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # noqa: E402
-from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
@@ -25,31 +27,46 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacs
 # Each backend pairs a physics engine with the renderer under test and the implementation it selects.
 BACKENDS = {
     "newton_warp": (NewtonCfg(solver_cfg=MJWarpSolverCfg()), NewtonWarpRendererCfg, FoveatedNewtonCamera),
+    "newton_optix": (NewtonCfg(solver_cfg=MJWarpSolverCfg()), NewtonOptixRendererCfg, FoveatedNewtonCamera),
     "isaac_rtx": (PhysxCfg(), IsaacRtxRendererCfg, FoveatedRTXCamera),
 }
+
+
+def backend_cfg(name: str):
+    """The backend, after checking that its renderer can run here.
+
+    OptiX needs the ``optix`` extra and a driver that supports its ABI; without them its cases skip, unless
+    ``ISAACLAB_TEST_REQUIRE_OPTIX`` is set, as in Isaac Lab's own OptiX rendering tests.
+    """
+    if name == "newton_optix":
+        if os.environ.get("ISAACLAB_TEST_REQUIRE_OPTIX"):
+            import optix  # noqa: F401
+        else:
+            pytest.importorskip("optix", exc_type=ImportError)
+    return BACKENDS[name]
 
 
 @pytest.mark.parametrize("source", cases.CAMERA_SOURCES)
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_foveated_camera_follows_gaze(backend, source):
-    cases.foveated_camera_follows_gaze(BACKENDS[backend], source)
+    cases.foveated_camera_follows_gaze(backend_cfg(backend), source)
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_gaze_change_reaches_the_next_frame(backend):
-    cases.gaze_change_reaches_the_next_frame(BACKENDS[backend])
+    cases.gaze_change_reaches_the_next_frame(backend_cfg(backend))
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_gaze_stays_relative_to_a_moved_mount(backend):
-    cases.gaze_stays_relative_to_a_moved_mount(BACKENDS[backend])
+    cases.gaze_stays_relative_to_a_moved_mount(backend_cfg(backend))
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_gaze_survives_a_position_only_move(backend):
-    cases.gaze_survives_a_position_only_move(BACKENDS[backend])
+    cases.gaze_survives_a_position_only_move(backend_cfg(backend))
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_foveated_camera_samples_densest_at_the_fixation(backend):
-    cases.foveated_camera_samples_densest_at_the_fixation(BACKENDS[backend])
+    cases.foveated_camera_samples_densest_at_the_fixation(backend_cfg(backend))

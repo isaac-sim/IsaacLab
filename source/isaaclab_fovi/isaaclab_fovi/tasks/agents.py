@@ -9,7 +9,7 @@ from dataclasses import fields
 
 from isaaclab_rl.rsl_rl import RslRlPpoAlgorithmCfg
 
-from isaaclab_fovi.rsl_rl import GazeSupervisedPPOCfg
+from ..rsl_rl import GazeSupervisedPPOCfg
 
 
 def gaze_supervised(algorithm: RslRlPpoAlgorithmCfg, **kwargs) -> GazeSupervisedPPOCfg:

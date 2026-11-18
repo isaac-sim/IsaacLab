@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["GazeSupervisedPPOCfg"]
+__all__ = ["GazeSupervisedPPO", "GazeSupervisedPPOCfg"]
 
+from .gaze_supervised_ppo import GazeSupervisedPPO
 from .gaze_supervised_ppo_cfg import GazeSupervisedPPOCfg

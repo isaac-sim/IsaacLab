@@ -23,7 +23,6 @@ from isaaclab.managers import ActionTerm, ManagerTermBase, ObservationTermCfg, S
 from isaaclab.utils.math import quat_apply
 from isaaclab.utils.warp import ProxyArray
 
-from ..sensors.calibrated_geometry import convert_camera_frame_quaternion
 from ..sensors.gaze_kernels import (
     DEG_TO_RAD,
     CameraParams,
@@ -85,7 +84,7 @@ def teacher_labels_kernel(
     rotate_offset: wp.int32,
     positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
-    state: wp.array(dtype=wp.vec4f),
+    angles_deg: wp.array(dtype=wp.vec2f),
     frame: wp.mat33f,
     field_radius_deg: wp.float32,
     step_size: wp.float32,
@@ -97,7 +96,7 @@ def teacher_labels_kernel(
     """Labels (action x, action y, valid) toward a point fixed to each target; and the mean gaze error to valid
     targets [deg] with the fraction of valid targets.
 
-    ``mounts`` holds each camera's mount (ROS convention); ``state`` each gaze, in field radii, and its velocity.
+    ``mounts`` holds each camera's mount (ROS convention); ``angles_deg`` the camera's stored gaze angles [deg].
     One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
     """
     _block, lane = wp.tid()
@@ -109,8 +108,7 @@ def teacher_labels_kernel(
         point = targets[i]
         if rotate_offset != 0:
             point = point + wp.quat_rotate(orientations[i], offset)
-        s = state[i]
-        gaze = wp.vec2f(s[0], s[1])
+        gaze = angles_deg[i] / field_radius_deg
         result = teach(point, positions[i], mounts[i], gaze, frame, field_radius_deg, step_size, gaze_limit, camera)
         labels[i, 0] = result[0]
         labels[i, 1] = result[1]
@@ -168,12 +166,12 @@ def gaze_step_kernel(
 ):
     """Move each gaze by its clamped action and keep it within the limit; record the gaze, velocity and angles.
 
-    ``state`` holds each gaze and its velocity, in field radii and field radii per second.
+    The step starts from the camera's stored ``angles_deg``, which own the gaze. ``state`` records each gaze and its
+    velocity, in field radii and field radii per second.
     """
     i = wp.tid()
     a = actions[i]
-    s = state[i]
-    previous = wp.vec2f(s[0], s[1])
+    previous = angles_deg[i] / field_radius_deg
     moved = previous + wp.vec2f(wp.clamp(a[0], -1.0, 1.0), wp.clamp(a[1], -1.0, 1.0)) * step_size
     current = moved * (gaze_limit / wp.max(wp.length(moved), gaze_limit))
     rate = (current - previous) / step_dt
@@ -215,8 +213,13 @@ class GazeAction(ActionTerm):
     against a rolled mount.
 
     With ``mount="fixed"`` the camera keeps the orientation it had when the term was created, and the teacher uses
-    that mount; turning the camera's mount raises. With ``mount="tracked"`` the camera may ride a moving body, for
-    example a robot's head, and the teacher reads each camera's current mount, so software gaze adds to hardware gaze.
+    that mount; turning the camera's mount afterwards raises. With ``mount="tracked"`` the camera may ride a moving
+    body, for example a robot's head, and the teacher reads each camera's current mount, so software gaze adds to
+    hardware gaze.
+
+    The camera's stored gaze angles own the gaze: each step and the teacher start from them, so a gaze set directly
+    with :meth:`~isaaclab_fovi.sensors.FoveatedCamera.set_gaze_angles` carries on. :attr:`state`, the observation, is
+    the gaze and velocity as of the last step or reset.
     """
 
     cfg: GazeActionCfg
@@ -231,7 +234,7 @@ class GazeAction(ActionTerm):
         self.camera = self._asset
         camera = self.camera
         self.tracked_mount = cfg.mount == "tracked"
-        if self.tracked_mount and not (camera._gaze_pose_reads_angles and camera.cfg.update_latest_camera_pose):
+        if self.tracked_mount and not camera.turns_pose_by_gaze:
             raise ValueError(
                 "A tracked gaze mount needs a camera that turns its pose by the gaze every frame: Newton or OVRTX,"
                 " with update_latest_camera_pose."
@@ -245,12 +248,10 @@ class GazeAction(ActionTerm):
                 f"A fixed gaze mount needs a camera mounted on the environment, got {camera.cfg.prim_path!r};"
                 " use mount='tracked' for a camera on a moving body."
             )
-        if not hasattr(camera, "_gaze_camera"):
-            raise RuntimeError(f"The gaze camera {cfg.asset_name!r} must be initialized before its gaze action.")
         # The camera's own geometry, so the teacher and the sensor mask share one projection.
-        self.camera_model = camera._camera_model
-        self._camera = camera._gaze_camera
-        self._frame = camera._mask_frame
+        self.camera_model = camera.camera_model
+        self._camera = camera.projection_params
+        self._frame = camera.image_frame
         self._frame_torch = torch.tensor(
             [[self._frame[row][col] for col in range(3)] for row in range(3)], device=self.device
         )
@@ -258,17 +259,14 @@ class GazeAction(ActionTerm):
         """Half the retina's field of view [deg]."""
         self._fixed_mount = None
         if not self.tracked_mount:
-            # The camera's ungazed world orientation now, ROS convention; the fixed-mount teacher keeps it.
-            orientation = camera._data.quat_w_world
-            orientation = orientation.torch if hasattr(orientation, "torch") else orientation
-            opengl = convert_camera_frame_quaternion(orientation.float(), origin="world", target="opengl")
-            ros = convert_camera_frame_quaternion(opengl, origin="opengl", target="ros")
-            self._fixed_mount = ProxyArray(wp.from_torch(ros.contiguous(), dtype=wp.quatf))
+            # The fixed-mount teacher keeps the camera's mount as it is now; only later turns invalidate it.
+            mount = camera.ungazed_quat_w_ros()
+            self._fixed_mount = ProxyArray(wp.from_torch(mount.contiguous(), dtype=wp.quatf))
+            self._mount_turns = camera.mount_turns
         self._raw: torch.Tensor | None = None
         """Gaze actions of the last step, as supplied to :meth:`process_actions`."""
         self._state = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec4f, device=self.device))
-        """Gaze and its velocity, the gaze observation; the gaze and velocity are views of it."""
-        self._gaze = self._state.torch[:, :2]
+        """Gaze and its velocity as of the last step or reset, the gaze observation."""
         self._velocity = self._state.torch[:, 2:]
         self._step_launch: tuple[tuple, wp.Launch] | None = None
         self._labels = ProxyArray(wp.zeros((self.num_envs, 3), dtype=wp.float32, device=self.device))
@@ -287,16 +285,16 @@ class GazeAction(ActionTerm):
 
     @property
     def raw_actions(self) -> torch.Tensor:
-        return self._raw if self._raw is not None else torch.zeros_like(self._gaze)
+        return self._raw if self._raw is not None else torch.zeros_like(self._velocity)
 
     @property
     def processed_actions(self) -> torch.Tensor:
-        return self._gaze
+        return self.gaze
 
     @property
     def gaze(self) -> torch.Tensor:
-        """Current gaze in field radii, shape (num_envs, 2)."""
-        return self._gaze
+        """Current gaze in field radii, from the camera's stored angles, shape (num_envs, 2)."""
+        return self.angles_deg / self.field_radius_deg
 
     @property
     def velocity(self) -> torch.Tensor:
@@ -310,8 +308,8 @@ class GazeAction(ActionTerm):
 
     @property
     def angles_deg(self) -> torch.Tensor:
-        """Current gaze angles [deg], shape (num_envs, 2)."""
-        return self._gaze * self.field_radius_deg
+        """Current gaze angles [deg], the camera's stored ones, shape (num_envs, 2)."""
+        return self.camera.gaze_angles.torch
 
     def process_actions(self, actions: torch.Tensor):
         """Move the gaze by the supplied actions, shape (num_envs, 2).
@@ -329,7 +327,7 @@ class GazeAction(ActionTerm):
                 [
                     wp.from_torch(actions, dtype=wp.vec2f),
                     self._state,
-                    self._camera_angles(),
+                    self.camera.gaze_angles,
                     self.cfg.step_size,
                     self.cfg.gaze_limit,
                     self._env.step_dt,
@@ -340,7 +338,7 @@ class GazeAction(ActionTerm):
             self._step_launch = (key, launch)
         self._raw = actions
         self._step_launch[1].launch(warp_stream(self.device))
-        self.camera.set_gaze_angles(self._camera_angles().torch)
+        self.camera.set_gaze_angles(self.camera.gaze_angles.torch)
 
     def apply_actions(self):
         pass
@@ -361,7 +359,7 @@ class GazeAction(ActionTerm):
             gaze = random_gaze(count, self.cfg.gaze_limit, self.device)
             visible = self.visible(angles_to_direction(gaze * self.field_radius_deg))
             self._reset_start.torch[:count] = torch.where(visible[:, None], gaze, 0.0)
-        angles = self._camera_angles()
+        angles = self.camera.gaze_angles
         launch = self._reset_launches.get((indexed, random_start))
         if launch is None:
             launch = self._reset_launches[(indexed, random_start)] = record_launch(
@@ -375,11 +373,6 @@ class GazeAction(ActionTerm):
         launch.launch(warp_stream(self.device))
         # The camera keeps reading the same buffer, which every other environment already holds.
         self.camera.set_gaze_angles(angles.torch)
-
-    def _camera_angles(self) -> ProxyArray:
-        """The camera's stored gaze angles [deg], which the gaze kernels write in place."""
-        self.camera.gaze_angles_buffer()
-        return self.camera._gaze_angles
 
     def visible(self, direction: torch.Tensor) -> torch.Tensor:
         """Whether directions in the upright gaze frame fall inside the physical camera's image."""
@@ -403,9 +396,8 @@ class GazeAction(ActionTerm):
             RuntimeError: The camera's mount turned while the gaze assumes a fixed mount.
         """
         if self.tracked_mount:
-            self.camera.gaze_angles_buffer()
-            mounts = self.camera._mount_quat_ros
-        elif self.camera.mount_moved:
+            mounts = self.camera.mount_quat_w_ros
+        elif self.camera.mount_turns != self._mount_turns:
             raise RuntimeError(
                 "The gaze camera's mount turned, so the fixed-mount teacher would aim from its first orientation;"
                 " use GazeActionCfg.mount='tracked'."
@@ -426,7 +418,7 @@ class GazeAction(ActionTerm):
                     int(orientations is not None),
                     positions,
                     mounts,
-                    self._state,
+                    self.camera.gaze_angles,
                     self._frame,
                     self.field_radius_deg,
                     self.cfg.step_size,
@@ -489,7 +481,7 @@ class gaze_teacher_labels(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._offset = wp.vec3f(*cfg.params.get("offset", (0.0, 0.0, 0.0)))
+        self._offset: tuple[tuple[float, ...], wp.vec3f] | None = None
         self._sources = None
         self._targets = self._orientations = None
 
@@ -514,8 +506,12 @@ class gaze_teacher_labels(ManagerTermBase):
                 body = target_cfg.body_ids[0]
                 self._targets = wp.from_torch(positions.torch[:, body], dtype=wp.vec3f)
                 self._orientations = wp.from_torch(orientations.torch[:, body], dtype=wp.quatf)
+        # The recorded teacher launch is kept while the point stays the same object.
+        point = tuple(float(value) for value in offset)
+        if self._offset is None or self._offset[0] != point:
+            self._offset = (point, wp.vec3f(*point))
         term: GazeAction = env.action_manager.get_term(action_name)
-        labels, values = term._teacher_labels(self._targets, self._orientations, self._offset)
+        labels, values = term._teacher_labels(self._targets, self._orientations, self._offset[1])
         _log_teacher(env, values)
         return labels
 

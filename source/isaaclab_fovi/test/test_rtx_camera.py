@@ -43,21 +43,27 @@ def test_near_clip_comes_from_spawn_or_else_the_camera_prim() -> None:
 @pytest.mark.parametrize("native_grid", [False, True])
 def test_partial_capture_extracts_only_the_updated_environments(native_grid) -> None:
     """Environments outside the update mask keep their samples, and OVRTX's near-plane offset is added once."""
-    texture = torch.arange(2 * 4 * 4, dtype=torch.float32).reshape(2, 4, 4, 1)
+    height, width = 4, 5
+    texture = torch.arange(2 * height * width, dtype=torch.float32).reshape(2, height, width, 1)
+    if native_grid:
+        texels = [(py, px) for py in range(height) for px in range(width)]
+    else:
+        texels = [(3, 1), (0, 4), (2, 0), (1, 3), (3, 4), (0, 2), (2, 2)]
     camera = SimpleNamespace(
         cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx")),
         _native_grid=native_grid,
         _near_clip=0.25,
         _texture_output={"distance_to_camera": texture},
-        _foveated_output={"distance_to_camera": torch.full((2, 16, 1, 1), -1.0)},
-        _extract_py=torch.arange(16) // 4,
-        _extract_px=torch.arange(16) % 4,
+        _foveated_output={"distance_to_camera": torch.full((2, len(texels), 1, 1), -1.0)},
+        _extract_py=torch.tensor([py for py, _ in texels]),
+        _extract_px=torch.tensor([px for _, px in texels]),
     )
     updated = wp.array([True, False], dtype=wp.bool, device="cpu")
     for _ in range(2):
         FoveatedRTXCamera._extract_foveated_samples(camera, updated)
     samples = camera._foveated_output["distance_to_camera"]
-    torch.testing.assert_close(samples[0, :, 0, 0], texture[0].flatten() + 0.25)
+    expected = torch.tensor([float(texture[0, py, px, 0]) + 0.25 for py, px in texels])
+    torch.testing.assert_close(samples[0, :, 0, 0], expected, atol=0, rtol=0)
     assert bool((samples[1] == -1.0).all())
 
 

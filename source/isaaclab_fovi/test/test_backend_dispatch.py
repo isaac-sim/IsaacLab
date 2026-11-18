@@ -40,7 +40,7 @@ def test_default_renderer_resolves_to_isaac_rtx() -> None:
 
 @pytest.mark.parametrize(
     ("renderer_type", "expected"),
-    [("isaac_rtx", FoveatedRTXCamera), ("ovrtx", FoveatedRTXCamera), ("newton_warp", FoveatedNewtonCamera)],
+    [("ovrtx", FoveatedRTXCamera), ("newton_warp", FoveatedNewtonCamera), ("newton_optix", FoveatedNewtonCamera)],
 )
 def test_renderer_selects_its_implementation(renderer_type: str, expected: type) -> None:
     assert dispatch(CameraSelection(RendererSelection(renderer_type))) is expected

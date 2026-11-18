@@ -13,7 +13,6 @@ from fovi.arch.knn import KNNPoolingLayer
 from fovi.arch.pooling import GridPoolingLayer
 from isaaclab_fovi.sensors import pooling
 from isaaclab_fovi.sensors.pooling import (
-    ModalPooler,
     build_highres_coords,
     build_lowres_coords,
     build_pooler,
@@ -125,8 +124,8 @@ DEVICES = [
 HAND_TABLE = torch.tensor([[0, 3, 5], [1, 4, 5], [2, 5, 5]])
 
 
-def hand_pooler(device: str) -> ModalPooler:
-    return ModalPooler(HAND_TABLE.to(device), num_inputs=5)
+def hand_table(device: str) -> torch.Tensor:
+    return HAND_TABLE.to(device)
 
 
 @pytest.mark.parametrize("device", DEVICES)
@@ -138,12 +137,12 @@ def test_modal_pooling_keeps_majority_color_vector(device: str) -> None:
         [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 1, 255], [10, 20, 30, 255], [200, 100, 0, 255]], dtype=torch.uint8
     )
     rendered = colors[None, :, None, :].to(device)
-    pooled = pool_segmentation_buffer(hand_pooler(device), rendered)
+    pooled = pool_segmentation_buffer(hand_table(device), rendered)
     expected = torch.tensor([[0, 0, 0, 255], [10, 20, 30, 255], [0, 0, 0, 0]], dtype=torch.uint8)
     assert pooled.dtype == torch.uint8
     assert torch.equal(pooled.cpu(), expected[None, :, None, :])
     # Swapping the tied neighbours' order flips the winner.
-    swapped = ModalPooler(HAND_TABLE[[1, 0, 2]].to(device), num_inputs=5)
+    swapped = HAND_TABLE[[1, 0, 2]].to(device)
     assert torch.equal(pool_segmentation_buffer(swapped, rendered)[0, 1, 0].cpu(), colors[4])
 
 
@@ -154,7 +153,7 @@ def test_modal_pooling_preserves_ids_above_float_precision(device: str, dtype: t
     big = 2**30 if dtype == torch.int32 else 2**40
     ids = torch.tensor([2**24 + 1, 2**24 + 1, 2**24 + 3, big + 7, big + 7], dtype=dtype)
     batch = torch.stack([ids, ids.flip(0)])[:, :, None, None].to(device)
-    pooled = pool_segmentation_buffer(hand_pooler(device), batch)
+    pooled = pool_segmentation_buffer(hand_table(device), batch)
     expected = torch.tensor([[2**24 + 1, big + 7, 0], [big + 7, 2**24 + 1, 0]], dtype=dtype)
     assert pooled.dtype == dtype
     assert torch.equal(pooled[..., 0, 0].cpu(), expected)
@@ -164,7 +163,7 @@ def test_modal_pooling_preserves_ids_above_float_precision(device: str, dtype: t
 def test_modal_pooling_compares_wide_vectors_exactly(device: str) -> None:
     # Two int64 channels exceed the 8-byte packed key; vectors differing only in the second channel stay distinct.
     vectors = torch.tensor([[1, 2**40], [1, 2**40 + 1], [1, 2**40 + 1], [5, 6], [7, 8]], dtype=torch.int64)
-    pooled = pool_segmentation_buffer(hand_pooler(device), vectors[None, :, None, :].to(device))
+    pooled = pool_segmentation_buffer(hand_table(device), vectors[None, :, None, :].to(device))
     expected = torch.tensor([[1, 2**40 + 1], [5, 6], [0, 0]])
     assert torch.equal(pooled[0, :, 0].cpu(), expected)
 
@@ -191,41 +190,47 @@ def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Ten
         ("isotropic", 3, False),
     ],
 )
-def test_modal_pooler_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex: bool) -> None:
+def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex: bool) -> None:
     cfg = SamplingConfig(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
     fovi_max, k = build_pooler(cfg, lowres, highres, "cpu", mode="max")
-    modal, modal_k = build_pooler(cfg, lowres, highres, "cpu", mode="mode")
-    assert isinstance(modal, ModalPooler)
-    assert modal_k == k
-    table = modal.neighbor_indices
+    # The camera takes the table from its standard pooler, whatever that pooler's mode.
+    standard, _ = build_pooler(cfg, lowres, highres, "cpu")
+    table = segmentation_neighbor_indices(standard)
     assert table.shape == (k, len(lowres))
+    assert torch.equal(segmentation_neighbor_indices(fovi_max), table)
 
     # The table holds exactly the samples fovi's max pooler reduces over: a max over the table matches it.
     values = torch.rand(1, len(highres), 1, 1, generator=torch.Generator().manual_seed(0)) + 1
     padded = torch.cat([values[0, :, 0, 0], torch.zeros(1)])
     torch.testing.assert_close(padded[table].max(dim=0).values, pool_hwc_buffer(fovi_max, values)[0, :, 0, 0])
-    # A raw fovi pooler exposes the same neighbourhoods.
-    assert torch.equal(segmentation_neighbor_indices(fovi_max), table)
 
     # Few labels so neighbourhoods hold repeats and ties; tiny chunks exercise the batched loop.
     monkeypatch.setattr(pooling, "_MODAL_CHUNK_ELEMENTS", 1)
     labels = torch.randint(0, 3, (3, len(highres), 1, 2), generator=torch.Generator().manual_seed(1))
     labels = labels.to(torch.uint8)
-    pooled = pool_segmentation_buffer(modal, labels)
+    pooled = pool_segmentation_buffer(table, labels)
     assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
 
 
+def test_modal_mode_builds_no_pooler_of_its_own() -> None:
+    cfg = SamplingConfig()
+    lowres, matched = build_lowres_coords(cfg, "cpu")
+    highres = build_highres_coords(cfg, matched, "cpu")
+    with pytest.raises(ValueError, match="segmentation_neighbor_indices"):
+        build_pooler(cfg, lowres, highres, "cpu", mode="mode")
+
+
 @pytest.mark.parametrize("device", DEVICES)
-def test_modal_pooler_is_built_on_the_sensor_device(device: str) -> None:
+def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
     cfg = SamplingConfig()
     lowres, matched = build_lowres_coords(cfg, device)
     highres = build_highres_coords(cfg, matched, device)
-    modal, _ = build_pooler(cfg, lowres, highres, device, mode="mode")
-    assert modal.neighbor_indices.device.type == device
+    table = segmentation_neighbor_indices(build_pooler(cfg, lowres, highres, device)[0])
+    assert table.device.type == device
     labels = torch.randint(0, 3, (1, len(highres), 1, 1), device=device)
-    assert pool_segmentation_buffer(modal, labels).device.type == device
+    assert pool_segmentation_buffer(table, labels).device.type == device
 
 
 @pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])

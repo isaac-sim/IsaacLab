@@ -6,6 +6,8 @@
 """Gaze geometry and gaze-supervised PPO, without a simulator."""
 
 import math
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -24,6 +26,7 @@ from isaaclab_fovi.mdp.gaze import (
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
+from rsl_rl.algorithms import PPO
 from rsl_rl.models import MLPModel
 from rsl_rl.storage import RolloutStorage
 from tensordict import TensorDict
@@ -60,8 +63,9 @@ def test_gaze_step_kernel_matches_the_torch_update():
     expected = clamp_gaze(gaze + actions.clamp(-1, 1) * step, limit)
     expected_velocity = (expected - gaze) / dt
 
-    state = torch.cat((gaze, torch.randn(count, 2, generator=generator)), dim=-1)
-    angles = torch.empty_like(gaze)
+    # The step starts from the camera's stored angles, not from the state it records.
+    state = torch.randn(count, 4, generator=generator)
+    angles = gaze * radius
     with torch_stream("cpu"):
         wp.launch(
             gaze_step_kernel,
@@ -77,7 +81,7 @@ def test_gaze_step_kernel_matches_the_torch_update():
             ],
         )
     torch.testing.assert_close(state[:, :2], expected, atol=1e-6, rtol=1e-6)
-    torch.testing.assert_close(state[:, 2:], expected_velocity, atol=1e-3, rtol=1e-5)
+    torch.testing.assert_close(state[:, 2:], expected_velocity, atol=2e-3, rtol=1e-5)
     torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
 
 
@@ -132,7 +136,7 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
                 1,
                 wp.from_torch(positions.to(device), dtype=wp.vec3f),
                 wp.from_torch(mount.to(device), dtype=wp.quatf),
-                wp.from_torch(torch.cat((gaze, torch.zeros_like(gaze)), -1).to(device), dtype=wp.vec4f),
+                wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f),
                 wp.mat33f(*frame.flatten().tolist()),
                 field_radius,
                 step,
@@ -173,7 +177,7 @@ def test_teacher_gaze_fixates_the_target_through_a_rolled_mount(rotation_deg):
                 0,
                 wp.zeros(count, dtype=wp.vec3f),
                 wp.from_torch(identity, dtype=wp.quatf),
-                wp.zeros(count, dtype=wp.vec4f),
+                wp.zeros(count, dtype=wp.vec2f),
                 wp.mat33f(*frame.flatten().tolist()),
                 field_radius,
                 step,
@@ -200,14 +204,29 @@ def test_gaze_config_rejects_bounds_that_divide_by_zero(field, value):
     setattr(cfg, field, value)
     with pytest.raises(ValueError, match=field):
         cfg.validate_config()
+
+
+def test_gaze_config_rejects_an_unknown_mount():
+    GazeActionCfg(asset_name="camera", mount="tracked").validate_config()
     with pytest.raises(ValueError, match="mount"):
         GazeActionCfg(asset_name="camera", mount="head").validate_config()
 
 
 def test_gaze_config_resolves_its_term_lazily():
-    class_type = GazeActionCfg(asset_name="camera").class_type
-    assert isinstance(class_type, str)
-    assert class_type._resolve() is GazeAction
+    script = (
+        "import sys\n"
+        "from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg\n"
+        "class_type = GazeActionCfg(asset_name='camera').class_type\n"
+        "assert isinstance(class_type, str), type(class_type)\n"
+        "assert 'isaaclab_fovi.mdp.gaze' not in sys.modules, 'the config imported its runtime term'\n"
+        "term = class_type._resolve()\n"
+        "assert 'isaaclab_fovi.mdp.gaze' in sys.modules\n"
+        "print(term.__module__, term.__qualname__)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.split()[-2:] == ["isaaclab_fovi.mdp.gaze", "GazeAction"]
+    assert GazeActionCfg(asset_name="camera").class_type._resolve() is GazeAction
 
 
 def test_process_actions_moves_the_gaze_by_the_supplied_actions():
@@ -215,18 +234,14 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     num_envs = 4
     angles = ProxyArray(wp.zeros(num_envs, dtype=wp.vec2f, device="cpu"))
     set_angles = []
-    camera = SimpleNamespace(
-        _gaze_angles=angles,
-        gaze_angles_buffer=lambda: angles.torch,
-        set_gaze_angles=lambda value: set_angles.append(value),
-    )
+    camera = SimpleNamespace(gaze_angles=angles, set_gaze_angles=lambda value: set_angles.append(value))
     term = object.__new__(GazeAction)
     term._env = SimpleNamespace(num_envs=num_envs, device="cpu", step_dt=0.5)
     term.cfg = GazeActionCfg(asset_name="camera", step_size=0.1, gaze_limit=1.0)
     term.camera = camera
     term.field_radius_deg = 20.0
     term._state = ProxyArray(wp.zeros(num_envs, dtype=wp.vec4f, device="cpu"))
-    term._gaze, term._velocity = term._state.torch[:, :2], term._state.torch[:, 2:]
+    term._velocity = term._state.torch[:, 2:]
     term._step_launch = term._raw = None
 
     manager_actions = torch.zeros(num_envs, 5)
@@ -246,6 +261,11 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     torch.testing.assert_close(
         gaze_state(SimpleNamespace(action_manager=SimpleNamespace(get_term=lambda name: term))), term.state
     )
+
+    # A gaze set on the camera directly is where the next step starts.
+    angles.torch.copy_(torch.tensor([[10.0, 0.0]]).repeat(num_envs, 1))
+    term.process_actions(torch.zeros(num_envs, 2))
+    torch.testing.assert_close(term.gaze, torch.tensor([[0.5, 0.0]]).repeat(num_envs, 1))
 
 
 @pytest.mark.parametrize("ids", [None, [3, 0, 7]])
@@ -278,10 +298,12 @@ def test_gaze_reset_kernel_matches_the_torch_reset(ids, random_start):
     torch.testing.assert_close(state, expected_state, atol=0, rtol=0)
 
 
-def test_fixed_mount_teacher_rejects_a_moved_mount():
+def test_fixed_mount_teacher_rejects_only_turns_after_capture():
+    """A mount turned before the term captured it is the captured mount; a later turn makes it stale."""
     term = object.__new__(GazeAction)
     term.tracked_mount = False
-    term.camera = SimpleNamespace(mount_moved=True)
+    term._mount_turns = 2
+    term.camera = SimpleNamespace(mount_turns=3)
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction._teacher_labels(term, targets=None)
 
@@ -295,7 +317,9 @@ def test_gaze_loss_ignores_invalid_labels():
     assert torch.isfinite(mean.grad).all() and not mean.grad[1].any()
 
 
-def _algorithm(oracle_loss_coef: float = 1.0, with_labels: bool = True) -> tuple[GazeSupervisedPPO, TensorDict]:
+def _algorithm(
+    oracle_loss_coef: float = 1.0, with_labels: bool = True, stock: bool = False
+) -> tuple[PPO | GazeSupervisedPPO, TensorDict]:
     torch.manual_seed(0)
     labels = torch.rand(NUM_ENVS, 3) * 2 - 1
     labels[:, 2] = (torch.arange(NUM_ENVS) % 4 != 0).float()
@@ -308,10 +332,12 @@ def _algorithm(oracle_loss_coef: float = 1.0, with_labels: bool = True) -> tuple
     critic = MLPModel(obs, model_groups, "critic", 1, hidden_dims=[32])
     storage = RolloutStorage("rl", NUM_ENVS, STEPS, obs, [3], "cpu")
     settings = dict(num_learning_epochs=4, num_mini_batches=4, learning_rate=3e-3, schedule="fixed", device="cpu")
+    if stock:
+        return PPO(actor, critic, storage, **settings), obs
     return GazeSupervisedPPO(actor, critic, storage, oracle_loss_coef=oracle_loss_coef, **settings), obs
 
 
-def _train(algorithm: GazeSupervisedPPO, obs: TensorDict, iterations: int) -> dict[str, float]:
+def _train(algorithm: PPO, obs: TensorDict, iterations: int) -> dict[str, float]:
     for _ in range(iterations):
         for _ in range(STEPS):
             with torch.inference_mode():
@@ -338,8 +364,22 @@ def test_update_pulls_the_gaze_toward_the_teacher():
     assert distance() < 0.7 * before
 
 
-def test_zero_coefficient_trains_plain_ppo_without_labels():
-    algorithm, obs = _algorithm(oracle_loss_coef=0.0, with_labels=False)
-    losses = _train(algorithm, obs, 2)
+def test_zero_coefficient_update_matches_stock_ppo_without_labels():
+    def updated(stock: bool) -> tuple[list[torch.Tensor], list[torch.Tensor], dict[str, float]]:
+        algorithm, obs = _algorithm(oracle_loss_coef=0.0, with_labels=False, stock=stock)
+        modules = (algorithm.actor, algorithm.critic)
+        initial = [p.detach().clone() for module in modules for p in module.parameters()]
+        torch.manual_seed(1)
+        losses = _train(algorithm, obs, 1)
+        return initial, [p.detach().clone() for module in modules for p in module.parameters()], losses
+
+    initial, gaze_params, losses = updated(stock=False)
+    stock_initial, stock_params, stock_losses = updated(stock=True)
     assert losses["oracle"] == 0.0 and losses["oracle_valid"] == 0.0
-    assert all(torch.isfinite(p).all() for p in algorithm.actor.parameters())
+    for name in ("value", "surrogate", "entropy"):
+        assert losses[name] == pytest.approx(stock_losses[name], rel=1e-6, abs=1e-7)
+    for start, stock_start in zip(initial, stock_initial, strict=True):
+        torch.testing.assert_close(start, stock_start, atol=0, rtol=0)
+    for param, stock_param in zip(gaze_params, stock_params, strict=True):
+        torch.testing.assert_close(param, stock_param, atol=0, rtol=0)
+    assert all(not torch.equal(param, start) for param, start in zip(gaze_params, initial, strict=True))

@@ -59,6 +59,109 @@ def test_every_texel_roundtrips(res: int, rotation: float) -> None:
     torch.testing.assert_close(rays.norm(dim=-1), torch.ones(len(coords)), atol=1e-6, rtol=0)
 
 
+def texel_centers(res: int) -> torch.Tensor:
+    """Native texture UV of each canonical sample, in row-major sample order."""
+    axis = (torch.arange(res) + 0.5) / res
+    row, col = torch.meshgrid(axis, axis, indexing="ij")
+    return torch.stack((col, row), -1).reshape(-1, 2)
+
+
+def eccentricity_rays(visual: torch.Tensor, fov_deg: float, rotation_deg: float = 0.0) -> torch.Tensor:
+    """OpenGL rays for visual-chart points, at Fovi's spherical eccentricity: Euclidean visual radius times the half
+    FoV. Square-shell corners reach sqrt(2) half FoVs, behind the optical hemisphere for wide fields."""
+    visual = visual.to(torch.float64)
+    theta = torch.linalg.vector_norm(visual, dim=-1) * math.radians(fov_deg) / 2
+    phi = torch.atan2(visual[..., 1], visual[..., 0]) + math.radians(rotation_deg)
+    return torch.stack((theta.sin() * phi.cos(), theta.sin() * phi.sin(), -theta.cos()), -1)
+
+
+def ray_visual(rays: torch.Tensor, fov_deg: float, rotation_deg: float = 0.0) -> torch.Tensor:
+    """Visual-chart point of each ray: its eccentricity over the half FoV along its unrolled azimuth."""
+    rays = rays.to(torch.float64)
+    theta = torch.atan2(torch.linalg.vector_norm(rays[..., :2], dim=-1), -rays[..., 2])
+    phi = torch.atan2(rays[..., 1], rays[..., 0]) - math.radians(rotation_deg)
+    radius = theta / (math.radians(fov_deg) / 2)
+    return torch.stack((radius * phi.cos(), radius * phi.sin()), -1)
+
+
+def octahedral_texel_rays(size: int) -> torch.Tensor:
+    """OpenGL rays at octahedral texel centres; the outer triangles fold onto the back hemisphere."""
+    axis = (torch.arange(size, dtype=torch.float64) + 0.5) / size * 2 - 1
+    y, x = torch.meshgrid(axis, axis, indexing="ij")
+    forward = 1 - x.abs() - y.abs()
+    back = forward < 0
+    fx = torch.where(back, (1 - y.abs()) * x.sign(), x)
+    fy = torch.where(back, (1 - x.abs()) * y.sign(), y)
+    return torch.nn.functional.normalize(torch.stack((fx, fy, -forward), -1), dim=-1)
+
+
+@pytest.mark.parametrize("rotation", [0.0, 37.0])
+def test_inverse_maps_independent_rays_to_their_texels(rotation: float) -> None:
+    coords = make_coords(64)
+    half_fov = math.radians(coords.fov) / 2
+    # Square shells keep every sample, so every one of Fovi's sample positions must land on its own texel.
+    rays = eccentricity_rays(coords.cartesian, coords.fov, rotation)
+    assert (rays[:, 2] > 0).any()
+    uv, visible = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)
+    assert visible.all()
+    torch.testing.assert_close(uv, texel_centers(64), atol=2e-6, rtol=0)
+    torch.testing.assert_close(
+        native_grid_directions(coords, image_rotation_deg=rotation), rays.float(), atol=1e-6, rtol=0
+    )
+    # The optical axis is the texture centre, the nominal rim along each rolled native axis is an edge midpoint, and
+    # the square's corners lie sqrt(2) half FoVs out along the rolled diagonals.
+    roll = math.radians(rotation)
+
+    def ray(angle: float, azimuth: float) -> tuple[float, float, float]:
+        return (
+            math.sin(angle) * math.cos(roll + azimuth),
+            math.sin(angle) * math.sin(roll + azimuth),
+            -math.cos(angle),
+        )
+
+    corner = math.sqrt(2) * half_fov
+    hand_rays = torch.tensor(
+        [
+            (0.0, 0.0, -1.0),
+            ray(half_fov, 0.0),
+            ray(half_fov, math.pi / 2),
+            ray(half_fov, math.pi),
+            ray(corner, math.pi / 4),
+            ray(corner, -math.pi / 4),
+            ray(corner, -3 * math.pi / 4),
+        ],
+        dtype=torch.float64,
+    )
+    uv, visible = native_grid_exit_uv(hand_rays, coords, image_rotation_deg=rotation)
+    assert visible.all()
+    expected = torch.tensor([[0.5, 0.5], [0.5, 1.0], [1.0, 0.5], [0.5, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]])
+    torch.testing.assert_close(uv, expected, atol=1e-6, rtol=0)
+
+
+@pytest.mark.parametrize("rotation", [0.0, 37.0])
+def test_textures_match_independent_geometry(rotation: float) -> None:
+    coords = make_coords(64)
+    size = 256
+    direction, inverse = build_native_grid_textures(coords, image_rotation_deg=rotation, exit_size=size)
+    assert direction.shape == (64, 64, 3) and inverse.shape == (size, size, 2)
+    expected = eccentricity_rays(coords.cartesian, coords.fov, rotation).float()
+    torch.testing.assert_close(direction.reshape(-1, 3), expected, atol=1e-6, rtol=0)
+    # A texel's ray is on the sensor exactly when its visual point lies in the unit square.
+    texel_rays = octahedral_texel_rays(size)
+    extent = ray_visual(texel_rays, coords.fov, rotation).abs().amax(-1)
+    inside, outside = extent < 1 - 1e-6, extent > 1 + 1e-6
+    assert (texel_rays[inside][:, 2] > 0).any() and outside.any()
+    assert (inverse[inside] >= 0).all() and (inverse[outside] == -1).all()
+    # Each stored UV, mapped back through Fovi's native-to-visual warp, must look along its texel's ray.
+    native = (inverse[inside].to(torch.float64) * 2 - 1).flip(-1)
+    torch.testing.assert_close(
+        eccentricity_rays(coords.native_to_visual(native), coords.fov, rotation),
+        texel_rays[inside],
+        atol=1e-5,
+        rtol=0,
+    )
+
+
 def test_textures_and_public_modalities() -> None:
     coords = make_coords()
     directions, inverse = build_native_grid_textures(coords, image_rotation_deg=0, exit_size=64)
