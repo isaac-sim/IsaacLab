@@ -361,12 +361,13 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     client = CosmosModel(
         CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, generation_mode="single_frame", timeout=2)
     )
-    stream = client.open_stream(num_views=2, seeds=(10, 20))
+    # Adjacent seeds, as a camera's processor gives them: view v starts from seed + v, each reset adds num_views.
+    stream = client.open_stream(num_views=2, seeds=(0, 1))
     one = [_controls(), _controls()]
     stream.step(one, reset_rows=(), seeds=())
-    stream.step(one, reset_rows=(0,), seeds=(30,))  # the environment's initial reset keeps view 0's prompt
+    stream.step(one, reset_rows=(0,), seeds=(2,))  # the environment's initial reset keeps view 0's prompt
     stream.step(one, reset_rows=(), seeds=())
-    stream.step(one, reset_rows=(0,), seeds=(40,))
+    stream.step(one, reset_rows=(0,), seeds=(4,))
     session = cosmos_service.resource.streams[0]
     with pytest.raises(ValueError, match="one frame per view"):
         stream.step([_controls().expand(4, -1, -1, -1).contiguous()] * 2, reset_rows=(), seeds=())
@@ -374,12 +375,16 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
 
     assert session.settings["max_episode_frames"] == 1
     assert session.settings["prompt"] == prompts[:2]
+    image_seed = cosmos_model_module._image_seed
     assert [(rows, seeds) for _, rows, seeds in session.steps] == [
         ((), ()),
-        ((0, 1), (30, 21)),
-        ((0, 1), (31, 22)),
-        ((0, 1), (40, 23)),
+        ((0, 1), (2, image_seed(1, 1))),
+        ((0, 1), (image_seed(2, 1), image_seed(1, 2))),
+        ((0, 1), (4, image_seed(1, 3))),
     ]
+    # No image shares another view's or episode's seed, which would give identical images for identical controls.
+    used = [0, 1, *(seed for _, _, seeds in session.steps for seed in seeds)]
+    assert len(set(used)) == len(used)
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
 
 
@@ -419,7 +424,9 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
         published.append(int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()))
         session = cosmos_service.resource.streams[0]
         assert published == [127, 50, 127, 127]
-        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (1,)), ((0,), (1,))]
+        second = cosmos_model_module._image_seed(0, 1)
+        assert second != 1
+        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (second,)), ((0,), (1,))]
     finally:
         processor.close()
 
