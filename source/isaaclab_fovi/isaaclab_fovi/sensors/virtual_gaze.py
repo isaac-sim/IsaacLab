@@ -8,8 +8,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
-from typing import ClassVar
+from collections.abc import Mapping, Sequence
 
 import torch
 import warp as wp
@@ -17,9 +16,11 @@ from fovi.sensing.projection import angular_directions
 
 from .calibrated_geometry import convert_camera_frame_quaternion, resolve_camera_model
 from .gaze_kernels import (
+    CameraParams,
     apply_gaze_indexed_kernel,
     apply_gaze_kernel,
     camera_params,
+    publish_grid_kernel,
     record_launch,
     sensor_visibility_kernel,
     set_gaze_kernel,
@@ -36,9 +37,9 @@ class VirtualGaze:
     to the optical axis of the physical camera it looks through.
     """
 
-    _gaze_pose_reads_angles: ClassVar[bool] = False
-    """Whether the camera's per-frame pose update turns the gaze from its stored angles, so that a writer of
-    :meth:`gaze_angles_buffer` needs no other launch."""
+    _gaze_pose_reads_angles: bool = False
+    """Whether the camera turns its pose by the stored gaze in each pose update, rather than writing prim poses when
+    the gaze is set. A writer of :meth:`gaze_angles_buffer` then needs no other launch."""
 
     def gaze_angles_buffer(self) -> torch.Tensor:
         """The camera's stored gaze angles [deg], shape (num_envs, 2).
@@ -134,6 +135,88 @@ class VirtualGaze:
             launch.set_param_by_name("indices", env_ids)
             launch.set_dim(len(env_ids))
         launch.launch(warp_stream(device))
+
+    def _update_camera_state(
+        self,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        pos_src: wp.array | None = None,
+        quat_src: wp.array | None = None,
+        update_pose: bool = False,
+        frame_op: int = 0,
+    ):
+        """Update the camera state; when the pose update turns the gaze, turn freshly read poses before the renderer
+        sees them."""
+        super()._update_camera_state(env_ids, env_mask, pos_src, quat_src, update_pose, frame_op)
+        if update_pose and self._gaze_pose_reads_angles:
+            self._apply_gaze_pose(env_ids, env_mask)
+
+    def _prepare_grid_publish(self, sources: Mapping[str, torch.Tensor]) -> None:
+        """Byte views of each rendered output, shape (num_envs, num_samples, channels), and of its public grid, for
+        :func:`publish_grid_kernel`."""
+        views = []
+        for name, source in sources.items():
+            if name == "rgb" and "rgba" in sources:
+                continue
+            target = self._grid_output[name].view(source.shape[0], -1, source.shape[-1])
+            views.append((wp.from_torch(source.view(torch.uint8)), wp.from_torch(target.view(torch.uint8))))
+        self._grid_indices_wp = wp.from_torch(self._grid_indices.to(torch.int32).contiguous())
+        self._grid_footprint_wp = wp.from_torch(self._ray_coords.valid_mask.contiguous())
+        num_envs = views[0][1].shape[0]
+        if self.cfg.mask_to_sensor_fov:
+            identity = self._gaze_identity.expand(num_envs, -1, -1).contiguous()
+            self._sensor_fov_valid_buffer = torch.zeros(
+                num_envs, len(self._gaze_rays), dtype=torch.bool, device=self._device
+            )
+            self._grid_sensor = (
+                wp.from_torch(self._gaze_rays, dtype=wp.vec3f),
+                wp.from_torch(identity, dtype=wp.mat33f),
+                self._gaze_camera,
+                wp.from_torch(self._sensor_fov_valid_buffer),
+            )
+        else:
+            # Placeholders: the kernel reads none of these without the sensor mask.
+            self._grid_sensor = (
+                wp.zeros(1, dtype=wp.vec3f, device=self._device),
+                wp.zeros(1, dtype=wp.mat33f, device=self._device),
+                CameraParams(),
+                wp.zeros((1, 1), dtype=wp.bool, device=self._device),
+            )
+        self._grid_publish = views
+        self._grid_launches = None
+
+    def _publish_grid(self) -> None:
+        """Mask and lay out every output in one launch each; the result equals masking, then copying to the grid."""
+        mask = self.cfg.mask_to_sensor_fov
+        rays, identity, camera, visible = self._grid_sensor
+        rotation = identity if not mask or self._gaze_rotation is None else self._gaze_rotation_wp
+        if self._grid_launches is None or self._grid_launches[0] is not rotation:
+            launches = [
+                record_launch(
+                    publish_grid_kernel,
+                    (target.shape[0], target.shape[1]),
+                    [
+                        source,
+                        self._grid_indices_wp,
+                        self._grid_footprint_wp,
+                        rays,
+                        rotation,
+                        camera,
+                        int(mask),
+                        int(mask and index == 0),
+                        visible,
+                    ],
+                    [target],
+                    self._device,
+                )
+                for index, (source, target) in enumerate(self._grid_publish)
+            ]
+            self._grid_launches = (rotation, launches)
+        stream = warp_stream(self._device)
+        for launch in self._grid_launches[1]:
+            launch.launch(stream)
+        if mask:
+            self._sensor_fov_valid = self._sensor_fov_valid_buffer
 
     def _gaze_validity(self, batch_size: int) -> torch.Tensor:
         """Return which samples the physical camera sees at the current gaze, shape (batch_size, num_samples)."""
