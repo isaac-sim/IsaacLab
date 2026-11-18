@@ -11,9 +11,9 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.coords import SamplingCoords
+from isaaclab_fovi.sensors import foveated_camera as base_camera
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
-from isaaclab_fovi.sensors.pooling import ModalPooler
 
 from isaaclab.utils.warp import ProxyArray
 
@@ -112,12 +112,11 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     neighbors = torch.stack([4 * runs + j for j in range(4)])
     average = torch.nn.AdaptiveAvgPool1d(len(coords))
 
-    def build_pooler(cfg, lowres, high, device, mode=None):
-        return (ModalPooler(neighbors, len(highres)) if mode == "mode" else average), 4
-
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
     monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
-    monkeypatch.setattr(newton_camera, "build_pooler", build_pooler)
+    monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (average, 4))
+    # The camera reads the modal neighbourhoods from its standard pooler.
+    monkeypatch.setattr(base_camera, "segmentation_neighbor_indices", lambda pooler: neighbors)
     monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", lambda self: None)
 
     def initialize_renderer(camera):

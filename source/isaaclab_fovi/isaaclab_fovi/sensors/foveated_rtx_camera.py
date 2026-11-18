@@ -25,6 +25,7 @@ import warp as wp
 
 from isaaclab import sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera
+from isaaclab.utils import clone
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 from . import lens_lut
@@ -39,7 +40,7 @@ from .native_grid import (
     native_grid_directions,
     proxy_outputs,
 )
-from .pooling import build_highres_coords, build_lowres_coords, build_pooler, is_segmentation_output
+from .pooling import build_highres_coords, build_lowres_coords, build_pooler
 
 if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import BaseRenderer
@@ -65,23 +66,6 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     cfg: FoveatedCameraCfg
 
-    @property
-    def supports_batch_update(self) -> bool:
-        return True
-
-    @staticmethod
-    def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXCamera]) -> None:
-        Camera._update_buffers_batch_impl(sensors)
-        if sim_utils.SimulationContext.instance() is None:
-            return  # The base implementation already invoked scalar capture.
-        for sensor in sensors:
-            sensor.process_rendered_frame()
-
-    @property
-    def renderer(self) -> BaseRenderer:
-        """Renderer shared with task-owned visual animation bindings."""
-        return self._renderer
-
     def __init__(self, cfg: FoveatedCameraCfg):
         ovrtx = cfg.renderer_cfg.renderer_type == "ovrtx"
         if ovrtx and getattr(cfg.renderer_cfg, "async_rendering", False) and cfg.mask_to_sensor_fov:
@@ -97,6 +81,9 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._foveated_output: dict[str, torch.Tensor] = {}
         self._pooled_output: dict[str, torch.Tensor] | None = None
         if ovrtx:
+            # The projection sets the texture size on the configuration before the parent allocates for it; the
+            # caller's configuration stays untouched.
+            cfg = clone(cfg)
             self.cfg = cfg
             self._prepare_projection()
         super().__init__(cfg)
@@ -117,9 +104,60 @@ class FoveatedRTXCamera(FoveatedCamera):
             lut_dir.cleanup()
             self._lut_dir = None
 
-    # ------------------------------------------------------------------
-    #  Initialisation
-    # ------------------------------------------------------------------
+    @property
+    def supports_batch_update(self) -> bool:
+        return True
+
+    @property
+    def renderer(self) -> BaseRenderer:
+        """Renderer shared with task-owned visual animation bindings."""
+        return self._renderer
+
+    def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
+        super().set_gaze_angles(angles_deg)
+        if not self._gaze_pose_reads_angles:
+            self._write_gaze_local_pose()
+
+    def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
+        """Move the camera's mount; the gaze stays relative to the new mount.
+
+        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
+        """
+        super().set_world_poses(positions, orientations, env_ids, convention)
+        # A position-only move keeps the prims' gaze-turned orientation, and with it the saved mount.
+        if orientations is not None:
+            self._refresh_mount(env_ids)
+
+    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
+        """Point the camera's mount from ``eyes`` at ``targets``; the gaze stays relative to the new mount.
+
+        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses_from_view`.
+        """
+        super().set_world_poses_from_view(eyes, targets, env_ids)
+        # Rows whose eye equals their target are skipped by the base method and keep their mount.
+        self._refresh_mount(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
+
+    def process_rendered_frame(self) -> None:
+        """Mask and publish the frame of the environments that scalar or batched rendering updated."""
+        if not self._env_mask_has_any(self._is_outdated):
+            return
+        if self._grid_publish:
+            self._publish_grid(self._is_outdated)
+            return
+        # Only the updated environments' samples change, so pooling and the grid layout reproduce every other
+        # environment's last frame.
+        self._extract_foveated_samples(self._is_outdated)
+        mask_grid_samples(self._foveated_output, self._ray_coords)
+        self._apply_sensor_fov_mask(self._foveated_output, self._is_outdated)
+
+        if self._pooled_output is not None:
+            for name, hi in self._foveated_output.items():
+                if name == "rgb" and "rgba" in self._foveated_output:
+                    continue  # rgba alias
+                self._pooled_output[name].copy_(self._pool_output(name, hi))
+        if self._native_grid:
+            source = self._pooled_output if self._pooled_output is not None else self._foveated_output
+            copy_grid_outputs(source, self._grid_output, self._grid_indices)
 
     def _prepare_projection(self) -> None:
         # The lens textures and sample extraction use the rendered samples: the high-resolution ones when pooling.
@@ -230,7 +268,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._pooler, self._pool_k = build_pooler(
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )
-        self._pooler_int = None
 
         # The renderer keeps writing the texture buffers the parent bound to it; the camera publishes others.
         self._texture_output = self._data.output
@@ -289,25 +326,15 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._pooled_output = None
             return
         self._pooled_output = {}
-        needs_int_pooler = False
         for name, buf in self._foveated_output.items():
             if name == "rgb" and has_rgba_alias:
                 continue
             self._pooled_output[name] = torch.zeros(
                 (self._view.count, self._num_valid_samples, 1, buf.shape[-1]), device=self._device, dtype=buf.dtype
             )
-            if is_segmentation_output(name) and self.cfg.pool_int_mode != self.cfg.pool_mode:
-                needs_int_pooler = True
         if "rgba" in self._pooled_output and "rgb" in self.cfg.data_types:
             self._pooled_output["rgb"] = self._pooled_output["rgba"][:, :, :, :3]
-        if needs_int_pooler:
-            self._pooler_int, _ = build_pooler(
-                self.cfg,
-                self._sampling_coords,
-                self._sampling_coords_highres,
-                device=str(self._device),
-                mode=self.cfg.pool_int_mode,
-            )
+        self._prepare_segmentation_pooling(self._pooled_output)
         logger.info(
             "FoveatedRTXCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
             self.cfg.pool_mode,
@@ -316,34 +343,6 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._num_ray_samples,
             self._num_valid_samples,
         )
-
-    # ------------------------------------------------------------------
-    #  Gaze and mount
-    # ------------------------------------------------------------------
-
-    def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
-        super().set_gaze_angles(angles_deg)
-        if not self._gaze_pose_reads_angles:
-            self._write_gaze_local_pose()
-
-    def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
-        """Move the camera's mount; the gaze stays relative to the new mount.
-
-        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
-        """
-        super().set_world_poses(positions, orientations, env_ids, convention)
-        # A position-only move keeps the prims' gaze-turned orientation, and with it the saved mount.
-        if orientations is not None:
-            self._refresh_mount(env_ids)
-
-    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
-        """Point the camera's mount from ``eyes`` at ``targets``; the gaze stays relative to the new mount.
-
-        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses_from_view`.
-        """
-        super().set_world_poses_from_view(eyes, targets, env_ids)
-        # Rows whose eye equals their target are skipped by the base method and keep their mount.
-        self._refresh_mount(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
 
     def _env_indices(self, env_ids) -> torch.Tensor:
         """The camera indices that ``env_ids`` selects, as a tensor."""
@@ -375,38 +374,12 @@ class FoveatedRTXCamera(FoveatedCamera):
             local_orientation = quat_from_matrix(compose_rotations(self._base_local_orientation, relative))
             self._view.set_local_poses(orientations=wp.from_torch(local_orientation.contiguous(), dtype=wp.vec4f))
 
-    # ------------------------------------------------------------------
-    #  Per-frame overrides
-    # ------------------------------------------------------------------
-
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return
         # The renderer writes the texture buffers bound at creation, whatever ``self._data.output`` publishes.
         super()._update_buffers_impl(env_mask)
         self.process_rendered_frame()
-
-    def process_rendered_frame(self) -> None:
-        """Mask and publish the frame of the environments that scalar or batched rendering updated."""
-        if not self._env_mask_has_any(self._is_outdated):
-            return
-        if self._grid_publish:
-            self._publish_grid(self._is_outdated)
-            return
-        # Only the updated environments' samples change, so pooling and the grid layout reproduce every other
-        # environment's last frame.
-        self._extract_foveated_samples(self._is_outdated)
-        mask_grid_samples(self._foveated_output, self._ray_coords)
-        self._apply_sensor_fov_mask(self._foveated_output, self._is_outdated)
-
-        if self._pooled_output is not None:
-            for name, hi in self._foveated_output.items():
-                if name == "rgb" and "rgba" in self._foveated_output:
-                    continue  # rgba alias
-                self._pooled_output[name].copy_(self._pool_output(name, hi))
-        if self._native_grid:
-            source = self._pooled_output if self._pooled_output is not None else self._foveated_output
-            copy_grid_outputs(source, self._grid_output, self._grid_indices)
 
     def _extract_foveated_samples(self, env_mask: wp.array):
         """Extract the updated environments' per-sample values from the rendered 2D textures into the (B, N, 1, C)
@@ -427,3 +400,11 @@ class FoveatedRTXCamera(FoveatedCamera):
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip
             fov.copy_(torch.where(updated, samples, fov))
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXCamera]) -> None:
+        Camera._update_buffers_batch_impl(sensors)
+        if sim_utils.SimulationContext.instance() is None:
+            return  # The base implementation already invoked scalar capture.
+        for sensor in sensors:
+            sensor.process_rendered_frame()

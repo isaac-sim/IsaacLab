@@ -204,9 +204,9 @@ def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
         (lambda camera: camera.set_world_poses_from_view(eyes, torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])), True),
     ):
         camera = GazeHarness()
-        camera.mount_moved = False
+        camera.mount_turns = 0
         move(camera)
-        assert camera.mount_moved is turned
+        assert camera.mount_turns == int(turned)
 
 
 def test_a_rejected_mount_move_is_not_recorded(monkeypatch) -> None:
@@ -215,10 +215,10 @@ def test_a_rejected_mount_move_is_not_recorded(monkeypatch) -> None:
 
     monkeypatch.setattr(Camera, "set_world_poses", reject)
     camera = GazeHarness()
-    camera.mount_moved = False
+    camera.mount_turns = 0
     with pytest.raises(ValueError, match="rejected"):
         camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2))
-    assert not camera.mount_moved
+    assert camera.mount_turns == 0
 
 
 @pytest.mark.parametrize("shape", [(1, 2), (2, 3), (3, 2)])

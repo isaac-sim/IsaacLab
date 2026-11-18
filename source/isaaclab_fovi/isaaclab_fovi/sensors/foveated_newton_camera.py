@@ -29,7 +29,7 @@ from .native_grid import (
     native_grid_directions,
     proxy_outputs,
 )
-from .pooling import build_highres_coords, build_lowres_coords, build_pooler, is_segmentation_output
+from .pooling import build_highres_coords, build_lowres_coords, build_pooler
 
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
@@ -62,7 +62,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     Instead of a uniform pixel grid, this sensor shoots *N* rays whose
     directions are derived from :class:`fovi.sensing.coords.SamplingCoords`
-    and injected into Newton's Warp renderer. Vector sensors publish
+    and injected into Newton's renderer, with Warp or OptiX traversal. Vector sensors publish
     ``(B, N, 1, C)``; native grid sensors publish upright ``(B, H, W, C)``.
 
     The samples cover the retinal window of the physical camera; the gaze turns the rendered camera pose.
@@ -122,7 +122,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
         self._pooler, self._pool_k = build_pooler(
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )
-        self._pooler_int = None
 
         # The rays keep the canonical sample order; image_rotation_deg rolls their directions to undo a rolled mount.
         if self._native_grid:
@@ -179,36 +178,25 @@ class FoveatedNewtonCamera(FoveatedCamera):
             return
         self._highres_output: dict[str, ProxyArray] = dict(self._data.output)
         self._pooled_output: dict[str, torch.Tensor] = {}
-        needs_int_pooler = False
         for name, tex in self._highres_output.items():
             tensor = tex.torch
             B, _, _, C = tensor.shape
             self._pooled_output[name] = torch.zeros(
                 (B, self._num_valid_samples, 1, C), dtype=tensor.dtype, device=tensor.device
             )
-            if is_segmentation_output(name) and self.cfg.pool_int_mode != self.cfg.pool_mode:
-                needs_int_pooler = True
         if "rgba" in self._pooled_output and "rgb" in self.cfg.data_types:
             self._pooled_output["rgb"] = self._pooled_output["rgba"][..., :3]
-        if needs_int_pooler:
-            self._pooler_int, _ = build_pooler(
-                self.cfg,
-                self._sampling_coords,
-                self._sampling_coords_highres,
-                device=str(self._device),
-                mode=self.cfg.pool_int_mode,
-            )
+        self._prepare_segmentation_pooling(self._highres_output)
         dtypes_summary = {n: str(t.dtype).removeprefix("torch.") for n, t in self._highres_output.items()}
         logger.info(
             "FoveatedNewtonCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) "
-            "outputs=%s int_pooler=%s int_mode=%s",
+            "outputs=%s int_mode=%s",
             self.cfg.pool_mode,
             self._pool_k,
             self.cfg.pool_sample_cortex,
             self._num_ray_samples,
             self._num_valid_samples,
             dtypes_summary,
-            self._pooler_int is not None,
             self.cfg.pool_int_mode,
         )
 
