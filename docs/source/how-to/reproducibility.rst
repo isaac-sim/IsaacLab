@@ -85,10 +85,11 @@ Set :attr:`isaaclab_newton.physics.NewtonCfg.deterministic_mode` to
 ``"run_to_run"`` to request reproducibility on one GPU. Newton applies the
 selected mode to supported solver kernels and enables deterministic contact
 ordering in its collision pipeline. Deterministic execution can increase
-memory use and reduce simulation performance. MJWarp on the GPU with
-:attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
-XPBD, and Featherstone are supported; selecting an unsupported solver raises
-an error. MuJoCo on the CPU
+memory use and reduce simulation performance. XPBD and Featherstone support
+both modes. Steel and MJWarp on the GPU with
+:attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``
+support only ``"run_to_run"``. Requesting a mode the selected solver cannot
+honor raises an error. MuJoCo on the CPU
 (:attr:`isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu`) is already
 reproducible and is left unchanged. Set this attribute directly to request the
 stronger ``"gpu_to_gpu"`` guarantee, which takes precedence over

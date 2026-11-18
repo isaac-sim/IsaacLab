@@ -5,6 +5,7 @@
 
 """Featherstone solver implementation."""
 
+import warp as wp
 from newton import ModelFlags
 from newton.solvers import SolverFeatherstone
 
@@ -15,7 +16,7 @@ class FeatherstoneSolver(NewtonSolver):
     """Newton's Featherstone solver, which double-buffers state."""
 
     solver_class = SolverFeatherstone
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
     contact_sensors = False
     # SolverFeatherstone derives its inertia data from the model only when it is constructed.
     ignored_model_changes = {
