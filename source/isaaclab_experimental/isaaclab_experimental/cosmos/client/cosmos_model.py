@@ -230,6 +230,15 @@ def _validate_seeds(seeds: tuple[int, ...], count: int) -> None:
         raise ValueError("Cosmos requires one integer seed in [0, 2**31) for each opened or reset view.")
 
 
+def _validate_episodes(episodes: tuple[int, ...] | None, count: int) -> None:
+    if episodes is not None and (
+        not isinstance(episodes, tuple)
+        or len(episodes) != count
+        or any(type(episode) is not int or episode < 0 for episode in episodes)
+    ):
+        raise ValueError("Cosmos episode numbers must be one nonnegative integer per reset view.")
+
+
 def _image_seed(seed: int, count: int) -> int:
     """Return the seed of a view's image ``count`` (from 0) in the episode that starts from ``seed``.
 
@@ -287,29 +296,43 @@ class _CosmosStream:
         self._closed = False
         self._episode = 0
         self._episode_frames = 0
-        # Single-frame generation, per view: episode seed, images generated in the episode, resets, and prompt offset.
+        # Single-frame generation, per view: episode seed, images generated in the episode, resets, prompt offset, and
+        # the caller's episode number at the latest reset.
         self._view_seeds = list(seeds)
         self._view_frames = [0] * len(seeds)
         self._view_resets = [0] * len(seeds)
         self._view_episodes = [0] * len(seeds)
+        self._view_episode_numbers = [0] * len(seeds)
         self._single_frame_started = False
         self._channel = None
         self._service_device: torch.device | None = None
         self.transport: str | None = None
 
     def step(
-        self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
     ) -> list[torch.Tensor]:
         """Send one control chunk per view and return matching uint8 RGB on the controls' original device.
 
-        Views starting or restarting an episode send one frame, the others four. A transport, model, or validation
-        failure closes the session. The same chunk cannot safely be retried because the service may already have
-        advanced its temporal generation state.
+        Views starting or restarting an episode send one frame, the others four. ``episodes`` gives each reset view's
+        episode number, so a single-frame view that reset several times since its last image moves as many prompts;
+        without it, each reset counts as one episode. A transport, model, or validation failure closes the session.
+        The same chunk cannot safely be retried because the service may already have advanced its temporal
+        generation state.
         """
         with self._lock:
-            return self._receive(self._send(controls, reset_rows, seeds))
+            return self._receive(self._send(controls, reset_rows, seeds, episodes))
 
-    def _send(self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]) -> _SentStep:
+    def _send(
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
+    ) -> _SentStep:
         """Validate and send one step without waiting for its reply, opening the session on first use.
 
         Call with this stream's lock held, then :meth:`_receive`. A failure closes the session.
@@ -342,6 +365,7 @@ class _CosmosStream:
             ):
                 raise ValueError("Cosmos resets name distinct views in increasing order.")
             _validate_seeds(seeds, len(reset_rows))
+            _validate_episodes(episodes, len(reset_rows))
             control = controls[0]
             image_shape = tuple(control.shape[1:])
             if any(tuple(view.shape[1:]) != image_shape or view.device != control.device for view in controls):
@@ -384,7 +408,7 @@ class _CosmosStream:
             request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
             episode = self._episode
             if self._single_frame:
-                request.update(self._single_frame_step(frames, reset_rows, seeds))
+                request.update(self._single_frame_step(frames, reset_rows, seeds, episodes))
             elif not self._batched and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
                 # A reset starts the next prompt's episode, unless the ending episode never got past its
                 # first frame, such as the capture taken before the environment's initial reset.
@@ -449,22 +473,34 @@ class _CosmosStream:
     def _single_frame(self) -> bool:
         return self._cfg.generation_mode == "single_frame"
 
-    def _single_frame_step(self, frames: list[int], reset_rows: tuple[int, ...], seeds: tuple[int, ...]) -> dict:
+    def _single_frame_step(
+        self,
+        frames: list[int],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
+    ) -> dict:
         """Return a single-frame step's service request fields: every view restarts with one frame.
 
-        ``reset_rows`` names the views starting a new environment episode, with its seed. A view's first image of the
-        episode uses that seed and later images a seed derived from it (see :func:`_image_seed`). A view's new episode
-        moves to its next prompt, unless the ending episode was the view's first and generated only its first image
-        (the environment's initial reset).
+        ``reset_rows`` names the views starting a new environment episode, with its seed and, from ``episodes``, its
+        episode number. A view's first image of the episode uses that seed and later images a seed derived from it
+        (see :func:`_image_seed`). A view moves one prompt for each episode that ended since its last image, also for
+        episodes that generated no image, except the view's first episode when it generated only its first image (the
+        environment's initial reset).
         """
         if any(count != 1 for count in frames):
             raise ValueError("Single-frame Cosmos sends one frame per view.")
         prompt = self._cfg.prompt
         new_prompt = False
-        for row, seed in zip(reset_rows, seeds):
-            if isinstance(prompt, (list, tuple)) and (self._view_resets[row] or self._view_frames[row] > 1):
-                self._view_episodes[row] += 1
+        for index, (row, seed) in enumerate(zip(reset_rows, seeds)):
+            ended = 1 if episodes is None else episodes[index] - self._view_episode_numbers[row]
+            if not self._view_resets[row] and self._view_frames[row] <= 1:
+                ended -= 1
+            if isinstance(prompt, (list, tuple)) and ended > 0:
+                self._view_episodes[row] += ended
                 new_prompt = True
+            if episodes is not None:
+                self._view_episode_numbers[row] = episodes[index]
             self._view_resets[row] += 1
             self._view_seeds[row], self._view_frames[row] = seed, 0
         if not self._single_frame_started:
@@ -590,7 +626,11 @@ class _ShardedStream:
         self._shares = shares
 
     def step(
-        self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
     ) -> list[torch.Tensor]:
         """Send each service its views' control chunks, then return every view's images in view order.
 
@@ -613,6 +653,7 @@ class _ShardedStream:
                 ):
                     raise ValueError("Cosmos needs one control chunk per view and distinct reset views in order.")
                 _validate_seeds(seeds, len(reset_rows))
+                _validate_episodes(episodes, len(reset_rows))
                 for stream, share in zip(self._streams, self._shares):
                     resets = [index for index, row in enumerate(reset_rows) if row in share]
                     sent.append(
@@ -620,6 +661,7 @@ class _ShardedStream:
                             controls[share.start : share.stop],
                             tuple(reset_rows[index] - share.start for index in resets),
                             tuple(seeds[index] for index in resets),
+                            None if episodes is None else tuple(episodes[index] for index in resets),
                         )
                     )
                 images = []

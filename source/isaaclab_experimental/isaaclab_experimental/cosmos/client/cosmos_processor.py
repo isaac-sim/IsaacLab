@@ -102,9 +102,11 @@ class CosmosTransferProcessor(ImageTransferProcessor):
                 torch.where(selected, data["rgb"].torch[..., :3], self._output, out=self._output)
                 return dict(self._outputs)
             num_views = self._data_dim[0]
-            resets, seeds = self._take_resets()
+            # Episode numbers let the prompt list follow episodes that ended between two generations.
+            resets, seeds, episodes = self._take_resets()
+            controls = [frames[row : row + 1] for row in range(num_views)]
             try:
-                generated = self._stream.step([frames[row : row + 1] for row in range(num_views)], resets, seeds)
+                generated = self._stream.step(controls, resets, seeds, episodes=episodes)
                 if len(generated) != num_views or any(
                     tuple(images.shape) != (1, *self._data_dim[1:]) or images.dtype != torch.uint8
                     for images in generated

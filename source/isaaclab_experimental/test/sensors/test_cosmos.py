@@ -492,6 +492,40 @@ def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service
         processor.close()
 
 
+def test_single_frame_prompts_follow_episodes_that_ended_without_a_generation(cosmos_service, monkeypatch):
+    """A view that reset three times between two generations moves three prompts, as its seed moves three episodes."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint,
+        prompt=["A", "B", "C", "D"],
+        generation_mode="single_frame",
+        decision_interval=2,
+        timeout=2,
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((1, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((1, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    try:
+        # Captures 0 and 2 generate two images of the first episode; capture 3 shows the rendered rgb.
+        for _ in range(3):
+            processor(buffers, env_mask=mask)
+        processor.reset([0])
+        processor(buffers, env_mask=mask)
+        processor.reset([0])
+        processor.reset([0])
+        processor(buffers, env_mask=mask)
+        session = cosmos_service.resource.streams[0]
+        assert session.episode_prompts[-1] == "D"
+        assert session.steps[-1][1:] == ((0,), (3,))
+    finally:
+        processor.close()
+
+
 def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service, monkeypatch):
     from isaaclab_experimental.cosmos.client import cli
 

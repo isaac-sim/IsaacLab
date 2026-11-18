@@ -214,17 +214,19 @@ class ImageTransferProcessor(TensorProcessor):
             selected[ids.to(device, non_blocking=True)] = True
         return selected
 
-    def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...]]:
-        """Return the views that started an episode since the last generation, with their seeds, and clear them.
+    def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+        """Return the views that started an episode since the last generation, with their seeds and episode
+        numbers, and clear them. A view that reset several times is listed once, with its latest episode.
 
         This reads the state on the host, so call it only where the generation itself waits for the result.
         """
         if not self._started:
-            return (), ()
+            return (), (), ()
         resets, episodes = torch.stack((self._resets.long(), self._episodes)).tolist()
         self._resets.zero_()
         rows = tuple(row for row, reset in enumerate(resets) if reset)
-        return rows, tuple((self._seeds[row] + episodes[row] * len(resets)) % _SEED_MODULUS for row in rows)
+        seeds = tuple((self._seeds[row] + episodes[row] * len(resets)) % _SEED_MODULUS for row in rows)
+        return rows, seeds, tuple(episodes[row] for row in rows)
 
 
 class FunctionProcessor(TensorProcessor):
