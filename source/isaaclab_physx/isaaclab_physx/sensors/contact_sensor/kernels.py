@@ -248,6 +248,120 @@ def compute_first_transition_kernel(
         result[env, sensor] = 0.0
 
 
+@wp.func
+def _update_net_forces(
+    env: int,
+    sensor: int,
+    # in
+    normal_forces_flat: wp.array(dtype=wp.vec3f),
+    friction_forces_flat: wp.array(dtype=wp.vec3f),
+    normal_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    friction_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    mask: wp.array(dtype=wp.bool),
+    num_envs: int,
+    num_filter_shapes: int,
+    history_length: int,
+    contact_force_threshold: wp.float32,
+    timestamp: wp.array(dtype=wp.float32),
+    elapsed_time: wp.float32,
+    # out
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+    net_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_friction_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+):
+    """Update force buffers and advance contact timers by the supplied elapsed time."""
+
+    if mask:
+        if not mask[env]:
+            return
+
+    # Skip envs that have not been stepped since their last reset: the PhysX contact buffer
+    # still holds pre-reset values, so reading it now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
+
+    src_idx = sensor * num_envs + env
+
+    # Update aggregate forces. Isaac Sim 6.1 supplies only the normal component.
+    normal_force = normal_forces_flat[src_idx]
+    friction_force = wp.vec3f(0.0)
+    if friction_forces_flat:
+        friction_force = friction_forces_flat[src_idx]
+    net_normal_forces_w[env, sensor] = normal_force
+    if net_forces_w:
+        net_forces_w[env, sensor] = normal_force + friction_force
+    if net_friction_forces_w:
+        net_friction_forces_w[env, sensor] = friction_force
+    # Update history
+    for i in range(history_length - 1, 0, -1):
+        net_normal_forces_w_history[env, i, sensor] = net_normal_forces_w_history[env, i - 1, sensor]
+        if net_forces_w_history:
+            net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
+        if net_friction_forces_w_history:
+            net_friction_forces_w_history[env, i, sensor] = net_friction_forces_w_history[env, i - 1, sensor]
+    net_normal_forces_w_history[env, 0, sensor] = normal_force
+    if net_forces_w_history:
+        net_forces_w_history[env, 0, sensor] = normal_force + friction_force
+    if net_friction_forces_w_history:
+        net_friction_forces_w_history[env, 0, sensor] = friction_force
+
+    # Update force matrices.
+    if normal_forces_matrix_flat:
+        for f in range(num_filter_shapes):
+            normal_force = normal_forces_matrix_flat[src_idx, f]
+            friction_force = wp.vec3f(0.0)
+            if friction_forces_matrix_flat:
+                friction_force = friction_forces_matrix_flat[src_idx, f]
+            normal_force_matrix_w[env, sensor, f] = normal_force
+            if force_matrix_w:
+                force_matrix_w[env, sensor, f] = normal_force + friction_force
+            if friction_force_matrix_w:
+                friction_force_matrix_w[env, sensor, f] = friction_force
+            for i in range(history_length - 1, 0, -1):
+                normal_force_matrix_w_history[env, i, sensor, f] = normal_force_matrix_w_history[env, i - 1, sensor, f]
+                if force_matrix_w_history:
+                    force_matrix_w_history[env, i, sensor, f] = force_matrix_w_history[env, i - 1, sensor, f]
+                if friction_force_matrix_w_history:
+                    friction_force_matrix_w_history[env, i, sensor, f] = friction_force_matrix_w_history[
+                        env, i - 1, sensor, f
+                    ]
+            normal_force_matrix_w_history[env, 0, sensor, f] = normal_force
+            if force_matrix_w_history:
+                force_matrix_w_history[env, 0, sensor, f] = normal_force + friction_force
+            if friction_force_matrix_w_history:
+                friction_force_matrix_w_history[env, 0, sensor, f] = friction_force
+
+    # Update air/contact time tracking
+    if current_air_time:
+        in_contact = wp.length_sq(net_normal_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
+
+        cat = current_air_time[env, sensor]
+        cct = current_contact_time[env, sensor]
+        is_first_contact = in_contact and (cat > 0.0)
+        is_first_detached = not in_contact and (cct > 0.0)
+
+        if is_first_contact:
+            last_air_time[env, sensor] = cat + elapsed_time
+        elif is_first_detached:
+            last_contact_time[env, sensor] = cct + elapsed_time
+
+        current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
+        current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
+
 @wp.kernel
 def update_net_forces_kernel(
     # in
@@ -324,84 +438,114 @@ def update_net_forces_kernel(
             (num_envs, history_length, num_sensors, num_filter_shapes).
     """
     env, sensor = wp.tid()
-
-    if mask:
-        if not mask[env]:
-            return
-
-    # Skip envs that have not been stepped since their last reset: the PhysX contact buffer
-    # still holds pre-reset values, so reading it now would inject stale data (#4970).
-    if timestamp[env] == 0.0:
-        return
-
-    src_idx = sensor * num_envs + env
-
-    # Update aggregate forces. Isaac Sim 6.1 supplies only the normal component.
-    normal_force = normal_forces_flat[src_idx]
-    friction_force = wp.vec3f(0.0)
-    if friction_forces_flat:
-        friction_force = friction_forces_flat[src_idx]
-    net_normal_forces_w[env, sensor] = normal_force
-    if net_forces_w:
-        net_forces_w[env, sensor] = normal_force + friction_force
-    if net_friction_forces_w:
-        net_friction_forces_w[env, sensor] = friction_force
-    # Update history
-    for i in range(history_length - 1, 0, -1):
-        net_normal_forces_w_history[env, i, sensor] = net_normal_forces_w_history[env, i - 1, sensor]
-        if net_forces_w_history:
-            net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
-        if net_friction_forces_w_history:
-            net_friction_forces_w_history[env, i, sensor] = net_friction_forces_w_history[env, i - 1, sensor]
-    net_normal_forces_w_history[env, 0, sensor] = normal_force
-    if net_forces_w_history:
-        net_forces_w_history[env, 0, sensor] = normal_force + friction_force
-    if net_friction_forces_w_history:
-        net_friction_forces_w_history[env, 0, sensor] = friction_force
-
-    # Update force matrices.
-    if normal_forces_matrix_flat:
-        for f in range(num_filter_shapes):
-            normal_force = normal_forces_matrix_flat[src_idx, f]
-            friction_force = wp.vec3f(0.0)
-            if friction_forces_matrix_flat:
-                friction_force = friction_forces_matrix_flat[src_idx, f]
-            normal_force_matrix_w[env, sensor, f] = normal_force
-            if force_matrix_w:
-                force_matrix_w[env, sensor, f] = normal_force + friction_force
-            if friction_force_matrix_w:
-                friction_force_matrix_w[env, sensor, f] = friction_force
-            for i in range(history_length - 1, 0, -1):
-                normal_force_matrix_w_history[env, i, sensor, f] = normal_force_matrix_w_history[env, i - 1, sensor, f]
-                if force_matrix_w_history:
-                    force_matrix_w_history[env, i, sensor, f] = force_matrix_w_history[env, i - 1, sensor, f]
-                if friction_force_matrix_w_history:
-                    friction_force_matrix_w_history[env, i, sensor, f] = friction_force_matrix_w_history[
-                        env, i - 1, sensor, f
-                    ]
-            normal_force_matrix_w_history[env, 0, sensor, f] = normal_force
-            if force_matrix_w_history:
-                force_matrix_w_history[env, 0, sensor, f] = normal_force + friction_force
-            if friction_force_matrix_w_history:
-                friction_force_matrix_w_history[env, 0, sensor, f] = friction_force
-
-    # Update air/contact time tracking
+    elapsed_time = wp.float32(0.0)
     if current_air_time:
         elapsed_time = timestamp[env] - timestamp_last_update[env]
-        in_contact = wp.length_sq(net_normal_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
+    _update_net_forces(
+        env,
+        sensor,
+        normal_forces_flat,
+        friction_forces_flat,
+        normal_forces_matrix_flat,
+        friction_forces_matrix_flat,
+        mask,
+        num_envs,
+        num_filter_shapes,
+        history_length,
+        contact_force_threshold,
+        timestamp,
+        elapsed_time,
+        net_normal_forces_w,
+        net_normal_forces_w_history,
+        normal_force_matrix_w,
+        normal_force_matrix_w_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+        net_forces_w,
+        net_forces_w_history,
+        force_matrix_w,
+        force_matrix_w_history,
+        net_friction_forces_w,
+        net_friction_forces_w_history,
+        friction_force_matrix_w,
+        friction_force_matrix_w_history,
+    )
 
-        cat = current_air_time[env, sensor]
-        cct = current_contact_time[env, sensor]
-        is_first_contact = in_contact and (cat > 0.0)
-        is_first_detached = not in_contact and (cct > 0.0)
 
-        if is_first_contact:
-            last_air_time[env, sensor] = cat + elapsed_time
-        elif is_first_detached:
-            last_contact_time[env, sensor] = cct + elapsed_time
+@wp.kernel
+def update_net_forces_elapsed_kernel(
+    # in
+    normal_forces_flat: wp.array(dtype=wp.vec3f),
+    friction_forces_flat: wp.array(dtype=wp.vec3f),
+    normal_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    friction_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
+    mask: wp.array(dtype=wp.bool),
+    num_envs: int,
+    num_filter_shapes: int,
+    history_length: int,
+    contact_force_threshold: wp.float32,
+    timestamp: wp.array(dtype=wp.float32),
+    elapsed_since_update: wp.array(dtype=wp.float64),
+    # out
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    current_air_time: wp.array2d(dtype=wp.float32),
+    current_contact_time: wp.array2d(dtype=wp.float32),
+    last_air_time: wp.array2d(dtype=wp.float32),
+    last_contact_time: wp.array2d(dtype=wp.float32),
+    net_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_friction_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+):
+    """Update forces and contact timers using float64 elapsed time since the last refresh.
 
-        current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
-        current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+    Uses the force buffers and launch dimensions of the timestamp-based kernel, with
+    ``elapsed_since_update`` [s] replacing ``timestamp_last_update``.
+    """
+    env, sensor = wp.tid()
+    elapsed_time = wp.float32(0.0)
+    if current_air_time:
+        elapsed_time = wp.float32(elapsed_since_update[env])
+    _update_net_forces(
+        env,
+        sensor,
+        normal_forces_flat,
+        friction_forces_flat,
+        normal_forces_matrix_flat,
+        friction_forces_matrix_flat,
+        mask,
+        num_envs,
+        num_filter_shapes,
+        history_length,
+        contact_force_threshold,
+        timestamp,
+        elapsed_time,
+        net_normal_forces_w,
+        net_normal_forces_w_history,
+        normal_force_matrix_w,
+        normal_force_matrix_w_history,
+        current_air_time,
+        current_contact_time,
+        last_air_time,
+        last_contact_time,
+        net_forces_w,
+        net_forces_w_history,
+        force_matrix_w,
+        force_matrix_w_history,
+        net_friction_forces_w,
+        net_friction_forces_w_history,
+        friction_force_matrix_w,
+        friction_force_matrix_w_history,
+    )
 
 
 @wp.kernel

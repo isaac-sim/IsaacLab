@@ -35,7 +35,10 @@ from .kernels import (
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
     update_filtered_force_history_kernel,
-    update_net_forces_kernel,
+    update_net_forces_elapsed_kernel,
+)
+from .kernels import (
+    update_net_forces_kernel as update_net_forces_kernel,
 )
 
 if TYPE_CHECKING:
@@ -619,7 +622,7 @@ class ContactSensor(BaseContactSensor):
         preallocated arrays (no allocations and no Python branching on GPU data).
         """
         wp.launch(
-            update_net_forces_kernel,
+            update_net_forces_elapsed_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
                 self._net_normal_forces_flat,
@@ -632,7 +635,7 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
                 self._data._net_normal_forces_w,
