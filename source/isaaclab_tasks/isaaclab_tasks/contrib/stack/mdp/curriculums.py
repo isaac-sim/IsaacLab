@@ -49,11 +49,9 @@ class StackResetTableCurriculum(ManagerTermBase):
         if not bool(torch.any(self._table_rows)) or bool(torch.all(self._table_rows)):
             raise RuntimeError("The stack reset table must contain both table and intermediate rows.")
         self._layout_count = reset_term.layout_count
-        self._metric_partitions: dict[str, tuple[tuple[str, torch.Tensor], ...]] = {
-            "recipe": tuple(
-                (name, reset_term.recipe_ids == recipe) for recipe, name in enumerate(reset_term.recipe_names)
-            )
-        }
+        self._recipe_rows = tuple(
+            (name, reset_term.recipe_ids == recipe) for recipe, name in enumerate(reset_term.recipe_names)
+        )
         self._full_task_successes_by_row = torch.zeros_like(self._attempts)
 
     def _sampling_distribution(self, table_sampling_probability: float) -> torch.Tensor:
@@ -120,7 +118,10 @@ class StackResetTableCurriculum(ManagerTermBase):
 
         attempts = self._attempts
         observed = attempts > 0
-        success_rate = self._progress_successes.sum().float() / attempts.sum().clamp_min(1)
+        total_attempts = attempts.sum()
+        table_attempts = attempts[self._table_rows].sum()
+        total_denominator = total_attempts.clamp_min(1)
+        table_denominator = table_attempts.clamp_min(1)
         entropy = -(probabilities * probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log()).sum()
         entropy /= math.log(probabilities.numel())
         active_rows = ~self._table_rows
@@ -130,7 +131,7 @@ class StackResetTableCurriculum(ManagerTermBase):
         metrics.update(
             {
                 "row_coverage": observed.float().mean(),
-                "row_success_rate": success_rate,
+                "row_success_rate": self._progress_successes.sum().float() / total_denominator,
                 "rolling_row_success_rate": (rolling_rates * observed).sum() / observed_count,
                 "sampling_entropy": entropy,
                 "unseen_row_probability_mass": probabilities[unseen_rows].sum(),
@@ -139,26 +140,22 @@ class StackResetTableCurriculum(ManagerTermBase):
                     ((rolling_rates - self._progress_monitor.cfg.target_success_rate).abs() <= 0.1) & observed
                 ).sum()
                 / observed_count,
-                "full_task_attempts": attempts.sum().float(),
-                "full_task_success_rate": self._full_task_successes_by_row.sum().float() / attempts.sum().clamp_min(1),
+                "full_task_attempts": total_attempts.float(),
+                "full_task_success_rate": self._full_task_successes_by_row.sum().float() / total_denominator,
                 "table_curriculum_success_rate": self._progress_successes[self._table_rows].sum().float()
-                / self._attempts[self._table_rows].sum().clamp_min(1),
+                / table_denominator,
                 "table_full_task_success_rate": self._full_task_successes_by_row[self._table_rows].sum().float()
-                / attempts[self._table_rows].sum().clamp_min(1),
-                "table_full_task_attempts": attempts[self._table_rows].sum().float(),
+                / table_denominator,
+                "table_full_task_attempts": table_attempts.float(),
             }
         )
-        for prefix, partitions in self._metric_partitions.items():
-            for name, rows in partitions:
-                partition_attempts = attempts[rows].sum()
-                metric_prefix = f"{prefix}_{name}"
-                metrics[f"{metric_prefix}_attempts"] = partition_attempts
-                metrics[f"{metric_prefix}_full_stack_attempts"] = partition_attempts
-                metrics[f"{metric_prefix}_probability"] = probabilities[rows].sum()
-                metrics[f"{metric_prefix}_curriculum_success"] = self._progress_successes[
-                    rows
-                ].sum().float() / partition_attempts.clamp_min(1)
-                metrics[f"{metric_prefix}_full_stack_success"] = self._full_task_successes_by_row[
-                    rows
-                ].sum().float() / partition_attempts.clamp_min(1)
+        for name, rows in self._recipe_rows:
+            recipe_attempts = attempts[rows].sum()
+            denominator = recipe_attempts.clamp_min(1)
+            metrics[f"recipe_{name}_attempts"] = recipe_attempts
+            metrics[f"recipe_{name}_probability"] = probabilities[rows].sum()
+            metrics[f"recipe_{name}_curriculum_success"] = self._progress_successes[rows].sum().float() / denominator
+            metrics[f"recipe_{name}_full_stack_success"] = (
+                self._full_task_successes_by_row[rows].sum().float() / denominator
+            )
         return metrics
