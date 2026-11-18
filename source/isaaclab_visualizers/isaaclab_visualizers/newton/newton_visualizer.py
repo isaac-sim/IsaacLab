@@ -163,7 +163,7 @@ class NewtonViewerGL(ViewerGL):
 
         New section order:
 
-        1. **Isaac Lab** (open) — physics backend, model info, training controls.
+        1. **Simulation** (open) — physics backend, model info, training controls.
         2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
            is called.
         3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
@@ -172,7 +172,7 @@ class NewtonViewerGL(ViewerGL):
         6. **Selection API** (closed) — Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
-        handled by the IsaacLab training controls inside **Isaac Lab**.
+        handled by the IsaacLab training controls inside **Simulation**.
         """
         import newton as nt
 

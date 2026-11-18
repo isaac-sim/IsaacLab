@@ -15,6 +15,7 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCfg,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -233,6 +234,7 @@ def test_synth_run_id():
         (PhysxCfg(), "physx", ["physx"], None),
         (OvPhysxCfg(), "ovphysx", ["ovphysx"], None),
         (NewtonCfg(solver_cfg=FeatherstoneSolverCfg()), "newton_featherstone", ["newton_featherstone"], None),
+        (NewtonCfg(solver_cfg=SteelSolverCfg()), "newton_steel", ["newton_steel"], None),
         (NewtonCfg(solver_cfg=XPBDSolverCfg()), "newton_xpbd", ["newton_xpbd"], None),
         (NewtonCfg(solver_cfg=VBDSolverCfg()), "newton_vbd", ["newton_vbd"], None),
         (NewtonCfg(solver_cfg=MPMSolverCfg()), "newton_mpm", ["newton_mpm"], None),

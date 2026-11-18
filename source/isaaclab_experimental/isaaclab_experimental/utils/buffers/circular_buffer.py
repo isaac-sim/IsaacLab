@@ -85,6 +85,7 @@ class CircularBuffer:
     @property
     def buffer(self) -> torch.Tensor:
         """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+
         Returns:
             Complete circular buffer with most recent entry at the end and oldest entry at the beginning
             of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].

@@ -158,6 +158,8 @@ class NewtonBackend:
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
         self.bvh_refit = TimestampedBuffer()
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
+        self.optix_refit = TimestampedBuffer()
+        """Timestamp of the last OptiX shape refit."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
         if not simulation:
@@ -197,7 +199,7 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
+        """Whether state was written inside an outer graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -210,6 +212,8 @@ class NewtonBackend:
         """Newton actuators run inside the step, or ``None``."""
         self.actuators_active = False
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
+        self.handles_actions = False
+        """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
@@ -223,7 +227,7 @@ class NewtonBackend:
         self.decimation = 1
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
-        """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
+        """Records the step as a Warp graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
         self.graphs: dict[str | tuple[str, int], wp.Graph] = {}
         """Captured parts of the step, keyed by part; empty until the first step is captured."""
 
@@ -236,6 +240,7 @@ class NewtonBackend:
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
         self.bvh_refit = TimestampedBuffer()
+        self.optix_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
@@ -257,11 +262,14 @@ class NewtonBackend:
                 :func:`capture_graph`. Defaults to strict capture.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
-        if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.class_type.deterministic:
+        if mode > (max_mode := solver_cfg.class_type.max_deterministic_mode):
             raise ValueError(
-                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
-                " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
+                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}, which"
+                f" supports at most {max_mode.name}. Request a weaker mode or select a solver that supports it."
             )
+        if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
+            # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
+            self.model.rigid_contact_max = contact_max
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
         if not ops.single_state:
@@ -277,7 +285,7 @@ class NewtonBackend:
             callback()
         ops.eval_fk(state_0, None, None)
         self.capture = None
-        if self.cfg.use_cuda_graph and self.device.is_cuda:
+        if self.cfg.use_cuda_graph:
             if ops.supports_capture():
                 self.capture = lambda fn: capture_graph(
                     self.device, fn, relaxed=relaxed_capture is not None and relaxed_capture()
@@ -356,7 +364,7 @@ class NewtonBackend:
     def notify_model_changes(self) -> None:
         """Notify the solver of the queued model-property changes once, combining their categories.
 
-        Inside an enclosing CUDA graph capture, the refresh is recorded and runs on every replay.
+        Inside an enclosing graph capture, the refresh is recorded and runs on every replay.
         """
         if not self.model_changes:
             return
@@ -461,8 +469,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: once an articulation runs Newton actuators in it."""
-        return self.actuators_active
+        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
+        return self.handles_actions or self.actuators_active
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
@@ -544,6 +552,19 @@ class NewtonBackend:
         wp.capture_launch(cache.data[1])
         cache.timestamp = timestamp
 
+    def refit_optix(self, timestamp: int) -> None:
+        """Build the model's OptiX shapes on first use and refit them once per state ``timestamp``.
+
+        Args:
+            timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
+        """
+        cache = self.optix_refit
+        if self.model.optix_shapes is None:
+            self.model.bvh_build_shapes(self.state_0, backend="optix")
+        elif cache.timestamp != timestamp:
+            self.model.bvh_refit_shapes(self.state_0, backend="optix")
+        cache.timestamp = timestamp
+
     def _allocate_contacts(self) -> None:
         """Allocate contact storage; solver observables belong to initialization or sensor registration."""
         self.invalidate_graph()
@@ -600,7 +621,7 @@ class NewtonBackend:
             return
         fn()
         if self.capture is not None:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+            with Timer(name="newton_graph_capture", msg="Graph capture took:"):
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
@@ -623,6 +644,9 @@ class NewtonBackend:
             self.collision_pipeline.collide(self.state_0, self.contacts)
         for callback in self.pre_actuator_callbacks:
             callback()
+        if self.handles_actions:
+            # the asset writes replace the body forces staged before the step
+            self._stage_body_forces()
 
     def _after_actuators(self, observables: SolverBase.Observables | None) -> None:
         """Run the post-actuator callbacks and the solver substeps of one physics step."""
@@ -691,16 +715,23 @@ class NewtonBackend:
 
 
 def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record ``fn`` into a CUDA graph without running it.
+    """Record ``fn`` into a Warp graph without running it.
+
+    On the CPU, Warp records the kernel launches and memory operations of ``fn`` for native replay; the CPU has no
+    streams, so ``relaxed`` does not apply there.
 
     Args:
-        device: CUDA device.
+        device: CUDA or CPU device.
         fn: Work to record. Perform lazy initialization before capture.
-        relaxed: Allow unrelated work on other threads, as required by Kit rendering.
+        relaxed: Allow unrelated work on other threads, as required by Kit rendering. CUDA only.
 
     Returns:
         The captured graph, replayed with :func:`warp.capture_launch`.
     """
+    if wp.get_device(device).is_cpu:
+        with _paused_gc(), wp.ScopedCapture(device=device) as capture:
+            fn()
+        return capture.graph
     stream = wp.get_stream(device)
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
@@ -744,7 +775,7 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture."""
+    """Keep collection-driven frees out of graph capture."""
     was_enabled = gc.isenabled()
     gc.disable()
     try:

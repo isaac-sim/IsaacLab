@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import warp as wp
-from newton import Model, ModelBuilder, State, eval_ik
+from newton import ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
-from .newton_solver import NewtonSolver, solver_kwargs
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .vbd_solver_cfg import VBDSolverCfg
@@ -30,13 +29,6 @@ class VBDSolver(NewtonSolver):
     def prepare_builder(cls, cfg: VBDSolverCfg, builder: ModelBuilder) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(include_bending=True, balance_colors=False)
-
-    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverVBD:
-        """Construct VBD, leaving :attr:`~VBDSolverCfg.rigid_compliant_alm` to Newton's default when unset."""
-        kwargs = solver_kwargs(self.solver_class, self.cfg, mode)
-        if self.cfg.rigid_compliant_alm is None:
-            kwargs.pop("rigid_compliant_alm", None)
-        return self.solver_class(model, **kwargs)
 
     def applies_body_forces(self) -> bool:
         return not self.cfg.integrate_with_external_rigid_solver

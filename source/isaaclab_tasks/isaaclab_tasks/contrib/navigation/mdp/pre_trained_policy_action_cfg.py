@@ -37,4 +37,4 @@ class PreTrainedPolicyActionCfg(ActionTermCfg):
     """Low level observation configuration."""
 
     debug_vis: bool = True
-    """Whether to visualize debug information. Defaults to False."""
+    """Whether to visualize debug information. Defaults to True."""

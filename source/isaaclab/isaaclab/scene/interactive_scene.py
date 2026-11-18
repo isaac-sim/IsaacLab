@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -43,8 +44,10 @@ from ..assets import (
     VisualMaterialCfg,
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
+from ..physics import PhysicsEvent, PhysicsManager
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
+from ..sim.usd_export import UsdExporter
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import instantiate, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -153,6 +156,32 @@ class InteractiveScene:
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
+
+        # The USD export compares the engine with what it loaded, so a scene that exports reads that before
+        # assets (order 10) write to it.
+        self._usd_export_base = None
+        if self.cfg.export_usd_path is not None:
+            scene = weakref.proxy(self)
+            self._usd_export_base_handle = self.sim.backend_manager.register_callback(
+                lambda payload: PhysicsManager.safe_callback_invoke(lambda: scene._read_usd_export_base()),
+                PhysicsEvent.PHYSICS_READY,
+                order=0,
+            )
+            # A stopped simulation loads the stage again when it is ready.
+            self._usd_export_base_reset_handle = self.sim.backend_manager.register_callback(
+                lambda payload: PhysicsManager.safe_callback_invoke(lambda: setattr(scene, "_usd_export_base", None)),
+                PhysicsEvent.STOP,
+            )
+
+    def _read_usd_export_base(self):
+        """Read the USD export's base; a failure is kept for :meth:`export_to_usd` rather than stopping the run."""
+        if self._usd_export_base is not None:
+            return  # Isaac Sim dispatches the event again after the assets have initialized, before any stop
+        try:
+            self._usd_export_base = UsdExporter(self).read_engine_base()
+        except Exception as error:
+            logger.warning(f"USD export is unavailable: reading the engine at startup failed ({error}).")
+            self._usd_export_base = error
 
     def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[tuple[int, ...], ...] | None, np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
@@ -411,33 +440,62 @@ class InteractiveScene:
         """
         return self.get_state(is_relative=False)
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
+        writers = (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+        )
+        return all(asset.is_graphable for assets in writers for asset in assets.values())
+
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def export_to_usd(self, path: str, env_id: int = 0) -> str:
+        """Export one environment as USD that reproduces its initialized physics.
+
+        The file keeps the scene's USD, with assets as references to their source files, and adds
+        the values the physics engine holds that an import of that USD would not produce, and the
+        initial state that articulation joints and volume deformables reset to. Call it after asset
+        initialization and before the first physics step. Other state, events after initialization, and
+        controllers are not exported. On PhysX and OvPhysX, the scene must be created with
+        :attr:`~isaaclab.scene.InteractiveSceneCfg.export_usd_path` set.
+
+        Args:
+            path: Destination USD file.
+            env_id: Environment to export. Defaults to 0.
+
+        Returns:
+            The destination path.
+        """
+        return UsdExporter(self, env_id).export(path)
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and resets without synchronizing the device. Defaults to None.
         """
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.reset(env_ids)
-        for cable_object in self._cable_objects.values():
-            cable_object.reset(env_ids)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
-        # -- sensors
-        for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+        for entities in (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+            self._sensors,
+        ):
+            for entity in entities.values():
+                entity.reset(env_ids=env_ids, env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

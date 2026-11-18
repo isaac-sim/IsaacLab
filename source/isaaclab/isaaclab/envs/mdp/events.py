@@ -185,6 +185,12 @@ class randomize_rigid_body_material(ManagerTermBase):
     On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
     preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
 
+    ``contact_stiffness_range`` [N/m] (kp; Newton ke) and ``contact_damping_range`` [N*s/m]
+    (kd) default to ``None`` and preserve current gains. Stiffness must be positive: zero
+    means rigid contact on PhysX and zero spring stiffness on Newton. Use a custom event
+    for engine-specific zero stiffness. Gains use force-based units and affect Newton
+    solvers that consume ke/kd; OVPhysX runtime gain updates are unsupported.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.
@@ -215,6 +221,12 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
+        stiffness = cfg.params.get("contact_stiffness_range")
+        if stiffness is not None and stiffness[0] <= 0:
+            raise ValueError(
+                "Contact stiffness must be positive: zero means rigid contact on PhysX and zero spring stiffness "
+                "on Newton. Use a custom event for engine-specific zero stiffness."
+            )
         self._impl = _get_backend_events(env).randomize_rigid_body_material(cfg, env)
 
     def __call__(
@@ -227,6 +239,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
+        contact_stiffness_range: tuple[float, float] | None = None,
+        contact_damping_range: tuple[float, float] | None = None,
     ) -> None:
         self._impl(
             env,
@@ -1233,7 +1247,8 @@ def push_by_setting_velocity(
 
     The function takes a dictionary of velocity ranges for each axis and rotation. The keys of the dictionary
     are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form ``(min, max)``.
-    If the dictionary does not contain a key, the velocity is set to zero for that axis.
+    The sampled values are added to the current root velocity. If the dictionary does not contain a key,
+    the velocity along that axis is left unchanged.
     """
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 

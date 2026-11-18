@@ -183,6 +183,9 @@ class DirectRLEnv(gym.Env):
         # fold the full loop into a single step() when possible
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -363,8 +366,8 @@ class DirectRLEnv(gym.Env):
         The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
         lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
         independently using the :attr:`DirectRLEnvCfg.decimation` (number of simulation steps per environment step)
-        and the :attr:`DirectRLEnvCfg.sim.physics_dt` (physics time-step). Based on these parameters, the environment
-        time-step is computed as the product of the two.
+        and the :attr:`~isaaclab.sim.SimulationCfg.dt` of :attr:`~isaaclab.envs.DirectRLEnvCfg.sim` (physics
+        time-step). Based on these parameters, the environment time-step is computed as the product of the two.
 
         This function performs the following steps:
 
@@ -501,9 +504,6 @@ class DirectRLEnv(gym.Env):
             None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator

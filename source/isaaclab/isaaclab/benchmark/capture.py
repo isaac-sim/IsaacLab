@@ -275,6 +275,7 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
         "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
         "isaaclab_newton.physics.featherstone_solver_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.steel_solver_cfg.SteelSolverCfg": "newton_steel",
         "isaaclab_newton.physics.xpbd_solver_cfg.XPBDSolverCfg": "newton_xpbd",
         "isaaclab_newton.physics.vbd_solver_cfg.VBDSolverCfg": "newton_vbd",
         "isaaclab_newton.physics.mpm_solver_cfg.MPMSolverCfg": "newton_mpm",
@@ -318,7 +319,12 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
     physics = next(name for name in physics_names.values() if name in solvers)
 
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    renderer_names = {
+        "isaac_rtx": "isaacsim_rtx",
+        "ovrtx": "ovrtx",
+        "newton_warp": "newton",
+        "newton_optix": "newton_optix",
+    }
     rendering = None
     for node in _iter_config_nodes(env_cfg):
         rendering = renderer_names.get(getattr(node, "renderer_type", None))

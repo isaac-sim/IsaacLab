@@ -900,6 +900,8 @@ jobs:
     needs: [build, config]
     if: needs.build.result == 'success'
     env:
+      # Fail rather than skip the Newton OptiX golden test when OptiX is not importable.
+      ISAACLAB_TEST_REQUIRE_OPTIX: "1"
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
@@ -915,13 +917,17 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab"
-        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
+        # warp-optix matches newton[optix]; pyoptix is named so it lands in the --no-deps overlay.
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4 warp-optix~=0.3.0 pyoptix==9.1.1"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_newton_warp.py,
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_newton_warp.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -963,7 +969,8 @@ jobs:
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
@@ -1003,8 +1010,8 @@ jobs:
       run: |
         cat > benchmark-legs.tsv <<'EOF'
         cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
-        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
-        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
+        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_warp
+        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_warp
         g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
         EOF
 
@@ -1266,7 +1273,8 @@ jobs:
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
-          test_rendering_kitless.py
+          test_rendering_kitless_newton_ovrtx.py,
+          test_rendering_kitless_ovphysx_ovrtx.py
         # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
         # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
         # which populates neither tree. The nodes are pinned by exact ID rather

@@ -227,7 +227,7 @@ Subtasks in SkillGen
 
 * ``object_ref``: the object (or ``None``) used as the spatial reference for this subtask
 * ``subtask_term_signal``: the binary termination signal name (transitions 0 to 1 when the subtask completes)
-* ``subtask_start_signal``: the binary start signal name (transitions 0 to 1 when the subtask begins; required for SkillGen)
+* start signal: SkillGen reads a binary start signal (transitions 0 to 1 when the subtask begins) from the dataset's ``subtask_start_signals``, keyed by the subtask's ``subtask_term_signal`` name; it is recorded with ``--annotate_subtask_start_signals`` and required for SkillGen
 
 The subtask localization process performs:
 
@@ -512,7 +512,7 @@ This section summarizes the cuRobo planner interface and features. The SkillGen 
 Base Motion Planner (Extensible)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Location: ``isaaclab_mimic/motion_planners/base_motion_planner.py``
+* Location: ``isaaclab_mimic/motion_planners/motion_planner_base.py``
 * Purpose: Uniform interface for all motion planners used by SkillGen
 * Extensibility: New planners can be added by subclassing and implementing the same API; SkillGen consumes the API without code changes
 
@@ -566,7 +566,7 @@ These tests can also serve as a reference for how to use cuRobo as a standalone 
 
 .. note::
 
-   For detailed cuRobo config creation and parameters, please see the file ``isaaclab_mimic/motion_planners/curobo/curobo_planner_config.py``.
+   For detailed cuRobo config creation and parameters, please see the file ``isaaclab_mimic/motion_planners/curobo/curobo_planner_cfg.py``.
 
 Generation Pipeline Integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
