@@ -243,6 +243,16 @@ def test_livestream_and_xr_launch_kit_without_the_deprecation_warning(kit_branch
     assert kit_branch_taken == [True]
 
 
+def test_the_xr_environment_variable_launches_kit_without_the_deprecation_warning(kit_branch_taken, monkeypatch):
+    monkeypatch.setenv("XR", "1")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
 def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it():
     from isaaclab_isaacsim.physics import PhysxCfg
 

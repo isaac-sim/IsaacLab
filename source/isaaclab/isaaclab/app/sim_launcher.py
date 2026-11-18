@@ -469,7 +469,10 @@ def launch_simulation(
 
     livestream = launcher_args.get("livestream", -1)
     livestream = int(os.environ.get("LIVESTREAM", 0) if livestream is None or int(livestream) < 0 else livestream)
-    if kit_sources and not livestream and not launcher_args.get("xr", False):
+    xr = (
+        launcher_args.get("xr", False) is True or os.environ.get("XR", "0") == "1"
+    )  # the XR flag or environment variable
+    if kit_sources and not livestream and not xr:
         # Livestreaming and XR need Kit and have no replacement yet, so they do not warn.
         warnings.warn(
             f"Running on Isaac Sim (Kit) is deprecated in 3.1 and will be removed in 3.2 ({', '.join(kit_sources)}). "
