@@ -35,6 +35,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_IDLE_TIMEOUT_S = 600.0
+"""Seconds a connection may stay silent before the service closes it, so a camera that stopped without closing its
+connection does not hold the model. The connection that owns a session whose weights are offloaded waits without
+limit, since a learner can use the GPU for longer between rollouts."""
+
 
 def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT, *, warmup: bool = False) -> None:
     """Reserve the endpoint, then serve a resident model until shutdown or interruption.
@@ -92,7 +97,7 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
                     connection, _ = listener.accept()
                 except TimeoutError:
                     continue
-                connection.settimeout(600.0)
+                connection.settimeout(_IDLE_TIMEOUT_S)
                 if family == socket.AF_INET:
                     disable_nagle(connection)
                 with connections_lock:
@@ -246,6 +251,9 @@ def _handle_connection(
     num_views = 0
     try:
         while not state.stopping.is_set():
+            # A learner may keep its session's weights offloaded for longer than the idle timeout between rollouts.
+            offloaded = stream is not None and not getattr(state.model, "active", True)
+            connection.settimeout(None if offloaded else _IDLE_TIMEOUT_S)
             metadata, arrays = receive_message(connection)
             operation = metadata.get("op")
             if operation == "status":
@@ -387,6 +395,8 @@ def _handle_connection(
                 if channel is not None:
                     # The camera may still have the output buffer open; it releases it before disconnecting. Without
                     # that confirmation, the buffer stays allocated until this service exits.
+                    with suppress(OSError):
+                        connection.settimeout(_IDLE_TIMEOUT_S)
                     released = camera_released or _await_disconnect(connection, state.stopping)
                     state.executor.submit(channel.close, peer_released=released).result()
             finally:

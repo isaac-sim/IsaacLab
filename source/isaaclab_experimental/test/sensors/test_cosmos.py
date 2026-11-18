@@ -35,6 +35,7 @@ from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
+from isaaclab_experimental.cosmos.server import service as service_module
 from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -491,7 +492,7 @@ def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service
         processor.close()
 
 
-def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service):
+def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service, monkeypatch):
     from isaaclab_experimental.cosmos.client import cli
 
     endpoint = cosmos_service.endpoint
@@ -500,12 +501,15 @@ def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmo
     assert not status["model_active"] and not status["session_active"]
     assert cli.main(["activate", "--endpoint", endpoint]) == 0
 
+    # A learner can keep its session offloaded for longer than the service's idle timeout.
+    monkeypatch.setattr(service_module, "_IDLE_TIMEOUT_S", 0.5)
     single = CosmosModel(CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2))
     stream = single.open_stream(num_views=1, seeds=(1,))
     stream.step([_controls()], reset_rows=(), seeds=())
     # Another connection cannot move the weights of a session it does not own.
     assert cli.main(["offload", "--endpoint", endpoint]) == 1
     single.offload()
+    time.sleep(1.0)
     single.activate()
     stream.step([_controls()], reset_rows=(), seeds=())
     single.close()
@@ -960,7 +964,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     state.transports = ["socket", "cuda_ipc"]
     camera, connection = socket.socketpair()
     if end == "idle":
-        connection.settimeout(0.5)
+        monkeypatch.setattr(service, "_IDLE_TIMEOUT_S", 0.5)
     handler = threading.Thread(
         target=service._handle_connection, args=(connection, state, {connection}, threading.Lock())
     )
