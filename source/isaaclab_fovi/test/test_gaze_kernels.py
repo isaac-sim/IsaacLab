@@ -20,16 +20,11 @@ from isaaclab_fovi.sensors.gaze_kernels import (
     set_gaze_kernel,
     torch_stream,
 )
-from isaaclab_fovi.sensors.native_grid import (
-    GRID_STYLE,
-    allocate_grid_outputs,
-    copy_grid_outputs,
-    grid_sample_indices,
-    mask_grid_samples,
-    native_grid_directions,
-)
+from isaaclab_fovi.sensors.native_grid import GRID_STYLE, grid_sample_indices, native_grid_directions
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
+
+pytestmark = pytest.mark.kitless
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 wp.init()
@@ -92,9 +87,15 @@ def _set_gaze(angles: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
 
 def _gaze_frames(basis: torch.Tensor) -> list:
     identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=DEVICE)
-    to_opengl = convert_camera_frame_quaternion(identity, origin="world", target="opengl")[0]
+    to_opengl = convert_camera_frame_quaternion(identity, origin="world", target="opengl")
     to_world = convert_camera_frame_quaternion(identity, origin="opengl", target="world")[0]
-    return [wp.mat33f(*basis.flatten().tolist()), wp.quatf(*to_opengl.tolist()), wp.quatf(*to_world.tolist())]
+    to_ros = convert_camera_frame_quaternion(to_opengl, origin="opengl", target="ros")[0]
+    return [
+        wp.mat33f(*basis.flatten().tolist()),
+        wp.quatf(*to_opengl[0].tolist()),
+        wp.quatf(*to_world.tolist()),
+        wp.quatf(*to_ros.tolist()),
+    ]
 
 
 @pytest.mark.parametrize("selection", ["all", "mask", "indices"])
@@ -123,8 +124,13 @@ def test_gaze_kernels_match_the_torch_composition(selection):
     selected = torch.arange(count, device=DEVICE) % 3 == 0
     orientation = base.clone()
     rotation = torch.zeros(count, 3, 3, device=DEVICE)
+    mount = torch.zeros(count, 4, device=DEVICE)
     inputs = [wp.from_torch(angles, dtype=wp.vec2f), *_gaze_frames(basis)]
-    outputs = [wp.from_torch(orientation, dtype=wp.quatf), wp.from_torch(rotation, dtype=wp.mat33f)]
+    outputs = [
+        wp.from_torch(orientation, dtype=wp.quatf),
+        wp.from_torch(rotation, dtype=wp.mat33f),
+        wp.from_torch(mount, dtype=wp.quatf),
+    ]
     with torch_stream(DEVICE):
         if selection == "indices":
             ids = wp.from_torch(torch.nonzero(selected).flatten().to(torch.int32))
@@ -137,6 +143,12 @@ def test_gaze_kernels_match_the_torch_composition(selection):
         matrix_from_quat(orientation[turned]), matrix_from_quat(expected[turned]), atol=1e-5, rtol=0
     )
     torch.testing.assert_close(orientation[~turned], base[~turned], atol=0, rtol=0)
+    # The turned cameras record their mount before the gaze, in the ROS convention.
+    ros = convert_camera_frame_quaternion(
+        convert_camera_frame_quaternion(base, origin="world", target="opengl"), origin="opengl", target="ros"
+    )
+    torch.testing.assert_close(matrix_from_quat(mount[turned]), matrix_from_quat(ros[turned]), atol=1e-5, rtol=0)
+    assert not mount[~turned].any()
     # Every environment's rotation is recorded, except that the indexed kernel touches only its own.
     recorded = selected if selection == "indices" else torch.ones_like(selected)
     torch.testing.assert_close(rotation[recorded], set_rotation[recorded], atol=0, rtol=0)
@@ -162,20 +174,23 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid():
         "rgba": torch.randint(1, 255, (6, count, 1, 4), generator=generator, dtype=torch.uint8).to(DEVICE),
         "depth": (torch.rand(6, count, 1, 1, generator=generator) + 0.5).to(DEVICE),
     }
-    indices = grid_sample_indices(coords)
     valid = camera.project(rays @ rotation.transpose(-1, -2))[1]
+    # Environments 1 and 4 were not rendered this frame and keep their previous image.
+    updated = torch.tensor([True, False, True, True, False, True], device=DEVICE)
 
-    # The sequence the kernel replaces: footprint mask, sensor mask, then the grid layout.
-    expected = {name: value.clone() for name, value in outputs.items()}
-    mask_grid_samples(expected, coords)
-    for value in expected.values():
-        value.masked_fill_(~valid[:, :, None, None], 0)
-    expected_grid = allocate_grid_outputs(expected, coords)
-    copy_grid_outputs(expected, expected_grid, indices)
+    # The sequence the kernel replaces: footprint mask, sensor mask, then the upright layout. The layout comes from
+    # fovi's own grid reshaping rather than the index permutation the kernel uses.
+    keep = valid & coords.valid_mask[None]
+    expected_grid = {
+        name: coords.as_grid(value.squeeze(2) * keep[..., None], sample_dim=1) for name, value in outputs.items()
+    }
+    indices = grid_sample_indices(coords).to(torch.int32).contiguous()
 
     visible = torch.zeros(6, count, dtype=torch.bool, device=DEVICE)
+    identity = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     for name, value in outputs.items():
-        target = torch.zeros_like(expected_grid[name])
+        previous = torch.full_like(expected_grid[name], 7)
+        target = previous.clone()
         source = value.squeeze(2)
         with torch_stream(DEVICE):
             wp.launch(
@@ -183,10 +198,12 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid():
                 dim=(6, count),
                 inputs=[
                     wp.from_torch(source.view(torch.uint8)),
-                    wp.from_torch(indices.to(torch.int32).contiguous()),
+                    wp.from_torch(indices),
                     wp.from_torch(coords.valid_mask.contiguous()),
+                    wp.from_torch(updated),
                     wp.from_torch(rays, dtype=wp.vec3f),
                     wp.from_torch(rotation, dtype=wp.mat33f),
+                    identity,
                     camera_params(camera),
                     1,
                     int(name == "rgba"),
@@ -195,7 +212,9 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid():
                 outputs=[wp.from_torch(target.view(6, count, -1).view(torch.uint8))],
             )
         # Float32 rounding may flip a sample on the image edge, nothing more.
-        same = (target == expected_grid[name]).all(-1)
+        same = (target[updated] == expected_grid[name][updated]).all(-1)
         assert same.float().mean() > 0.999
-    assert (visible == valid).float().mean() > 0.999
+        assert torch.equal(target[~updated], previous[~updated])
+    assert (visible[updated] == valid[updated]).float().mean() > 0.999
+    assert not visible[~updated].any()
     assert valid.any() and (~valid).any()

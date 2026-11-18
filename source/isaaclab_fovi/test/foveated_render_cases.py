@@ -118,7 +118,7 @@ def _render(
     """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
 
     With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set.
-    With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders again.
+    With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders one more frame.
 
     Returns:
         The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
@@ -149,10 +149,10 @@ def _render(
             sim.step()
             camera.update(sim.get_physics_dt(), force_recompute=True)
         if later_gaze is not None:
+            # The first frame rendered after the command must already show the new gaze.
             camera.set_gaze_angles(later_gaze.to(sim.device))
-            for _ in range(WARMUP_STEPS):
-                sim.step()
-                camera.update(sim.get_physics_dt(), force_recompute=True)
+            sim.step()
+            camera.update(sim.get_physics_dt(), force_recompute=True)
         distance = camera.data.output["distance_to_camera"].torch[..., 0].detach().cpu().float().clone()
         coords = camera.sampling_coords
         field = coords.as_grid(coords.cartesian, sample_dim=0).detach().cpu().float().clone()

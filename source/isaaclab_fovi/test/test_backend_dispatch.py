@@ -8,9 +8,9 @@
 from dataclasses import dataclass
 
 import pytest
-from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg, FoveatedNewtonCamera, FoveatedRTXCamera
+from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 
-from isaaclab.sensors.camera import Camera
+pytestmark = pytest.mark.kitless
 
 
 @dataclass
@@ -32,15 +32,3 @@ def test_unknown_renderer_fails_explicitly() -> None:
     cfg = CameraSelection(RendererSelection("unknown"))
     with pytest.raises(ValueError, match="Unsupported foveated renderer"):
         FoveatedCamera(cfg)
-
-
-@pytest.mark.parametrize(
-    ("renderer_type", "implementation"),
-    [("newton_warp", FoveatedNewtonCamera), ("isaac_rtx", FoveatedRTXCamera), ("ovrtx", FoveatedRTXCamera)],
-)
-def test_renderer_selects_implementation(renderer_type: str, implementation: type, monkeypatch) -> None:
-    # The camera is allocated but never initialized, so it has nothing to release.
-    monkeypatch.setattr(Camera, "__del__", lambda self: None)
-    camera = FoveatedCamera.__new__(FoveatedCamera, CameraSelection(RendererSelection(renderer_type)))
-    assert type(camera) is implementation
-    assert isinstance(camera, FoveatedCamera)

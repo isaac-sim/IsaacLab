@@ -12,7 +12,7 @@ from fovi.sensing.projection import CameraCalibration
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_fovi.sensors.native_grid import validate_radius_norm
+from .native_grid import validate_radius_norm
 
 
 @configclass
@@ -79,20 +79,9 @@ class FoveatedCameraCfg(CameraCfg):
     Ignored for non-isotropic ``foveated_style``."""
 
     image_rotation_deg: float = 0.0
-    """Rotation (degrees, counter-clockwise) applied to the foveated ray
-    directions around the optical axis BEFORE rendering.  Used to undo a
-    physical camera mount rotation (e.g. an upside-down right-eye sensor)
-    so that the per-ray samples land in the canonical
-    :class:`SamplingCoords` order — i.e. sample ``i`` always corresponds to
-    visual-field position ``rel_cart_coords[i]`` regardless of how the
-    camera prim is oriented in world.  General-purpose alternative to
-    post-render ``torch.flip`` (which would shuffle the sample order and
-    misalign with retinal scatter and KNN processing).
-
-    Common values:
-        * ``0.0``    — no rotation (default; right-side-up sensor).
-        * ``180.0``  — flip vertically + horizontally (upside-down sensor).
-        * Other angles work in principle but are untested."""
+    """Counter-clockwise roll [deg] of the rendered rays about the optical axis, which undoes a rolled mount (180 for
+    an upside-down sensor). Samples keep their canonical :class:`SamplingCoords` order, so the published image stays
+    upright; the sensor mask and the gaze use the same roll."""
 
     mask_to_sensor_fov: bool = False
     """Zero the samples that fall outside the physical camera's image at the current gaze.
@@ -139,13 +128,18 @@ class FoveatedCameraCfg(CameraCfg):
     pool_gauss_sigma: float = 10.0
     """Gaussian sigma for ``pool_mode="gaussian"``.  Unused otherwise."""
 
-    pool_int_mode: str = "max"
+    pool_int_mode: str = "mode"
     """Pool mode used for outputs whose key name contains ``"segmentation"``
     (``semantic_segmentation``, ``instance_segmentation_fast``,
-    ``instance_id_segmentation_fast``).  Averaging segmentation values blurs
-    class labels and breaks downstream integer/equality checks, so these
-    outputs get a separate pooler with this mode.  Set equal to ``pool_mode``
-    to disable this behaviour."""
+    ``instance_id_segmentation_fast``).
+
+    The default ``"mode"`` gives each pooled sample the most common full value
+    (ID or colorized RGBA vector) among its pooling neighbours, in the output's
+    native dtype; ties go to the neighbour nearest the pooled sample.  Every
+    pooled value therefore belongs to a rendered object.  The fovi modes
+    (``"max"``, ``"avg"``, ``"sum"``, ``"gaussian"``) pool through float32
+    instead, which mixes colorized channels and corrupts IDs above ``2**24``.
+    Set equal to ``pool_mode`` to pool segmentation like the other outputs."""
 
     # -- RTX-specific parameters (ignored by Newton backend) ----------------
 

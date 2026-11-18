@@ -19,6 +19,8 @@ from isaaclab.sim import (
     PinholeCameraCfg,
 )
 
+pytestmark = pytest.mark.kitless
+
 CAMERA_MODEL = {"model": "pinhole", "image_size": (480, 640), "intrinsics": (550.0, 550.0, 319.5, 239.5)}
 
 

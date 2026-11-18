@@ -21,6 +21,8 @@ from isaaclab_fovi.sensors.native_grid import (
     native_grid_exit_uv,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 def make_coords(res: int = 16) -> SamplingCoords:
     fov = 170.0
@@ -35,9 +37,17 @@ def make_coords(res: int = 16) -> SamplingCoords:
     )
 
 
-@pytest.mark.parametrize("rotation", [0.0, 37.0, 180.0])
-@pytest.mark.parametrize("res", [1, 15, 64])
-def test_every_texel_roundtrips(rotation: float, res: int) -> None:
+@pytest.mark.parametrize(
+    ("res", "rotation"),
+    [
+        # A single texel sits on the optical axis, where the sensor roll has no effect.
+        (1, 0.0),
+        # Odd grids put a texel on the optical axis; even grids straddle it.
+        (15, 37.0),
+        (64, 180.0),
+    ],
+)
+def test_every_texel_roundtrips(res: int, rotation: float) -> None:
     coords = make_coords(res)
     rays = native_grid_directions(coords, image_rotation_deg=rotation)
     uv, visible = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)

@@ -54,7 +54,7 @@ def select_presets(options: PresetCfg, names) -> PresetCfg:
 
 @configclass
 class GazeObservationsCfg(ObservationGroupCfg):
-    """The gaze and its velocity, in field radii."""
+    """The gaze, in field radii, and its velocity, in field radii per second."""
 
     state = ObservationTermCfg(func=mdp.gaze_state)
 

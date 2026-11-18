@@ -132,10 +132,11 @@ def main() -> None:
         wp.synchronize_device(sim.device)
         if step > 0:
             frame_seconds.append(time.perf_counter() - start)
-        frames.append(camera.data.output["rgb"].torch.clone())
+        rgb = camera.data.output["rgb"].torch
+        if args.output is not None:
+            frames.append(rgb.clone())
     print(
-        f"{args.backend}: RGB shape={tuple(frames[-1].shape)}, dtype={frames[-1].dtype}, "
-        f"warm frame seconds={frame_seconds}",
+        f"{args.backend}: RGB shape={tuple(rgb.shape)}, dtype={rgb.dtype}, warm frame seconds={frame_seconds}",
         flush=True,
     )
     if args.output is not None:

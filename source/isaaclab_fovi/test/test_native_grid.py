@@ -23,6 +23,11 @@ from isaaclab_fovi.sensors.native_grid import (
     unbounded_angular_radius,
 )
 
+pytestmark = pytest.mark.kitless
+
+# Each footprint and each sensor roll once; the inverse path does not depend on the grid size.
+FOOTPRINT_ROTATIONS = [("circular", 0.0), ("square", 37.0), ("wang", 180.0)]
+
 
 def make_coords(resolution: int = 64, coverage: str = "circular", field: str = "spherical") -> SamplingCoords:
     fov = 80.0 if coverage == "wang" else 170.0
@@ -37,19 +42,51 @@ def make_coords(resolution: int = 64, coverage: str = "circular", field: str = "
     )
 
 
-@pytest.mark.parametrize("resolution", [64, 128])
-@pytest.mark.parametrize("rotation", [0.0, 180.0, 37.0])
-@pytest.mark.parametrize("coverage", ["circular", "square", "wang"])
-def test_analytic_inverse_returns_every_native_texel(resolution, rotation, coverage):
-    coords = make_coords(resolution, coverage)
-    rays = native_grid_directions(coords, image_rotation_deg=rotation)
-    uv, valid = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)
+def texel_centers(resolution: int) -> torch.Tensor:
+    """Native texture UV of each canonical sample: columns follow native x, rows native y."""
     axis = (torch.arange(resolution) + 0.5) / resolution
     row, col = torch.meshgrid(axis, axis, indexing="ij")
-    expected = torch.stack((col, row), -1).reshape(-1, 2)
+    return torch.stack((col, row), -1).reshape(-1, 2)
+
+
+def spherical_rays(visual: torch.Tensor, fov_deg: float, rotation_deg: float = 0.0) -> torch.Tensor:
+    """OpenGL rays for visual-chart points inside the nominal field, where angle is linear in radius."""
+    visual = visual.to(torch.float64)
+    theta = torch.linalg.vector_norm(visual, dim=-1) * math.radians(fov_deg) / 2
+    phi = torch.atan2(visual[..., 1], visual[..., 0]) + math.radians(rotation_deg)
+    return torch.stack((theta.sin() * phi.cos(), theta.sin() * phi.sin(), -theta.cos()), -1)
+
+
+@pytest.mark.parametrize(("coverage", "rotation"), FOOTPRINT_ROTATIONS)
+def test_analytic_inverse_returns_every_native_texel(coverage, rotation):
+    coords = make_coords(64, coverage)
+    rays = native_grid_directions(coords, image_rotation_deg=rotation)
+    uv, valid = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)
     assert valid.all()
-    torch.testing.assert_close(uv, expected, atol=2e-6, rtol=0)
+    torch.testing.assert_close(uv, texel_centers(64), atol=2e-6, rtol=0)
     torch.testing.assert_close(rays.norm(dim=-1), torch.ones(len(coords)), atol=1e-6, rtol=0)
+
+
+@pytest.mark.parametrize(("coverage", "rotation"), FOOTPRINT_ROTATIONS)
+def test_inverse_maps_independent_rays_to_their_texels(coverage, rotation):
+    coords = make_coords(64, coverage)
+    half_fov = math.radians(coords.fov) / 2
+    # Rays through Fovi's own sample positions inside the nominal field land on those samples' texels.
+    inside = torch.linalg.vector_norm(coords.cartesian, dim=-1) <= 1
+    rays = spherical_rays(coords.cartesian[inside], coords.fov, rotation)
+    uv, valid = native_grid_exit_uv(rays, coords, image_rotation_deg=rotation)
+    assert inside.sum() > len(coords) // 2
+    assert valid.all()
+    torch.testing.assert_close(uv, texel_centers(64)[inside], atol=2e-6, rtol=0)
+    # The optical axis is the texture centre and the nominal rim along each rolled native axis is its edge.
+    roll = math.radians(rotation)
+    rim = [
+        (math.sin(half_fov) * math.cos(angle), math.sin(half_fov) * math.sin(angle), -math.cos(half_fov))
+        for angle in (roll, roll + math.pi / 2)
+    ]
+    hand_rays = torch.tensor([(0.0, 0.0, -1.0), *rim], dtype=torch.float64)
+    uv, _ = native_grid_exit_uv(hand_rays, coords, image_rotation_deg=rotation)
+    torch.testing.assert_close(uv, torch.tensor([[0.5, 0.5], [0.5, 1.0], [1.0, 0.5]]), atol=1e-6, rtol=0)
 
 
 @pytest.mark.parametrize("coverage", ["circular", "square", "wang"])
@@ -82,15 +119,31 @@ def test_spherical_padding_matches_rim_slope_and_does_not_wrap():
     torch.testing.assert_close(unbounded_angular_radius(angles, half_fov), radius, atol=1e-10, rtol=0)
 
 
-def test_direction_texture_is_native_rays_without_assignment():
+def test_textures_match_independent_geometry():
     coords = make_coords(64)
-    direction, inverse = build_native_grid_textures(coords, image_rotation_deg=0, exit_size=256)
-    expected = native_grid_directions(coords)
-    torch.testing.assert_close(direction.reshape(-1, 3), expected, atol=0, rtol=0)
+    size = 256
+    direction, inverse = build_native_grid_textures(coords, image_rotation_deg=0, exit_size=size)
     assert direction.shape == (64, 64, 3)
-    assert inverse.shape == (256, 256, 2)
+    assert inverse.shape == (size, size, 2)
+    inside = torch.linalg.vector_norm(coords.cartesian, dim=-1) <= 1
+    expected = spherical_rays(coords.cartesian[inside], coords.fov).float()
+    torch.testing.assert_close(direction.reshape(-1, 3)[inside], expected, atol=1e-6, rtol=0)
+    # Forward-hemisphere octahedral texel centres decode to (x, y, -(1 - |x| - |y|)) before normalization.
+    axis = (torch.arange(size, dtype=torch.float64) + 0.5) / size * 2 - 1
+    y, x = torch.meshgrid(axis, axis, indexing="ij")
+    forward = x.abs() + y.abs() < 1
+    texel_rays = torch.nn.functional.normalize(torch.stack((x, y, x.abs() + y.abs() - 1), -1), dim=-1)
+    # Each stored UV, mapped back through Fovi's native-to-visual warp, must look along its texel's ray.
+    native = (inverse[forward].to(torch.float64) * 2 - 1).flip(-1)
+    visual = coords.native_to_visual(native)
+    nominal = torch.linalg.vector_norm(visual, dim=-1) <= 1
+    assert nominal.sum() > 1000
+    torch.testing.assert_close(
+        spherical_rays(visual[nominal], coords.fov), texel_rays[forward][nominal], atol=1e-5, rtol=0
+    )
+    # The antipode lies outside every grid.
+    assert (inverse[0, 0] == -1).all() and (inverse[-1, -1] == -1).all()
     assert torch.isfinite(inverse).all()
-    assert (inverse == -1).any()
 
 
 def test_upright_grid_masks_and_channel_aliases():
