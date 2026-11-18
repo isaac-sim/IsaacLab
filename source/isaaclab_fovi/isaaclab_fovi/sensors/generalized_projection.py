@@ -41,21 +41,11 @@ from __future__ import annotations
 import math
 import os
 
-# Must be set before cv2 is first imported anywhere in the process.
-os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")
-
 import numpy as np
 import torch
 from fovi.sensing.coords import SamplingCoords
 
 from .native_grid import native_grid_directions, native_grid_exit_uv
-
-# ── Optional dependencies ────────────────────────────────────────────────────
-try:
-    import Imath
-    import OpenEXR
-except ImportError:
-    OpenEXR = Imath = None  # type: ignore
 
 try:
     from pxr import Sdf, Usd, UsdGeom
@@ -81,44 +71,23 @@ def _t(x, dtype: torch.dtype, device) -> torch.Tensor:
 
 
 def save_exr(path: str, data: torch.Tensor) -> None:
-    """Save a ``(H, W, C)`` float32 tensor to an EXR file  (C ∈ {2, 3}).
+    """Save a ``(H, W, C)`` float32 tensor to an EXR file  (C ∈ {2, 3}) with OpenEXR, which the ``fovi`` extra
+    installs."""
+    import Imath
+    import OpenEXR
 
-    Uses **OpenEXR** when available; falls back to **OpenCV** otherwise.
-    """
     arr = np.ascontiguousarray(data.detach().cpu().numpy(), dtype=np.float32)
     h, w, c = arr.shape
     if c not in (2, 3):
         raise ValueError(f"save_exr: expected 2 or 3 channels, got {c}")
-
-    if OpenEXR is not None and Imath is not None:
-        names = ("R", "G") if c == 2 else ("R", "G", "B")
-        ch_t = Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
-        hdr = OpenEXR.Header(w, h)
-        hdr["Compression"] = Imath.Compression.ZIP_COMPRESSION
-        hdr["channels"] = {n: ch_t for n in names}
-        exr = OpenEXR.OutputFile(path, hdr)
-        exr.writePixels({n: arr[:, :, i].tobytes() for i, n in enumerate(names)})
-        exr.close()
-        return
-
-    try:
-        import cv2
-
-        flags = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT]
-        if c == 2:
-            img = np.concatenate([np.zeros((h, w, 1), dtype=np.float32), arr[:, :, ::-1]], axis=2)
-        else:
-            img = arr[:, :, ::-1]
-        if not cv2.imwrite(path, img, flags):
-            raise RuntimeError(f"OpenCV failed to write EXR: {path}")
-        return
-    except ImportError:
-        pass
-
-    raise RuntimeError(
-        "Neither OpenEXR nor OpenCV is installed. "
-        "Install one: conda install -c conda-forge openexr  or  pip install opencv-python"
-    )
+    names = ("R", "G") if c == 2 else ("R", "G", "B")
+    ch_t = Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
+    hdr = OpenEXR.Header(w, h)
+    hdr["Compression"] = Imath.Compression.ZIP_COMPRESSION
+    hdr["channels"] = {n: ch_t for n in names}
+    exr = OpenEXR.OutputFile(path, hdr)
+    exr.writePixels({n: arr[:, :, i].tobytes() for i, n in enumerate(names)})
+    exr.close()
 
 
 # =============================================================================
