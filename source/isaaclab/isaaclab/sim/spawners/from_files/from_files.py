@@ -711,6 +711,7 @@ def spawn_from_usd_file(
         # make instance proxies editable before any override tries to author properties on them
         if cfg.make_uninstanceable:
             make_uninstanceable(prim_path, stage=stage)
+        # TODO: Consider a generic asset reorganization mechanism for ill-formed assets in place of this option.
         if cfg.move_rigid_body_to_root:
             move_rigid_body_to_root(prim_path, stage=stage)
 
