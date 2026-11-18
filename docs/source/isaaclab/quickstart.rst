@@ -181,7 +181,7 @@ example:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
+   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,
 and :doc:`/source/features/hydra` for arbitrary configuration overrides.
@@ -285,6 +285,8 @@ Choose a checkpoint with one of the following options:
    * - ``--checkpoint pretrained``
      - A pretrained checkpoint hosted by Isaac Lab. Available only for
        supported tasks.
+   * - ``--checkpoint wandb:<entity>/<project>/<run_id>``
+     - The latest checkpoint of a W&B run (RSL-RL only).
 
 
 Benchmark a task
