@@ -38,7 +38,7 @@ class FrankaStackCameraPPORunnerCfg(FrankaStackPPORunnerCfg):
     experiment_name = "franka_stack_camera"
     obs_groups = {"actor": ["policy", "base_image"], "critic": ["privileged"]}
     actor = CAMERA_POLICY_CFG
-    # Use a smaller learning rate and more samples per batch for the visual encoder.
+    # Use a smaller learning rate and more samples per mini-batch for the visual encoder.
     algorithm = ALGORITHM_CFG.replace(
         entropy_coef=0.005,
         num_mini_batches=8,

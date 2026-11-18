@@ -56,12 +56,12 @@ class CameraEventCfg(EventCfg):
     """Physical reset table plus fixed-per-environment camera calibration error."""
 
     camera_calibration = EventTerm(
-        func=mdp.randomize_camera_calibration,
+        func=f"{mdp.__name__}.camera:randomize_camera_calibration",
         mode="startup",
         params={
             "sensor_cfg": SceneEntityCfg("base_camera"),
-            "eye": (0.90, -0.55, 0.48),
-            "lookat": (0.48, 0.0, 0.08),
+            # Distance from the default camera offset to the look-at point.
+            "lookat_distance": 0.7993122,
             "eye_position_noise": (0.020, 0.020, 0.015),
             "lookat_position_noise": (0.015, 0.015, 0.010),
         },
@@ -137,7 +137,6 @@ class FrankaCubeStackCameraRLEnvCfg(FrankaCubeStackRLEnvCfg):
     """Stack from RGB and proprioception with no actor-side object state."""
 
     scene: FrankaStackCameraSceneCfg = FrankaStackCameraSceneCfg(
-        # The 32-step rollout stores about 1.5 GiB of float RGB observations.
         num_envs=256,
         env_spacing=2.5,
         replicate_physics=True,

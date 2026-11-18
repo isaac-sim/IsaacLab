@@ -47,7 +47,8 @@ __all__ = [
 from isaaclab.envs.mdp import *  # noqa: F403
 
 from .actions_cfg import ResetBufferedGripperActionCfg, WorkspaceBoundedRelativeJointPositionActionCfg
-from .camera import EpisodeCameraNoise, EpisodeCameraNoiseCfg, joint_position_target, randomize_camera_calibration
+from .camera import EpisodeCameraNoise, randomize_camera_calibration
+from .camera_noise_cfg import EpisodeCameraNoiseCfg
 from .curriculums import StackResetTableCurriculum
 from .goal_context import StableOrderInvariantStackGoal, StackResetLearningProgress
 from .observations import (
@@ -63,6 +64,7 @@ from .observations import (
     instance_randomize_cube_orientations_in_world_frame,
     instance_randomize_cube_positions_in_world_frame,
     instance_randomize_object_obs,
+    joint_position_target,
     object_abs_obs_in_base_frame,
     object_grasped,
     object_obs,

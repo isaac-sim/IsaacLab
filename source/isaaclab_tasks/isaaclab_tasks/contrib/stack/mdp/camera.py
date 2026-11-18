@@ -7,19 +7,25 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
+from pxr import UsdGeom
+
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.noise import NoiseModel, NoiseModelCfg, UniformNoiseCfg
+from isaaclab.utils import math as math_utils
+from isaaclab.utils.noise import NoiseModel
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.sensors import Camera
+
+    from .camera_noise_cfg import EpisodeCameraNoiseCfg
+
+logger = logging.getLogger(__name__)
 
 
 class EpisodeCameraNoise(NoiseModel):
@@ -73,40 +79,10 @@ class EpisodeCameraNoise(NoiseModel):
         return super().__call__(data)
 
 
-@configclass
-class EpisodeCameraNoiseCfg(NoiseModelCfg):
-    """Episode-consistent camera randomization with small per-frame pixel noise."""
-
-    class_type: type[EpisodeCameraNoise] | str = EpisodeCameraNoise
-    """Noise-model implementation used by the observation manager."""
-
-    noise_cfg: UniformNoiseCfg = UniformNoiseCfg(n_min=-0.025, n_max=0.025)
-    """Per-frame additive pixel noise in normalized image units."""
-
-    exposure_range: tuple[float, float] = (0.75, 1.25)
-    """Uniform episode-level multiplicative exposure range."""
-
-    contrast_range: tuple[float, float] = (0.85, 1.15)
-    """Uniform episode-level contrast range around mid-gray."""
-
-    white_balance_range: tuple[float, float] = (0.90, 1.10)
-    """Uniform episode-level per-channel white-balance range."""
-
-    brightness_range: tuple[float, float] = (-0.05, 0.05)
-    """Uniform episode-level additive brightness range in normalized image units."""
-
-
-def joint_position_target(env: ManagerBasedEnv, robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Return commanded joint position targets [m or rad, depending on joint type]."""
-    robot: Articulation = env.scene[robot_cfg.name]
-    return robot.actuators.target_command.position.torch[:, robot_cfg.joint_ids]
-
-
 def randomize_camera_calibration(
     env: ManagerBasedEnv,
     env_ids: Sequence[int] | torch.Tensor | slice | None,
-    eye: tuple[float, float, float],
-    lookat: tuple[float, float, float],
+    lookat_distance: float,
     eye_position_noise: tuple[float, float, float],
     lookat_position_noise: tuple[float, float, float],
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("base_camera"),
@@ -119,8 +95,7 @@ def randomize_camera_calibration(
         env: The stack environment containing the camera sensor.
         env_ids: Environments whose camera poses are randomized, or ``None``
             for every environment.
-        eye: Nominal camera position relative to each environment origin [m].
-        lookat: Nominal look-at point relative to each environment origin [m].
+        lookat_distance: Distance from the configured camera position to the nominal look-at point [m].
         eye_position_noise: Independent uniform position-noise half-widths for
             the camera eye [m].
         lookat_position_noise: Independent uniform position-noise half-widths
@@ -135,15 +110,32 @@ def randomize_camera_calibration(
         return
 
     origins = env.scene.env_origins[resolved_env_ids]
-    eye_offset = origins.new_tensor(eye).expand(resolved_env_ids.numel(), -1)
-    lookat_offset = origins.new_tensor(lookat).expand(resolved_env_ids.numel(), -1)
-    eye_amplitude = origins.new_tensor(eye_position_noise)
-    lookat_amplitude = origins.new_tensor(lookat_position_noise)
-    eye_noise = (2.0 * torch.rand_like(eye_offset) - 1.0) * eye_amplitude
-    lookat_noise = (2.0 * torch.rand_like(lookat_offset) - 1.0) * lookat_amplitude
+    eye_offset = origins.new_tensor(camera.cfg.offset.pos).unsqueeze(0)
+    orientation = math_utils.convert_camera_frame_orientation_convention(
+        origins.new_tensor(camera.cfg.offset.rot), origin=camera.cfg.offset.convention, target="opengl"
+    )
+    camera_rotation = math_utils.matrix_from_quat(orientation)
+    lookat_offset = eye_offset - lookat_distance * camera_rotation[:, 2]
 
-    camera.set_world_poses_from_view(
-        origins + eye_offset + eye_noise,
-        origins + lookat_offset + lookat_noise,
-        env_ids=resolved_env_ids,
+    eye_noise = (2.0 * torch.rand_like(origins) - 1.0) * origins.new_tensor(eye_position_noise)
+    lookat_noise = (2.0 * torch.rand_like(origins) - 1.0) * origins.new_tensor(lookat_position_noise)
+    eyes = origins + eye_offset + eye_noise
+    targets = origins + lookat_offset + lookat_noise
+
+    # Preserve the configured roll relative to a stage-up look-at frame.
+    up_axis = UsdGeom.GetStageUpAxis(camera.stage)
+    nominal_view = math_utils.create_rotation_matrix_from_view(eye_offset, lookat_offset, up_axis, env.device)
+    roll = nominal_view.mT @ camera_rotation
+    views = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis, env.device)
+    valid = torch.isfinite(views).all(dim=(-2, -1)).nonzero(as_tuple=True)[0]
+    if valid.numel() == 0:
+        raise ValueError("Camera calibration requires distinct finite eye and look-at positions.")
+    skipped = resolved_env_ids.numel() - valid.numel()
+    if skipped:
+        logger.warning("Skipping %d camera poses with undefined look-at directions.", skipped)
+    camera.set_world_poses(
+        eyes[valid],
+        math_utils.quat_from_matrix(views[valid] @ roll),
+        env_ids=resolved_env_ids[valid],
+        convention="opengl",
     )

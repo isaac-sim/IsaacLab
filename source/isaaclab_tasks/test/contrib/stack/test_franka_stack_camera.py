@@ -6,20 +6,26 @@
 """Camera randomization and teacher checkpoint behavior for Franka stacking."""
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import torch
 
+from pxr import Usd
+
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils.noise import UniformNoiseCfg
 
-from isaaclab_tasks.contrib.stack.mdp.camera import EpisodeCameraNoise, EpisodeCameraNoiseCfg
+from isaaclab_tasks.contrib.stack.mdp.camera import randomize_camera_calibration
+from isaaclab_tasks.contrib.stack.mdp.camera_noise_cfg import EpisodeCameraNoiseCfg
 from isaaclab_tasks.utils import load_cfg_from_registry
 
 pytestmark = pytest.mark.kitless
 
 
 def test_episode_camera_noise_resamples_only_reset_environments() -> None:
-    """An environment reset preserves the camera calibration of every other environment."""
+    """An environment reset preserves episode photometric parameters in other environments."""
     cfg = EpisodeCameraNoiseCfg(
         noise_cfg=UniformNoiseCfg(n_min=0.0, n_max=0.0),
         exposure_range=(0.5, 1.5),
@@ -29,7 +35,7 @@ def test_episode_camera_noise_resamples_only_reset_environments() -> None:
     )
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(7)
-        noise = EpisodeCameraNoise(cfg, num_envs=4, device="cpu")
+        noise = instantiate(cfg, num_envs=4, device="cpu")
         image = torch.ones(4, 3, 2, 2)
         before = noise(image)
         noise.reset(torch.tensor([1, 3]))
@@ -37,6 +43,29 @@ def test_episode_camera_noise_resamples_only_reset_environments() -> None:
 
     torch.testing.assert_close(after[[0, 2]], before[[0, 2]], rtol=0.0, atol=0.0)
     assert torch.all((after[[1, 3]] != before[[1, 3]]).any(dim=(1, 2, 3)))
+
+
+def test_camera_calibration_keeps_the_configured_pose_without_jitter() -> None:
+    """An edited camera offset controls the nominal pose, including roll, in the selected environment."""
+    camera = SimpleNamespace(
+        cfg=CameraCfg(offset=CameraCfg.OffsetCfg(pos=(1.0, 2.0, 3.0), rot=(0.5, 0.5, 0.5, 0.5), convention="opengl")),
+        stage=Usd.Stage.CreateInMemory(),
+        set_world_poses=Mock(),
+    )
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=2,
+        scene=SimpleNamespace(sensors={"base_camera": camera}, env_origins=torch.tensor([[0.0, 0, 0], [2.5, 0, 0]])),
+    )
+
+    randomize_camera_calibration(env, [1], 0.7993122, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+    camera.set_world_poses.assert_called_once()
+    (position, orientation), kwargs = camera.set_world_poses.call_args
+    torch.testing.assert_close(position, torch.tensor([[3.5, 2.0, 3.0]]))
+    torch.testing.assert_close(orientation * orientation[:, 3:].sign(), torch.full((1, 4), 0.5))
+    torch.testing.assert_close(kwargs["env_ids"], torch.tensor([1]))
+    assert kwargs["convention"] == "opengl"
 
 
 def test_camera_student_loads_the_ppo_actor_and_uses_clipped_teacher_labels() -> None:
