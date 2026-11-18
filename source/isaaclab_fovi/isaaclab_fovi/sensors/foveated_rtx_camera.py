@@ -90,6 +90,10 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def __init__(self, cfg: FoveatedCameraCfg):
         self._gaze_angles = self._gaze_rotation = None
+        # OVRTX renders the poses the camera hands it, so its pose update turns the gaze. Replicator reads camera
+        # prims, so Isaac RTX writes the gaze into them instead.
+        self._gaze_pose_reads_angles = cfg.renderer_cfg.renderer_type == "ovrtx"
+        self._grid_publish = None
         # Texture buffers are owned by the parent ``Camera`` (allocated in
         # ``_create_buffers`` and bound to the renderer via ``set_outputs``).
         # Foveated / pooled buffers are allocated in ``_initialize_impl``
@@ -297,6 +301,15 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._grid_indices = grid_sample_indices(self._sampling_coords)
             new_output = self._grid_output
         self._data._output = proxy_outputs(new_output)
+        # A native grid texture already holds the samples in order, so one kernel per output masks it and lays it out.
+        # OVRTX's camera distance needs its near-plane offset first, and keeps the step-by-step path.
+        textures = {name: tex.torch if hasattr(tex, "torch") else tex for name, tex in self._texture_output.items()}
+        offset_distance = self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in textures
+        if self._native_grid and self._pooler is None and not offset_distance:
+            count = self._num_ray_samples
+            self._prepare_grid_publish(
+                {name: tex.reshape(tex.shape[0], count, tex.shape[-1]) for name, tex in textures.items()}
+            )
 
     def _allocate_foveated_buffers(self):
         """Allocate ``(B, N_hi, 1, C)`` (and optionally ``(B, N_lo, 1, C)``)
@@ -366,7 +379,8 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
         super().set_gaze_angles(angles_deg)
-        self._write_gaze_local_pose()
+        if not self._gaze_pose_reads_angles:
+            self._write_gaze_local_pose()
 
     def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
         """Move the camera's mount; the gaze stays relative to the new mount.
@@ -374,6 +388,8 @@ class FoveatedRTXCamera(FoveatedCamera):
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
         """
         super().set_world_poses(positions, orientations, env_ids, convention)
+        if self._gaze_pose_reads_angles:
+            return  # The pose update turned the new mount by the gaze.
         # The prims of the moved environments now hold the bare mount pose, which is their new base.
         ids = slice(None) if env_ids is None else torch.as_tensor(env_ids, device=self._device, dtype=torch.long)
         _, local_orientation = self._view.get_local_poses()
@@ -408,6 +424,9 @@ class FoveatedRTXCamera(FoveatedCamera):
     def process_rendered_frame(self) -> None:
         """Extract, mask and pool the frame written by scalar or batched rendering."""
         if not self._env_mask_has_any(self._is_outdated):
+            return
+        if self._grid_publish:
+            self._publish_grid()
             return
         # Extract per-sample values from the per-env texture buffer.
         self._extract_foveated_samples()
