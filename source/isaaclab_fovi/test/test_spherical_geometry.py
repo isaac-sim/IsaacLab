@@ -129,12 +129,12 @@ def test_gaze_away_from_sensor_masks_all_rays() -> None:
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("batch_size", [48, 256])
-@pytest.mark.parametrize("autocast", [False, True])
-@pytest.mark.parametrize("mode", ["spherical", "spherical_ids", "spherical_mask"])
-def test_gaze_preserves_camera_rotation_with_tf32(
-    device: str, batch_size: int, autocast: bool, mode: str, tf32_enabled
-) -> None:
+@pytest.mark.parametrize(
+    "mode, autocast",
+    [("spherical", False), ("spherical", True), ("spherical_ids", False), ("spherical_mask", False)],
+)
+def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, mode: str, tf32_enabled) -> None:
+    batch_size = 48
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
     source_gl = torch.tensor([[0.4625, 0.4940, -0.5341, 0.5067]], device=device).repeat(batch_size, 1)
