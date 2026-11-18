@@ -89,16 +89,20 @@ to the sampler; that shim populates a preallocated mask.
 
 .. figure:: ../_static/how-to/reset_states/reset_lifecycle.jpg
    :width: 100%
-   :alt: Initialization prepares validated states once; captured runtime records previous outcomes, scores entries, selects IDs, gathers snapshots, and restores masked worlds.
+   :alt: Initialization prepares validated states once. Runtime selects IDs, gathers snapshots, and restores masked worlds. Completed episode outcomes feed back into sampling.
 
    Generation and validation run during initialization. Runtime uses fixed storage and masks.
 
 Capture the runtime
 -------------------
 
-Warm the configured path before capturing it. Capture reset selection, gathering, and
-native asset writes together. The values in the bound arrays can change between
-replays. The choice to provide outcomes or explicit IDs is fixed at capture time:
+Warm the configured path before capture. The sampler and ``get_state(..., out=...)``
+can run in a CUDA graph. Lift's ``newton_mjwarp`` preset supports capturing both
+operations and the asset writes together. With OvPhysX or Kit-based PhysX, run Lift's
+asset writes outside capture.
+
+Update the contents of the bound arrays in place between graph replays. The choice to
+provide outcomes or explicit IDs is fixed at capture time.
 
 .. code-block:: python
 
@@ -112,13 +116,9 @@ replays. The choice to provide outcomes or explicit IDs is fixed at capture time
        reset_selected()
    wp.capture_launch(capture.graph)
 
-Prefill, rejection loops, loading, inspection, and logging remain initialization or
-host work. The allocating ``get_state(ids)`` convenience accessor is intended for
-inspection; use ``out=`` for the captured path. The manager-based environment around
-an event does not become a captured environment merely because its reset event is
-capturable. MDP2 native launch hooks can call the same runtime directly; its Torch backend uses
-zero-copy input shims. Fused Warp terms can reuse ``target_success_score`` and
-``sample_cdf``. No MDP2 dependency is required by the reset API.
+Run prefill, rejection loops, loading, inspection, and logging outside capture. Use
+``get_state(ids)`` to allocate a snapshot for inspection. The example captures only
+the reset operations.
 
 ``sampler.reseed(seed)`` updates existing random-stream storage without clearing history
 or assignments. A captured graph observes the new streams. Explicitly seeded manager-based
@@ -183,14 +183,11 @@ Configure its existing ``events.conditional_reset.params`` entries:
   ``None`` selects uniformly without recording outcomes.
 
 After ordinary initialization, the event's ``reset_mask(mask, state_ids=ids)`` method
-is its native manual-replay entry. Supply ``completed=natural_episode_mask`` to
-record natural outcomes inside a captured runner. The caller sets this mask only
-for completed episodes and excludes unfinished or zero-step resets. The event
-restores root-link poses, COM velocities, joints, and
-controller targets through public mask writers. It credits the existing success
-reward's sticky flag before the reward manager clears it and excludes unfinished
-manual resets. The existing Lift observations, rewards, registrations, and agent
-configuration remain the use case.
+replays explicit starts. With adaptive sampling enabled, supply
+``completed=natural_episode_mask`` to record outcomes for completed natural episodes
+that took at least one step. The event credits the existing success reward's sticky
+flag before the reward manager clears it and restores root-link poses, COM velocities,
+joints, and controller targets through public mask writers.
 
 Migrating existing reset configurations
 ---------------------------------------

@@ -83,15 +83,9 @@ class ResetStateSampler:
         self.cfg = cfg
         self.num_envs, self.num_states = num_envs, num_states
         self.device = wp.get_device(str(device))
+
+        # Environment partitions and scratch space for normalizing their weights independently.
         self._group_size = num_states // num_groups
-        self._all_mask = wp.ones(num_envs, dtype=wp.bool, device=self.device)
-        self._scratch_mask = wp.empty_like(self._all_mask)
-        # Assignments are dense storage positions plus their externally visible catalog labels.
-        self._assigned_indices = wp.full(num_envs, -1, dtype=wp.int32, device=self.device)
-        self.indices = ProxyArray(self._assigned_indices)
-        self.state_ids = ProxyArray(wp.full(num_envs, -1, dtype=wp.int64, device=self.device))
-        self.invalid_requests = ProxyArray(wp.zeros(num_envs, dtype=wp.bool, device=self.device))
-        self._requested_indices = wp.empty(num_envs, dtype=wp.int32, device=self.device)
         env_group_ids = np.zeros(num_envs, dtype=np.int32)
         if group_ids is not None:
             group_values = self._input(group_ids, num_envs)
@@ -101,6 +95,9 @@ class ResetStateSampler:
         if np.any((env_group_ids < 0) | (env_group_ids >= num_groups)):
             raise ValueError("group_ids must contain valid integer partition indices.")
         self._env_group_ids = wp.array(env_group_ids, dtype=wp.int32, device=self.device)
+        self._group_max_weights = wp.zeros(num_groups, dtype=wp.float64, device=self.device) if num_groups > 1 else None
+
+        # Catalog lookup maps externally visible labels to dense storage positions.
         self._dense_ids = state_ids is None
         catalog_ids = np.arange(num_states, dtype=np.int64)
         if state_ids is not None:
@@ -114,6 +111,19 @@ class ResetStateSampler:
         sorted_catalog_indices = np.argsort(catalog_ids, kind="stable").astype(np.int32)
         self._sorted_catalog_ids = wp.array(catalog_ids[sorted_catalog_indices], dtype=wp.int64, device=self.device)
         self._sorted_catalog_indices = wp.array(sorted_catalog_indices, dtype=wp.int32, device=self.device)
+
+        # Per-environment reset selection, requested rows, current assignments, and random streams.
+        self._all_mask = wp.ones(num_envs, dtype=wp.bool, device=self.device)
+        self._scratch_mask = wp.empty_like(self._all_mask)
+        self._requested_indices = wp.empty(num_envs, dtype=wp.int32, device=self.device)
+        self.invalid_requests = ProxyArray(wp.zeros(num_envs, dtype=wp.bool, device=self.device))
+        self._assigned_indices = wp.full(num_envs, -1, dtype=wp.int32, device=self.device)
+        self.indices = ProxyArray(self._assigned_indices)
+        self.state_ids = ProxyArray(wp.full(num_envs, -1, dtype=wp.int64, device=self.device))
+        self._rng = wp.empty(num_envs, dtype=wp.uint32, device=self.device)
+        self.reseed(cfg.seed)
+
+        # Per-state outcome history and scratch space for grouping completed episodes.
         self._success_history = wp.zeros((num_states, cfg.history_length), dtype=float, device=self.device)
         self.episode_counts = ProxyArray(wp.zeros(num_states, dtype=wp.int64, device=self.device))
         self.success_rate = ProxyArray(wp.zeros(num_states, dtype=float, device=self.device))
@@ -122,8 +132,8 @@ class ResetStateSampler:
         self._outcome_env_indices = wp.empty_like(self._outcome_state_indices)
         self._state_outcome_start = wp.zeros(num_states, dtype=wp.int32, device=self.device)
         self._state_outcome_end = wp.zeros_like(self._state_outcome_start)
-        self._rng = wp.empty(num_envs, dtype=wp.uint32, device=self.device)
-        self.reseed(cfg.seed)
+
+        # Metrics, scores, and the weighted distribution used to draw the next start.
         self._metrics = {"success_rate": self.success_rate.warp, "episode_counts": self.episode_counts.warp}
         if metrics is not None:
             if self._metrics.keys() & metrics.keys():
@@ -136,7 +146,6 @@ class ResetStateSampler:
         self._score_weights = wp.array(weights, dtype=wp.float64, device=self.device)
         self._score_values = wp.empty((len(self._scores), num_states), dtype=float, device=self.device)
         self._weights = wp.empty(num_states, dtype=wp.float64, device=self.device)
-        self._group_max_weights = wp.zeros(num_groups, dtype=wp.float64, device=self.device) if num_groups > 1 else None
         self._cdf = wp.empty_like(self._weights)
         self.probabilities = ProxyArray(wp.empty(num_states, dtype=float, device=self.device))
         self._update_probabilities()
@@ -264,7 +273,10 @@ class ResetStateSampler:
             ],
             device=self.device,
         )
-        wp.utils.radix_sort_pairs(self._outcome_state_indices, self._outcome_env_indices, self.num_envs)
+        # Include num_states, the sentinel key for ignored outcomes.
+        wp.utils.radix_sort_pairs(
+            self._outcome_state_indices, self._outcome_env_indices, self.num_envs, end_bit=self.num_states.bit_length()
+        )
         wp.launch(
             _find_state_outcome_ranges,
             self.num_envs,

@@ -576,9 +576,10 @@ class conditional_reset(ManagerTermBase):
         state_ids: wp.array | None = None,
         completed: wp.array | None = None,
     ) -> None:
-        """Restore selected environments using only native arrays and preallocated storage.
+        """Restore selected environments through the backend's mask writers.
 
-        Prefill must complete through the ordinary event call before this method is captured.
+        Complete prefill through the ordinary event call first. Newton/MJWarp supports CUDA
+        graph capture of this method. Run it outside capture with OvPhysX or Kit-based PhysX.
         The full-environment mask and optional explicit catalog IDs may change between graph
         replays. Supply the full-environment ``completed`` mask for natural episode outcomes
         before the task's reward buffer is cleared. Exclude zero-step and unfinished episodes
