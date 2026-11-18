@@ -457,6 +457,10 @@ class SimulationContext:
                             # A sensor without the requested channels still shows its own, such as depth only.
                             if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
+                rtx_path = getattr(visualizer.cfg.backend, "rtx_camera_prim_path", None)
+                if rtx_path is not None and not (visualizer.cfg.cameras is None or tracking_only):
+                    # Explicit cameras skip discovery; the Renderer switch still needs this window's RTX camera.
+                    cameras.append(SceneCameraCfg(prim_path=rtx_path))
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
                         continue

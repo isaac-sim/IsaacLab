@@ -744,6 +744,12 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     _overlay_publisher: OverlayMeshPublisher | None = None
     _rtx_arrows_pending = False
+    _rtx_overlay_flags: tuple | None = None
+
+    # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
+    rtx_view_index: int | None = None
+    rtx_rendering: bool = False
+    sensor_view_selected: bool = False
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -1786,7 +1792,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
                 # Tile the first environments unless the view chose its own; the HUD changes how many.
                 self._sensor_tiles[view] = camera.num_instances
-                if view.cfg.envs == (0,):
+                if self.cfg.view is None and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
@@ -1881,9 +1887,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             for flag in ("show_joints", "show_contacts", "show_springs", "show_com", "show_inertia_boxes")
         )
         dragging = viewer.picking_enabled and viewer.picking is not None and viewer.picking.is_picking()
+        flags = tuple(
+            getattr(viewer, flag)
+            for flag in ("show_joints", "show_contacts", "show_springs", "show_com", "show_inertia_boxes")
+        )
+        changed = flags != self._rtx_overlay_flags  # a paused view must render again to show the change
+        self._rtx_overlay_flags = flags
         if not overlays and not dragging:
             publisher.hide_all(renderers)
-            return False
+            return changed
         if viewer.is_paused():
             return False
         state = self._update_state()
@@ -1908,7 +1920,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer._overlay_capture = None
             viewer.show_contact_disks = disks
         publisher.publish(renderers)
-        return bool(dragging)
+        return bool(dragging) or changed
 
     def _refresh_rtx_markers(self) -> None:
         """Render the OVRTX cameras again when a marker group is shown, hidden, or moved, which OVRTX draws as prims."""
@@ -1959,10 +1971,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     @property
     def rtx_view_index(self) -> int | None:
         """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
+        declared = getattr(getattr(getattr(self, "cfg", None), "backend", None), "rtx_camera_prim_path", None)
         for index, view in enumerate(self._image_views):
-            if view.camera is not None and getattr(view.camera.cfg, "prim_path", "").startswith(
-                "/World/viewer_camera_"
-            ):
+            if view.camera is None:
+                continue
+            prim_path = getattr(view.camera.cfg, "prim_path", "")
+            if prim_path == declared if declared is not None else prim_path.startswith("/World/viewer_camera_"):
                 return index
         return None
 
@@ -2003,11 +2017,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             current = self.current_image_view
             self._rtx_pose_view = current if self._is_tracking_view(current) else None
             self._select_camera(rtx_index, keep_pose=True)
+            self._apply_rtx_visible_envs()
         else:
             if self._overlay_publisher is not None:
                 self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
+            self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
 
     @property
     def visible_env_limit(self) -> int:
@@ -2068,8 +2084,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
         num_envs = len(renderer._env_paths)
         if num_envs:
-            visible = np.ones(num_envs, dtype=bool) if self._env_ids is None else np.zeros(num_envs, dtype=bool)
-            if self._env_ids is not None:
+            # The renderer is shared with scene cameras, so the limit applies only while the RTX view is shown.
+            limited = self._env_ids is not None and self.rtx_rendering
+            visible = np.zeros(num_envs, dtype=bool) if limited else np.ones(num_envs, dtype=bool)
+            if limited:
                 visible[np.asarray(list(self._env_ids), dtype=int)] = True
             renderer.set_environment_visibility(visible)
             self._image_views[index].invalidate()

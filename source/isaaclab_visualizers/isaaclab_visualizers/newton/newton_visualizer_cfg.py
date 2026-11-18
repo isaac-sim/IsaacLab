@@ -90,6 +90,9 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     backend is not PhysX; ``False`` disables it.
     """
 
+    rtx_camera_prim_path: str | None = None
+    """Prim path of this window's OVRTX viewer camera. Set at launch when the camera is declared."""
+
     rtx_renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
     """Renderer of the OVRTX viewer camera."""
 

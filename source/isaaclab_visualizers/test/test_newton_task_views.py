@@ -172,6 +172,7 @@ def _switchable(views):
         viz.current_image_view = viz._image_views[index]
 
     viz._select_camera = select
+    viz._apply_rtx_visible_envs = lambda: None
     return viz
 
 
@@ -192,3 +193,39 @@ def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
 
     with pytest.raises(RuntimeError, match="no OVRTX viewer camera"):
         viz.set_rtx_rendering(True)
+
+
+def test_each_window_selects_the_rtx_camera_declared_for_it():
+    cams = [
+        _View("a", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path=f"/World/viewer_camera_{i}_rtx")))
+        for i in range(2)
+    ]
+    viz = _switchable([_view(PerspectiveCameraCfg()), *cams])
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_1_rtx"))
+
+    assert viz.rtx_view_index == 2
+
+
+def test_the_shared_renderer_hides_environments_only_while_the_rtx_view_is_shown():
+    calls = []
+    renderer = SimpleNamespace(
+        _env_paths=["a", "b", "c"], set_environment_visibility=lambda v: calls.append(v.tolist())
+    )
+    rtx = _rtx_view()
+    rtx.invalidate = lambda: None
+    viz = _switchable([_view(PerspectiveCameraCfg()), rtx])
+    viz._apply_rtx_visible_envs = NewtonGLVisualizer._apply_rtx_visible_envs.__get__(viz)
+    viz._sim.get_or_create_backend = lambda cfg: renderer
+    viz._env_ids = [0]
+
+    viz._apply_rtx_visible_envs()  # OpenGL is shown, so the sensors keep every environment
+    viz.current_image_view = rtx
+    viz._apply_rtx_visible_envs()
+
+    assert calls == [[True, True, True], [True, False, False]]
+
+
+def test_the_standalone_rtx_window_has_no_opengl_view_state():
+    viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
+
+    assert viz.rtx_view_index is None and not viz.rtx_rendering and not viz.sensor_view_selected

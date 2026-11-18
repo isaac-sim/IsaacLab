@@ -1412,6 +1412,7 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
             visualizer._rtx_pose_view = None
 
     visualizer._select_camera = select
+    visualizer._apply_rtx_visible_envs = lambda: None
 
     visualizer.set_rtx_rendering(True)
 
