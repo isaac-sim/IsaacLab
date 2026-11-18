@@ -36,9 +36,7 @@ class RendererCfg(BackendCfg):
     supports_render_product_split: ClassVar[bool] = False
     """Whether the renderer can split a camera sensor over several render products.
 
-    See :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. A renderer that renders all
-    environments of a camera sensor through one render product keeps the default ``False``. The camera
-    then rejects a split when it gets its renderer, before the scene is cloned.
+    Only these renderers accept an integer :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`.
     """
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:

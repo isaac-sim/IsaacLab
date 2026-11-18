@@ -163,10 +163,9 @@ def _camera_update_state_kernel(
 def check_render_product_split(cfg: CameraCfg, renderer_cfg) -> None:
     """Reject a render product split when the renderer of the camera cannot split a camera sensor.
 
-    The camera calls this when it gets its renderer, before the scene is cloned. The configuration check runs
-    earlier, while a launcher can still replace a placeholder renderer configuration.
-
-    A renderer that cannot split accepts ``"auto"`` and ``"all"``. Both give one render product there.
+    The camera calls this when it gets its renderer, before the scene is cloned. The configuration check cannot
+    do this, because a launcher can replace a placeholder renderer configuration after it, for example the
+    ``"auto_rtx"`` preset.
 
     Raises:
         ValueError: If ``cfg.max_envs_per_render_product`` is an integer and the renderer cannot split.
@@ -175,8 +174,7 @@ def check_render_product_split(cfg: CameraCfg, renderer_cfg) -> None:
     if max_envs not in ("auto", "all") and not renderer_cfg.supports_render_product_split:
         raise ValueError(
             f"Renderer {type(renderer_cfg).__name__} renders every environment through one render product,"
-            f' so CameraCfg.max_envs_per_render_product must be "auto" or "all", got {max_envs!r}. Only'
-            " renderers whose configuration sets supports_render_product_split accept an integer."
+            f' so CameraCfg.max_envs_per_render_product must be "auto" or "all", got {max_envs!r}.'
         )
 
 

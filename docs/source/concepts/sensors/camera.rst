@@ -312,38 +312,25 @@ A camera sensor has one camera in every environment. By default, the renderer dr
 all these cameras side by side into one large image, the tiled atlas. One render product describes
 this atlas.
 
-To render the atlas, the renderer uses GPU buffers that each hold data for every pixel of the
-atlas. More environments give a larger atlas, so these buffers get larger too. In the RTX path
-tracer, some of them also get larger with the number of samples per pixel. One such buffer can hold
-at most 4 GiB. If a buffer needs more, OVRTX 0.7 and later fail the frame. OVRTX 0.6 gives no error,
-but some tiles come back black.
+To render the atlas, the renderer uses GPU buffers that hold data for every pixel of the atlas. In
+the RTX path tracer, some of them also grow with the samples per pixel. One such buffer can hold at
+most 4 GiB. If a buffer needs more, the OVRTX renderer fails the frame with an error.
 
-The renderer creates these buffers once for each render product. So you can split one camera sensor
-over several render products to make each buffer smaller. The buffers stay below the limit only when
-each render product is small enough, so the split needs the right value.
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits a camera sensor over several render
+products. Each render product has its own, smaller atlas, so a smaller value can keep each buffer
+below the limit. The outputs do not change: each data type still has one
+``(num_envs, height, width, channels)`` buffer, in the same environment order. The field accepts
+these values:
 
-:attr:`~sensors.CameraCfg.max_envs_per_render_product` sets the split. With an integer ``M``, each
-render product has at most ``M`` environments, so the sensor gets ``ceil(num_envs / M)`` render
-products. The first one renders the first ``M`` environments, the next one the next ``M``, and so on.
-Each render product has its own, smaller atlas. The outputs do not change: each data type still has
-one ``(num_envs, height, width, channels)`` buffer, in the same environment order.
+* ``"auto"`` (the default): The sensor starts with one render product. If its first frame fails, the
+  OVRTX renderer searches for a split. The search halves the number of environments per render
+  product and renders the frame again.
+* ``"all"``: The sensor always has one render product.
+* An integer ``M`` of at least 1: The sensor always has ``ceil(num_envs / M)`` render products. Only
+  the OVRTX renderer accepts an integer. The other renderers reject it when the camera is created.
 
-The field accepts these values:
-
-* ``"auto"`` (the default): The sensor starts with one render product. If the first frame fails, the
-  OVRTX renderer searches for a split.
-* ``"all"``: The sensor always has one render product. The renderer never searches for a split of
-  this sensor.
-* An integer ``M`` of at least 1: The sensor always has ``ceil(num_envs / M)`` render products. The
-  renderer never searches for a split of this sensor.
-
-With ``"auto"``, the OVRTX renderer searches for a value by itself. It starts with one render product.
-If the first frame fails, it halves the render products of one sensor and renders the frame again. It
-repeats this, at most four times, until a frame renders. A warning then gives the value of ``M`` that
-worked. For example, 2560 environments of 128 x 128 pixels at 16 samples per pixel give 1280.
-
-The search runs only once, at startup. The next frame reuses most of the scene preparation of a failed
-frame. To skip the search on later runs, set the logged value:
+When a smaller layout renders, a warning gives the integer that skips this search. For example,
+2560 environments of 128 x 128 pixels at 16 samples per pixel give 1280. Set it on later runs:
 
 .. code-block:: python
 
@@ -351,36 +338,18 @@ frame. To skip the search on later runs, set the logged value:
 
    large_batch_camera = replace(camera_cfg, max_envs_per_render_product=1280)
 
-The search has these limits:
+The search has limits. With several sensors, it halves one sensor per failed frame. It first takes
+the sensor with the most atlas pixels times samples per pixel. One frame tries at most four smaller
+layouts, counted over all camera sensors. If the frame still fails, the renderer error reaches the
+caller, and an ``"auto"`` sensor without a rendered frame renders no more frames. During the search,
+the renderer can need more GPU memory, because it can keep the buffers of failed layouts for some
+time.
 
-* With several sensors, it halves one sensor per failed frame. It takes the sensor with the most atlas
-  pixels times samples per pixel, because the largest renderer buffers grow with both. This is a guess.
-  A wrong guess costs extra failed frames: halving a sensor lowers its rank, so the next failed frame
-  can pick another sensor.
-* It needs OVRTX 0.7 or later. OVRTX 0.6 does not fail the frame, so the search never starts.
-* One frame tries at most four smaller layouts, counted over all camera sensors together. If the
-  frame still fails, the renderer error reaches the caller. The camera then renders no more frames,
-  and every later render of it raises an error at once.
-* While it searches, it can need more GPU memory than the final layout. The renderer can keep the
-  buffers of a failed layout for some time.
-
-To turn the search off for a sensor, set ``"all"`` or an integer. There are two reasons to do this:
-
-* You get a layout that does not depend on the GPU. With ``"auto"``, the layout depends on which first
-  frames fail. That can change with the GPU, the driver or the OVRTX version. Path tracing and DLSS
-  depend on the pixel position in the atlas, so another layout can change the color outputs a little.
-* You get a clear failure instead of an automatic change. With ``"auto"``, the renderer changes the
-  layout after a failed first frame and only logs a warning.
-
-With ``"all"`` or an integer, the renderer uses the layout as given. If a frame then fails, you get the
-renderer error, unless the search can halve another camera sensor with ``"auto"`` and the frame then
-renders. To find a good integer by hand, start with half the number of environments. Halve it again
-until the frame renders and no tile is black. Each extra render product adds a fixed cost to every
-frame. So use the largest value that renders.
-
-Only the OVRTX renderer supports an integer. The Isaac RTX and Newton Warp renderers always render a
-camera sensor through one render product. They accept ``"auto"`` and ``"all"``, but reject an integer
-when the camera is created.
+Set ``"all"`` or an integer to turn the search off for a sensor. The layout then does not depend on
+the GPU, the driver or the renderer version. Path tracing and DLSS depend on the pixel position in
+the atlas, so another layout can change the color outputs a little. A failed frame also never changes
+the layout of this sensor, so a layout that is too large gives the renderer error. Each extra render
+product adds a fixed cost to every frame, so use the largest integer that renders.
 
 Post-render image signal processing
 -----------------------------------

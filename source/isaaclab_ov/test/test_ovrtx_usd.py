@@ -190,47 +190,36 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
         assert prim_paths[source] == path
 
 
-@pytest.mark.parametrize("max_envs_per_render_product", ["auto", "all", 4, 8], ids=["auto", "all", "equal", "larger"])
-def test_default_render_product_layout_is_single_product(camera_spec, max_envs_per_render_product):
-    """With "auto", "all" or a limit not below the environment count, the sensor has one product with its old name."""
+@pytest.mark.parametrize(
+    "num_envs, max_envs, layout",
+    [
+        *[(4, max_envs, [("RenderProduct", 0, 4, 2, 2)]) for max_envs in ("auto", "all", 4, 8)],
+        (5, 2, [("RenderProduct_0", 0, 2, 2, 1), ("RenderProduct_1", 2, 2, 2, 1), ("RenderProduct_2", 4, 1, 1, 1)]),
+    ],
+    ids=["auto", "all", "equal", "larger", "split"],
+)
+def test_render_products_author_one_atlas_per_environment_range(camera_spec, num_envs, max_envs, layout):
+    """Each render product has a contiguous range of environments, its own atlas and the RenderVars of the sensor.
+
+    With "auto", "all" or a limit not below the environment count, the sensor has one product with its old name.
+    """
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
 
-    render_data = _make_render_data(camera_spec, max_envs_per_render_product)
-    paths = list(camera_spec.camera_prim_paths)
-    assert render_data.products == [OVRTXRenderProduct("/RenderCamera_0/RenderProduct", paths, 0, 4, 2, 2)]
-    assert render_data.render_product_path == "/RenderCamera_0/RenderProduct"
-    assert render_data.render_product_paths == ("/RenderCamera_0/RenderProduct",)
-    stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
-    products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
-    assert [str(prim.GetPath()) for prim in products] == ["/RenderCamera_0/RenderProduct"]
-    assert products[0].GetAttribute("resolution").Get() == Gf.Vec2i(32, 16)
-    assert products[0].GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
-    assert products[0].GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
-
-
-def test_render_product_chunks_author_one_product_per_slice(camera_spec):
-    """Each product has a contiguous range of environments and its own atlas. All products use the same RenderVars."""
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
-
-    paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
-    camera_spec = CameraRenderSpec(
-        cfg=camera_spec.cfg, device="cpu", num_instances=5, camera_prim_paths=tuple(paths), view_count=5
-    )
+    paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(num_envs)]
+    camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", num_envs, tuple(paths), num_envs)
     camera_spec.cfg.render_settings = {"omni:rtx:quality": ("Int", 0)}
-    render_data = _make_render_data(camera_spec, 2)
+    render_data = _make_render_data(camera_spec, max_envs)
     assert render_data.products == [
-        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_0", paths[0:2], 0, 2, 2, 1),
-        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_1", paths[2:4], 2, 2, 2, 1),
-        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_2", paths[4:5], 4, 1, 1, 1),
+        OVRTXRenderProduct(f"/RenderCamera_0/{name}", paths[start : start + envs], start, envs, cols, rows)
+        for name, start, envs, cols, rows in layout
     ]
-    assert render_data.render_product_path == "/RenderCamera_0/RenderProduct_0"
-    resolutions = [Gf.Vec2i(32, 8), Gf.Vec2i(32, 8), Gf.Vec2i(16, 8)]
     stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
     products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
     assert [str(prim.GetPath()) for prim in products] == [product.path for product in render_data.products]
-    for prim, product, resolution in zip(products, render_data.products, resolutions, strict=True):
+    for prim, product in zip(products, render_data.products, strict=True):
         assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(product.camera_paths[0])]
-        assert prim.GetAttribute("resolution").Get() == resolution
+        # Each tile of the atlas has the 16 x 8 pixels of the camera.
+        assert prim.GetAttribute("resolution").Get() == Gf.Vec2i(16 * product.num_cols, 8 * product.num_rows)
         assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
         assert prim.GetAttribute("omni:rtx:quality").Get() == 0
     assert len([prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderVar"]) == 1
