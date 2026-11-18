@@ -17,7 +17,6 @@ from isaaclab_experimental.image_transfer import (
 )
 from isaaclab_experimental.image_transfer import processor as processor_module
 
-from isaaclab.sensors import SensorTensorProcessorArgs
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
@@ -85,8 +84,8 @@ def _processor(seed=7, **kwargs):
 
 
 def _rgb(processor, value, mask=None):
-    args = None if mask is None else SensorTensorProcessorArgs(env_mask=wp.array(mask, dtype=wp.bool, device="cpu"))
-    return processor(_buffers(_controls(value)), args=args)["rgb"].torch
+    env_mask = None if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
+    return processor(_buffers(_controls(value)), env_mask=env_mask)["rgb"].torch
 
 
 def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
