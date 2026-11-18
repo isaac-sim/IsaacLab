@@ -958,6 +958,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         return self.current_image_view.read_rgb(frame_id)
 
+    @property
+    def has_tracking_view(self) -> bool:
+        """Whether a perspective view is tied to an environment or an asset."""
+        return any(self._is_tracking_view(view) for view in self._image_views)
+
     def render_tracking_rgb_array(self) -> np.ndarray:
         """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
         view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
@@ -1110,7 +1115,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
         view = self.current_image_view
-        if self._is_tracking_view(view):
+        if self._is_tracking_view(view) and not viewer.is_paused():  # a paused scene is frozen, so is its camera
             self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:

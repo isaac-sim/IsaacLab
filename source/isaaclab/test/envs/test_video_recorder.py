@@ -58,6 +58,7 @@ class _FakeViz:
         self.cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type=viz_type))
         self._frame = frame if frame is not None else _FRAME.copy()
         self.render_calls = 0
+        self.has_tracking_view = True
 
     def render_rgb_array(self) -> np.ndarray:
         self.render_calls += 1
@@ -65,6 +66,11 @@ class _FakeViz:
 
     def supports_markers(self) -> bool:
         return True
+
+
+def _without_tracking_view(viz: _FakeViz) -> _FakeViz:
+    viz.has_tracking_view = False
+    return viz
 
 
 def _make_env(visualizers=(), sensors: dict | None = None):
@@ -278,6 +284,12 @@ def test_a_tracking_source_records_the_tracking_camera_not_the_selected_one():
             lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
             RuntimeError,
             "Enable streaming_view",
+        ),
+        (
+            "viz:newton_gl:tracking",
+            lambda: _make_env(visualizers=[_without_tracking_view(_FakeViz("newton_gl"))]),
+            RuntimeError,
+            "declares no tracking camera",
         ),
         (
             "viz:kit:tracking",

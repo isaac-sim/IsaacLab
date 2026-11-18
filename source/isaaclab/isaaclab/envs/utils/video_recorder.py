@@ -76,6 +76,11 @@ class VideoRecorder:
                         f"The {viz.cfg.backend.visualizer_type!r} visualizer cannot record a tracking view. Use "
                         "'viz:newton_gl:tracking'."
                     )
+                if not viz.has_tracking_view:
+                    raise RuntimeError(
+                        "The newton_gl visualizer declares no tracking camera to record. Add "
+                        "TrackingCameraCfg(env_index=..., track_path=...) to its cameras."
+                    )
                 self._capture = viz.render_tracking_rgb_array
             else:
                 self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array

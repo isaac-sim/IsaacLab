@@ -70,9 +70,9 @@ def source(tmp_path, monkeypatch):
         transport=remote._read_bytes,
     )
     source.read = Mock(
-        side_effect=lambda url, limit: json.dumps(source.manifest).encode()
-        if url.endswith("/manifest.json")
-        else source.blob
+        side_effect=lambda url, limit: (
+            json.dumps(source.manifest).encode() if url.endswith("/manifest.json") else source.blob
+        )
     )
     monkeypatch.setenv("XDG_CACHE_HOME", str(source.cache))
     monkeypatch.setattr(remote, "datetime", SimpleNamespace(now=lambda tz: source.now.astimezone(tz)))

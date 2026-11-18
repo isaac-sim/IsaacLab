@@ -163,3 +163,9 @@ def test_an_unknown_asset_is_reported_and_the_camera_keeps_following_its_target(
     assert not viz._set_tracking_path(follower, "ghost")
     assert "unknown scene asset" in viz._tracking_error and task.cfg.source.track_path == "robot"
     assert viz._set_tracking_path(follower, "robot") and viz._tracking_error == ""
+
+
+def test_a_visualizer_reports_whether_it_declares_a_tracking_view():
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))
+    assert not _visualizer([free]).has_tracking_view
+    assert _visualizer([free, task]).has_tracking_view
