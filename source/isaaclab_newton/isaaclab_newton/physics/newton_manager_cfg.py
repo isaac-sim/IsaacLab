@@ -166,10 +166,10 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU (built with its sensor stage disabled), XPBD, Steel, and
-    Featherstone support this setting. Newton raises an error during solver
-    initialization for unsupported solvers rather than silently running them
-    without the requested guarantee.
+    XPBD and Featherstone support both guarantees; MJWarp on the GPU (built with
+    its sensor stage disabled) and Steel support only ``"run_to_run"``. Newton
+    raises an error during solver initialization when the solver cannot honor
+    the requested mode rather than silently running it without the guarantee.
     """
 
     solver_cfg: NewtonSolverCfg | None = None

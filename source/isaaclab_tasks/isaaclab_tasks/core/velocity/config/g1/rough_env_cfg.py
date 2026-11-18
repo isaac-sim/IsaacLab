@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configurations for the Unitree G1 velocity-tracking environment on rough terrain.
-
-This module holds the two stages of the depth pipeline: a teacher whose actor reads a terrain
-height scan and the base linear velocity, and a student that replaces both with a chest-mounted
-depth camera and is distilled from the teacher in the teacher's own environment.
-"""
+"""Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
 
 from __future__ import annotations
 
@@ -40,9 +35,14 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp, velocity_env_cfg
 from ...velocity_env_cfg import (
+    CurriculumCfg,
     LocomotionVelocityRoughEnvCfg,
+    MySceneCfg,
+    ObservationsCfg,
     RewardsCfg,
+    RoughPhysicsCfg,
 )
+from .flat_env_cfg import G1FlatEnvCfg
 from .terrains import G1_ROUGH_TERRAINS_CFG
 
 if TYPE_CHECKING:
@@ -57,7 +57,34 @@ DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
 
 
 @configclass
-class G1Rewards(RewardsCfg):
+class G1RoughEnvCfg(G1FlatEnvCfg):
+    """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
+
+    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
+    sim.physics.newton_mjwarp.solver_cfg.njmax = 300
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+    observations: ObservationsCfg = ObservationsCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # commands
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+        # rewards
+        self.rewards.track_ang_vel_z_exp.weight = 2.0
+        self.rewards.lin_vel_z_l2.weight = 0.0
+        self.rewards.dof_acc_l2.weight = -1.25e-7
+        self.rewards.feet_air_time.weight = 0.25
+        self.rewards.dof_torques_l2.weight = -1.5e-7
+        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
+        )
+
+
+@configclass
+class G129DofRewards(RewardsCfg):
     """Reward terms for the G1 teacher and depth student."""
 
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
@@ -488,7 +515,7 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     seed = 42
     scene: G1SceneCfg = G1SceneCfg(num_envs=4096, env_spacing=2.5)
-    rewards: G1Rewards = G1Rewards()
+    rewards: G129DofRewards = G129DofRewards()
     events: G1EventsCfg = G1EventsCfg(asset_parameters=EventTerm(func=configure_asset_parameters, mode="prestartup"))
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
