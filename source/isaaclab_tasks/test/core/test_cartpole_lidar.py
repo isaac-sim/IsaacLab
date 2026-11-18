@@ -38,6 +38,7 @@ import gymnasium as gym
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.core.cartpole.cartpole_common import CARTPOLE_LIDAR_AZIMUTH_COUNT, CARTPOLE_LIDAR_ELEVATION_COUNT
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -46,7 +47,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 @pytest.mark.parametrize("task", ("Isaac-Cartpole-Camera", "Isaac-Cartpole-Camera-Direct"))
 def test_tiled_lidar_returns_are_local_to_each_environment(task):
-    """Each environment's points land on its own cart, and the shared step still returns the camera."""
+    """Sensor-frame scans agree across environments, and the policy is a stacked range image."""
     env_cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     env_cfg = resolve_presets(env_cfg, {"lidar"})
     env_cfg.scene.num_envs = 4
@@ -68,26 +69,30 @@ def test_tiled_lidar_returns_are_local_to_each_environment(task):
         scene = env.unwrapped.scene
         points = scene["lidar"].data.points.torch
         valid = scene["lidar"].data.valid.torch
-        origins = scene.env_origins.to(device=points.device, dtype=points.dtype)
         assert points.shape == (4, valid.shape[1], 3)
         assert valid.shape == (4, points.shape[1])
         assert points.shape[1] > 1
         assert torch.isfinite(reward).all()
-        assert torch.isfinite(obs["policy"]).all()
-        assert obs["policy"].shape[-1] == 4 + points.shape[1] * 3
+        policy = obs["policy"]
+        assert torch.isfinite(policy).all()
+        assert policy.shape == (4, 2, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT)
+        assert float(policy.min()) >= 0.0
+        assert float(policy.max()) <= 1.0
+        assert float(policy.max()) > 0.2
         assert obs["critic"].shape[-1] == 4
-        assert env.unwrapped.single_observation_space["policy"].shape[-1] == obs["policy"].shape[-1]
+        assert env.unwrapped.single_observation_space["policy"].shape == policy.shape[1:]
         assert env.unwrapped.single_observation_space["critic"].shape[-1] == 4
 
+        centers = []
         for index in range(points.shape[0]):
             hits = points[index][valid[index]]
             assert hits.numel() > 0, f"environment {index} returned no lidar hits"
             assert torch.isfinite(hits).all()
-            center = hits.mean(dim=0)
-            own = torch.linalg.norm(center - origins[index])
-            other = torch.linalg.norm(center.unsqueeze(0) - origins, dim=-1)
-            other[index] = float("inf")
-            assert own < other.min(), f"environment {index} hits are closer to another environment"
+            centers.append(hits.mean(dim=0))
+        centers = torch.stack(centers)
+        # Sensor-frame scans of the same cart agree. World-frame scans sit on origins 20 m apart.
+        spread = torch.linalg.norm(centers - centers.mean(dim=0), dim=-1).max()
+        assert spread < 5.0, f"sensor-frame hit centers differ by {float(spread):.2f} m"
 
         image = scene["tiled_camera"].data.output["rgb"].torch
         assert image.shape[0] == 4 and image.shape[-1] == 3

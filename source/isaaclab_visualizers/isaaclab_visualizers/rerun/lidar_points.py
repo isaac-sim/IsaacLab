@@ -18,11 +18,24 @@ if TYPE_CHECKING:
     from isaaclab.sensors.lidar.lidar import Lidar
 
 
+def _iso8855_to_prim(points: torch.Tensor) -> torch.Tensor:
+    """Map ISO 8855 sensor points onto the prim's camera axes.
+
+    The beam travels along the prim's local ``-Z``. ``SENSOR`` returns use a different
+    frame: ``+X`` is forward, ``+Y`` is left, and ``+Z`` is up. The pose quaternion
+    rotates the prim axes, so a return has to be rewritten into those axes first.
+    """
+    forward, left, up = points.unbind(dim=-1)
+    return torch.stack((-left, up, -forward), dim=-1)
+
+
 def lidar_world_points(sensor: Lidar, env_ids: list[int] | None) -> np.ndarray:
     """Return finite lidar hits in world coordinates.
 
-    ``WORLD`` returns are already in world coordinates. ``SENSOR`` returns are rotated
-    and translated by the pose the sensor writes to the renderer. Misses are omitted.
+    ``WORLD`` returns are already in world coordinates. ``SENSOR`` returns are in the
+    ISO 8855 sensor frame. They are rewritten onto the prim's camera axes, then
+    rotated and translated by the pose the sensor writes to the renderer. Misses are
+    omitted.
 
     Args:
         sensor: Lidar whose latest buffers are read.
@@ -49,6 +62,6 @@ def lidar_world_points(sensor: Lidar, env_ids: list[int] | None) -> np.ndarray:
         if index is not None:
             position = position.index_select(0, index)
             rotation = rotation.index_select(0, index)
-        points = quat_apply(rotation.unsqueeze(1), points) + position.unsqueeze(1)
+        points = quat_apply(rotation.unsqueeze(1), _iso8855_to_prim(points)) + position.unsqueeze(1)
     hits = points[valid & torch.isfinite(points).all(dim=-1)]
     return hits.detach().to(dtype=torch.float32, device="cpu").numpy()

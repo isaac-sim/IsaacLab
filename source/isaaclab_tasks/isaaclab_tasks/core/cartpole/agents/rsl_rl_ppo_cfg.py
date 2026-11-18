@@ -166,15 +166,13 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
-class CartpoleLidarPPORunnerCfg(CartpoleCameraFeaturePPORunnerCfg):
-    """MLP policy for the joint state and lidar point cloud.
+class CartpoleLidarPPORunnerCfg(CartpoleCameraPPORunnerCfg):
+    """CNN policy for the lidar range image.
 
-    The critic reads the privileged joint state. The actor reads the policy group, which appends the
-    point cloud to that same joint state.
+    The actor reads two stacked range images. The critic reads the joint state.
     """
 
     experiment_name = "cartpole_lidar"
-    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
 
 
 @configclass

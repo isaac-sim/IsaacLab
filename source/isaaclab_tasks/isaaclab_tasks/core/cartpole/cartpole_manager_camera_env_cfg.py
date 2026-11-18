@@ -106,22 +106,24 @@ def image_observations_cfg(data_type: str):
 
 
 def lidar_observations_cfg():
-    """Build policy observations from the cartpole joints and the lidar point cloud.
+    """Build policy observations from stacked lidar range images.
 
-    The critic keeps the privileged joint state. Missed rays are zeros in the policy term and
-    stay non-finite on the sensor itself.
+    The critic keeps the privileged joint state. The policy is a channel-first range image: misses
+    are 0 and a hit at the far range is 1. Joint terms stay off the policy group so they are not
+    flattened into that image.
 
     Returns:
-        An observations config with the joint-and-lidar policy and the privileged critic.
+        An observations config with the range-image policy and the privileged critic.
     """
 
     @configclass
     class LidarObservationsCfg:
         @configclass
         class PolicyCfg(ObsGroup):
-            joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-            joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-            lidar_points = ObsTerm(func=mdp.lidar_points, params={"sensor_cfg": SceneEntityCfg("lidar")})
+            lidar_range = ObsTerm(
+                func=mdp.lidar_range_image,
+                params={"sensor_cfg": SceneEntityCfg("lidar"), "channel_first": True, "frame_stack": 2},
+            )
 
             def __post_init__(self):
                 self.enable_corruption = False

@@ -572,15 +572,19 @@ class RerunVisualizer(BaseVisualizer):
         """Log each lidar's finite world hits into the current Rerun frame."""
         if self._viewer is None:
             return
+
         scene = self._sim.get_scene_data_provider().get_interactive_scene()
         if scene is None:
             return
+
         from isaaclab.sensors.lidar.lidar import Lidar
 
         for name, sensor in scene.sensors.items():
             if not isinstance(sensor, Lidar):
                 continue
+
             points = lidar_world_points(sensor, self._env_ids)
+
             self._viewer.log_points(
                 f"lidar/{name}",
                 wp.array(points, dtype=wp.vec3, device="cpu"),

@@ -38,15 +38,17 @@ def test_lidar_world_points_keeps_finite_hits_for_the_requested_envs():
     np.testing.assert_allclose(selected, [[20.0, 1.0, 2.0]])
 
     half = math.sqrt(0.5)
-    sensor_points = torch.tensor([[[1.0, 0.0, 0.0], [float("inf"), 0.0, 0.0]]])
-    sensor_valid = torch.tensor([[True, True]])
+    # ISO 8855: +X forward, +Y left, +Z up. The prim looks along -Z, with +X right and +Y up.
+    sensor_points = torch.tensor([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [float("inf"), 0.0, 0.0]]])
+    sensor_valid = torch.tensor([[True, True, True, True]])
     position = torch.tensor([[2.0, 3.0, 4.0]])
     rotation = torch.tensor([[0.0, 0.0, half, half]])
     transformed = lidar_world_points(
         _sensor(sensor_points, sensor_valid, "SENSOR", position, rotation),
         None,
     )
-    np.testing.assert_allclose(transformed, [[2.0, 4.0, 4.0]], atol=1e-6)
+    # A yaw about Z leaves the vertical axis alone. Forward is prim -Z, left is prim -X, up is prim +Y.
+    np.testing.assert_allclose(transformed, [[2.0, 3.0, 3.0], [2.0, 2.0, 4.0], [1.0, 3.0, 4.0]], atol=1e-6)
 
     unposed = lidar_world_points(_sensor(sensor_points, sensor_valid, "SENSOR"), None)
     assert unposed.shape == (0, 3)

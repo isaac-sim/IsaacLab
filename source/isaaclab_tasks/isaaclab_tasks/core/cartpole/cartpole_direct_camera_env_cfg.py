@@ -16,7 +16,8 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from .cartpole_common import (
-    CARTPOLE_LIDAR_RAY_COUNT,
+    CARTPOLE_LIDAR_AZIMUTH_COUNT,
+    CARTPOLE_LIDAR_ELEVATION_COUNT,
     CartpoleTiledCameraCfg,
     cartpole_lidar_camera_cfg,
     cartpole_lidar_cfg,
@@ -47,7 +48,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
     The selector also picks the matching tiled camera preset and its rendering backend through
     :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant keeps the side RGB camera and
     adds a tiled OVRTX lidar; both are pinned to OVRTX with motion BVH enabled. Its policy observation
-    is the joint state plus the point cloud.
+    is a stacked range image of that scan. The critic reads the joint state.
     """
 
     @configclass
@@ -84,8 +85,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
         """Lidar variant viewed close enough to check hits against one cart and pole."""
 
         scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0)
-        # Joint state plus one Cartesian point per ray. Misses stay in the vector as zeros.
-        observation_space = 4 + CARTPOLE_LIDAR_RAY_COUNT * 3
+        # One range channel. Env init stacks ``frame_stack`` scans on the channel axis.
+        observation_space = [1, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT]
 
         def __post_init__(self):
             super().__post_init__()

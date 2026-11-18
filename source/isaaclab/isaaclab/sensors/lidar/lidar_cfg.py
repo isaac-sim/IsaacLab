@@ -83,6 +83,9 @@ class LidarCfg(SensorBaseCfg):
     frame_of_reference: Literal["SENSOR", "WORLD", "CUSTOM"] = "WORLD"
     """Coordinate frame of the returned points. Defaults to world coordinates."""
 
+    far_range: float | None = None
+    """Maximum return distance, in meters. ``None`` leaves the sensor default of 200 m."""
+
     coords_type: Literal["CARTESIAN", "SPHERICAL"] = "CARTESIAN"
     """Coordinate convention of the returned points. Defaults to Cartesian ``x, y, z``."""
 
@@ -118,5 +121,7 @@ class LidarCfg(SensorBaseCfg):
             raise ValueError(f"Lidar tiled_subsampling cannot be negative, got {self.tiled_subsampling}.")
         if self.frame_of_reference == "CUSTOM":
             raise ValueError("Lidar frame_of_reference 'CUSTOM' is not supported. Use 'WORLD' or 'SENSOR'.")
+        if self.far_range is not None and self.far_range <= 0.0:
+            raise ValueError(f"Lidar far_range must be positive, got {self.far_range}.")
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")
