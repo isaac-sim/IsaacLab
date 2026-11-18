@@ -80,7 +80,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' || github.event.label.name == 'ci:run-ovstage' || startsWith(github.event.label.name, 'ci:run-docker:') }}
 
 permissions:
   contents: read
@@ -102,6 +102,7 @@ jobs:
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
       activated: ${{ steps.activation.outputs.activated }}
+      ci_extras: ${{ steps.activation.outputs.ci_extras }}
     steps:
     - name: Check PR update activation
       id: activation
@@ -110,23 +111,64 @@ jobs:
       uses: actions/github-script@v9
       with:
         script: |
-          // Label history preserves activation after run-ci removes its triggering label.
+          // Label history preserves activation and optional lane selection after run-ci removes its triggering label.
+          const parseTriggerExtras = label => {
+            const normalized = typeof label === 'string' ? label.toLowerCase() : '';
+            if (normalized === 'ci:run-docker') return [];
+            if (normalized === 'ci:run-ovstage') return ['ovstage'];
+            if (normalized.startsWith('ci:run-docker:')) {
+              return normalized.slice('ci:run-docker:'.length).split('+').filter(Boolean);
+            }
+            return null;
+          };
           core.setOutput('activated', 'false');
-          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+          core.setOutput('ci_extras', '[]');
+          if (context.eventName !== 'pull_request') {
             core.setOutput('activated', 'true');
             return;
           }
+          const attachedExtras = (context.payload.pull_request?.labels ?? [])
+            .flatMap(l => parseTriggerExtras(l?.name) ?? []);
+          const directExtras = context.payload.action === 'labeled'
+            ? parseTriggerExtras(context.payload.label?.name)
+            : null;
+          if (context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+          }
+          if (directExtras !== null) {
+            core.setOutput('ci_extras', JSON.stringify([...new Set([...directExtras, ...attachedExtras])]));
+            return;
+          }
+          let activated = context.payload.action !== 'synchronize';
+          let historyExtras = [];
           for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
             ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
             request: {timeout: 60000},
           })) {
             // GITHUB_TOKEN labeler events cannot trigger another workflow.
-            if (response.data.some(event => event.event === 'labeled'
-                && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
-              core.setOutput('activated', 'true');
-              return;
+            for (const event of response.data) {
+              if (!event.actor?.login || event.actor.login === 'github-actions[bot]') {
+                continue;
+              }
+              if (event.event === 'unlabeled' && event.actor.login !== 'isaaclab-bot[bot]') {
+                const removed = parseTriggerExtras(event.label?.name);
+                if (removed?.length) {
+                  historyExtras = historyExtras.filter(opt => !removed.includes(opt));
+                }
+                continue;
+              }
+              if (event.event !== 'labeled') {
+                continue;
+              }
+              activated = true;
+              const extras = parseTriggerExtras(event.label?.name);
+              if (extras !== null) {
+                historyExtras = extras;
+              }
             }
           }
+          core.setOutput('activated', String(activated));
+          core.setOutput('ci_extras', JSON.stringify([...new Set([...historyExtras, ...attachedExtras])]));
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -937,15 +979,15 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # ovstage is post-merge only; it never ran on pull requests.
+  # Post-merge by default; pull requests opt in with ``run-ci ovstage``.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'pull_request' &&
+      (github.event_name != 'pull_request' || contains(fromJSON(needs.changes.outputs.ci_extras || '[]'), 'ovstage')) &&
       needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
@@ -976,6 +1018,7 @@ jobs:
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kitless
+        warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 

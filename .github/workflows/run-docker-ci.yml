@@ -25,7 +25,7 @@ jobs:
     name: Request Docker CI
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.body == 'run-ci'
+      startsWith(github.event.comment.body, 'run-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -33,11 +33,59 @@ jobs:
         id: authorize
         env:
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          set -euo pipefail
+          set -efuo pipefail
+
+          # Normalize CRLF and trim surrounding whitespace so trailing newlines from
+          # web or mobile comments still match ``run-ci [option ...]``.
+          body="${COMMENT_BODY//$'\r'/}"
+          body="${body#"${body%%[![:space:]]*}"}"
+          body="${body%"${body##*[![:space:]]}"}"
+          if [[ "$body" == *$'\n'* ]]; then
+            echo "::error::'run-ci' must be a single-line command: 'run-ci [option ...]' (supported options: ovstage)."
+            exit 1
+          fi
+
+          read -r -a tokens <<< "$body"
+          command_name="${tokens[0]:-}"
+          if [ "${command_name,,}" != "run-ci" ]; then
+            echo "::error::Unsupported command '$command_name'. Use 'run-ci' or 'run-ci <option> ...' (supported options: ovstage)."
+            exit 1
+          fi
+
+          options=()
+          for raw_opt in "${tokens[@]:1}"; do
+            opt="${raw_opt,,}"
+            case "$opt" in
+              ovstage)
+                if [[ " ${options[*]-} " != *" $opt "* ]]; then
+                  options+=("$opt")
+                fi
+                ;;
+              *)
+                echo "::error::Unknown run-ci option '$raw_opt'. Supported options: ovstage."
+                exit 1
+                ;;
+            esac
+          done
+
+          if [ "${#options[@]}" -eq 0 ]; then
+            label="ci:run-docker"
+            canonical_command="run-ci"
+          else
+            mapfile -t sorted_options < <(printf '%s\n' "${options[@]}" | LC_ALL=C sort)
+            if [ "${#sorted_options[@]}" -eq 1 ] && [ "${sorted_options[0]}" = "ovstage" ]; then
+              label="ci:run-ovstage"
+            else
+              joined_options="$(IFS=+; printf '%s' "${sorted_options[*]}")"
+              label="ci:run-docker:${joined_options}"
+            fi
+            canonical_command="run-ci ${sorted_options[*]}"
+          fi
 
           read -r pr_author pr_state head_sha < <(
             gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state, .head.sha] | @tsv'
@@ -60,7 +108,11 @@ jobs:
             esac
           fi
 
-          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "head_sha=$head_sha"
+            echo "label=$label"
+            echo "command=$canonical_command"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create isaaclab-bot token
         id: app-token
@@ -72,9 +124,10 @@ jobs:
 
       - name: Trigger Docker CI
         env:
+          COMMAND: ${{ steps.authorize.outputs.command }}
           EXPECTED_HEAD_SHA: ${{ steps.authorize.outputs.head_sha }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          LABEL: ci:run-docker
+          LABEL: ${{ steps.authorize.outputs.label }}
           PR_NUMBER: ${{ github.event.issue.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -85,14 +138,15 @@ jobs:
           # for. Skip the request instead of spending GPU minutes on it.
           head_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
           if [ "$head_sha" != "$EXPECTED_HEAD_SHA" ]; then
-            echo "::error::PR #$PR_NUMBER moved from ${EXPECTED_HEAD_SHA:0:7} to ${head_sha:0:7} while this request was processed. Comment 'run-ci' again to test the current head."
+            echo "::error::PR #$PR_NUMBER moved from ${EXPECTED_HEAD_SHA:0:7} to ${head_sha:0:7} while this request was processed. Comment '$COMMAND' again to test the current head."
             exit 1
           fi
 
           endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
-          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+          label_uri="$(jq -rn --arg v "$LABEL" '$v | @uri')"
+          gh api --method DELETE "$endpoint/$label_uri" --silent >/dev/null 2>&1 || true
           gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
-          gh api --method DELETE "$endpoint/$LABEL" --silent
+          gh api --method DELETE "$endpoint/$label_uri" --silent
 
           # A push can still land between the check above and GitHub processing
           # the label; nothing can make those two steps atomic. Re-read the head
@@ -100,8 +154,8 @@ jobs:
           # the requester never saw.
           built_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
           if [ "$built_sha" != "$EXPECTED_HEAD_SHA" ]; then
-            echo "::error::PR #$PR_NUMBER moved to ${built_sha:0:7} as the label was applied, so Docker CI is testing that revision and not the requested ${EXPECTED_HEAD_SHA:0:7}. Comment 'run-ci' again to test the current head."
+            echo "::error::PR #$PR_NUMBER moved to ${built_sha:0:7} as the label was applied, so Docker CI is testing that revision and not the requested ${EXPECTED_HEAD_SHA:0:7}. Comment '$COMMAND' again to test the current head."
             exit 1
           fi
 
-          echo "Requested Docker CI for PR #$PR_NUMBER at ${EXPECTED_HEAD_SHA:0:7}." >> "$GITHUB_STEP_SUMMARY"
+          echo "Requested Docker CI ($COMMAND) for PR #$PR_NUMBER at ${EXPECTED_HEAD_SHA:0:7}." >> "$GITHUB_STEP_SUMMARY"
