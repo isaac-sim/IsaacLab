@@ -197,7 +197,7 @@ Backend-specific options are available when needed, but ordinary configuration u
 
 Use a list of ``VisualizerCfg`` declarations for different views or window sizes. Backend selection
 applies to each declaration independently. For example, a task with these two views opens four
-windows with ``--viz=newton,rerun``: one Newton and one Rerun window per view.
+windows with ``--viz=newton,viser``: one Newton and one Viser window per view.
 
 .. code-block:: python
 
@@ -850,9 +850,9 @@ only needed for independently configured views, such as a different camera angle
    * - no ``--viz``
      - ``VisualizerCfg(backend=MultiBackendVisualizerCfg())``
      - No visualizer launches; backend alternatives remain inactive until selected.
-   * - ``visualizer=rerun,newton``
+   * - ``visualizer=viser,newton``
      - ``VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg())``
-     - Launch Rerun and Newton, both showing at most 16 environments.
+     - Launch Viser and Newton, both showing at most 16 environments.
 
 For migration context, see :doc:`/source/isaaclab/migrating`.
 
