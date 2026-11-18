@@ -18,18 +18,34 @@ models:
     max_log_std: 2.0
     initial_log_std: 0.0
     network:
+      - name: features_extractor
+        input: OBSERVATIONS  # env already emits channel-first NCHW
+        layers:
+          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
+          - flatten
+        activations: relu
       - name: net
-        input: OBSERVATIONS
-        layers: [256, 128]
+        input: features_extractor
+        layers: [512]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
     class: DeterministicMixin
     clip_actions: False
     network:
+      - name: features_extractor
+        input: OBSERVATIONS  # env already emits channel-first NCHW
+        layers:
+          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
+          - flatten
+        activations: relu
       - name: net
-        input: OBSERVATIONS
-        layers: [256, 128]
+        input: features_extractor
+        layers: [512]
         activations: elu
     output: ONE
 
@@ -54,7 +70,7 @@ agent:
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
-  state_preprocessor: RunningStandardScaler
+  state_preprocessor: null
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
   value_preprocessor_kwargs: null

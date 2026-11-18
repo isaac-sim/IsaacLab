@@ -11,11 +11,14 @@ import functools
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
+from .cartpole_common import (
+    CARTPOLE_LIDAR_AZIMUTH_COUNT,
+    CARTPOLE_LIDAR_ELEVATION_COUNT,
+    cartpole_lidar_range_image,
+)
 from .cartpole_direct_env import CartpoleEnv
 
 if TYPE_CHECKING:
@@ -25,8 +28,9 @@ if TYPE_CHECKING:
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by stacked camera observations.
 
-    The ``lidar`` preset instead returns the joint state concatenated with the lidar point cloud.
-    Missed rays are zeros in that observation. The side RGB camera remains in the scene.
+    The ``lidar`` preset instead returns two stacked range images, one channel per scan, shaped
+    ``(frame_stack, elevation, azimuth)``. Misses are 0 and a hit at the far range is 1. The critic
+    still reads the joint state. The side RGB camera remains in the scene.
     """
 
     cfg: CartpoleCameraEnvCfg
@@ -34,21 +38,18 @@ class CartpoleCameraEnv(CartpoleEnv):
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         cfg.frame_stack = max(1, cfg.frame_stack)
         uses_lidar = getattr(cfg.scene, "lidar", None) is not None
-        if not uses_lidar and isinstance(cfg.observation_space, list):
-            cfg.observation_space = [
-                int(cfg.observation_space[0]) * cfg.frame_stack,
-                int(cfg.scene.tiled_camera.height),
-                int(cfg.scene.tiled_camera.width),
-            ]
+        if isinstance(cfg.observation_space, list):
+            if uses_lidar:
+                height, width = CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT
+            else:
+                height, width = int(cfg.scene.tiled_camera.height), int(cfg.scene.tiled_camera.width)
+            cfg.observation_space = [int(cfg.observation_space[0]) * cfg.frame_stack, height, width]
 
         super().__init__(cfg, render_mode, **kwargs)
 
         self._tiled_camera = self.scene["tiled_camera"]
         self._lidar = self.scene["lidar"] if uses_lidar else None
-        self._frames = None
-        if self._lidar is not None:
-            return
-        if len(self.cfg.scene.tiled_camera.data_types) != 1:
+        if self._lidar is None and len(self.cfg.scene.tiled_camera.data_types) != 1:
             raise ValueError(
                 "The Cartpole camera environment only supports one image type at a time but the following were"
                 f" provided: {self.cfg.scene.tiled_camera.data_types}"
@@ -59,9 +60,9 @@ class CartpoleCameraEnv(CartpoleEnv):
     def _get_observations(self) -> dict:
         critic_obs = super()._get_observations()["policy"]
         if self._lidar is not None:
-            points = self._lidar.data.points.torch
-            flat = torch.nan_to_num(points.reshape(points.shape[0], -1), nan=0.0, posinf=0.0, neginf=0.0)
-            return {"policy": torch.cat((critic_obs, flat), dim=-1), "critic": critic_obs}
+            # channel-last single-channel image; the frame stack returns (B, frame_stack, H, W)
+            scan = cartpole_lidar_range_image(self._lidar.data.points.torch).unsqueeze(-1)
+            return {"policy": self._frames(scan), "critic": critic_obs}
 
         data_type = self.cfg.scene.tiled_camera.data_types[0]
         images = self._tiled_camera.data.output[data_type].torch

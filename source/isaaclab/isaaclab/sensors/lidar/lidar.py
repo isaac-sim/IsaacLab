@@ -40,6 +40,7 @@ _API_SCHEMAS = ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFirin
 _schemas_registered = False
 
 
+# HDC_TODO: move to isaaclab_ov
 def _register_omni_sensor_schemas() -> None:
     """Ask the host USD registry to load ovrtx's sensor schemas.
 
@@ -86,6 +87,8 @@ def _author_lidar(prim, cfg: LidarCfg) -> None:
     _set_attr(prim, f"{prefix}:instantLidar", Sdf.ValueTypeNames.Bool, cfg.instant_lidar)
     _set_attr(prim, f"{prefix}:includeInvalidPoints", Sdf.ValueTypeNames.Bool, cfg.include_invalid_points)
     _set_attr(prim, f"{prefix}:maxReturns", Sdf.ValueTypeNames.UInt, int(cfg.max_returns))
+    if cfg.far_range is not None:
+        _set_attr(prim, f"{prefix}:farRangeM", Sdf.ValueTypeNames.Float, float(cfg.far_range))
     _set_attr(prim, f"{prefix}:tiledSubSampling", Sdf.ValueTypeNames.UInt, int(cfg.tiled_subsampling))
     # The solid-state tick is placed at validStartAzimuthDeg, and each pattern azimuth is an offset
     # from that tick. Keep the tick on the boresight so a configured azimuth of 0 looks along the

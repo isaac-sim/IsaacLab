@@ -11,29 +11,26 @@ from isaaclab_tasks.utils import preset
 
 
 def _rl_games_lidar_cfg(name: str) -> dict:
-    """Load the feature-pipeline MLP and scale its minibatch with the environment count.
+    """Load the camera CNN and name the run for the lidar range image.
+
+    The camera config leaves input normalization off. The range image is already in ``[0, 1]``, and
+    per-coordinate normalization would blow up the mostly-zero misses.
 
     Args:
         name: Experiment name stored in the RL-Games config.
 
     Returns:
-        RL-Games configuration for a vector observation.
+        RL-Games configuration for the stacked lidar range image.
     """
-    lidar_cfg = load_yaml(Path(__file__).parent / "rl_games_manager_feature_ppo_cfg.yaml")
-    lidar_config = lidar_cfg["params"]["config"]
-    lidar_config["name"] = name
-    # The feature config's fixed minibatch is larger than a small test rollout. Scale it with the
-    # environment count so horizon_length * num_envs always divides the minibatch.
-    lidar_config.pop("minibatch_size")
-    lidar_config["minibatch_size_per_env"] = 4
+    lidar_cfg = load_yaml(Path(__file__).parent / "rl_games_camera_ppo_cfg.yaml")
+    lidar_cfg["params"]["config"]["name"] = name
     return lidar_cfg
 
 
 def rl_games_camera_cfg():
     """Load the RL-Games configuration family keyed by camera pipeline presets.
 
-    Image presets use the convolutional policy. ``lidar`` reuses the feature-pipeline MLP because its
-    observation is the joint state plus a point cloud, not an image.
+    Image presets use the convolutional policy. ``lidar`` uses that same CNN on the stacked range image.
     """
     agent_dir = Path(__file__).parent
     feature_cfg = load_yaml(agent_dir / "rl_games_manager_feature_ppo_cfg.yaml")
@@ -48,8 +45,7 @@ def rl_games_camera_cfg():
 def rl_games_direct_camera_cfg():
     """Load the RL-Games configuration family for the direct cartpole camera task.
 
-    Image presets use the convolutional policy. ``lidar`` reuses the feature-pipeline MLP because its
-    observation is the joint state plus a point cloud, not an image.
+    Image presets use the convolutional policy. ``lidar`` uses that same CNN on the stacked range image.
     """
     agent_dir = Path(__file__).parent
     return preset(
@@ -61,8 +57,7 @@ def rl_games_direct_camera_cfg():
 def skrl_direct_camera_cfg():
     """Load the SKRL configuration family for the direct cartpole camera task.
 
-    Image presets use the convolutional policy. ``lidar`` uses an MLP because its observation is the
-    joint state plus a point cloud.
+    Image presets use the convolutional policy. ``lidar`` uses that same CNN on the stacked range image.
     """
     agent_dir = Path(__file__).parent
     return preset(

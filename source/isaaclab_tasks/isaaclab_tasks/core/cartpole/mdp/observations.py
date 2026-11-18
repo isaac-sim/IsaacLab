@@ -17,6 +17,8 @@ from typing_extensions import deprecated
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
+from ..cartpole_common import cartpole_lidar_policy_points, cartpole_lidar_range_image
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
@@ -50,11 +52,58 @@ class CameraImageStack(ManagerTermBase):
         return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
 
 
+class lidar_range_image(ManagerTermBase):
+    """Stacked lidar range image, channel-first, for the cartpole policy.
+
+    Each frame is :func:`~isaaclab_tasks.core.cartpole.cartpole_common.cartpole_lidar_range_image`:
+    hit distance divided by the far range, with misses at 0. Frames are stacked oldest to newest.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._frames = CameraFrameStack(
+            env.num_envs,
+            env.device,
+            frame_stack=cfg.params["frame_stack"],
+            channel_first=cfg.params["channel_first"],
+        )
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._frames.reset(env_ids)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("lidar"),
+        channel_first: bool = True,
+        frame_stack: int = 2,
+    ) -> torch.Tensor:
+        """Return the stacked range image for the named lidar.
+
+        Args:
+            env: Environment whose scene owns the lidar.
+            sensor_cfg: Scene entity that names the lidar sensor. Defaults to ``SceneEntityCfg("lidar")``.
+            channel_first: Whether to return ``(num_envs, frame_stack, elevation, azimuth)``.
+                Applied when the frame stack is constructed. Defaults to True.
+            frame_stack: Number of recent scans to stack along the channel axis. Applied when the
+                frame stack is constructed. Defaults to 2.
+
+        Returns:
+            The stacked range image.
+        """
+        del channel_first, frame_stack  # consumed while constructing the frame stack
+        points = env.scene.sensors[sensor_cfg.name].data.points.torch
+        scan = cartpole_lidar_range_image(points).unsqueeze(-1)
+        return self._frames(scan)
+
+
 def lidar_points(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return one lidar's points flattened per environment, with misses replaced by zeros.
+    """Return one lidar's sensor-frame points, scaled to fit the policy observation clip.
 
     :attr:`~isaaclab.sensors.lidar.LidarData.points` keeps non-finite values for rays that miss.
-    Those values cannot be concatenated with the joint state, so this term writes zeros there.
+    Those values cannot be concatenated with the joint state, so this term writes zeros there and scales
+    the remaining coordinates by
+    :data:`~isaaclab_tasks.core.cartpole.cartpole_common.CARTPOLE_LIDAR_POINT_SCALE`.
 
     Args:
         env: Environment whose scene owns the lidar.
@@ -63,6 +112,4 @@ def lidar_points(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Te
     Returns:
         Tensor of shape ``(num_envs, num_rays * 3)``.
     """
-    points = env.scene.sensors[sensor_cfg.name].data.points.torch
-    flat = points.reshape(points.shape[0], -1)
-    return torch.nan_to_num(flat, nan=0.0, posinf=0.0, neginf=0.0)
+    return cartpole_lidar_policy_points(env.scene.sensors[sensor_cfg.name].data.points.torch)
