@@ -274,8 +274,8 @@ Pass each extra required by a command. For example:
    uv run --extra isaacsim isaaclab random_agent \
       --task <TASK_NAME> physics=isaacsim_physx
 
-   uv run --extra isaacsim --extra rerun isaaclab play \
-      --rl_library skrl --task <TASK_NAME> --viz rerun
+   uv run --extra isaacsim --extra viser isaaclab play \
+      --rl_library skrl --task <TASK_NAME> --viz viser
 
 Place ``--extra`` before ``isaaclab`` and repeat it when a command needs several
 features. The generated ``all`` extra forwards Isaac Lab's own ``all`` extra;
