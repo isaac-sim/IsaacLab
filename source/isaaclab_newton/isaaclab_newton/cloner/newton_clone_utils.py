@@ -17,7 +17,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors, resolve_display_color
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -27,13 +27,16 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
-def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
+def add_deformable_from_usd(
+    builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry, color: tuple[float, float, float] | None
+) -> None:
     """Add a discovered deformable's geometry, Newton material, and native element ranges.
 
     Args:
         builder: Source builder that receives the complete deformable prototype.
         stage: Stage containing the authored geometry and bound physics material.
         geometry: Deformable prototype discovered beneath an imported source.
+        color: sRGB display color of the deformable, or ``None`` for Newton's default.
 
     Note:
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
@@ -65,15 +68,17 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
         scale=1.0,
         vel=wp.vec3(),
         label=geometry.root_path,
+        color=color,
         **material_kwargs,
     )
 
 
 def add_visual_deformables_to_sources(
-    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+    builders: dict[str, ModelBuilder], stage: Usd.Stage, entries: Sequence[DeformableStageEntry]
 ) -> None:
     """Add each visual deformable to every imported source containing its USD subtree."""
     for entry in entries:
+        color = resolve_display_color(stage, entry.vis_mesh_path)
         for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
             builder = builders.get(str(path))
             if builder is None:
@@ -88,7 +93,7 @@ def add_visual_deformables_to_sources(
                 add_mesh = builder.add_soft_mesh
                 mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
                 mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
-            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
+            add_mesh(label=entry.vis_mesh_path, color=color, **mesh, **pose)
 
 
 def build_source_builders(

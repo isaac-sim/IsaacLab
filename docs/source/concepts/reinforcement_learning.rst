@@ -350,7 +350,7 @@ and other domains. Append selectors without leading dashes:
 
    uv run isaaclab train --rl_library rsl_rl \
        --task Isaac-Cartpole-Camera-Direct \
-       physics=newton_mjwarp renderer=newton_renderer presets=rgb
+       physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Not every task supports every backend. See
 :doc:`/source/concepts/backends_and_presets` for the presets declared by a

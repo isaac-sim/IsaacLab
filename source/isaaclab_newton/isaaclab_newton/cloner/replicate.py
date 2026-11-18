@@ -29,6 +29,7 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SimulationContext, SpawnerCfg
+from isaaclab.sim.utils.newton_model_utils import resolve_display_color
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
@@ -218,11 +219,12 @@ def _replicate_newton(
             owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
             if not owners:
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
+            color = resolve_display_color(stage, entry.vis_mesh_path)
             for source in owners:
-                add_deformable_from_usd(source, stage, entry)
+                add_deformable_from_usd(source, stage, entry, color)
         global_sites, source_sites, root_sites = sim.backend_manager.inject_sites(builder, source_builders)
     else:
-        add_visual_deformables_to_sources(source_builders, entries)
+        add_visual_deformables_to_sources(source_builders, stage, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
             imported.shape_collision_filter_pairs = []
