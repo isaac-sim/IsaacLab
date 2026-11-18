@@ -5,7 +5,8 @@
 
 """Cartpole with a foveated camera, in RGB or depth.
 
-The stock camera task with the camera foveated and two gaze actions. The teacher looks at the pole's tip.
+The stock camera task with the camera foveated and two gaze actions. The teacher looks at the pole's tip. The retina
+is :data:`RETINA_RES` samples across, enough for a task that only needs to see a bar.
 """
 
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
@@ -25,10 +26,13 @@ from ..active_gaze import GazeObservationsCfg, foveated_presets, oracle_observat
 POLE_TIP = (0.0, 0.0, 1.0)
 """The pole's tip in the pole's frame [m]."""
 
+RETINA_RES = 32
+"""Retina samples across. The stock camera's 96 pixels train no better on this task, at several times the cost."""
+
 
 @configclass
 class SceneCfg(CartpoleCameraSceneCfg):
-    tiled_camera = select_presets(foveated_presets(CartpoleTiledCameraCfg()), ("rgb", "depth"))
+    tiled_camera = select_presets(foveated_presets(CartpoleTiledCameraCfg(), RETINA_RES), ("rgb", "depth"))
 
 
 @configclass
