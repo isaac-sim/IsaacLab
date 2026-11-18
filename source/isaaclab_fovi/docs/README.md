@@ -112,8 +112,9 @@ physical camera's image at the current gaze.
 - `GazeActionCfg`: two actions that move the gaze by up to `step_size` field
   radii (half the retina's field of view) per step, within `gaze_limit` field
   radii of the optical axis. Make it the last action term. With the default
-  `mount="fixed"` the camera hangs on the environment and the teacher aims from
-  its configured mount; `mount="tracked"` lets the camera ride a moving body,
+  `mount="fixed"` the teacher aims from the orientation the camera has when the
+  action is created, and turning the mount raises; `mount="tracked"` lets the
+  camera ride a moving body,
   such as a turning head, and the teacher follows each camera's current mount
   (Newton or OVRTX).
 - `gaze_state`: the gaze, in field radii, and its velocity, in field radii per

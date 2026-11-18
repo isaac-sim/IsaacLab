@@ -9,6 +9,9 @@ from dataclasses import dataclass
 
 import pytest
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
+from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
+from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 pytestmark = pytest.mark.kitless
 
@@ -23,9 +26,24 @@ class CameraSelection:
     renderer_cfg: RendererSelection
 
 
-def test_default_renderer_is_resolved_to_a_concrete_one() -> None:
+def dispatch(cfg) -> type:
+    """The implementation class the camera selects for ``cfg``, without initialising it."""
+    return type(FoveatedCamera.__new__(FoveatedCamera, cfg))
+
+
+def test_default_renderer_resolves_to_isaac_rtx() -> None:
     cfg = FoveatedCameraCfg(prim_path="/World/Camera")
-    assert cfg.renderer_cfg.renderer_type != "default"
+    assert type(cfg.renderer_cfg) is IsaacRtxRendererCfg
+    assert cfg.renderer_cfg.renderer_type == "isaac_rtx"
+    assert dispatch(cfg) is FoveatedRTXCamera
+
+
+@pytest.mark.parametrize(
+    ("renderer_type", "expected"),
+    [("isaac_rtx", FoveatedRTXCamera), ("ovrtx", FoveatedRTXCamera), ("newton_warp", FoveatedNewtonCamera)],
+)
+def test_renderer_selects_its_implementation(renderer_type: str, expected: type) -> None:
+    assert dispatch(CameraSelection(RendererSelection(renderer_type))) is expected
 
 
 def test_unknown_renderer_fails_explicitly() -> None:

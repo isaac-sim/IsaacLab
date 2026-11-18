@@ -13,21 +13,11 @@ from typing import Protocol
 
 import torch
 import warp as wp
-from fovi.sensing.coords import RADIUS_NORMS, WARPED_CARTESIAN_STYLES, SamplingCoords
+from fovi.sensing.coords import SamplingCoords
 
 from isaaclab.utils.warp import ProxyArray
 
 GRID_STYLE = "warped_cartesian_as_grid"
-
-
-def validate_radius_norm(radius_norm: float, style: str, fov_type: str) -> None:
-    """Reject unsupported warp configurations before renderer startup."""
-    if radius_norm not in RADIUS_NORMS:
-        raise ValueError(f"radius_norm must be one of {RADIUS_NORMS}, got {radius_norm!r}.")
-    if radius_norm != 2.0 and style not in WARPED_CARTESIAN_STYLES:
-        raise ValueError("Non-default radius_norm requires a warped_cartesian style.")
-    if radius_norm == math.inf and fov_type == "wang":
-        raise ValueError("radius_norm=inf does not support fov_type='wang'.")
 
 
 class TorchBuffer(Protocol):
@@ -145,15 +135,6 @@ def grid_output_shape(coords: SamplingCoords) -> tuple[int, int]:
     if coords.style == GRID_STYLE:
         return coords.resolution, coords.resolution
     return len(coords), 1
-
-
-def canonical_to_grid(value: torch.Tensor, coords: SamplingCoords) -> torch.Tensor:
-    """Convert canonical BNC or BN1C values into upright BHWC values."""
-    if value.ndim == 4:
-        value = value.squeeze(2)
-    if value.ndim != 3 or value.shape[1] != len(coords):
-        raise ValueError(f"Expected canonical (B, {len(coords)}, C), got {tuple(value.shape)}.")
-    return coords.as_grid(value, sample_dim=1)
 
 
 def mask_grid_samples(outputs: Mapping[str, torch.Tensor | TorchBuffer], coords: SamplingCoords) -> None:

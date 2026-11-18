@@ -7,12 +7,23 @@
 
 from __future__ import annotations
 
+import math
+
+from fovi.sensing.coords import RADIUS_NORMS, WARPED_CARTESIAN_STYLES
 from fovi.sensing.projection import CameraCalibration
 
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils.configclass import configclass
 
-from .native_grid import validate_radius_norm
+
+def validate_radius_norm(radius_norm: float, style: str, fov_type: str) -> None:
+    """Reject warped-grid radius norms that fovi cannot sample, before renderer startup."""
+    if radius_norm not in RADIUS_NORMS:
+        raise ValueError(f"radius_norm must be one of {RADIUS_NORMS}, got {radius_norm!r}.")
+    if radius_norm != 2.0 and style not in WARPED_CARTESIAN_STYLES:
+        raise ValueError("Non-default radius_norm requires a warped_cartesian style.")
+    if radius_norm == math.inf and fov_type == "wang":
+        raise ValueError("radius_norm=inf does not support fov_type='wang'.")
 
 
 @configclass
@@ -163,12 +174,3 @@ class FoveatedCameraCfg(CameraCfg):
         # Resolves the default renderer and forwards deprecated renderer fields.
         super().__post_init__()
         validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
-        # ``spawn`` is a ``PinholeCameraCfg`` / ``FisheyeCameraCfg`` whose
-        # ``lock_camera`` field defaults to True.  That writes
-        # ``omni:kit:cameraLock=True`` on every spawned prim, which the RTX
-        # renderer can interpret as "static camera" and use to skip motion-
-        # vector synthesis — breaking DLSS-RR temporal reprojection on dynamic
-        # geometry.  Foveated cameras always have a moving fixation pose, so
-        # we force the lock off here.
-        if self.spawn is not None and getattr(self.spawn, "lock_camera", None):
-            self.spawn = self.spawn.replace(lock_camera=False)

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 import os
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -36,10 +37,8 @@ from fovi.sensing.coords import SamplingCoords
 
 from .native_grid import native_grid_directions, native_grid_exit_uv
 
-try:
-    from pxr import Sdf, Usd, UsdGeom
-except ImportError:
-    Sdf = Usd = UsdGeom = None  # type: ignore
+if TYPE_CHECKING:
+    from pxr import Usd
 
 
 # =============================================================================
@@ -272,8 +271,8 @@ def apply_lens_lut_to_prim(
     exit_texture_path: str,
 ) -> None:
     """Apply native OmniLensDistortion LUT textures to an existing USD Camera."""
-    if Sdf is None:
-        raise RuntimeError("pxr.Sdf required — run inside Omniverse Kit / Isaac Sim.")
+    from pxr import Sdf
+
     # RTX reads explicitly authored metadata and attributes without USD schema registration.
     prim.AddAppliedSchema("OmniLensDistortionLutAPI")
     prim.CreateAttribute("omni:lensdistortion:model", Sdf.ValueTypeNames.Token).Set("lut")

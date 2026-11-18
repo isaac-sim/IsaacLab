@@ -17,6 +17,8 @@ import math
 import numpy as np
 import pytest
 import torch
+from fovi.sensing.projection import angular_directions
+from isaaclab_fovi.mdp import direction_to_angles
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 
 import isaaclab.sim as sim_utils
@@ -114,7 +116,7 @@ def _render(
     moved_mount: tuple | None = None,
     later_gaze: torch.Tensor | None = None,
     **camera_overrides,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
 
     With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set; a target
@@ -122,8 +124,8 @@ def _render(
     With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders one more frame.
 
     Returns:
-        The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
-        cell, shape (H, W, 2).
+        The distance images [m], shape (num_envs, H, W), the visual-field position of each grid cell, shape
+        (H, W, 2), and the angles (tilt, pan) [deg] of each grid cell's ray from the gaze, shape (H, W, 2).
     """
     physics_cfg, renderer_cfg, camera_class = backend
     sim_cfg = SimulationCfg(physics=physics_cfg, device=DEVICE)
@@ -158,7 +160,9 @@ def _render(
         distance = camera.data.output["distance_to_camera"].torch[..., 0].detach().cpu().float().clone()
         coords = camera.sampling_coords
         field = coords.as_grid(coords.cartesian, sample_dim=0).detach().cpu().float().clone()
-        return distance, field
+        # Each cell's camera-frame ray (OpenCV: x right, y down, z forward) from fovi's angular projection.
+        rays = angular_directions(field.double(), coords.fov)
+        return distance, field, direction_to_angles(rays).float()
 
 
 def foveated_camera_follows_gaze(backend: tuple, source: str):
@@ -168,7 +172,7 @@ def foveated_camera_follows_gaze(backend: tuple, source: str):
     the analytic ground distance along each gaze direction.
     """
     gaze = torch.tensor([[0.0, 0.0], [0.0, -16.0]])
-    distance, field = _render(backend, gaze, **CAMERA_SOURCES[source])
+    distance, field, _ = _render(backend, gaze, **CAMERA_SOURCES[source])
 
     assert distance.shape == (2, RESOLUTION, RESOLUTION)
     assert torch.isfinite(distance).all()
@@ -196,7 +200,7 @@ def foveated_camera_follows_gaze(backend: tuple, source: str):
 def gaze_change_reaches_the_next_frame(backend: tuple):
     """A gaze set after the camera has rendered moves the retina, as a gaze action does every step."""
     later = torch.tensor([[0.0, -16.0], [8.0, 10.0]])
-    distance, field = _render(backend, torch.zeros(2, 2), later_gaze=later)
+    distance, field, _ = _render(backend, torch.zeros(2, 2), later_gaze=later)
 
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
     for env, (tilt, pan) in enumerate(later.tolist()):
@@ -207,7 +211,7 @@ def gaze_stays_relative_to_a_moved_mount(backend: tuple):
     """Moving one environment's camera keeps its gaze relative to the new mount and leaves the other alone."""
     gaze = torch.tensor([[0.0, -10.0], [0.0, -10.0]])
     eye, target = (0.3, -0.4, 3.2), (2.0, 0.3, 0.0)
-    distance, field = _render(backend, gaze, moved_mount=(eye, target))
+    distance, field, _ = _render(backend, gaze, moved_mount=(eye, target))
 
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
     assert float(distance[0, row, column]) == pytest.approx(_ground_distance_along_gaze(0.0, -10.0), rel=0.01)
@@ -221,7 +225,7 @@ def gaze_survives_a_position_only_move(backend: tuple):
     gaze = torch.tensor([[0.0, -10.0], [0.0, -10.0]])
     eye = (0.4, -0.3, 3.0)
     target = tuple(e + t - c for e, t, c in zip(eye, CAM_TARGET, CAM_EYE))
-    distance, field = _render(backend, gaze, moved_mount=(eye, None))
+    distance, field, _ = _render(backend, gaze, moved_mount=(eye, None))
 
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
     assert float(distance[0, row, column]) == pytest.approx(_ground_distance_along_gaze(0.0, -10.0), rel=0.01)
@@ -230,20 +234,50 @@ def gaze_survives_a_position_only_move(backend: tuple):
     )
 
 
+def _relative_errors(distance: torch.Tensor, angles: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Relative error of the rendered distance of each seen cell from the ground along the cell's own ray.
+
+    Args:
+        distance: Rendered distance image [m], shape (H, W).
+        angles: Angles (tilt, pan) [deg] of each cell's ray, shape (H, W, 2), with the gaze on the optical axis.
+
+    Returns:
+        The relative errors and the eccentricities [deg] of the rays of the cells the camera sees.
+    """
+    expected = torch.tensor([_ground_distance_along_gaze(tilt, pan) for tilt, pan in angles.view(-1, 2).tolist()])
+    tilt, pan = angles.view(-1, 2).deg2rad().unbind(-1)
+    eccentricity = torch.acos(tilt.cos() * pan.cos()).rad2deg()
+    distance = distance.flatten()
+    seen = torch.isfinite(distance) & (distance > 0)
+    return ((distance - expected).abs() / expected)[seen], eccentricity[seen]
+
+
 def foveated_camera_samples_densest_at_the_fixation(backend: tuple):
-    """Neighbouring samples are closer together at the fixation, and nearly even without foveation."""
+    """Samples are densest at the fixation, nearly even without foveation, and each renders along its own ray.
+
+    The rendered distances match the ground along each sample's ray well off the centre, so a renderer that traced an
+    even grid instead of the foveated rays fails.
+    """
 
     def central_to_edge_spacing(field: torch.Tensor) -> float:
         steps = field[RESOLUTION // 2, :, 0].diff()
         return float(steps[len(steps) // 2] / steps[-1])
 
     gaze = torch.zeros(1, 2)
-    foveated_distance, foveated_field = _render(backend, gaze)
-    uniform_distance, uniform_field = _render(backend, gaze, cmf_a_deg=1000.0)
+    foveated_distance, foveated_field, foveated_angles = _render(backend, gaze)
+    uniform_distance, uniform_field, uniform_angles = _render(backend, gaze, cmf_a_deg=1000.0)
 
     assert central_to_edge_spacing(foveated_field) < 0.2
     assert central_to_edge_spacing(uniform_field) > 0.9
-    # Both cover the same field of view, so they see the same range of ground distances.
-    for distance in (foveated_distance, uniform_distance):
-        assert torch.isfinite(distance).all()
-    assert float(foveated_distance.max()) == pytest.approx(float(uniform_distance.max()), rel=0.05)
+    for distance, angles in ((foveated_distance, foveated_angles), (uniform_distance, uniform_angles)):
+        errors, eccentricity = _relative_errors(distance[0], angles)
+        # Most of the grid is seen, and the checked rays reach far from the centre of the field.
+        assert len(errors) > RESOLUTION**2 // 2
+        assert (eccentricity > 10.0).sum() > RESOLUTION**2 // 4
+        assert float(eccentricity.max()) > 20.0
+        assert float(errors.median()) < 0.01
+        assert float((errors < 0.03).float().mean()) > 0.98
+    # The two grids' rays differ enough that rendering one in place of the other fails the checks above.
+    for distance, angles in ((foveated_distance, uniform_angles), (uniform_distance, foveated_angles)):
+        errors, _ = _relative_errors(distance[0], angles)
+        assert float((errors < 0.03).float().mean()) < 0.5

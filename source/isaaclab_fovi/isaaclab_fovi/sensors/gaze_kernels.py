@@ -23,8 +23,9 @@ FLOAT32_EPS = float(torch.finfo(torch.float32).eps)
 DEG_TO_RAD = math.pi / 180.0
 
 
-_WARP_STREAMS: dict[int, wp.Stream] = {}
-"""Warp streams by the CUDA stream handle of the PyTorch stream they launch on."""
+_WARP_STREAMS: dict[tuple[int, int], wp.Stream] = {}
+"""Warp streams by the CUDA device index and stream handle of the PyTorch stream they launch on; default streams of
+different devices share a handle."""
 
 
 def warp_stream(device: torch.device | str) -> wp.Stream | None:
@@ -33,15 +34,16 @@ def warp_stream(device: torch.device | str) -> wp.Stream | None:
     if device.type != "cuda":
         wp.init()
         return None
-    handle = torch.cuda.current_stream(device).cuda_stream
-    stream = _WARP_STREAMS.get(handle)
+    torch_current = torch.cuda.current_stream(device)
+    key = (torch_current.device_index, torch_current.cuda_stream)
+    stream = _WARP_STREAMS.get(key)
     if stream is None:
         wp.init()
         stream = wp.get_stream(wp.device_from_torch(device))
         # A temporary alias of a live Warp-owned stream would unregister it when destroyed; cached aliases persist.
-        if stream.cuda_stream != handle:
-            stream = wp.stream_from_torch(torch.cuda.current_stream(device))
-        _WARP_STREAMS[handle] = stream
+        if stream.cuda_stream != key[1]:
+            stream = wp.stream_from_torch(torch_current)
+        _WARP_STREAMS[key] = stream
     return stream
 
 
@@ -206,12 +208,12 @@ def apply_gaze_kernel(
     rotation: wp.array(dtype=wp.mat33f),
     mount: wp.array(dtype=wp.quatf),
 ):
-    """Turn each camera's world orientation by its gaze, or only the masked ones, record their mounts, and record
-    every gaze rotation."""
+    """Turn each camera's world orientation by its gaze, or only the masked ones, and record their mounts and gaze
+    rotations; every other camera keeps the rotation its pose was turned by."""
     i = wp.tid()
-    gaze = gaze_rotation(angles_deg[i])
-    rotation[i] = gaze
     if use_mask == 0 or mask[i]:
+        gaze = gaze_rotation(angles_deg[i])
+        rotation[i] = gaze
         turn_pose(i, gaze, basis, to_opengl, to_world, to_ros, orientation, mount)
 
 
@@ -246,11 +248,19 @@ def sensor_visibility_kernel(
     rotation: wp.array(dtype=wp.mat33f),
     frame: wp.mat33f,
     camera: CameraParams,
+    updated: wp.array(dtype=wp.bool),
     valid: wp.array2d(dtype=wp.bool),
+    hidden: wp.array2d(dtype=wp.bool),
 ):
-    """Whether the physical camera sees each rendered ray turned by each environment's gaze."""
+    """Whether the physical camera sees each rendered ray turned by each updated environment's gaze, and which
+    updated samples it does not see; other environments keep their last visibility and hide nothing."""
     env, sample = wp.tid()
-    valid[env, sample] = sees(rays[sample], rotation[env], frame, camera)
+    if not updated[env]:
+        hidden[env, sample] = False
+        return
+    seen = sees(rays[sample], rotation[env], frame, camera)
+    valid[env, sample] = seen
+    hidden[env, sample] = not seen
 
 
 @wp.kernel(enable_backward=False)

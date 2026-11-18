@@ -149,10 +149,9 @@ def test_gaze_kernels_match_the_torch_composition(selection):
     )
     torch.testing.assert_close(matrix_from_quat(mount[turned]), matrix_from_quat(ros[turned]), atol=1e-5, rtol=0)
     assert not mount[~turned].any()
-    # Every environment's rotation is recorded, except that the indexed kernel touches only its own.
-    recorded = selected if selection == "indices" else torch.ones_like(selected)
-    torch.testing.assert_close(rotation[recorded], set_rotation[recorded], atol=0, rtol=0)
-    assert not rotation[~recorded].any()
+    # Only the turned cameras record their gaze rotation; the others keep the one their pose was turned by.
+    torch.testing.assert_close(rotation[turned], set_rotation[turned], atol=0, rtol=0)
+    assert not rotation[~turned].any()
 
 
 def test_publish_kernel_matches_masking_then_copying_to_the_grid():

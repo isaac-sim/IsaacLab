@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton anti-aliasing consumes IsaacLab's public renderer-buffer views."""
+"""The Newton foveated camera's render layout and publication, on stand-in renderer buffers."""
 
 from types import SimpleNamespace
 
@@ -15,38 +15,9 @@ from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.pooling import ModalPooler
 
-from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.utils.warp import ProxyArray
 
-
-def test_pooled_allocation_accepts_proxy_arrays_and_preserves_render_buffers() -> None:
-    rgba = torch.zeros((1, 8, 1, 4), dtype=torch.uint8)
-    rgba_proxy = ProxyArray(wp.from_torch(rgba))
-    data = CameraData.allocate(
-        ["rgba"],
-        8,
-        1,
-        1,
-        "cpu",
-        {RenderBufferKind.RGBA: RenderBufferSpec(channels=4, dtype=wp.uint8)},
-    )
-    data.output["rgba"] = rgba_proxy
-    camera = SimpleNamespace()
-    camera._data = data
-    camera._pooler = torch.nn.Identity()
-    camera._pooler_int = None
-    camera._num_valid_samples = 4
-    camera._num_ray_samples = 8
-    camera._pool_k = 2
-    camera.cfg = SimpleNamespace(data_types=["rgba"], pool_int_mode="max", pool_mode="avg", pool_sample_cortex=False)
-
-    FoveatedNewtonCamera._allocate_pooled_buffers(camera)
-
-    assert camera._pooled_output["rgba"].shape == (1, 4, 1, 4)
-    assert camera._pooled_output["rgba"].dtype == torch.uint8
-    assert camera._highres_output["rgba"] is rgba_proxy
-    assert camera._highres_output is not data.output
+pytestmark = pytest.mark.kitless
 
 
 @pytest.mark.parametrize("pooled", [False, True])
@@ -79,7 +50,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 
     def render(camera, env_mask):
         assert camera._data.output["rgba"].torch.shape == camera.renderer_rgba.shape
-        values = torch.arange(camera.renderer_rgba.numel()).reshape(camera.renderer_rgba.shape)
+        values = torch.arange(camera.renderer_rgba.numel()).reshape(camera.renderer_rgba.shape) + camera.frame_offset
         camera.renderer_rgba.copy_(values.to(torch.uint8))
 
     monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
@@ -100,6 +71,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
         pool_int_mode="avg",
         pool_sample_cortex=False,
         image_rotation_deg=0,
+        update_period=0.0,
         data_types=["rgba", "rgb"],
         renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
     )
@@ -109,7 +81,8 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     assert rays.shape == (1, ray_coords.resolution, ray_coords.resolution, 2, 3)
     torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], camera._ray_directions)
     public_rgba = camera._data.output["rgba"]
-    camera._update_buffers_impl(None)
+    camera.frame_offset = 0
+    camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
     expected = camera.renderer_rgba.reshape(2, len(ray_coords), 1, 4).clone()
     expected[:, ~ray_coords.valid_mask] = 0
     if pooled:
@@ -121,6 +94,13 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     assert camera._data.output["rgba"] is public_rgba
     torch.testing.assert_close(camera._data.output["rgb"].torch, expected[..., :3], rtol=0, atol=0)
     assert camera._data.output["rgb"].warp.ptr == public_rgba.warp.ptr
+
+    # Newton redraws every row, but only the updated environment's publication changes.
+    camera.frame_offset = 1
+    camera._update_buffers_impl(wp.array([False, True], dtype=wp.bool, device="cpu"))
+    published = camera._data.output["rgba"].torch
+    torch.testing.assert_close(published[0], expected[0], rtol=0, atol=0)
+    assert not torch.equal(published[1], expected[1])
 
 
 def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatch) -> None:
@@ -165,10 +145,16 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
     camera = object.__new__(FoveatedNewtonCamera)
+    camera._initialize_handle = None
+    camera._invalidate_initialize_handle = None
+    camera._prim_deletion_handle = None
+    camera._view = None
+    camera._renderer = None
     camera._device = "cpu"
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
+        update_period=0.0,
         pool_enabled=True,
         pool_mode="avg",
         pool_int_mode="mode",
@@ -178,7 +164,7 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
         renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
     )
     camera._initialize_impl()
-    camera._update_buffers_impl(None)
+    camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
 
     # The modal label of each run after the footprint mask zeroes samples outside the retina, ties to the nearest.
     rendered = labels.clone()
