@@ -92,7 +92,7 @@ owners:
   - isaaclab-maintainers
 ```
 
-`license` and `metadata.tags` (one to five categorization tags) follow the NVIDIA skills catalog spec and are not checked by the repository validator.
+User skills must declare `license` and `metadata.author`, which the repository validator checks. `metadata.tags` (one to five categorization tags) follows the NVIDIA skills catalog spec and is not checked by the validator.
 
 Directory slugs are stable canonical file paths for humans and reviewers. The frontmatter `name` is the agent discovery identifier, must match the aliases under `.agents/skills/`, and should be used when one skill routes to another. `.claude/skills` exposes the same aliases to Claude.
 
