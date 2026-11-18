@@ -130,7 +130,7 @@ alias.
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit
 
           # Multiple visualizers simultaneously (comma-separated, no spaces)
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser,newton
 
 .. note::
 
@@ -149,7 +149,7 @@ Visualizer presets
 ~~~~~~~~~~~~~~~~~~
 
 Task commands accept ``visualizer=newton``, ``visualizer=kit``, or
-``visualizer=rerun,newton``. ``--viz`` and ``--visualizer`` are aliases for the same
+``visualizer=viser,newton``. ``--viz`` and ``--visualizer`` are aliases for the same
 selection. ``visualizer=none`` disables viewers. Selection happens during configuration
 composition, before choosing process runtimes or creating the scene.
 
@@ -191,13 +191,13 @@ Compose standalone declarations during initial configuration, then call the core
        ...
 
 One ``VisualizerCfg`` supplies the common settings for every selected backend. Selecting
-``rerun,newton`` creates both viewers; no outer list or repeated common settings is needed.
+``viser,newton`` creates both viewers; no outer list or repeated common settings is needed.
 Backend-specific options are available when needed, but ordinary configuration uses the unchanged
 ``MultiBackendVisualizerCfg()`` declaration.
 
 Use a list of ``VisualizerCfg`` declarations for different views or window sizes. Backend selection
 applies to each declaration independently. For example, a task with these two views opens four
-windows with ``--viz=newton,rerun``: one Newton and one Rerun window per view.
+windows with ``--viz=newton,viser``: one Newton and one Viser window per view.
 
 .. code-block:: python
 
@@ -217,9 +217,9 @@ Task entry points perform this selection through ``resolve_task_config``:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=rerun,newton
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=viser,newton
 
-``--viz rerun,newton`` is equivalent. Task composition selects the backends inside
+``--viz viser,newton`` is equivalent. Task composition selects the backends inside
 ``VisualizerCfg.backend`` before launch; launch creates each viewer with the shared settings.
 Viewer implementations are imported only when constructed.
 
@@ -243,7 +243,7 @@ Visualizer Overview
    * - **Viser**
      - Web-based, supports recording and replay; Recommended
    * - **Rerun**
-     - Web-based, supports recording and replay; limited UI toggles
+     - Deprecated in Isaac Lab 3.2 and removed in 3.3; use Viser instead
    * - **Kit**
      - High-quality RTX rendering, rich Isaac Sim tooling; longer start-up time
 
@@ -397,6 +397,11 @@ Visualizer Overview
             :pyobject: VisualizerCfg
 
    .. tab-item:: Rerun
+
+      .. deprecated:: 3.2.0
+
+         The Rerun visualizer is deprecated and will be removed in Isaac Lab 3.3. Use the Viser
+         visualizer (``--viz viser``) instead. Creating the visualizer at launch emits a :class:`FutureWarning`.
 
       Like Viser, `Rerun <https://rerun.io/>`_ streams simulation state to a local web server, for
       remote monitoring, timeline playback, and recording to ``.rrd`` files.
@@ -894,9 +899,9 @@ only needed for independently configured views, such as a different camera angle
    * - no ``--viz``
      - ``VisualizerCfg(backend=MultiBackendVisualizerCfg())``
      - No visualizer launches; backend alternatives remain inactive until selected.
-   * - ``visualizer=rerun,newton``
+   * - ``visualizer=viser,newton``
      - ``VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg())``
-     - Launch Rerun and Newton, both showing at most 16 environments.
+     - Launch Viser and Newton, both showing at most 16 environments.
 
 For migration context, see :doc:`/source/isaaclab/migrating`.
 
@@ -1046,7 +1051,7 @@ Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
-Use ``--viz newton``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
+Use ``--viz newton`` or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
 **Newton RTX rendering: incompatible with Kit**
@@ -1055,7 +1060,7 @@ Starting Newton in RTX (``initial_renderer="rtx"``) raises a ``RuntimeError`` at
 ``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
 a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
 ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton``, or switch
-to ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+to ``--viz viser`` or ``--viz kit`` with a Kit-compatible
 physics backend.
 
 **Rerun: large environment performance**
