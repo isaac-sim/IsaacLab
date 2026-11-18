@@ -307,7 +307,8 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view, and picking draws the drag arrow there. Model overlays apply to the OpenGL view only.
+      the RTX view, and picking draws the drag arrow there. Joint, contact, spring, center-of-mass, and inertia overlays are drawn in the RTX view too; the collision,
+      visual, edge, and wireframe overlays apply to the OpenGL view only.
 
       .. warning::
 
@@ -1042,7 +1043,8 @@ Limitations
      - ✗
      - ✓
 
-In Newton's RTX view, model overlays are not available.
+In Newton's RTX view, the collision, visual, edge, and wireframe overlays are not available; joint, contact, spring,
+center-of-mass, and inertia overlays are.
 
 **Lighting differences across visualizers**
 
