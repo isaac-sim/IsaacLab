@@ -15,8 +15,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
 from .rewards import (
-    _gripper_joint_positions,
-    _order_invariant_cube_state,
+    _resolve_finger_joint_ids,
     order_invariant_stack_progress,
     role_conditioned_stack_potential,
 )
@@ -65,6 +64,7 @@ class StableOrderInvariantStackGoal(_StackSuccessContext):
         super().__init__(cfg, env)
         self._stable_steps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         self._reported_success = torch.zeros_like(self.ever_success)
+        self._finger_joint_ids = _resolve_finger_joint_ids(env, env.scene["robot"])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear the stability dwell counter for reset environments."""
@@ -101,17 +101,12 @@ class StableOrderInvariantStackGoal(_StackSuccessContext):
             height_threshold=height_threshold,
             cube_height=cube_height,
         )
-        _, velocities = _order_invariant_cube_state(
-            env,
-            (
-                SceneEntityCfg("cube_1"),
-                SceneEntityCfg("cube_2"),
-                SceneEntityCfg("cube_3"),
-            ),
+        velocities = torch.stack(
+            [env.scene[name].data.root_vel_w.torch[:, :3] for name in ("cube_1", "cube_2", "cube_3")], dim=1
         )
-        slow = torch.amax(torch.abs(velocities[..., :3]), dim=(1, 2)) < maximum_cube_velocity
+        slow = torch.amax(torch.abs(velocities), dim=(1, 2)) < maximum_cube_velocity
         robot: Articulation = env.scene["robot"]
-        released = (_gripper_joint_positions(env, robot) > minimum_finger_release_position).all(dim=1)
+        released = (robot.data.joint_pos.torch[:, self._finger_joint_ids] > minimum_finger_release_position).all(dim=1)
         stable = (stack_progress >= 2.0) & slow & released & (env.episode_length_buf >= minimum_episode_steps)
         self._stable_steps = torch.where(stable, self._stable_steps + 1, torch.zeros_like(self._stable_steps))
         self._update_success(self._stable_steps >= hold_steps)
@@ -142,6 +137,7 @@ class StackResetLearningProgress(_StackSuccessContext):
             "cube_height",
         )
         self._potential_kwargs = {name: cfg.params[name] for name in potential_param_names if name in cfg.params}
+        self._finger_joint_ids = _resolve_finger_joint_ids(env, env.scene[cfg.params["robot_cfg"].name])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Set a non-free target from the newly sampled physical row."""
@@ -150,13 +146,15 @@ class StackResetLearningProgress(_StackSuccessContext):
         super().reset(env_ids)
         initial = role_conditioned_stack_potential(
             self._env,
+            finger_joint_ids=self._finger_joint_ids,
+            env_ids=env_ids,
             **self._potential_kwargs,
         )
         reset_state = get_stack_reset_runtime_state(self._env)
         row_target = reset_state.target_potentials[env_ids]
         self._target_potential[env_ids] = torch.maximum(
             row_target,
-            initial[env_ids] + 0.25,
+            initial + 0.25,
         ).clamp_max(10.0)
 
     def __call__(
@@ -181,6 +179,7 @@ class StackResetLearningProgress(_StackSuccessContext):
             xy_threshold=xy_threshold,
             height_threshold=height_threshold,
             cube_height=cube_height,
+            finger_joint_ids=self._finger_joint_ids,
         )
         reached = (current >= self._target_potential) & (env.episode_length_buf >= minimum_episode_steps)
         self._update_success(reached)

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -51,13 +52,17 @@ def end_effector_pose(
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     body_name: str = "panda_hand",
     body_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+    *,
+    env_ids: Sequence[int] | torch.Tensor | slice = slice(None),
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Return a configured tool-center position [m] and orientation."""
     robot, body_id, tool_offset = _end_effector_cache_entry(env, robot_cfg, body_name, body_offset)
 
-    body_position = robot.data.body_pos_w.torch[:, body_id]
-    body_orientation = robot.data.body_quat_w.torch[:, body_id]
-    tool_position = body_position + math_utils.quat_apply(body_orientation, tool_offset.expand(env.num_envs, -1))
+    body_position = robot.data.body_pos_w.torch[env_ids, body_id]
+    body_orientation = robot.data.body_quat_w.torch[env_ids, body_id]
+    tool_position = body_position + math_utils.quat_apply(
+        body_orientation, tool_offset.expand(body_orientation.shape[0], -1)
+    )
     return tool_position, body_orientation
 
 

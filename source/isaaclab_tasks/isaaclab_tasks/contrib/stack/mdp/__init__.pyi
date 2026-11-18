@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CubeOutOfWorkspace",
     "ResetBufferedGripperActionCfg",
     "StableOrderInvariantStackGoal",
     "StackResetLearningProgress",
@@ -13,7 +14,6 @@ __all__ = [
     "WorkspaceBoundedRelativeJointPositionActionCfg",
     "action_term_l2",
     "cube_orientations_in_world_frame",
-    "cube_out_of_workspace",
     "cube_poses_in_base_frame",
     "cube_positions_in_world_frame",
     "cubes_stacked",
@@ -73,7 +73,7 @@ from .rewards import (
     stack_success_pulse,
 )
 from .terminations import (
-    cube_out_of_workspace,
+    CubeOutOfWorkspace,
     cubes_stacked,
     nonfinite_cube_state,
     nonfinite_robot_state,

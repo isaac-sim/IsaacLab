@@ -218,6 +218,12 @@ def franka_ee_velocity(
     )
 
 
+def joint_position_target(env: ManagerBasedRLEnv, robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Return commands for the selected robot joint positions [m or rad]."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    return robot.actuators.target_command.position.torch[:, robot_cfg.joint_ids]
+
+
 def role_conditioned_stack_obs(
     env: ManagerBasedRLEnv,
     cube_cfgs: tuple[SceneEntityCfg, ...] = (
@@ -232,19 +238,22 @@ def role_conditioned_stack_obs(
     xy_threshold: float = 0.025,
     height_threshold: float = 0.012,
 ) -> torch.Tensor:
-    """Return stable base/side-role tracks with randomized cube colors.
+    """Return the published 64-value cube state in reset-assigned role order.
 
-    The reset table stores one episode-long mapping from physical stack roles
-    to cube assets. Gathering through that mapping makes the input exactly
-    invariant to reset-time color permutations while keeping each role in a
-    stable slot through grasp, lift, and placement. Role zero is the spatially
-    central base; roles one and two are interchangeable side cubes.
+    The reset fixes an episode-long mapping from cube assets to the base and
+    two movable roles. Changing the color assignment leaves these values
+    unchanged when the physical states stay with their roles.
 
-    The 64-entry layout contains role-local positions, tool-relative
-    positions, up axes, spatial velocities, every directed pair-placement
-    error, and stack progress.
+    Returns:
+        Tensor of shape ``(num_envs, 64)``. Columns contain positions from the
+        environment origin (9 m), positions from the tool center (9 m), cube
+        local z axes (9 unitless), linear and angular velocities within each
+        role (18 m/s and rad/s), directed placement errors (18 m), and half the
+        number of stacked pairs (1 unitless). All vectors use world-aligned axes.
+        The placement errors are ordered by upper role then lower role, omitting
+        identical roles, and point from the upper cube to its target on the lower.
     """
-    from .rewards import order_invariant_stack_progress
+    from .rewards import _stack_progress_from_positions
 
     reset_state = get_stack_reset_runtime_state(env)
 
@@ -255,8 +264,7 @@ def role_conditioned_stack_obs(
     role_to_cube = reset_state.role_to_cube
 
     def by_role(values: torch.Tensor) -> torch.Tensor:
-        gather_index = role_to_cube.view(env.num_envs, 3, *([1] * (values.ndim - 2))).expand_as(values)
-        return torch.gather(values, 1, gather_index)
+        return values.gather(1, role_to_cube.unsqueeze(-1).expand_as(values))
 
     local_positions = by_role(positions) - env.scene.env_origins.unsqueeze(1)
     role_quaternions = by_role(quaternions)
@@ -266,29 +274,18 @@ def role_conditioned_stack_obs(
     up_axes = rotation[..., 2]
     tool_relative = local_positions - (tool_position - env.scene.env_origins).unsqueeze(1)
 
-    pair_errors = []
     vertical_offset = local_positions.new_tensor((0.0, 0.0, cube_height))
-    for upper_id in range(3):
-        for lower_id in range(3):
-            if upper_id != lower_id:
-                pair_errors.append(local_positions[:, lower_id] + vertical_offset - local_positions[:, upper_id])
-    progress = (
-        order_invariant_stack_progress(
-            env,
-            cube_cfgs=cube_cfgs,
-            xy_threshold=xy_threshold,
-            height_threshold=height_threshold,
-            cube_height=cube_height,
-        ).unsqueeze(1)
-        / 2.0
-    )
+    upper_roles = (0, 0, 1, 1, 2, 2)
+    lower_roles = (1, 2, 0, 2, 0, 1)
+    pair_errors = local_positions[:, lower_roles] + vertical_offset - local_positions[:, upper_roles]
+    progress = _stack_progress_from_positions(positions, xy_threshold, height_threshold, cube_height).unsqueeze(1) / 2.0
     return torch.cat(
         (
             local_positions.flatten(start_dim=1),
             tool_relative.flatten(start_dim=1),
             up_axes.flatten(start_dim=1),
             role_velocities.flatten(start_dim=1),
-            torch.cat(pair_errors, dim=1),
+            pair_errors.flatten(start_dim=1),
             progress,
         ),
         dim=1,

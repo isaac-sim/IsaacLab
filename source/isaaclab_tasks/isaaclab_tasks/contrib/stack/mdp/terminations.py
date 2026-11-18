@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -184,22 +184,29 @@ def nonfinite_cube_state(
     return invalid
 
 
-def cube_out_of_workspace(
-    env: ManagerBasedRLEnv,
-    cube_cfgs: tuple[SceneEntityCfg, ...] = (
-        SceneEntityCfg("cube_1"),
-        SceneEntityCfg("cube_2"),
-        SceneEntityCfg("cube_3"),
-    ),
-    workspace_lower: tuple[float, float, float] = (-0.2, -0.7, -0.1),
-    workspace_upper: tuple[float, float, float] = (1.2, 0.7, 1.0),
-) -> torch.Tensor:
-    """Detect cubes outside the local task workspace [m]."""
-    lower = torch.tensor(workspace_lower, dtype=torch.float32, device=env.device)
-    upper = torch.tensor(workspace_upper, dtype=torch.float32, device=env.device)
-    invalid = torch.zeros(env.scene.env_origins.shape[0], dtype=torch.bool, device=env.device)
-    for cube_cfg in cube_cfgs:
-        cube: RigidObject = env.scene[cube_cfg.name]
-        position = cube.data.root_pos_w.torch - env.scene.env_origins
-        invalid |= ((position < lower) | (position > upper)).any(dim=1)
-    return invalid
+class CubeOutOfWorkspace(ManagerTermBase):
+    """Detect cubes outside fixed environment-local bounds [m]."""
+
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._lower = torch.tensor(cfg.params["workspace_lower"], dtype=torch.float32, device=env.device)
+        self._upper = torch.tensor(cfg.params["workspace_upper"], dtype=torch.float32, device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        cube_cfgs: tuple[SceneEntityCfg, ...] = (
+            SceneEntityCfg("cube_1"),
+            SceneEntityCfg("cube_2"),
+            SceneEntityCfg("cube_3"),
+        ),
+        workspace_lower: tuple[float, float, float] = (-0.2, -0.7, -0.1),
+        workspace_upper: tuple[float, float, float] = (1.2, 0.7, 1.0),
+    ) -> torch.Tensor:
+        """Return whether any configured cube has left its environment's workspace."""
+        invalid = torch.zeros(env.scene.env_origins.shape[0], dtype=torch.bool, device=env.device)
+        for cube_cfg in cube_cfgs:
+            cube: RigidObject = env.scene[cube_cfg.name]
+            position = cube.data.root_pos_w.torch - env.scene.env_origins
+            invalid |= ((position < self._lower) | (position > self._upper)).any(dim=1)
+        return invalid
