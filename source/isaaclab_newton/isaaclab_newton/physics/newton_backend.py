@@ -593,20 +593,13 @@ class NewtonBackend:
             if self.collision_pipeline is None:
                 self.collision_pipeline = ops.create_collision_pipeline(**args)
             self.contacts = self.collision_pipeline.contacts()
-            # MuJoCo Warp can require more contacts than the pipeline estimates.
+            # MuJoCo Warp can require more contacts than the pipeline estimates; rebuild the
+            # pipeline so Contacts retains per-contact hydroelastic properties, matching, and
+            # custom contact attributes alongside any implicit deterministic sort buffers.
             if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    args["rigid_contact_max"] = required
-                    self.collision_pipeline = ops.create_collision_pipeline(**args)
-                    self.contacts = self.collision_pipeline.contacts()
-                else:
-                    self.contacts = Contacts(
-                        rigid_contact_max=required,
-                        soft_contact_max=0,
-                        device=self.device,
-                        requested_attributes=model.get_requested_contact_attributes(),
-                    )
+                args["rigid_contact_max"] = required
+                self.collision_pipeline = ops.create_collision_pipeline(**args)
+                self.contacts = self.collision_pipeline.contacts()
         if self.contacts is not None:
             ops.prepare_contacts(self.contacts, self.collision_pipeline)
 
