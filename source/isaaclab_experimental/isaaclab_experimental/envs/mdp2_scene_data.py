@@ -7,11 +7,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from typing import Any
 
 import warp as wp
-from newton import ModelFlags
 
 from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.scene import InteractiveScene
@@ -21,8 +20,9 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
 
-STATELESS_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
-"""Actuator configs whose actuators keep no state between steps. Subclasses, such as delayed actuators, may."""
+CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
+"""Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
+delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
 
 
 class InteractiveSceneData:
@@ -49,9 +49,12 @@ class InteractiveSceneData:
     Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) [N] per world, body, and
     filter.
 
-    The joint state and the root state of floating bases alias the solver state, so events may write them in place;
-    :meth:`commit` makes the solver see the writes. The root pose of a fixed base, and ``gravity_w``, alias the
-    physics model, which events may also write.
+    Events and actions write fields in place, and :meth:`commit` makes the simulation see the writes to the joint and
+    root state. Where the asset's data is the solver's own state, as Newton's usually is, a commit only tells the
+    solver which worlds changed. Otherwise, as for the joint positions of Newton articulations with ball joints or on
+    other physics backends, it passes the written worlds through the asset's ``write_*_to_sim_mask`` methods. The
+    default state and the joint targets are plain buffers that need no commit. ``gravity_w`` is writable where it is
+    the physics model's own (Newton). Derived and sensor fields are read-only.
     """
 
     def __init__(self, scene: InteractiveScene, sim: SimulationContext, step_dt: float) -> None:
@@ -60,6 +63,12 @@ class InteractiveSceneData:
         assets = {**scene.articulations, **scene.rigid_objects}
         entities: dict[str, EntitySchema] = {}
         self._views: dict[str, dict[str, ProxyArray]] = {}
+        # How a commit passes the writes of each state field to the simulation: through the asset's writer, or, for a
+        # field that is the solver's own state, by telling the solver which worlds of which asset changed.
+        self._writers: dict[FieldSelector, Callable[[wp.array], None]] = {}
+        self._solver_state: dict[FieldSelector, Any] = {}  # The asset whose kinematics a write invalidates
+        self._model_changes: dict[FieldSelector, int] = {}  # Model properties that a write changes
+        newton = _newton_backend(sim)
 
         # Articulations and rigid objects.
         for name, asset in assets.items():
@@ -72,26 +81,38 @@ class InteractiveSceneData:
                 "body_link_pose_w": data.body_link_pose_w,
             }
             fields = {
-                "root_link_pose_w": FieldSchema((), wp.transformf),
-                "root_com_vel_w": FieldSchema((), wp.spatial_vectorf),
-                "default_root_pose": FieldSchema((), wp.transformf),
-                "default_root_vel": FieldSchema((), wp.spatial_vectorf),
+                "root_link_pose_w": FieldSchema((), wp.transformf, writable=True),
+                "root_com_vel_w": FieldSchema((), wp.spatial_vectorf, writable=True),
+                "default_root_pose": FieldSchema((), wp.transformf, writable=True),
+                "default_root_vel": FieldSchema((), wp.spatial_vectorf, writable=True),
                 "body_link_pose_w": FieldSchema(("bodies",), wp.transformf),
             }
             names = {"bodies": tuple(asset.body_names)}
+            state = {
+                "root_link_pose_w": lambda mask,
+                a=asset,
+                v=views["root_link_pose_w"]: a.write_root_link_pose_to_sim_mask(root_pose=v.warp, env_mask=mask),
+                "root_com_vel_w": lambda mask, a=asset, v=views["root_com_vel_w"]: (
+                    a.write_root_com_velocity_to_sim_mask(root_velocity=v.warp, env_mask=mask)
+                ),
+            }
 
             if name in scene.articulations:
-                if asset.cfg.joint_ordering is not None:
-                    raise ValueError(f"MDP2 needs the solver's joint order, but '{name}' sets a joint ordering.")
-                # Resets with a mask reset the actuator state of every world, which only actuators without state allow.
-                stateful = sorted(
-                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in STATELESS_ACTUATORS
-                )
-                if stateful:
+                # Terms read the asset's data in kernels, which the asset does not reorder after binding.
+                if asset.cfg.joint_ordering is not None or asset.cfg.body_ordering is not None:
                     raise ValueError(
-                        f"MDP2 resets worlds with masks, which reset the actuator state of every world, so it supports"
-                        f" {', '.join(cfg.__name__ for cfg in STATELESS_ACTUATORS)} only, but '{name}' has the"
-                        f" actuator groups {stateful}."
+                        f"MDP2 needs the solver's joint and body order, but '{name}' sets a joint or body ordering."
+                    )
+                # Captured steps replay the actuators' masked resets, so they must not draw from Torch's random
+                # generators, as delayed actuators do for their delays: a graph would repeat the same draws.
+                unsupported = sorted(
+                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in CAPTURED_ACTUATORS
+                )
+                if unsupported:
+                    raise ValueError(
+                        f"MDP2 replays actuator resets inside CUDA graphs, so it supports"
+                        f" {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)} only, but '{name}' has the"
+                        f" actuator groups {unsupported}."
                     )
                 views |= {
                     "joint_pos": data.joint_pos,
@@ -106,21 +127,38 @@ class InteractiveSceneData:
                     "soft_joint_vel_limits": data.soft_joint_vel_limits,
                 }
                 fields |= dict.fromkeys(
+                    ("joint_acc", "applied_effort", "soft_joint_vel_limits"), FieldSchema(("joints",))
+                )
+                fields |= dict.fromkeys(
                     (
                         "joint_pos",
                         "joint_vel",
-                        "joint_acc",
                         "default_joint_pos",
                         "default_joint_vel",
                         "joint_pos_target",
                         "joint_effort_target",
-                        "applied_effort",
-                        "soft_joint_vel_limits",
                     ),
-                    FieldSchema(("joints",)),
+                    FieldSchema(("joints",), writable=True),
                 )
                 fields["soft_joint_pos_limits"] = FieldSchema(("joints",), wp.vec2f)
                 names["joints"] = tuple(asset.joint_names)
+                state |= {
+                    "joint_pos": lambda mask, a=asset, v=views["joint_pos"]: a.write_joint_position_to_sim_mask(
+                        position=v.warp, env_mask=mask
+                    ),
+                    "joint_vel": lambda mask, a=asset, v=views["joint_vel"]: a.write_joint_velocity_to_sim_mask(
+                        velocity=v.warp, env_mask=mask
+                    ),
+                }
+
+            for field, writer in state.items():
+                selector = FieldSelector(name, field)
+                if newton is not None and newton.is_solver_state(asset, field):
+                    self._solver_state[selector] = asset
+                    if (change := newton.model_change(asset, field)) is not None:
+                        self._model_changes[selector] = change
+                else:
+                    self._writers[selector] = writer
 
             entities[name] = EntitySchema(names=names, fields=fields)
             self._views[name] = views
@@ -167,12 +205,14 @@ class InteractiveSceneData:
         self._views["scene"] = {
             "env_origins": ProxyArray(wp.from_torch(scene.env_origins.contiguous(), dtype=wp.vec3f))
         }
+        scene_fields = {"env_origins": FieldSchema((), wp.vec3f)}
         if assets:
-            # The data of every asset holds the gravity of every world.
+            # The data of every asset holds the gravity of every world, which is the model's own on Newton.
             self._views["scene"]["gravity_w"] = next(iter(assets.values())).data.GRAVITY_VEC_W
-        entities["scene"] = EntitySchema(
-            names={}, fields=dict.fromkeys(self._views["scene"], FieldSchema((), wp.vec3f))
-        )
+            scene_fields["gravity_w"] = FieldSchema((), wp.vec3f, writable=newton is not None)
+            if newton is not None:
+                self._model_changes[FieldSelector("scene", "gravity_w")] = newton.model_properties
+        entities["scene"] = EntitySchema(names={}, fields=scene_fields)
 
         self.schema = SceneSchema(num_worlds=scene.num_envs, step_dt=step_dt, entities=entities)
 
@@ -185,16 +225,52 @@ class InteractiveSceneData:
         return self.scene[name]
 
     def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:
-        """Recompute the body poses of the masked worlds from their joint and root state, and pass a written gravity
-        or fixed-base root pose to the solver. Safe to capture in a CUDA graph."""
-        manager = self.sim.backend_manager
-        if FieldSelector("scene", "gravity_w") in fields:
-            manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
-        # The root pose of a fixed base is the frame of the joint that fixes it, a joint property of the model.
-        for name, asset in self.scene.articulations.items():
-            if not asset.root_view.is_floating_base and FieldSelector(name, "root_link_pose_w") in fields:
-                manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
+        """Pass the written fields of the masked worlds to the simulation, and recompute their body poses. Safe to
+        capture in a CUDA graph.
 
-        for asset in (*self.scene.articulations.values(), *self.scene.rigid_objects.values()):
-            manager.invalidate_fk(env_mask=mask, articulation_ids=asset.root_view.articulation_ids)
+        Only the assets whose state was written are recomputed, so a commit costs the fields it passes on.
+        """
+        changed = {id(asset): asset for selector, asset in self._solver_state.items() if selector in fields}
+        if changed or any(selector in fields for selector in self._model_changes):
+            manager = self.sim.backend_manager
+            for change in {self._model_changes[selector] for selector in fields if selector in self._model_changes}:
+                manager.add_model_change(change)
+            for asset in changed.values():
+                manager.invalidate_fk(env_mask=mask, articulation_ids=asset.root_view.articulation_ids)
+        for selector in fields:
+            if selector in self._writers:
+                self._writers[selector](mask)
         self.sim.forward()
+
+
+class _NewtonBackend:
+    """What MDP2 knows about Newton's data, for its fast path: which asset fields are the solver's own state, which
+    events then write in place, and which model properties a write changes."""
+
+    def __init__(self) -> None:
+        from newton import ModelFlags  # noqa: PLC0415
+
+        self.model_properties = ModelFlags.MODEL_PROPERTIES
+        self.joint_properties = ModelFlags.JOINT_PROPERTIES
+
+    def is_solver_state(self, asset: Any, field: str) -> bool:
+        """Whether a state field of an asset is the solver's own buffer: joint positions are not for articulations
+        with ball joints, whose quaternion coordinates the asset converts."""
+        if field != "joint_pos":
+            return True
+        view = asset.root_view
+        return not view.joint_coord_counts or view.joint_coord_counts == view.joint_dof_counts
+
+    def model_change(self, asset: Any, field: str) -> int | None:
+        """The model property that a write changes: the root pose of a fixed base is the frame of the joint that fixes
+        it, a joint property of the model."""
+        if field == "root_link_pose_w" and not asset.root_view.is_floating_base:
+            return self.joint_properties
+        return None
+
+
+def _newton_backend(sim: SimulationContext) -> _NewtonBackend | None:
+    """Return Newton's fast path if the simulation runs on Newton, without importing Newton otherwise."""
+    if type(sim.backend_manager).__module__.split(".")[0] != "isaaclab_newton":
+        return None
+    return _NewtonBackend()

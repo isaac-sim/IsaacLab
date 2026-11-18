@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, replace
 
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -40,3 +40,21 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
     compute_final_obs: bool = False
     log_dir: str | None = None  # Set by the training scripts
     video_recorders: list = []  # Not supported yet; kept for the training scripts
+
+    def play_mode(self) -> None:
+        """Adjust the configuration for playing a trained policy, as MDP1 does: at most 50 worlds, and observations
+        without noise. The play scripts call it; tasks may extend it."""
+        if self.task_worlds is None:
+            self.scene.num_envs = min(self.scene.num_envs, 50)
+        tasks = [self.task] if isinstance(self.task, TaskCfg) else self.task
+        tasks = [_without_observation_noise(task) for task in tasks]
+        self.task = tasks[0] if isinstance(self.task, TaskCfg) else tasks
+
+
+def _without_observation_noise(task: TaskCfg) -> TaskCfg:
+    """Return a copy of a task whose observations have no noise; the uses it shares with others are not changed."""
+    observations = {
+        group: {name: use if use is None else replace(use, noise=None) for name, use in uses.items()}
+        for group, uses in task.observations.items()
+    }
+    return replace(task, observations=observations)

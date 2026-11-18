@@ -50,8 +50,8 @@ class MDP2Env:
 
     def __init__(self, cfg: MDP2EnvCfg) -> None:
         self.cfg = cfg
-        if cfg.seed is not None:
-            configure_seed(cfg.seed)
+        # The MDP's random streams start from the seed that was set, also when -1 asks for a random one.
+        self._seed = 0 if cfg.seed is None else configure_seed(cfg.seed)
         if SimulationContext.instance() is not None:
             raise RuntimeError("A simulation context already exists. Close the environment that created it first.")
 
@@ -100,7 +100,7 @@ class MDP2Env:
             diagnostics=self.diagnostics,
             final_observations=self.final_observations,
         )
-        self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
+        self.state = self.mdp.state(self.scene_data, seed=self._seed)
         self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
         mdp2.startup(self.mdp, self.state)
         if self.mdp.startup_writes:
@@ -151,7 +151,7 @@ class MDP2Env:
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
         """Reset every world and return their observations. A seed also reseeds the MDP's random streams."""
         if seed is not None:
-            configure_seed(seed)
+            seed = configure_seed(seed)
             # In place: captured graphs hold the buffer's address.
             self.state.rng.torch.copy_(rng.streams(seed, self.mdp.streams, self.num_envs, self.device))
         self._reset(self._all_envs)
@@ -224,7 +224,9 @@ class MDP2Env:
         for capturable, group in itertools.groupby(work, lambda item: item[0]):
             steps = [step for _, step in group]
             if not capturable:
-                runs += steps
+                # Eager work may change the model or the state through the assets, such as new masses, which the
+                # simulation applies when it next steps on the host; replayed graphs do not, so apply them here.
+                runs += [*steps, self.sim.forward]
                 continue
 
             def run_all(steps: list[Callable[[], None]] = steps) -> None:

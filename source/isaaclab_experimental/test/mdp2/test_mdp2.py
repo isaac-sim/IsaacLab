@@ -35,7 +35,11 @@ class PointMassScene:
         decimation: int = 2,
         device: str = "cpu",
     ):
-        fields = dict.fromkeys(("joint_pos", "joint_vel", "joint_effort_target"), mdp2.FieldSchema(("joints",)))
+        fields = dict.fromkeys(
+            ("joint_pos", "joint_vel", "joint_effort_target"), mdp2.FieldSchema(("joints",), writable=True)
+        )
+        # Derived by the simulation, as joint accelerations are: read-only.
+        fields["joint_acc"] = mdp2.FieldSchema(("joints",))
 
         self.schema = mdp2.SceneSchema(
             num_worlds=num_worlds,
@@ -485,6 +489,7 @@ def test_finalize_reports_all_errors():
     builder.add_event("no_interval", no_interval)
     builder.add_reward("func_arguments", mdp2.Reward(joint_pos_l2, inputs={"pos": robot.joint_pos}))
     builder.add_event("function_arguments", mdp2.Event(reset_joints_by_offset, outputs={"pos": robot.joint_pos}))
+    builder.add_event("read_only", mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_acc}))
 
     with pytest.raises(ValueError) as error:
         builder.finalize(backend="warp")
@@ -508,6 +513,7 @@ def test_finalize_reports_all_errors():
         "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'rng'] of ['pos', 'rng']:"
         " missing a required argument: 'joint_pos'" in message
     )
+    assert "events.read_only: 'robot.joint_acc' is read-only" in message
 
 
 def test_schedule_edits_keep_phases_and_dependencies():
@@ -518,10 +524,17 @@ def test_schedule_edits_keep_phases_and_dependencies():
         "target_copy", mdp2.Command(copy_command, inputs={"source": mdp2.commands.target})
     )
     alive = builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
+    # A use that reads another's state runs after it too.
+    total = mdp2.Quantity(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": 1.0})
+    total = builder.add_quantity("sum", total)
+    total_copy = mdp2.Quantity(mdp2.mdp.value, inputs={"value": mdp2.term_state("quantities.sum", "total")})
+    total_copy = builder.add_quantity("sum_copy", total_copy)
     schedule = builder.schedule()
 
     with pytest.raises(ValueError, match="'commands.target_copy' reads 'commands.target', so it must run after"):
         builder.move_before(target_copy, target)
+    with pytest.raises(ValueError, match="'quantities.sum_copy' reads 'quantities.sum.total', so it must run after"):
+        builder.move_before(total_copy, total)
     with pytest.raises(ValueError, match="a use stays in its phase"):
         builder.move_after(alive, target)
     with pytest.raises(ValueError, match="must list each of its entries once"):

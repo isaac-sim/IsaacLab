@@ -477,3 +477,10 @@ class KukaAllegroLiftEnvCfg(MDP2RLEnvCfg):
     scene: KukaAllegroLiftSceneCfg = KukaAllegroLiftSceneCfg(num_envs=4096, env_spacing=3)
     task: mdp2.TaskCfg = TASK
     decimation: int = DECIMATION
+
+    def play_mode(self):
+        """Start the curriculum at its end, as the MDP1 lift does, so that a trained policy plays with gravity."""
+        super().play_mode()
+        adr = self.task.events["adr"]
+        params = {**adr.params, "init_difficulty": adr.params["max_difficulty"], "promotion_only": True}
+        self.task = replace(self.task, events={**self.task.events, "adr": replace(adr, params=params)})

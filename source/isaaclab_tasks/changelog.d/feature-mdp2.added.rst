@@ -1,9 +1,11 @@
 * Added ``Isaac-Cartpole-MDP2``, the Cartpole task written with :mod:`isaaclab_experimental.mdp2` and run by
   :class:`~isaaclab_experimental.envs.MDP2RLEnv` on Newton, in :mod:`isaaclab_tasks.mdp2`.
 * Added ``Isaac-Velocity-Flat-UnitreeGo2-MDP2``, the Unitree Go2 flat velocity task written with
-  :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands.
+  :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands. Its play mode removes the
+  random pushes.
 * Added ``Isaac-Velocity-Flat-WalkStand-UnitreeGo2-MDP2``, which trains one Go2 policy in a scene where half of the
   worlds follow velocity commands and the other half stand still, with their own rewards.
 * Added ``Isaac-Lift-KukaAllegro-MDP2``, the Kuka Allegro lift task written with :mod:`isaaclab_experimental.mdp2`,
   with its adaptive difficulty curriculum, curriculum gravity, and a reset bank of valid start states per world, all
-  inside the step's CUDA graph.
+  inside the step's CUDA graph. Its play mode starts the curriculum at its end, so a trained policy plays with
+  gravity.

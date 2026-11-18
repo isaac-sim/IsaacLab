@@ -290,6 +290,13 @@ class UnitreeGo2FlatEnvCfg(MDP2RLEnvCfg):
     task: mdp2.TaskCfg = TASK
     decimation: int = DECIMATION
 
+    def play_mode(self):
+        """Play without the random pushes, as the MDP1 velocity tasks do."""
+        super().play_mode()
+        tasks = [self.task] if isinstance(self.task, mdp2.TaskCfg) else self.task
+        tasks = [replace(task, events={**task.events, "push_robot": None}) for task in tasks]
+        self.task = tasks[0] if isinstance(self.task, mdp2.TaskCfg) else tasks
+
 
 @configclass
 class UnitreeGo2FlatWalkStandEnvCfg(UnitreeGo2FlatEnvCfg):

@@ -9,12 +9,13 @@ import math
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_experimental import mdp2
-from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg
-from isaaclab_experimental.mdp2 import mdp
+from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, mdp2_env, mdp2_scene_data
+from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
@@ -198,8 +199,12 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
         outputs={"root_link_pose_w": robot.root_link_pose_w},
         params={"offset": 0.5},
     )
+    # A random seed (-1) reaches the MDP's streams: they start from the seed that was drawn.
+    cfg.seed = -1
+    monkeypatch.setattr(mdp2_env, "configure_seed", lambda seed: 123)
     env = MDP2RLEnv(cfg)
     try:
+        assert torch.equal(env.state.rng.torch, rng.streams(123, env.mdp.streams, NUM_ENVS, env.device))
         robot_data = env.scene["robot"].data
         assert env.single_observation_space["policy"].shape == (4,)
         assert env.single_action_space.shape == (1,)
@@ -241,20 +246,96 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
         # A seed also reseeds the MDP's streams, which the reset events draw from; the config is left as it was.
         seeded = [env.reset(seed=7)[0]["policy"].clone() for _ in range(2)]
         assert torch.equal(seeded[0], seeded[1])
+        # And on reset, they restart from it.
+        env.reset(seed=-1)
+        expected = rng.streams(123, env.mdp.streams, NUM_ENVS, env.device)
+        rng.advance(expected)  # Once by the reset
+        assert torch.equal(env.state.rng.torch, expected)
         assert cfg.scene.lazy_sensor_update
     finally:
         env.close()
 
 
-def test_env_rejects_actuators_with_state():
-    """Masked resets reset every world's actuators, so actuators that keep state, like delayed ones, are refused."""
-    cfg = cartpole_cfg()
+def delayed_cart(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
     cfg.scene.robot.actuators["cart"] = DelayedPDActuatorCfg(
         joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0, max_delay=2
     )
 
-    with pytest.raises(ValueError, match=r"'robot' has the actuator groups \['cart'\]"):
+
+def reordered_bodies(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+    cfg.scene.robot.body_ordering = ["rail", "pole", "cart"]
+
+
+def ball_joint_tip(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+    """Hang a tip from the pole on a ball joint."""
+    tip = """
+    def Xform "tip" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        float physics:mass = 0.1
+        float3 physics:diagonalInertia = (0.01, 0.01, 0.01)
+    }
+
+    def PhysicsSphericalJoint "pole_to_tip"
+    {
+        rel physics:body0 = </Robot/pole>
+        rel physics:body1 = </Robot/tip>
+        point3f physics:localPos0 = (0.0, 0.0, 1.0)
+    }
+}
+"""
+    usd = tmp_path / "ball_joint_cartpole.usda"
+    usd.write_text(CARTPOLE_USD.read_text().rstrip().removesuffix("}") + tip)
+    cfg.scene.robot.spawn.usd_path = str(usd)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (delayed_cart, r"'robot' has the actuator groups \['cart'\]"),
+        (reordered_bodies, r"'robot' sets a joint or body ordering"),
+    ],
+    ids=("actuator-with-state", "body-ordering"),
+)
+def test_env_rejects_assets_it_cannot_reset_or_write_in_place(change, message, tmp_path):
+    """Captured steps replay the actuators' resets, so delayed actuators, which draw their delays from Torch on reset,
+    are refused; and so are body orderings, whose poses are copies that the asset refreshes outside the graphs."""
+    cfg = cartpole_cfg()
+    change(cfg, tmp_path)
+    with pytest.raises(ValueError, match=message):
         MDP2RLEnv(cfg)
+
+
+def test_reset_writes_reach_the_solver_of_ball_joint_articulations(tmp_path):
+    """With a ball joint, the asset's joint positions are a copy of the solver's coordinates: a commit passes the
+    written ones on through the asset, so the solver starts the episode where the reset event put the cart."""
+    cfg = cartpole_cfg()
+    ball_joint_tip(cfg, tmp_path)
+    cfg.task.events["reset_cart_position"] = reset_joints(cart, (0.7, 0.7), (0.0, 0.0))
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(3):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        joint_pos = env.scene["robot"].data.joint_pos.torch
+        torch.testing.assert_close(
+            joint_pos[:, 0], torch.full((NUM_ENVS,), 0.7, device=env.device), atol=1e-2, rtol=0.0
+        )
+        assert env.is_captured
+    finally:
+        env.close()
+
+
+def test_asset_writers_match_writes_to_the_solver_state(monkeypatch):
+    """Committing through the assets' writers, as on a backend whose data is not the solver's own, steps exactly like
+    Newton's fast path, which writes the solver state in place."""
+    _, fast = rollout(cartpole_cfg(), num_steps=70)
+    monkeypatch.setattr(mdp2_scene_data, "_newton_backend", lambda sim: None)
+    _, writers = rollout(cartpole_cfg(), num_steps=70)
+    for fast_step, writers_step in zip(fast, writers):
+        for key, value in fast_step.items():
+            assert torch.equal(value, writers_step[key]), key
 
 
 def test_captured_steps_match_eager_steps_and_the_torch_backend():
@@ -348,5 +429,34 @@ def test_startup_and_interval_events_reach_the_solver():
         speeds = torch.stack(speeds[1:])
         assert env.is_captured and (speeds[:, ::2] > 0.0).all() and (speeds[:, 1::2] < 1e-5).all()
         torch.testing.assert_close(speeds, speeds[:1].expand_as(speeds))
+    finally:
+        env.close()
+
+
+def raise_pole_armature(ctx: mdp2.TermContext):
+    robot = ctx.entity("joint_pos")
+    armature = robot.data.joint_armature.torch.clone()
+    armature[:, 1] += 0.1
+    robot.write_joint_armature_to_sim_mask(armature=armature, env_mask=wp.from_torch(ctx.mask))
+
+
+def test_eager_events_change_the_model_of_captured_steps():
+    """Model changes that an eager reset event queues reach the solver, also between the graphs of captured steps."""
+    cfg = cartpole_cfg()
+    cfg.task.terminations["time_out"] = mdp2.TimeLimit(episode_length_s=0.05)
+    cfg.task.events["raise_pole_armature"] = mdp2.Event(
+        mdp2.Term(eager=raise_pole_armature), inputs={"joint_pos": robot.joint_pos}
+    )
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(10):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+
+        backend = env.sim.backend_manager.backend
+        model = backend.model.joint_armature.numpy().reshape(NUM_ENVS, -1)
+        solver = backend.solver.mjw_model.dof_armature.numpy().reshape(NUM_ENVS, -1)
+        assert env.is_captured and model[0, 1] > 0.3
+        np.testing.assert_allclose(solver, model, rtol=1e-6)
     finally:
         env.close()

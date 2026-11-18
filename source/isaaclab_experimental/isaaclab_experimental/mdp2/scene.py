@@ -24,6 +24,9 @@ class FieldSchema:
 
     dims: tuple[str, ...] = ()  # Named dimensions after worlds, e.g. ("joints",)
     dtype: type = wp.float32  # Element type, e.g. wp.vec3f for a position per body
+    # Whether events and actions may write it. Derived data, such as body poses that forward kinematics computes, and
+    # sensor data are read-only: writes would not reach the simulation.
+    writable: bool = False
 
 
 @dataclass(frozen=True)

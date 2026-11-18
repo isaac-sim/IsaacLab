@@ -24,11 +24,15 @@
   MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are masks
   over the worlds, so every step after the first replays as CUDA graphs, physics included, on both backends: one
   graph without eager terms, and the eager terms between graphs otherwise. Reset events write scene fields in place,
-  including fixed-base root poses and gravity, and ``Event(commit=True)`` makes the simulation see earlier writes.
+  including fixed-base root poses and gravity, and ``Event(commit=True)`` makes the simulation see earlier writes. A
+  commit tells the solver which worlds changed where a field is its own state, and passes the writes through the
+  assets' ``write_*_to_sim_mask`` methods otherwise, such as for ball joints. Fields that the simulation computes are
+  read-only.
   ``extras["log"]`` holds per-term episode statistics and logged quantities, and with ``compute_final_obs``,
   ``extras["final_obs"]`` holds the observations of the worlds that ended before their reset, which the generated
-  kernels write as they observe. A world that terminates is not truncated. Articulations must have actuators
-  without state (implicit, ideal PD, and DC motor).
+  kernels write as they observe. A world that terminates is not truncated. Articulations must have implicit, ideal
+  PD, or DC motor actuators, whose resets can be replayed in CUDA graphs. ``MDP2RLEnvCfg.play_mode`` caps the worlds and
+  removes observation noise for the play scripts, as MDP1 does.
 * Added :mod:`isaaclab_experimental.mdp2.mdp`, built-in terms with the names of their MDP1 counterparts: joint, root,
   and command observations with noise, clipping, scaling, and history; velocity tracking, regularization, contact,
   and air-time rewards; terminations; velocity, heading, and pose commands; joint and root reset and push events;

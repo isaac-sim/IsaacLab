@@ -465,6 +465,7 @@ class MDPBuilder:
         target = self._resolve(entry, "target", cfg.target, context)
         if target is None:
             return
+        self._check_writable(entry, cfg.target, context.errors)
         if target.dtype is not wp.float32:
             context.errors.append(f"{entry}: the target '{cfg.target}' must be a float32 field.")
 
@@ -508,6 +509,9 @@ class MDPBuilder:
         fields = {
             arg: self._resolve(entry, arg, selector, context) for arg, selector in {**cfg.inputs, **outputs}.items()
         }
+        for arg, selector in outputs.items():
+            if fields[arg] is not None:
+                self._check_writable(entry, selector, errors)
         # Int params, such as a number of points, can also size dimensions.
         sizes = {name: value for name, value in cfg.params.items() if type(value) is int}
         sizes |= _dimension_sizes(fields)
@@ -626,6 +630,13 @@ class MDPBuilder:
                 log=isinstance(cfg, Quantity) and cfg.log,
             )
         )
+
+    def _check_writable(self, entry: ScheduleEntry, selector: FieldSelector, errors: list[str]) -> None:
+        """Record an error if a use writes a scene field that writes would not reach, such as a derived one."""
+        if selector.scene and not self.schema.entities[selector.entity].fields[selector.field].writable:
+            errors.append(
+                f"{entry}: '{selector}' is read-only: the simulation computes it, so writes would not reach it."
+            )
 
     def _resolve(
         self, entry: ScheduleEntry | str, arg: str, selector: FieldSelector | SubsetSelector, context: CompileContext
@@ -766,12 +777,20 @@ def _resolve_shape(
 
 
 def _dependency_errors(schedule: tuple[ScheduleEntry, ...] | list[ScheduleEntry]) -> list[str]:
-    """Report each use that reads a field before a later use of the same phase writes it."""
+    """Report each use that reads a field before a later use of the same phase writes it.
+
+    A use also writes its own state, such as the progress of a curriculum event that another event reads.
+    """
     errors = []
     for index, reader in enumerate(schedule):
         for writer in itertools.takewhile(lambda entry: entry.phase is reader.phase, schedule[index + 1 :]):
+            state = (
+                [term_state(str(writer), name) for name in writer.cfg.term.state]
+                if isinstance(writer.cfg, TermCfg)
+                else []
+            )
             for selector in dict.fromkeys(reader.reads):
-                if selector in writer.writes:
+                if selector in writer.writes or selector in state:
                     errors.append(f"'{reader}' reads '{selector}', so it must run after '{writer}', which writes it.")
     return errors
 

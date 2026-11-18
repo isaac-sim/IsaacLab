@@ -68,7 +68,10 @@ The built-in terms are in :mod:`isaaclab_experimental.mdp2.mdp` and keep the nam
   rewards, terminations, and events read as ``mdp2.quantities.<name>``.
 - **Events** write scene fields in place. After the startup events, after the interval events in the worlds where
   they ran, after all reset events, and before an event with ``commit=True``, the scene makes the simulation see the
-  written fields: joint and root state, fixed-base root poses, and gravity.
+  written fields: joint and root state, fixed-base root poses, and gravity. Where a field is the solver's own state,
+  as Newton's joint and root state usually are, the commit only tells the solver which worlds changed; otherwise it
+  passes them through the asset's ``write_*_to_sim_mask`` methods. Fields that the simulation computes, such as body
+  poses, contact forces, and joint accelerations, are read-only, and the builder rejects uses that write them.
 - **Randomness** comes from per-world streams that each use owns (``Term(random=True)`` passes ``rng``), so the Torch
   and Warp backends draw the same numbers.
 
@@ -108,15 +111,30 @@ so it must not copy data from the host or draw from Torch's random generators; u
 the environment captures the work before and after them, physics included, and runs them between the graphs.
 ``Term(init=fn)`` fills a term's state once at startup in the same way.
 
+A captured step replays what was recorded, so three things are fixed after the first steps, without an error if
+they change:
+
+- **Python in capturable hooks** runs once, during the capture: a branch on a host value takes the same path on every
+  replay.
+- **Params** are constants of the kernels and hooks: changing ``params`` has no effect.
+- **Buffers** are bound by address: write the MDP's arrays in place, such as ``state.reward_weights.torch[:] = ...``,
+  rather than assigning new ones.
+
+Values that change while training, such as a curriculum's difficulty, belong in term state or quantities, which
+terms read on the device: the Lift task's curriculum keeps its progress as the state of its ``adr`` event.
+
 
 Limitations
 -----------
 
 - Newton only. Different robots in different worlds are not supported, since Newton's articulation views need
   homogeneous worlds; different task configs on the same robot are.
-- Asset resets with a mask reset the actuator state of every world, so the environments support implicit, ideal PD,
-  and DC motor actuators only, which keep no state, and refuse delayed, actuator-network, and BAM actuators.
-- Joint orderings (``ArticulationCfg.joint_ordering``) are not supported: terms see the solver's joint order.
+- The environments support implicit, ideal PD, and DC motor actuators only. Captured steps replay the actuators'
+  masked resets, and delayed actuators draw their delays from Torch's random generator on reset, which a replayed
+  graph would repeat. Actuator-network and BAM actuators are not supported yet either.
+- Joint and body orderings (``ArticulationCfg.joint_ordering`` and ``body_ordering``) are not supported: terms read
+  the asset's data in kernels, and orderings make the asset keep reordered copies that it refreshes outside the
+  graphs.
 - Rendering runs on the host after each control step, outside the CUDA graphs: at most once per control step, when
   one of its physics steps reaches ``sim.render_interval``, and after the step's resets (MDP1 renders inside the
   decimation loop, before resets). ``render_enabled`` and ``num_rerenders_on_reset`` are not supported.
