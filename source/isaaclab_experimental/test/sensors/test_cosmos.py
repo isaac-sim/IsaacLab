@@ -442,11 +442,12 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
     try:
         published = [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(3)]
-        # A reset makes the next capture a decision point, so the view never shows black.
+        # A reset does not move the schedule: the next capture shows the rendered rgb, never black, and the one
+        # after it generates the view's new episode with its new seed.
         processor.reset([0])
-        published.append(int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()))
+        published += [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(2)]
         session = cosmos_service.resource.streams[0]
-        assert published == [127, 50, 127, 127]
+        assert published == [127, 50, 127, 50, 127]
         second = cosmos_model_module._image_seed(0, 1)
         assert second != 1
         assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (second,)), ((0,), (1,))]

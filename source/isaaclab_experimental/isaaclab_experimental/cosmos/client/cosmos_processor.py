@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -22,8 +21,6 @@ if TYPE_CHECKING:
 
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
-_SEED_MODULUS = 2**31
-
 
 class CosmosTransferProcessor(ImageTransferProcessor):
     """Generate Cosmos camera images with one initial frame and four-frame updates, or one frame per generation.
@@ -33,9 +30,9 @@ class CosmosTransferProcessor(ImageTransferProcessor):
     the camera's generation stream, and joins its camera's views to a session shared with other cameras.
 
     With :attr:`CosmosModelCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
-    from the current capture's control, every ``decision_interval`` captures from the latest reset and with
-    probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Only the
-    views a capture selects publish a new image.
+    from the current capture's control, at every ``decision_interval``-th capture of the camera and with
+    probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Resets do
+    not move this schedule, and only the views a capture selects publish a new image.
     """
 
     def __init__(self, cfg: CosmosTransferProcessorCfg, data: dict[str, ProxyArray]):
@@ -88,15 +85,6 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             return super().__call__(data, env_mask=env_mask)
         return self._generate_single_frame(data, env_mask)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
-        """Discard the selected views' episode state; in single-frame mode the next capture is a decision point."""
-        super().reset(env_ids, env_mask)
-        if self._single_frame:
-            # The base class has already read the mask on the host for its queues.
-            selected = bool(wp.to_torch(env_mask).any()) if env_mask is not None else env_ids is None or len(env_ids)
-            if selected:
-                self._capture_index = 0
-
     def _generate_single_frame(self, data: dict[str, ProxyArray], env_mask: wp.array) -> dict[str, ProxyArray]:
         """Publish, for the captured views, one generated image at a decision point, or the rendered rgb otherwise."""
         if self._closed or self._failed:
@@ -114,8 +102,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
                 torch.where(selected, data["rgb"].torch[..., :3], self._output, out=self._output)
                 return dict(self._outputs)
             num_views = self._data_dim[0]
-            resets = tuple(sorted(self._reset_rows)) if self._started else ()
-            seeds = tuple((self._seeds[row] + self._episodes[row] * num_views) % _SEED_MODULUS for row in resets)
+            resets, seeds = self._take_resets()
             try:
                 generated = self._stream.step([frames[row : row + 1] for row in range(num_views)], resets, seeds)
                 if len(generated) != num_views or any(
@@ -130,7 +117,6 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             images = torch.cat(generated).to(self._output.device)
             torch.where(selected, images, self._output, out=self._output)
             self._started = True
-            self._reset_rows.clear()
         return dict(self._outputs)
 
 

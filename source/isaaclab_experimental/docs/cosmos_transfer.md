@@ -368,7 +368,7 @@ on a Cosmos task):
 | Setting | Effect |
 |---|---|
 | `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's depth alone, with no history, so images neither repeat between updates nor turn black after resets |
-| `decision_interval=N` | Generate at the first of every `N` captures after the camera's latest reset, for example once per 16-step action chunk; the other captures publish the rendered `rgb` |
+| `decision_interval=N` | Generate at the first of every `N` captures of the camera, for example once per 16-step action chunk; the other captures publish the rendered `rgb`. Resets do not restart the count |
 | `augmentation_probability=p` | Generate at a decision point with probability `p`, one draw for all environments; otherwise publish the rendered `rgb` |
 
 - With a prompt list, environment `v` uses `prompt[(v + k) % len(prompt)]` in its episode `k`, also with several
