@@ -17,6 +17,8 @@ from isaaclab.sim.spawners.meshes.meshes_cfg import MeshRectangleCfg
 from isaaclab.sim.utils.prims import bind_visual_material
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def stage():
@@ -140,6 +142,33 @@ def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage,
                 "reflection_roughness_texture_influence",
             ):
                 assert shader.GetInput(channel).Get() == pytest.approx(getattr(cfg.visual_material, channel))
+
+
+@pytest.mark.parametrize("material_path", ["material", "/Looks/Override"])
+def test_usd_visual_material_overrides_descendants_before_cloning(stage, tmp_path, material_path):
+    """Inline USD materials override mesh bindings and survive cloning without Kit."""
+    source = Usd.Stage.CreateNew(str(tmp_path / "part.usda"))
+    source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Part").GetPrim())
+    cube = UsdGeom.Cube.Define(source, "/Part/Visual").GetPrim()
+    authored = UsdShade.Material.Define(source, "/Part/Blue")
+    UsdShade.MaterialBindingAPI.Apply(cube).Bind(authored)
+    source.GetRootLayer().Save()
+    cfg = UsdFileCfg(
+        usd_path=str(tmp_path / "part.usda"),
+        visual_material=PreviewSurfaceCfg(diffuse_color=(0.25, 0.5, 0.75), roughness=0.8),
+        visual_material_path=material_path,
+    )
+    for index in range(2):
+        UsdGeom.Xform.Define(stage, f"/World/env_{index}")
+    cfg.func("/World/env_.*/Part", cfg)
+    for index in range(2):
+        root = f"/World/env_{index}/Part"
+        expected_path = material_path if material_path.startswith("/") else f"{root}/{material_path}"
+        material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/Visual")).ComputeBoundMaterial()
+        assert material.GetPath() == expected_path
+        shader, _, _ = material.ComputeSurfaceSource()
+        assert shader.GetInput("diffuseColor").Get() == pytest.approx(cfg.visual_material.diffuse_color)
+        assert shader.GetInput("roughness").Get() == pytest.approx(0.8)
 
 
 def test_spawn_mesh_with_visual_material_without_kit(stage):

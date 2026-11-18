@@ -193,7 +193,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
     bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
     The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
-    materials inside instances. Named paths create and bind a replacement material only with Kit.
+    materials inside instances. Named paths create and bind a replacement material with or without Kit.
     Ignored when :attr:`visual_material` is None.
     """
 
