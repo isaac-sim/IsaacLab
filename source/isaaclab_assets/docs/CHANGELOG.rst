@@ -3,6 +3,31 @@ Changelog
 
 .. towncrier release notes start
 
+2.3.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``H2_CFG`` for the official Unitree H2 USD asset with 31 actuated joints, locomotion PD gains,
+  and an initial height that places the soles close to the ground.
+* Used the published Isaac Lab H2 USD asset.
+
+Fixed
+^^^^^
+
+* Removed the zero solver velocity limit from the G129 Dex3 waist actuators, which caused unstable arm motion.
+
+
+2.2.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :obj:`~isaaclab_assets.robots.asimov_1.ASIMOV_1_CFG` for the Asimov-1 humanoid with delayed PD actuators.
+
+
 2.1.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 

@@ -33,7 +33,7 @@ class MJWarpSolver(NewtonSolver):
 
     solver_class = SolverMuJoCo
     single_state = True
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.RUN_TO_RUN
 
     @classmethod
     def applied_deterministic_mode(cls, cfg: MJWarpSolverCfg, mode: wp.DeterministicMode) -> wp.DeterministicMode:

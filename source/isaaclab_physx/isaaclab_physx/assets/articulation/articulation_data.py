@@ -1061,9 +1061,9 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
         if self._mass_matrix.timestamp < self._sim_timestamp:
             source = self._root_view.get_generalized_mass_matrices()
+            if self._mass_matrix.data is None:
+                self._mass_matrix.data = ProxyArray(wp.empty_like(source))
             if self.has_joint_ordering or self._has_reversed_joints:
-                if self._mass_matrix.data is None:
-                    self._mass_matrix.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
                     "mass_matrix",
                     wp.launch,
@@ -1078,8 +1078,13 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._mass_matrix.data],
                 )
-            elif self._mass_matrix.data is None:
-                self._mass_matrix.data = ProxyArray(source)
+            else:
+                wp.copy(self._mass_matrix.data.warp, source)
+            # PhysX mass-matrix queries omit the joint armature used by the solver (PhysX#575).
+            # TODO: Remove once PhysX#575 is fixed upstream, or armature will be counted twice.
+            self._mass_matrix.data.torch.diagonal(dim1=-2, dim2=-1)[:, self._num_base_dofs :].add_(
+                self.joint_armature.torch
+            )
             self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix.data
 
@@ -1769,6 +1774,8 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = wp.clone(self._root_view.get_fixed_tendon_rest_lengths(), device=device)
             self._fixed_tendon_offset = wp.clone(self._root_view.get_fixed_tendon_offsets(), device=device)
             self._fixed_tendon_pos_limits = wp.clone(self._root_view.get_fixed_tendon_limits(), device=device)
+            # scratch for the masked target setter: rest_length - target before the masked write
+            self._fixed_tendon_offset_scratch = wp.zeros_like(self._fixed_tendon_offset)
         else:
             self._fixed_tendon_stiffness = None
             self._fixed_tendon_damping = None
@@ -1776,6 +1783,7 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = None
             self._fixed_tendon_offset = None
             self._fixed_tendon_pos_limits = None
+            self._fixed_tendon_offset_scratch = None
         # -- Spatial tendon properties
         if self._num_spatial_tendons > 0:
             self._spatial_tendon_stiffness = wp.clone(self._root_view.get_spatial_tendon_stiffnesses(), device=device)

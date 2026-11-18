@@ -64,6 +64,7 @@ _LEGACY_PRESET_ALIASES = {
     "kamino": "newton_kamino",
     "ovrtx_renderer": "ovrtx",
     "isaacsim_rtx_renderer": "isaacsim_rtx",
+    "newton_renderer": "newton_warp",
 }
 
 

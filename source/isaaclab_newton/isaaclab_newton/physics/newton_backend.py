@@ -158,6 +158,8 @@ class NewtonBackend:
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
         self.bvh_refit = TimestampedBuffer()
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
+        self.optix_refit = TimestampedBuffer()
+        """Timestamp of the last OptiX shape refit."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
         if not simulation:
@@ -238,6 +240,7 @@ class NewtonBackend:
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
         self.bvh_refit = TimestampedBuffer()
+        self.optix_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
@@ -259,10 +262,10 @@ class NewtonBackend:
                 :func:`capture_graph`. Defaults to strict capture.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
-        if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.class_type.deterministic:
+        if mode > (max_mode := solver_cfg.class_type.max_deterministic_mode):
             raise ValueError(
-                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
-                " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
+                f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}, which"
+                f" supports at most {max_mode.name}. Request a weaker mode or select a solver that supports it."
             )
         if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
             # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
@@ -547,6 +550,19 @@ class NewtonBackend:
         if cache.data is None or cache.data[0] != pointers:
             cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
         wp.capture_launch(cache.data[1])
+        cache.timestamp = timestamp
+
+    def refit_optix(self, timestamp: int) -> None:
+        """Build the model's OptiX shapes on first use and refit them once per state ``timestamp``.
+
+        Args:
+            timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
+        """
+        cache = self.optix_refit
+        if self.model.optix_shapes is None:
+            self.model.bvh_build_shapes(self.state_0, backend="optix")
+        elif cache.timestamp != timestamp:
+            self.model.bvh_refit_shapes(self.state_0, backend="optix")
         cache.timestamp = timestamp
 
     def _allocate_contacts(self) -> None:

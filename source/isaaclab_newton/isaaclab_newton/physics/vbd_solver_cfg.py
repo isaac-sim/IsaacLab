@@ -58,9 +58,6 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
-    rigid_compliant_alm: bool | None = None
-    """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
-
     rigid_joint_linear_ke: float = 1.0e5
     """Structural linear stiffness of non-rod rigid joints [N/m], separate from joint-drive gains."""
 
