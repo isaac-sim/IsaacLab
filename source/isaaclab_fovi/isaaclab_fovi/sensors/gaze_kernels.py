@@ -11,7 +11,6 @@ float32. Camera-frame directions follow the ROS (OpenCV) convention: x right, y 
 
 from __future__ import annotations
 
-import contextlib
 import math
 
 import torch
@@ -24,22 +23,26 @@ FLOAT32_EPS = float(torch.finfo(torch.float32).eps)
 DEG_TO_RAD = math.pi / 180.0
 
 
-@contextlib.contextmanager
-def torch_stream(device: torch.device | str):
-    """Launch Warp kernels on the tensors' device and, on CUDA, PyTorch's current stream."""
+_WARP_STREAMS: dict[int, wp.Stream] = {}
+"""Warp streams by the CUDA stream handle of the PyTorch stream they launch on."""
+
+
+def torch_stream(device: torch.device | str) -> wp.ScopedStream | wp.ScopedDevice:
+    """Scope that launches Warp kernels on the tensors' device and, on CUDA, PyTorch's current stream."""
     device = torch.device(device)
-    wp.init()
     if device.type != "cuda":
-        with wp.ScopedDevice(wp.device_from_torch(device)):
-            yield
-        return
-    torch_current = torch.cuda.current_stream(device)
-    stream = wp.get_stream(wp.device_from_torch(device))
-    # A temporary alias of a live Warp-owned stream would unregister it when destroyed.
-    if stream.cuda_stream != torch_current.cuda_stream:
-        stream = wp.stream_from_torch(torch_current)
-    with wp.ScopedStream(stream, sync_enter=False, sync_exit=False):
-        yield
+        wp.init()
+        return wp.ScopedDevice(wp.device_from_torch(device))
+    handle = torch.cuda.current_stream(device).cuda_stream
+    stream = _WARP_STREAMS.get(handle)
+    if stream is None:
+        wp.init()
+        stream = wp.get_stream(wp.device_from_torch(device))
+        # A temporary alias of a live Warp-owned stream would unregister it when destroyed; cached aliases persist.
+        if stream.cuda_stream != handle:
+            stream = wp.stream_from_torch(torch.cuda.current_stream(device))
+        _WARP_STREAMS[handle] = stream
+    return wp.ScopedStream(stream, sync_enter=False, sync_exit=False)
 
 
 @wp.struct

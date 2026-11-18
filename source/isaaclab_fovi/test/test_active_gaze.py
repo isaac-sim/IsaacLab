@@ -10,7 +10,7 @@ import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angles
-from isaaclab_fovi.mdp.gaze import teacher_kernel
+from isaaclab_fovi.mdp.gaze import gaze_step_kernel, teacher_kernel, teacher_labels_kernel
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.models import MLPModel
@@ -81,6 +81,86 @@ def test_teacher_kernel_matches_the_torch_teacher():
     assert agree.float().mean() > 0.999 and expected_valid.any() and (~expected_valid).any()
     torch.testing.assert_close(action[agree], expected_action[agree], atol=1e-4, rtol=0)
     torch.testing.assert_close(error, expected_error.rad2deg(), atol=1e-3, rtol=0)
+
+
+def test_gaze_step_kernel_matches_the_torch_update():
+    generator = torch.Generator().manual_seed(4)
+    count, step, limit, dt, radius = 2048, 0.1, 1.0, 1 / 60, 23.6
+    actions = torch.randn(count, 2, generator=generator) * 1.5
+    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.75
+    expected = clamp_gaze(gaze + actions.clamp(-1, 1) * step, limit)
+    expected_velocity = (expected - gaze) / dt
+
+    velocity, angles = torch.empty_like(gaze), torch.empty_like(gaze)
+    with torch_stream("cpu"):
+        wp.launch(
+            gaze_step_kernel,
+            dim=count,
+            inputs=[
+                *(wp.from_torch(buffer, dtype=wp.vec2f) for buffer in (actions, gaze, velocity, angles)),
+                step,
+                limit,
+                dt,
+                radius,
+            ],
+        )
+    torch.testing.assert_close(gaze, expected, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(velocity, expected_velocity, atol=1e-3, rtol=1e-5)
+    torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
+
+
+def test_teacher_labels_kernel_matches_the_torch_labels():
+    camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5))
+    field_radius, step, limit = 30.0, 0.1, 1.0
+    generator = torch.Generator().manual_seed(5)
+    count = 4096
+    mount = torch.nn.functional.normalize(torch.randn(4, generator=generator), dim=0)
+    positions = torch.randn(count, 3, generator=generator)
+    lateral = torch.randn(count, 2, generator=generator) * 0.6
+    local = torch.cat((lateral, torch.rand(count, 1, generator=generator) + 0.2), -1)
+    targets = positions + quat_apply(mount.expand(count, -1), local)
+    orientations = torch.nn.functional.normalize(torch.randn(count, 4, generator=generator), dim=-1)
+    offset = torch.tensor([0.0, 0.0, 0.3])
+    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
+
+    # The torch path the kernel replaces: entity_point, then the teacher, then the labels and logs.
+    points = targets + quat_apply(orientations, offset.expand(count, -1))
+    direction = torch.nn.functional.normalize(quat_apply_inverse(mount.expand(count, -1), points - positions), dim=-1)
+    desired = direction_to_angles(direction) / field_radius
+    valid = camera.project(direction)[1] & (desired.norm(dim=-1) <= limit)
+    action = torch.where(valid[:, None], ((desired - gaze) / step).clamp(-1, 1), 0.0)
+    looking = angles_to_direction(gaze * field_radius)
+    error = torch.atan2(torch.cross(looking, direction, dim=-1).norm(dim=-1), (looking * direction).sum(-1)).rad2deg()
+    expected = torch.cat((action, valid[:, None].float()), dim=-1)
+
+    labels = torch.empty(count, 3)
+    sums = torch.zeros(2)
+    with torch_stream("cpu"):
+        wp.launch(
+            teacher_labels_kernel,
+            dim=count,
+            inputs=[
+                wp.from_torch(targets, dtype=wp.vec3f),
+                wp.from_torch(orientations, dtype=wp.quatf),
+                wp.vec3f(*offset.tolist()),
+                1,
+                wp.from_torch(positions, dtype=wp.vec3f),
+                wp.quatf(*mount.tolist()),
+                wp.from_torch(gaze, dtype=wp.vec2f),
+                field_radius,
+                step,
+                limit,
+                camera_params(camera),
+            ],
+            outputs=[wp.from_torch(labels), wp.from_torch(sums)],
+        )
+    agree = (labels[:, 2] > 0.5) == valid
+    assert agree.float().mean() > 0.999 and valid.any() and (~valid).any()
+    torch.testing.assert_close(labels[agree], expected[agree], atol=1e-4, rtol=0)
+    both = agree & valid
+    assert float(sums[1]) == pytest.approx(float((labels[:, 2] > 0.5).sum()))
+    assert float(sums[0]) == pytest.approx(float(torch.where(labels[:, 2] > 0.5, error, 0.0).sum()), rel=1e-4)
+    assert both.sum() > 0
 
 
 def test_gaze_loss_ignores_invalid_labels():
