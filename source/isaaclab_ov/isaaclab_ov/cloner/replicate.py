@@ -22,7 +22,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from isaaclab import cloner
 
 from isaaclab_ov._clone import CloneRecipe
-from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
@@ -520,8 +519,7 @@ def _serialize_stage(
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
     import all its assets together; its copies inherit one collision group and environment ID.
-    CPU, features without native cloning, and acceleration-spring materials with positive
-    compliant-contact stiffness import every declared world instead.
+    CPU and features without native cloning import every declared world instead.
 
     When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
     physics properties even when no API schema is applied.
@@ -537,19 +535,6 @@ def _serialize_stage(
     if filter_render_only:
         recipes = [recipe for recipe in recipes if physics_content(recipe[0])[0]]
 
-    if recipes and not full_stage:
-        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
-        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
-            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
-            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
-                logger.warning(
-                    "Importing the full scene through USD to preserve acceleration-spring contact behavior "
-                    "for material %s. Native-cloning startup savings are disabled.",
-                    prim.GetPath(),
-                )
-                full_stage = True
-                break
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
@@ -587,8 +572,7 @@ def _serialize_stage(
 
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
-    if ovphysx_compat.OVPHYSX_USES_TASKS:
-        _convert_legacy_joint_properties(layer, friction_replacements)
+    _convert_legacy_joint_properties(layer, friction_replacements)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}
