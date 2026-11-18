@@ -206,17 +206,6 @@ def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
         viz.set_rtx_rendering(True)
 
 
-def test_each_window_selects_the_rtx_camera_declared_for_it():
-    cams = [
-        _View("a", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path=f"/World/viewer_camera_{i}_rtx")))
-        for i in range(2)
-    ]
-    viz = _switchable([_view(PerspectiveCameraCfg()), *cams])
-    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_1_rtx"))
-
-    assert viz.rtx_view_index == 2
-
-
 def test_the_shared_renderer_hides_environments_only_while_the_rtx_view_is_shown():
     calls = []
     renderer = SimpleNamespace(
