@@ -97,11 +97,48 @@ The retina can turn while the camera prim stays in place:
 camera.set_gaze_angles(angles)
 ```
 
-How a policy drives the gaze, for example as per-step changes normalized to
-the retinal window, belongs to the task's action term.
-
 Set `mask_to_sensor_fov=True` to zero the samples that fall outside the
 physical camera's image at the current gaze.
+
+## Active gaze
+
+`isaaclab_fovi.mdp` has the manager terms for a policy that moves the gaze:
+
+- `GazeActionCfg`: two actions that move the gaze by up to `step_size` field
+  radii (half the retina's field of view) per step, within `gaze_limit` field
+  radii of the optical axis. Make it the last action term.
+- `gaze_state`: the gaze and its velocity, in field radii.
+- `gaze_teacher_labels`: a teacher's gaze action toward a point fixed to an
+  asset, and whether that point is a valid target. `teacher_labels` takes any
+  world points, for a task whose target changes during an episode.
+- `motor_action_l2`: the stock action penalty without the gaze.
+
+`isaaclab_fovi.rsl_rl.GazeSupervisedPPOCfg` trains PPO with an added loss that
+pulls the means of the gaze actions toward the teacher's. The labels come from
+an `oracle` observation group that the actor and critic never see.
+
+### Tasks
+
+Each task is its stock camera counterpart with the camera foveated at the same
+mount, optics and resolution, two gaze actions, and gaze supervision. The vision
+model and the PPO settings are the stock ones.
+
+| Task | Teacher looks at |
+| --- | --- |
+| `Isaac-Cartpole-Camera-Fovi` (`presets=depth` for depth) | the pole's tip |
+| `Isaac-Lift-KukaAllegro-Camera-Fovi` | the object |
+| `Isaac-Reorient-KukaAllegro-Camera-Fovi` | the object |
+
+The Kuka-Allegro tasks take the stock base-camera presets, such as
+`presets=depth128`. Set the retina's resolution with, for example,
+`env.scene.tiled_camera.foveated_res=48`.
+
+```bash
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Fovi
+```
+
+The tasks are registered through the `isaaclab.tasks` entry point of this
+package, so they are available from a source checkout.
 
 ### Advanced options
 
