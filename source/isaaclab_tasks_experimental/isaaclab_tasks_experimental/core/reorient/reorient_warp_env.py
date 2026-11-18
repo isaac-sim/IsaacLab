@@ -13,22 +13,11 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
+from isaaclab.utils.warp.kernels import initialize_rng_state
 from isaaclab.utils.warp.math import quat_error_magnitude
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    """Initialize each env's random number generator state from the seed."""
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 @wp.kernel
