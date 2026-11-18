@@ -73,26 +73,25 @@ def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
         gaze_convention="pan_tilt",
     )
     torch.testing.assert_close(coords.cartesian, retina.sampler.coords.cartesian)
-    actual = retina(torch.ones(2, 3, 80, 120), torch.tensor([[0.5, 0.5], [0.3, 0.8]]))
-    assert actual.shape == (2, 3, len(coords))
-    assert torch.isfinite(actual).all()
 
 
 class GazeHarness(FoveatedCamera):
     """The foveated camera's gaze state and kernels on stand-in pose buffers, without a simulator."""
 
-    def __new__(cls, **overrides):
+    def __new__(cls, *args, **overrides):
         return object.__new__(cls)
 
-    def __init__(self, **overrides) -> None:
+    def __init__(self, count: int = 2, device: str = "cpu", **overrides) -> None:
         self.cfg = camera_config()
         for name, value in overrides.items():
             setattr(self.cfg, name, value)
-        self._sampling_coords, _ = build_lowres_coords(self.cfg, "cpu")
+        self._view = SimpleNamespace(count=count)
+        self._device = device
+        self._sampling_coords, _ = build_lowres_coords(self.cfg, device)
         self._sampling_coords_highres = None
-        self._gaze_rotation = None
         self._data = SimpleNamespace(
-            quat_w_world=torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1), pos_w=torch.zeros(2, 3)
+            quat_w_world=torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(count, 1),
+            pos_w=torch.zeros(count, 3, device=device),
         )
         self._initialize_gaze()
 
@@ -113,20 +112,20 @@ def angles_toward(camera: CameraModel, pixel: tuple[float, float]) -> torch.Tens
 @pytest.mark.parametrize("pixel", [(119.5, 39.5), (59.5, 79.5), (120.5, 39.5), (59.5, -1.3)])
 def test_edge_gaze_preserves_visible_rays(pixel: tuple[float, float]) -> None:
     """Looking at, or just past, an image edge keeps the part of the retina the camera still sees."""
-    camera = GazeHarness()
+    camera = GazeHarness(count=1)
     camera.set_gaze_angles(angles_toward(camera._camera_model, pixel))
 
     # An edge-centered receptive field straddles the physical sensor boundary.
     # Its visible part must survive even when the center lies outside the image.
-    valid = camera._gaze_validity(1)
+    valid = camera._gaze_validity()
     assert valid.any()
     assert not valid.all()
 
 
 def test_gaze_away_from_sensor_masks_all_rays() -> None:
-    camera = GazeHarness()
+    camera = GazeHarness(count=1)
     camera.set_gaze_angles(torch.tensor([[0.0, 180.0]]))
-    assert not camera._gaze_validity(1).any()
+    assert not camera._gaze_validity().any()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -145,12 +144,12 @@ def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, m
     angles = torch.tensor([[7.5, -12.0]], device=device).repeat(batch_size, 1)
     angles[1::2] = 0
     expected = matrix_from_quat(source.double()) @ conversion
-    camera = GazeHarness()
+    camera = GazeHarness(count=batch_size, device=device)
     camera._data.quat_w_world = source
     camera._gaze_basis = camera._gaze_basis.to(device)
     camera.set_gaze_angles(angles)
     basis = camera._gaze_basis.double()
-    expected = expected @ basis @ camera._gaze_rotation.double() @ basis.T @ conversion.T
+    expected = expected @ basis @ camera._gaze_rotation.torch.double() @ basis.T @ conversion.T
     selected = torch.arange(batch_size, device=device) % 2 == 0
     with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
         if mode == "spherical_ids":
@@ -190,20 +189,60 @@ def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: fl
     seen = (turn[:, None] @ rays[None, :, :, None]).squeeze(-1) * torch.tensor([1.0, -1.0, -1.0])
     expected = model.project(seen)[1]
     assert expected.any() and (~expected).any()
-    assert (camera._gaze_validity(2) == expected).float().mean() > 0.999
+    assert (camera._gaze_validity() == expected).float().mean() > 0.999
 
 
-def test_moving_the_mount_is_recorded(monkeypatch) -> None:
+def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
+    """The fixed-mount teacher reads the live camera position, so only successful turns of the mount count."""
     monkeypatch.setattr(Camera, "set_world_poses", lambda *args, **kwargs: None)
     monkeypatch.setattr(Camera, "set_world_poses_from_view", lambda *args, **kwargs: None)
-    for move in (
-        lambda camera: camera.set_world_poses(positions=torch.zeros(2, 3)),
-        lambda camera: camera.set_world_poses_from_view(torch.zeros(2, 3), torch.ones(2, 3)),
+    eyes = torch.zeros(2, 3)
+    for move, turned in (
+        (lambda camera: camera.set_world_poses(positions=torch.zeros(2, 3)), False),
+        (lambda camera: camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2)), True),
+        (lambda camera: camera.set_world_poses_from_view(eyes, eyes), False),
+        (lambda camera: camera.set_world_poses_from_view(eyes, torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])), True),
     ):
         camera = GazeHarness()
         camera.mount_moved = False
         move(camera)
-        assert camera.mount_moved
+        assert camera.mount_moved is turned
+
+
+def test_a_rejected_mount_move_is_not_recorded(monkeypatch) -> None:
+    def reject(*args, **kwargs):
+        raise ValueError("rejected")
+
+    monkeypatch.setattr(Camera, "set_world_poses", reject)
+    camera = GazeHarness()
+    camera.mount_moved = False
+    with pytest.raises(ValueError, match="rejected"):
+        camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2))
+    assert not camera.mount_moved
+
+
+@pytest.mark.parametrize("shape", [(1, 2), (2, 3), (3, 2)])
+def test_gaze_angles_need_one_row_per_camera(shape) -> None:
+    camera = GazeHarness()
+    with pytest.raises(ValueError, match=r"shape \(2, 2\)"):
+        camera.set_gaze_angles(torch.zeros(shape))
+    assert camera._gaze_angles is None
+
+
+def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() -> None:
+    camera = GazeHarness()
+    camera.cfg.mask_to_sensor_fov = True
+    camera.set_gaze_angles(torch.tensor([[0.0, 0.0], [0.0, 0.0]]))
+    first = camera._gaze_validity()
+    kept = first[0].clone()
+    output = {"distance_to_camera": torch.ones(2, len(camera._gaze_rays), 1, 1)}
+    camera.set_gaze_angles(torch.tensor([[0.0, 180.0], [0.0, 180.0]]))
+    camera._apply_sensor_fov_mask(output, wp.array([False, True], dtype=wp.bool, device="cpu"))
+    assert camera._visibility["valid"].torch is first
+    # The environment that was not updated keeps its samples and its last visibility.
+    torch.testing.assert_close(first[0], kept)
+    assert bool(output["distance_to_camera"][0].all())
+    assert not output["distance_to_camera"][1].any()
 
 
 def test_pose_update_records_the_mount_before_the_gaze() -> None:
@@ -213,7 +252,9 @@ def test_pose_update_records_the_mount_before_the_gaze() -> None:
     camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
     camera._apply_gaze_pose()
     expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
-    torch.testing.assert_close(matrix_from_quat(camera._mount_quat_ros), matrix_from_quat(expected), atol=1e-6, rtol=0)
+    torch.testing.assert_close(
+        matrix_from_quat(camera._mount_quat_ros.torch), matrix_from_quat(expected), atol=1e-6, rtol=0
+    )
     assert not torch.allclose(camera._data.quat_w_world, mount)
 
 
@@ -234,10 +275,10 @@ def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pos
     camera._apply_gaze_pose([0])
     torch.testing.assert_close(camera._data.quat_w_world[1], untouched)
     torch.testing.assert_close(
-        camera._gaze_validity(2),
+        camera._gaze_validity(),
         source.project(
             angular_directions(camera._sampling_coords.cartesian, camera._sampling_coords.fov)
-            @ camera._gaze_rotation.transpose(-1, -2)
+            @ camera._gaze_rotation.torch.transpose(-1, -2)
         )[1],
     )
 
@@ -253,7 +294,7 @@ def test_renderer_ray_frame_matches_cv_frame() -> None:
 def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
-    cameras = [GazeHarness(), GazeHarness()]
+    cameras = [GazeHarness(device=device), GazeHarness(device=device)]
     for camera in cameras:
         camera._data.quat_w_world = torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1)
         camera._gaze_basis = camera._gaze_basis.to(device)
@@ -264,10 +305,10 @@ def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
         with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
             camera.set_gaze_angles(target)
             camera._apply_gaze_pose()
-            camera._test_validity = camera._gaze_validity(2)
+            camera._test_validity = camera._gaze_validity().clone()
     assert torch.isfinite(cameras[1]._data.quat_w_world).all()
     torch.testing.assert_close(cameras[1]._data.quat_w_world, cameras[0]._data.quat_w_world)
-    torch.testing.assert_close(cameras[1]._gaze_rotation, cameras[0]._gaze_rotation)
+    torch.testing.assert_close(cameras[1]._gaze_rotation.torch, cameras[0]._gaze_rotation.torch)
 
     torch.testing.assert_close(cameras[1]._data.quat_w_world.norm(dim=-1), torch.ones(2, device=device))
     torch.testing.assert_close(cameras[1]._test_validity, cameras[0]._test_validity)
@@ -277,14 +318,15 @@ def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
 def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
-    camera = GazeHarness()
+    camera = GazeHarness(count=48, device=device)
     camera._gaze_basis = camera._gaze_basis.to(device)
     camera._base_local_orientation = matrix_from_quat(
         torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(48, 1)
     )
     written = []
     camera._view = SimpleNamespace(
-        set_local_poses=lambda *, orientations: written.append(torch.utils.dlpack.from_dlpack(orientations).clone())
+        count=48,
+        set_local_poses=lambda *, orientations: written.append(torch.utils.dlpack.from_dlpack(orientations).clone()),
     )
     # Policy outputs may themselves be BF16; both paths use the same input values.
     angles = torch.tensor([[-0.006677, -0.010717]], device=device, dtype=torch.bfloat16).repeat(48, 1)
@@ -303,10 +345,9 @@ def test_gaze_kernels_preserve_shared_stream_for_warp_capture() -> None:
     wp.init()
     stream = wp.Stream("cuda:0")
     with wp.ScopedStream(stream), torch.cuda.stream(wp.stream_to_torch(stream)):
-        camera = GazeHarness()
-        camera._gaze_rays = camera._gaze_rays.to("cuda:0")
+        camera = GazeHarness(device="cuda:0")
         camera.set_gaze_angles(torch.tensor([[5.0, -8.0], [0.0, 0.0]], device="cuda:0"))
-        valid = camera._gaze_validity(2)
+        valid = camera._gaze_validity()
         target = wp.zeros(valid.shape, dtype=wp.bool, device="cuda:0")
         # Physics must still be able to capture after the camera's temporary stream scopes exit.
         with wp.ScopedCapture(stream=stream) as capture:

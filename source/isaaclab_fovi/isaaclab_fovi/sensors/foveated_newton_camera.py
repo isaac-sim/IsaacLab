@@ -232,25 +232,36 @@ class FoveatedNewtonCamera(FoveatedCamera):
             self._render_data.camera_rays = self._foveated_rays
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        """Render, then mask and publish the updated environments, pooling high-resolution samples if enabled."""
+        """Render, then mask and publish the updated environments, pooling high-resolution samples if enabled.
+
+        Newton redraws every environment's render buffer, each at the pose and gaze it last received, so the sensor
+        mask covers every row with that row's gaze. The buffers the camera owns, pooled or laid out as a grid, change
+        only for the updated environments.
+        """
         self._data.output.clear()
         self._data.output.update(self._render_output)
-        super()._update_buffers_impl(env_mask)
+        try:
+            super()._update_buffers_impl(env_mask)
+        finally:
+            self._data.output.clear()
+            self._data.output.update(self._public_output)
+        if not self._env_mask_has_any(env_mask):
+            return
         if self._pooler is None:
             if self._grid_publish:
                 self._publish_grid(env_mask)
             else:
-                output = self._flat_render_output
-                mask_grid_samples(output, self._ray_coords)
-                self._apply_sensor_fov_mask(output)
-        else:
-            mask_grid_samples(self._highres_output, self._ray_coords)
-            self._apply_sensor_fov_mask(self._highres_output)
-            for name, hi in self._highres_output.items():
-                if name == "rgb":
-                    continue  # rgba alias
-                self._pooled_output[name].copy_(self._pool_output(name, hi.torch))
-            if self._native_grid:
-                copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)
-        self._data.output.clear()
-        self._data.output.update(self._public_output)
+                # The published samples are Newton's own render buffer.
+                mask_grid_samples(self._flat_render_output, self._ray_coords)
+                self._apply_sensor_fov_mask(self._flat_render_output)
+            return
+        mask_grid_samples(self._highres_output, self._ray_coords)
+        self._apply_sensor_fov_mask(self._highres_output)
+        updated = wp.to_torch(env_mask)[:, None, None, None]
+        for name, hi in self._highres_output.items():
+            if name == "rgb":
+                continue  # rgba alias
+            pooled = self._pooled_output[name]
+            pooled.copy_(torch.where(updated, self._pool_output(name, hi.torch), pooled))
+        if self._native_grid:
+            copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)

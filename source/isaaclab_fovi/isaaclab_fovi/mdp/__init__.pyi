@@ -19,7 +19,6 @@ __all__ = [
 
 from .gaze import (
     GazeAction,
-    GazeActionCfg,
     angles_to_direction,
     clamp_gaze,
     direction_to_angles,
@@ -30,3 +29,4 @@ from .gaze import (
     random_gaze,
     teacher_labels,
 )
+from .gaze_cfg import GazeActionCfg

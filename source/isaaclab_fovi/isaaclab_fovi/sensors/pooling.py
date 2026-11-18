@@ -26,6 +26,7 @@ Construction happens in two stages to accommodate Isaac's sensor init order:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -108,37 +109,19 @@ MODAL_POOL_MODE = "mode"
 _MODAL_CHUNK_ELEMENTS = 2**22
 
 
-class ModalPooler(torch.nn.Module):
-    """Modal pooler for segmentation outputs, built by :func:`build_pooler` with ``mode="mode"``.
+@dataclass(frozen=True)
+class ModalPooler:
+    """Neighbour table for modal pooling of segmentation outputs, built by :func:`build_pooler` with ``mode="mode"``.
 
-    Holds the fixed neighbour table of a fovi pooler and pools by majority vote
-    (see :func:`pool_segmentation_buffer`).  Like the fovi poolers, calling it
-    maps ``(B, C, N_hi)`` to ``(B, C, N_lo)``, so :func:`pool_hwc_buffer` also
-    accepts it, but only in the native dtype: casting IDs to float first loses
-    IDs above ``2**24``.
+    Pool with :func:`pool_segmentation_buffer`.  The table stays on the device it is built on, the sensor's device.
     """
 
-    def __init__(self, neighbor_indices: torch.Tensor, num_inputs: int):
-        """Initialize the pooler.
+    neighbor_indices: torch.Tensor
+    """``(k, N_lo)`` int64 input-sample indices of each output's neighbours, ordered by tie-break preference
+    (nearest first).  The value :attr:`num_inputs` marks an excluded neighbour."""
 
-        Args:
-            neighbor_indices: ``(k, N_lo)`` int64 input-sample indices of each output's neighbours, ordered by
-                tie-break preference (nearest first).  The value ``num_inputs`` marks an excluded neighbour.
-            num_inputs: Number of input samples ``N_hi``.
-        """
-        super().__init__()
-        self.num_inputs = num_inputs
-        self.register_buffer("neighbor_indices", neighbor_indices, persistent=False)
-
-    @property
-    def k(self) -> int:
-        """Number of neighbour slots per output sample."""
-        return self.neighbor_indices.shape[0]
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Pool ``(B, C, N_hi)`` values to ``(B, C, N_lo)`` by majority vote over each channel vector."""
-        pooled = pool_segmentation_buffer(self, x.transpose(1, 2).unsqueeze(2))
-        return pooled[:, :, 0, :].transpose(1, 2)
+    num_inputs: int
+    """Number of input samples ``N_hi``."""
 
 
 def build_pooler(

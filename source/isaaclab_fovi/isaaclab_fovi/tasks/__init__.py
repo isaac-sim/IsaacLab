@@ -6,7 +6,8 @@
 """Camera tasks of Isaac Lab with a foveated camera whose gaze the policy moves.
 
 Each task keeps its stock counterpart's scene, rewards, vision model and PPO settings. The camera becomes a foveated
-camera at the same mount, with the same optics and resolution, and the policy gets two gaze actions. A teacher's gaze
+camera at the same mount, with the same optics and, except for Cartpole, the same resolution: Cartpole's retina is
+32 samples across instead of 96 pixels. The policy gets two gaze actions. A teacher's gaze
 labels supervise those actions during training.
 """
 

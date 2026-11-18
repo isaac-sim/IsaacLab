@@ -100,9 +100,22 @@ class FoveatedRTXCamera(FoveatedCamera):
             self.cfg = cfg
             self._prepare_projection()
         super().__init__(cfg)
-        if ovrtx:
-            for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage):
+        for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage):
+            # A locked camera may be treated as static, which skips the motion vectors that DLSS reprojection needs;
+            # the gaze moves every foveated camera.
+            lock = prim.GetAttribute("omni:kit:cameraLock")
+            if lock.IsValid() and lock.Get():
+                lock.Set(False)
+            if ovrtx:
                 lens_lut.apply_lens_lut_to_prim(prim, self._dir_tex_path, self._exit_tex_path)
+
+    def __del__(self, *args, **kwargs):
+        """Release the renderer, then the lens textures it reads."""
+        super().__del__(*args, **kwargs)
+        lut_dir = getattr(self, "_lut_dir", None)
+        if lut_dir is not None:
+            lut_dir.cleanup()
+            self._lut_dir = None
 
     # ------------------------------------------------------------------
     #  Initialisation
@@ -329,16 +342,15 @@ class FoveatedRTXCamera(FoveatedCamera):
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses_from_view`.
         """
         super().set_world_poses_from_view(eyes, targets, env_ids)
-        ids = self._env_indices(env_ids)
         # Rows whose eye equals their target are skipped by the base method and keep their mount.
-        moved = (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
-        self._refresh_mount(ids[moved])
+        self._refresh_mount(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
 
     def _env_indices(self, env_ids) -> torch.Tensor:
         """The camera indices that ``env_ids`` selects, as a tensor."""
-        every = torch.arange(self._view.count, device=self._device)
-        if env_ids is None or isinstance(env_ids, slice):
-            return every[slice(None) if env_ids is None else env_ids]
+        if env_ids is None:
+            return torch.arange(self._view.count, device=self._device)
+        if isinstance(env_ids, slice):
+            return torch.arange(self._view.count, device=self._device)[env_ids]
         if isinstance(env_ids, wp.array):
             env_ids = wp.to_torch(env_ids)
         return torch.as_tensor(env_ids, device=self._device, dtype=torch.long).reshape(-1)
@@ -359,7 +371,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         # The saved local base prevents accumulation and preserves parent motion.
         basis = self._gaze_basis
         with torch.autocast(basis.device.type, enabled=False):
-            relative = compose_rotations(compose_rotations(basis, self._gaze_rotation), basis.T)
+            relative = compose_rotations(compose_rotations(basis, self._gaze_rotation.torch), basis.T)
             local_orientation = quat_from_matrix(compose_rotations(self._base_local_orientation, relative))
             self._view.set_local_poses(orientations=wp.from_torch(local_orientation.contiguous(), dtype=wp.vec4f))
 
@@ -381,11 +393,11 @@ class FoveatedRTXCamera(FoveatedCamera):
         if self._grid_publish:
             self._publish_grid(self._is_outdated)
             return
-        self._extract_foveated_samples()
-        if self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in self._foveated_output:
-            self._foveated_output["distance_to_camera"].add_(self._near_clip)
+        # Only the updated environments' samples change, so pooling and the grid layout reproduce every other
+        # environment's last frame.
+        self._extract_foveated_samples(self._is_outdated)
         mask_grid_samples(self._foveated_output, self._ray_coords)
-        self._apply_sensor_fov_mask(self._foveated_output)
+        self._apply_sensor_fov_mask(self._foveated_output, self._is_outdated)
 
         if self._pooled_output is not None:
             for name, hi in self._foveated_output.items():
@@ -396,8 +408,11 @@ class FoveatedRTXCamera(FoveatedCamera):
             source = self._pooled_output if self._pooled_output is not None else self._foveated_output
             copy_grid_outputs(source, self._grid_output, self._grid_indices)
 
-    def _extract_foveated_samples(self):
-        """Extract per-sample values from rendered 2D textures into (B, N, 1, C) buffers."""
+    def _extract_foveated_samples(self, env_mask: wp.array):
+        """Extract the updated environments' per-sample values from the rendered 2D textures into the (B, N, 1, C)
+        buffers; the other environments keep their last samples."""
+        updated = wp.to_torch(env_mask)[:, None, None, None]
+        offset_distance = self.cfg.renderer_cfg.renderer_type == "ovrtx"
         for name in self._texture_output:
             if name == "rgb" and "rgba" in self._texture_output:
                 continue  # rgba alias
@@ -405,6 +420,10 @@ class FoveatedRTXCamera(FoveatedCamera):
             fov = self._foveated_output[name]  # (B, N, 1, C)
             tensor = tex.torch if hasattr(tex, "torch") else tex
             if self._native_grid:
-                fov.copy_(tensor.reshape_as(fov))
+                samples = tensor.reshape_as(fov)
             else:
-                fov[:, :, 0, :] = tensor[:, self._extract_py, self._extract_px, :]
+                samples = tensor[:, self._extract_py, self._extract_px, :].unsqueeze(2)
+            if offset_distance and name == "distance_to_camera":
+                # OVRTX measures the distance from the near-clipped ray origin.
+                samples = samples + self._near_clip
+            fov.copy_(torch.where(updated, samples, fov))

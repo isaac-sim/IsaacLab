@@ -24,6 +24,8 @@ from isaaclab_fovi.sensors.pooling import (
 
 from isaaclab.sim import PinholeCameraCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @dataclass
 class SamplingConfig:
@@ -48,9 +50,8 @@ class SamplingConfig:
     pool_gauss_sigma: float = 10.0
 
 
-@pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])
-def test_dual_grid_preserves_constant_channels_and_batch_order(mode: str) -> None:
-    cfg = SamplingConfig(pool_mode=mode)
+def test_dual_grid_preserves_constant_channels_and_batch_order() -> None:
+    cfg = SamplingConfig()
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
     assert highres is not None
@@ -65,6 +66,46 @@ def test_dual_grid_preserves_constant_channels_and_batch_order(mode: str) -> Non
     expected = constants[:, None, None, :].expand(2, len(lowres), 1, 3)
     assert actual.dtype == rendered.dtype
     torch.testing.assert_close(actual, expected)
+
+
+def reference_pool(pooler: KNNPoolingLayer, values: torch.Tensor, mode: str, sigma: float) -> torch.Tensor:
+    """Pool ``(B, N_hi, 1, C)`` values over a KNN pooler's neighbour table by the definition of each mode."""
+    table, distances = pooler.knn_indices_pad_token, pooler.knn_distances  # (k, N_lo); N_hi marks a pad
+    num_inputs = values.shape[1]
+    valid = table != num_inputs
+    neighbours = values[:, table.clamp(max=num_inputs - 1), 0]  # (B, k, N_lo, C)
+    if mode == "max":
+        pooled = neighbours.masked_fill(~valid[None, :, :, None], -torch.inf).amax(1)
+    else:
+        if mode == "avg":
+            weights = valid.double()
+        else:
+            # Gaussian in the neighbour distance rescaled to [0, 1] per output, nearest weighted most.
+            low, high = distances.min(0).values, distances.max(0).values
+            scaled = (distances - low) / torch.where(high > low, high - low, 1.0)
+            weights = torch.exp(-scaled.double().square() / (2 * sigma**2)) * valid
+        weights = weights / weights.sum(0)
+        pooled = (neighbours.double() * weights[None, :, :, None]).sum(1).to(values.dtype)
+    return pooled.unsqueeze(2)
+
+
+@pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])
+def test_pooling_mode_reduces_each_neighbourhood(mode: str) -> None:
+    # A narrow Gaussian weights the nearest of the three neighbours well above the farthest, so it differs from avg.
+    sigma = 0.5
+    cfg = SamplingConfig(pool_mode=mode, pool_gauss_sigma=sigma)
+    lowres, matched = build_lowres_coords(cfg, "cpu")
+    highres = build_highres_coords(cfg, matched, "cpu")
+    pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
+    assert isinstance(pooler, KNNPoolingLayer)
+    values = torch.rand(2, len(highres), 1, 3, generator=torch.Generator().manual_seed(0))
+    actual = pool_hwc_buffer(pooler, values)
+    expected = {other: reference_pool(pooler, values, other, sigma) for other in ("avg", "gaussian", "max")}
+    torch.testing.assert_close(actual, expected[mode])
+    # The modes give distinct results on this input, so the match identifies the reduction that ran.
+    for other, other_expected in expected.items():
+        if other != mode:
+            assert (actual - other_expected).abs().max() > 0.05
 
 
 def test_disabled_pooling_uses_only_output_grid() -> None:
@@ -85,7 +126,7 @@ HAND_TABLE = torch.tensor([[0, 3, 5], [1, 4, 5], [2, 5, 5]])
 
 
 def hand_pooler(device: str) -> ModalPooler:
-    return ModalPooler(HAND_TABLE, num_inputs=5).to(device)
+    return ModalPooler(HAND_TABLE.to(device), num_inputs=5)
 
 
 @pytest.mark.parametrize("device", DEVICES)
@@ -102,7 +143,7 @@ def test_modal_pooling_keeps_majority_color_vector(device: str) -> None:
     assert pooled.dtype == torch.uint8
     assert torch.equal(pooled.cpu(), expected[None, :, None, :])
     # Swapping the tied neighbours' order flips the winner.
-    swapped = ModalPooler(HAND_TABLE[[1, 0, 2]], num_inputs=5).to(device)
+    swapped = ModalPooler(HAND_TABLE[[1, 0, 2]].to(device), num_inputs=5)
     assert torch.equal(pool_segmentation_buffer(swapped, rendered)[0, 1, 0].cpu(), colors[4])
 
 
@@ -174,7 +215,17 @@ def test_modal_pooler_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: 
     labels = labels.to(torch.uint8)
     pooled = pool_segmentation_buffer(modal, labels)
     assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
-    assert torch.equal(pool_hwc_buffer(modal, labels), pooled)
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_modal_pooler_is_built_on_the_sensor_device(device: str) -> None:
+    cfg = SamplingConfig()
+    lowres, matched = build_lowres_coords(cfg, device)
+    highres = build_highres_coords(cfg, matched, device)
+    modal, _ = build_pooler(cfg, lowres, highres, device, mode="mode")
+    assert modal.neighbor_indices.device.type == device
+    labels = torch.randint(0, 3, (1, len(highres), 1, 1), device=device)
+    assert pool_segmentation_buffer(modal, labels).device.type == device
 
 
 @pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])

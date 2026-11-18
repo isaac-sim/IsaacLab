@@ -5,6 +5,7 @@
 
 """Gaze geometry and gaze-supervised PPO, without a simulator."""
 
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -15,10 +16,12 @@ from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angl
 from isaaclab_fovi.mdp.gaze import (
     GazeAction,
     gaze_reset_kernel,
+    gaze_state,
     gaze_step_kernel,
     teacher_block_dim,
     teacher_labels_kernel,
 )
+from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.models import MLPModel
@@ -26,6 +29,7 @@ from rsl_rl.storage import RolloutStorage
 from tensordict import TensorDict
 
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
@@ -77,16 +81,23 @@ def test_gaze_step_kernel_matches_the_torch_update():
     torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
 
 
+def mount_frame(rotation_deg: float) -> torch.Tensor:
+    """The camera's ``_mask_frame`` for an image rolled by ``rotation_deg``: upright gaze frame to physical frame."""
+    angle = torch.tensor(rotation_deg).deg2rad()
+    c, s = float(angle.cos()), float(angle.sin())
+    return torch.tensor([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("tracked", [False, True])
-def test_teacher_labels_kernel_matches_the_torch_labels(device, tracked):
+@pytest.mark.parametrize("rotation_deg", [0.0, 35.0])
+def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5), distortion=(-0.1, 0.02, 0.0, 0.0))
     field_radius, step, limit = 30.0, 0.1, 1.0
+    frame = mount_frame(rotation_deg)
     generator = torch.Generator().manual_seed(5)
     count = 4099
-    # A fixed mount is shared; a tracked one differs per camera, as on a moving head.
-    mounts = torch.nn.functional.normalize(torch.randn(count if tracked else 1, 4, generator=generator), dim=-1)
-    mount = mounts.expand(count, -1)
+    # Each camera has its own mount, as on a moving head.
+    mount = torch.nn.functional.normalize(torch.randn(count, 4, generator=generator), dim=-1)
     positions = torch.randn(count, 3, generator=generator)
     lateral = torch.randn(count, 2, generator=generator) * 0.6
     local = torch.cat((lateral, torch.rand(count, 1, generator=generator) + 0.2), -1)
@@ -98,11 +109,13 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, tracked):
     # The torch path the kernel replaces: entity_point, then the teacher, then the labels and logs.
     points = targets + quat_apply(orientations, offset.expand(count, -1))
     direction = torch.nn.functional.normalize(quat_apply_inverse(mount, points - positions), dim=-1)
-    desired = direction_to_angles(direction) / field_radius
+    # Gazes are measured in the upright image frame, which the frame carries into the physical camera's.
+    upright = direction @ frame
+    desired = direction_to_angles(upright) / field_radius
     valid = camera.project(direction)[1] & (desired.norm(dim=-1) <= limit)
     action = torch.where(valid[:, None], ((desired - gaze) / step).clamp(-1, 1), 0.0)
     looking = angles_to_direction(gaze * field_radius)
-    error = torch.atan2(torch.cross(looking, direction, dim=-1).norm(dim=-1), (looking * direction).sum(-1)).rad2deg()
+    error = torch.atan2(torch.cross(looking, upright, dim=-1).norm(dim=-1), (looking * upright).sum(-1)).rad2deg()
     expected = torch.cat((action, valid[:, None].float()), dim=-1)
 
     labels = torch.empty(count, 3, device=device)
@@ -118,9 +131,9 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, tracked):
                 wp.vec3f(*offset.tolist()),
                 1,
                 wp.from_torch(positions.to(device), dtype=wp.vec3f),
-                wp.from_torch(mounts.to(device), dtype=wp.quatf),
-                int(tracked),
-                wp.from_torch(gaze.to(device), dtype=wp.vec2f),
+                wp.from_torch(mount.to(device), dtype=wp.quatf),
+                wp.from_torch(torch.cat((gaze, torch.zeros_like(gaze)), -1).to(device), dtype=wp.vec4f),
+                wp.mat33f(*frame.flatten().tolist()),
                 field_radius,
                 step,
                 limit,
@@ -136,6 +149,103 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, tracked):
     labelled = labels[:, 2] > 0.5
     assert float(log[1]) == pytest.approx(float(labelled.float().mean()))
     assert float(log[0]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
+
+
+@pytest.mark.parametrize("rotation_deg", [0.0, -50.0, 120.0])
+def test_teacher_gaze_fixates_the_target_through_a_rolled_mount(rotation_deg):
+    """Following a teacher label puts the fixation, which reaches the physical camera at frame * gaze * z, on the
+    target."""
+    camera = CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))
+    field_radius, step = 40.0, 10.0
+    frame = mount_frame(rotation_deg)
+    direction = torch.nn.functional.normalize(torch.tensor([[0.25, -0.15, 1.0], [-0.3, 0.2, 1.0]]), dim=-1)
+    count = len(direction)
+    identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(count, 1)
+    labels, log = torch.empty(count, 3), torch.empty(2)
+    with torch_stream("cpu"):
+        wp.launch(
+            teacher_labels_kernel,
+            dim=(1, 1),
+            inputs=[
+                wp.from_torch(direction, dtype=wp.vec3f),
+                wp.zeros(1, dtype=wp.quatf),
+                wp.vec3f(0.0, 0.0, 0.0),
+                0,
+                wp.zeros(count, dtype=wp.vec3f),
+                wp.from_torch(identity, dtype=wp.quatf),
+                wp.zeros(count, dtype=wp.vec4f),
+                wp.mat33f(*frame.flatten().tolist()),
+                field_radius,
+                step,
+                1.0,
+                camera_params(camera),
+            ],
+            outputs=[wp.from_torch(labels), wp.from_torch(log)],
+            block_dim=1,
+        )
+    assert (labels[:, 2] == 1).all()
+    gaze = labels[:, :2] * step
+    fixation = angles_to_direction(gaze * field_radius) @ frame.T
+    torch.testing.assert_close(fixation, direction, atol=1e-5, rtol=0)
+    # The error is the gaze's angle from the target before the step: the gaze starts on the optical axis.
+    torch.testing.assert_close(log[0], direction[:, 2].acos().rad2deg().mean(), atol=1e-3, rtol=0)
+
+
+@pytest.mark.parametrize(
+    "field, value", [("step_size", 0.0), ("step_size", float("nan")), ("gaze_limit", -1.0), ("gaze_limit", math.inf)]
+)
+def test_gaze_config_rejects_bounds_that_divide_by_zero(field, value):
+    cfg = GazeActionCfg(asset_name="camera")
+    cfg.validate_config()
+    setattr(cfg, field, value)
+    with pytest.raises(ValueError, match=field):
+        cfg.validate_config()
+    with pytest.raises(ValueError, match="mount"):
+        GazeActionCfg(asset_name="camera", mount="head").validate_config()
+
+
+def test_gaze_config_resolves_its_term_lazily():
+    class_type = GazeActionCfg(asset_name="camera").class_type
+    assert isinstance(class_type, str)
+    assert class_type._resolve() is GazeAction
+
+
+def test_process_actions_moves_the_gaze_by_the_supplied_actions():
+    """The term reads whatever actions it is handed: the manager's slice in place, or another tensor."""
+    num_envs = 4
+    angles = ProxyArray(wp.zeros(num_envs, dtype=wp.vec2f, device="cpu"))
+    set_angles = []
+    camera = SimpleNamespace(
+        _gaze_angles=angles,
+        gaze_angles_buffer=lambda: angles.torch,
+        set_gaze_angles=lambda value: set_angles.append(value),
+    )
+    term = object.__new__(GazeAction)
+    term._env = SimpleNamespace(num_envs=num_envs, device="cpu", step_dt=0.5)
+    term.cfg = GazeActionCfg(asset_name="camera", step_size=0.1, gaze_limit=1.0)
+    term.camera = camera
+    term.field_radius_deg = 20.0
+    term._state = ProxyArray(wp.zeros(num_envs, dtype=wp.vec4f, device="cpu"))
+    term._gaze, term._velocity = term._state.torch[:, :2], term._state.torch[:, 2:]
+    term._step_launch = term._raw = None
+
+    manager_actions = torch.zeros(num_envs, 5)
+    manager_actions[:, 2:4] = torch.tensor([[1.0, 0.0], [0.0, -1.0], [0.5, 0.5], [3.0, 0.0]])
+    term.process_actions(manager_actions[:, 2:4])
+    expected = clamp_gaze(manager_actions[:, 2:4].clamp(-1, 1) * 0.1, 1.0)
+    torch.testing.assert_close(term.gaze, expected)
+    torch.testing.assert_close(term.velocity, expected / 0.5)
+    torch.testing.assert_close(angles.torch, expected * 20.0)
+    assert set_angles[-1] is angles.torch
+    assert term.raw_actions.data_ptr() == manager_actions[:, 2:4].data_ptr()
+
+    supplied = torch.tensor([[-1.0, 0.0]]).repeat(num_envs, 1)
+    term.process_actions(supplied)
+    torch.testing.assert_close(term.gaze, clamp_gaze(expected - 0.1 * supplied.abs(), 1.0))
+    assert term.raw_actions is supplied
+    torch.testing.assert_close(
+        gaze_state(SimpleNamespace(action_manager=SimpleNamespace(get_term=lambda name: term))), term.state
+    )
 
 
 @pytest.mark.parametrize("ids", [None, [3, 0, 7]])

@@ -14,7 +14,6 @@ from isaaclab_fovi.sensors.lens_lut import build_native_grid_textures
 from isaaclab_fovi.sensors.native_grid import (
     allocate_grid_outputs,
     bounded_angular_radius,
-    canonical_to_grid,
     copy_grid_outputs,
     grid_sample_indices,
     mask_grid_samples,
@@ -161,7 +160,6 @@ def test_upright_grid_masks_and_channel_aliases():
     assert target["rgba"][0, :, :, 0][8, 4] < target["rgba"][0, :, :, 0][8, 11]
     assert target["rgba"][0, :, :, 1][4, 8] > target["rgba"][0, :, :, 1][11, 8]
     assert (target["rgba"][0][~coords.as_grid(coords.valid_mask)] == 0).all()
-    torch.testing.assert_close(canonical_to_grid(source["rgba"], coords), expected)
 
 
 @pytest.mark.parametrize("dtype,channels", [(torch.uint8, 4), (torch.float32, 1), (torch.int32, 1)])
@@ -176,7 +174,7 @@ def test_output_permutation_preserves_dtype_and_captures(dtype, channels, device
     target = allocate_grid_outputs(source, coords)
     indices = grid_sample_indices(coords)
     copy_grid_outputs(source, target, indices)
-    expected = canonical_to_grid(source["value"], coords)
+    expected = coords.as_grid(source["value"][:, :, 0], sample_dim=1)
     torch.testing.assert_close(target["value"], expected, atol=0, rtol=0)
     if device == "cuda":
         torch.cuda.synchronize()
