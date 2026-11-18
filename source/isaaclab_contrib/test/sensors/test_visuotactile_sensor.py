@@ -405,10 +405,8 @@ def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_p
         objects.append(instantiate(nut_cfg))
         mesh = sim_utils.get_first_matching_child_prim(
             contact_path,
-            predicate=lambda prim: (
-                prim.HasAPI(UsdPhysics.MeshCollisionAPI)
-                and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf"
-            ),
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.MeshCollisionAPI)
+            and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
         )
         sim.stage.DefinePrim(str(mesh.GetPath()) + "Copy").GetReferences().AddInternalReference(mesh.GetPath())
     with pytest.raises(RuntimeError, match=rf"Expected 1 prims.*found {sdf_count}\b"):

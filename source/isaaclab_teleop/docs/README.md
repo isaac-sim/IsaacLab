@@ -45,7 +45,6 @@ from isaaclab_teleop import (
     XrCfg,
 )
 
-
 @configclass
 class MyEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
@@ -78,12 +77,9 @@ Create a function that builds your Isaac Capture retargeting pipeline. The build
 ```python
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeters import (
-    GripperRetargeter,
-    Se3AbsRetargeter,
-    TensorReorderer,
+    GripperRetargeter, Se3AbsRetargeter, TensorReorderer,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
-
 
 def my_pipeline_builder():
     controllers = ControllersSource(name="controllers")
