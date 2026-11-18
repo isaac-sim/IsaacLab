@@ -32,13 +32,16 @@ def foveated_camera(camera: CameraCfg, foveated_res: int | None = None) -> Fovea
     return FoveatedCameraCfg(**values, foveated_res=foveated_res or camera.width, mask_to_sensor_fov=True)
 
 
-def foveated_presets(cameras: PresetCfg) -> PresetCfg:
-    """The foveated version of every camera preset, under the same names. Other sensors are left out."""
+def foveated_presets(cameras: PresetCfg, foveated_res: int | None = None) -> PresetCfg:
+    """The foveated version of every camera preset, under the same names. Other sensors are left out.
+
+    ``foveated_res`` applies to every preset; by default each keeps its camera's width.
+    """
     options = {}
     for name in cameras.__dataclass_fields__:
         camera = getattr(cameras, name)
         if not name.startswith("_") and isinstance(camera, CameraCfg):
-            options[name] = foveated_camera(camera)
+            options[name] = foveated_camera(camera, foveated_res)
     return preset(**options)
 
 

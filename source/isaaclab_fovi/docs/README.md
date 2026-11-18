@@ -120,18 +120,18 @@ an `oracle` observation group that the actor and critic never see.
 ### Tasks
 
 Each task is its stock camera counterpart with the camera foveated at the same
-mount, optics and resolution, two gaze actions, and gaze supervision. The vision
-model and the PPO settings are the stock ones.
+mount and optics, two gaze actions, and gaze supervision. The vision model and
+the PPO settings are the stock ones.
 
-| Task | Teacher looks at |
-| --- | --- |
-| `Isaac-Cartpole-Camera-Fovi` (`presets=depth` for depth) | the pole's tip |
-| `Isaac-Lift-KukaAllegro-Camera-Fovi` | the object |
-| `Isaac-Reorient-KukaAllegro-Camera-Fovi` | the object |
+| Task | Retina | Teacher looks at |
+| --- | --- | --- |
+| `Isaac-Cartpole-Camera-Fovi` (`presets=depth` for depth) | 32 × 32 | the pole's tip |
+| `Isaac-Lift-KukaAllegro-Camera-Fovi` | the camera preset's resolution | the object |
+| `Isaac-Reorient-KukaAllegro-Camera-Fovi` | the camera preset's resolution | the object |
 
 The Kuka-Allegro tasks take the stock base-camera presets, such as
 `presets=depth128`. Set the retina's resolution with, for example,
-`env.scene.tiled_camera.foveated_res=48`.
+`env.scene.tiled_camera.foveated_res=96`.
 
 ```bash
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Fovi
