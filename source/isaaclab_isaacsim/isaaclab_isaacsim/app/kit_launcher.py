@@ -775,6 +775,7 @@ class KitLauncher(SimulationLauncher):
         settings.set("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
         settings.set("/isaaclab/render/offscreen", self._offscreen_render)
         settings.set("/isaaclab/xr/enabled", self._xr)
+        settings.set("/isaaclab/livestream", self._livestream)
         # set setting to indicate XR auto-start mode -- when running headless
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction

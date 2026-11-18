@@ -207,7 +207,7 @@ The legacy lazy ``teleop_devices`` accessor on GR1T2 pick-place environment conf
 Deformable APIs
 ~~~~~~~~~~~~~~~
 
-Generic deformable object and material APIs have moved from ``isaaclab_isaacsim`` into backend-neutral
+Generic deformable object and material APIs have moved from ``isaaclab_physx`` into backend-neutral
 ``isaaclab.assets`` and ``isaaclab.sim`` imports. The old generic PhysX deformable aliases are deprecated in favor of
 PhysX-specific names.
 
@@ -322,7 +322,7 @@ code from the core API. Asset and sensor classes (e.g., ``Articulation``, ``Rigi
 ``ContactSensor``) are now backed by abstract base classes, with backend-specific implementations in dedicated
 extension packages:
 
-* **``isaaclab_isaacsim``** — Full PhysX backend (default), including deformable objects, surface grippers, contact
+* **``isaaclab_physx``** — Full PhysX backend (default), including deformable objects, surface grippers, contact
   sensors, IMU, and frame transformers.
 * **``isaaclab_newton``** — New Newton physics backend powered by MuJoCo-Warp, supporting MJWarp, XPBD, and
   Featherstone solvers with CUDA-graph acceleration.

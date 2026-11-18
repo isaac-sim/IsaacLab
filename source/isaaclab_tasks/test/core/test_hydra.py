@@ -471,13 +471,21 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
-@pytest.mark.parametrize("selector", ["physics", "renderer", "presets"])
-def test_register_task_warns_when_a_global_selector_names_an_isaac_sim_backend(selector):
-    """Selecting an Isaac Sim (Kit) backend by name warns that it is deprecated."""
-    name = "isaacsim_rtx" if selector == "renderer" else "isaacsim_physx"
-    with pytest.warns(FutureWarning, match=rf"'{name}' runs on Isaac Sim"), pytest.raises(ValueError):
-        # The test task declares no such backend, so resolution fails after the warning.
-        _register(PresetCfgEnvCfg(), overrides=[f"{selector}={name}"])
+@pytest.mark.parametrize("name", ["isaacsim_physx", "isaacsim_rtx"])
+def test_selecting_a_declared_isaac_sim_preset_warns_and_still_resolves(name):
+    """A deprecated Isaac Sim (Kit) preset keeps working and warns that it runs on Kit."""
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, **{name: 8})
+    with pytest.warns(FutureWarning, match=rf"'{name}' runs on Isaac Sim"):
+        env_cfg, _, _ = _register(env, overrides=[f"presets={name}"])
+    assert env_cfg.decimation == 8
+
+
+def test_a_rejected_isaac_sim_preset_reports_only_its_own_error():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        with pytest.raises(ValueError):
+            _register(PresetCfgEnvCfg(), overrides=["physics=isaacsim_physx"])
 
 
 def test_register_task_warns_about_a_misspelled_field():

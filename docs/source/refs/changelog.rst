@@ -13,7 +13,7 @@ framework releases.
 * :isaaclab-source:`isaaclab_mimic <source/isaaclab_mimic/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_newton <source/isaaclab_newton/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_ov <source/isaaclab_ov/docs/CHANGELOG.rst>`
-* :isaaclab-source:`isaaclab_isaacsim <source/isaaclab_isaacsim/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_physx <source/isaaclab_physx/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_ppisp <source/isaaclab_ppisp/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_rl <source/isaaclab_rl/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_tasks <source/isaaclab_tasks/docs/CHANGELOG.rst>`

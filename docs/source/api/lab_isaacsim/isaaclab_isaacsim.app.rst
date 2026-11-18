@@ -1,5 +1,5 @@
-isaaclab\_physx.app
-===================
+isaaclab\_isaacsim.app
+======================
 
 .. automodule:: isaaclab_isaacsim.app
 

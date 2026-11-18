@@ -215,7 +215,7 @@ Scene partitioning is capped at 15625 partitions
 The underlying ``rtx.scenedb.plugin`` allocates a fixed-size pool of scene partitions and
 caps it at 15625, regardless of which renderer requests them. Isaac Lab assigns one scene
 partition per environment when
-:attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` is enabled
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` is enabled
 for the Isaac RTX renderer, and OVRTX always assigns one scene partition per environment, so
 runs with more than 15625 environments exceed the pool on either backend. Once the cap is
 hit, ``rtx.scenedb.plugin`` logs a warning and discards the remaining partitions:

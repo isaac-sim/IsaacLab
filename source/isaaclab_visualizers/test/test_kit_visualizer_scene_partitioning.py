@@ -354,10 +354,20 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
 
 
-@pytest.mark.parametrize("warns", [True, False])
-def test_kit_visualizer_warns_of_deprecation_unless_disabled(warns):
-    """Creating a Kit visualizer warns of its deprecation, except where Kit is still required."""
-    cfg = VisualizerCfg(backend=KitBackendCfg(deprecation_warning=warns))
+@pytest.mark.parametrize(
+    ("setting", "warns"),
+    [(None, True), ("/isaaclab/livestream", False), ("/isaaclab/xr/enabled", False)],
+    ids=["default", "livestream", "xr"],
+)
+def test_kit_visualizer_warns_of_deprecation_unless_livestreaming_or_xr(monkeypatch, setting, warns):
+    """Creating a Kit visualizer warns of its deprecation, except where Kit is required without a replacement."""
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    settings = get_settings_manager()
+    monkeypatch.setattr(
+        settings, "get", lambda name, default=None: 1 if name == setting else (default if default is not None else 0)
+    )
+    cfg = VisualizerCfg(backend=KitBackendCfg())
     if warns:
         with pytest.warns(FutureWarning, match="Kit visualizer .* is deprecated"):
             KitVisualizer(cfg)

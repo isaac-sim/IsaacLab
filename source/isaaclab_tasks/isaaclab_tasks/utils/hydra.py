@@ -564,9 +564,6 @@ def register_task(
         else:
             override_items.append((key, val, arg))
 
-    for name in dict.fromkeys(global_presets):
-        warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
-
     # Literal values replace the resolved value after presets and play-mode overrides.
     explicit = {key: val for key, val, _arg in override_items if isinstance(_parse_val(val), str)}
     consumed_presets: set[str] = set()
@@ -661,6 +658,11 @@ def register_task(
                 vars(choices)[backend.visualizer_type] = backend
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
+
+    # A deprecated Kit backend warns once its selection resolved, so a rejected choice reports only its own error.
+    for name in dict.fromkeys(global_presets):
+        if name in consumed_presets:
+            warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win

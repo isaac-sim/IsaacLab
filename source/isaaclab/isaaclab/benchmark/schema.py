@@ -128,7 +128,7 @@ class Versions:
     git_dirty: bool
     numpy: str | None = None
     isaaclab_newton: str | None = None
-    isaaclab_isaacsim: str | None = None
+    isaaclab_physx: str | None = None
     isaaclab_ov: str | None = None
     isaaclab_tasks: str | None = None
     isaaclab_rl: str | None = None

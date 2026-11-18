@@ -166,7 +166,7 @@ conventions:
    The ``isaaclab_physx`` package was renamed to ``isaaclab_isaacsim``, because it holds the Isaac Sim integration
    (PhysX physics, Isaac RTX rendering and app launch). Replace ``isaaclab_physx`` with ``isaaclab_isaacsim`` in
    imports, for example ``from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg``. The old name still imports
-   and emits a ``FutureWarning``; it is removed in 3.2. The ``isaacsim_physx`` and ``isaacsim_rtx`` selectors keep
+   and emits a ``DeprecationWarning``; it is removed in 3.2. The ``isaacsim_physx`` and ``isaacsim_rtx`` selectors keep
    their names.
 
    ``isaaclab_isaacsim`` is the Kit path, so the package itself is deprecated in 3.1 and removed in 3.2 together

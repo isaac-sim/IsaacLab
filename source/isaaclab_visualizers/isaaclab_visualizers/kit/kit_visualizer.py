@@ -64,7 +64,9 @@ class KitVisualizer(BaseVisualizer):
             cfg: Kit visualizer configuration.
         """
         super().__init__(cfg)
-        if getattr(cfg.backend, "deprecation_warning", True):
+        settings = get_settings_manager()
+        # Livestreaming and XR need Kit and have no replacement yet, so they do not warn.
+        if not (settings.get("/isaaclab/livestream") or settings.get("/isaaclab/xr/enabled")):
             warnings.warn(
                 "The Kit visualizer (KitBackendCfg, '--viz kit') is deprecated and will be removed in 3.2. Use the"
                 " Newton GL visualizer (NewtonGLBackendCfg, '--viz newton_gl') for the interactive window,"

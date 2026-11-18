@@ -200,11 +200,9 @@ def run_runtime(manifest: dict) -> int:
                 RegisterEventHandler(
                     OnProcessExit(
                         target_action=manager,
-                        on_exit=lambda event, context: (
-                            []
-                            if context.is_shutdown
-                            else [EmitEvent(event=Shutdown(reason="Controller manager exited"))]
-                        ),
+                        on_exit=lambda event, context: []
+                        if context.is_shutdown
+                        else [EmitEvent(event=Shutdown(reason="Controller manager exited"))],
                     )
                 ),
                 manager,
@@ -213,11 +211,9 @@ def run_runtime(manifest: dict) -> int:
                 RegisterEventHandler(
                     OnProcessExit(
                         target_action=active,
-                        on_exit=lambda event, context: (
-                            []
-                            if event.returncode == 0 or context.is_shutdown
-                            else [EmitEvent(event=Shutdown(reason="Controller activation failed"))]
-                        ),
+                        on_exit=lambda event, context: []
+                        if event.returncode == 0 or context.is_shutdown
+                        else [EmitEvent(event=Shutdown(reason="Controller activation failed"))],
                     )
                 ),
                 load_stop,

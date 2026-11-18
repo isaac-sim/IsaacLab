@@ -1,5 +1,5 @@
-﻿isaaclab\_physx.physics
-========================
+﻿isaaclab\_isaacsim.physics
+==========================
 
 .. automodule:: isaaclab_isaacsim.physics
 

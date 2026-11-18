@@ -37,13 +37,6 @@ class KitBackendCfg(VisualizerBackendCfg):
 
     launcher_type: ClassVar[str] = "isaaclab_isaacsim.app:KitLauncher"
 
-    deprecation_warning: bool = True
-    """Whether creating the visualizer emits the deprecation warning.
-
-    Isaac Lab sets this to ``False`` where Kit is still required by a feature that has no replacement yet,
-    such as livestreaming and XR.
-    """
-
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
 

@@ -1,5 +1,5 @@
-﻿isaaclab\_physx.sensors
-========================
+﻿isaaclab\_isaacsim.sensors
+==========================
 
 .. automodule:: isaaclab_isaacsim.sensors
 

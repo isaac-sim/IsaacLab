@@ -8,7 +8,6 @@
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -22,6 +21,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.benchmark.capture import (
     capture_hardware,
@@ -63,7 +63,7 @@ def test_capture_versions_renames_and_defaults():
         DictMetadata(name="dev", data={"commit_hash": "abc123", "branch": "develop", "dirty": True}),
         StringMetadata(name="numpy_version", data="2.4.4"),
         StringMetadata(name="isaaclab_newton_version", data="1.0.2"),
-        StringMetadata(name="isaaclab_isaacsim_version", data="2.0.1"),
+        StringMetadata(name="isaaclab_physx_version", data="2.0.1"),
         StringMetadata(name="isaaclab_ov_version", data="0.4.6"),
         StringMetadata(name="isaaclab_tasks_version", data="8.0.1"),
         StringMetadata(name="isaaclab_rl_version", data="0.6.1"),
@@ -84,7 +84,7 @@ def test_capture_versions_renames_and_defaults():
     assert v.isaacsim is None
     assert v.numpy == "2.4.4"
     assert v.isaaclab_newton == "1.0.2"
-    assert v.isaaclab_isaacsim == "2.0.1"
+    assert v.isaaclab_physx == "2.0.1"
     assert v.isaaclab_ov == "0.4.6"
     assert v.isaaclab_tasks == "8.0.1"
     assert v.isaaclab_rl == "0.6.1"
@@ -345,3 +345,12 @@ def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
     r = capture_resources(_Bm({"GPUInfo": gpu, "CPUInfo": cpu, "MemoryInfo": mem}))
     assert r.gpu_mem_gb.peak == pytest.approx(10.0)
     assert r.ram_gb.peak == pytest.approx(10.0)
+
+
+def test_capture_versions_reads_the_renamed_package_into_the_unchanged_record_field():
+    md = [
+        StringMetadata(name="isaaclab_version", data="4.6.8"),
+        StringMetadata(name="isaaclab_isaacsim_version", data="2.1.0"),
+    ]
+    bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
+    assert capture_versions(bm).isaaclab_physx == "2.1.0"

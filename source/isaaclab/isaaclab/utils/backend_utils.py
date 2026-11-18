@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_BACKEND_PACKAGES = {"ovphysx": "isaaclab_ov", "physx": "isaaclab_isaacsim"}
+"""Packages hosting backends whose name is not ``isaaclab_<backend>``."""
+
 KIT_SELECTOR_REPLACEMENTS = {
     "isaacsim_physx": "'ovphysx' or 'newton_mjwarp'",
     "isaacsim_rtx": "'ovrtx' or 'newton_renderer'",
@@ -112,8 +115,7 @@ class FactoryBase:
     @classmethod
     def _get_package_name(cls, backend: str) -> str:
         """Return the package that hosts a given backend key."""
-        packages = {"ovphysx": "isaaclab_ov", "physx": "isaaclab_isaacsim"}
-        return packages.get(backend, f"isaaclab_{backend}")
+        return _BACKEND_PACKAGES.get(backend, f"isaaclab_{backend}")
 
     @classmethod
     def _get_module_name(cls, backend: str) -> str:

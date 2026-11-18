@@ -223,25 +223,6 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
     assert kit_branch_taken == [True] * (source == "kit")
 
 
-@pytest.mark.parametrize("configured", [False, True])
-def test_livestream_keeps_kit_without_the_deprecation_warning(configured):
-    """Livestreaming needs Kit, so its Kit visualizer, added or already configured, does not warn."""
-    from types import SimpleNamespace
-
-    from isaaclab_visualizers.kit import KitBackendCfg
-
-    callers_backend = KitBackendCfg()
-    cfg = SimpleNamespace(
-        sim=SimulationCfg(device="cpu", visualizer_cfgs=[VisualizerCfg(backend=callers_backend)] if configured else [])
-    )
-    sim_launcher.validate_launch(cfg, {"livestream": 1})
-    kit_backends = [viz.backend for viz in cfg.sim.visualizer_cfgs if isinstance(viz.backend, KitBackendCfg)]
-    assert len(kit_backends) == 1
-    assert not kit_backends[0].deprecation_warning
-    # The exception is scoped to this launch: the caller's own config still warns when reused.
-    assert callers_backend.deprecation_warning
-
-
 def test_launching_kit_warns_with_the_reason_it_is_needed(kit_branch_taken):
     with pytest.warns(FutureWarning, match=r"Running on Isaac Sim \(Kit\) is deprecated .*explicit Kit requirement"):
         with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
@@ -260,3 +241,12 @@ def test_livestream_and_xr_launch_kit_without_the_deprecation_warning(kit_branch
             pass
 
     assert kit_branch_taken == [True]
+
+
+def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it():
+    from isaaclab_isaacsim.physics import PhysxCfg
+
+    cfg = SimulationCfg(device="cpu")
+    with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
+        sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
+    assert isinstance(cfg.physics, PhysxCfg)

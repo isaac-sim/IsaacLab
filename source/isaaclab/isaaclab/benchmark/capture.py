@@ -160,7 +160,8 @@ def capture_versions(bm: Any) -> Versions:
         git_dirty=dev.get("dirty", False),
         numpy=md.get("numpy_version"),
         isaaclab_newton=md.get("isaaclab_newton_version"),
-        isaaclab_isaacsim=md.get("isaaclab_isaacsim_version"),
+        # The record field keeps its name; the package that fills it was renamed from isaaclab_physx.
+        isaaclab_physx=md.get("isaaclab_isaacsim_version") or md.get("isaaclab_physx_version"),
         isaaclab_ov=md.get("isaaclab_ov_version"),
         isaaclab_tasks=md.get("isaaclab_tasks_version"),
         isaaclab_rl=md.get("isaaclab_rl_version"),
