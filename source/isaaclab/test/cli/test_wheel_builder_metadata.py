@@ -95,6 +95,17 @@ def test_wheel_console_delegates_to_the_full_isaaclab_cli(source_checkout_root: 
     cli.assert_called_once_with()
 
 
+def test_wheel_keeps_the_entry_points_of_bundled_packages(source_checkout_root: Path, generated_wheel_project: dict):
+    """Bundled sub-packages keep their entry points, e.g. the ``isaaclab.tasks`` ones that register their tasks."""
+    expected: dict[str, dict[str, str]] = {}
+    for package_pyproject in sorted((source_checkout_root / "source").glob("isaaclab*/pyproject.toml")):
+        with package_pyproject.open("rb") as f:
+            for group, entries in tomllib.load(f).get("project", {}).get("entry-points", {}).items():
+                expected.setdefault(group, {}).update(entries)
+    assert expected, "no bundled package declares an entry point"
+    assert generated_wheel_project.get("entry-points") == expected
+
+
 def test_wheel_console_uses_compatibility_dispatcher(generated_wheel_project: dict):
     """The generated console script must preserve legacy installed-wheel options."""
     assert generated_wheel_project["scripts"]["isaaclab"] == "isaaclab.__main__:main"
