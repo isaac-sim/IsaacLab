@@ -181,7 +181,7 @@ example:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
+   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,
 and :doc:`/source/features/hydra` for arbitrary configuration overrides.

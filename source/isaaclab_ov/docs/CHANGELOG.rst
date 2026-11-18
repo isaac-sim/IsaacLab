@@ -3,6 +3,29 @@ Changelog
 
 .. towncrier release notes start
 
+9.2.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including deformable objects.
+
+Changed
+^^^^^^^
+
+* Replaced the handwritten physics population description with the OvPhysX SDK contract,
+  while preserving legacy domain-based population. Custom properties outside the physics
+  and requested rendering domains are no longer copied to the native stage; the source
+  USD scene remains unchanged.
+
+Fixed
+^^^^^
+
+* Skipped redundant OvPhysX gravity control updates to avoid repeated OVStage seals when reset events sampled unchanged gravity.
+* Included joint armature in OvPhysX articulation mass matrices used by inertia-based controllers.
+
+
 9.1.2 (2026-11-17)
 ~~~~~~~~~~~~~~~~~~
 
