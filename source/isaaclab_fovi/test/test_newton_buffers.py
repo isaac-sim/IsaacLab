@@ -78,7 +78,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     camera._initialize_impl()
 
     rays = wp.to_torch(camera._foveated_rays)
-    assert rays.shape == (1, ray_coords.resolution, ray_coords.resolution, 2, 3)
+    assert rays.shape == (ray_coords.resolution, ray_coords.resolution, 1, 2, 3)
     torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], camera._ray_directions)
     public_rgba = camera._data.output["rgba"]
     camera.frame_offset = 0
