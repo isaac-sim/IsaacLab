@@ -56,7 +56,7 @@ your setup path. The command below is for the kit-less Newton path; for Isaac Si
 
          uv run isaaclab train --rl_library rsl_rl \
              --task Isaac-Cartpole-Camera-Direct \
-             physics=newton_mjwarp renderer=newton_renderer presets=rgb
+             physics=newton_mjwarp renderer=newton_warp presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -65,7 +65,7 @@ your setup path. The command below is for the kit-less Newton path; for Isaac Si
 
          uv run isaaclab train --rl_library rsl_rl ^
              --task Isaac-Cartpole-Camera-Direct ^
-             physics=newton_mjwarp renderer=newton_renderer presets=rgb
+             physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
 ``cartpole_<data_type>.png`` in the current working directory.
@@ -408,7 +408,7 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    renderer applies no exposure, so it does not need the setting.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
-``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
+``--renderer newton_warp`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
 The example runs 0 warmup steps for Newton Warp and 32 for Isaac RTX before saving images; override
 this with ``--warmup_steps``.
 
@@ -421,7 +421,7 @@ this with ``--warmup_steps``.
       .. code-block:: bash
 
          uv run --extra isaacsim isaaclab example ppisp-camera \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_warp --max_steps 60
 
          uv run --extra isaacsim isaaclab example ppisp-camera \
              --input_scene /path/to/scene.usd --renderer isaac_rtx \
@@ -433,7 +433,7 @@ this with ``--warmup_steps``.
       .. code-block:: batch
 
          uv run --extra isaacsim isaaclab example ppisp-camera ^
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_warp --max_steps 60
 
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --input_scene C:/path/to/scene.usd --renderer isaac_rtx ^
