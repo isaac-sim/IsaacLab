@@ -51,6 +51,7 @@ class MotionLoader:
             self.time_step_total = len(data["joint_pos"])
             if self.time_step_total < 2:
                 raise ValueError("A motion must contain at least two frames.")
+            arrays: dict[str, torch.Tensor] = {}
             for key in ("joint_pos", "joint_vel", "body_pos_w", "body_quat_w", "body_lin_vel_w", "body_ang_vel_w"):
                 values = data[key]
                 is_joint = key.startswith("joint_")
@@ -65,4 +66,10 @@ class MotionLoader:
                     if not np.allclose(np.linalg.norm(values, axis=-1), 1.0, atol=1e-3):
                         raise ValueError(f"Non-unit body quaternions in {path}.")
                     values = values[..., [1, 2, 3, 0]]
-                setattr(self, key, torch.tensor(values, dtype=torch.float32, device=device))
+                arrays[key] = torch.tensor(values, dtype=torch.float32, device=device)
+            self.joint_pos: torch.Tensor = arrays["joint_pos"]
+            self.joint_vel: torch.Tensor = arrays["joint_vel"]
+            self.body_pos_w: torch.Tensor = arrays["body_pos_w"]
+            self.body_quat_w: torch.Tensor = arrays["body_quat_w"]
+            self.body_lin_vel_w: torch.Tensor = arrays["body_lin_vel_w"]
+            self.body_ang_vel_w: torch.Tensor = arrays["body_ang_vel_w"]

@@ -170,7 +170,7 @@ class RewardsCfg:
     self_collisions = RewTerm(
         func=mdp.self_collision_cost,
         weight=-10.0,
-        params={"sensor_name": "self_collision", "force_threshold": 10.0},
+        params={"sensor_cfg": SceneEntityCfg("self_collision"), "threshold": 10.0},
     )
 
 

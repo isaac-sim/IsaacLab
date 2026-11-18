@@ -14,7 +14,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.tracking_env_cfg:G1MotionTrackingEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.env_cfg:G1MotionTrackingEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1MotionTrackingPPORunnerCfg",
         "default_agent": "rsl_rl",
     },

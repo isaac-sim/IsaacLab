@@ -398,15 +398,15 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
     return torch.sum(violation.clip(min=0.0), dim=1)
 
 
-def self_collision_cost(env: ManagerBasedRLEnv, sensor_name: str, force_threshold: float) -> torch.Tensor:
-    """Count physics frames with robot-to-robot force above the threshold [N].
+def self_collision_cost(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Count physics frames with robot-to-robot force on selected bodies above the threshold [N].
 
     The sensor must filter against robot bodies only and retain one control step
     of history. Multiple colliding pairs within a physics frame count once.
     """
-    sensor: ContactSensor = env.scene.sensors[sensor_name]
-    forces = sensor.data.force_matrix_w_history.torch
-    return (torch.linalg.vector_norm(forces, dim=-1).amax(dim=(-1, -2)) > force_threshold).sum(dim=-1).float()
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    forces = sensor.data.force_matrix_w_history.torch[:, :, sensor_cfg.body_ids]
+    return (torch.linalg.vector_norm(forces, dim=-1).amax(dim=(-1, -2)) > threshold).sum(dim=-1).float()
 
 
 """

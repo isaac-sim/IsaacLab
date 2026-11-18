@@ -12,14 +12,12 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import CommandTerm, CommandTermCfg
-from isaaclab.utils import configclass
+from isaaclab.managers import CommandTerm
 from isaaclab.utils.datasets import MotionLoader
 from isaaclab.utils.math import (
     quat_apply,
@@ -33,6 +31,8 @@ from isaaclab.utils.math import (
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+    from .commands_cfg import MotionCommandCfg
 
 
 class MotionCommand(CommandTerm):
@@ -280,34 +280,9 @@ class MotionCommand(CommandTerm):
             / self.bin_count
             * (self.motion.time_step_total - 1)
         ).long()
-        H = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
-        H_norm = H / math.log(self.bin_count) if self.bin_count > 1 else torch.zeros_like(H)
-        pmax, imax = sampling_probabilities.max(dim=0)
-        self.metrics["sampling_entropy"][:] = H_norm
-        self.metrics["sampling_top1_prob"][:] = pmax
-        self.metrics["sampling_top1_bin"][:] = imax.float() / self.bin_count
-
-
-@configclass
-class MotionCommandCfg(CommandTermCfg):
-    """Named reference motion with failure-adaptive phase sampling."""
-
-    class_type: type = MotionCommand
-    asset_name: str = MISSING
-    """Articulation to control."""
-    motion_file: str = MISSING
-    """NPZ path; see the data loader for the array format."""
-    anchor_body_name: str = MISSING
-    """Body defining the reference alignment frame."""
-    body_names: list[str] = MISSING
-    """Tracked bodies in order, starting with the articulation root."""
-    pose_range: dict[str, tuple[float, float]] = {}
-    """Reset offsets: x/y/z [m] and roll/pitch/yaw [rad]."""
-    velocity_range: dict[str, tuple[float, float]] = {}
-    """Reset velocity offsets: x/y/z [m/s] and roll/pitch/yaw [rad/s]."""
-    joint_position_range: tuple[float, float] = (-0.1, 0.1)
-    """Joint reset perturbation [rad]."""
-    adaptive_kernel_size: int = 1
-    adaptive_lambda: float = 0.8
-    adaptive_uniform_ratio: float = 0.1
-    adaptive_alpha: float = 0.001
+        entropy = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
+        normalized_entropy = entropy / math.log(self.bin_count) if self.bin_count > 1 else torch.zeros_like(entropy)
+        max_prob, max_bin = sampling_probabilities.max(dim=0)
+        self.metrics["sampling_entropy"][:] = normalized_entropy
+        self.metrics["sampling_top1_prob"][:] = max_prob
+        self.metrics["sampling_top1_bin"][:] = max_bin.float() / self.bin_count
