@@ -15,7 +15,6 @@
 
     SensorBase
     SensorBaseCfg
-    SensorTensorProcessorArgs
     Camera
     CameraData
     CameraCfg
@@ -76,10 +75,6 @@ the custom behavior.
 .. autoclass:: SensorBaseCfg
     :members:
     :exclude-members: __init__, class_type
-
-.. autoclass:: SensorTensorProcessorArgs
-    :members:
-    :show-inheritance:
 
 USD Camera
 ----------
