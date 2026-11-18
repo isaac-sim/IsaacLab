@@ -14,7 +14,6 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
-from isaaclab_fovi.mdp import angles_to_direction
 from isaaclab_fovi.mdp.gaze import (
     GazeAction,
     gaze_reset_kernel,
@@ -42,6 +41,12 @@ pytestmark = pytest.mark.kitless
 NUM_ENVS = 64
 STEPS = 8
 DEVICES = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
+
+
+def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
+    """Camera-frame unit directions of gaze angles [deg], shape (..., 2) to (..., 3): up and left are positive."""
+    tilt, pan = angles_deg.deg2rad().unbind(-1)
+    return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
 
 
 def direction_to_angles(direction: torch.Tensor) -> torch.Tensor:
@@ -119,13 +124,24 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     offset = torch.tensor([0.0, 0.0, 0.3])
     gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
 
-    # The torch path the kernel replaces: entity_point, then the teacher, then the labels and logs.
+    # The torch path the kernel replaces: the point fixed to each target, the teacher, then the labels and logs.
     points = targets + quat_apply(orientations, offset.expand(count, -1))
     direction = torch.nn.functional.normalize(quat_apply_inverse(mount, points - positions), dim=-1)
-    # Gazes are measured in the upright image frame, which the frame carries into the physical camera's.
+
+    def teachable(direction: torch.Tensor) -> torch.Tensor:
+        # Gazes are measured in the upright image frame, which the frame carries into the physical camera's.
+        desired = direction_to_angles(direction @ frame) / field_radius
+        return camera.project(direction)[1] & (desired.norm(dim=-1) <= limit)
+
     upright = direction @ frame
     desired = direction_to_angles(upright) / field_radius
-    valid = camera.project(direction)[1] & (desired.norm(dim=-1) <= limit)
+    valid = teachable(direction)
+    # A target within 1e-4 rad of the image edge, the lens's widest angle or the gaze limit may land on either side
+    # in float32; every other target must agree exactly.
+    nudges = 1e-4 * torch.cat((torch.eye(3), -torch.eye(3)))
+    decisive = torch.stack(
+        [teachable(torch.nn.functional.normalize(direction + nudge, dim=-1)) == valid for nudge in nudges]
+    ).all(0)
     action = torch.where(valid[:, None], ((desired - gaze) / step).clamp(-1, 1), 0.0)
     looking = angles_to_direction(gaze * field_radius)
     error = torch.atan2(torch.cross(looking, upright, dim=-1).norm(dim=-1), (looking * upright).sum(-1)).rad2deg()
@@ -142,7 +158,6 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
                 wp.from_torch(targets.to(device), dtype=wp.vec3f),
                 wp.from_torch(orientations.to(device), dtype=wp.quatf),
                 wp.vec3f(*offset.tolist()),
-                1,
                 wp.from_torch(positions.to(device), dtype=wp.vec3f),
                 wp.from_torch(mount.to(device), dtype=wp.quatf),
                 wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f),
@@ -156,9 +171,8 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
             block_dim=block,
         )
     labels, log = labels.cpu(), log.cpu()
-    agree = (labels[:, 2] > 0.5) == valid
-    assert agree.float().mean() > 0.999 and valid.any() and (~valid).any()
-    torch.testing.assert_close(labels[agree], expected[agree], atol=1e-4, rtol=0)
+    assert valid[decisive].any() and (~valid[decisive]).any() and decisive.float().mean() > 0.99
+    torch.testing.assert_close(labels[decisive], expected[decisive], atol=1e-4, rtol=0)
     labelled = labels[:, 2] > 0.5
     assert float(log[1]) == pytest.approx(float(labelled.float().mean()))
     assert float(log[0]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
@@ -181,9 +195,8 @@ def test_teacher_gaze_fixates_the_target_through_a_rolled_mount(rotation_deg):
             dim=(1, 1),
             inputs=[
                 wp.from_torch(direction, dtype=wp.vec3f),
-                wp.zeros(1, dtype=wp.quatf),
+                wp.from_torch(identity, dtype=wp.quatf),
                 wp.vec3f(0.0, 0.0, 0.0),
-                0,
                 wp.zeros(count, dtype=wp.vec3f),
                 wp.from_torch(identity, dtype=wp.quatf),
                 wp.zeros(count, dtype=wp.vec2f),
@@ -247,7 +260,7 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     term = object.__new__(GazeAction)
     term._env = SimpleNamespace(num_envs=num_envs, device="cpu", step_dt=0.5)
     term.cfg = GazeActionCfg(asset_name="camera", step_size=0.1, gaze_limit=1.0)
-    term.camera = camera
+    term._asset = camera
     term.field_radius_deg = 20.0
     term._state = ProxyArray(wp.zeros(num_envs, dtype=wp.vec4f, device="cpu"))
     term._velocity = term._state.torch[:, 2:]
@@ -308,14 +321,15 @@ def test_gaze_reset_kernel_matches_the_torch_reset(ids, random_start):
 
 
 def test_fixed_mount_teacher_rejects_only_turns_after_capture():
-    """A mount turned before the term captured it is the captured mount; a later turn makes it stale."""
+    """The fixed-mount teacher aims from the captured mount while the camera has turned its mount as many times as
+    when the term captured it, and refuses once a later turn makes the capture stale."""
     term = object.__new__(GazeAction)
     term.tracked_mount = False
     term._mount_turns = 2
     term._fixed_mount = "captured"
-    term.camera = SimpleNamespace(mount_turns=2)
+    term._asset = SimpleNamespace(mount_turns=2)
     assert GazeAction.teacher_mounts(term) == "captured"
-    term.camera.mount_turns = 3
+    term._asset.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction.teacher_mounts(term)
 

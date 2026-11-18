@@ -4,4 +4,5 @@
   mount, gaze-supervised PPO for RSL-RL with a fixed gaze action noise in :mod:`isaaclab_fovi.rsl_rl`, and the
   ``Isaac-Cartpole-Camera-Fovi``, ``Isaac-Lift-KukaAllegro-Camera-Fovi`` and
   ``Isaac-Reorient-KukaAllegro-Camera-Fovi`` tasks.
-* Pooled segmentation outputs take each sample's modal label in its native dtype.
+* Added modal-label pooling for segmentation outputs, which keeps their native dtype (``pool_int_mode="modal"``,
+  the only accepted value); ``pool_mode`` pools the other outputs and accepts only fovi's modes.

@@ -5,12 +5,15 @@
 
 """The Newton foveated camera's render layout and publication, on stand-in renderer buffers."""
 
+import logging
+from dataclasses import asdict
 from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 from fovi.sensing.coords import SamplingCoords
+from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.sensors import foveated_camera as base_camera
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
@@ -36,7 +39,7 @@ def new_camera() -> FoveatedNewtonCamera:
     """A Newton camera without its constructor: the state its constructor sets and the handles its destructor reads."""
     camera = object.__new__(FoveatedNewtonCamera)
     camera._gaze_angles = camera._gaze_rotation = camera._visibility = camera._grid_publish = None
-    camera._published_shape = camera._pooler_int = camera._segmentation_neighbors = None
+    camera._published_shape = camera._segmentation_neighbors = None
     camera._initialize_handle = None
     camera._invalidate_initialize_handle = None
     camera._prim_deletion_handle = None
@@ -88,7 +91,6 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
         cmf_a_deg=0.591,
         pool_enabled=pooled,
         pool_mode="avg",
-        pool_int_mode="avg",
         pool_sample_cortex=False,
         image_rotation_deg=0,
         update_period=0.0,
@@ -107,8 +109,9 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     expected = camera.renderer_rgba.reshape(2, len(ray_coords), 1, 4).clone()
     expected[:, ~ray_coords.valid_mask] = 0
     if pooled:
-        # AdaptiveAvgPool1d maps the 4 * N_lo canonical samples to N_lo by averaging each run of four.
-        expected = expected.reshape(2, len(coords), 4, 1, 4).float().mean(dim=2).to(torch.uint8)
+        # AdaptiveAvgPool1d maps the 4 * N_lo canonical samples to N_lo by averaging each run of four, which the
+        # camera rounds to the nearest uint8 value.
+        expected = expected.reshape(2, len(coords), 4, 1, 4).float().mean(dim=2).round().to(torch.uint8)
     expected = coords.as_grid(expected.squeeze(2), sample_dim=1)
     torch.testing.assert_close(camera._data.output["rgba"].torch, expected, rtol=0, atol=0)
     # The published buffers are stable across frames, and rgb shares rgba's memory.
@@ -166,6 +169,51 @@ def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeyp
     assert bool((published.torch[0] == 1.0).all()) and bool((published.torch[1] == 2.0).all())
 
 
+def test_sample_set_sensor_mask_follows_the_published_frame(monkeypatch) -> None:
+    """An environment that was not updated keeps its published samples and the sensor visibility that masked them."""
+    coords = SamplingCoords(60.0, 0.591, 8, style="isotropic", field_geometry="spherical", device="cpu")
+    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 8))
+    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: None)
+    monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (None, None))
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
+
+    def initialize_renderer(camera):
+        camera.renderer_depth = torch.ones((2, camera.cfg.height, camera.cfg.width, 1))
+        camera._data = SimpleNamespace(output={"distance_to_camera": ProxyArray(wp.from_torch(camera.renderer_depth))})
+        camera._render_data = SimpleNamespace(camera_rays=None)
+
+    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", lambda camera, env_mask: None)
+    camera = new_camera()
+    camera.cfg = SimpleNamespace(
+        foveated_style="isotropic",
+        mask_to_sensor_fov=True,
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
+        spawn=None,
+        pool_enabled=False,
+        image_rotation_deg=0,
+        update_period=0.0,
+        data_types=["distance_to_camera"],
+        renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
+    )
+    camera._initialize_impl()
+    # The real gaze geometry, on stand-in pose buffers.
+    base_camera.FoveatedCamera._initialize_gaze(camera)
+    camera._view = SimpleNamespace(count=2, close=lambda: None)
+    camera._data.quat_w_ros = ProxyArray(wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2), dtype=wp.quatf))
+
+    # The second camera looks away from the physical camera's image, so it sees nothing.
+    camera.set_gaze_angles(torch.tensor([[0.0, 0.0], [0.0, 180.0]]))
+    camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
+    seen = camera.sensor_fov_valid_fraction.clone()
+    assert seen[0] > 0.5 and seen[1] == 0
+    # Both look ahead now, but only the first camera's frame is published.
+    camera.set_gaze_angles(torch.zeros(2, 2))
+    camera._update_buffers_impl(wp.array([True, False], dtype=wp.bool, device="cpu"))
+    assert not camera._data.output["distance_to_camera"].torch[1].any()
+    torch.testing.assert_close(camera.sensor_fov_valid_fraction, seen)
+
+
 def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatch) -> None:
     """A pooled camera's segmentation output holds each sample's majority label exactly, IDs above 2**24 included."""
     coords = SamplingCoords(60.0, 0.591, 16, style="warped_cartesian_as_grid", field_geometry="spherical", device="cpu")
@@ -213,7 +261,6 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
         update_period=0.0,
         pool_enabled=True,
         pool_mode="avg",
-        pool_int_mode="mode",
         pool_sample_cortex=False,
         image_rotation_deg=0,
         data_types=["rgba", "semantic_segmentation"],
@@ -244,3 +291,64 @@ def test_native_grid_fractional_pool_resolution_validates_newton_tiles(size, val
     else:
         with pytest.raises(ValueError, match=f"{size}x{size}.*16x8"):
             FoveatedNewtonCamera._validate_native_render_layout(camera, 16, 8)
+
+
+@pytest.mark.parametrize("style", ["warped_cartesian_as_grid", "isotropic"])
+@pytest.mark.parametrize("requested", [["rgba"], ["rgb"]])
+def test_pooled_rgb_is_the_view_of_pooled_rgba_whichever_is_requested(monkeypatch, style, requested) -> None:
+    """The renderer publishes rgb as a view of rgba when either is requested, and so do pooled grids and sample sets."""
+    coords = SamplingCoords(60.0, 0.591, 16, style=style, field_geometry="spherical", device="cpu")
+    highres = coords.clone(resolution=32)
+    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
+    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
+    monkeypatch.setattr(
+        newton_camera, "build_pooler", lambda *args, **kwargs: (torch.nn.AdaptiveAvgPool1d(len(coords)), 4)
+    )
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
+
+    def initialize_renderer(camera):
+        camera.renderer_rgba = torch.zeros((2, camera.cfg.height, camera.cfg.width, 4), dtype=torch.uint8)
+        rgba = ProxyArray(wp.from_torch(camera.renderer_rgba))
+        camera._data = SimpleNamespace(
+            output={"rgba": rgba, "rgb": ProxyArray(wp.from_torch(camera.renderer_rgba[..., :3]))}
+        )
+        camera._render_data = SimpleNamespace(camera_rays=None)
+        camera._renderer = SimpleNamespace(cleanup=lambda render_data: None)
+
+    def render(camera, env_mask):
+        camera.renderer_rgba.copy_(torch.tensor([10, 20, 30, 255], dtype=torch.uint8))
+
+    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    camera = new_camera()
+    camera.cfg = SimpleNamespace(
+        foveated_style=style,
+        mask_to_sensor_fov=False,
+        update_period=0.0,
+        pool_enabled=True,
+        pool_mode="avg",
+        pool_sample_cortex=False,
+        image_rotation_deg=0,
+        data_types=requested,
+        renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
+    )
+    camera._initialize_impl()
+    camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
+
+    rgb, rgba = camera._data.output["rgb"].torch, camera._data.output["rgba"].torch
+    assert rgb.any()
+    torch.testing.assert_close(rgb, rgba[..., :3], rtol=0, atol=0)
+
+
+def test_runtime_intrinsics_leave_the_retinas_rays_alone(monkeypatch, caplog) -> None:
+    """The retina sets a foveated camera's rays, so runtime intrinsics, such as a viewer's zoom sets, are skipped with
+    a warning rather than handed to the renderer, which would replace the rays with a pinhole's."""
+
+    def replace_rays(*args, **kwargs):
+        raise AssertionError("the stock setter replaces the renderer's rays")
+
+    monkeypatch.setattr(newton_camera.Camera, "set_intrinsic_matrices", replace_rays)
+    camera = new_camera()
+    with caplog.at_level(logging.WARNING):
+        camera.set_intrinsic_matrices(torch.eye(3).repeat(2, 1, 1))
+    assert "skipped a foveated camera" in caplog.text

@@ -20,13 +20,6 @@ from isaaclab.utils.warp import ProxyArray
 GRID_STYLE = "warped_cartesian_as_grid"
 
 
-class TorchBuffer(Protocol):
-    """Renderer buffer exposing a Torch view."""
-
-    @property
-    def torch(self) -> torch.Tensor: ...
-
-
 def buffer_tensor(value: torch.Tensor | TorchBuffer) -> torch.Tensor:
     """Get a renderer or public tensor without copying."""
     return value if isinstance(value, torch.Tensor) else value.torch
@@ -38,27 +31,6 @@ def proxy_outputs(outputs: Mapping[str, torch.Tensor | ProxyArray]) -> dict[str,
         name: ProxyArray(wp.from_torch(value)) if isinstance(value, torch.Tensor) else value
         for name, value in outputs.items()
     }
-
-
-def _require_spherical(coords: SamplingCoords) -> None:
-    if coords.field_geometry != "spherical":
-        raise ValueError(f"Foveated cameras sample spherical coordinates, got {coords.field_geometry!r}.")
-
-
-def _angular_padding_boundary(coords: SamplingCoords) -> tuple[float, float]:
-    if coords.fov_type == "circular":
-        radius = 1.0
-    elif coords.fov_type == "square":
-        radius = math.sqrt(2)
-    elif coords.fov_type == "wang":
-        corner = coords.cartesian.new_tensor([[1.0, 1.0]])
-        radius = float(torch.linalg.vector_norm(coords.native_to_visual(corner)).item())
-    else:
-        raise ValueError(f"Unsupported native grid footprint {coords.fov_type!r}.")
-    angle = radius * math.radians(coords.fov) / 2
-    if angle >= math.pi:
-        raise ValueError("Spherical native grid footprint reaches the antipode; reduce FoV or use circular coverage.")
-    return radius, angle
 
 
 def bounded_angular_radius(radius: torch.Tensor, half_fov_rad: float) -> torch.Tensor:
@@ -182,3 +154,31 @@ def copy_grid_outputs(
         flat_source = tensor.reshape(tensor.shape[0], -1, tensor.shape[-1])
         flat_target = target[name].view(tensor.shape[0], -1, tensor.shape[-1])
         torch.index_select(flat_source, 1, indices, out=flat_target)
+
+
+class TorchBuffer(Protocol):
+    """Renderer buffer exposing a Torch view."""
+
+    @property
+    def torch(self) -> torch.Tensor: ...
+
+
+def _require_spherical(coords: SamplingCoords) -> None:
+    if coords.field_geometry != "spherical":
+        raise ValueError(f"Foveated cameras sample spherical coordinates, got {coords.field_geometry!r}.")
+
+
+def _angular_padding_boundary(coords: SamplingCoords) -> tuple[float, float]:
+    if coords.fov_type == "circular":
+        radius = 1.0
+    elif coords.fov_type == "square":
+        radius = math.sqrt(2)
+    elif coords.fov_type == "wang":
+        corner = coords.cartesian.new_tensor([[1.0, 1.0]])
+        radius = float(torch.linalg.vector_norm(coords.native_to_visual(corner)).item())
+    else:
+        raise ValueError(f"Unsupported native grid footprint {coords.fov_type!r}.")
+    angle = radius * math.radians(coords.fov) / 2
+    if angle >= math.pi:
+        raise ValueError("Spherical native grid footprint reaches the antipode; reduce FoV or use circular coverage.")
+    return radius, angle

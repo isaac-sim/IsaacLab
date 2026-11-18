@@ -5,12 +5,14 @@
 
 """The gaze kernels agree with fovi's camera geometry and with the composition they replace."""
 
+from typing import Literal
+
 import pytest
 import torch
 import warp as wp
 from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import CameraModel, gaze_rotation
-from isaaclab_fovi.sensors.calibrated_geometry import compose_rotations, convert_camera_frame_quaternion
+from isaaclab_fovi.sensors.calibrated_geometry import compose_rotations
 from isaaclab_fovi.sensors.gaze_kernels import (
     apply_gaze_indexed_kernel,
     apply_gaze_kernel,
@@ -48,6 +50,39 @@ CAMERAS = {
         max_angle_deg=95.0,
     ),
 }
+
+
+def convert_camera_frame_quaternion(
+    orientation: torch.Tensor,
+    *,
+    origin: Literal["world", "opengl"],
+    target: Literal["world", "opengl", "ros"],
+) -> torch.Tensor:
+    """Reference conversion of world/OpenGL or OpenGL/ROS poses by exact fixed-basis quaternions.
+
+    Args:
+        orientation: Camera quaternions in XYZW order, shape (..., 4).
+        origin: Input camera-frame convention.
+        target: Opposite world/OpenGL convention, or ROS for OpenGL input.
+
+    Returns:
+        Normalized float32 quaternions, shape (..., 4). Quaternion sign may change.
+    """
+    quat = orientation.float()
+    quat = quat / quat.norm(dim=-1, keepdim=True)
+    x, y, z, w = quat.unbind(-1)
+    # Right multiplication by exact fixed-basis quaternions, without allocating
+    # device constants or making the matrix round-trip sensitive to AMP/TF32.
+    if origin == "world" and target == "opengl":
+        components = (w + x - y + z, -w + x + y + z, -w - x - y + z, w - x + y + z)
+    elif origin == "opengl" and target == "world":
+        components = (-w + x + y - z, w - x + y - z, w + x + y + z, w + x - y - z)
+    elif origin == "opengl" and target == "ros":
+        # ROS flips the OpenGL Y/Z axes: right-multiply by a half-turn about X.
+        return torch.stack((w, z, -y, -x), dim=-1)
+    else:
+        raise ValueError(f"Unsupported camera conversion: {origin!r} to {target!r}")
+    return torch.stack(components, dim=-1) * 0.5
 
 
 def _directions(count: int) -> torch.Tensor:

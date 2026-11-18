@@ -68,11 +68,10 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     cfg: FoveatedCameraCfg
 
-    _gaze_pose_reads_angles = True
-
-    # ------------------------------------------------------------------
-    #  Initialisation
-    # ------------------------------------------------------------------
+    def __init__(self, cfg: FoveatedCameraCfg):
+        # The parent's initialisation updates poses before the rays exist.
+        self._foveated_rays: wp.array | None = None
+        super().__init__(cfg)
 
     def _initialize_impl(self):
         # The pooler's KNN tensors are plain attributes that nn.Module.to() does not move, so the coordinates start on
@@ -182,30 +181,28 @@ class FoveatedNewtonCamera(FoveatedCamera):
         self._highres_output: dict[str, ProxyArray] = dict(self._data.output)
         self._pooled_output: dict[str, torch.Tensor] = {}
         for name, tex in self._highres_output.items():
+            if name == "rgb" and "rgba" in self._highres_output:
+                continue  # an alias of rgba, below
             tensor = tex.torch
             B, _, _, C = tensor.shape
             self._pooled_output[name] = torch.zeros(
                 (B, self._num_valid_samples, 1, C), dtype=tensor.dtype, device=tensor.device
             )
-        if "rgba" in self._pooled_output and "rgb" in self.cfg.data_types:
+        # The renderer publishes rgb as a view of rgba whenever either is requested; so does the pooled output.
+        if "rgb" in self._highres_output and "rgba" in self._pooled_output:
             self._pooled_output["rgb"] = self._pooled_output["rgba"][..., :3]
         self._prepare_segmentation_pooling(self._highres_output)
         dtypes_summary = {n: str(t.dtype).removeprefix("torch.") for n, t in self._highres_output.items()}
         logger.info(
-            "FoveatedNewtonCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) "
-            "outputs=%s int_mode=%s",
+            "FoveatedNewtonCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) outputs=%s",
+            type(self._pooler).__name__,
             self.cfg.pool_mode,
             self._pool_k,
             self.cfg.pool_sample_cortex,
             self._num_ray_samples,
             self._num_valid_samples,
             dtypes_summary,
-            self.cfg.pool_int_mode,
         )
-
-    # ------------------------------------------------------------------
-    #  Per-frame overrides
-    # ------------------------------------------------------------------
 
     def _update_poses(
         self,
@@ -220,15 +217,15 @@ class FoveatedNewtonCamera(FoveatedCamera):
         """
         # The base update turns the poses by the gaze in _update_camera_state, then hands them to the renderer.
         Camera._update_poses(self, env_ids, env_mask=env_mask, frame_op=frame_op)
-        if hasattr(self, "_foveated_rays"):
+        if self._foveated_rays is not None:
             self._render_data.camera_rays = self._foveated_rays
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Render, then mask and publish the updated environments, pooling high-resolution samples if enabled.
 
-        Newton redraws every environment's render buffer, each at the pose and gaze it last received, so the sensor
-        mask covers every row with that row's gaze. The published buffers, which the camera owns, change only for the
-        updated environments.
+        Newton redraws every environment's render buffer, each at the pose and gaze it last received. The sensor mask,
+        its visibility record and the published buffers, which the camera owns, change only for the updated
+        environments.
         """
         self._data.output.clear()
         self._data.output.update(self._render_output)
@@ -243,7 +240,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
             if self._grid_publish:
                 self._publish_grid(env_mask)
             else:
-                self._apply_sensor_fov_mask(self._flat_render_output)
+                self._apply_sensor_fov_mask(self._flat_render_output, env_mask)
                 updated = wp.to_torch(env_mask)[:, None, None, None]
                 for name, samples in self._sample_output.items():
                     if name == "rgb" and "rgba" in self._sample_output:
@@ -251,12 +248,16 @@ class FoveatedNewtonCamera(FoveatedCamera):
                     samples.copy_(torch.where(updated, self._flat_render_output[name].torch, samples))
             return
         mask_grid_samples(self._highres_output, self._ray_coords)
-        self._apply_sensor_fov_mask(self._highres_output)
+        self._apply_sensor_fov_mask(self._highres_output, env_mask)
         updated = wp.to_torch(env_mask)[:, None, None, None]
         for name, hi in self._highres_output.items():
-            if name == "rgb":
+            if name == "rgb" and "rgba" in self._highres_output:
                 continue  # rgba alias
             pooled = self._pooled_output[name]
             pooled.copy_(torch.where(updated, self._pool_output(name, hi.torch), pooled))
         if self._native_grid:
             copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)
+
+    @staticmethod
+    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
+        return True

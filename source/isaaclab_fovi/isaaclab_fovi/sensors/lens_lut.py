@@ -41,19 +41,6 @@ if TYPE_CHECKING:
     from pxr import Usd
 
 
-# Internal helpers
-
-
-def _t(x, dtype: torch.dtype, device) -> torch.Tensor:
-    """Convert array-like or tensor *x* to a ``torch.Tensor`` on *device*."""
-    if isinstance(x, torch.Tensor):
-        return x.to(dtype=dtype, device=device)
-    return torch.as_tensor(np.asarray(x), dtype=dtype, device=device)
-
-
-# EXR I/O
-
-
 def save_exr(path: str, data: torch.Tensor) -> None:
     """Save a ``(H, W, C)`` float32 tensor to an EXR file  (C ∈ {2, 3}) with OpenEXR, which the ``fovi`` extra
     installs."""
@@ -72,57 +59,6 @@ def save_exr(path: str, data: torch.Tensor) -> None:
     exr = OpenEXR.OutputFile(path, hdr)
     exr.writePixels({n: arr[:, :, i].tobytes() for i, n in enumerate(names)})
     exr.close()
-
-
-# Octahedral decoding (internal)
-
-
-def _octahedral_decode(
-    width: int,
-    height: int,
-    device="cuda",
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Decode octahedral-LUT texel centres to unit directions (camera −Z convention).
-
-    Returns:
-        Three ``(height, width)`` float64 tensors ``(dx, dy, dz)``.
-    """
-    u = (torch.arange(width, dtype=torch.float64, device=device) + 0.5) / width
-    v = (torch.arange(height, dtype=torch.float64, device=device) + 0.5) / height
-    px = u.unsqueeze(0).expand(height, width) * 2.0 - 1.0
-    py = v.unsqueeze(1).expand(height, width) * 2.0 - 1.0
-    dz = 1.0 - px.abs() - py.abs()
-    sx = torch.sign(px)
-    sy = torch.sign(py)
-    dx = torch.where(dz <= 0.0, (1.0 - py.abs()) * sx, px)
-    dy = torch.where(dz <= 0.0, (1.0 - px.abs()) * sy, py)
-    n = torch.clamp((dx**2 + dy**2 + dz**2).sqrt(), min=1e-20)
-    return dx / n, dy / n, -dz / n
-
-
-# Nearest-neighbour search
-
-
-def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tensor:
-    """Chunked nearest-neighbour search via ``torch.cdist``.
-
-    Chunk size is capped so the float32 distance matrix stays within 2 GiB.
-
-    Returns:
-        ``(M,)`` int64 index of the closest key for each query row.
-    """
-    N = keys.shape[0]
-    safe_chunk = max(1, (2 << 30) // (4 * max(N, 1)))
-    effective = min(chunk, safe_chunk)
-    M = query.shape[0]
-    idx = torch.empty(M, dtype=torch.long, device=query.device)
-    for s in range(0, M, effective):
-        e = min(s + effective, M)
-        idx[s:e] = torch.cdist(query[s:e], keys).argmin(dim=1)
-    return idx
-
-
-# Core LUT tensor builders
 
 
 def build_native_grid_textures(
@@ -147,7 +83,8 @@ def build_lut_textures(
     exit_width: int,
     exit_height: int,
     chunk: int = 8192,
-    device="cuda",
+    *,
+    device: torch.device | str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Build direction and exit LUT tensors from a labelled set of sensor samples.
 
@@ -226,9 +163,6 @@ def build_lut_textures(
     return dir_out, torch.stack([exit_u, exit_v], dim=2)
 
 
-# EXR save helpers
-
-
 def save_lut_textures(
     direction_texture: torch.Tensor,
     exit_texture: torch.Tensor,
@@ -246,9 +180,6 @@ def save_lut_textures(
     save_exr(dir_path, direction_texture)
     save_exr(exit_path, exit_texture)
     return os.path.abspath(dir_path), os.path.abspath(exit_path)
-
-
-# USD prim authoring
 
 
 def apply_lens_lut_to_prim(
@@ -270,15 +201,12 @@ def apply_lens_lut_to_prim(
     )
 
 
-# NDC layout functions
-
-
 def samples_uv_cortical_disc(
     r_deg,
     theta_rad,
     fov_deg: float,
     cmf_a: float,
-    device="cuda",
+    device: torch.device | str,
 ) -> torch.Tensor:
     """Map samples to NDC using the cortical polar disc layout.
 
@@ -295,3 +223,52 @@ def samples_uv_cortical_disc(
     u = (rho * th.cos() / (2.0 * rho_max) + 0.5).float()
     v = (-rho * th.sin() / (2.0 * rho_max) + 0.5).float()
     return torch.stack([u, v], dim=1)
+
+
+def _t(x, dtype: torch.dtype, device) -> torch.Tensor:
+    """Convert array-like or tensor *x* to a ``torch.Tensor`` on *device*."""
+    if isinstance(x, torch.Tensor):
+        return x.to(dtype=dtype, device=device)
+    return torch.as_tensor(np.asarray(x), dtype=dtype, device=device)
+
+
+def _octahedral_decode(
+    width: int,
+    height: int,
+    device: torch.device | str,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Decode octahedral-LUT texel centres to unit directions (camera −Z convention).
+
+    Returns:
+        Three ``(height, width)`` float64 tensors ``(dx, dy, dz)``.
+    """
+    u = (torch.arange(width, dtype=torch.float64, device=device) + 0.5) / width
+    v = (torch.arange(height, dtype=torch.float64, device=device) + 0.5) / height
+    px = u.unsqueeze(0).expand(height, width) * 2.0 - 1.0
+    py = v.unsqueeze(1).expand(height, width) * 2.0 - 1.0
+    dz = 1.0 - px.abs() - py.abs()
+    sx = torch.sign(px)
+    sy = torch.sign(py)
+    dx = torch.where(dz <= 0.0, (1.0 - py.abs()) * sx, px)
+    dy = torch.where(dz <= 0.0, (1.0 - px.abs()) * sy, py)
+    n = torch.clamp((dx**2 + dy**2 + dz**2).sqrt(), min=1e-20)
+    return dx / n, dy / n, -dz / n
+
+
+def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tensor:
+    """Chunked nearest-neighbour search via ``torch.cdist``.
+
+    Chunk size is capped so the float32 distance matrix stays within 2 GiB.
+
+    Returns:
+        ``(M,)`` int64 index of the closest key for each query row.
+    """
+    N = keys.shape[0]
+    safe_chunk = max(1, (2 << 30) // (4 * max(N, 1)))
+    effective = min(chunk, safe_chunk)
+    M = query.shape[0]
+    idx = torch.empty(M, dtype=torch.long, device=query.device)
+    for s in range(0, M, effective):
+        e = min(s + effective, M)
+        idx[s:e] = torch.cdist(query[s:e], keys).argmin(dim=1)
+    return idx
