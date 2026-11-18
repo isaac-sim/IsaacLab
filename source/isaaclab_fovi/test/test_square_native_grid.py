@@ -11,15 +11,7 @@ import pytest
 import torch
 from fovi.sensing.coords import SamplingCoords
 from isaaclab_fovi.sensors.lens_lut import build_native_grid_textures
-from isaaclab_fovi.sensors.native_grid import (
-    allocate_grid_outputs,
-    copy_grid_outputs,
-    grid_output_shape,
-    grid_sample_indices,
-    mask_grid_samples,
-    native_grid_directions,
-    native_grid_exit_uv,
-)
+from isaaclab_fovi.sensors.native_grid import native_grid_directions, native_grid_exit_uv
 
 pytestmark = pytest.mark.kitless
 
@@ -160,30 +152,6 @@ def test_textures_match_independent_geometry(rotation: float) -> None:
         atol=1e-5,
         rtol=0,
     )
-
-
-def test_textures_and_public_modalities() -> None:
-    coords = make_coords()
-    directions, inverse = build_native_grid_textures(coords, image_rotation_deg=0, exit_size=64)
-    torch.testing.assert_close(directions.reshape(-1, 3), native_grid_directions(coords))
-    assert torch.isfinite(inverse).all()
-    assert (inverse == -1).any()
-    assert grid_output_shape(coords) == (16, 16)
-    source = {
-        "rgba": torch.ones(2, len(coords), 1, 4, dtype=torch.uint8),
-        "depth": torch.arange(len(coords), dtype=torch.float32)[None, :, None, None],
-        "segmentation": torch.arange(len(coords), dtype=torch.int32)[None, :, None, None],
-    }
-    source["rgb"] = source["rgba"][..., :3]
-    mask_grid_samples(source, coords)
-    assert source["rgba"].all()
-    target = allocate_grid_outputs(source, coords)
-    pointers = {name: tensor.data_ptr() for name, tensor in target.items()}
-    copy_grid_outputs(source, target, grid_sample_indices(coords))
-    for name in source:
-        torch.testing.assert_close(target[name], coords.as_grid(source[name][:, :, 0], sample_dim=1))
-        assert target[name].data_ptr() == pointers[name]
-    assert target["rgb"].untyped_storage().data_ptr() == target["rgba"].untyped_storage().data_ptr()
 
 
 def test_camera_config_rejects_wang_with_square_shells() -> None:

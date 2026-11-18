@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-import logging
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
@@ -17,7 +17,7 @@ import warp as wp
 from fovi.sensing.projection import CameraModel
 
 from isaaclab.sensors.camera.camera import Camera
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.math import convert_camera_frame_orientation_convention, quat_error_magnitude
 from isaaclab.utils.warp import ProxyArray
 
 from .calibrated_geometry import resolve_camera_model, retinal_directions
@@ -43,7 +43,8 @@ from .pooling import (
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
 
-logger = logging.getLogger(__name__)
+MOUNT_TURN_TOLERANCE_RAD = 1e-5
+"""Smallest change of a camera's mount orientation [rad] that counts as a turn; smaller ones are float rounding."""
 
 OPENGL_TO_ROS_AXES = (1.0, -1.0, -1.0)
 """Axis signs between OpenGL camera-frame directions (x right, y up, -z forward) and ROS ones (x right, y down)."""
@@ -245,9 +246,11 @@ class FoveatedCamera(Camera):
 
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
         """
+        # The teachers read the camera's live position, so only a write that turns a selected mount counts; writing
+        # back the poses that get_world_poses reports does not.
+        turned = orientations is not None and self._turns_mount(orientations, env_ids, convention)
         super().set_world_poses(positions, orientations, env_ids, convention)
-        # The teachers read the camera's live position, so only a turned mount counts.
-        if orientations is not None:
+        if turned:
             self.mount_turns += 1
 
     def set_world_poses_from_view(self, eyes, targets, env_ids=None):
@@ -260,7 +263,7 @@ class FoveatedCamera(Camera):
             self.mount_turns += 1
 
     def set_intrinsic_matrices(self, matrices, focal_length=None, env_ids=None):
-        """Keep the camera as configured and log a warning.
+        """Keep the camera as configured and warn the caller.
 
         A foveated camera's projection comes from its retina and :attr:`camera_model`, which pinhole intrinsics
         cannot describe, so this call changes nothing: the rendered rays and the reported intrinsic matrices stay as
@@ -270,7 +273,12 @@ class FoveatedCamera(Camera):
 
         Args are those of :meth:`isaaclab.sensors.Camera.set_intrinsic_matrices`.
         """
-        logger.warning("set_intrinsic_matrices() skipped a foveated camera; its retina and camera_model set its rays.")
+        warnings.warn(
+            "set_intrinsic_matrices() leaves a foveated camera as configured: its retina and camera_model set its"
+            " projection.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     def _initialize_gaze(self) -> None:
         """Prepare the gaze geometry: the rendered rays in the physical camera's frame and the pose conversions."""
@@ -368,6 +376,13 @@ class FoveatedCamera(Camera):
             launch.set_param_by_name("indices", env_ids)
             launch.set_dim(len(env_ids))
         launch.launch(warp_stream(device))
+
+    def _turns_mount(self, orientations, env_ids, convention: str) -> bool:
+        """Whether writing ``orientations`` would turn any selected camera's mount, compared with its current one."""
+        _, current = self.get_world_poses(env_ids, convention=convention)
+        requested = self._as_device_tensor(orientations, 4).to(current.dtype).expand_as(current)
+        requested = torch.nn.functional.normalize(requested, dim=-1)
+        return bool((quat_error_magnitude(current, requested) > MOUNT_TURN_TOLERANCE_RAD).any())
 
     def _turned_by_view(self, eyes, targets) -> torch.Tensor:
         """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""

@@ -113,7 +113,7 @@ physical camera's image at the current gaze.
   radii (half the retina's field of view) per step, within `gaze_limit` field
   radii of the optical axis. Make it the last action term. With the default
   `mount="fixed"` the teacher aims from the orientation the camera has when the
-  action is created, and turning the mount raises; `mount="tracked"` lets the
+  action is created, and raises if the mount turns later; `mount="tracked"` lets the
   camera ride a moving body,
   such as a turning head, and the teacher follows each camera's current mount
   (Newton or OVRTX).
@@ -161,8 +161,9 @@ package, so they are available from a source checkout.
 - Sample-set styles such as `foveated_style="isotropic"` publish
   `(num_envs, num_samples, 1, channels)`. Log-polar styles are not available,
   because fovi does not support them in spherical coordinates.
-- `fov_type` and `radius_norm` select circular or square coverage. See
-  [square-foveated rendering](square_foveated.md).
+- `fov_type` (`"circular"`, `"square"` or `"wang"`) and `radius_norm` set
+  the field the retina covers; they are passed to fovi's `SamplingCoords`,
+  whose [documentation](https://nblauch.github.io/fovi/docs/) describes them.
 - `pool_enabled=True` renders a denser grid and pools it to the output grid.
 
 ## Example

@@ -54,6 +54,15 @@ def select_presets(options: PresetCfg, names) -> PresetCfg:
     )
 
 
+def oracle_observations(
+    target_cfg: SceneEntityCfg, offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+) -> OracleObservationsCfg:
+    """The teacher's gaze labels toward a point fixed to an asset."""
+    return OracleObservationsCfg(
+        labels=ObservationTermCfg(func=mdp.gaze_teacher_labels, params={"target_cfg": target_cfg, "offset": offset})
+    )
+
+
 @configclass
 class GazeObservationsCfg(ObservationGroupCfg):
     """The gaze, in field radii, and its velocity, in field radii per second."""
@@ -74,12 +83,3 @@ class OracleObservationsCfg(ObservationGroupCfg):
     def __post_init__(self):
         self.enable_corruption = False
         self.concatenate_terms = True
-
-
-def oracle_observations(
-    target_cfg: SceneEntityCfg, offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
-) -> OracleObservationsCfg:
-    """The teacher's gaze labels toward a point fixed to an asset."""
-    return OracleObservationsCfg(
-        labels=ObservationTermCfg(func=mdp.gaze_teacher_labels, params={"target_cfg": target_cfg, "offset": offset})
-    )

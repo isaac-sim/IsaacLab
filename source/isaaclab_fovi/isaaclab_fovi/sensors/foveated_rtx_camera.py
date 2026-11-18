@@ -43,6 +43,8 @@ from .native_grid import (
 from .pooling import build_highres_coords, build_lowres_coords, build_pooler
 
 if TYPE_CHECKING:
+    from isaaclab.utils.warp import ProxyArray
+
     from .foveated_camera_cfg import FoveatedCameraCfg
 
 logger = logging.getLogger(__name__)
@@ -72,7 +74,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                 " gaze. Disable async_rendering or mask_to_sensor_fov."
             )
         # The parent ``Camera`` allocates the renderer-bound texture buffers; the published ones follow from them.
-        self._texture_output: dict[str, torch.Tensor] = {}
+        self._texture_output: dict[str, ProxyArray] = {}
         self._foveated_output: dict[str, torch.Tensor] = {}
         self._pooled_output: dict[str, torch.Tensor] | None = None
         # The projection sets the texture size on the configuration before the parent allocates for it; the caller's
@@ -244,13 +246,20 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def _initialize_impl(self) -> None:
         tw, th = self._texture_width, self._texture_height
-        prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
-        # OVRTX's lookup-table range is measured from each camera's near-clipped ray origin.
-        near_clips = [self._near_clipping_distance(prim) for prim in prims]
+        # OVRTX measures distance_to_camera from each camera's near-clipped ray origin, so it needs the near clips.
+        self._offset_distance = (
+            self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in self.cfg.data_types
+        )
+        near_clips = None
+        if self._offset_distance:
+            prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
+            near_clips = [self._near_clipping_distance(prim) for prim in prims]
 
         super()._initialize_impl()
 
-        self._near_clip = torch.tensor(near_clips, dtype=torch.float32, device=self._device).view(-1, 1, 1, 1)
+        self._near_clip = None
+        if near_clips is not None:
+            self._near_clip = torch.tensor(near_clips, dtype=torch.float32, device=self._device).view(-1, 1, 1, 1)
 
         # OVRTX owns its runtime; Kit extensions belong only to Isaac RTX.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
@@ -277,8 +286,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         textures = {name: tex.torch for name, tex in self._texture_output.items()}
         # A native grid texture already holds the samples in order, so one kernel per output masks it and lays it
         # out. OVRTX's camera distance needs its near-plane offset first, and keeps the step-by-step path.
-        offset_distance = self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in textures
-        fused = self._native_grid and self._pooler is None and not offset_distance
+        fused = self._native_grid and self._pooler is None and not self._offset_distance
         if fused:
             count = self._num_ray_samples
             samples = {name: tex.reshape(tex.shape[0], count, tex.shape[-1]) for name, tex in textures.items()}
@@ -390,7 +398,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         """Extract the updated environments' per-sample values from the rendered 2D textures into the (B, N, 1, C)
         buffers; the other environments keep their last samples."""
         updated = wp.to_torch(env_mask)[:, None, None, None]
-        offset_distance = self.cfg.renderer_cfg.renderer_type == "ovrtx"
         for name in self._texture_output:
             if name == "rgb" and "rgba" in self._texture_output:
                 continue  # rgba alias
@@ -401,7 +408,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                 samples = tensor.reshape_as(fov)
             else:
                 samples = tensor[:, self._extract_py, self._extract_px, :].unsqueeze(2)
-            if offset_distance and name == "distance_to_camera":
+            if self._offset_distance and name == "distance_to_camera":
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip.to(samples.dtype)
             fov.copy_(torch.where(updated, samples, fov))

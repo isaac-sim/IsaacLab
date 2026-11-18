@@ -53,7 +53,7 @@ class FoveatedCameraCfg(CameraCfg):
 
     class_type: type[FoveatedCamera] | str = "{DIR}.foveated_camera:FoveatedCamera"
 
-    # -- Foveation parameters (no img_height/img_width/fixation_size) --------
+    # -- Foveation parameters ------------------------------------------------
 
     cmf_a_deg: float = 0.591
     """Cortical magnification constant *a* of ``M(e) = 1 / (e + a)`` [deg].
@@ -91,10 +91,16 @@ class FoveatedCameraCfg(CameraCfg):
     the same ray."""
 
     fov_type: str = "circular"
-    """Visual footprint; circular is the default for native warped grids."""
+    """Region of the visual field the retina covers: ``"circular"``, ``"square"`` or ``"wang"``.
+
+    Passed to :class:`fovi.sensing.coords.SamplingCoords`; see the `fovi documentation
+    <https://nblauch.github.io/fovi/docs/>`__."""
 
     radius_norm: float = 2.0
-    """Warped-Cartesian shell norm: 2.0 for circular shells, infinity for square shells."""
+    """Norm of the warped-Cartesian sampling shells: 2.0 for circular shells, infinity for square ones.
+
+    Passed to :class:`fovi.sensing.coords.SamplingCoords`; see the `fovi documentation
+    <https://nblauch.github.io/fovi/docs/>`__."""
 
     isotropic_plotting_type: str = "v1like"
     """Plotting-space mapping passed to :class:`SamplingCoords` for isotropic

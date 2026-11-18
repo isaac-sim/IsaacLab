@@ -5,13 +5,13 @@
 
 """Dual-grid geometry and modality-specific pooling without a simulator."""
 
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 
 import pytest
 import torch
 from fovi.arch.knn import KNNPoolingLayer
 from fovi.arch.pooling import GridPoolingLayer
-from isaaclab_fovi.sensors import pooling
+from isaaclab_fovi.sensors import FoveatedCameraCfg, pooling
 from isaaclab_fovi.sensors.pooling import (
     build_highres_coords,
     build_lowres_coords,
@@ -27,31 +27,27 @@ from isaaclab.test.utils import DeviceScope, test_devices
 pytestmark = pytest.mark.kitless
 
 
-@dataclass
-class SamplingConfig:
-    """Sampling fields consumed by the shared pooling helpers."""
+def pooling_cfg(**overrides) -> FoveatedCameraCfg:
+    """A pooled foveated camera configuration for the pooling helpers, with ``overrides`` applied.
 
-    # A 90 degree pinhole window (focal length 1, aperture 2) with a CMF constant of a tenth of it.
-    cmf_a_deg: float = 9.0
-    spawn: PinholeCameraCfg = field(default_factory=lambda: PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0))
-    camera_model: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
-    retinal_window_reference_side: str = "short"
-    retinal_window_fraction: float = 1.0
-    foveated_res: int = 8
-    foveated_style: str = "isotropic"
-    fov_type: str = "circular"
-    radius_norm: float = 2.0
-    isotropic_plotting_type: str = "v1like"
-    pool_enabled: bool = True
-    pool_res_mult: float = 2.0
-    pool_k: int | None = 3
-    pool_mode: str = "avg"
-    pool_sample_cortex: bool = False
-    pool_gauss_sigma: float = 10.0
+    A 90 degree pinhole window (focal length 1, aperture 2) with a CMF constant of a tenth of it, and a small isotropic
+    retina pooled from three visual-field neighbours.
+    """
+    values = dict(
+        prim_path="/World/Camera",
+        spawn=PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0),
+        cmf_a_deg=9.0,
+        foveated_res=8,
+        foveated_style="isotropic",
+        pool_enabled=True,
+        pool_k=3,
+        pool_sample_cortex=False,
+    )
+    return FoveatedCameraCfg(**{**values, **overrides})
 
 
 def test_dual_grid_preserves_constant_channels_and_batch_order() -> None:
-    cfg = SamplingConfig()
+    cfg = pooling_cfg()
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
     assert highres is not None
@@ -93,7 +89,7 @@ def reference_pool(pooler: KNNPoolingLayer, values: torch.Tensor, mode: str, sig
 def test_pooling_mode_reduces_each_neighbourhood(mode: str) -> None:
     # A narrow Gaussian weights the nearest of the three neighbours well above the farthest, so it differs from avg.
     sigma = 0.5
-    cfg = SamplingConfig(pool_mode=mode, pool_gauss_sigma=sigma)
+    cfg = pooling_cfg(pool_mode=mode, pool_gauss_sigma=sigma)
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
     pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
@@ -109,7 +105,7 @@ def test_pooling_mode_reduces_each_neighbourhood(mode: str) -> None:
 
 
 def test_disabled_pooling_uses_only_output_grid() -> None:
-    cfg = SamplingConfig(pool_enabled=False)
+    cfg = pooling_cfg(pool_enabled=False)
     lowres, matched = build_lowres_coords(cfg, "cpu")
     assert build_highres_coords(cfg, matched, "cpu") is None
     assert build_pooler(cfg, lowres, None, "cpu") == (None, None)
@@ -189,7 +185,7 @@ def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Ten
     ],
 )
 def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex: bool) -> None:
-    cfg = SamplingConfig(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
+    cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
     fovi_max, k = build_pooler(replace(cfg, pool_mode="max"), lowres, highres, "cpu")
@@ -214,7 +210,7 @@ def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k:
 
 @pytest.mark.parametrize("device", DEVICES)
 def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
-    cfg = SamplingConfig()
+    cfg = pooling_cfg()
     lowres, matched = build_lowres_coords(cfg, device)
     highres = build_highres_coords(cfg, matched, device)
     table = segmentation_neighbor_indices(build_pooler(cfg, lowres, highres, device)[0])
@@ -235,7 +231,7 @@ def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
     ],
 )
 def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, style, sample_cortex) -> None:
-    cfg = SamplingConfig(
+    cfg = pooling_cfg(
         foveated_style=style,
         pool_mode=mode,
         pool_sample_cortex=sample_cortex,
@@ -262,7 +258,7 @@ def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, style, sample
     ],
 )
 def test_native_grid_default_kernel_matches_deployment(style: str, expected: type) -> None:
-    cfg = SamplingConfig(
+    cfg = pooling_cfg(
         foveated_style=style,
         pool_k=None,
         pool_sample_cortex=True,

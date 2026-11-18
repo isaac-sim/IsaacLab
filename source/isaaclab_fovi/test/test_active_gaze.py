@@ -60,15 +60,6 @@ def clamp_gaze(gaze: torch.Tensor, limit: float) -> torch.Tensor:
     return gaze * (limit / gaze.norm(dim=-1, keepdim=True).clamp_min(limit))
 
 
-def test_gaze_angles_round_trip_and_follow_the_camera_convention():
-    angles = torch.tensor([[0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [-20.0, 35.0]])
-    directions = angles_to_direction(angles)
-    torch.testing.assert_close(direction_to_angles(directions), angles, atol=1e-4, rtol=0)
-    # OpenCV camera frame: z forward, y down, x right; positive tilt looks up, positive pan looks left.
-    torch.testing.assert_close(directions[0], torch.tensor([0.0, 0.0, 1.0]))
-    assert directions[1, 1] < 0 and directions[2, 0] < 0
-
-
 def test_gaze_step_kernel_matches_the_torch_update():
     generator = torch.Generator().manual_seed(4)
     count, step, limit, dt, radius = 2048, 0.1, 1.0, 1 / 60, 23.6

@@ -19,14 +19,6 @@ IDEAL_IMAGE_WIDTH = 1024
 The scale is arbitrary: the retinal window and the gaze are angles, so neither depends on it."""
 
 
-class SamplingGeometryConfig(Protocol):
-    camera_model: CameraCalibration | None
-    cmf_a_deg: float
-    retinal_window_reference_side: str
-    retinal_window_fraction: float
-    spawn: Any
-
-
 def camera_model_from_spawn(spawn: Any) -> CameraCalibration:
     """Describe the camera that the spawn configuration creates as :class:`CameraModel` fields.
 
@@ -116,3 +108,13 @@ def compose_rotations(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
     training process enables reduced-precision matrix multiplication.
     """
     return (left[..., :, :, None] * right[..., None, :, :]).sum(dim=-2)
+
+
+class SamplingGeometryConfig(Protocol):
+    """The configuration fields that place the retina in the physical camera."""
+
+    camera_model: CameraCalibration | None
+    cmf_a_deg: float
+    retinal_window_reference_side: str
+    retinal_window_fraction: float
+    spawn: Any

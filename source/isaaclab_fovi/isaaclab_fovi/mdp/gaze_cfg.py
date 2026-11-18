@@ -32,7 +32,8 @@ class GazeActionCfg(ActionTermCfg):
     random_reset: bool = False
     """Start episodes at a random gaze the camera sees; otherwise on the optical axis."""
     mount: str = "fixed"
-    """``"fixed"``: the camera keeps the orientation it has when the action is created, and turning its mount raises.
+    """``"fixed"``: the teacher aims from the orientation the camera has when the action is created, and raises if the
+    mount turns later. The gaze itself always moves relative to the camera's current mount.
     ``"tracked"``: the camera may ride a moving body, and the teacher follows each camera's current mount, so the gaze
     adds to hardware gaze such as a turning head. Tracking needs a camera whose pose update turns the gaze (Newton or
     OVRTX)."""
