@@ -122,11 +122,16 @@ def _ground_distance_along_gaze(tilt_deg: float, pan_deg: float, eye=CAM_EYE, ta
 
 
 def _render(
-    backend: str, gaze: torch.Tensor, moved_mount: tuple | None = None, **camera_overrides
+    backend: str,
+    gaze: torch.Tensor,
+    moved_mount: tuple | None = None,
+    later_gaze: torch.Tensor | None = None,
+    **camera_overrides,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
 
     With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set.
+    With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders again.
 
     Returns:
         The distance images [m], shape (num_envs, H, W), and the visual-field position of each grid
@@ -156,6 +161,11 @@ def _render(
         for _ in range(WARMUP_STEPS):
             sim.step()
             camera.update(sim.get_physics_dt(), force_recompute=True)
+        if later_gaze is not None:
+            camera.set_gaze_angles(later_gaze.to(sim.device))
+            for _ in range(WARMUP_STEPS):
+                sim.step()
+                camera.update(sim.get_physics_dt(), force_recompute=True)
         distance = camera.data.output["distance_to_camera"].torch[..., 0].detach().cpu().float().clone()
         coords = camera.sampling_coords
         field = coords.as_grid(coords.cartesian, sample_dim=0).detach().cpu().float().clone()
@@ -194,6 +204,17 @@ def test_foveated_camera_follows_gaze(backend, source):
 
     # Looking right moves part of the retina past the edge of the physical camera, and those samples are zeroed.
     assert (distance[1] == 0).sum() > (distance[0] == 0).sum()
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_gaze_change_reaches_the_next_frame(backend):
+    """A gaze set after the camera has rendered moves the retina, as a gaze action does every step."""
+    later = torch.tensor([[0.0, -16.0], [8.0, 10.0]])
+    distance, field = _render(backend, torch.zeros(2, 2), later_gaze=later)
+
+    row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
+    for env, (tilt, pan) in enumerate(later.tolist()):
+        assert float(distance[env, row, column]) == pytest.approx(_ground_distance_along_gaze(tilt, pan), rel=0.01)
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
