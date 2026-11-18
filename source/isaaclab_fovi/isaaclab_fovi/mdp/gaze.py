@@ -108,21 +108,66 @@ def teacher_labels_kernel(
     gaze_limit: wp.float32,
     camera: CameraParams,
     labels: wp.array2d(dtype=wp.float32),
-    sums: wp.array(dtype=wp.float32),
+    log: wp.array(dtype=wp.float32),
 ):
-    """Labels (action x, action y, valid) toward a point fixed to each target, and the error and count sums of valid
-    targets."""
-    i = wp.tid()
-    point = targets[i]
-    if rotate_offset != 0:
-        point = point + wp.quat_rotate(orientations[i], offset)
-    result = teach(point, positions[i], mount, gaze[i], field_radius_deg, step_size, gaze_limit, camera)
-    labels[i, 0] = result[0]
-    labels[i, 1] = result[1]
-    labels[i, 2] = result[2]
-    if result[2] > 0.5:
-        wp.atomic_add(sums, 0, result[3])
-        wp.atomic_add(sums, 1, 1.0)
+    """Labels (action x, action y, valid) toward a point fixed to each target; and the mean gaze error to valid
+    targets [deg] with the fraction of valid targets.
+
+    One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
+    """
+    _block, lane = wp.tid()
+    count = targets.shape[0]
+    error_sum = wp.float32(0.0)
+    valid_count = wp.float32(0.0)
+    i = lane
+    while i < count:
+        point = targets[i]
+        if rotate_offset != 0:
+            point = point + wp.quat_rotate(orientations[i], offset)
+        result = teach(point, positions[i], mount, gaze[i], field_radius_deg, step_size, gaze_limit, camera)
+        labels[i, 0] = result[0]
+        labels[i, 1] = result[1]
+        labels[i, 2] = result[2]
+        if result[2] > 0.5:
+            error_sum += result[3]
+            valid_count += 1.0
+        i += wp.block_dim()
+    errors = wp.tile_sum(wp.tile(error_sum))
+    valid = wp.tile_sum(wp.tile(valid_count))
+    if lane == 0:
+        log[0] = errors[0] / wp.max(valid[0], 1.0)
+        log[1] = valid[0] / wp.float32(count)
+
+
+def teacher_block_dim(device: torch.device | str) -> int:
+    """Threads of the one block that runs :func:`teacher_labels_kernel`; Warp runs CPU blocks as one thread."""
+    return 1024 if torch.device(device).type == "cuda" else 1
+
+
+@wp.kernel(enable_backward=False)
+def gaze_reset_kernel(
+    ids: wp.array(dtype=wp.int32),
+    use_ids: wp.int32,
+    start: wp.array(dtype=wp.vec2f),
+    use_start: wp.int32,
+    field_radius_deg: wp.float32,
+    gaze: wp.array(dtype=wp.vec2f),
+    velocity: wp.array(dtype=wp.vec2f),
+    angles_deg: wp.array(dtype=wp.vec2f),
+    state: wp.array(dtype=wp.vec4f),
+):
+    """Put each reset environment's gaze at its start, or on the optical axis, at rest."""
+    k = wp.tid()
+    i = k
+    if use_ids != 0:
+        i = ids[k]
+    g = wp.vec2f(0.0, 0.0)
+    if use_start != 0:
+        g = start[k]
+    gaze[i] = g
+    velocity[i] = wp.vec2f(0.0, 0.0)
+    angles_deg[i] = g * field_radius_deg
+    state[i] = wp.vec4f(g[0], g[1], 0.0, 0.0)
 
 
 @wp.kernel(enable_backward=False)
@@ -208,24 +253,44 @@ class GazeAction(ActionTerm):
         """Orientation (x, y, z, w) of the physical camera in the environment frame, ROS convention."""
         self._mount = wp.quatf(*self.mount_rotation.tolist())
         self._raw = torch.zeros(self.num_envs, 2, device=self.device)
+        """Gaze actions of the last step; once bound, a view of the action manager's buffer."""
         self._gaze = torch.zeros_like(self._raw)
         self._velocity = torch.zeros_like(self._raw)
-        self._angles = torch.zeros_like(self._raw)
-        """Gaze angles [deg] of the last step, the buffer the camera reads."""
+        self._angles = None
+        """Gaze angles [deg] of the last step; the camera's own buffer, bound on first use."""
         self._state = torch.zeros(self.num_envs, 4, device=self.device)
         """Gaze and its velocity, the gaze observation."""
-        self._raw_wp, self._gaze_wp, self._velocity_wp, self._angles_wp = (
-            wp.from_torch(buffer, dtype=wp.vec2f) for buffer in (self._raw, self._gaze, self._velocity, self._angles)
-        )
+        self._gaze_wp, self._velocity_wp = (wp.from_torch(b, dtype=wp.vec2f) for b in (self._gaze, self._velocity))
+        self._state_wp = wp.from_torch(self._state, dtype=wp.vec4f)
+        self._step_launch = None
+        self._labels = torch.zeros(self.num_envs, 3, device=self.device)
+        self._log = torch.zeros(2, device=self.device)
+        """Mean gaze error to valid teacher targets [deg] and the fraction of valid targets."""
+        self._no_orientations = wp.from_torch(torch.zeros(1, 4, device=self.device), dtype=wp.quatf)
+        self._labels_launch = None
+        # Each reset copies its environments, and their start gazes if random, into these and replays one launch.
+        self._reset_ids = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
+        self._reset_start = torch.zeros(self.num_envs, 2, device=self.device)
+        self._reset_launches: dict[tuple[bool, bool], wp.Launch] = {}
+
+    def _bind(self) -> None:
+        """Read actions from the action manager's buffer and write angles into the camera's, saving a copy each."""
+        manager = self._env.action_manager
+        terms = [manager.get_term(name) for name in manager.active_terms]
+        start = sum(manager.action_term_dim[: terms.index(self)])
+        # The manager stores each step's actions before handing this term its slice, so the values are the same.
+        self._raw = manager.action[:, start : start + self.action_dim]
+        self._angles = self.camera.gaze_angles_buffer()
+        self._angles_wp = wp.from_torch(self._angles, dtype=wp.vec2f)
         self._step_launch = record_launch(
             gaze_step_kernel,
             self.num_envs,
             [
-                self._raw_wp,
+                wp.from_torch(self._raw, dtype=wp.vec2f),
                 self._gaze_wp,
                 self._velocity_wp,
                 self._angles_wp,
-                wp.from_torch(self._state, dtype=wp.vec4f),
+                self._state_wp,
                 self.cfg.step_size,
                 self.cfg.gaze_limit,
                 self._env.step_dt,
@@ -233,11 +298,6 @@ class GazeAction(ActionTerm):
             ],
             device=self.device,
         )
-        self._labels = torch.zeros(self.num_envs, 3, device=self.device)
-        self._label_sums = torch.zeros(2, device=self.device)
-        self._label_sums_wp = wp.from_torch(self._label_sums)
-        self._no_orientations = wp.from_torch(torch.zeros(1, 4, device=self.device), dtype=wp.quatf)
-        self._labels_launch = None
 
     @property
     def action_dim(self) -> int:
@@ -272,7 +332,9 @@ class GazeAction(ActionTerm):
         return self._gaze * self.field_radius_deg
 
     def process_actions(self, actions: torch.Tensor):
-        self._raw.copy_(actions)
+        """Move the gaze by this step's actions, which the term reads from the action manager's buffer."""
+        if self._step_launch is None:
+            self._bind()
         self._step_launch.launch(warp_stream(self.device))
         self.camera.set_gaze_angles(self._angles)
 
@@ -280,17 +342,41 @@ class GazeAction(ActionTerm):
         pass
 
     def reset(self, env_ids=None):
-        ids = torch.arange(self.num_envs, device=self.device)[slice(None) if env_ids is None else env_ids]
-        self._raw[ids] = 0.0
-        self._velocity[ids] = 0.0
-        self._gaze[ids] = 0.0
-        if self.cfg.random_reset and len(ids):
-            gaze = random_gaze(len(ids), self.cfg.gaze_limit, self.device)
+        # The action manager zeroes the reset environments' actions itself.
+        if self._step_launch is None:
+            self._bind()
+        indexed = env_ids is not None
+        count = self.num_envs
+        if indexed:
+            if isinstance(env_ids, slice):
+                env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
+            count = len(env_ids)
+            if count == 0:
+                return
+            self._reset_ids[:count] = torch.as_tensor(env_ids, device=self.device)
+        random_start = self.cfg.random_reset
+        if random_start:
+            gaze = random_gaze(count, self.cfg.gaze_limit, self.device)
             visible = self.visible(angles_to_direction(gaze * self.field_radius_deg))
-            self._gaze[ids] = torch.where(visible[:, None], gaze, 0.0)
+            self._reset_start[:count] = torch.where(visible[:, None], gaze, 0.0)
+        launch = self._reset_launches.get((indexed, random_start))
+        if launch is None:
+            launch = self._reset_launches[(indexed, random_start)] = record_launch(
+                gaze_reset_kernel,
+                self.num_envs,
+                [
+                    wp.from_torch(self._reset_ids),
+                    int(indexed),
+                    wp.from_torch(self._reset_start, dtype=wp.vec2f),
+                    int(random_start),
+                    self.field_radius_deg,
+                ],
+                [self._gaze_wp, self._velocity_wp, self._angles_wp, self._state_wp],
+                self.device,
+            )
+        launch.set_dim(count)
+        launch.launch(warp_stream(self.device))
         # The camera keeps reading the same buffer, which every other environment already holds.
-        self._angles[ids] = self._gaze[ids] * self.field_radius_deg
-        self._state[ids] = torch.cat((self._gaze[ids], self._velocity[ids]), dim=-1)
         self.camera.set_gaze_angles(self._angles)
 
     def directions(self, points: torch.Tensor) -> torch.Tensor:
@@ -346,15 +432,16 @@ class GazeAction(ActionTerm):
             offset: The point in each target's frame [m].
 
         Returns:
-            The labels (action x, action y, valid), shape (num_envs, 3); and the sum of the gaze's errors to valid
-            targets [deg] with their count, shape (2,). Both are buffers the next call overwrites.
+            The labels (action x, action y, valid), shape (num_envs, 3); and the mean gaze error to valid targets
+            [deg] with the fraction of valid targets, shape (2,). Both are buffers the next call overwrites.
         """
         positions = self.camera.data.pos_w.warp
         sources = (targets, orientations, positions, offset)
         if self._labels_launch is None or any(a is not b for a, b in zip(self._labels_launch[0], sources)):
+            block = teacher_block_dim(self.device)
             launch = record_launch(
                 teacher_labels_kernel,
-                self.num_envs,
+                (1, block),
                 [
                     targets,
                     self._no_orientations if orientations is None else orientations,
@@ -368,13 +455,13 @@ class GazeAction(ActionTerm):
                     self.cfg.gaze_limit,
                     self._camera,
                 ],
-                [wp.from_torch(self._labels), self._label_sums_wp],
+                [wp.from_torch(self._labels), wp.from_torch(self._log)],
                 self.device,
+                block_dim=block,
             )
             self._labels_launch = (sources, launch)
-        self._label_sums.zero_()
         self._labels_launch[1].launch(warp_stream(self.device))
-        return self._labels, self._label_sums
+        return self._labels, self._log
 
 
 @configclass
@@ -426,16 +513,18 @@ def teacher_labels(env: ManagerBasedEnv, points: torch.Tensor, action_name: str 
     the object is grasped, choose the points and call this.
     """
     term: GazeAction = env.action_manager.get_term(action_name)
-    labels, sums = term._teacher_labels(wp.from_torch(points.float().contiguous(), dtype=wp.vec3f))
-    _log_teacher(env, sums, len(labels))
+    labels, values = term._teacher_labels(wp.from_torch(points.float().contiguous(), dtype=wp.vec3f))
+    _log_teacher(env, values)
     return labels
 
 
-def _log_teacher(env: ManagerBasedEnv, sums: torch.Tensor, count: int) -> None:
+def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
     """Log the mean gaze error to valid targets and the fraction of valid targets."""
+    # Loggers keep each step's entries, so they get a copy rather than the buffer the next step overwrites.
+    error, fraction = values.clone()
     log = env.extras.setdefault("log", {})
-    log["Gaze/target_error_deg"] = sums[0] / sums[1].clamp_min(1)
-    log["Gaze/valid_target_fraction"] = sums[1] / count
+    log["Gaze/target_error_deg"] = error
+    log["Gaze/valid_target_fraction"] = fraction
 
 
 class gaze_teacher_labels(ManagerTermBase):
@@ -475,8 +564,8 @@ class gaze_teacher_labels(ManagerTermBase):
                 self._targets = wp.from_torch(positions.torch[:, body], dtype=wp.vec3f)
                 self._orientations = wp.from_torch(orientations.torch[:, body], dtype=wp.quatf)
         term: GazeAction = env.action_manager.get_term(action_name)
-        labels, sums = term._teacher_labels(self._targets, self._orientations, self._offset)
-        _log_teacher(env, sums, len(labels))
+        labels, values = term._teacher_labels(self._targets, self._orientations, self._offset)
+        _log_teacher(env, values)
         return labels
 
 

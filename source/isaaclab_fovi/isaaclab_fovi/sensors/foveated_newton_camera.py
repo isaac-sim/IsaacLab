@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -76,8 +76,11 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     cfg: FoveatedCameraCfg
 
+    _gaze_pose_reads_angles: ClassVar[bool] = True
+
     def __init__(self, cfg: FoveatedCameraCfg):
-        self._gaze_rotation = None
+        # The parent's initialisation updates poses before the gaze exists.
+        self._gaze_angles = self._gaze_rotation = None
         super().__init__(cfg)
 
     # ------------------------------------------------------------------
@@ -350,28 +353,30 @@ class FoveatedNewtonCamera(FoveatedCamera):
         env_mask: wp.array | None = None,
         frame_op: int = 0,
     ) -> None:
-        """Read base poses, apply the gaze, update renderer, inject rays.
+        """Read base poses, turn them by the gaze, update the renderer once, and inject the foveated rays.
 
         The scene pose is read even without a gaze: the camera may inherit
         motion from a parent body.
         """
-        # 1. Read base camera poses, then rotate them by the gaze if one is set.
+        # The base update turns the poses by the gaze in _update_camera_state, then hands them to the renderer.
         Camera._update_poses(self, env_ids, env_mask=env_mask, frame_op=frame_op)
-        self._apply_gaze_pose(env_ids, env_mask)
-
-        # 2. Update camera_transforms
-        # The renderer maintains persistent transform buffers and updates
-        # them in place after the pose changes.
-        self._renderer.update_camera(
-            self._render_data,
-            self._data.pos_w,
-            self._data.quat_w_world,
-            self._data.intrinsic_matrices,
-        )
-
-        # 3. Ensure foveated rays (not pinhole)
+        # Ensure foveated rays (not pinhole)
         if hasattr(self, "_foveated_rays"):
             self._render_data.camera_rays = self._foveated_rays
+
+    def _update_camera_state(
+        self,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        pos_src: wp.array | None = None,
+        quat_src: wp.array | None = None,
+        update_pose: bool = False,
+        frame_op: int = 0,
+    ):
+        """Update the camera state, then turn freshly read poses by the gaze before the renderer sees them."""
+        super()._update_camera_state(env_ids, env_mask, pos_src, quat_src, update_pose, frame_op)
+        if update_pose:
+            self._apply_gaze_pose(env_ids, env_mask)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Render, then (optionally) pool highres -> lowres foveated samples."""
