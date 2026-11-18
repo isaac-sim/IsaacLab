@@ -20,6 +20,13 @@ if TYPE_CHECKING:
     from .foveated_camera import FoveatedCamera
 
 
+POOL_MODES = ("avg", "gaussian", "max", "sum")
+"""fovi pooling modes for the outputs other than segmentation."""
+
+SEGMENTATION_POOL_MODES = ("modal",)
+"""Pooling modes for segmentation outputs: the modal label only."""
+
+
 def validate_radius_norm(radius_norm: float, style: str, fov_type: str) -> None:
     """Reject warped-grid radius norms that fovi cannot sample, before renderer startup."""
     if radius_norm not in RADIUS_NORMS:
@@ -78,7 +85,10 @@ class FoveatedCameraCfg(CameraCfg):
 
     The default ``"warped_cartesian_as_grid"`` publishes an upright image of
     shape ``(B, H, W, C)``. Sample-set styles such as ``"isotropic"`` are an
-    advanced option and publish ``(B, N, 1, C)``."""
+    advanced option and publish ``(B, N, 1, C)``. Newton renders their rays
+    directly; on RTX they are experimental: the lens lookup places the samples on
+    a cortical disc texture, where crowded samples can share a texel and so read
+    the same ray."""
 
     fov_type: str = "circular"
     """Visual footprint; circular is the default for native warped grids."""
@@ -101,7 +111,7 @@ class FoveatedCameraCfg(CameraCfg):
     mask_to_sensor_fov: bool = False
     """Zero the samples that fall outside the physical camera's image at the current gaze."""
 
-    retinal_window_short_side_fraction: float = 1.0
+    retinal_window_fraction: float = 1.0
     """Diameter of the retinal window as a fraction of the reference image side."""
 
     retinal_window_reference_side: str = "short"
@@ -130,7 +140,8 @@ class FoveatedCameraCfg(CameraCfg):
     uses the rounded sample-count ratio."""
 
     pool_mode: str = "avg"
-    """Retinal pooling mode: ``"avg"``, ``"gaussian"``, ``"max"`` or ``"sum"``."""
+    """Pooling of every output except segmentation: ``"avg"``, ``"gaussian"``, ``"max"`` or ``"sum"``.
+    Segmentation pools with :attr:`pool_int_mode`."""
 
     pool_sample_cortex: bool | str = "geodesic"
     """Space in which KNN neighbours are selected.  ``True`` = Euclidean on
@@ -140,18 +151,14 @@ class FoveatedCameraCfg(CameraCfg):
     pool_gauss_sigma: float = 10.0
     """Gaussian sigma for ``pool_mode="gaussian"``.  Unused otherwise."""
 
-    pool_int_mode: str = "mode"
-    """Pool mode used for outputs whose key name contains ``"segmentation"``
-    (``semantic_segmentation``, ``instance_segmentation_fast``,
-    ``instance_id_segmentation_fast``).
+    pool_int_mode: str = "modal"
+    """Pooling of segmentation outputs: any output whose name contains ``"segmentation"``, i.e. semantic (class),
+    instance and instance-ID segmentation, as integer IDs or colorized RGBA. Only ``"modal"`` is supported.
 
-    The default ``"mode"`` gives each pooled sample the most common full value
-    (ID or colorized RGBA vector) among its pooling neighbours, in the output's
-    native dtype; ties go to the neighbour nearest the pooled sample.  Every
-    pooled value therefore belongs to a rendered object.  The fovi modes
-    (``"max"``, ``"avg"``, ``"sum"``, ``"gaussian"``) pool through float32
-    instead, which mixes colorized channels and corrupts IDs above ``2**24``.
-    Set equal to ``pool_mode`` to pool segmentation like the other outputs."""
+    ``"modal"`` gives each pooled sample the most common full value among its pooling neighbours, in the output's
+    dtype, and ties go to the neighbour nearest the pooled sample, so every pooled value is a label a rendered object
+    has. The ``pool_mode`` options (``"avg"``, ``"gaussian"``, ``"max"``, ``"sum"``) would mix labels into ones no
+    object has, and corrupt IDs above ``2**24`` in float32, so they are rejected."""
 
     # -- RTX-specific parameters (ignored by Newton backend) ----------------
 
@@ -162,9 +169,8 @@ class FoveatedCameraCfg(CameraCfg):
     sufficient angular resolution to distinguish individual foveated samples.
     Ignored by Newton backend."""
 
-    # height / width are set automatically in _initialize_impl before the
-    # parent allocates buffers.  We default them to 1 here so the MISSING
-    # sentinel from CameraCfg is satisfied at config-validation time.
+    # The camera sets height and width on its own copy of the configuration, from the retina's samples, before the
+    # parent allocates buffers. The defaults only satisfy CameraCfg's required fields.
     width: int = 1
     height: int = 1
 
@@ -175,3 +181,12 @@ class FoveatedCameraCfg(CameraCfg):
         # Resolves the default renderer and forwards deprecated renderer fields.
         super().__post_init__()
         validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
+        if self.pool_mode not in POOL_MODES:
+            raise ValueError(
+                f"pool_mode must be one of {POOL_MODES}, got {self.pool_mode!r}; segmentation pools with pool_int_mode."
+            )
+        if self.pool_int_mode not in SEGMENTATION_POOL_MODES:
+            raise ValueError(
+                f"pool_int_mode must be one of {SEGMENTATION_POOL_MODES}, got {self.pool_int_mode!r}: segmentation"
+                " pools by modal label, since other modes would mix labels into ones no object has."
+            )

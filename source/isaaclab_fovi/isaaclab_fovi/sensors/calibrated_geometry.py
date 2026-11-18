@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 import torch
 from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
@@ -23,7 +23,7 @@ class SamplingGeometryConfig(Protocol):
     camera_model: CameraCalibration | None
     cmf_a_deg: float
     retinal_window_reference_side: str
-    retinal_window_short_side_fraction: float
+    retinal_window_fraction: float
     spawn: Any
 
 
@@ -96,9 +96,7 @@ def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
     The field of view is the angular span of the retinal window in the physical
     camera. Both values are in the units :class:`fovi.sensing.coords.SamplingCoords` takes.
     """
-    fov = resolve_camera_model(cfg).field_of_view(
-        cfg.retinal_window_reference_side, cfg.retinal_window_short_side_fraction
-    )
+    fov = resolve_camera_model(cfg).field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_fraction)
     return fov, cfg.cmf_a_deg
 
 
@@ -118,36 +116,3 @@ def compose_rotations(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
     training process enables reduced-precision matrix multiplication.
     """
     return (left[..., :, :, None] * right[..., None, :, :]).sum(dim=-2)
-
-
-def convert_camera_frame_quaternion(
-    orientation: torch.Tensor,
-    *,
-    origin: Literal["world", "opengl"],
-    target: Literal["world", "opengl", "ros"],
-) -> torch.Tensor:
-    """Convert world/OpenGL or OpenGL/ROS poses without a matrix round trip.
-
-    Args:
-        orientation: Camera quaternions in XYZW order, shape (..., 4).
-        origin: Input camera-frame convention.
-        target: Opposite world/OpenGL convention, or ROS for OpenGL input.
-
-    Returns:
-        Normalized float32 quaternions, shape (..., 4). Quaternion sign may change.
-    """
-    quat = orientation.float()
-    quat = quat / quat.norm(dim=-1, keepdim=True)
-    x, y, z, w = quat.unbind(-1)
-    # Right multiplication by exact fixed-basis quaternions, without allocating
-    # device constants or making the matrix round-trip sensitive to AMP/TF32.
-    if origin == "world" and target == "opengl":
-        components = (w + x - y + z, -w + x + y + z, -w - x - y + z, w - x + y + z)
-    elif origin == "opengl" and target == "world":
-        components = (-w + x + y - z, w - x + y - z, w + x + y + z, w + x - y - z)
-    elif origin == "opengl" and target == "ros":
-        # ROS flips the OpenGL Y/Z axes: right-multiply by a half-turn about X.
-        return torch.stack((w, z, -y, -x), dim=-1)
-    else:
-        raise ValueError(f"Unsupported camera conversion: {origin!r} to {target!r}")
-    return torch.stack(components, dim=-1) * 0.5

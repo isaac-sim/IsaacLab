@@ -5,7 +5,7 @@
 
 """Dual-grid geometry and modality-specific pooling without a simulator."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import pytest
 import torch
@@ -36,7 +36,7 @@ class SamplingConfig:
     spawn: PinholeCameraCfg = field(default_factory=lambda: PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0))
     camera_model: dict[str, str | tuple[int, int] | tuple[float, ...]] | None = None
     retinal_window_reference_side: str = "short"
-    retinal_window_short_side_fraction: float = 1.0
+    retinal_window_fraction: float = 1.0
     foveated_res: int = 8
     foveated_style: str = "isotropic"
     fov_type: str = "circular"
@@ -192,7 +192,7 @@ def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k:
     cfg = SamplingConfig(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
     lowres, matched = build_lowres_coords(cfg, "cpu")
     highres = build_highres_coords(cfg, matched, "cpu")
-    fovi_max, k = build_pooler(cfg, lowres, highres, "cpu", mode="max")
+    fovi_max, k = build_pooler(replace(cfg, pool_mode="max"), lowres, highres, "cpu")
     # The camera takes the table from its standard pooler, whatever that pooler's mode.
     standard, _ = build_pooler(cfg, lowres, highres, "cpu")
     table = segmentation_neighbor_indices(standard)
@@ -212,14 +212,6 @@ def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k:
     assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
 
 
-def test_modal_mode_builds_no_pooler_of_its_own() -> None:
-    cfg = SamplingConfig()
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
-    with pytest.raises(ValueError, match="segmentation_neighbor_indices"):
-        build_pooler(cfg, lowres, highres, "cpu", mode="mode")
-
-
 @pytest.mark.parametrize("device", DEVICES)
 def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
     cfg = SamplingConfig()
@@ -232,9 +224,17 @@ def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
 
 
 @pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])
-@pytest.mark.parametrize("sample_cortex", [False, True, "geodesic"])
-@pytest.mark.parametrize("style", ["warped_cartesian_as_grid", "warped_cartesian"])
-def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, sample_cortex, style) -> None:
+@pytest.mark.parametrize(
+    ("style", "sample_cortex"),
+    # Grid pooling takes fixed windows; only KNN pooling selects neighbours in the sample_cortex space.
+    [
+        ("warped_cartesian_as_grid", False),
+        ("warped_cartesian", False),
+        ("warped_cartesian", True),
+        ("warped_cartesian", "geodesic"),
+    ],
+)
+def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, style, sample_cortex) -> None:
     cfg = SamplingConfig(
         foveated_style=style,
         pool_mode=mode,

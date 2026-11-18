@@ -18,6 +18,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.sim import PinholeCameraCfg
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
@@ -56,7 +57,8 @@ def test_partial_capture_extracts_only_the_updated_environments(native_grid) -> 
         cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx")),
         _native_grid=native_grid,
         _near_clip=torch.tensor([0.25, 0.5, 0.75]).view(-1, 1, 1, 1),
-        _texture_output={"distance_to_camera": texture},
+        # The renderer-bound texture buffers are ProxyArrays, as the parent camera allocates them.
+        _texture_output={"distance_to_camera": ProxyArray(wp.from_torch(texture))},
         _foveated_output={"distance_to_camera": torch.full((3, len(texels), 1, 1), -1.0)},
         _extract_py=torch.tensor([py for py, _ in texels]),
         _extract_px=torch.tensor([px for _, px in texels]),

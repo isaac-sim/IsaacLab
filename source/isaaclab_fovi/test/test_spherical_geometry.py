@@ -19,6 +19,7 @@ from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 
 from isaaclab.sensors.camera.camera import Camera
+from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
@@ -26,6 +27,7 @@ from isaaclab.utils.math import (
     quat_apply,
     quat_from_matrix,
 )
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
@@ -49,7 +51,7 @@ def camera_config() -> SimpleNamespace:
         cmf_a_deg=2.5,
         spawn=None,
         retinal_window_reference_side="long",
-        retinal_window_short_side_fraction=0.75,
+        retinal_window_fraction=0.75,
         foveated_res=12,
         foveated_style="isotropic",
         fov_type="circular",
@@ -92,12 +94,55 @@ class GazeHarness(FoveatedCamera):
         self._device = device
         self._sampling_coords, _ = build_lowres_coords(self.cfg, device)
         self._sampling_coords_highres = None
-        self._data = SimpleNamespace(
-            quat_w_world=torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(count, 1),
-            pos_w=torch.zeros(count, 3, device=device),
-        )
+        # The camera's own pose buffers, at the identity orientation, with their world-to-ROS conversion.
+        self._data = CameraData()
+        self._data.create_buffers(count, device)
+        self._data.quat_w_world.torch[:, 3] = 1.0
+        # Isaac RTX's behaviour; Newton and OVRTX turn the pose by the gaze in their pose update.
+        self._gaze_pose_reads_angles = False
         self._gaze_written = False
         self._initialize_gaze()
+
+    @property
+    def orientation(self) -> torch.Tensor:
+        """The camera's world orientation (x, y, z, w), world convention, shape (count, 4)."""
+        return self._data.quat_w_world.torch
+
+    def __del__(self) -> None:
+        """The harness registers no simulator callbacks to release."""
+
+
+class PrimView:
+    """Camera prims under an unturned parent: their world poses are their local poses (x, y, z, w), OpenGL."""
+
+    def __init__(self, orientations: torch.Tensor) -> None:
+        self.count = len(orientations)
+        self.local = orientations.clone()
+
+    def get_world_poses(self, indices=None):
+        ids = slice(None) if indices is None else wp.to_torch(indices).long()
+        orientations = self.local[ids].contiguous()
+        positions = torch.zeros(len(orientations), 3)
+        return ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)), ProxyArray(
+            wp.from_torch(orientations, dtype=wp.quatf)
+        )
+
+    def get_local_poses(self):
+        return None, ProxyArray(wp.from_torch(self.local.clone(), dtype=wp.quatf))
+
+    def set_local_poses(self, *, orientations) -> None:
+        self.local = wp.to_torch(orientations).clone()
+
+
+class RtxGazeHarness(GazeHarness, FoveatedRTXCamera):
+    """The Isaac RTX camera's prim-writing gaze on stand-in camera prims."""
+
+    def __init__(self, mount_opengl: torch.Tensor) -> None:
+        super().__init__(count=len(mount_opengl))
+        self._view = PrimView(mount_opengl)
+        self._ALL_INDICES = wp.array(list(range(len(mount_opengl))), dtype=wp.int32, device="cpu")
+        self._base_local_orientation = matrix_from_quat(mount_opengl)
+        self.mount_turns = 0
 
 
 def gaze_direction(angles_deg: torch.Tensor) -> torch.Tensor:
@@ -147,7 +192,9 @@ def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, m
     angles[1::2] = 0
     expected = matrix_from_quat(source.double()) @ conversion
     camera = GazeHarness(count=batch_size, device=device)
-    camera._data.quat_w_world = source
+    camera.orientation.copy_(source)
+    # The gaze turns the camera's own pose buffer in place.
+    source = camera.orientation
     camera._gaze_basis = camera._gaze_basis.to(device)
     camera.set_gaze_angles(angles)
     basis = camera._gaze_basis.double()
@@ -178,14 +225,14 @@ def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: fl
     model = CameraModel("pinhole", (80, 120), (60.0, 60.0, 45.0, 30.0))
     camera = GazeHarness(camera_model=asdict(model), image_rotation_deg=rotation_deg)
     camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
-    mount = camera._data.quat_w_world.clone()
+    mount = camera.orientation.clone()
     camera._apply_gaze_pose()
 
     # Rendered rays leave the turned camera along its OpenGL frame; express them in the mount's OpenGL frame.
     def opengl(orientation: torch.Tensor) -> torch.Tensor:
         return matrix_from_quat(convert_camera_frame_orientation_convention(orientation, "world", "opengl"))
 
-    turn = opengl(mount).transpose(-1, -2) @ opengl(camera._data.quat_w_world)
+    turn = opengl(mount).transpose(-1, -2) @ opengl(camera.orientation)
     coords = camera._sampling_coords
     rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
     seen = (turn[:, None] @ rays[None, :, :, None]).squeeze(-1) * torch.tensor([1.0, -1.0, -1.0])
@@ -236,7 +283,7 @@ def test_mount_record_starts_at_the_current_pose() -> None:
     camera = GazeHarness()
     camera._gaze_pose_reads_angles = True
     mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
-    camera._data.quat_w_world = mount.clone()
+    camera.orientation.copy_(mount)
     camera.gaze_angles
     expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
     torch.testing.assert_close(
@@ -248,26 +295,13 @@ def test_prim_writing_camera_reads_its_mount_until_a_gaze_is_written() -> None:
     """Isaac RTX writes the gaze into its prims, so its pose is the mount only until the first gaze."""
     camera = GazeHarness()
     camera.gaze_angles
-    expected = convert_camera_frame_orientation_convention(camera._data.quat_w_world, "world", "ros")
+    expected = convert_camera_frame_orientation_convention(camera.orientation, "world", "ros")
     torch.testing.assert_close(
         matrix_from_quat(camera.ungazed_quat_w_ros()), matrix_from_quat(expected), atol=1e-6, rtol=0
     )
     camera.set_gaze_angles(torch.zeros(2, 2))
     with pytest.raises(RuntimeError, match="already hold a gaze"):
         camera.ungazed_quat_w_ros()
-
-
-def test_newton_and_ovrtx_need_per_frame_pose_updates(monkeypatch) -> None:
-    """Without pose updates the renderer would never see the gaze while the sensor mask used it."""
-    monkeypatch.setattr(Camera, "__init__", lambda self, cfg: None)
-    monkeypatch.setattr(FoveatedCamera, "__del__", lambda self, *args, **kwargs: None, raising=False)
-    cfg = SimpleNamespace(update_latest_camera_pose=False)
-    harness = object.__new__(GazeHarness)
-    harness._gaze_pose_reads_angles = True
-    with pytest.raises(ValueError, match="update_latest_camera_pose=True"):
-        FoveatedCamera.__init__(harness, cfg)
-    harness._gaze_pose_reads_angles = False
-    FoveatedCamera.__init__(harness, cfg)
 
 
 def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() -> None:
@@ -289,14 +323,14 @@ def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() ->
 def test_pose_update_records_the_mount_before_the_gaze() -> None:
     camera = GazeHarness()
     mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
-    camera._data.quat_w_world = mount.clone()
+    camera.orientation.copy_(mount)
     camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
     camera._apply_gaze_pose()
     expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
     torch.testing.assert_close(
         matrix_from_quat(camera._mount_quat_ros.torch), matrix_from_quat(expected), atol=1e-6, rtol=0
     )
-    assert not torch.allclose(camera._data.quat_w_world, mount)
+    assert not torch.allclose(camera.orientation, mount)
 
 
 def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pose() -> None:
@@ -304,17 +338,17 @@ def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pos
     angles = torch.tensor([[6.0, -11.0], [-9.0, 17.0]])
     camera.set_gaze_angles(angles)
     camera._apply_gaze_pose()
-    forward = quat_apply(camera._data.quat_w_world, torch.tensor([[1.0, 0.0, 0.0]]).expand(2, -1))
+    forward = quat_apply(camera.orientation, torch.tensor([[1.0, 0.0, 0.0]]).expand(2, -1))
     source = CameraModel(**camera.cfg.camera_model)
     # The world camera frame looks along +X with +Z up; OpenCV looks along +Z with +Y down.
     directions = gaze_direction(angles)
     expected = torch.stack((directions[:, 2], -directions[:, 0], -directions[:, 1]), -1)
     torch.testing.assert_close(forward, expected, atol=1e-6, rtol=1e-6)
-    assert torch.count_nonzero(camera._data.pos_w) == 0
-    untouched = camera._data.quat_w_world[1].clone()
-    camera._data.quat_w_world[0] = torch.tensor([0.0, 0.0, 0.0, 1.0])
+    assert torch.count_nonzero(camera._data.pos_w.torch) == 0
+    untouched = camera.orientation[1].clone()
+    camera.orientation[0] = torch.tensor([0.0, 0.0, 0.0, 1.0])
     camera._apply_gaze_pose([0])
-    torch.testing.assert_close(camera._data.quat_w_world[1], untouched)
+    torch.testing.assert_close(camera.orientation[1], untouched)
     torch.testing.assert_close(
         camera._gaze_validity(),
         source.project(
@@ -335,7 +369,7 @@ def test_renderer_ray_frame_matches_cv_frame() -> None:
 def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
     cameras = [GazeHarness(device=device), GazeHarness(device=device)]
     for camera in cameras:
-        camera._data.quat_w_world = torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1)
+        camera.orientation.copy_(torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1))
         camera._gaze_basis = camera._gaze_basis.to(device)
         camera._gaze_rays = camera._gaze_rays.to(device)
         camera._gaze_identity = camera._gaze_identity.to(device)
@@ -345,11 +379,11 @@ def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
             camera.set_gaze_angles(target)
             camera._apply_gaze_pose()
             camera._test_validity = camera._gaze_validity().clone()
-    assert torch.isfinite(cameras[1]._data.quat_w_world).all()
-    torch.testing.assert_close(cameras[1]._data.quat_w_world, cameras[0]._data.quat_w_world)
+    assert torch.isfinite(cameras[1].orientation).all()
+    torch.testing.assert_close(cameras[1].orientation, cameras[0].orientation)
     torch.testing.assert_close(cameras[1]._gaze_rotation.torch, cameras[0]._gaze_rotation.torch)
 
-    torch.testing.assert_close(cameras[1]._data.quat_w_world.norm(dim=-1), torch.ones(2, device=device))
+    torch.testing.assert_close(cameras[1].orientation.norm(dim=-1), torch.ones(2, device=device))
     torch.testing.assert_close(cameras[1]._test_validity, cameras[0]._test_validity)
 
 
@@ -375,6 +409,31 @@ def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_
     assert written[1].dtype == torch.float32
     torch.testing.assert_close(written[1].norm(dim=-1), torch.ones(48, device=device))
     torch.testing.assert_close(written[1], written[0])
+
+
+def test_rtx_world_poses_are_the_mount_so_a_round_trip_keeps_mount_and_gaze(monkeypatch) -> None:
+    """Isaac RTX holds the gaze in its prims; its world poses still report the bare mount, as the other renderers'
+    do, so writing them back (as a viewer navigating the camera does) neither moves the mount nor doubles the gaze."""
+
+    def write_prims(camera, positions=None, orientations=None, env_ids=None, convention="ros"):
+        ids = slice(None) if env_ids is None else torch.as_tensor(env_ids)
+        camera._view.local[ids] = convert_camera_frame_orientation_convention(orientations, convention, "opengl")
+
+    monkeypatch.setattr(Camera, "set_world_poses", write_prims)
+    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
+    camera = RtxGazeHarness(mount)
+    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
+    gazed = camera._view.local.clone()
+    assert not torch.allclose(matrix_from_quat(gazed), matrix_from_quat(mount), atol=1e-3)
+
+    _, orientations = camera.get_world_poses(env_ids=[1], convention="ros")
+    expected = convert_camera_frame_orientation_convention(mount[1:], "opengl", "ros")
+    torch.testing.assert_close(matrix_from_quat(orientations), matrix_from_quat(expected), atol=1e-6, rtol=0)
+
+    _, orientations = camera.get_world_poses(convention="world")
+    camera.set_world_poses(orientations=orientations, convention="world")
+    torch.testing.assert_close(camera._base_local_orientation, matrix_from_quat(mount), atol=1e-6, rtol=0)
+    torch.testing.assert_close(matrix_from_quat(camera._view.local), matrix_from_quat(gazed), atol=1e-6, rtol=0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))

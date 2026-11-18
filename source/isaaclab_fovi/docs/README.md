@@ -135,7 +135,9 @@ reward and the entropy bonus grows it until the sampled gaze random-walks.
 
 Each task is its stock camera counterpart with the camera foveated at the same
 mount and optics, two gaze actions, and gaze supervision. The vision model and
-the PPO settings are the stock ones; the gaze actions' noise is fixed.
+the PPO settings are the stock ones; the gaze actions' noise is fixed. The Kuka
+tasks' action penalty leaves out the gaze (`motor_action_l2`), so moving it is
+free.
 
 | Task | Retina | Teacher looks at |
 | --- | --- | --- |

@@ -117,3 +117,22 @@ def test_explicit_camera_model_wins_over_the_spawn() -> None:
 def test_cameras_fovi_cannot_model_are_rejected(spawn, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         resolve_camera_model(make_cfg(spawn=spawn))
+
+
+@pytest.mark.parametrize("mode", ["avg", "gaussian", "max", "sum"])
+def test_pool_mode_accepts_fovi_modes(mode: str) -> None:
+    assert make_cfg(pool_mode=mode).pool_mode == mode
+
+
+@pytest.mark.parametrize("mode", ["modal", "median", "average"])
+def test_pool_mode_rejects_other_modes(mode: str) -> None:
+    with pytest.raises(ValueError, match="pool_mode must be one of"):
+        make_cfg(pool_mode=mode)
+
+
+@pytest.mark.parametrize("mode", ["avg", "gaussian", "max", "sum", "mode"])
+def test_segmentation_pools_only_by_modal_label(mode: str) -> None:
+    """Pooling modes that would mix labels into ones no object has are rejected for segmentation."""
+    assert make_cfg().pool_int_mode == "modal"
+    with pytest.raises(ValueError, match="pool_int_mode must be one of"):
+        make_cfg(pool_int_mode=mode)

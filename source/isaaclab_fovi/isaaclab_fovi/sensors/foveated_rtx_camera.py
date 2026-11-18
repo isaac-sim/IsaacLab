@@ -26,7 +26,7 @@ import warp as wp
 from isaaclab import sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils import clone
-from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
+from isaaclab.utils.math import convert_camera_frame_orientation_convention, matrix_from_quat, quat_from_matrix
 
 from . import lens_lut
 from .calibrated_geometry import compose_rotations, retinal_directions
@@ -43,8 +43,6 @@ from .native_grid import (
 from .pooling import build_highres_coords, build_lowres_coords, build_pooler
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.base_renderer import BaseRenderer
-
     from .foveated_camera_cfg import FoveatedCameraCfg
 
 logger = logging.getLogger(__name__)
@@ -68,14 +66,11 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def __init__(self, cfg: FoveatedCameraCfg):
         ovrtx = cfg.renderer_cfg.renderer_type == "ovrtx"
-        if ovrtx and getattr(cfg.renderer_cfg, "async_rendering", False) and cfg.mask_to_sensor_fov:
+        if ovrtx and cfg.renderer_cfg.async_rendering and cfg.mask_to_sensor_fov:
             raise ValueError(
                 "OVRTX async_rendering returns the previous capture, which the sensor mask would cut with the current"
                 " gaze. Disable async_rendering or mask_to_sensor_fov."
             )
-        # OVRTX renders the poses the camera hands it, so its pose update turns the gaze. Replicator reads camera
-        # prims, so Isaac RTX writes the gaze into them instead.
-        self._gaze_pose_reads_angles = ovrtx
         # The parent ``Camera`` allocates the renderer-bound texture buffers; the published ones follow from them.
         self._texture_output: dict[str, torch.Tensor] = {}
         self._foveated_output: dict[str, torch.Tensor] = {}
@@ -107,11 +102,6 @@ class FoveatedRTXCamera(FoveatedCamera):
     def supports_batch_update(self) -> bool:
         return True
 
-    @property
-    def renderer(self) -> BaseRenderer:
-        """Renderer shared with task-owned visual animation bindings."""
-        return self._renderer
-
     def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
         super().set_gaze_angles(angles_deg)
         if not self._gaze_pose_reads_angles:
@@ -135,6 +125,26 @@ class FoveatedRTXCamera(FoveatedCamera):
         super().set_world_poses_from_view(eyes, targets, env_ids)
         # Rows whose eye equals their target are skipped by the base method and keep their mount.
         self._refresh_mount(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
+
+    def get_world_poses(self, env_ids=None, convention="ros"):
+        """Read the cameras' mount poses, without the gaze, as every foveated camera reports them.
+
+        Isaac RTX holds the gaze in the camera prims, so it is taken back out; passing the result to
+        :meth:`set_world_poses` keeps the mount and the gaze as they are.
+
+        Args and returns are those of :meth:`isaaclab.sensors.Camera.get_world_poses`.
+        """
+        positions, orientations = super().get_world_poses(env_ids, convention="opengl")
+        if not self._gaze_pose_reads_angles and self._gaze_rotation is not None:
+            # The prims hold the mount turned by the gaze's rotation in their own (OpenGL) frame.
+            basis = self._gaze_basis
+            gaze = self._gaze_rotation.torch[self._env_indices(env_ids)]
+            with torch.autocast(basis.device.type, enabled=False):
+                relative = compose_rotations(compose_rotations(basis, gaze), basis.T)
+                orientations = quat_from_matrix(
+                    compose_rotations(matrix_from_quat(orientations), relative.transpose(-1, -2))
+                )
+        return positions, convert_camera_frame_orientation_convention(orientations, origin="opengl", target=convention)
 
     def process_rendered_frame(self) -> None:
         """Mask and publish the frame of the environments that scalar or batched rendering updated."""
@@ -264,7 +274,7 @@ class FoveatedRTXCamera(FoveatedCamera):
 
         # The renderer keeps writing the texture buffers the parent bound to it; the camera publishes others.
         self._texture_output = self._data.output
-        textures = {name: tex.torch if hasattr(tex, "torch") else tex for name, tex in self._texture_output.items()}
+        textures = {name: tex.torch for name, tex in self._texture_output.items()}
         # A native grid texture already holds the samples in order, so one kernel per output masks it and lays it
         # out. OVRTX's camera distance needs its near-plane offset first, and keeps the step-by-step path.
         offset_distance = self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in textures
@@ -308,11 +318,12 @@ class FoveatedRTXCamera(FoveatedCamera):
             if name == "rgb" and has_rgba_alias:
                 continue  # an alias of rgba, below
             # Texture buffers are ProxyArrays; their Torch view carries the dtype and device.
-            buf_t = buf.torch if hasattr(buf, "torch") else buf
+            buf_t = buf.torch
             self._foveated_output[name] = torch.zeros(
                 (self._view.count, self._num_ray_samples, 1, buf_t.shape[-1]), device=buf_t.device, dtype=buf_t.dtype
             )
-        if "rgba" in self._foveated_output and "rgb" in self.cfg.data_types:
+        # The renderer publishes rgb as a view of rgba whenever either is requested; so do the foveated outputs.
+        if "rgb" in self._texture_output and "rgba" in self._foveated_output:
             self._foveated_output["rgb"] = self._foveated_output["rgba"][:, :, :, :3]
 
         if self._pooler is None:
@@ -325,11 +336,12 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._pooled_output[name] = torch.zeros(
                 (self._view.count, self._num_valid_samples, 1, buf.shape[-1]), device=self._device, dtype=buf.dtype
             )
-        if "rgba" in self._pooled_output and "rgb" in self.cfg.data_types:
+        if "rgb" in self._texture_output and "rgba" in self._pooled_output:
             self._pooled_output["rgb"] = self._pooled_output["rgba"][:, :, :, :3]
         self._prepare_segmentation_pooling(self._pooled_output)
         logger.info(
-            "FoveatedRTXCamera: KNN pooling enabled (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
+            "FoveatedRTXCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
+            type(self._pooler).__name__,
             self.cfg.pool_mode,
             self._pool_k,
             self.cfg.pool_sample_cortex,
@@ -384,7 +396,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                 continue  # rgba alias
             tex = self._texture_output[name]  # (B, th, tw, C)
             fov = self._foveated_output[name]  # (B, N, 1, C)
-            tensor = tex.torch if hasattr(tex, "torch") else tex
+            tensor = tex.torch
             if self._native_grid:
                 samples = tensor.reshape_as(fov)
             else:
@@ -393,6 +405,12 @@ class FoveatedRTXCamera(FoveatedCamera):
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip.to(samples.dtype)
             fov.copy_(torch.where(updated, samples, fov))
+
+    @staticmethod
+    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
+        # OVRTX renders the poses the camera hands it, so its pose update turns the gaze. Replicator reads camera
+        # prims, so Isaac RTX writes the gaze into them instead.
+        return cfg.renderer_cfg.renderer_type == "ovrtx"
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXCamera]) -> None:

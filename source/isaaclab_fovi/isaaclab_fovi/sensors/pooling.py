@@ -40,6 +40,11 @@ if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
 
 
+# Upper bound on ``batch * outputs * k`` elements per modal-pooling chunk.  Each chunk holds about ten
+# int64 tensors of this size, so peak scratch memory stays near 300 MB regardless of the batch size.
+_MODAL_CHUNK_ELEMENTS = 2**22
+
+
 def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCoords, int]:
     """Build the lowres (RGC / public output) SamplingCoords.
 
@@ -100,40 +105,28 @@ def build_highres_coords(cfg: FoveatedCameraCfg, matched_res: int, device: str) 
     )
 
 
-MODAL_POOL_MODE = "mode"
-"""Pooling mode that takes the most common neighbour value (see :func:`pool_segmentation_buffer`)."""
-
-# Upper bound on ``batch * outputs * k`` elements per modal-pooling chunk.  Each chunk holds about ten
-# int64 tensors of this size, so peak scratch memory stays near 300 MB regardless of the batch size.
-_MODAL_CHUNK_ELEMENTS = 2**22
-
-
 def build_pooler(
     cfg: FoveatedCameraCfg,
     lowres: SamplingCoords,
     highres: SamplingCoords | None,
     device: str,
-    mode: str | None = None,
 ) -> tuple[KNNPoolingLayer | GridPoolingLayer | None, int | None]:
-    """Build a retinal pooling layer. Both coord sets must already be on ``device``.
+    """Build the retinal pooling layer of ``cfg.pool_mode``, which pools every output except segmentation. Both coord
+    sets must already be on ``device``.
 
-    If ``mode`` is None, uses ``cfg.pool_mode`` — the standard pooler for floating-point outputs. Modes are fovi's
-    (``"max"``, ``"avg"``, ``"sum"``, ``"gaussian"``). Modal pooling (``"mode"``) needs no pooler of its own: pass the
-    standard pooler's :func:`segmentation_neighbor_indices` to :func:`pool_segmentation_buffer`.
+    Segmentation pools by modal label over this pooler's neighbourhoods: pass :func:`segmentation_neighbor_indices` of
+    it to :func:`pool_segmentation_buffer`.
     """
     if highres is None:
         return None, None
 
     from fovi.arch.pooling import build_retinal_pooler
 
-    mode = mode if mode is not None else cfg.pool_mode
-    if mode == MODAL_POOL_MODE:
-        raise ValueError("Modal pooling uses the standard pooler's neighbourhoods: see segmentation_neighbor_indices.")
     return build_retinal_pooler(
         highres,
         lowres,
         k=cfg.pool_k,
-        mode=mode,
+        mode=cfg.pool_mode,
         device=device,
         sample_cortex=cfg.pool_sample_cortex,
         gauss_sigma=cfg.pool_gauss_sigma,
@@ -181,14 +174,12 @@ def segmentation_neighbor_indices(pooler: KNNPoolingLayer | GridPoolingLayer) ->
 
 
 def is_segmentation_output(name: str) -> bool:
-    """Whether a sensor output key should be pooled with ``pool_int_mode`` (modal pooling by default).
+    """Whether a sensor output holds segmentation labels, which pool with ``pool_int_mode``, the modal label
+    (:func:`pool_segmentation_buffer`).
 
-    Uses a key-name heuristic (``"segmentation" in name``) rather than dtype,
-    since all IsaacLab segmentation variants — ``semantic_segmentation``,
-    ``instance_segmentation_fast``, ``instance_id_segmentation_fast`` —
-    produce class-like values whose per-pixel semantics are broken by
-    averaging, regardless of whether they're stored as int32 class IDs or
-    uint8 colorized RGBA.
+    Uses the key name (``"segmentation" in name``) rather than the dtype: every Isaac Lab segmentation variant
+    (``semantic_segmentation``, ``instance_segmentation_fast``, ``instance_id_segmentation_fast``) holds labels that
+    averaging would corrupt, whether stored as integer IDs or colorized RGBA.
     """
     return "segmentation" in name
 

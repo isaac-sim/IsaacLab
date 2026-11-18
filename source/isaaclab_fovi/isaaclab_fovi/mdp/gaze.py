@@ -34,6 +34,7 @@ from ..sensors.gaze_kernels import (
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+    from ..sensors import FoveatedCamera
     from .gaze_cfg import GazeActionCfg
 
 RAD_TO_DEG = 180.0 / math.pi
@@ -80,7 +81,6 @@ def teacher_labels_kernel(
     targets: wp.array(dtype=wp.vec3f),
     orientations: wp.array(dtype=wp.quatf),
     offset: wp.vec3f,
-    rotate_offset: wp.int32,
     positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
     angles_deg: wp.array(dtype=wp.vec2f),
@@ -92,8 +92,8 @@ def teacher_labels_kernel(
     labels: wp.array2d(dtype=wp.float32),
     log: wp.array(dtype=wp.float32),
 ):
-    """Labels (action x, action y, valid) toward a point fixed to each target; and the mean gaze error to valid
-    targets [deg] with the fraction of valid targets.
+    """Labels (action x, action y, valid) toward the point ``offset`` fixed to each target's frame; and the mean gaze
+    error to valid targets [deg] with the fraction of valid targets.
 
     ``mounts`` holds each camera's mount (ROS convention); ``angles_deg`` the camera's stored gaze angles [deg].
     One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
@@ -104,9 +104,7 @@ def teacher_labels_kernel(
     valid_count = wp.float32(0.0)
     i = lane
     while i < count:
-        point = targets[i]
-        if rotate_offset != 0:
-            point = point + wp.quat_rotate(orientations[i], offset)
+        point = targets[i] + wp.quat_rotate(orientations[i], offset)
         gaze = angles_deg[i] / field_radius_deg
         result = teach(point, positions[i], mounts[i], gaze, frame, field_radius_deg, step_size, gaze_limit, camera)
         labels[i, 0] = result[0]
@@ -178,17 +176,19 @@ def gaze_step_kernel(
     state[i] = wp.vec4f(current[0], current[1], rate[0], rate[1])
 
 
-def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
-    """Camera-frame unit directions of gaze angles [deg], shape (..., 2) to (..., 3)."""
-    tilt, pan = angles_deg.deg2rad().unbind(-1)
-    return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
+def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
+    """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
+    term: GazeAction = env.action_manager.get_term(action_name)
+    return term.state
 
 
-def random_gaze(count: int, limit: float, device: torch.device | str | None = None) -> torch.Tensor:
-    """Gazes drawn uniformly over the disc of radius ``limit``, shape (count, 2)."""
-    radius = limit * torch.rand(count, device=device).sqrt()
-    angle = 2 * math.pi * torch.rand(count, device=device)
-    return torch.stack((radius * angle.sin(), radius * angle.cos()), dim=-1)
+def motor_action_l2(env: ManagerBasedRLEnv, gaze_action_name: str = "gaze") -> torch.Tensor:
+    """Squared L2 norm of the actions other than the gaze, shape (num_envs,).
+
+    Matches :func:`isaaclab.envs.mdp.action_l2` on the task's own actions, so moving the gaze costs nothing.
+    """
+    gaze = env.action_manager.get_term(gaze_action_name).raw_actions
+    return env.action_manager.action.square().sum(-1) - gaze.square().sum(-1)
 
 
 class GazeAction(ActionTerm):
@@ -217,9 +217,7 @@ class GazeAction(ActionTerm):
     physics may record the other terms' actions and its decimation loop into a CUDA graph."""
 
     def __init__(self, cfg: GazeActionCfg, env: ManagerBasedEnv):
-        cfg.validate_config()
         super().__init__(cfg, env)
-        self.camera = self._asset
         camera = self.camera
         self.tracked_mount = cfg.mount == "tracked"
         if self.tracked_mount and not camera.turns_pose_by_gaze:
@@ -236,13 +234,9 @@ class GazeAction(ActionTerm):
                 " use mount='tracked' for a camera on a moving body."
             )
         # The camera's own geometry, so the teacher and the sensor mask share one projection.
-        self.camera_model = camera.camera_model
-        self.projection_params = camera.projection_params
-        """The physical camera as a Warp struct, for the teacher kernel."""
-        self.image_frame = camera.image_frame
-        """Rotation from the upright gaze frame to the physical camera's frame (ROS convention)."""
+        frame = camera.image_frame
         self._frame_torch = torch.tensor(
-            [[self.image_frame[row][col] for col in range(3)] for row in range(3)], device=self.device
+            [[frame[row][col] for col in range(3)] for row in range(3)], device=self.device
         )
         self.field_radius_deg = camera.sampling_coords.fov / 2
         """Half the retina's field of view [deg]."""
@@ -266,6 +260,11 @@ class GazeAction(ActionTerm):
     @property
     def action_dim(self) -> int:
         return 2
+
+    @property
+    def camera(self) -> FoveatedCamera:
+        """The foveated camera whose gaze the term moves."""
+        return self._asset
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -340,8 +339,8 @@ class GazeAction(ActionTerm):
             self._reset_ids.torch[:count] = torch.as_tensor(env_ids, device=self.device)
         random_start = self.cfg.random_reset
         if random_start:
-            gaze = random_gaze(count, self.cfg.gaze_limit, self.device)
-            visible = self.visible(angles_to_direction(gaze * self.field_radius_deg))
+            gaze = _random_gaze(count, self.cfg.gaze_limit, self.device)
+            visible = self.visible(_angles_to_direction(gaze * self.field_radius_deg))
             self._reset_start.torch[:count] = torch.where(visible[:, None], gaze, 0.0)
         angles = self.camera.gaze_angles
         launch = self._reset_launches.get((indexed, random_start))
@@ -360,7 +359,7 @@ class GazeAction(ActionTerm):
 
     def visible(self, direction: torch.Tensor) -> torch.Tensor:
         """Whether directions in the upright gaze frame fall inside the physical camera's image."""
-        return project_directions(direction @ self._frame_torch.T, self.projection_params)[1]
+        return project_directions(direction @ self._frame_torch.T, self.camera.projection_params)[1]
 
     def teacher_mounts(self) -> ProxyArray:
         """Each camera's mount (x, y, z, w), ROS convention, that the teacher aims from: the current one when
@@ -377,21 +376,6 @@ class GazeAction(ActionTerm):
                 " use GazeActionCfg.mount='tracked'."
             )
         return self._fixed_mount
-
-
-def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
-    """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
-    term: GazeAction = env.action_manager.get_term(action_name)
-    return term.state
-
-
-def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
-    """Log the mean gaze error to valid targets and the fraction of valid targets."""
-    # Loggers keep each step's entries, so they get a copy rather than the buffer the next step overwrites.
-    error, fraction = values.clone()
-    log = env.extras.setdefault("log", {})
-    log["Gaze/target_error_deg"] = error
-    log["Gaze/valid_target_fraction"] = fraction
 
 
 class gaze_teacher_labels(ManagerTermBase):
@@ -455,15 +439,14 @@ class gaze_teacher_labels(ManagerTermBase):
                     self._targets,
                     self._orientations,
                     self._offset[1],
-                    1,
                     camera_positions,
                     mounts,
                     gaze.camera.gaze_angles,
-                    gaze.image_frame,
+                    gaze.camera.image_frame,
                     gaze.field_radius_deg,
                     gaze.cfg.step_size,
                     gaze.cfg.gaze_limit,
-                    gaze.projection_params,
+                    gaze.camera.projection_params,
                 ],
                 [self._labels, self._log],
                 env.device,
@@ -475,10 +458,23 @@ class gaze_teacher_labels(ManagerTermBase):
         return self._labels.torch
 
 
-def motor_action_l2(env: ManagerBasedRLEnv, gaze_action_name: str = "gaze") -> torch.Tensor:
-    """Squared L2 norm of the actions other than the gaze, shape (num_envs,).
+def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
+    """Log the mean gaze error to valid targets and the fraction of valid targets."""
+    # Loggers keep each step's entries, so they get a copy rather than the buffer the next step overwrites.
+    error, fraction = values.clone()
+    log = env.extras.setdefault("log", {})
+    log["Gaze/target_error_deg"] = error
+    log["Gaze/valid_target_fraction"] = fraction
 
-    Matches :func:`isaaclab.envs.mdp.action_l2` on the task's own actions, so moving the gaze costs nothing.
-    """
-    gaze = env.action_manager.get_term(gaze_action_name).raw_actions
-    return env.action_manager.action.square().sum(-1) - gaze.square().sum(-1)
+
+def _angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
+    """Camera-frame unit directions of gaze angles [deg], shape (..., 2) to (..., 3)."""
+    tilt, pan = angles_deg.deg2rad().unbind(-1)
+    return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
+
+
+def _random_gaze(count: int, limit: float, device: torch.device | str | None = None) -> torch.Tensor:
+    """Gazes drawn uniformly over the disc of radius ``limit``, shape (count, 2)."""
+    radius = limit * torch.rand(count, device=device).sqrt()
+    angle = 2 * math.pi * torch.rand(count, device=device)
+    return torch.stack((radius * angle.sin(), radius * angle.cos()), dim=-1)
