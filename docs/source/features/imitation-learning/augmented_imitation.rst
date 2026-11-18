@@ -431,8 +431,9 @@ Below is an explanation of the different settings used for evaluation:
 .. note::
     The evaluation results will help you understand if the visual augmentation has improved the policy's performance and robustness. Compare these results with evaluations on the original dataset to measure the impact of augmentation.
 
-Example usage for the cube stacking task with a policy trained on the current Isaac Lab version:
 For the released checkpoints, first read :ref:`augmented-imitation-released-checkpoints` below.
+
+Example usage for the cube stacking task with a policy trained on the current Isaac Lab version:
 
 .. tab-set::
 
@@ -448,8 +449,7 @@ For the released checkpoints, first read :ref:`augmented-imitation-released-chec
           --seeds 0 \
           --num_rollouts 15
 
-This example evaluates only seed 0. It does not run the three-seed protocol described in the
-historical comparison below.
+This example evaluates only seed 0, rather than the three seeds used in the historical comparison below.
 
 .. tip::
    Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.
@@ -457,9 +457,9 @@ historical comparison below.
 .. note::
    This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.
 
-The historical comparison below used models trained with 1000 Mimic-generated demonstrations,
-2000 Mimic-generated demonstrations, and 2000 Cosmos-Mimic-generated demonstrations (1000 original
-Mimic + 1000 Cosmos augmented), respectively. The reported protocol used the same seeds (0, 1000,
+The historical comparison below groups models by their reported training data: 1000 Mimic-generated
+demonstrations, 2000 Mimic-generated demonstrations, and 2000 Cosmos-Mimic-generated demonstrations
+(1000 original Mimic + 1000 Cosmos augmented). The reported protocol used the same seeds (0, 1000,
 and 5000) for all three models and averaged the best checkpoint results for each seed.
 
 .. warning::
@@ -532,8 +532,8 @@ The historical models' checkpoints are available on
 In `issue #9033 <https://github.com/isaac-sim/IsaacLab/issues/9033>`__, the reporter obtained successful
 rollouts with Isaac Lab **v2.2.0**, Isaac Sim **5.0.0**, and ``--rendering_mode balanced``.
 The same report found zero successes with ``performance`` rendering and did not reproduce the
-published robustness gains with ``balanced``. This is a reported legacy evaluation setup, not a
-verification of the original training configuration or of every Isaac Lab 2.x release.
+published robustness gains with ``balanced``. The report does not establish compatibility with
+other Isaac Lab 2.x releases.
 
 To try that setup, use the v2.2.0 checkout and its Isaac Sim 5.0.0 environment, then run:
 
@@ -543,8 +543,11 @@ To try that setup, use the v2.2.0 checkout and its Isaac Sim 5.0.0 environment, 
      --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 \
      --input_dir /path/to/released/models \
      --log_dir robust_results/released_checkpoints \
-     --log_file result --seeds 0 --num_rollouts 15 \
-     --enable_cameras --rendering_mode balanced
+     --log_file result \
+     --seeds 0 \
+     --num_rollouts 15 \
+     --enable_cameras \
+     --rendering_mode balanced
 
 For evaluation on Isaac Lab 3.0, generate demonstrations and train policies with the same
 observation conventions and rendering configuration used for evaluation.
