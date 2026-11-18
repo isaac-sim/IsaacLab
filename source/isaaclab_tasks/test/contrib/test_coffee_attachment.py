@@ -13,22 +13,24 @@ import pytest
 from newton.selection import ArticulationView
 
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.string import resolve_matching_names
 
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.attachment import MountedSpoonAttachment
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import PALM_BODY_NAME
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
 def test_mounted_spoon_updates_both_states_in_each_world(monkeypatch):
-    """A moving palm drives its own free spoon even with different body and joint offsets."""
+    """Both spoons follow their palms with reordered public names and different world offsets."""
     builder = newton.ModelBuilder()
     palms, spoons, joints = [], [], []
     for world in range(2):
         builder.begin_world()
         if world == 1:
             builder.add_body(label="unrelated")
-        hand = builder.add_link(label=f"hand_{world}")
-        palm = builder.add_link(label=f"palm_{world}")
+        hand = builder.add_link(label="hand")
+        palm = builder.add_link(label=PALM_BODY_NAME)
         root = builder.add_joint_fixed(-1, hand)
         wrist = builder.add_joint_revolute(hand, palm)
         builder.add_articulation([root, wrist], label=f"robot_{world}")
@@ -52,8 +54,13 @@ def test_mounted_spoon_updates_both_states_in_each_world(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=states[0], state_1=states[1])
     manager = SimpleNamespace(backend=backend, register_post_actuator_callback=callbacks.append)
     monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=manager))
+    root_view = ArticulationView(model, "robot_*", homogeneous=False)
+    # Public ordering moves the palm ahead of the decoy link.
+    public_names = [PALM_BODY_NAME, "hand"]
     robot = SimpleNamespace(
-        root_view=ArticulationView(model, "robot_*", homogeneous=False), find_bodies=lambda _: ([1], [])
+        root_view=root_view,
+        backend_body_names=root_view.link_names,
+        find_bodies=lambda pattern: resolve_matching_names(pattern, public_names),
     )
     spoon = SimpleNamespace(root_view=ArticulationView(model, "spoon_*", homogeneous=False))
     MountedSpoonAttachment(robot, spoon, (0.5, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))

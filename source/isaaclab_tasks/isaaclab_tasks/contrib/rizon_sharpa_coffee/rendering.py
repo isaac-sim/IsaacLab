@@ -22,6 +22,10 @@ import isaaclab.sim as sim_utils
 from .physics import SolverCoffeeMPM
 
 if TYPE_CHECKING:
+    from newton.viewer import ViewerGL
+
+    from pxr import Usd, UsdGeom, UsdShade
+
     from isaaclab.envs import ManagerBasedEnv
 
     from .demo_env_cfg import CoffeePresentationCfg
@@ -36,19 +40,10 @@ class CoffeeGLVisualizer(NewtonGLVisualizer):
 
     rendering: CoffeeRendering | None = None
 
-    _water_surface: _GLWaterSurface | None = None
-
     def _update_state(self):
         state = super()._update_state()
         if self.rendering is not None:
-            self.rendering.update()
-            self._viewer.log_points(
-                "/coffee_grains", self.rendering._points, radii=self.rendering._radii, colors=self.rendering._colors
-            )
-            if self.rendering._surface is not None:
-                if self._water_surface is None:
-                    self._water_surface = _GLWaterSurface(self.rendering._model.device)
-                self._water_surface.draw(self._viewer, *self.rendering._water_surface_arrays())
+            self.rendering.draw(self._viewer)
         return state
 
 
@@ -189,9 +184,9 @@ class CoffeeRendering:
     after particle resets and :meth:`close` before the environment closes. The physics
     solver owns grain advection, including intermediate steps and CUDA capture.
     Physics owns coffee-to-liquid conversion even without presentation. Converted
-    coffee joins the reconstructed liquid and stops displaying as grains. Its
-    mass initializes a passive colour tracer on the new liquid carrier; particle
-    motion advects it and symmetric neighbour exchanges diffuse it.
+    coffee joins the reconstructed liquid and stops displaying as grains. Reset
+    preloads the dry coffee's colour tracer. Conversion activates the carrier,
+    allowing particle motion to advect the tracer and neighbouring carriers to mix it.
 
     Args:
         env: Demo environment with ``coffee`` and optionally ``water`` MPM assets.
@@ -256,6 +251,7 @@ class CoffeeRendering:
         self._liquid_radii = None
         self._surface = None
         self._surface_cache = None
+        self._gl_surfaces: dict[ViewerGL, _GLWaterSurface] = {}
         self._hash_grid = None
         self._mixing_radius = 2.0 * voxel_size
         self._diffusion_rate = diffusion_rate
@@ -373,6 +369,16 @@ class CoffeeRendering:
             device=self._model.device,
         )
 
+    def draw(self, viewer: ViewerGL) -> None:
+        """Publish grains and the liquid surface while a Newton GL frame is active."""
+        self.update()
+        viewer.log_points("/coffee_grains", self._points, radii=self._radii, colors=self._colors)
+        if self._surface is not None:
+            surface = self._gl_surfaces.get(viewer)
+            if surface is None:
+                surface = self._gl_surfaces[viewer] = _GLWaterSurface(self._model.device)
+            surface.draw(viewer, *self._water_surface_arrays())
+
     def draw_kit(self, visualizer) -> None:
         """Publish the same grains and local liquid colours to Kit's USD stage."""
         self.update()
@@ -438,6 +444,7 @@ class CoffeeRendering:
         for visualizer in self._visualizers:
             visualizer.rendering = None
         self._visualizers.clear()
+        self._gl_surfaces.clear()
         self._surface_cache = None
 
 
@@ -501,7 +508,7 @@ def _vertex_color_material(stage, path, color, *, roughness: float, opacity: flo
     return UsdShade.Material.Get(stage, path), shader
 
 
-def create_coffee_points(stage, path):
+def create_coffee_points(stage: Usd.Stage, path: str) -> UsdGeom.Points:
     """Define the grain point cloud and bind its vertex-color material."""
     from pxr import UsdGeom, UsdShade
 
@@ -514,7 +521,7 @@ def create_coffee_points(stage, path):
     return grains
 
 
-def create_water_mesh(stage, path):
+def create_water_mesh(stage: Usd.Stage, path: str) -> tuple[UsdGeom.Mesh, UsdShade.Shader]:
     """Define the liquid mesh with PreviewSurface and MDL terminals on one material."""
     from pxr import Sdf, UsdGeom, UsdShade
 

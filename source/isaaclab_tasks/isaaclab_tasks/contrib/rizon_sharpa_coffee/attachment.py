@@ -45,7 +45,7 @@ class MountedSpoonAttachment:
         self._model = self._backend_manager.backend.model
         if spoon.root_view.root_joint_type != JointType.FREE:
             raise ValueError("The mounted spoon must have a free root joint.")
-        palm_id = robot.find_bodies(PALM_BODY_NAME)[0][0]
+        palm_id = robot.backend_body_names.index(PALM_BODY_NAME)
         frequency = Model.AttributeFrequency
         self._palm_ids = _model_indices(robot.root_view, frequency.BODY, palm_id)
         self._spoon_ids = _model_indices(spoon.root_view, frequency.BODY)

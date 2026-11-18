@@ -20,12 +20,7 @@ from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import math as math_utils
 
-from .assets import (
-    CUP_BOTTOM_THICKNESS,
-    CUP_HEIGHT,
-    CUP_INNER_RADIUS,
-    CUP_POSITION,
-)
+from .assets import CUP_BOTTOM_THICKNESS, CUP_HEIGHT, CUP_INNER_RADIUS
 from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
 from .physics import SolverCoffeeMPM, configure_spoon_rim_margin
@@ -86,7 +81,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         self._palm_id = robot.find_bodies(PALM_BODY_NAME)[0][0]
         self._tool_position = torch.tensor(self.cfg.spoon_offset_pos, device=self.device).expand(self.num_envs, -1)
         self._tool_quaternion = torch.tensor(self.cfg.spoon_offset_rot, device=self.device).expand(self.num_envs, -1)
-        self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
+        self._cup_position = torch.tensor(self.cfg.scene.cup.init_state.pos, device=self.device)
         self.sync_spoon()
         self._attachment = MountedSpoonAttachment(
             robot, self.scene["spoon"], self.cfg.spoon_offset_pos, self.cfg.spoon_offset_rot

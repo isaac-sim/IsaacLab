@@ -11,9 +11,10 @@ import hashlib
 import json
 import math
 import tempfile
+from dataclasses import MISSING
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -21,6 +22,10 @@ from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from scipy.spatial.transform import Rotation
+
+import isaaclab.sim as sim_utils
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.rizon_sharpa import (
     ARM_JOINT_NAMES,
@@ -33,6 +38,8 @@ from isaaclab_assets.robots.rizon_sharpa import (
 from .motion import ARM_HOME_POSITIONS, HAND_OPEN_POSITIONS, ROBOT_BASE_POS
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from isaaclab.assets import ArticulationCfg
 
 
@@ -45,7 +52,6 @@ def robot_cfg() -> ArticulationCfg:
         NewtonCollisionCfg,
     )
 
-    import isaaclab.sim as sim_utils
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import ArticulationCfg
 
@@ -91,7 +97,103 @@ def robot_cfg() -> ArticulationCfg:
     )
 
 
-def prepared_contact_path(source: Path) -> Path:
+def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
+    """Resolve rigid hand--pot contacts and synchronize the measured fluid boundary."""
+    return CouplerProxyCfg(
+        class_type="isaaclab_tasks.contrib.rizon_sharpa_teapot.coupling:TeapotSolver",
+        entries=[
+            CouplerEntryCfg(
+                name="robot",
+                solver_cfg=MJWarpSolverCfg(
+                    integrator="implicitfast",
+                    cone="elliptic",
+                    impratio=20.0,
+                    iterations=16,
+                    ls_iterations=32,
+                    # Distributed mesh contacts support the handle against the finger pads.
+                    enable_multiccd=True,
+                    # Keep headroom for hand self-contacts and the pot without
+                    # oversized dense constraint buffers.
+                    njmax=128,
+                    nconmax=256,
+                ),
+                bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/PourContainer"],
+            ),
+            CouplerEntryCfg(
+                name="fluid",
+                solver_cfg=mpm_cfg,
+                # The authored bowl has a fixed body, rather than a body-free static shape.
+                bodies=[r"/World/envs/env_.*/CatchBowl"],
+                all_particles=True,
+                include_static_shapes=True,
+                in_place=True,
+            ),
+        ],
+    )
+
+
+@configclass
+class GraspedTeapotCfg(sim_utils.MeshFileCfg):
+    """Spawn the exact fluid shell and rigid grasp contacts on the same body."""
+
+    func = "{DIR}.scene:_spawn_grasped_teapot"
+    contact_source: str = MISSING
+    """Teapot USD containing the contact geometry and authored inertia."""
+
+    rigid_props = sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False)
+    mass_props = sim_utils.MassCfg(mass=0.45)
+
+
+@sim_utils.clone
+def _spawn_grasped_teapot(
+    prim_path: str,
+    cfg: GraspedTeapotCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs: Any,
+) -> Usd.Prim:
+    """Compose both collider representations before cloning the body."""
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg
+
+    from pxr import Gf, Usd, UsdPhysics
+
+    pot = sim_utils.spawn_from_mesh(prim_path, cfg, translation, orientation, **kwargs)
+    contact_cfg = sim_utils.UsdFileCfg(
+        usd_path=str(_prepared_contact_path(Path(cfg.contact_source))),
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+            MujocoCollisionCfg(condim=4, solref=(0.0025, 1.0)),
+            NewtonCollisionCfg(contact_gap=0.001),
+        ],
+        physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+        rigid_props={"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False)]},
+        visible=False,
+    )
+    # Retain the source root's frame relative to the fluid shell.
+    contact_root = sim_utils.spawn_from_usd(f"{prim_path}/RigidCollider", contact_cfg)
+    shell = UsdPhysics.MassAPI(pot)
+    configured_mass = shell.GetMassAttr().Get()
+    for prim in Usd.PrimRange(contact_root):
+        if prim.HasAPI(UsdPhysics.MassAPI):
+            authored = UsdPhysics.MassAPI(prim)
+            for field in ("Mass", "CenterOfMass", "DiagonalInertia", "PrincipalAxes"):
+                value = getattr(authored, f"Get{field}Attr")().Get()
+                if value is not None:
+                    getattr(shell, f"Create{field}Attr")(value)
+            prim.RemoveAPI(UsdPhysics.MassAPI)
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+    authored_mass = shell.GetMassAttr().Get()
+    inertia = shell.GetDiagonalInertiaAttr().Get()
+    shell.CreateMassAttr(configured_mass)
+    if configured_mass > 0.0 and authored_mass > 0.0 and inertia is not None:
+        # Scaling the body mass preserves its center of mass and principal axes.
+        scale = configured_mass / authored_mass
+        shell.CreateDiagonalInertiaAttr(Gf.Vec3f(*(value * scale for value in inertia)))
+    return pot
+
+
+def _prepared_contact_path(source: Path) -> Path:
     """Cache compact rigid contacts without changing the visual or MPM shell."""
     import newton
 
@@ -262,68 +364,3 @@ def _prepared_robot_path(source: Path) -> Path:
         stage.GetRootLayer().Save()
         prepared.replace(destination)
     return destination
-
-
-def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
-    """Resolve rigid hand--pot contacts and synchronize the measured fluid boundary."""
-    return CouplerProxyCfg(
-        class_type="isaaclab_tasks.contrib.rizon_sharpa_teapot.coupling:TeapotSolver",
-        entries=[
-            CouplerEntryCfg(
-                name="robot",
-                solver_cfg=MJWarpSolverCfg(
-                    integrator="implicitfast",
-                    cone="elliptic",
-                    impratio=20.0,
-                    iterations=16,
-                    ls_iterations=32,
-                    # Distributed mesh contacts support the handle against the finger pads.
-                    enable_multiccd=True,
-                    # Keep headroom for hand self-contacts and the pot without
-                    # oversized dense constraint buffers.
-                    njmax=128,
-                    nconmax=256,
-                ),
-                bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/PourContainer"],
-            ),
-            CouplerEntryCfg(
-                name="fluid",
-                solver_cfg=mpm_cfg,
-                # The authored bowl has a fixed body, rather than a body-free static shape.
-                bodies=[r"/World/envs/env_.*/CatchBowl"],
-                all_particles=True,
-                include_static_shapes=True,
-                in_place=True,
-            ),
-        ],
-    )
-
-
-def spawn_grasp_colliders(prim_path, cfg, **kwargs):
-    """Attach the authored convex contacts and transfer their mass distribution to the dynamic shell."""
-    from pxr import Gf, Usd, UsdPhysics
-
-    import isaaclab.sim as sim_utils
-
-    # The source root carries the collider frame relative to the exact shell.
-    root = sim_utils.spawn_from_usd(prim_path, cfg)
-    shell = UsdPhysics.MassAPI(root.GetParent())
-    configured_mass = shell.GetMassAttr().Get()
-    for prim in Usd.PrimRange(root):
-        if prim.HasAPI(UsdPhysics.MassAPI):
-            authored = UsdPhysics.MassAPI(prim)
-            for field in ("Mass", "CenterOfMass", "DiagonalInertia", "PrincipalAxes"):
-                value = getattr(authored, f"Get{field}Attr")().Get()
-                if value is not None:
-                    getattr(shell, f"Create{field}Attr")(value)
-            prim.RemoveAPI(UsdPhysics.MassAPI)
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-    authored_mass = shell.GetMassAttr().Get()
-    inertia = shell.GetDiagonalInertiaAttr().Get()
-    shell.CreateMassAttr(configured_mass)
-    if configured_mass > 0.0 and authored_mass > 0.0 and inertia is not None:
-        # Scaling the body mass preserves its center of mass and principal axes.
-        scale = configured_mass / authored_mass
-        shell.CreateDiagonalInertiaAttr(Gf.Vec3f(*(value * scale for value in inertia)))
-    return root

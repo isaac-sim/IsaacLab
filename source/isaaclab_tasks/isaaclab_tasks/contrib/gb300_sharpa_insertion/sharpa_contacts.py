@@ -13,6 +13,8 @@ import numpy as np
 
 import isaaclab.sim as sim_utils
 
+from isaaclab_assets.robots.rizon_sharpa import ROBOT_USD_PATH, resolve_robot_usd
+
 if TYPE_CHECKING:
     import trimesh
 
@@ -37,6 +39,8 @@ def spawn_sharpa_contact_meshes(
 
     from isaaclab.utils.mesh import create_trimesh_from_geom_mesh
 
+    if cfg.usd_path == ROBOT_USD_PATH:
+        cfg = cfg.replace(usd_path=resolve_robot_usd())
     root = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
     for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh):

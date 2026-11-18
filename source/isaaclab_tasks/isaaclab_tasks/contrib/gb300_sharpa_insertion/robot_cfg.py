@@ -18,8 +18,6 @@ from isaaclab_assets.robots.rizon_sharpa import (
     arm_actuators,
 )
 
-from .sharpa_contacts import spawn_sharpa_contact_meshes
-
 ROBOT_BASE_POSITION_E = (0.40706384, -0.44981234, 1.78624670)
 ROBOT_BASE_ROTATION_XYZW = (0.0, 0.0, 0.7071067811865476, 0.7071067811865476)
 PREGRASP_ARM_RAD = (-0.28426774, -0.68145812, 0.31863682, 2.04760345, 0.40848495, 2.17470681, -2.85753436)
@@ -56,7 +54,7 @@ def rizon_sharpa_articulation_cfg() -> ArticulationCfg:
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=ROBOT_USD_PATH,
-            func=spawn_sharpa_contact_meshes,
+            func="isaaclab_tasks.contrib.gb300_sharpa_insertion.sharpa_contacts:spawn_sharpa_contact_meshes",
             collision_props={
                 "/.*": [NewtonCollisionCfg(contact_gap=0.001)],
                 # Tucked digits are visual-only for this three-finger pinch.

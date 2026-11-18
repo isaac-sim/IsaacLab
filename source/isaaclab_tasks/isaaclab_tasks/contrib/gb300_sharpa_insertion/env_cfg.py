@@ -33,13 +33,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_assets.robots.rizon_sharpa import (
-    ARM_JOINT_NAMES,
-    HAND_JOINT_NAMES,
-    PALM_BODY_NAME,
-    ROBOT_USD_PATH,
-    resolve_robot_usd,
-)
+from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, HAND_JOINT_NAMES, PALM_BODY_NAME
 
 from . import mdp
 from .assets import RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD
@@ -47,6 +41,9 @@ from .cable import CONNECTOR_SPAN_M, PATCH_CABLE_COLOR, PatchCableCfg, hanging_c
 from .hydroelastic import cable_collision_pipeline
 from .robot_cfg import ROBOT_BASE_POSITION_E, rizon_sharpa_articulation_cfg
 from .workcell import SOCKET_POSITION_E, UPPER_SOCKET_POSITION_E
+
+_CONNECTOR_BODIES = (r"{ENV_REGEX_NS}/Cable/head", r"{ENV_REGEX_NS}/Cable/latch")
+_RIGID_BODIES = [r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Fixtures", *_CONNECTOR_BODIES]
 
 
 @configclass
@@ -158,14 +155,6 @@ class EventsCfg:
     reset_scene = EventTermCfg(func=base_mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
 
-_RIGID_BODIES = [
-    r"{ENV_REGEX_NS}/Robot",
-    r"{ENV_REGEX_NS}/Fixtures",
-    r"{ENV_REGEX_NS}/Cable/head",
-    r"{ENV_REGEX_NS}/Cable/latch",
-]
-
-
 @configclass
 class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
     """Absolute control of a native VBD cable with hydroelastic hand/plug contact."""
@@ -246,5 +235,3 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
 
     def __post_init__(self) -> None:
         self.sim.render_interval = self.decimation
-        if self.scene.robot.spawn.usd_path == ROBOT_USD_PATH:
-            self.scene.robot.spawn.usd_path = resolve_robot_usd()

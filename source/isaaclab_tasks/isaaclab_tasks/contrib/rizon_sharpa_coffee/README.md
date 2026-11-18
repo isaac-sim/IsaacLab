@@ -166,3 +166,6 @@ Reuse the scene, physics, reset logic and measured pose/delivery queries.
 Presentation supports one demo world and should be disabled for batched learning.
 Set robot and prop defaults in `CoffeeSceneCfg`. At construction, `configure_scene`
 applies the selected bowl scale, seeds the particle fills and sizes the material solver.
+Set each upright vessel's `init_state.pos` before construction to move its fill,
+scripted waypoints and delivery check with it. Setting a robot or prop configuration
+to `None` uses the corresponding scene default.

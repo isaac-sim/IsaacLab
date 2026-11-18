@@ -44,13 +44,55 @@ _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
 _SPOUT_POUR_POS = (-0.169, 0.0, 0.9937642035)
 
 
-def _blend(raw: float) -> tuple[float, float]:
-    """Return quintic progress and its derivative with respect to raw progress."""
-    progress = max(0.0, min(1.0, raw))
-    return (
-        progress**3 * (10.0 + progress * (-15.0 + 6.0 * progress)),
-        30.0 * progress**2 * (1.0 - progress) ** 2 if 0.0 < raw < 1.0 else 0.0,
-    )
+ARM_HOME_POSITIONS = (
+    0.457719810068,
+    -2.146584624401,
+    -0.617383959981,
+    1.860143482555,
+    0.884768946633,
+    2.692224339911,
+    -1.200491354255,
+)
+"""IK seed with elbow and wrist clearance for pickup and the elevated pour [rad]."""
+_CLEARED_FINGERS = (
+    (0.098851, -0.099312, 1.646411, 0.712023)  # Middle
+    + (0.768873, -0.120827, 1.278450, 1.117291)  # Ring
+    + (0.002, 1.408754, -0.265713, 1.471442, 1.204550)  # Pinky
+)
+"""Relaxed unused fingers with clearance from one another, the pot, and the table [rad]."""
+
+
+HAND_OPEN_POSITIONS = (
+    (0.560745308772, 0.113282128071, 0.001196655587, -0.031283024683, 0.331758077572)  # Thumb
+    + (0.812310475827, -0.039792563766, 0.680000000000, 0.200000000000)  # Index
+    + _CLEARED_FINGERS
+)
+"""Index aligned for insertion, with the thumb and unused fingers clear [rad]."""
+
+HAND_GRASP_POSITIONS = (
+    (0.747349262238, 0.289767593145, 0.094652488828, -0.132383197546, 0.297648280859)  # Thumb
+    + (0.835736691952, -0.039792563766, 0.616298854351, 0.907486081123)  # Index
+    + _CLEARED_FINGERS
+)
+"""Index hooked through the handle, opposed by the thumb [rad]."""
+
+HAND_HOLD_POSITIONS = (
+    # Oppose the handle without running the thumb pad onto the hooked index's middle phalanx.
+    (0.769337998127, 0.317099993706, 0.116388337027, -0.138365810236, 0.304292971503)  # Thumb
+    + (0.836523531919, -0.321860616915, 0.615938444479, 0.907486536391)  # Index
+    + _CLEARED_FINGERS
+)
+"""Force-limited squeeze targets; contacts determine the actual joint pose [rad]."""
+
+PALM_IN_POT = (
+    (-0.206058637337, -0.066785491216, 0.060669620349),
+    (0.815358862991, 0.016218134562, 0.024054733648, -0.578228558999),
+)
+"""Palm pose near the loaded grasp equilibrium, reducing recoil during pickup."""
+
+_THUMB_CONTACT_POINT = np.array((0.004038638, -0.016705590, -0.004974879))
+_THUMB_CONTACT_NORMAL = np.array((-0.320969277, 0.308200555, 0.895539581))
+"""Calibrated upper-handle contact point and outward normal in the thumb-pad frame."""
 
 
 def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
@@ -109,57 +151,6 @@ def approach_offset_at_time(sim_time: float) -> tuple[float, ...]:
     """Insert the index finger from beside the handle after a brief settling interval [m]."""
     progress, _ = _blend((sim_time - 0.1) / (GRASP_CLOSE_INTERVAL[0] - 0.1))
     return (0.0, -0.035 * (1.0 - progress), 0.0)
-
-
-ARM_HOME_POSITIONS = (
-    0.457719810068,
-    -2.146584624401,
-    -0.617383959981,
-    1.860143482555,
-    0.884768946633,
-    2.692224339911,
-    -1.200491354255,
-)
-"""IK seed with elbow and wrist clearance for pickup and the elevated pour [rad]."""
-_CLEARED_FINGERS = (
-    (0.098851, -0.099312, 1.646411, 0.712023)  # Middle
-    + (0.768873, -0.120827, 1.278450, 1.117291)  # Ring
-    + (0.002, 1.408754, -0.265713, 1.471442, 1.204550)  # Pinky
-)
-"""Relaxed unused fingers with clearance from one another, the pot, and the table [rad]."""
-
-
-HAND_OPEN_POSITIONS = (
-    (0.560745308772, 0.113282128071, 0.001196655587, -0.031283024683, 0.331758077572)  # Thumb
-    + (0.812310475827, -0.039792563766, 0.680000000000, 0.200000000000)  # Index
-    + _CLEARED_FINGERS
-)
-"""Index aligned for insertion, with the thumb and unused fingers clear [rad]."""
-
-HAND_GRASP_POSITIONS = (
-    (0.747349262238, 0.289767593145, 0.094652488828, -0.132383197546, 0.297648280859)  # Thumb
-    + (0.835736691952, -0.039792563766, 0.616298854351, 0.907486081123)  # Index
-    + _CLEARED_FINGERS
-)
-"""Index hooked through the handle, opposed by the thumb [rad]."""
-
-HAND_HOLD_POSITIONS = (
-    # Oppose the handle without running the thumb pad onto the hooked index's middle phalanx.
-    (0.769337998127, 0.317099993706, 0.116388337027, -0.138365810236, 0.304292971503)  # Thumb
-    + (0.836523531919, -0.321860616915, 0.615938444479, 0.907486536391)  # Index
-    + _CLEARED_FINGERS
-)
-"""Force-limited squeeze targets; contacts determine the actual joint pose [rad]."""
-
-PALM_IN_POT = (
-    (-0.206058637337, -0.066785491216, 0.060669620349),
-    (0.815358862991, 0.016218134562, 0.024054733648, -0.578228558999),
-)
-"""Palm pose near the loaded grasp equilibrium, reducing recoil during pickup."""
-
-_THUMB_CONTACT_POINT = np.array((0.004038638, -0.016705590, -0.004974879))
-_THUMB_CONTACT_NORMAL = np.array((-0.320969277, 0.308200555, 0.895539581))
-"""Calibrated upper-handle contact point and outward normal in the thumb-pad frame."""
 
 
 class TeapotPourMotion:
@@ -466,6 +457,15 @@ class TeapotPourMotion:
                 raise RuntimeError(f"Joint velocity solve failed: {solution.message}")
             result[free] = solution.x
         return result
+
+
+def _blend(raw: float) -> tuple[float, float]:
+    """Return quintic progress and its derivative with respect to raw progress."""
+    progress = max(0.0, min(1.0, raw))
+    return (
+        progress**3 * (10.0 + progress * (-15.0 + 6.0 * progress)),
+        30.0 * progress**2 * (1.0 - progress) ** 2 if 0.0 < raw < 1.0 else 0.0,
+    )
 
 
 @wp.kernel

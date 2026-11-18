@@ -131,24 +131,28 @@ class CoffeePresentationCfg(sim_utils.SpawnerCfg):
 
 @configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
-    """Reusable robot, hosted props and optional MPM fill volumes."""
+    """Reusable robot, hosted props and optional MPM fill volumes.
 
-    robot: ArticulationCfg = get_robot_cfg()
-    table: AssetBaseCfg = AssetBaseCfg(
+    Scene preparation restores the default robot or rigid prop when its config
+    is ``None``. The scripted demo expects upright vessels.
+    """
+
+    robot: ArticulationCfg | None = get_robot_cfg()
+    table: AssetBaseCfg | None = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
     )
-    bowl: AssetBaseCfg = AssetBaseCfg(
+    bowl: AssetBaseCfg | None = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bowl",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda", scale=(0.65, 0.65, 1.0)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
     )
-    cup: AssetBaseCfg = AssetBaseCfg(
+    cup: AssetBaseCfg | None = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Cup",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup_shallow.usda"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
     )
-    spoon: RigidObjectCfg = RigidObjectCfg(
+    spoon: RigidObjectCfg | None = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Spoon",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
@@ -276,11 +280,16 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         cfg.scene.presentation = AssetBaseCfg(
             prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
         )
+    missing_assets = [name for name in ("robot", "table", "bowl", "cup", "spoon") if getattr(cfg.scene, name) is None]
+    if missing_assets:
+        defaults = CoffeeSceneCfg()
+        for name in missing_assets:
+            setattr(cfg.scene, name, getattr(defaults, name))
     cfg.scene.bowl.spawn.scale = (cfg.bowl_scale, cfg.bowl_scale, 1.0)
     spacing = cfg.voxel_size / 2.0
     cfg.scene.coffee = _particle_cfg(
         "Coffee",
-        BOWL_POSITION,
+        cfg.scene.bowl.init_state.pos,
         0.060 * cfg.coffee_fill_scale,
         cfg.coffee_fill_height,
         min(spacing, cfg.coffee_particle_spacing),
@@ -288,7 +297,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         cfg.coffee_fill_scale,
     )
     cfg.scene.water = (
-        _particle_cfg("Water", CUP_POSITION, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True)
+        _particle_cfg(
+            "Water", cfg.scene.cup.init_state.pos, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True
+        )
         if cfg.water_enabled
         else None
     )

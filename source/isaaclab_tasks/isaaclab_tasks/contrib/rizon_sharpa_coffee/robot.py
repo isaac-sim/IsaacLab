@@ -15,6 +15,7 @@ import math
 from typing import TYPE_CHECKING
 
 from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, arm_actuators
+from isaaclab_assets.robots.rizon_sharpa import HAND_JOINT_NAMES as HAND_JOINT_NAMES
 from isaaclab_assets.robots.rizon_sharpa import PALM_BODY_NAME as PALM_BODY_NAME
 
 from .assets import COFFEE_ASSET_DIR
@@ -42,34 +43,33 @@ COFFEE_READY_POSITIONS = (
 The spoon uses ``DEFAULT_SPOON_OFFSET_POS`` and 180 degrees about palm X.
 This places the held utensil close above the source bowl, ready to descend.
 """
-# Named joints, hard limits [rad] and measured pinch angles [deg], in action order.
-_HAND_JOINTS = (
-    ("right_thumb_CMC_FE", (-0.1745, 1.9199), 57.326863284),
-    ("right_thumb_CMC_AA", (-0.3491, 0.3491), -6.056199517),
-    ("right_thumb_MCP_FE", (-0.5236, 1.3963), 39.987930283),
-    ("right_thumb_MCP_AA", (-0.3491, 0.3491), -12.580265177),
-    ("right_thumb_IP", (0.0, 1.7453), 64.864070603),
-    ("right_index_MCP_FE", (-0.17453293, 1.5708), 31.665550149),
-    ("right_index_MCP_AA", (-0.3491, 0.3491), 8.050335071),
-    ("right_index_PIP", (0.0, 1.7453), 84.817118264),
-    ("right_index_DIP", (0.0, 1.3963), 52.919252691),
-    ("right_middle_MCP_FE", (-0.17453293, 1.5708), 43.862671108),
-    ("right_middle_MCP_AA", (-0.3491, 0.3491), 6.597351456),
-    ("right_middle_PIP", (0.0, 1.7453), 75.055080927),
-    ("right_middle_DIP", (0.0, 1.3963), 63.272558488),
-    ("right_ring_MCP_FE", (-0.17453293, 1.5708), 86.912901978),
-    ("right_ring_MCP_AA", (-0.3491, 0.3491), 1.054959321),
-    ("right_ring_PIP", (0.0, 1.7453), 81.046617336),
-    ("right_ring_DIP", (0.0, 1.3963), 52.093328444),
-    ("right_pinky_CMC", (0.0, 0.2618), 6.662629932),
-    ("right_pinky_MCP_FE", (-0.17453293, 1.5708), 69.243995079),
-    ("right_pinky_MCP_AA", (-0.3491, 0.3491), 3.461576450),
-    ("right_pinky_PIP", (0.0, 1.7453), 79.104594737),
-    ("right_pinky_DIP", (0.0, 1.3963), 51.017046556),
-)
-HAND_JOINT_NAMES = tuple(name for name, _, _ in _HAND_JOINTS)
-HAND_JOINT_LIMITS = tuple(limits for _, limits, _ in _HAND_JOINTS)
-HAND_HOLD_POSITIONS = tuple(math.radians(angle) for _, _, angle in _HAND_JOINTS)
+# Per-joint hard limits [rad] and measured pinch angles [deg].
+_HAND_CALIBRATION = {
+    "right_thumb_CMC_FE": ((-0.1745, 1.9199), 57.326863284),
+    "right_thumb_CMC_AA": ((-0.3491, 0.3491), -6.056199517),
+    "right_thumb_MCP_FE": ((-0.5236, 1.3963), 39.987930283),
+    "right_thumb_MCP_AA": ((-0.3491, 0.3491), -12.580265177),
+    "right_thumb_IP": ((0.0, 1.7453), 64.864070603),
+    "right_index_MCP_FE": ((-0.17453293, 1.5708), 31.665550149),
+    "right_index_MCP_AA": ((-0.3491, 0.3491), 8.050335071),
+    "right_index_PIP": ((0.0, 1.7453), 84.817118264),
+    "right_index_DIP": ((0.0, 1.3963), 52.919252691),
+    "right_middle_MCP_FE": ((-0.17453293, 1.5708), 43.862671108),
+    "right_middle_MCP_AA": ((-0.3491, 0.3491), 6.597351456),
+    "right_middle_PIP": ((0.0, 1.7453), 75.055080927),
+    "right_middle_DIP": ((0.0, 1.3963), 63.272558488),
+    "right_ring_MCP_FE": ((-0.17453293, 1.5708), 86.912901978),
+    "right_ring_MCP_AA": ((-0.3491, 0.3491), 1.054959321),
+    "right_ring_PIP": ((0.0, 1.7453), 81.046617336),
+    "right_ring_DIP": ((0.0, 1.3963), 52.093328444),
+    "right_pinky_CMC": ((0.0, 0.2618), 6.662629932),
+    "right_pinky_MCP_FE": ((-0.17453293, 1.5708), 69.243995079),
+    "right_pinky_MCP_AA": ((-0.3491, 0.3491), 3.461576450),
+    "right_pinky_PIP": ((0.0, 1.7453), 79.104594737),
+    "right_pinky_DIP": ((0.0, 1.3963), 51.017046556),
+}
+HAND_JOINT_LIMITS = tuple(_HAND_CALIBRATION[name][0] for name in HAND_JOINT_NAMES)
+HAND_HOLD_POSITIONS = tuple(math.radians(_HAND_CALIBRATION[name][1]) for name in HAND_JOINT_NAMES)
 """Collision-screened pinch at one handle cross-section [rad].
 
 The index distal surface and thumb elastomer oppose each other near the handle
