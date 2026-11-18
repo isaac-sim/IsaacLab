@@ -22,7 +22,7 @@ import warp as wp
 
 from isaaclab_experimental import mdp2
 
-from .mdp2_env_cfg import MDP2EnvCfg
+from .mdp2_env_cfg import MDP2EnvCfg, Stage
 
 if TYPE_CHECKING:
     from .mdp2_env import MDP2Env
@@ -105,7 +105,8 @@ def _rollout(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> tuple[
             steps.append({name: value.clone() for name, value in results.items()})
         # Python hooks that run inside the graphs; fused wp.func hooks cannot read the host.
         suspects = [op.name for op in env.mdp.term_ops if op.capturable and not isinstance(op.compute, wp.Function)]
-        suspects += [f"stage {stage.fn.__name__}" for stage in cfg.stages if stage.capturable]
+        stages = [item for item in (*cfg.step, *cfg.reset_step) if isinstance(item, Stage)]
+        suspects += [f"stage {stage.fn.__name__}" for stage in stages if stage.capturable]
         return steps, suspects
     finally:
         env.close()

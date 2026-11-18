@@ -15,7 +15,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental import mdp2
-from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, Stage, StagePoint, mdp2_env, mdp2_scene_data
+from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -447,8 +447,8 @@ def raise_pole_armature_stage(env):
 
 @pytest.mark.parametrize(
     ("where", "capturable"),
-    [("event", True), ("event", False), (StagePoint.AFTER_RESET, True), (StagePoint.AFTER_OBSERVE, True)],
-    ids=("event-captured", "event-between-graphs", "stage-after-reset", "stage-after-observe"),
+    [("event", True), ("event", False), ("after-commit", True), ("end-of-step", True)],
+    ids=("event-captured", "event-between-graphs", "stage-after-commit", "stage-at-end-of-step"),
 )
 def test_model_changes_reach_the_solver_of_captured_steps(where, capturable):
     """Model changes that a reset event or a stage makes through the robot reach the solver in every step that
@@ -459,8 +459,10 @@ def test_model_changes_reach_the_solver_of_captured_steps(where, capturable):
         cfg.task.events["raise_pole_armature"] = mdp2.Event(
             mdp2.Term(torch=raise_pole_armature, capturable=capturable), inputs={"robot": robot}
         )
+    elif where == "after-commit":
+        cfg.reset_step.insert(cfg.reset_step.index(ResetStep.OBSERVE), Stage(raise_pole_armature_stage))
     else:
-        cfg.stages = [Stage(raise_pole_armature_stage, at=where)]
+        cfg.step.append(Stage(raise_pole_armature_stage))
     env = MDP2RLEnv(cfg)
     try:
         env.reset()
@@ -477,37 +479,64 @@ def test_model_changes_reach_the_solver_of_captured_steps(where, capturable):
         env.close()
 
 
-def test_stages_run_at_their_points_inside_and_between_graphs():
-    """Stages run every step at their points, inside the graph when capturable, and after resets also in reset()."""
-    counts = {point: torch.zeros(1, device="cuda:0") for point in StagePoint}
+def test_stages_run_where_they_are_in_the_step_inside_and_between_graphs():
+    """Stages run every step in their place among the built-in work, inside the graph when capturable, and those of
+    the reset step also in reset()."""
+    clock = torch.zeros(1, device="cuda:0")
+    stamps = torch.zeros(8, device="cuda:0")  # When each stage last ran, on the device clock
+    counts = torch.zeros(8, device="cuda:0")
 
-    def count(point: StagePoint):
-        return lambda env: counts[point].add_(1.0)
+    def stamp(k: int) -> Stage:
+        def fn(env):
+            stamps[k].copy_(clock[0])
+            counts[k].add_(1.0)
+            clock.add_(1.0)
 
+        return Stage(fn)
+
+    # A stage before and after every built-in step: 0-3 in the step, 4-7 in the reset step.
     cfg = cartpole_cfg()
-    cfg.stages = [Stage(count(point), at=point) for point in StagePoint]
+    cfg.step = [stamp(0), Step.PHYSICS, stamp(1), Step.EVALUATE, stamp(2), Step.RESET, stamp(3)]
+    cfg.reset_step = [stamp(4), ResetStep.EVENTS, stamp(5), ResetStep.COMMIT, stamp(6), ResetStep.OBSERVE, stamp(7)]
     env = MDP2RLEnv(cfg)
     try:
         env.reset()
         for _ in range(5):
             env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
         assert env.is_captured and env.num_graphs == 1
-        assert {point: int(value.item()) for point, value in counts.items()} == {
-            point: 6 if point is StagePoint.AFTER_RESET else 5 for point in StagePoint
-        }
+        assert counts.tolist() == [5.0] * 4 + [6.0] * 4
+        # The reset step runs inside the step's Step.RESET.
+        order = [0, 1, 2, 4, 5, 6, 7, 3]
+        assert stamps[order].tolist() == sorted(stamps.tolist())
     finally:
         env.close()
 
     # A stage that cannot be captured runs between two graphs.
-    cfg.stages = [Stage(count(StagePoint.AFTER_PHYSICS), at=StagePoint.AFTER_PHYSICS, capturable=False)]
+    counts.zero_()
+    cfg = cartpole_cfg()
+    cfg.step.insert(cfg.step.index(Step.PHYSICS) + 1, Stage(lambda env: counts[0].add_(1.0), capturable=False))
     env = MDP2RLEnv(cfg)
     try:
         env.reset()
         for _ in range(3):
             env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
-        assert env.num_graphs == 2 and counts[StagePoint.AFTER_PHYSICS].item() == 8
+        assert env.num_graphs == 2 and counts[0].item() == 3
     finally:
         env.close()
+
+
+def test_built_in_steps_must_run_once_in_order():
+    """A step or reset step that reorders, repeats, or leaves out built-in work is refused before anything is built."""
+    cfg = cartpole_cfg()
+    for step in ([Step.EVALUATE, Step.PHYSICS, Step.RESET], [Step.PHYSICS, Step.EVALUATE, Step.RESET, Step.RESET]):
+        cfg.step = step
+        with pytest.raises(ValueError, match="MDP2EnvCfg.step must hold"):
+            MDP2RLEnv(cfg)
+
+    cfg = cartpole_cfg()
+    cfg.reset_step = [ResetStep.EVENTS, ResetStep.OBSERVE, ResetStep.COMMIT]
+    with pytest.raises(ValueError, match="MDP2EnvCfg.reset_step must hold"):
+        MDP2RLEnv(cfg)
 
 
 def test_verify_capture_finds_python_state_that_the_graph_freezes():
@@ -524,7 +553,7 @@ def test_verify_capture_finds_python_state_that_the_graph_freezes():
         calls[env] = calls.get(env, 0) + 1
         env.state.reward_weights.torch.fill_(float(calls[env]))
 
-    cfg.stages = [Stage(drifting_reward_weights, at=StagePoint.AFTER_PHYSICS)]
+    cfg.step.insert(cfg.step.index(Step.PHYSICS) + 1, Stage(drifting_reward_weights))
     with pytest.raises(RuntimeError, match=r"Captured step \d+ differs .* at 'rewards'.*stage drifting_reward_weights"):
         MDP2RLEnv(cfg)
 
@@ -537,7 +566,7 @@ def test_verify_capture_finds_python_state_that_the_graph_freezes():
         cache["calls"] = cache.get("calls", 0) + 1
         joint_pos.add_(mask[:, None] * float(cache["calls"]))
 
-    cfg.stages = []
+    cfg.step = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
     cfg.task.events["counted_reset"] = mdp2.Event(
         mdp2.Term(torch=counted_reset), outputs={"joint_pos": robot.joint_pos}
     )
@@ -589,7 +618,7 @@ def test_stages_that_write_the_scene_are_seen_by_later_work():
     cfg.task.observations["policy"]["cart_offset"] = mdp2.Observation(
         cart_offset, inputs={"body_link_pose_w": robot.body_link_pose_w}
     )
-    cfg.stages = [Stage(move_reset_carts, at=StagePoint.AFTER_RESET)]
+    cfg.reset_step.insert(cfg.reset_step.index(ResetStep.OBSERVE), Stage(move_reset_carts))
     env = MDP2RLEnv(cfg)
     try:
         env.reset()

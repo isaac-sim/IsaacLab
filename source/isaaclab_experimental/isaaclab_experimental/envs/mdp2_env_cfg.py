@@ -19,31 +19,35 @@ from isaaclab.utils import configclass
 from isaaclab_experimental.mdp2 import Backend, TaskCfg
 
 
-class StagePoint(enum.Enum):
-    """Where a :class:`Stage` runs in a control step, which applies the actions, steps the physics, evaluates the MDP,
-    resets the worlds that ended, and observes them."""
+class Step(enum.Enum):
+    """Built-in work of a control step, in :attr:`MDP2EnvCfg.step`."""
 
-    BEFORE_PHYSICS = enum.auto()  # Before the actions are applied and the physics steps
-    AFTER_PHYSICS = enum.auto()  # After the physics steps, before the MDP is evaluated
-    BEFORE_RESET = enum.auto()  # After the MDP is evaluated, before the worlds that ended are reset
-    AFTER_RESET = enum.auto()  # After the reset events and their commit, before the reset worlds are observed
-    AFTER_OBSERVE = enum.auto()  # At the end of the step
+    PHYSICS = enum.auto()  # Apply the actions and step the physics ``decimation`` times
+    EVALUATE = enum.auto()  # Evaluate the MDP: commands, quantities, terminations, rewards, observations
+    RESET = enum.auto()  # Reset the worlds whose episodes ended, by :attr:`MDP2EnvCfg.reset_step`
+
+
+class ResetStep(enum.Enum):
+    """Built-in work of a reset, in :attr:`MDP2EnvCfg.reset_step`."""
+
+    EVENTS = enum.auto()  # Reset the assets and sensors, and run the reset events, which write scene fields in place
+    COMMIT = enum.auto()  # Pass the writes of the reset events to the simulation
+    OBSERVE = enum.auto()  # Observe the reset worlds
 
 
 @dataclass(frozen=True)
 class Stage:
-    """User work at a point of every control step, such as kernels that update a scene field the MDP reads.
+    """User work in a control step or a reset, at its place in :attr:`MDP2EnvCfg.step` or
+    :attr:`MDP2EnvCfg.reset_step`, such as kernels that update a scene field the MDP reads.
 
     ``fn(env)`` may read and write anything, through the environment, its scene, and its MDP state. A capturable stage
     runs inside the step's CUDA graph: it is called once, at capture, and its launches replay every step, so it must
     not read values on the host or draw from Torch's random generators, and Python branches take the path they took
-    at capture. Check it with
-    ``MDP2EnvCfg.verify_capture``. A stage that is not capturable runs on the host between the graphs. Stages at
-    :attr:`StagePoint.AFTER_RESET` also run in :meth:`~isaaclab_experimental.envs.MDP2Env.reset`.
+    at capture. Check it with ``MDP2EnvCfg.verify_capture``. A stage that is not capturable runs on the host between
+    the graphs. After each stage, the simulation applies the model and state changes it made through the assets.
     """
 
     fn: Callable[[Any], None]
-    at: StagePoint
     capturable: bool = True
 
 
@@ -60,7 +64,10 @@ class MDP2EnvCfg:
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None
     capture: bool = True  # Replay each step, physics included, as one CUDA graph when the MDP allows it
-    stages: list[Stage] = []  # User work at points of every step, in order
+    # The work of a control step, in order: the built-in steps, each once and in this order, and stages anywhere
+    step: list[Step | Stage] = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+    # The work of resetting worlds, in a step's Step.RESET and in reset(): as for step
+    reset_step: list[ResetStep | Stage] = [ResetStep.EVENTS, ResetStep.COMMIT, ResetStep.OBSERVE]
     # Debug: before building, step the task this many times uncaptured and captured, and raise where they differ,
     # naming the value; see verify_capture. 0 to skip.
     verify_capture: int = 0

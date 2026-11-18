@@ -24,8 +24,9 @@
 * Added :class:`~isaaclab_experimental.envs.MDP2Env` and :class:`~isaaclab_experimental.envs.MDP2RLEnv`, which run an
   MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are masks
   over the worlds, so every step after the first replays as CUDA graphs, physics included, on both backends: one
-  graph, or graphs around the work that cannot be captured. :class:`~isaaclab_experimental.envs.Stage` s add user
-  work at points of every step, and ``verify_capture`` checks that captured steps compute what uncaptured ones do.
+  graph, or graphs around the work that cannot be captured. A step is the list ``step`` of built-in work
+  (:class:`~isaaclab_experimental.envs.Step`, and :class:`~isaaclab_experimental.envs.ResetStep` for resets), into
+  which :class:`~isaaclab_experimental.envs.Stage` s insert user work anywhere, and ``verify_capture`` checks that captured steps compute what uncaptured ones do.
   Reset events write scene fields in place, including fixed-base root poses and gravity, and the scene commits them
   before an event that reads derived fields, such as body poses, or that takes an entity they wrote. A
   commit tells the solver which worlds changed where a field is its own state, and passes the writes through the

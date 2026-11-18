@@ -117,8 +117,21 @@ between the graphs. An event that writes through an entity's methods declares it
 ``outputs={"robot": robot}``, so that the builder orders and commits around it. ``Term(init=fn)`` fills a term's
 state once at startup, on the host, with ``fn(ctx, **params)``.
 
-**Stages** add user work at points of every step, in ``MDP2EnvCfg.stages``: ``Stage(fn, at=StagePoint.AFTER_PHYSICS)``
-calls ``fn(env)`` with full access to the environment, inside the step's graph unless ``capturable=False``.
+**The step is a list.** ``MDP2EnvCfg.step`` holds the built-in work of a control step, and ``reset_step`` that of a
+reset, which a step's ``Step.RESET`` and ``reset()`` run. Insert a :class:`~isaaclab_experimental.envs.Stage` anywhere
+in them; it calls ``fn(env)`` with full access to the environment, inside the step's graph unless
+``capturable=False``:
+
+.. code-block:: python
+
+   cfg.step                # [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+   cfg.reset_step          # [ResetStep.EVENTS, ResetStep.COMMIT, ResetStep.OBSERVE]
+
+   cfg.step.insert(cfg.step.index(Step.PHYSICS) + 1, Stage(update_height_map))         # after the physics
+   cfg.reset_step.insert(cfg.reset_step.index(ResetStep.OBSERVE), Stage(move_objects))  # after the commit
+   cfg.step.append(Stage(log_episode_length, capturable=False))                         # at the end, on the host
+
+The built-in steps must each appear once, in this order; the environment raises otherwise.
 
 The fused ``wp.func`` path is what makes MDP2 fast: one kernel per statement instead of fused kernels costs Go2
 78 → 121 µs and Lift 234 → 293 µs per step at 4096 worlds, also inside a graph. Library terms use it; Python hooks and
