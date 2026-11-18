@@ -41,7 +41,12 @@ from ..utils.device import set_cuda_device
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
 from ..visualizers import ImageViewCfg, VisualizerBackendCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs, warn_deprecated_visualizer
+from ..visualizers.visualizer_cfg import (
+    VISUALIZER_ALIAS_OPTIONS,
+    VISUALIZER_ALIASES,
+    migrate_visualizer_cfgs,
+    warn_deprecated_visualizer,
+)
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -255,6 +260,9 @@ def validate_launch(  # noqa: C901
     if selection is not None:
         for name in selection:
             warn_deprecated_visualizer(name, stacklevel=3)
+        alias_options = {}
+        for name in selection:
+            alias_options.update(VISUALIZER_ALIAS_OPTIONS.get(name, {}))
         selection = list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in selection))
         if selection == ["none"]:
             selection = []
@@ -297,6 +305,11 @@ def validate_launch(  # noqa: C901
                     or [viewer.replace(backend=visualizer_types[name]()) for viewer in declarations]
                 )
             node.visualizer_cfgs = viewers
+            if alias_options:  # a deprecated name that also chose how the window starts, such as newton_rtx
+                for viewer in node.visualizer_cfgs:
+                    if isinstance(viewer.backend, NewtonGLBackendCfg):
+                        for option, value in alias_options.items():
+                            setattr(viewer.backend, option, value)
         if livestream or launcher_args.get("xr", False):
             if not any(isinstance(viewer.backend, KitBackendCfg) for viewer in node.visualizer_cfgs):
                 node.visualizer_cfgs.append(

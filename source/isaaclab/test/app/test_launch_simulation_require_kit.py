@@ -110,6 +110,7 @@ def test_newton_rtx_selection_launches_newton_with_a_deprecation_warning():
     with pytest.warns(FutureWarning, match="'newton_rtx' visualizer option is deprecated.*next release"):
         sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
     assert [viz.backend.visualizer_type for viz in cfg.visualizer_cfgs] == ["newton"]
+    assert [viz.backend.initial_renderer for viz in cfg.visualizer_cfgs] == ["rtx"]
 
 
 def test_newton_gl_alias_selects_newton_without_a_warning():
