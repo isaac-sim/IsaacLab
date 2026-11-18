@@ -27,7 +27,7 @@ from isaaclab import sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
-from . import generalized_projection as gp
+from . import lens_lut
 from .calibrated_geometry import compose_rotations, retinal_directions
 from .foveated_camera import FoveatedCamera
 from .native_grid import (
@@ -102,7 +102,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         super().__init__(cfg)
         if ovrtx:
             for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage):
-                gp.apply_generalized_projection_to_prim(prim, self._dir_tex_path, self._exit_tex_path)
+                lens_lut.apply_lens_lut_to_prim(prim, self._dir_tex_path, self._exit_tex_path)
 
     # ------------------------------------------------------------------
     #  Initialisation
@@ -139,7 +139,9 @@ class FoveatedRTXCamera(FoveatedCamera):
             # Eccentricity [deg] of each sample; the disc is laid out with the same
             # field of view and CMF constant the samples were generated with.
             eccentricity = ray_coords.polar[:, 0].to(torch.float64) * (ray_coords.fov / 2.0)
-            uv = gp.samples_uv_cortical_disc(eccentricity, theta_rad, ray_coords.fov, ray_coords.cmf_a, device="cpu")
+            uv = lens_lut.samples_uv_cortical_disc(
+                eccentricity, theta_rad, ray_coords.fov, ray_coords.cmf_a, device="cpu"
+            )
         self._texture_width = tw
         self._texture_height = th
         self._sample_uv = uv
@@ -152,14 +154,14 @@ class FoveatedRTXCamera(FoveatedCamera):
         else:
             EW = EH = max(128, 4 * max(tw, th))
         if self._native_grid:
-            dir_tex, exit_tex = gp.build_native_grid_textures(
+            dir_tex, exit_tex = lens_lut.build_native_grid_textures(
                 ray_coords, image_rotation_deg=self.cfg.image_rotation_deg, exit_size=EW
             )
         else:
-            dir_tex, exit_tex = gp.build_generalized_projection_textures(uv, dirs, tw, th, EW, EH, device="cpu")
+            dir_tex, exit_tex = lens_lut.build_lut_textures(uv, dirs, tw, th, EW, EH, device="cpu")
         # The camera owns its textures' directory, which is removed when the camera is released.
         self._lut_dir = tempfile.TemporaryDirectory(prefix="rtx_foveated_luts_")
-        self._dir_tex_path, self._exit_tex_path = gp.save_generalized_projection_textures(
+        self._dir_tex_path, self._exit_tex_path = lens_lut.save_lut_textures(
             dir_tex, exit_tex, self._lut_dir.name, "foveated"
         )
         logger.info(
@@ -188,7 +190,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         # snapshots a detached stage, so later USD edits would miss its cameras.
         prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
         for prim in prims:
-            gp.apply_generalized_projection_to_prim(
+            lens_lut.apply_lens_lut_to_prim(
                 prim, direction_texture_path=self._dir_tex_path, exit_texture_path=self._exit_tex_path
             )
         # OVRTX's lookup-table range is measured from the near-clipped ray origin.

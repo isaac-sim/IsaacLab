@@ -12,11 +12,9 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """
-Utilities for building generalised-projection (LUT-based) foveated camera
-models compatible with OmniLensDistortionLutAPI (Omniverse / Isaac Sim).
+Lens lookup tables for RTX's ``OmniLensDistortionLutAPI`` (``omni:lensdistortion:model = "lut"``).
 
-A generalised-projection sensor is defined by two HDR textures attached to a
-camera prim:
+A lookup-table lens is defined by two HDR textures attached to a camera prim:
 
 * **rayEnterDirectionTexture** ``(H × W, RGB float32)``
   Maps each sensor texel NDC ``(u, v)`` → unit ray direction in camera space.
@@ -25,8 +23,7 @@ camera prim:
   Inverse map: given a ray direction (octahedral-encoded over ``[0,1]²``),
   returns the sensor NDC ``(u, v)`` of the nearest sample.
 
-Ported from ``fovi-rtx/generalized_projection.py`` — contains only the
-subset of functions required by :class:`FoveatedRTXCamera`.
+Isaac RTX and OVRTX both render through this API; the legacy generalized-projection camera attributes are not used.
 
 Coordinate conventions:
 
@@ -161,7 +158,7 @@ def build_native_grid_textures(
     return directions, exit_texture
 
 
-def build_generalized_projection_textures(
+def build_lut_textures(
     samples_uv: torch.Tensor,
     ray_directions: torch.Tensor,
     texture_width: int,
@@ -253,7 +250,7 @@ def build_generalized_projection_textures(
 # =============================================================================
 
 
-def save_generalized_projection_textures(
+def save_lut_textures(
     direction_texture: torch.Tensor,
     exit_texture: torch.Tensor,
     output_dir: str,
@@ -277,7 +274,7 @@ def save_generalized_projection_textures(
 # =============================================================================
 
 
-def apply_generalized_projection_to_prim(
+def apply_lens_lut_to_prim(
     prim: Usd.Prim,
     direction_texture_path: str,
     exit_texture_path: str,
