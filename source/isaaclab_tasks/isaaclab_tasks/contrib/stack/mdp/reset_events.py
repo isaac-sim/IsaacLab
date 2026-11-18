@@ -11,14 +11,13 @@ import math
 from collections.abc import Sequence
 from enum import IntEnum
 from itertools import permutations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 from isaaclab.utils.math import matrix_from_quat, normalize, quat_mul
 
-from ..constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
 from .runtime_state import create_stack_reset_runtime_state
 
 if TYPE_CHECKING:
@@ -144,9 +143,9 @@ _STATE_TABLE_LAYOUTS = (
 )
 _NEAR_GRASP_POSE_INDEX = 0
 _PREGRASP_POSE_INDEX = 1
-_LIFTED_OR_RED_ALIGNED_POSE_INDEX = 2
-_GREEN_ALIGNED_POSE_INDEX = 3
-_GREEN_RELEASE_POSE_INDEX = 4
+_LIFTED_OR_FIRST_ALIGNED_POSE_INDEX = 2
+_SECOND_ALIGNED_POSE_INDEX = 3
+_SECOND_RELEASE_POSE_INDEX = 4
 
 
 class StackResetRecipe(IntEnum):
@@ -218,10 +217,8 @@ def _oriented_cube_pair_intersections(
 ) -> torch.Tensor:
     """Return rows where two oriented cubes overlap by more than a tolerance.
 
-    This is an exact 15-axis separating-axis test for two oriented boxes.
-    Face-normal checks alone are insufficient for tilted reset cubes, and the
-    previous center-distance approximation missed corner/edge intersections.
-    Degenerate cross products from parallel box axes are ignored.
+    The separating-axis test checks both cubes' face normals and the cross products of their edges.
+    Cross products of parallel axes are ignored.
     """
     if first_centers.shape != second_centers.shape or first_centers.shape[-1] != 3:
         raise ValueError("Cube centers must have matching shapes ending in three coordinates.")
@@ -261,15 +258,11 @@ def _oriented_cube_pair_intersections(
 
 
 def _franka_tool_position(joint_positions: torch.Tensor) -> torch.Tensor:
-    """Compute configured Panda tool-center positions from seven joints.
+    """Compute the stock fixed-base Panda's tool-center positions from seven joints.
 
-    Reset rows must preserve the rigid transform between a held cube and the
-    fingers. Interpolating robot joints and cube Cartesian positions
-    independently violates that transform by up to two centimeters and
-    produces a floating object that immediately falls under gravity. This
-    compact forward kinematics follows the Franka joint origins authored in
-    the task's robot asset and includes the configured 10.34 cm action-frame
-    offset from ``panda_hand``.
+    The authored table assumes the stock Panda geometry with its base at the environment origin. This chain
+    evaluates candidate arm poses before writing simulation state and includes the 10.34 cm tool offset
+    from ``panda_hand``. A different robot linkage or base pose requires recalibrating the reset table.
 
     Args:
         joint_positions: Franka arm positions [rad], shape ``(..., 7)``.
@@ -326,19 +319,20 @@ class StackResetStateTable(ManagerTermBase):
     phases. Motion phases are densely interpolated and table starts span a
     deterministic low-discrepancy layout set. Complete physical states are
     sampled from a shared validated cache, with a learned success rate for
-    each state.
+    each state. The configured arm action supplies the workspace for both
+    catalog eligibility and reset perturbations.
     """
 
-    _TABLE_HEIGHT = 0.0205
-    _CUBE_HEIGHT = 0.04
-    _PICK_PROGRESS_BINS = 17
-    _RELEASE_PROGRESS_BINS = 17
-    _MOTION_PROGRESS_BINS = 33
+    _TABLE_HEIGHT: ClassVar[float] = 0.0205
+    _CUBE_HEIGHT: ClassVar[float] = 0.04
+    _PICK_PROGRESS_BINS: ClassVar[int] = 17
+    _RELEASE_PROGRESS_BINS: ClassVar[int] = 17
+    _MOTION_PROGRESS_BINS: ClassVar[int] = 33
     # Eighteen workspace/source-order layouts each contribute 64 independent
     # table arrangements: 1,152 deployment starts and 6,786 rows overall.
-    _TABLE_ROWS_PER_LAYOUT = 64
-    _EXPECTED_ARM_JOINTS = 7
-    _EXPECTED_HAND_JOINTS = 2
+    _TABLE_ROWS_PER_LAYOUT: ClassVar[int] = 64
+    _EXPECTED_ARM_JOINTS: ClassVar[int] = 7
+    _EXPECTED_HAND_JOINTS: ClassVar[int] = 2
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -356,7 +350,17 @@ class StackResetStateTable(ManagerTermBase):
                 f"found {len(self._arm_joint_ids)} and {len(self._hand_joint_ids)}."
             )
 
-        self._arm_anchors = torch.tensor(_STATE_TABLE_ARM_POSES, dtype=torch.float32, device=env.device)
+        arm_action = env.cfg.actions.arm_action
+        self._workspace_lower = torch.tensor(arm_action.workspace_lower, dtype=torch.float32, device=self.device)
+        self._workspace_upper = torch.tensor(arm_action.workspace_upper, dtype=torch.float32, device=self.device)
+        joint_shape = (self._EXPECTED_ARM_JOINTS,)
+        if self._workspace_lower.shape != joint_shape or self._workspace_upper.shape != joint_shape:
+            raise ValueError("Franka stack arm action workspace must contain one lower and upper bound per joint.")
+        if not torch.isfinite(self._workspace_lower).all() or not torch.isfinite(self._workspace_upper).all():
+            raise ValueError("Franka stack arm action workspace bounds must be finite.")
+        if (self._workspace_lower >= self._workspace_upper).any():
+            raise ValueError("Franka stack arm action workspace lower bounds must be below the upper bounds.")
+
         self._role_permutations = torch.tensor(
             tuple(permutations(range(3))),
             dtype=torch.long,
@@ -369,9 +373,12 @@ class StackResetStateTable(ManagerTermBase):
             table_rows_per_layout=int(cfg.params["table_rows_per_layout"]),
         )
         self._validate_table()
+        self._restrict_to_workspace()
         self._rows_by_recipe = tuple(
             torch.nonzero(self._recipe_ids == int(recipe), as_tuple=False).flatten() for recipe in StackResetRecipe
         )
+        if self._rows_by_recipe[StackResetRecipe.TABLE].numel() == 0:
+            raise ValueError("Franka stack arm action workspace excludes every table start.")
         self._runtime_state = create_stack_reset_runtime_state(env)
         self._sampling_probabilities: torch.Tensor | None = None
 
@@ -417,6 +424,7 @@ class StackResetStateTable(ManagerTermBase):
             raise ValueError("table_rows_per_layout must be positive.")
         if not closed_finger_position < open_finger_position:
             raise ValueError("closed_finger_position must be less than open_finger_position.")
+        arm_anchors = torch.tensor(_STATE_TABLE_ARM_POSES, dtype=torch.float32, device="cpu")
         arm_rows: list[torch.Tensor] = []
         hand_rows: list[torch.Tensor] = []
         position_rows: list[torch.Tensor] = []
@@ -432,13 +440,13 @@ class StackResetStateTable(ManagerTermBase):
             held_role: int,
         ) -> None:
             arm_rows.append(arm_position)
-            hand_rows.append(self._arm_anchors.new_full((self._EXPECTED_HAND_JOINTS,), finger_position))
+            hand_rows.append(arm_anchors.new_full((self._EXPECTED_HAND_JOINTS,), finger_position))
             position_rows.append(role_positions)
             recipe_rows.append(int(recipe))
             held_role_rows.append(held_role)
             layout_rows.append(layout_id)
 
-        # Author scalar waypoints on the CPU; iterating GPU tensors would synchronize each row.
+        # Author waypoints on the CPU and transfer the stacked rows in batches.
         pick_progress = tuple(index / (self._PICK_PROGRESS_BINS - 1) for index in range(self._PICK_PROGRESS_BINS))
         motion_progress = tuple(index / (self._MOTION_PROGRESS_BINS - 1) for index in range(self._MOTION_PROGRESS_BINS))
         release_progress = tuple(
@@ -448,7 +456,7 @@ class StackResetStateTable(ManagerTermBase):
             base_x, base_y = _STATE_TABLE_ANCHORS[base_anchor]
             first_x, first_y = _STATE_TABLE_ANCHORS[first_anchor]
             second_x, second_y = _STATE_TABLE_ANCHORS[second_anchor]
-            base_position = self._arm_anchors.new_tensor((base_x, base_y, self._TABLE_HEIGHT))
+            base_position = arm_anchors.new_tensor((base_x, base_y, self._TABLE_HEIGHT))
             first_source = base_position.new_tensor((first_x, first_y, self._TABLE_HEIGHT))
             second_source = base_position.new_tensor((second_x, second_y, self._TABLE_HEIGHT))
             table_positions = torch.stack((base_position, first_source, second_source))
@@ -457,13 +465,13 @@ class StackResetStateTable(ManagerTermBase):
             first_placed_alpha = float((first_stack_position[2] - 0.04) / (0.08 - 0.04))
             second_placed_alpha = float((second_stack_position[2] - 0.08) / (0.1175 - 0.08))
             first_placed_arm = torch.lerp(
-                self._arm_anchors[base_anchor, _NEAR_GRASP_POSE_INDEX],
-                self._arm_anchors[base_anchor, _PREGRASP_POSE_INDEX],
+                arm_anchors[base_anchor, _NEAR_GRASP_POSE_INDEX],
+                arm_anchors[base_anchor, _PREGRASP_POSE_INDEX],
                 first_placed_alpha,
             )
             second_placed_arm = torch.lerp(
-                self._arm_anchors[base_anchor, _PREGRASP_POSE_INDEX],
-                self._arm_anchors[base_anchor, _GREEN_RELEASE_POSE_INDEX],
+                arm_anchors[base_anchor, _PREGRASP_POSE_INDEX],
+                arm_anchors[base_anchor, _SECOND_RELEASE_POSE_INDEX],
                 second_placed_alpha,
             )
 
@@ -490,7 +498,7 @@ class StackResetStateTable(ManagerTermBase):
                     StackResetRecipe.FINAL_RELEASE,
                     torch.lerp(
                         second_placed_arm,
-                        self._arm_anchors[base_anchor, _GREEN_RELEASE_POSE_INDEX],
+                        arm_anchors[base_anchor, _SECOND_RELEASE_POSE_INDEX],
                         progress,
                     ),
                     full_stack_positions,
@@ -505,14 +513,14 @@ class StackResetStateTable(ManagerTermBase):
                     2,
                     second_anchor,
                     second_placed_arm,
-                    _GREEN_ALIGNED_POSE_INDEX,
+                    _SECOND_ALIGNED_POSE_INDEX,
                     (StackResetRecipe.SECOND_PLACE, StackResetRecipe.SECOND_TRANSPORT, StackResetRecipe.SECOND_PICK),
                 ),
                 (
                     1,
                     first_anchor,
                     first_placed_arm,
-                    _LIFTED_OR_RED_ALIGNED_POSE_INDEX,
+                    _LIFTED_OR_FIRST_ALIGNED_POSE_INDEX,
                     (StackResetRecipe.FIRST_PLACE, StackResetRecipe.FIRST_TRANSPORT, StackResetRecipe.FIRST_PICK),
                 ),
             ):
@@ -523,10 +531,10 @@ class StackResetStateTable(ManagerTermBase):
                     source_positions[1] = first_stack_position
                 placed_positions = source_positions.clone()
                 placed_positions[role] = base_position + base_position.new_tensor((0.0, 0.0, role * self._CUBE_HEIGHT))
-                near_grasp_arm = self._arm_anchors[source_anchor, _NEAR_GRASP_POSE_INDEX]
-                pregrasp_arm = self._arm_anchors[source_anchor, _PREGRASP_POSE_INDEX]
-                lifted_arm = self._arm_anchors[source_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX]
-                aligned_arm = self._arm_anchors[base_anchor, aligned_pose]
+                near_grasp_arm = arm_anchors[source_anchor, _NEAR_GRASP_POSE_INDEX]
+                pregrasp_arm = arm_anchors[source_anchor, _PREGRASP_POSE_INDEX]
+                lifted_arm = arm_anchors[source_anchor, _LIFTED_OR_FIRST_ALIGNED_POSE_INDEX]
+                aligned_arm = arm_anchors[base_anchor, aligned_pose]
 
                 for progress in motion_progress:
                     supported = progress == 1.0
@@ -580,9 +588,7 @@ class StackResetStateTable(ManagerTermBase):
                     for progress in motion_progress:
                         append(
                             StackResetRecipe.PAIR_READY,
-                            torch.lerp(
-                                self._arm_anchors[base_anchor, _GREEN_RELEASE_POSE_INDEX], pregrasp_arm, progress
-                            ),
+                            torch.lerp(arm_anchors[base_anchor, _SECOND_RELEASE_POSE_INDEX], pregrasp_arm, progress),
                             source_positions,
                             open_finger_position,
                             -1,
@@ -632,20 +638,20 @@ class StackResetStateTable(ManagerTermBase):
                     tuple((x, y, self._TABLE_HEIGHT) for x, y in table_xy)
                 )
                 approach_anchor = min(int(lattice(263, 113) * len(_STATE_TABLE_ANCHORS)), len(_STATE_TABLE_ANCHORS) - 1)
-                arm_noise = self._arm_anchors.new_tensor(
+                arm_noise = arm_anchors.new_tensor(
                     tuple(0.04 * (lattice(271 + 18 * joint_id, 127 + 31 * joint_id) - 0.5) for joint_id in range(7))
                 )
                 append(
                     StackResetRecipe.TABLE,
-                    self._arm_anchors[approach_anchor, _PREGRASP_POSE_INDEX] + arm_noise,
+                    arm_anchors[approach_anchor, _PREGRASP_POSE_INDEX] + arm_noise,
                     randomized_table_positions,
                     open_finger_position,
                     -1,
                 )
 
-        self._arm_positions = torch.stack(arm_rows)
-        self._hand_positions = torch.stack(hand_rows)
-        self._role_positions = torch.stack(position_rows)
+        self._arm_positions = torch.stack(arm_rows).to(self.device)
+        self._hand_positions = torch.stack(hand_rows).to(self.device)
+        self._role_positions = torch.stack(position_rows).to(self.device)
         self._recipe_ids = torch.tensor(recipe_rows, dtype=torch.long, device=self.device)
         self._held_roles = torch.tensor(held_role_rows, dtype=torch.long, device=self.device)
         self._layout_ids = torch.tensor(layout_rows, dtype=torch.long, device=self.device)
@@ -670,7 +676,7 @@ class StackResetStateTable(ManagerTermBase):
         self._role_quaternions[..., 3] = torch.cos(half_yaw)
         held_rows = torch.nonzero(self._held_roles >= 0, as_tuple=False).flatten()
         if held_rows.numel() > 0:
-            # Held cubes follow the actual hand FK, not an independent Cartesian trajectory.
+            # Place held cubes at the tool center for their authored arm pose.
             self._role_positions[held_rows, self._held_roles[held_rows]] = _franka_tool_position(
                 self._arm_positions[held_rows]
             )
@@ -731,6 +737,22 @@ class StackResetStateTable(ManagerTermBase):
         if bool(torch.any(torch.abs(first_support_delta - expected_support_delta) > 1.0e-5)):
             raise RuntimeError("A second-stage stack reset row does not place the first movable cube on the base.")
 
+    def _restrict_to_workspace(self) -> None:
+        """Keep authored states that the action can replay at their validated poses."""
+        in_workspace = (
+            (self._arm_positions >= self._workspace_lower) & (self._arm_positions <= self._workspace_upper)
+        ).all(dim=1)
+        if in_workspace.all():
+            return
+        self._arm_positions = self._arm_positions[in_workspace]
+        self._hand_positions = self._hand_positions[in_workspace]
+        self._role_positions = self._role_positions[in_workspace]
+        self._role_quaternions = self._role_quaternions[in_workspace]
+        self._recipe_ids = self._recipe_ids[in_workspace]
+        self._held_roles = self._held_roles[in_workspace]
+        self._layout_ids = self._layout_ids[in_workspace]
+        self._target_potentials = self._target_potentials[in_workspace]
+
     def __call__(
         self,
         env: ManagerBasedRLEnv,
@@ -774,6 +796,8 @@ class StackResetStateTable(ManagerTermBase):
         else:
             recipe = StackResetRecipe.TABLE if fixed_recipe is None else StackResetRecipe(fixed_recipe)
             recipe_rows = self._rows_by_recipe[recipe]
+            if recipe_rows.numel() == 0:
+                raise ValueError(f"Franka stack arm action workspace excludes every {recipe.name.lower()} start.")
             row_ids = recipe_rows[torch.randint(recipe_rows.numel(), (env_ids.numel(),), device=self.device)]
         if fixed_role_permutation is None:
             permutation_ids = torch.randint(
@@ -796,16 +820,9 @@ class StackResetStateTable(ManagerTermBase):
         selected_cube_ids = role_to_cube.gather(1, held_roles.clamp_min(0).unsqueeze(1)).squeeze(1)
         held_cube_ids = torch.where(has_held_cube, selected_cube_ids, -1)
 
-        # Restore the fixed base before applying the selected joint and cube state.
-        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
-        root_pose[:, :3] += env.scene.env_origins[env_ids]
-        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
-        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
-        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
-
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
-        joint_positions[:, self._arm_joint_ids] = self._arm_positions[row_ids]
+        authored_arm_positions = self._arm_positions[row_ids]
         joint_positions[:, self._hand_joint_ids] = self._hand_positions[row_ids]
         table_rows = self._recipe_ids[row_ids] == int(StackResetRecipe.TABLE)
         arm_noise_scale = torch.full(
@@ -815,21 +832,34 @@ class StackResetStateTable(ManagerTermBase):
             device=self.device,
         )
         arm_noise_scale[table_rows] = table_arm_joint_noise_range
-        # Joint-ID indexing may be advanced indexing and therefore return a
-        # copy. Write the randomized values back explicitly after clamping.
-        arm_positions = joint_positions[:, self._arm_joint_ids].clone()
-        arm_positions += (2.0 * torch.rand_like(arm_positions) - 1.0) * arm_noise_scale
-        arm_lower = arm_positions.new_tensor(FRANKA_STACK_ARM_WORKSPACE_LOWER)
-        arm_upper = arm_positions.new_tensor(FRANKA_STACK_ARM_WORKSPACE_UPPER)
-        arm_positions.clamp_(min=arm_lower, max=arm_upper)
-        joint_positions[:, self._arm_joint_ids] = arm_positions
-        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
-        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
-        self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
-        self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
+        arm_positions = authored_arm_positions + (2.0 * torch.rand_like(authored_arm_positions) - 1.0) * arm_noise_scale
+        arm_positions.clamp_(min=self._workspace_lower, max=self._workspace_upper)
 
         role_positions = self._role_positions[row_ids].clone()
         role_quaternions = self._role_quaternions[row_ids].clone()
+        if arm_joint_noise_range > 0.0:
+            held_env_ids = has_held_cube.nonzero(as_tuple=False).flatten()
+            if held_env_ids.numel():
+                held_role_ids = held_roles[held_env_ids]
+                candidate_positions = _franka_tool_position(arm_positions[held_env_ids])
+                other_roles = (held_role_ids.unsqueeze(1) + torch.arange(1, 3, device=self.device)) % 3
+                rotations = matrix_from_quat(role_quaternions[held_env_ids])
+                rows = torch.arange(held_env_ids.numel(), device=self.device)
+                intersects = _oriented_cube_pair_intersections(
+                    candidate_positions[:, None].expand(-1, 2, -1),
+                    rotations[rows, held_role_ids][:, None].expand(-1, 2, -1, -1),
+                    role_positions[held_env_ids[:, None], other_roles],
+                    rotations[rows[:, None], other_roles],
+                    edge_length=self._CUBE_HEIGHT,
+                )
+                valid = (candidate_positions[:, 2] >= self._TABLE_HEIGHT - 1.0e-6) & ~intersects.any(dim=1)
+                # Restore the validated grasp as a pair if its noisy pose would intersect a support or the table.
+                arm_positions[held_env_ids] = torch.where(
+                    valid.unsqueeze(1), arm_positions[held_env_ids], authored_arm_positions[held_env_ids]
+                )
+                role_positions[held_env_ids, held_role_ids] = torch.where(
+                    valid.unsqueeze(1), candidate_positions, role_positions[held_env_ids, held_role_ids]
+                )
         if table_cube_planar_translation_range > 0.0:
             translation = (
                 2.0
@@ -869,10 +899,19 @@ class StackResetStateTable(ManagerTermBase):
             yaw_quaternions[..., 3] = yaw_w
             role_quaternions[table_rows] = normalize(quat_mul(yaw_quaternions, role_quaternions[table_rows]))
 
-        # Joint perturbations must never detach a reset-authored grasp. Move
-        # the held role to the perturbed FK tool center before colors are
-        # scattered over physical roles.
-        role_positions[has_held_cube, held_roles[has_held_cube]] = _franka_tool_position(arm_positions[has_held_cube])
+        # Restore the fixed base before applying the selected joint and cube state.
+        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+
+        joint_positions[:, self._arm_joint_ids] = arm_positions
+        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
+        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
+
         cube_positions = torch.zeros_like(role_positions)
         cube_quaternions = torch.zeros_like(role_quaternions)
         cube_positions.scatter_(
