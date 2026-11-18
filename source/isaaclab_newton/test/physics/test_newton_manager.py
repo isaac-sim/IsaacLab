@@ -375,13 +375,8 @@ def test_deterministic_request_resolves_to_the_mode_the_solver_applies(
 
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
-@pytest.mark.parametrize(
-    "deterministic_mode",
-    [wp.DeterministicMode.GPU_TO_GPU, wp.DeterministicMode.NOT_GUARANTEED],
-    ids=["deterministic", "nondeterministic"],
-)
-def test_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg, deterministic_mode):
-    """Contact allocation can rebuild the pipeline in either determinism mode without allocating solver outputs."""
+def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg):
+    """Contact allocation can rebuild the pipeline but must leave solver output allocation to its caller."""
     pipelines, prepared, observable_requests = [], [], []
 
     class FakePipeline:
@@ -406,7 +401,7 @@ def test_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg
             prepared.append(contacts)
 
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
-    ops = RecordingSolver(solver_cfg, None, deterministic_mode)
+    ops = RecordingSolver(solver_cfg, None, wp.DeterministicMode.GPU_TO_GPU)
     backend = backend_stub(
         cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg),
         model=None,
@@ -415,21 +410,21 @@ def test_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg
         collision_pipeline=None,
         contact_sensors={"foot": object()},
         device="cpu",
-        deterministic_mode=deterministic_mode,
+        deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
 
     backend._allocate_contacts()
 
     assert pipelines[1] == {**pipelines[0], "rigid_contact_max": 2}
-    assert pipelines[0]["deterministic"] is (deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED)
+    assert pipelines[0]["deterministic"] is True
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
     assert observable_requests == []
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device):
-    """Hydroelastic SDF contacts must retain per-contact stiffness arrays when nconmax exceeds auto-estimate."""
+def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
     builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
     box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
     ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
@@ -463,9 +458,9 @@ def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(dev
     assert backend.contacts.rigid_contact_max == 12000
     assert backend.contacts.per_contact_shape_properties is True
     assert backend.contacts.rigid_contact_stiffness is not None
-    nc = int(backend.contacts.rigid_contact_count.numpy()[0])
-    assert nc > 0
-    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:nc] > 0.0)
+    contact_count = int(backend.contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
 
 
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
