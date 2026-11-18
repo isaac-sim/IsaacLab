@@ -11,7 +11,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Motion-Tracking-G1",
-    entry_point="isaaclab_tasks.core.motion_tracking.motion_tracking_env:MotionTrackingEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.tracking_env_cfg:G1MotionTrackingEnvCfg",
