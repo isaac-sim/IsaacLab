@@ -20,7 +20,7 @@ RTX renderers use to write lens lookup textures.
 
 Add a `FoveatedCameraCfg` to a scene like any other camera. `FoveatedCamera`
 picks its implementation from the renderer: it supports `newton_warp`,
-`isaac_rtx` and `ovrtx`.
+`newton_optix` (needs the `optix` extra), `isaac_rtx` and `ovrtx`.
 
 ```python
 import isaaclab.sim as sim_utils
