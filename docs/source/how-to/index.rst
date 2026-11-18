@@ -434,6 +434,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Exporting an environment to USD </source/how-to/export_environment_to_usd>`
+
+         Write one initialized environment as USD that Isaac Sim, OVPhysX or Newton imports with the same physics.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
          :doc:`Working with ProxyArray </source/how-to/proxy_array>`
 
          Consume asset and sensor data through Torch and Warp while keeping retained views valid.

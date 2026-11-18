@@ -1284,7 +1284,6 @@ def main() -> None:
     solver_cfg = VBDSolverCfg(
         iterations=10,
         friction_epsilon=1.0e-3,
-        rigid_compliant_alm=True,
         rigid_joint_linear_ke=1.0e7,
         rigid_joint_angular_ke=1.0e6,
         rigid_body_contact_buffer_size=256,
