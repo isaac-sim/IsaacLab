@@ -129,16 +129,6 @@ class FeatureExtractorCfg:
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
-    hold_image_targets: bool = False
-    """Pair each image with the pose of the step it appeared, for images that change less often than captures.
-
-    An image transfer that publishes a generated image every few captures holds it across captures. When True,
-    each view keeps its pose target from the step its image appears until that image changes, and views whose
-    image is black, such as a view waiting for its first generated image after a reset, are left out of the
-    loss. Views may update at different captures. Default is False, which pairs every capture with the current
-    pose.
-    """
-
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
@@ -158,6 +148,16 @@ class FeatureExtractorCfg:
     This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
     local ``*.pth`` checkpoint in the log directory, then retrieves this checkpoint when configured.
     Default is None.
+    """
+
+    hold_image_targets: bool = False
+    """Pair each image with the pose of the step it appeared, for images that change less often than captures.
+
+    An image transfer that publishes a generated image every few captures holds it across captures. When True,
+    each view keeps its pose target from the step its image appears until that image changes, and views whose
+    image is black, such as a view waiting for its first generated image after a reset, are left out of the
+    loss. Views may update at different captures. Default is False, which pairs every capture with the current
+    pose.
     """
 
 
