@@ -74,8 +74,9 @@ def test_spawn_and_bind_mdl_material_without_kit(stage):
     assert binding.GetMaterialPath() == "/Looks/MdlMaterial"
 
 
-def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage, tmp_path):
-    """Author surface inputs before cloning without changing textures or other render contexts."""
+@pytest.mark.parametrize("replacement_path", [None, "material", "/Looks/Override"])
+def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage, tmp_path, replacement_path):
+    """Update or replace materials before cloning, preserving authored textures and shader contexts."""
     path = str(tmp_path / "prop.usda")
     source = Usd.Stage.CreateNew(path)
     source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Prop").GetPrim())
@@ -104,7 +105,7 @@ def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage,
     cfg = UsdFileCfg(
         usd_path=path,
         make_uninstanceable=True,
-        visual_material_path=None,
+        visual_material_path=replacement_path,
         visual_material=PbrMdlCfg(
             diffuse_color_constant=None,
             reflection_roughness_constant=0.7,
@@ -112,7 +113,9 @@ def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage,
             albedo_brightness=2.0,
             metallic_texture_influence=0.0,
             reflection_roughness_texture_influence=0.0,
-        ),
+        )
+        if replacement_path is None
+        else PreviewSurfaceCfg(diffuse_color=(0.25, 0.5, 0.75), roughness=0.8),
     )
     for index in range(2):
         UsdGeom.Xform.Define(stage, f"/World/env_{index}")
@@ -122,7 +125,15 @@ def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage,
             root = f"/World/env_{index}/Prop"
             material_path = f"{root}/Looks/{name}"
             binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/{name}"))
-            assert binding.ComputeBoundMaterial()[0].GetPath() == material_path
+            material, _ = binding.ComputeBoundMaterial()
+            if replacement_path is None:
+                assert material.GetPath() == material_path
+            else:
+                expected_path = replacement_path if replacement_path.startswith("/") else f"{root}/{replacement_path}"
+                assert material.GetPath() == expected_path
+                shader, _, _ = material.ComputeSurfaceSource()
+                assert shader.GetInput("diffuseColor").Get() == pytest.approx(cfg.visual_material.diffuse_color)
+                assert shader.GetInput("roughness").Get() == pytest.approx(0.8)
             shader = UsdShade.Shader(stage.GetPrimAtPath(f"{material_path}/Shader"))
             assert shader.GetSourceAsset("mdl").path == "OmniPBR.mdl"
             assert shader.GetInput("diffuse_texture").Get().path == f"{name}.png"
@@ -134,41 +145,15 @@ def test_authored_material_overrides_preserve_textures_and_clone_bindings(stage,
             preview = UsdShade.Shader(stage.GetPrimAtPath(f"{material_path}/Preview"))
             assert [value.GetBaseName() for value in preview.GetInputs()] == ["roughness"]
             assert preview.GetInput("roughness").Get() == pytest.approx(0.2)
-            for channel in (
-                "reflection_roughness_constant",
-                "metallic_constant",
-                "albedo_brightness",
-                "metallic_texture_influence",
-                "reflection_roughness_texture_influence",
-            ):
-                assert shader.GetInput(channel).Get() == pytest.approx(getattr(cfg.visual_material, channel))
-
-
-@pytest.mark.parametrize("material_path", ["material", "/Looks/Override"])
-def test_usd_visual_material_overrides_descendants_before_cloning(stage, tmp_path, material_path):
-    """Inline USD materials override mesh bindings and survive cloning without Kit."""
-    source = Usd.Stage.CreateNew(str(tmp_path / "part.usda"))
-    source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Part").GetPrim())
-    cube = UsdGeom.Cube.Define(source, "/Part/Visual").GetPrim()
-    authored = UsdShade.Material.Define(source, "/Part/Blue")
-    UsdShade.MaterialBindingAPI.Apply(cube).Bind(authored)
-    source.GetRootLayer().Save()
-    cfg = UsdFileCfg(
-        usd_path=str(tmp_path / "part.usda"),
-        visual_material=PreviewSurfaceCfg(diffuse_color=(0.25, 0.5, 0.75), roughness=0.8),
-        visual_material_path=material_path,
-    )
-    for index in range(2):
-        UsdGeom.Xform.Define(stage, f"/World/env_{index}")
-    cfg.func("/World/env_.*/Part", cfg)
-    for index in range(2):
-        root = f"/World/env_{index}/Part"
-        expected_path = material_path if material_path.startswith("/") else f"{root}/{material_path}"
-        material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/Visual")).ComputeBoundMaterial()
-        assert material.GetPath() == expected_path
-        shader, _, _ = material.ComputeSurfaceSource()
-        assert shader.GetInput("diffuseColor").Get() == pytest.approx(cfg.visual_material.diffuse_color)
-        assert shader.GetInput("roughness").Get() == pytest.approx(0.8)
+            if replacement_path is None:
+                for channel in (
+                    "reflection_roughness_constant",
+                    "metallic_constant",
+                    "albedo_brightness",
+                    "metallic_texture_influence",
+                    "reflection_roughness_texture_influence",
+                ):
+                    assert shader.GetInput(channel).Get() == pytest.approx(getattr(cfg.visual_material, channel))
 
 
 def test_spawn_mesh_with_visual_material_without_kit(stage):
