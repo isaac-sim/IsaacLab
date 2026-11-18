@@ -444,7 +444,8 @@ class NewtonViewerGL(ViewerGL):
                     (
                         "Playback",
                         [
-                            "Space - Pause / resume rendering",
+                            "Space - Pause / resume the simulation",
+                            "Shift + Space - Pause / resume rendering",
                             ". - Step a frame (rendering paused)",
                         ],
                     ),
@@ -727,13 +728,13 @@ class NewtonViewerGL(ViewerGL):
             self._paused_training = not self._paused_training
         hover_tooltip(
             imgui,
-            "Stop or resume stepping the simulation. The window keeps updating",
+            "Stop or resume stepping the simulation (Space). The window keeps updating",
         )
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
-        hover_tooltip(imgui, "Freeze or resume the window image (Space). The simulation keeps running")
+        hover_tooltip(imgui, "Freeze or resume the window image (Shift + Space). The simulation keeps running")
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
@@ -794,6 +795,18 @@ class NewtonViewerGL(ViewerGL):
         super().log_image(name, image, fullscreen=fullscreen)
         if fullscreen:
             self._fullscreen_image_active = True
+
+    def on_key_press(self, symbol, modifiers):
+        """Space pauses the simulation, and Shift + Space pauses rendering; Newton's other keys are kept."""
+        from pyglet.window import key
+
+        if symbol == key.SPACE and self.gui is not None and not self.gui.is_keyboard_capturing():
+            if modifiers & key.MOD_SHIFT:
+                self._paused = not self._paused
+            else:
+                self._paused_training = not self._paused_training
+            return
+        super().on_key_press(symbol, modifiers)
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene, unless it is the image's camera."""

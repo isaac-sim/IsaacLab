@@ -436,6 +436,27 @@ def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
     assert viewer.is_rendering_paused() is False
 
 
+def test_newton_gl_viewer_space_pauses_the_simulation_and_shift_space_pauses_rendering(monkeypatch):
+    """Space and Shift + Space toggle the two pauses, unless a text field has the keyboard."""
+    from pyglet.window import key
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._paused, viewer._paused_training = False, False
+    viewer.gui = SimpleNamespace(is_keyboard_capturing=lambda: False)
+
+    viewer.on_key_press(key.SPACE, 0)
+    assert (viewer._paused_training, viewer._paused) == (True, False)
+
+    viewer.on_key_press(key.SPACE, key.MOD_SHIFT)
+    assert (viewer._paused_training, viewer._paused) == (True, True)
+
+    viewer.gui = SimpleNamespace(is_keyboard_capturing=lambda: True)
+    # Newton's own handler is not under test
+    monkeypatch.setattr(NewtonViewerGL.__mro__[1], "on_key_press", lambda *_: None)
+    viewer.on_key_press(key.SPACE, 0)
+    assert viewer._paused_training is True
+
+
 def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(monkeypatch):
     """Clicks on a fullscreen sensor image, which Newton dispatches during ``end_frame()``, must not
     pick in the hidden perspective scene, and picking must resume once a frame shows the scene again.
