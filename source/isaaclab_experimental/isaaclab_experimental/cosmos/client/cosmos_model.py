@@ -23,6 +23,7 @@ from .._protocol import (
     connect,
     parse_endpoint,
     receive_message,
+    request,
     send_message,
 )
 from .prompt_files import read_prompt_files
@@ -66,7 +67,17 @@ class CosmosModel:
                 raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
         elif cfg.prompt is not None and not isinstance(cfg.prompt, str):
             raise ValueError("Cosmos prompt must be a string, a list of strings, or None.")
-        if (
+        if cfg.generation_mode not in ("autoregressive", "single_frame"):
+            raise ValueError("Cosmos generation_mode must be autoregressive or single_frame.")
+        if type(cfg.decision_interval) is not int or cfg.decision_interval < 1:
+            raise ValueError("Cosmos decision_interval must be a positive integer.")
+        if not 0 <= cfg.augmentation_probability <= 1:
+            raise ValueError("Cosmos augmentation_probability must lie in [0, 1].")
+        if cfg.generation_mode == "autoregressive" and (cfg.decision_interval, cfg.augmentation_probability) != (1, 1):
+            raise ValueError("Cosmos decision_interval and augmentation_probability need single_frame generation.")
+        if cfg.generation_mode == "single_frame" and cfg.cameras:
+            raise ValueError("Cameras sharing a Cosmos session need autoregressive generation.")
+        if cfg.generation_mode == "autoregressive" and (
             type(cfg.max_episode_frames) is not int
             or cfg.max_episode_frames < 1
             or (cfg.max_episode_frames - 1) % MAX_CHUNK_FRAMES
@@ -135,6 +146,38 @@ class CosmosModel:
             ]
             self._streams.update(streams)
         return streams[0] if len(streams) == 1 else _ShardedStream(streams, shares)
+
+    def offload(self) -> None:
+        """Move every service's weights to host memory, for example while the policy trains between rollouts.
+
+        Call it between camera captures and :meth:`activate` before the next one. Single-frame camera sessions stay
+        open. Autoregressive sessions would lose their generation history, so they must be closed first. Each change
+        moves the weights between host and GPU memory, and the first generations after activation compile again.
+
+        Raises:
+            RuntimeError: If the client is closed, an autoregressive session is open, or a service fails.
+        """
+        self._change_residency("offload")
+
+    def activate(self) -> None:
+        """Move every service's weights back to its GPU after :meth:`offload`."""
+        self._change_residency("activate")
+
+    def _change_residency(self, operation: str) -> None:
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("Cosmos client model is closed.")
+            streams = tuple(stream for stream in self._streams if stream._socket is not None)
+        if operation == "offload" and streams and self._cfg.generation_mode != "single_frame":
+            raise RuntimeError("Close autoregressive Cosmos sessions before offloading; they would lose their history.")
+        for endpoint in service_endpoints(self._cfg.endpoint):
+            session = next((stream for stream in streams if stream._endpoint == endpoint), None)
+            if session is None:
+                request(endpoint, {"op": operation}, timeout=self._cfg.timeout)
+            else:
+                # The service accepts the change only from the connection that owns its session.
+                with session._lock:
+                    session._exchange({"op": operation})
 
     def close(self) -> None:
         """Close this client's camera sessions without shutting down the Cosmos services."""
@@ -230,6 +273,12 @@ class _CosmosStream:
         self._closed = False
         self._episode = 0
         self._episode_frames = 0
+        # Single-frame generation, per view: episode seed, images generated in the episode, resets, and prompt offset.
+        self._view_seeds = list(seeds)
+        self._view_frames = [0] * len(seeds)
+        self._view_resets = [0] * len(seeds)
+        self._view_episodes = [0] * len(seeds)
+        self._single_frame_started = False
         self._channel = None
         self._service_device: torch.device | None = None
         self.transport: str | None = None
@@ -294,7 +343,8 @@ class _CosmosStream:
                     "prompt": self._session_prompt(),
                     "height": image_shape[0],
                     "width": image_shape[1],
-                    "max_episode_frames": self._cfg.max_episode_frames,
+                    # A single-frame image is a one-frame episode.
+                    "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
                     "fps": self._cfg.fps,
                 }
                 self.transport = self._select_transport(control.device)
@@ -319,7 +369,9 @@ class _CosmosStream:
                 raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
             request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
             episode = self._episode
-            if not self._batched and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
+            if self._single_frame:
+                request.update(self._single_frame_step(frames, reset_rows, seeds))
+            elif not self._batched and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
                 # A reset starts the next prompt's episode, unless the ending episode never got past its
                 # first frame, such as the capture taken before the environment's initial reset.
                 episode += 1 if self._episode_frames > 1 else 0
@@ -365,7 +417,7 @@ class _CosmosStream:
                 ):
                     raise ProtocolError("Cosmos returned images that do not match the control chunks.")
                 images = [torch.from_numpy(view).to(device=sent.device) for view in generated]
-            if not self._batched:
+            if not self._batched and not self._single_frame:
                 if sent.reset:
                     self._episode, self._episode_frames = sent.episode, 0
                 self._episode_frames += sent.frames[0]
@@ -378,6 +430,44 @@ class _CosmosStream:
         """Close this camera's session. Repeated calls are safe."""
         with self._lock:
             self._release(notify=True)
+
+    @property
+    def _single_frame(self) -> bool:
+        return self._cfg.generation_mode == "single_frame"
+
+    def _single_frame_step(self, frames: list[int], reset_rows: tuple[int, ...], seeds: tuple[int, ...]) -> dict:
+        """Return a single-frame step's service request fields: every view restarts with one frame.
+
+        ``reset_rows`` names the views starting a new environment episode, with its seed. Every other generation of a
+        view continues from that seed, one step per image. A view's new episode moves to its next prompt, unless the
+        ending episode was the view's first and generated only its first image (the environment's initial reset).
+        """
+        if any(count != 1 for count in frames):
+            raise ValueError("Single-frame Cosmos sends one frame per view.")
+        prompt = self._cfg.prompt
+        new_prompt = False
+        for row, seed in zip(reset_rows, seeds):
+            if isinstance(prompt, (list, tuple)) and (self._view_resets[row] or self._view_frames[row] > 1):
+                self._view_episodes[row] += 1
+                new_prompt = True
+            self._view_resets[row] += 1
+            self._view_seeds[row], self._view_frames[row] = seed, 0
+        if not self._single_frame_started:
+            # The session's first generation starts every view.
+            fields = {}
+            self._single_frame_started = True
+        else:
+            fields = {
+                "reset_rows": tuple(range(len(frames))),
+                "seeds": tuple((seed + count) % 2**31 for seed, count in zip(self._view_seeds, self._view_frames)),
+            }
+            if new_prompt:
+                prompts = [
+                    prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
+                ]
+                fields["prompt"] = prompts if self._batched else prompts[0]
+        self._view_frames = [count + 1 for count in self._view_frames]
+        return fields
 
     def _session_prompt(self) -> str | None | list[str | None]:
         """Opening prompt: one view starts its prompt list; several views each take ``prompt[view % len]``."""

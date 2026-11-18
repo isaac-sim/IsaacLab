@@ -79,6 +79,16 @@ class TransportResource:
         self.calls.append(("model.close", threading.get_ident()))
         self.closed.set()
 
+    active = True
+
+    def offload(self):
+        self.calls.append(("offload", threading.get_ident()))
+        self.active = False
+
+    def activate(self):
+        self.calls.append(("activate", threading.get_ident()))
+        self.active = True
+
 
 class TransportStream:
     def __init__(self, resource, settings):
@@ -343,6 +353,113 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
         )
         reply, _ = _protocol.receive_message(connection)
     assert not reply["ok"] and "only with an episode reset" in reply["error"]
+
+
+def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_prompts(cosmos_service):
+    """Each image is a one-frame episode; a view's new environment episode moves the view to its next prompt."""
+    prompts = ["A bright warehouse.", "A wooden kitchen.", "A night street."]
+    client = CosmosModel(
+        CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, generation_mode="single_frame", timeout=2)
+    )
+    stream = client.open_stream(num_views=2, seeds=(10, 20))
+    one = [_controls(), _controls()]
+    stream.step(one, reset_rows=(), seeds=())
+    stream.step(one, reset_rows=(0,), seeds=(30,))  # the environment's initial reset keeps view 0's prompt
+    stream.step(one, reset_rows=(), seeds=())
+    stream.step(one, reset_rows=(0,), seeds=(40,))
+    session = cosmos_service.resource.streams[0]
+    with pytest.raises(ValueError, match="one frame per view"):
+        stream.step([_controls().expand(4, -1, -1, -1).contiguous()] * 2, reset_rows=(), seeds=())
+    client.close()
+
+    assert session.settings["max_episode_frames"] == 1
+    assert session.settings["prompt"] == prompts[:2]
+    assert [(rows, seeds) for _, rows, seeds in session.steps] == [
+        ((), ()),
+        ((0, 1), (30, 21)),
+        ((0, 1), (31, 22)),
+        ((0, 1), (40, 23)),
+    ]
+    assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
+
+
+def test_single_frame_settings_are_validated():
+    with pytest.raises(ValueError, match="need single_frame"):
+        CosmosModel(CosmosModelCfg(max_episode_frames=13, decision_interval=4))
+    with pytest.raises(ValueError, match="need autoregressive"):
+        CosmosModel(CosmosModelCfg(generation_mode="single_frame", cameras=("left", "right")))
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        CosmosModel(CosmosModelCfg(generation_mode="single_frame", augmentation_probability=1.5))
+    # Single-frame images are one-frame episodes, so no episode budget is needed.
+    CosmosModel(CosmosModelCfg(generation_mode="single_frame")).close()
+
+
+def test_single_frame_processor_generates_at_decision_points_and_publishes_rendered_rgb_otherwise(
+    cosmos_service, monkeypatch
+):
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=2, timeout=2
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    buffers = {
+        "control": _proxy(torch.full((1, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((1, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    with pytest.raises(ValueError, match="add 'rgb'"):
+        cfg.func(cfg, {"control": buffers["control"]})
+    cfg.validate_config()
+    assert cfg.inputs == ["control", "rgb"]
+    processor = cfg.func(cfg, buffers)
+    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    try:
+        published = [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(3)]
+        # A reset makes the next capture a decision point, so the view never shows black.
+        processor.reset([0])
+        published.append(int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()))
+        session = cosmos_service.resource.streams[0]
+        assert published == [127, 50, 127, 127]
+        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (1,)), ((0,), (1,))]
+    finally:
+        processor.close()
+
+    never = CosmosTransferProcessorCfg(backend=backend.replace(augmentation_probability=0.0))
+    never.validate_config()
+    processor = never.func(never, buffers)
+    try:
+        assert int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) == 50
+    finally:
+        processor.close()
+    assert len(cosmos_service.resource.streams) == 1
+
+
+def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service):
+    from isaaclab_experimental.cosmos.client import cli
+
+    endpoint = cosmos_service.endpoint
+    assert cli.main(["offload", "--endpoint", endpoint]) == 0
+    status, _ = _protocol.request(endpoint, {"op": "status"}, timeout=2)
+    assert not status["model_active"] and not status["session_active"]
+    assert cli.main(["activate", "--endpoint", endpoint]) == 0
+
+    single = CosmosModel(CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2))
+    stream = single.open_stream(num_views=1, seeds=(1,))
+    stream.step([_controls()], reset_rows=(), seeds=())
+    # Another connection cannot move the weights of a session it does not own.
+    assert cli.main(["offload", "--endpoint", endpoint]) == 1
+    single.offload()
+    single.activate()
+    stream.step([_controls()], reset_rows=(), seeds=())
+    single.close()
+
+    autoregressive = _client(endpoint)
+    stream = autoregressive.open_stream(num_views=1, seeds=(1,))
+    stream.step([_controls()], reset_rows=(), seeds=())
+    with pytest.raises(RuntimeError, match="Close autoregressive"):
+        autoregressive.offload()
+    autoregressive.close()
+    moves = [name for name, _ in cosmos_service.resource.calls if name in ("offload", "activate")]
+    assert moves == ["offload", "activate", "offload", "activate"]
 
 
 def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_service):

@@ -35,3 +35,18 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     camera: str = ""
     """Scene name of the processor's camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
     Defaults to empty, for a camera with its own session."""
+
+    def validate_config(self):
+        """Have the camera render ``rgb`` when single-frame generation can skip captures and publish it instead.
+
+        The camera renders the inputs no earlier processor produces, so the rendered image reaches this processor
+        only when it is an input; it is added here because the generation settings can change after this
+        configuration is built, for example with ``env.cosmos.augmentation_probability=0.5``.
+        """
+        backend = self.backend
+        if (
+            getattr(backend, "generation_mode", "autoregressive") == "single_frame"
+            and (backend.decision_interval != 1 or backend.augmentation_probability != 1)
+            and "rgb" not in self.inputs
+        ):
+            self.inputs = [*self.inputs, "rgb"]

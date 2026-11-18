@@ -68,7 +68,8 @@ class CosmosModelCfg(BackendCfg):
     reset before the first generated update (for example the environment's initial reset right after its first
     capture) keeps the current prompt. With several views (environments), view ``v`` uses
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
-    resets. None omits an appearance description."""
+    resets; in :attr:`generation_mode` ``"single_frame"``, view ``v`` instead uses ``prompt[(v + k) % len(prompt)]``
+    in its episode ``k``. None omits an appearance description."""
 
     prompt_files: str | list[str] | None = None
     """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
@@ -89,8 +90,27 @@ class CosmosModelCfg(BackendCfg):
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The Shadow Hand Cosmos tasks
     derive it from the task duration and capture rate with :func:`episode_frame_budget`.
     Low-level callers must set it before creating the client. The service tells the model the episode's duration
-    from it and rejects frames beyond it.
+    from it and rejects frames beyond it. Single-frame generation does not use it: each image is a one-frame episode.
     """
+
+    generation_mode: Literal["autoregressive", "single_frame"] = "autoregressive"
+    """``"autoregressive"`` (default) generates an initial frame, then four-frame chunks that continue the episode's
+    generated history, and holds each chunk's last image over the captures of the next chunk. ``"single_frame"``
+    generates each image independently from the current capture's control alone, with no history, for workloads
+    that need no temporal consistency, such as a policy that observes once per action chunk. Its images neither
+    repeat between updates nor turn black after resets, and the service can offload its weights while the session
+    stays open (see :meth:`CosmosModel.offload`). Cameras sharing a session (:attr:`cameras`) need
+    ``"autoregressive"``."""
+
+    decision_interval: int = 1
+    """Captures per generation in single-frame mode, counted from the camera's latest reset: 1 generates every
+    capture, 16 the first of every 16, for example once per 16-step action chunk. Other captures publish the
+    camera's rendered ``rgb``."""
+
+    augmentation_probability: float = 1.0
+    """Probability that a single-frame generation runs; otherwise the capture publishes the rendered ``rgb``. One
+    draw, from a generator seeded by the camera's seed, decides for all the camera's views. Below 1, the policy sees a
+    mix of rendered and generated images."""
 
     fps: float = 30.0
     """Frame rate of the images, as the model is told [Hz]. Defaults to 30, the Sim-Transfer recipe's rate. A task

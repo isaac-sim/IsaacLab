@@ -22,6 +22,11 @@
   tasks: the Shadow Hand camera tasks with a camera image that Cosmos generates from depth, one prompt per
   environment. ``env.cosmos`` holds the camera's Cosmos settings, so overrides such as ``env.cosmos.prompt=...``
   set them. The package registers them through the ``isaaclab.tasks`` entry point.
+* Added single-frame Cosmos generation, ``CosmosModelCfg.generation_mode="single_frame"``, which generates each
+  image from the current capture alone, with no history. ``decision_interval`` and ``augmentation_probability``
+  generate once per action chunk or for a share of the captures and publish the rendered ``rgb`` otherwise, and
+  each environment's episode moves to its next prompt. ``CosmosModel.offload`` and ``activate`` move a service's
+  weights to host memory and back between rollouts.
 * Added ``python -m isaaclab_experimental.cosmos.client.cli status``, which reports whether a running Cosmos
-  service is ready and has an active camera session.
+  service is ready and has an active camera session, and its ``offload`` and ``activate`` commands.
 * Added the Cosmos Transfer camera integration guide, which covers serving Cosmos, and the Shadow Hand demo.

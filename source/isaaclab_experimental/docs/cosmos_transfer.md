@@ -355,6 +355,32 @@ The service runs one active generation session at a time; a session serves one c
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
 must be `1 + 4*k`. Reset before exhausting that budget.
 
+## Single-frame generation
+
+By default, Cosmos generates autoregressively, as described above: each update continues the episode's generated
+images, so the camera holds an image until the next chunk and shows black after a reset until its episode starts.
+A policy that needs no temporal consistency, such as one that observes once per action chunk, can generate each
+image on its own instead, with these `CosmosModelCfg` settings (for example `env.cosmos.generation_mode=single_frame`
+on a Cosmos task):
+
+| Setting | Effect |
+|---|---|
+| `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's depth alone, with no history, so images neither repeat between updates nor turn black after resets |
+| `decision_interval=N` | Generate at the first of every `N` captures after the camera's latest reset, for example once per 16-step action chunk; the other captures publish the rendered `rgb` |
+| `augmentation_probability=p` | Generate at a decision point with probability `p`, one draw for all environments; otherwise publish the rendered `rgb` |
+
+- With a prompt list, environment `v` uses `prompt[(v + k) % len(prompt)]` in its episode `k`, also with several
+  environments.
+- Each image is a one-frame episode, so the frame budget does not apply. When a capture can skip generation, the
+  camera also renders `rgb`; validating the environment configuration adds it to the Cosmos processor's inputs.
+- Cameras sharing a session need autoregressive generation.
+
+A learner that shares the GPU with Cosmos can free the weights between rollouts. `offload()` on the camera's
+`CosmosModel`, `SimulationContext.instance().get_or_create_backend(env_cfg.cosmos)` in a Cosmos task, moves them to
+host memory, and `activate()` moves them back before the next capture; the single-frame session stays open. For an
+idle service, `python -m isaaclab_experimental.cosmos.client.cli offload` and `activate` do the same. Each change
+moves the weights between host and GPU memory, and the first generations after `activate()` compile again.
+
 ## Several environments
 
 One session can generate the cameras of several environments as one batch. Each environment keeps its own
@@ -390,7 +416,8 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --r
 For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `CosmosModelCfg.prompt` a list.
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
-  each environment's prompt across its resets. With one environment, a prompt list changes per episode.
+  each environment's prompt across its resets. With one environment, a prompt list changes per episode, and with
+  [single-frame generation](#single-frame-generation) it does for each environment.
 - Environment `v` starts from seed `seed + v` of the camera's `CosmosTransferProcessorCfg`, 0 by default, or from
   `seed[v]` when `seed` is a list with one seed per environment. Each reset advances an environment's seed by the
   number of environments.

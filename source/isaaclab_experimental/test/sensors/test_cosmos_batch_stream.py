@@ -134,6 +134,7 @@ def batch(monkeypatch):
         owner.capabilities = {"partial_resets": partial}
         owner._stream = None
         owner._closed = False
+        owner._active = True
         monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text], "fps": [args[-1]]})
         stream = owner.open_stream(
             num_views=views,
@@ -252,6 +253,58 @@ def test_eager_runtimes_restart_all_views_together_but_not_one(batch):
     assert [image.shape[0] for image in images] == [1, 1]
     assert model.iterators == 2 and model.steps[-1] == ((), None)
     assert model.iterator_seeds == [[0, 1], [7, 8]]
+
+
+def test_a_restart_of_every_view_can_change_their_prompts_reusing_built_conditioning(batch):
+    """Single-frame cameras restart every view each step; a new episode's prompt starts a new batch."""
+    stream, model = batch()
+    built = []
+    owner_build = stream._owner._prompt_batch
+    stream._owner._prompt_batch = lambda text, *args: built.append(text) or owner_build(text, *args)
+    stream.step(_controls((1, 1), (1, 2)), (), ())
+    with pytest.raises(ValueError, match="change prompts only together"):
+        stream.step(_controls((4, 1), (1, 2)), (1,), (5,), prompt=["A kitchen."])
+
+    stream, model = batch()
+    stream._owner._prompt_batch = lambda text, *args: built.append(text) or owner_build(text, *args)
+    stream.step(_controls((1, 1), (1, 2)), (), ())
+    images = stream.step(_controls((1, 1), (1, 2)), (0, 1), (5, 6), prompt=["A kitchen.", "A lab."])
+    stream.step(_controls((1, 1), (1, 2)), (0, 1), (7, 8), prompt=["A lab.", "A kitchen."])
+
+    assert [image.shape[0] for image in images] == [1, 1]
+    assert stream._data_batch["caption"] == ["A lab.", "A kitchen."]
+    # Each prompt's text conditioning is built once; the opening prompt was built when the session opened.
+    assert built == ["A kitchen."]
+    assert model.iterators == 3 and model.iterator_seeds[1:] == [[5, 6], [7, 8]]
+
+
+def test_offloaded_weights_suspend_a_session_until_every_view_restarts(batch, monkeypatch):
+    stream, model = batch()
+    owner = stream._owner
+    moves = []
+    model.to = moves.append
+    monkeypatch.setattr(torch.compiler, "reset", lambda: moves.append("compiler.reset"))
+    stream.step(_controls((1, 1), (1, 2)), (), ())
+    stream.step(_controls((4, 1), (4, 2)), (), ())
+
+    owner.offload()
+    owner.offload()
+    assert not owner.active and moves == ["compiler.reset", "cpu"]
+    with pytest.raises(RuntimeError, match="activate them before generating"):
+        stream.step(_controls((4, 1), (4, 2)), (), ())
+    owner.activate()
+    assert owner.active and moves[-1] == owner._device
+    with pytest.raises(ValueError, match="restart every view"):
+        stream.step(_controls((4, 1), (4, 2)), (), ())
+
+    stream, model = batch()
+    model.to = moves.append
+    stream.step(_controls((1, 1), (1, 2)), (), ())
+    stream._owner.offload()
+    stream._owner.activate()
+    images = stream.step(_controls((1, 1), (1, 2)), (0, 1), (5, 6))
+    assert [image.shape[0] for image in images] == [1, 1]
+    assert model.iterators == 2 and model.iterator_seeds[-1] == [5, 6]
 
 
 def test_closing_a_batch_releases_every_views_caches(batch):
