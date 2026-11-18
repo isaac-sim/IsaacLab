@@ -11,6 +11,7 @@ import torch
 
 from isaaclab.managers import CurriculumManager, CurriculumTermCfg, EventManager, EventTermCfg
 
+from isaaclab_tasks.contrib.stack.constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
 from isaaclab_tasks.contrib.stack.mdp.curriculums import StackResetTableCurriculum
 from isaaclab_tasks.contrib.stack.mdp.reset_events import StackResetRecipe, StackResetStateTable
 from isaaclab_tasks.contrib.stack.mdp.runtime_state import get_stack_reset_runtime_state
@@ -99,7 +100,24 @@ def test_reset_rejects_arm_noise_that_pushes_a_held_cube_into_its_support() -> N
     assert not torch.equal(arm[~held], authored_arm[~held])
 
 
-def _make_env(reset_params: dict[str, int | float]) -> SimpleNamespace:
+def test_reset_uses_the_configured_action_workspace() -> None:
+    # Exclude table starts on one side of the default controller workspace.
+    workspace_upper = (0.0, *FRANKA_STACK_ARM_WORKSPACE_UPPER[1:])
+    env = _make_env(
+        {"fixed_recipe": int(StackResetRecipe.TABLE), "table_arm_joint_noise_range": 0.05},
+        workspace_upper=workspace_upper,
+    )
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(1)
+        env.event_manager.apply("reset", env_ids=slice(None), global_env_step_count=0)
+    robot = env.scene["robot"]
+    arm = robot.write_joint_position_to_sim_index.call_args.kwargs["position"][:, :7]
+    assert (arm[:, 0] <= workspace_upper[0]).all()
+
+
+def _make_env(
+    reset_params: dict[str, int | float], workspace_upper: tuple[float, ...] = FRANKA_STACK_ARM_WORKSPACE_UPPER
+) -> SimpleNamespace:
     num_envs = 4
     robot = Mock()
     robot.data.default_joint_pos.torch = torch.zeros(num_envs, 9)
@@ -115,7 +133,9 @@ def _make_env(reset_params: dict[str, int | float]) -> SimpleNamespace:
     origins[:, 0] = torch.arange(num_envs)
     scene = _Scene(entities, origins)
     outcome = SimpleNamespace(ever_success=torch.tensor([True, False, False, True]))
+    arm_action = SimpleNamespace(workspace_lower=FRANKA_STACK_ARM_WORKSPACE_LOWER, workspace_upper=workspace_upper)
     env = SimpleNamespace(
+        cfg=SimpleNamespace(actions=SimpleNamespace(arm_action=arm_action)),
         num_envs=num_envs,
         device="cpu",
         scene=scene,
