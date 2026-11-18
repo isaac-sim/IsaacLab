@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -31,7 +31,9 @@ from ..sensors.gaze_kernels import (
     camera_params,
     project_direction,
     project_directions,
+    record_launch,
     torch_stream,
+    warp_stream,
 )
 
 if TYPE_CHECKING:
@@ -129,20 +131,23 @@ def gaze_step_kernel(
     gaze: wp.array(dtype=wp.vec2f),
     velocity: wp.array(dtype=wp.vec2f),
     angles_deg: wp.array(dtype=wp.vec2f),
+    state: wp.array(dtype=wp.vec4f),
     step_size: wp.float32,
     gaze_limit: wp.float32,
     step_dt: wp.float32,
     field_radius_deg: wp.float32,
 ):
-    """Move each gaze by its clamped action, keep it within the limit, and record its velocity and angles."""
+    """Move each gaze by its clamped action, keep it within the limit, and record its velocity, angles and state."""
     i = wp.tid()
     a = actions[i]
     previous = gaze[i]
     moved = previous + wp.vec2f(wp.clamp(a[0], -1.0, 1.0), wp.clamp(a[1], -1.0, 1.0)) * step_size
     current = moved * (gaze_limit / wp.max(wp.length(moved), gaze_limit))
+    rate = (current - previous) / step_dt
     gaze[i] = current
-    velocity[i] = (current - previous) / step_dt
+    velocity[i] = rate
     angles_deg[i] = current * field_radius_deg
+    state[i] = wp.vec4f(current[0], current[1], rate[0], rate[1])
 
 
 def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
@@ -181,6 +186,10 @@ class GazeAction(ActionTerm):
 
     cfg: GazeActionCfg
 
+    is_graphable: ClassVar[bool] = True
+    """The gaze moves in :meth:`process_actions`, once per environment step; :meth:`apply_actions` does nothing, so
+    physics may record the other terms' actions and its decimation loop into a CUDA graph."""
+
     def __init__(self, cfg: GazeActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self.camera = self._asset
@@ -203,12 +212,32 @@ class GazeAction(ActionTerm):
         self._velocity = torch.zeros_like(self._raw)
         self._angles = torch.zeros_like(self._raw)
         """Gaze angles [deg] of the last step, the buffer the camera reads."""
+        self._state = torch.zeros(self.num_envs, 4, device=self.device)
+        """Gaze and its velocity, the gaze observation."""
         self._raw_wp, self._gaze_wp, self._velocity_wp, self._angles_wp = (
             wp.from_torch(buffer, dtype=wp.vec2f) for buffer in (self._raw, self._gaze, self._velocity, self._angles)
         )
+        self._step_launch = record_launch(
+            gaze_step_kernel,
+            self.num_envs,
+            [
+                self._raw_wp,
+                self._gaze_wp,
+                self._velocity_wp,
+                self._angles_wp,
+                wp.from_torch(self._state, dtype=wp.vec4f),
+                self.cfg.step_size,
+                self.cfg.gaze_limit,
+                self._env.step_dt,
+                self.field_radius_deg,
+            ],
+            device=self.device,
+        )
+        self._labels = torch.zeros(self.num_envs, 3, device=self.device)
         self._label_sums = torch.zeros(2, device=self.device)
         self._label_sums_wp = wp.from_torch(self._label_sums)
         self._no_orientations = wp.from_torch(torch.zeros(1, 4, device=self.device), dtype=wp.quatf)
+        self._labels_launch = None
 
     @property
     def action_dim(self) -> int:
@@ -233,27 +262,18 @@ class GazeAction(ActionTerm):
         return self._velocity
 
     @property
+    def state(self) -> torch.Tensor:
+        """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
+        return self._state
+
+    @property
     def angles_deg(self) -> torch.Tensor:
         """Current gaze angles [deg], shape (num_envs, 2)."""
         return self._gaze * self.field_radius_deg
 
     def process_actions(self, actions: torch.Tensor):
         self._raw.copy_(actions)
-        with torch_stream(self.device):
-            wp.launch(
-                gaze_step_kernel,
-                dim=self.num_envs,
-                inputs=[
-                    self._raw_wp,
-                    self._gaze_wp,
-                    self._velocity_wp,
-                    self._angles_wp,
-                    self.cfg.step_size,
-                    self.cfg.gaze_limit,
-                    self._env.step_dt,
-                    self.field_radius_deg,
-                ],
-            )
+        self._step_launch.launch(warp_stream(self.device))
         self.camera.set_gaze_angles(self._angles)
 
     def apply_actions(self):
@@ -268,7 +288,10 @@ class GazeAction(ActionTerm):
             gaze = random_gaze(len(ids), self.cfg.gaze_limit, self.device)
             visible = self.visible(angles_to_direction(gaze * self.field_radius_deg))
             self._gaze[ids] = torch.where(visible[:, None], gaze, 0.0)
-        self.camera.set_gaze_angles(self.angles_deg)
+        # The camera keeps reading the same buffer, which every other environment already holds.
+        self._angles[ids] = self._gaze[ids] * self.field_radius_deg
+        self._state[ids] = torch.cat((self._gaze[ids], self._velocity[ids]), dim=-1)
+        self.camera.set_gaze_angles(self._angles)
 
     def directions(self, points: torch.Tensor) -> torch.Tensor:
         """Camera-frame unit directions from the camera to world points, shape (num_envs, 3)."""
@@ -324,20 +347,20 @@ class GazeAction(ActionTerm):
 
         Returns:
             The labels (action x, action y, valid), shape (num_envs, 3); and the sum of the gaze's errors to valid
-            targets [deg] with their count, shape (2,), a buffer the next call overwrites.
+            targets [deg] with their count, shape (2,). Both are buffers the next call overwrites.
         """
-        labels = torch.empty(self.num_envs, 3, device=self.device)
-        self._label_sums.zero_()
-        with torch_stream(self.device):
-            wp.launch(
+        positions = self.camera.data.pos_w.warp
+        sources = (targets, orientations, positions, offset)
+        if self._labels_launch is None or any(a is not b for a, b in zip(self._labels_launch[0], sources)):
+            launch = record_launch(
                 teacher_labels_kernel,
-                dim=self.num_envs,
-                inputs=[
+                self.num_envs,
+                [
                     targets,
                     self._no_orientations if orientations is None else orientations,
                     wp.vec3f(0.0, 0.0, 0.0) if offset is None else offset,
                     int(orientations is not None),
-                    self.camera.data.pos_w.warp,
+                    positions,
                     self._mount,
                     self._gaze_wp,
                     self.field_radius_deg,
@@ -345,9 +368,13 @@ class GazeAction(ActionTerm):
                     self.cfg.gaze_limit,
                     self._camera,
                 ],
-                outputs=[wp.from_torch(labels), self._label_sums_wp],
+                [wp.from_torch(self._labels), self._label_sums_wp],
+                self.device,
             )
-        return labels, self._label_sums
+            self._labels_launch = (sources, launch)
+        self._label_sums.zero_()
+        self._labels_launch[1].launch(warp_stream(self.device))
+        return self._labels, self._label_sums
 
 
 @configclass
@@ -368,7 +395,7 @@ class GazeActionCfg(ActionTermCfg):
 def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
     """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
     term: GazeAction = env.action_manager.get_term(action_name)
-    return torch.cat((term.gaze, term.velocity), dim=-1)
+    return term.state
 
 
 def entity_point(
