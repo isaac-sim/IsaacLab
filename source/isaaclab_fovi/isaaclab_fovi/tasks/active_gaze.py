@@ -26,10 +26,12 @@ def foveated_camera(camera: CameraCfg, foveated_res: int | None = None) -> Fovea
     so the number of rendered rays stays close to the camera's pixels. Samples the camera does not see are zero.
     The foveated camera keeps its own image size and per-frame pose updates, which render each new gaze.
     """
+    # A copy, so the foveated camera shares no nested configuration (spawn, renderer, offset) with the preset's.
     camera = camera.copy()
     own = {"class_type", "width", "height", "update_latest_camera_pose"}
     values = {field.name: getattr(camera, field.name) for field in fields(CameraCfg) if field.name not in own}
-    return FoveatedCameraCfg(**values, foveated_res=foveated_res or camera.width, mask_to_sensor_fov=True)
+    resolution = camera.width if foveated_res is None else foveated_res
+    return FoveatedCameraCfg(**values, foveated_res=resolution, mask_to_sensor_fov=True)
 
 
 def foveated_presets(cameras: PresetCfg, foveated_res: int | None = None) -> PresetCfg:

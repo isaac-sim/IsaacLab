@@ -20,7 +20,6 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ActionTerm, ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.math import quat_apply
 from isaaclab.utils.warp import ProxyArray
 
 from ..sensors.gaze_kernels import (
@@ -185,17 +184,6 @@ def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
     return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
 
 
-def direction_to_angles(direction: torch.Tensor) -> torch.Tensor:
-    """Gaze angles [deg] of camera-frame directions, shape (..., 3) to (..., 2)."""
-    x, y, z = direction.unbind(-1)
-    return torch.stack((-torch.atan2(y, torch.sqrt(x.square() + z.square())), -torch.atan2(x, z)), -1).rad2deg()
-
-
-def clamp_gaze(gaze: torch.Tensor, limit: float) -> torch.Tensor:
-    """Scale gazes back onto the circle of radius ``limit`` when they leave it, shape (..., 2)."""
-    return gaze * (limit / gaze.norm(dim=-1, keepdim=True).clamp_min(limit))
-
-
 def random_gaze(count: int, limit: float, device: torch.device | str | None = None) -> torch.Tensor:
     """Gazes drawn uniformly over the disc of radius ``limit``, shape (count, 2)."""
     radius = limit * torch.rand(count, device=device).sqrt()
@@ -236,8 +224,7 @@ class GazeAction(ActionTerm):
         self.tracked_mount = cfg.mount == "tracked"
         if self.tracked_mount and not camera.turns_pose_by_gaze:
             raise ValueError(
-                "A tracked gaze mount needs a camera that turns its pose by the gaze every frame: Newton or OVRTX,"
-                " with update_latest_camera_pose."
+                "A tracked gaze mount needs a camera that turns its pose by the gaze every frame: Newton or OVRTX."
             )
         if not self.tracked_mount and camera.cfg.prim_path.rpartition("/")[0] not in (
             "{ENV_REGEX_NS}",
@@ -250,10 +237,12 @@ class GazeAction(ActionTerm):
             )
         # The camera's own geometry, so the teacher and the sensor mask share one projection.
         self.camera_model = camera.camera_model
-        self._camera = camera.projection_params
-        self._frame = camera.image_frame
+        self.projection_params = camera.projection_params
+        """The physical camera as a Warp struct, for the teacher kernel."""
+        self.image_frame = camera.image_frame
+        """Rotation from the upright gaze frame to the physical camera's frame (ROS convention)."""
         self._frame_torch = torch.tensor(
-            [[self._frame[row][col] for col in range(3)] for row in range(3)], device=self.device
+            [[self.image_frame[row][col] for col in range(3)] for row in range(3)], device=self.device
         )
         self.field_radius_deg = camera.sampling_coords.fov / 2
         """Half the retina's field of view [deg]."""
@@ -269,11 +258,6 @@ class GazeAction(ActionTerm):
         """Gaze and its velocity as of the last step or reset, the gaze observation."""
         self._velocity = self._state.torch[:, 2:]
         self._step_launch: tuple[tuple, wp.Launch] | None = None
-        self._labels = ProxyArray(wp.zeros((self.num_envs, 3), dtype=wp.float32, device=self.device))
-        self._log = ProxyArray(wp.zeros(2, dtype=wp.float32, device=self.device))
-        """Mean gaze error to valid teacher targets [deg] and the fraction of valid targets."""
-        self._no_orientations = wp.zeros(1, dtype=wp.quatf, device=self.device)
-        self._labels_launch = None
         # Each reset copies its environments, and their start gazes if random, into these and replays one launch.
         self._reset_ids = ProxyArray(wp.zeros(self.num_envs, dtype=wp.int32, device=self.device))
         self._reset_start = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec2f, device=self.device))
@@ -349,7 +333,7 @@ class GazeAction(ActionTerm):
         count = self.num_envs
         if indexed:
             if isinstance(env_ids, slice):
-                env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
+                env_ids = torch.arange(*env_ids.indices(self.num_envs), device=self.device)
             count = len(env_ids)
             if count == 0:
                 return
@@ -376,89 +360,29 @@ class GazeAction(ActionTerm):
 
     def visible(self, direction: torch.Tensor) -> torch.Tensor:
         """Whether directions in the upright gaze frame fall inside the physical camera's image."""
-        return project_directions(direction @ self._frame_torch.T, self._camera)[1]
+        return project_directions(direction @ self._frame_torch.T, self.projection_params)[1]
 
-    def _teacher_labels(
-        self, targets: wp.array, orientations: wp.array | None = None, offset: wp.vec3f | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Teacher labels toward a point fixed to each target, in one launch.
-
-        Args:
-            targets: Target positions in the world frame, one per environment.
-            orientations: Target orientations (x, y, z, w), to place ``offset`` in each target's frame.
-            offset: The point in each target's frame [m].
-
-        Returns:
-            The labels (action x, action y, valid), shape (num_envs, 3); and the mean gaze error to valid targets
-            [deg] with the fraction of valid targets, shape (2,). Both are buffers the next call overwrites.
+    def teacher_mounts(self) -> ProxyArray:
+        """Each camera's mount (x, y, z, w), ROS convention, that the teacher aims from: the current one when
+        tracked, else the one captured when the term was created.
 
         Raises:
             RuntimeError: The camera's mount turned while the gaze assumes a fixed mount.
         """
         if self.tracked_mount:
-            mounts = self.camera.mount_quat_w_ros
-        elif self.camera.mount_turns != self._mount_turns:
+            return self.camera.mount_quat_w_ros
+        if self.camera.mount_turns != self._mount_turns:
             raise RuntimeError(
                 "The gaze camera's mount turned, so the fixed-mount teacher would aim from its first orientation;"
                 " use GazeActionCfg.mount='tracked'."
             )
-        else:
-            mounts = self._fixed_mount
-        positions = self.camera.data.pos_w.warp
-        sources = (targets, orientations, positions, offset, mounts)
-        if self._labels_launch is None or any(a is not b for a, b in zip(self._labels_launch[0], sources)):
-            block = teacher_block_dim(self.device)
-            launch = record_launch(
-                teacher_labels_kernel,
-                (1, block),
-                [
-                    targets,
-                    self._no_orientations if orientations is None else orientations,
-                    wp.vec3f(0.0, 0.0, 0.0) if offset is None else offset,
-                    int(orientations is not None),
-                    positions,
-                    mounts,
-                    self.camera.gaze_angles,
-                    self._frame,
-                    self.field_radius_deg,
-                    self.cfg.step_size,
-                    self.cfg.gaze_limit,
-                    self._camera,
-                ],
-                [self._labels, self._log],
-                self.device,
-                block_dim=block,
-            )
-            self._labels_launch = (sources, launch)
-        self._labels_launch[1].launch(warp_stream(self.device))
-        return self._labels.torch, self._log.torch
+        return self._fixed_mount
 
 
 def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
     """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
     term: GazeAction = env.action_manager.get_term(action_name)
     return term.state
-
-
-def entity_point(
-    env: ManagerBasedEnv,
-    asset_cfg: SceneEntityCfg,
-    offset: tuple[float, float, float] | torch.Tensor = (0.0, 0.0, 0.0),
-) -> torch.Tensor:
-    """World position of a point fixed to an asset's root, or to its first selected body, shape (num_envs, 3).
-
-    Args:
-        asset_cfg: The asset, and optionally one body by ``body_names``.
-        offset: The point in the root's or the body's frame [m].
-    """
-    data = env.scene[asset_cfg.name].data
-    if asset_cfg.body_names is None:
-        position, orientation = data.root_pos_w.torch, data.root_quat_w.torch
-    else:
-        body = asset_cfg.body_ids[0]
-        position, orientation = data.body_pos_w.torch[:, body], data.body_quat_w.torch[:, body]
-    offset = torch.as_tensor(offset, dtype=position.dtype, device=position.device)
-    return position + quat_apply(orientation, offset.expand_as(position))
 
 
 def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
@@ -473,6 +397,9 @@ def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
 class gaze_teacher_labels(ManagerTermBase):
     """The teacher's gaze action toward a point fixed to an asset, and its validity, shape (num_envs, 3).
 
+    A training label, never a policy input. One launch labels every environment and logs the mean gaze error to valid
+    targets and the fraction of valid targets.
+
     Args:
         target_cfg: The asset, and optionally one body by ``body_names``.
         offset: The point in the root's or the body's frame [m].
@@ -481,9 +408,14 @@ class gaze_teacher_labels(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self._gaze: GazeAction = env.action_manager.get_term(cfg.params.get("action_name", "gaze"))
+        self._labels = ProxyArray(wp.zeros((env.num_envs, 3), dtype=wp.float32, device=env.device))
+        self._log = ProxyArray(wp.zeros(2, dtype=wp.float32, device=env.device))
+        """Mean gaze error to valid targets [deg] and the fraction of valid targets."""
         self._offset: tuple[tuple[float, ...], wp.vec3f] | None = None
         self._sources = None
         self._targets = self._orientations = None
+        self._launch: tuple[tuple, wp.Launch] | None = None
 
     def __call__(
         self,
@@ -506,14 +438,41 @@ class gaze_teacher_labels(ManagerTermBase):
                 body = target_cfg.body_ids[0]
                 self._targets = wp.from_torch(positions.torch[:, body], dtype=wp.vec3f)
                 self._orientations = wp.from_torch(orientations.torch[:, body], dtype=wp.quatf)
-        # The recorded teacher launch is kept while the point stays the same object.
         point = tuple(float(value) for value in offset)
         if self._offset is None or self._offset[0] != point:
             self._offset = (point, wp.vec3f(*point))
-        term: GazeAction = env.action_manager.get_term(action_name)
-        labels, values = term._teacher_labels(self._targets, self._orientations, self._offset[1])
-        _log_teacher(env, values)
-        return labels
+        gaze = self._gaze
+        mounts = gaze.teacher_mounts()
+        camera_positions = gaze.camera.data.pos_w.warp
+        # The launch is recorded once and recorded again only when one of its arrays or the point changes.
+        sources = (self._targets, self._orientations, camera_positions, mounts, self._offset[1])
+        if self._launch is None or any(a is not b for a, b in zip(self._launch[0], sources)):
+            block = teacher_block_dim(env.device)
+            launch = record_launch(
+                teacher_labels_kernel,
+                (1, block),
+                [
+                    self._targets,
+                    self._orientations,
+                    self._offset[1],
+                    1,
+                    camera_positions,
+                    mounts,
+                    gaze.camera.gaze_angles,
+                    gaze.image_frame,
+                    gaze.field_radius_deg,
+                    gaze.cfg.step_size,
+                    gaze.cfg.gaze_limit,
+                    gaze.projection_params,
+                ],
+                [self._labels, self._log],
+                env.device,
+                block_dim=block,
+            )
+            self._launch = (sources, launch)
+        self._launch[1].launch(warp_stream(env.device))
+        _log_teacher(env, self._log.torch)
+        return self._labels.torch
 
 
 def motor_action_l2(env: ManagerBasedRLEnv, gaze_action_name: str = "gaze") -> torch.Tensor:

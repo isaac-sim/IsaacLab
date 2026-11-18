@@ -22,6 +22,7 @@ from isaaclab_fovi.sensors.pooling import (
 )
 
 from isaaclab.sim import PinholeCameraCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.kitless
 
@@ -114,10 +115,7 @@ def test_disabled_pooling_uses_only_output_grid() -> None:
     assert build_pooler(cfg, lowres, None, "cpu") == (None, None)
 
 
-DEVICES = [
-    "cpu",
-    pytest.param("cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")),
-]
+DEVICES = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
 
 # Three output samples over five input samples; 5 marks an excluded neighbour. Columns are outputs, rows are
 # neighbour slots nearest first.
@@ -228,9 +226,9 @@ def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
     lowres, matched = build_lowres_coords(cfg, device)
     highres = build_highres_coords(cfg, matched, device)
     table = segmentation_neighbor_indices(build_pooler(cfg, lowres, highres, device)[0])
-    assert table.device.type == device
+    assert table.device == torch.device(device)
     labels = torch.randint(0, 3, (1, len(highres), 1, 1), device=device)
-    assert pool_segmentation_buffer(table, labels).device.type == device
+    assert pool_segmentation_buffer(table, labels).device == torch.device(device)
 
 
 @pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])

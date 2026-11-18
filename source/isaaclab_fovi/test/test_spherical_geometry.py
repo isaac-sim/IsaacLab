@@ -19,6 +19,7 @@ from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 
 from isaaclab.sensors.camera.camera import Camera
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     matrix_from_quat,
@@ -27,6 +28,8 @@ from isaaclab.utils.math import (
 )
 
 pytestmark = pytest.mark.kitless
+
+CPU_AND_CUDA = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
 
 
 @pytest.fixture
@@ -93,6 +96,7 @@ class GazeHarness(FoveatedCamera):
             quat_w_world=torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(count, 1),
             pos_w=torch.zeros(count, 3, device=device),
         )
+        self._gaze_written = False
         self._initialize_gaze()
 
 
@@ -128,15 +132,13 @@ def test_gaze_away_from_sensor_masks_all_rays() -> None:
     assert not camera._gaze_validity().any()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", CPU_AND_CUDA)
 @pytest.mark.parametrize(
     "mode, autocast",
     [("spherical", False), ("spherical", True), ("spherical_ids", False), ("spherical_mask", False)],
 )
 def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, mode: str, tf32_enabled) -> None:
     batch_size = 48
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA unavailable")
     source_gl = torch.tensor([[0.4625, 0.4940, -0.5341, 0.5067]], device=device).repeat(batch_size, 1)
     conversion = source_gl.new_tensor([[0, 0, -1], [-1, 0, 0], [0, 1, 0]]).double()
     source = quat_from_matrix(matrix_from_quat(source_gl.double()) @ conversion.T).float()
@@ -229,6 +231,45 @@ def test_gaze_angles_need_one_row_per_camera(shape) -> None:
     assert camera._gaze_angles is None
 
 
+def test_mount_record_starts_at_the_current_pose() -> None:
+    """Allocating the gaze before any pose update records the camera's current, ungazed mount, not zeros."""
+    camera = GazeHarness()
+    camera._gaze_pose_reads_angles = True
+    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
+    camera._data.quat_w_world = mount.clone()
+    camera.gaze_angles
+    expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
+    torch.testing.assert_close(
+        matrix_from_quat(camera.ungazed_quat_w_ros()), matrix_from_quat(expected), atol=1e-6, rtol=0
+    )
+
+
+def test_prim_writing_camera_reads_its_mount_until_a_gaze_is_written() -> None:
+    """Isaac RTX writes the gaze into its prims, so its pose is the mount only until the first gaze."""
+    camera = GazeHarness()
+    camera.gaze_angles
+    expected = convert_camera_frame_orientation_convention(camera._data.quat_w_world, "world", "ros")
+    torch.testing.assert_close(
+        matrix_from_quat(camera.ungazed_quat_w_ros()), matrix_from_quat(expected), atol=1e-6, rtol=0
+    )
+    camera.set_gaze_angles(torch.zeros(2, 2))
+    with pytest.raises(RuntimeError, match="already hold a gaze"):
+        camera.ungazed_quat_w_ros()
+
+
+def test_newton_and_ovrtx_need_per_frame_pose_updates(monkeypatch) -> None:
+    """Without pose updates the renderer would never see the gaze while the sensor mask used it."""
+    monkeypatch.setattr(Camera, "__init__", lambda self, cfg: None)
+    monkeypatch.setattr(FoveatedCamera, "__del__", lambda self, *args, **kwargs: None, raising=False)
+    cfg = SimpleNamespace(update_latest_camera_pose=False)
+    harness = object.__new__(GazeHarness)
+    harness._gaze_pose_reads_angles = True
+    with pytest.raises(ValueError, match="update_latest_camera_pose=True"):
+        FoveatedCamera.__init__(harness, cfg)
+    harness._gaze_pose_reads_angles = False
+    FoveatedCamera.__init__(harness, cfg)
+
+
 def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() -> None:
     camera = GazeHarness()
     camera.cfg.mask_to_sensor_fov = True
@@ -290,10 +331,8 @@ def test_renderer_ray_frame_matches_cv_frame() -> None:
     torch.testing.assert_close(rendered, cv * torch.tensor([1, -1, -1]))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", CPU_AND_CUDA)
 def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA unavailable")
     cameras = [GazeHarness(device=device), GazeHarness(device=device)]
     for camera in cameras:
         camera._data.quat_w_world = torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1)
@@ -314,10 +353,8 @@ def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
     torch.testing.assert_close(cameras[1]._test_validity, cameras[0]._test_validity)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", CPU_AND_CUDA)
 def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA unavailable")
     camera = GazeHarness(count=48, device=device)
     camera._gaze_basis = camera._gaze_basis.to(device)
     camera._base_local_orientation = matrix_from_quat(
@@ -340,15 +377,15 @@ def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_
     torch.testing.assert_close(written[1], written[0])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
-def test_gaze_kernels_preserve_shared_stream_for_warp_capture() -> None:
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_gaze_kernels_preserve_shared_stream_for_warp_capture(device: str) -> None:
     wp.init()
-    stream = wp.Stream("cuda:0")
+    stream = wp.Stream(device)
     with wp.ScopedStream(stream), torch.cuda.stream(wp.stream_to_torch(stream)):
-        camera = GazeHarness(device="cuda:0")
-        camera.set_gaze_angles(torch.tensor([[5.0, -8.0], [0.0, 0.0]], device="cuda:0"))
+        camera = GazeHarness(device=device)
+        camera.set_gaze_angles(torch.tensor([[5.0, -8.0], [0.0, 0.0]], device=device))
         valid = camera._gaze_validity()
-        target = wp.zeros(valid.shape, dtype=wp.bool, device="cuda:0")
+        target = wp.zeros(valid.shape, dtype=wp.bool, device=device)
         # Physics must still be able to capture after the camera's temporary stream scopes exit.
         with wp.ScopedCapture(stream=stream) as capture:
             wp.copy(target, wp.from_torch(valid))

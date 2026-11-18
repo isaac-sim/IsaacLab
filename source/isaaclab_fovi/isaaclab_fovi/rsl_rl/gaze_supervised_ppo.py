@@ -17,6 +17,8 @@ import torch
 from rsl_rl.algorithms import PPO
 from torch import nn
 
+from .gaze_distribution import GAZE_ACTIONS
+
 
 def gaze_loss(mean: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """Mean distance between the policy's gaze-action means and the teacher's, over valid labels.
@@ -91,7 +93,7 @@ class GazeSupervisedPPO(PPO):
                 loss = surrogate + self.value_loss_coef * value_loss - self.entropy_coef * entropy
                 if self.oracle_loss_coef > 0:
                     labels = batch.observations[self.oracle_group].float()
-                    oracle = gaze_loss(self.actor.output_mean[:, -2:].float(), labels)
+                    oracle = gaze_loss(self.actor.output_mean[:, -GAZE_ACTIONS:].float(), labels)
                     valid = (labels[:, 2] > 0.5).float().mean()
                     loss = loss + self.oracle_loss_coef * oracle
                 else:

@@ -235,10 +235,12 @@ class FoveatedRTXCamera(FoveatedCamera):
     def _initialize_impl(self) -> None:
         tw, th = self._texture_width, self._texture_height
         prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
-        # OVRTX's lookup-table range is measured from the near-clipped ray origin.
-        self._near_clip = self._near_clipping_distance(prims[0]) if prims else 0.0
+        # OVRTX's lookup-table range is measured from each camera's near-clipped ray origin.
+        near_clips = [self._near_clipping_distance(prim) for prim in prims]
 
         super()._initialize_impl()
+
+        self._near_clip = torch.tensor(near_clips, dtype=torch.float32, device=self._device).view(-1, 1, 1, 1)
 
         # OVRTX owns its runtime; Kit extensions belong only to Isaac RTX.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
@@ -389,7 +391,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                 samples = tensor[:, self._extract_py, self._extract_px, :].unsqueeze(2)
             if offset_distance and name == "distance_to_camera":
                 # OVRTX measures the distance from the near-clipped ray origin.
-                samples = samples + self._near_clip
+                samples = samples + self._near_clip.to(samples.dtype)
             fov.copy_(torch.where(updated, samples, fov))
 
     @staticmethod

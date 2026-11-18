@@ -98,7 +98,19 @@ class FoveatedCamera(Camera):
         )
 
     def __init__(self, cfg: FoveatedCameraCfg):
+        """Create the camera.
+
+        Raises:
+            ValueError: A Newton or OVRTX camera without ``update_latest_camera_pose``, whose renderer would never see
+                the gaze.
+        """
+        if self._gaze_pose_reads_angles and not cfg.update_latest_camera_pose:
+            raise ValueError(
+                "Newton and OVRTX turn the rendered pose by the gaze in each pose update; set"
+                " update_latest_camera_pose=True so the renderer sees the gaze."
+            )
         # The parent's initialisation updates poses before the gaze exists.
+        self._gaze_written = False
         self._gaze_angles: ProxyArray | None = None
         self._gaze_rotation: ProxyArray | None = None
         self._visibility = None
@@ -154,9 +166,9 @@ class FoveatedCamera(Camera):
 
     @property
     def turns_pose_by_gaze(self) -> bool:
-        """Whether each pose update turns the rendered pose by the stored gaze (Newton and OVRTX with
-        ``update_latest_camera_pose``). A writer of :attr:`gaze_angles` then needs no other launch."""
-        return self._gaze_pose_reads_angles and self.cfg.update_latest_camera_pose
+        """Whether each pose update turns the rendered pose by the stored gaze (Newton and OVRTX). A writer of
+        :attr:`gaze_angles` then needs no other launch."""
+        return self._gaze_pose_reads_angles
 
     @property
     def gaze_angles(self) -> ProxyArray:
@@ -216,6 +228,7 @@ class FoveatedCamera(Camera):
                 gaze.device,
             )
         self._set_gaze_launch.launch(warp_stream(gaze.device))
+        self._gaze_written = True
 
     def ungazed_quat_w_ros(self) -> torch.Tensor:
         """World orientation (x, y, z, w) of the physical camera now, before the gaze turns it, ROS convention, shape
@@ -225,14 +238,19 @@ class FoveatedCamera(Camera):
             RuntimeError: A gaze is set on a camera that writes it into its prims (Isaac RTX), so the current pose
                 includes it.
         """
-        if self._gaze_angles is None:
-            orientation = self._data.quat_w_world
-            orientation = orientation.torch if hasattr(orientation, "torch") else orientation
-            opengl = convert_camera_frame_quaternion(orientation.float(), origin="world", target="opengl")
-            return convert_camera_frame_quaternion(opengl, origin="opengl", target="ros")
-        if self._gaze_pose_reads_angles:
+        if self._gaze_pose_reads_angles and self._gaze_angles is not None:
+            # The record starts at the pose before any gaze and follows each pose update.
             return self._mount_quat_ros.torch.clone()
-        raise RuntimeError("The camera's prims already hold a gaze; read its mount before setting one.")
+        if self._gaze_written and not self._gaze_pose_reads_angles:
+            raise RuntimeError("The camera's prims already hold a gaze; read its mount before setting one.")
+        return self._pose_quat_w_ros()
+
+    def _pose_quat_w_ros(self) -> torch.Tensor:
+        """The camera's current world orientation in the ROS convention, shape (num_envs, 4)."""
+        orientation = self._data.quat_w_world
+        orientation = orientation.torch if hasattr(orientation, "torch") else orientation
+        opengl = convert_camera_frame_quaternion(orientation.float(), origin="world", target="opengl")
+        return convert_camera_frame_quaternion(opengl, origin="opengl", target="ros")
 
     def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
         """Move the camera's mount; the gaze stays relative to the new mount.
@@ -297,7 +315,9 @@ class FoveatedCamera(Camera):
         self._gaze_rotation = ProxyArray(
             wp.from_torch(torch.eye(3, device=device).repeat(count, 1, 1), dtype=wp.mat33f)
         )
-        self._mount_quat_ros = ProxyArray(wp.zeros(count, dtype=wp.quatf, device=device))
+        # No gaze has turned the pose yet, so the current orientation is the mount.
+        mount = self._pose_quat_w_ros().to(device).contiguous()
+        self._mount_quat_ros = ProxyArray(wp.from_torch(mount, dtype=wp.quatf))
         self._gaze_angles_key = None
         self._gaze_pose_launches: dict[str, tuple[wp.Launch, tuple]] = {}
         self._gaze_no_mask = wp.zeros(1, dtype=wp.bool, device=device)

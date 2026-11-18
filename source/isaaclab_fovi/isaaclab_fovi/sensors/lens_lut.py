@@ -41,9 +41,7 @@ if TYPE_CHECKING:
     from pxr import Usd
 
 
-# =============================================================================
 # Internal helpers
-# =============================================================================
 
 
 def _t(x, dtype: torch.dtype, device) -> torch.Tensor:
@@ -53,9 +51,7 @@ def _t(x, dtype: torch.dtype, device) -> torch.Tensor:
     return torch.as_tensor(np.asarray(x), dtype=dtype, device=device)
 
 
-# =============================================================================
 # EXR I/O
-# =============================================================================
 
 
 def save_exr(path: str, data: torch.Tensor) -> None:
@@ -78,9 +74,7 @@ def save_exr(path: str, data: torch.Tensor) -> None:
     exr.close()
 
 
-# =============================================================================
 # Octahedral decoding (internal)
-# =============================================================================
 
 
 def _octahedral_decode(
@@ -106,9 +100,7 @@ def _octahedral_decode(
     return dx / n, dy / n, -dz / n
 
 
-# =============================================================================
 # Nearest-neighbour search
-# =============================================================================
 
 
 def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tensor:
@@ -130,9 +122,7 @@ def _nn_chunk(query: torch.Tensor, keys: torch.Tensor, chunk: int) -> torch.Tens
     return idx
 
 
-# =============================================================================
 # Core LUT tensor builders
-# =============================================================================
 
 
 def build_native_grid_textures(
@@ -180,7 +170,7 @@ def build_lut_textures(
     N = uv_t.shape[0]
     Q = texture_width * texture_height
 
-    # ── Direction texture ─────────────────────────────────────────────────────
+    # Direction texture.
     dir_out = torch.zeros(texture_height, texture_width, 3, dtype=torch.float32, device=device)
     dir_out[:, :, 2] = -1.0
 
@@ -196,12 +186,12 @@ def build_lut_textures(
             k_nn = _nn_chunk(texel_uv, uv_t, chunk)
             dir_out.reshape(-1, 3)[:] = dirs_t[k_nn]
 
-    # ── Exit texture ──────────────────────────────────────────────────────────
+    # Exit texture.
     # The exit texture is an octahedral inverse map: given a ray direction
     # (encoded over [0,1]² via octahedral projection), it returns the sensor
     # NDC (u, v) of the nearest foveated sample.  The octahedral grid covers
     # the full hemisphere, but only texels whose decoded direction falls within
-    # the camera's FOV (r ≤ max_r) are populated; the rest default to (0.5, 0.5).
+    # the camera's FOV (r ≤ max_r) are populated; the rest hold the invalid UV (-1, -1), as in native-grid LUTs.
     # Resolution (exit_width × exit_height) should be large enough to resolve
     # individual samples — typically 4× the direction texture dimension.
     d = dirs_t.to(torch.float64)
@@ -220,8 +210,8 @@ def build_lut_textures(
     odz_f = oct_z.float()
     valid = (r_q <= max_r) & (odz_f < -1e-9)
 
-    exit_u = torch.full((exit_height, exit_width), 0.5, dtype=torch.float32, device=device)
-    exit_v = torch.full((exit_height, exit_width), 0.5, dtype=torch.float32, device=device)
+    exit_u = torch.full((exit_height, exit_width), -1.0, dtype=torch.float32, device=device)
+    exit_v = torch.full((exit_height, exit_width), -1.0, dtype=torch.float32, device=device)
 
     if N > 0 and valid.any():
         sample_cart = torch.stack([xs, ys], dim=1)
@@ -236,9 +226,7 @@ def build_lut_textures(
     return dir_out, torch.stack([exit_u, exit_v], dim=2)
 
 
-# =============================================================================
 # EXR save helpers
-# =============================================================================
 
 
 def save_lut_textures(
@@ -260,9 +248,7 @@ def save_lut_textures(
     return os.path.abspath(dir_path), os.path.abspath(exit_path)
 
 
-# =============================================================================
 # USD prim authoring
-# =============================================================================
 
 
 def apply_lens_lut_to_prim(
@@ -284,9 +270,7 @@ def apply_lens_lut_to_prim(
     )
 
 
-# =============================================================================
 # NDC layout functions
-# =============================================================================
 
 
 def samples_uv_cortical_disc(

@@ -170,4 +170,4 @@ uv run python source/isaaclab_fovi/examples/render_foveated.py --backend newton 
 ```
 
 Add `--backend rtx` for the RTX renderer, `--lens fisheye` for an ideal
-equidistant fisheye, or `--cmf-a-deg 1000` for the non-foveated baseline.
+equidistant fisheye, or `--cmf_a_deg 1000` for the non-foveated baseline.

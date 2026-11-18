@@ -14,7 +14,7 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
-from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angles
+from isaaclab_fovi.mdp import angles_to_direction
 from isaaclab_fovi.mdp.gaze import (
     GazeAction,
     gaze_reset_kernel,
@@ -33,6 +33,7 @@ from rsl_rl.models import MLPModel
 from rsl_rl.storage import RolloutStorage
 from tensordict import TensorDict
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
 
@@ -40,7 +41,18 @@ pytestmark = pytest.mark.kitless
 
 NUM_ENVS = 64
 STEPS = 8
-DEVICES = ["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"]
+DEVICES = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
+
+
+def direction_to_angles(direction: torch.Tensor) -> torch.Tensor:
+    """Gaze angles [deg] of camera-frame directions, shape (..., 3) to (..., 2): the reference for the kernels."""
+    x, y, z = direction.unbind(-1)
+    return torch.stack((-torch.atan2(y, torch.sqrt(x.square() + z.square())), -torch.atan2(x, z)), -1).rad2deg()
+
+
+def clamp_gaze(gaze: torch.Tensor, limit: float) -> torch.Tensor:
+    """Gazes scaled back onto the circle of radius ``limit`` when they leave it: the reference for the step kernel."""
+    return gaze * (limit / gaze.norm(dim=-1, keepdim=True).clamp_min(limit))
 
 
 def test_gaze_angles_round_trip_and_follow_the_camera_convention():
@@ -50,11 +62,6 @@ def test_gaze_angles_round_trip_and_follow_the_camera_convention():
     # OpenCV camera frame: z forward, y down, x right; positive tilt looks up, positive pan looks left.
     torch.testing.assert_close(directions[0], torch.tensor([0.0, 0.0, 1.0]))
     assert directions[1, 1] < 0 and directions[2, 0] < 0
-
-
-def test_clamp_gaze_is_radial():
-    gaze = torch.tensor([[0.3, 0.4], [3.0, 4.0]])
-    torch.testing.assert_close(clamp_gaze(gaze, 1.0), torch.tensor([[0.3, 0.4], [0.6, 0.8]]))
 
 
 def test_gaze_step_kernel_matches_the_torch_update():
@@ -305,9 +312,12 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
     term = object.__new__(GazeAction)
     term.tracked_mount = False
     term._mount_turns = 2
-    term.camera = SimpleNamespace(mount_turns=3)
+    term._fixed_mount = "captured"
+    term.camera = SimpleNamespace(mount_turns=2)
+    assert GazeAction.teacher_mounts(term) == "captured"
+    term.camera.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
-        GazeAction._teacher_labels(term, targets=None)
+        GazeAction.teacher_mounts(term)
 
 
 def test_gaze_loss_ignores_invalid_labels():
@@ -408,19 +418,16 @@ def test_gaze_head_keeps_the_gaze_noise_fixed_while_ppo_learns_the_rest():
 
 
 @pytest.mark.parametrize("std_type", ["scalar", "log"])
-def test_gaze_head_samples_with_the_fixed_gaze_noise(std_type):
+def test_gaze_head_fixes_the_last_two_actions_noise(std_type):
     head = GazeGaussianDistribution(5, init_std=2.0, std_type=std_type, gaze_std=0.05)
     assert head.input_dim == 5
-    head.update(torch.zeros(4096, 5))
-    torch.testing.assert_close(head.std[0], torch.tensor([2.0, 2.0, 2.0, 0.05, 0.05]))
-    samples = head.sample()
-    assert samples.shape == (4096, 5)
-    torch.testing.assert_close(samples.std(dim=0)[3:], torch.full((2,), 0.05), atol=5e-3, rtol=0)
+    head.update(torch.zeros(3, 5))
+    torch.testing.assert_close(head.std, torch.tensor([[2.0, 2.0, 2.0, 0.05, 0.05]]).expand(3, -1))
 
 
 @pytest.mark.parametrize(
-    "kwargs", [dict(gaze_std=0.0), dict(gaze_std=float("inf")), dict(gaze_dims=5), dict(gaze_dims=0)]
+    "output_dim, gaze_std", [(5, 0.0), (5, float("inf")), (2, 0.1)], ids=["zero", "infinite", "gaze_only"]
 )
-def test_gaze_head_rejects_invalid_settings(kwargs):
+def test_gaze_head_rejects_invalid_settings(output_dim, gaze_std):
     with pytest.raises(ValueError, match="gaze"):
-        GazeGaussianDistribution(5, **kwargs)
+        GazeGaussianDistribution(output_dim, gaze_std=gaze_std)

@@ -130,7 +130,7 @@ class FoveatedCameraCfg(CameraCfg):
     uses the rounded sample-count ratio."""
 
     pool_mode: str = "avg"
-    """Retinal pooling mode. ``"avg"`` or ``"gaussian"``."""
+    """Retinal pooling mode: ``"avg"``, ``"gaussian"``, ``"max"`` or ``"sum"``."""
 
     pool_sample_cortex: bool | str = "geodesic"
     """Space in which KNN neighbours are selected.  ``True`` = Euclidean on
@@ -168,8 +168,8 @@ class FoveatedCameraCfg(CameraCfg):
     width: int = 1
     height: int = 1
 
-    # Enable per-frame pose updates so the gaze rotation is applied each step.
     update_latest_camera_pose: bool = True
+    """Update the camera pose every frame. Newton and OVRTX require it: their pose update applies the gaze."""
 
     def __post_init__(self):
         # Resolves the default renderer and forwards deprecated renderer fields.
