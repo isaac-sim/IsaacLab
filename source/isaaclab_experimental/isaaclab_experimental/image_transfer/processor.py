@@ -146,17 +146,12 @@ class ImageTransferProcessor(TensorProcessor):
             seeds = tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
             try:
                 generated = self._stream.step(controls, rows, seeds)
-                if len(generated) != num_views:
-                    raise ValueError("Image transfer returned the wrong number of views.")
-                for images, size in zip(generated, chunk):
-                    if tuple(images.shape) != (size, *self._data_dim[1:]) or images.dtype != torch.uint8:
-                        raise ValueError("Image transfer must return uint8 THWC RGB matching each control chunk.")
+                # A stream shared with other cameras returns None when it generates later, and publishes then.
+                if generated is not None:
+                    self._publish(generated, chunk)
             except Exception:
                 self._failed = True
                 raise
-            # Publish only after the whole result is validated.
-            for row, images in enumerate(generated):
-                self._output[row].copy_(images[-1])
             # Continuing views keep the controls after their chunk; starting views drop their older ones.
             kept = [0 if start else count - size for count, size, start in zip(counts, chunk, fresh)]
             for row, (left, size) in enumerate(zip(kept, chunk)):
@@ -168,6 +163,28 @@ class ImageTransferProcessor(TensorProcessor):
             self._waits = [cfg.update_frames - left for left in kept]
             self._started = True
         return dict(self._outputs)
+
+    def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
+        """Publish each view's last generated image, once the whole result is validated.
+
+        A stream shared with other cameras calls this when it generates a chunk this processor stepped earlier.
+
+        Args:
+            generated: One uint8 THWC image chunk per view.
+            chunk: Frames each view's chunk must hold. None accepts any count.
+
+        Raises:
+            ValueError: If the images do not match the views; the processor is then failed.
+        """
+        sizes = chunk if chunk is not None else [len(images) for images in generated]
+        if len(generated) != self._data_dim[0] or any(
+            tuple(images.shape) != (size, *self._data_dim[1:]) or images.dtype != torch.uint8
+            for images, size in zip(generated, sizes)
+        ):
+            self._failed = True
+            raise ValueError("Image transfer must return uint8 THWC RGB matching each view's control chunk.")
+        for row, images in enumerate(generated):
+            self._output[row].copy_(images[-1])
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Discard the queued controls and episode state of the selected views.

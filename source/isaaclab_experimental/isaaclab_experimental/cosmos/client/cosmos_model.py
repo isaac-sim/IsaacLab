@@ -12,7 +12,7 @@ import logging
 import math
 import socket
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -695,9 +695,12 @@ class _CameraGroup:
     """Cameras that share one session; every capture generates all their environments as one batch.
 
     Each camera's processor queues its own controls and steps its :class:`_CameraStream` once its chunk is complete.
-    The first camera to step updates the group's other cameras, whose processors then add their chunks; the last one
-    runs the batched step, and every camera returns its own views of it. All cameras thus publish images of the same
-    capture, so they must capture at the same steps. A failure closes the session for every camera.
+    The camera that adds the last chunk of a capture runs the batched step, and every camera gets its own views of
+    it. A camera that steps before the others reads their data, which renders them and runs their processors, unless
+    they were already rendered for this capture, as an eager scene update renders every camera before running any
+    processor: their processors then add their chunks next, and the last one publishes the earlier cameras' images.
+    All cameras thus publish images of the same capture, so they must capture at the same steps. A failure closes the
+    session for every camera.
     """
 
     def __init__(self, model: CosmosModel, cameras: tuple[str, ...]):
@@ -708,6 +711,8 @@ class _CameraGroup:
         self._session: _CosmosStream | _ShardedStream | None = None
         self._chunks: dict[int, tuple[list[torch.Tensor], tuple[int, ...], tuple[int, ...]]] = {}
         self._images: dict[int, list[torch.Tensor]] | None = None
+        # Cameras that stepped before the cameras rendered with them added their chunks; they get their images later.
+        self._waiting: set[int] = set()
         self._closed = False
 
     def join(self, num_views: int, seeds: tuple[int, ...]) -> _CameraStream:
@@ -732,8 +737,12 @@ class _CameraGroup:
 
     def step(
         self, stream: _CameraStream, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
-    ) -> list[torch.Tensor]:
-        """Add a camera's chunk, update the cameras that have not added theirs, and return this camera's images."""
+    ) -> list[torch.Tensor] | None:
+        """Add a camera's chunk and return this camera's images, or None if they are published later.
+
+        Cameras that have not added their chunk are updated by reading their data, unless they were rendered with
+        this camera; this camera then waits, and the camera adding the last chunk publishes its images.
+        """
         if self._closed:
             raise RuntimeError("The Cosmos session shared by these cameras is closed or failed.")
         if stream.index is None:
@@ -742,12 +751,16 @@ class _CameraGroup:
             raise RuntimeError("A camera stepped twice before every camera of its Cosmos session added its chunk.")
         self._chunks[stream.index] = (controls, reset_rows, seeds)
         try:
+            cameras = _scene_cameras()
             for index, name in enumerate(self._cameras):
                 if self._images is not None or index in self._chunks:
                     continue
-                camera = _scene_cameras().get(name)
+                camera = cameras.get(name)
                 if camera is None:
                     raise ValueError(f"Scene camera {name!r} of the Cosmos session does not exist.")
+                if stream.publish is not None and self._rendered_together(cameras, stream.index, camera):
+                    # Its processors add its chunk after this camera's; reading its data would render it again.
+                    continue
                 # Reading the camera's data updates it; its processor then adds the camera's chunk to this one.
                 camera.data
                 if self._images is None and index not in self._chunks:
@@ -756,7 +769,15 @@ class _CameraGroup:
                         "sharing a session need the same update period, and each must be read every capture."
                     )
             if self._images is None:
+                if len(self._chunks) < len(self._cameras):
+                    # This camera's processor reuses its control queue before the session generates.
+                    self._chunks[stream.index] = ([chunk.clone() for chunk in controls], reset_rows, seeds)
+                    self._waiting.add(stream.index)
+                    return None
                 self._images = self._generate()
+                for index in sorted(self._waiting):
+                    self._streams[index].publish(self._images.pop(index))
+                self._waiting.clear()
             images = self._images.pop(stream.index)
             if not self._images:
                 self._images = None
@@ -766,11 +787,23 @@ class _CameraGroup:
             self.close()
             raise
 
+    def _rendered_together(self, cameras: dict[str, Any], index: int, camera: Any) -> bool:
+        """Whether ``camera`` was already rendered for the capture camera ``index`` is processing.
+
+        Preparing a capture advances a camera's frame counters, so cameras rendered for the same capture have equal
+        counters. This reads them on the host, once per chunk, where the session's generation waits anyway.
+        """
+        import torch
+
+        own = cameras.get(self._cameras[index])
+        return own is not None and torch.equal(own.frame.torch, camera.frame.torch)
+
     def close(self) -> None:
         """Close the shared session; every camera's stream then fails. Repeated calls are safe."""
         self._closed = True
         self._chunks.clear()
         self._images = None
+        self._waiting.clear()
         if self._session is not None:
             self._session.close()
 
@@ -797,15 +830,23 @@ class _CameraStream:
         self._group = group
         self.seeds = seeds
         self.index: int | None = None
+        self.publish: Callable[[list[torch.Tensor]], None] | None = None
 
-    def bind(self, camera: str) -> None:
-        """Take the views of the scene camera ``camera``, whose processor owns this stream."""
+    def bind(self, camera: str, publish: Callable[[list[torch.Tensor]], None] | None = None) -> None:
+        """Take the views of the scene camera ``camera``, whose processor owns this stream.
+
+        Args:
+            camera: Name of the scene camera.
+            publish: Called with this camera's images when the session generates them after :meth:`step` returned
+                None. Without it, a step always reads the other cameras' data.
+        """
         self._group.bind(self, camera)
+        self.publish = publish
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
-    ) -> list[torch.Tensor]:
-        """Generate this camera's views together with the other cameras of its session."""
+    ) -> list[torch.Tensor] | None:
+        """Generate this camera's views with the other cameras of its session; see :meth:`_CameraGroup.step`."""
         return self._group.step(self, controls, reset_rows, seeds)
 
     def close(self) -> None:

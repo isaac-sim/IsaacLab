@@ -664,7 +664,11 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
 
 
 class LazyCamera:
-    """A scene camera that captures when its data is read, and only once per simulation step."""
+    """A scene camera that captures when its data is read, and only once per simulation step.
+
+    :meth:`render` and :meth:`process` split a capture as an eager scene update does: it renders every camera, then
+    runs each camera's processors.
+    """
 
     def __init__(self, cfg, name, value):
         self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name)
@@ -673,17 +677,27 @@ class LazyCamera:
         self.due = False
         self.output = None
         self.capture_mask = wp.ones(2, dtype=wp.bool, device="cpu")
+        self.frame = _proxy(torch.zeros(2, dtype=torch.int64))
+        self.renders = 0
 
     @property
     def data(self):
         if self.due:
-            self.due = False
-            buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
-            # A camera constructs its processors at its first capture.
-            if self.processor is None:
-                self.processor = self.cfg.func(self.cfg, buffers)
-            self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
+            self.render()
+            self.process()
         return self.output
+
+    def render(self):
+        self.frame.torch.add_(1)
+        self.renders += 1
+
+    def process(self):
+        self.due = False
+        buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
+        # A camera constructs its processors at its first capture.
+        if self.processor is None:
+            self.processor = self.cfg.func(self.cfg, buffers)
+        self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
 
 
 def _camera_group(cosmos_service, monkeypatch):
@@ -748,6 +762,30 @@ def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_
     assert [control.shape[0] for control in session.steps[2][0]] == [4, 1, 4, 1]
     assert session.steps[2][1:] == ((1, 3), (seed + 3, seed + 3))
     assert session.closed.wait(2)
+
+
+def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_service, monkeypatch):
+    """An eager scene update renders every camera, then runs their processors; the last camera generates for both."""
+    model, cameras = _camera_group(cosmos_service, monkeypatch)
+    front, wrist = cameras["front"], cameras["wrist"]
+
+    def eager_update():
+        front.due = wrist.due = True
+        for camera in (front, wrist):
+            camera.render()
+        for camera in (front, wrist):
+            camera.process()
+        front.value, wrist.value = front.value + 1, wrist.value + 1
+
+    try:
+        for _ in range(5):
+            eager_update()
+        assert front.renders == wrist.renders == 5
+        # The wrist camera completes each capture and publishes the front camera's images too.
+        assert front.output[:, 0, 0, 0].tolist() == [14, 14] and wrist.output[:, 0, 0, 0].tolist() == [24, 24]
+    finally:
+        model.close()
+    assert len(cosmos_service.resource.streams[0].steps) == 2
 
 
 def test_cameras_sharing_a_closed_session_can_open_a_new_one(cosmos_service, monkeypatch):

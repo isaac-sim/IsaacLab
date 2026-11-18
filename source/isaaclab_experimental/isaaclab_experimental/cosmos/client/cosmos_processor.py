@@ -56,10 +56,10 @@ class CosmosTransferProcessor(ImageTransferProcessor):
                 " processor's inputs (validating the environment configuration adds it)."
             )
         super().__init__(cfg, data)
-        # A camera sharing a session takes its views there.
+        # A camera sharing a session takes its views there, and gets its images when the session generates them.
         bind = getattr(self._stream, "bind", None)
         if bind is not None:
-            bind(cfg.camera)
+            bind(cfg.camera, self._publish)
         self._capture_index = 0
         self._random = random.Random(self._seeds[0])
 
