@@ -5,17 +5,20 @@
 
 """Fixed-base Rizon4s and Sharpa hand with a measured rear-housing pregrasp."""
 
-from isaaclab_newton.sim.schemas import MujocoJointCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 
-from .assets import (
-    RIZON_SHARPA_ARM_JOINT_NAMES,
-    RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES,
-    RIZON_SHARPA_USD_PATH,
+from isaaclab_assets.robots.rizon_sharpa import (
+    ARM_JOINT_NAMES,
+    HAND_JOINT_NAMES,
+    ROBOT_USD_PATH,
+    arm_actuators,
 )
+
+from .sharpa_contacts import spawn_sharpa_contact_meshes
 
 ROBOT_BASE_POSITION_E = (0.40706384, -0.44981234, 1.78624670)
 ROBOT_BASE_ROTATION_XYZW = (0.0, 0.0, 0.7071067811865476, 0.7071067811865476)
@@ -52,52 +55,38 @@ def rizon_sharpa_articulation_cfg() -> ArticulationCfg:
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=RIZON_SHARPA_USD_PATH,
+            usd_path=ROBOT_USD_PATH,
+            func=spawn_sharpa_contact_meshes,
+            collision_props={
+                "/.*": [NewtonCollisionCfg(contact_gap=0.001)],
+                # Tucked digits are visual-only for this three-finger pinch.
+                "/right_(?:ring|pinky)_.*/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
+            },
             joint_drive_props={"/Physics/.*": [MujocoJointCfg(actuatorgravcomp=True)]},
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=ROBOT_BASE_POSITION_E,
             rot=ROBOT_BASE_ROTATION_XYZW,
             joint_pos={
-                **dict(zip(RIZON_SHARPA_ARM_JOINT_NAMES, PREGRASP_ARM_RAD, strict=True)),
-                **dict(zip(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, CLOSE_HAND_RAD, strict=True)),
+                **dict(zip(ARM_JOINT_NAMES, PREGRASP_ARM_RAD, strict=True)),
+                **dict(zip(HAND_JOINT_NAMES, CLOSE_HAND_RAD, strict=True)),
             },
         ),
         actuators={
-            "shoulder": ImplicitActuatorCfg(
-                joint_names_expr=["joint[1-2]"],
-                joint_effort_limit=123.0,
-                joint_velocity_limit=2.094,
-                stiffness=6000.0,
-                damping=108.5,
-            ),
-            "elbow": ImplicitActuatorCfg(
-                joint_names_expr=["joint[3-4]"],
-                joint_effort_limit=64.0,
-                joint_velocity_limit=2.443,
-                stiffness=4200.0,
-                damping=90.7,
-            ),
-            "wrist": ImplicitActuatorCfg(
-                joint_names_expr=["joint[5-7]"],
-                joint_effort_limit=39.0,
-                joint_velocity_limit=4.887,
-                stiffness=1500.0,
-                damping=54.2,
-            ),
+            **arm_actuators(),
             "right_thumb": ImplicitActuatorCfg(
                 joint_names_expr=["right_thumb_.*"],
-                joint_effort_limit=3.3,
                 joint_velocity_limit=6.0,
-                stiffness=24.0,
-                damping=1.2,
+                stiffness=96.0,
+                damping=2.4,
+                armature=2.0e-4,
             ),
             "right_fingers": ImplicitActuatorCfg(
                 joint_names_expr=["right_(?:index|middle|ring|pinky)_.*"],
-                joint_effort_limit=3.3,
                 joint_velocity_limit=6.0,
-                stiffness=24.0,
-                damping=1.2,
+                stiffness=96.0,
+                damping=2.4,
+                armature=2.0e-4,
             ),
         },
         soft_joint_pos_limit_factor=0.95,

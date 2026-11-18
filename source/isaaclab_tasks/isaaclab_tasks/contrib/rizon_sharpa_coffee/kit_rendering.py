@@ -14,11 +14,11 @@ import warp as wp
 from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 from isaaclab_visualizers.kit import KitVisualizer
 
-from pxr import Usd, UsdGeom, UsdShade, Vt
+from pxr import Usd, UsdGeom, Vt
 
 from isaaclab.visualizers import VisualizerCfg
 
-from .rendering import COFFEE_COLOR, _vertex_color_material, _water_material
+from .rendering import create_coffee_points, create_water_mesh
 
 if TYPE_CHECKING:
     from .rendering import CoffeeRendering
@@ -39,21 +39,8 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._stage = sim.stage
         self._root_path = "/World/CoffeePresentation/Kit"
         UsdGeom.Xform.Define(self._stage, self._root_path)
-        self._coffee = UsdGeom.Points.Define(self._stage, f"{self._root_path}/Coffee")
-        self._coffee.CreateWidthsAttr()
-        self._coffee.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
-        self._water = UsdGeom.Mesh.Define(self._stage, f"{self._root_path}/Water")
-        self._water.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
-        self._water.CreateDoubleSidedAttr(True)
-        self._water.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
-        self._coffee_colors = self._coffee.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex)
-        self._water_colors = self._water.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex)
-        coffee_material, _ = _vertex_color_material(
-            self._stage, f"{self._root_path}/Looks/Coffee", COFFEE_COLOR, roughness=0.85
-        )
-        water_material, self._water_shader = _water_material(self._stage, f"{self._root_path}/Looks/Water")
-        UsdShade.MaterialBindingAPI.Apply(self._coffee.GetPrim()).Bind(coffee_material)
-        UsdShade.MaterialBindingAPI.Apply(self._water.GetPrim()).Bind(water_material)
+        self._coffee = create_coffee_points(self._stage, f"{self._root_path}/Coffee")
+        self._water, self._water_shader = create_water_mesh(self._stage, f"{self._root_path}/Water")
         self._coffee_attributes_ready = False
         import omni.kit.app
 
@@ -75,7 +62,7 @@ class CoffeeKitVisualizer(KitVisualizer):
                 visible = widths > 0.0
                 positions, widths, display_colors = positions[visible], widths[visible], display_colors[visible]
             self._coffee.GetWidthsAttr().Set(Vt.FloatArray.FromNumpy(widths))
-            self._coffee_colors.Set(Vt.Vec3fArray.FromNumpy(display_colors))
+            self._coffee.GetDisplayColorPrimvar().Set(Vt.Vec3fArray.FromNumpy(display_colors))
             self._coffee_attributes_ready = True
         self._coffee.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(positions))
 
@@ -90,7 +77,7 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._water.CreateFaceVertexCountsAttr(Vt.IntArray.FromNumpy(np.full(len(triangles) // 3, 3, dtype=np.int32)))
         self._water.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(triangles))
         self._water.GetNormalsAttr().Set(Vt.Vec3fArray.FromNumpy(normals.numpy()))
-        self._water_colors.Set(Vt.Vec3fArray.FromNumpy(colors))
+        self._water.GetDisplayColorPrimvar().Set(Vt.Vec3fArray.FromNumpy(colors))
         self._water_shader.GetInput("opacity").Set(float(opacity))
 
     def _update_rendering(self, event) -> None:

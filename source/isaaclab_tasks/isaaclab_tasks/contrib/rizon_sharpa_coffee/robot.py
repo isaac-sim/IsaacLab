@@ -14,6 +14,9 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, arm_actuators
+from isaaclab_assets.robots.rizon_sharpa import PALM_BODY_NAME as PALM_BODY_NAME
+
 from .assets import COFFEE_ASSET_DIR
 
 if TYPE_CHECKING:
@@ -21,13 +24,10 @@ if TYPE_CHECKING:
 
 ASSET_USD_NAME = "rizon4s_sharpa.usda"
 ROBOT_ASSET_DIR = f"{COFFEE_ASSET_DIR}/Robot"
-PALM_BODY_NAME = "r_palm_ctrl"
-"""Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
 DEFAULT_SPOON_OFFSET_POS = (0.19638407055658647, -0.0036995580810314636, 0.07643507665596544)
 DEFAULT_SPOON_OFFSET_ROT = (1.0, 0.0, 0.0, 0.0)
 
-ARM_JOINT_NAMES = tuple(f"joint{index}" for index in range(1, 8))
 COFFEE_READY_POSITIONS = (
     -0.704524636269,
     -0.584716141224,
@@ -86,8 +86,6 @@ def get_robot_cfg() -> ArticulationCfg:
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import ArticulationCfg
 
-    from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG
-
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -105,10 +103,7 @@ def get_robot_cfg() -> ArticulationCfg:
             },
         ),
         actuators={
-            **{
-                name: actuator.replace(friction=None, armature=None)
-                for name, actuator in FLEXIV_RIZON4S_CFG.actuators.items()
-            },
+            **arm_actuators(),
             "hand": ImplicitActuatorCfg(
                 joint_names_expr=["right_.*"],
                 joint_effort_limit=3.3,

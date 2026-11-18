@@ -36,10 +36,19 @@ class CoffeeGLVisualizer(NewtonGLVisualizer):
 
     rendering: CoffeeRendering | None = None
 
+    _water_surface: _GLWaterSurface | None = None
+
     def _update_state(self):
         state = super()._update_state()
         if self.rendering is not None:
-            self.rendering.draw(self._viewer)
+            self.rendering.update()
+            self._viewer.log_points(
+                "/coffee_grains", self.rendering._points, radii=self.rendering._radii, colors=self.rendering._colors
+            )
+            if self.rendering._surface is not None:
+                if self._water_surface is None:
+                    self._water_surface = _GLWaterSurface(self.rendering._model.device)
+                self._water_surface.draw(self._viewer, *self.rendering._water_surface_arrays())
         return state
 
 
@@ -62,7 +71,7 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
             from isaaclab_ov.stage import OVSTAGE_POINT_DTYPE
             from ovrtx import DataAccess
 
-            from pxr import Usd, UsdGeom, UsdShade
+            from pxr import Usd, UsdGeom
 
             self.rendering.update()
             queries = self._geometry_queries.setdefault(renderer, {})
@@ -71,7 +80,7 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                 raise ExceptionGroup("RTX renders failed before coffee geometry update", errors)
             root = f"/Coffee_{id(self)}"
             attributes = {f"{root}/Grains": {"points": self.rendering._points}}
-            if self.rendering._water is not None or not queries:
+            if self.rendering._dissolution is not None or not queries:
                 attributes[f"{root}/Grains"]["widths"] = self.rendering._widths
             if self.rendering._surface is not None:
                 points, indices, normals, colors, _ = self.rendering._water_surface_arrays()
@@ -85,21 +94,12 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
             if not queries:
                 stage = Usd.Stage.CreateInMemory()
                 stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Coffee").GetPrim())
-                grains = UsdGeom.Points.Define(stage, "/Coffee/Grains")
-                grains.CreatePointsAttr(self.rendering._points.numpy())
-                grains.CreateWidthsAttr(self.rendering._widths.numpy())
-                grains.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
-                grains.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex).Set(self.rendering._colors.numpy())
-                material, _ = _vertex_color_material(stage, "/Coffee/Grains/Material", COFFEE_COLOR, roughness=0.85)
-                UsdShade.MaterialBindingAPI.Apply(grains.GetPrim()).Bind(material)
+                grains = create_coffee_points(stage, "/Coffee/Grains")
+                grains.GetPointsAttr().Set(self.rendering._points.numpy())
+                grains.GetWidthsAttr().Set(self.rendering._widths.numpy())
+                grains.GetDisplayColorPrimvar().Set(self.rendering._colors.numpy())
                 if self.rendering._surface is not None:
-                    water = UsdGeom.Mesh.Define(stage, "/Coffee/Water")
-                    water.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
-                    water.CreateDoubleSidedAttr(True)
-                    water.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
-                    water.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex)
-                    material, _ = _water_material(stage, "/Coffee/Water/Material")
-                    UsdShade.MaterialBindingAPI.Apply(water.GetPrim()).Bind(material)
+                    create_water_mesh(stage, "/Coffee/Water")
                 usd = stage.GetRootLayer().ExportToString()
                 renderer.geometry_resources.callback(self._geometry_queries.pop, renderer, None)
                 if renderer._use_ovstage:
@@ -128,6 +128,58 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                         renderer.backend.renderer.write_array_attribute(
                             [path], name, [array], data_access=DataAccess.ASYNC, cuda_stream=stream
                         )
+
+
+class _GLWaterSurface:
+    """Publish the reconstructed water as a textured Newton mesh instance."""
+
+    def __init__(self, device):
+        self._uvs = None
+        self._palette = np.asarray(((WATER_COLOR, BREW_COLOR),), dtype=np.float32)
+        self._pose = wp.array([wp.transform_identity()], dtype=wp.transform, device=device)
+        self._white = wp.array([(1.0, 1.0, 1.0)], dtype=wp.vec3, device=device)
+        # Newton instance materials encode roughness, metallic, checker, and texture weight.
+        self._material = wp.array([(0.08, 0.0, 0.0, 1.0)], dtype=wp.vec4, device=device)
+        self._opacity = wp.empty(1, dtype=float, device="cpu")
+        self._published = False
+
+    def draw(self, viewer, points, indices, normals, colors, fraction):
+        hidden = points is None or not indices.size
+        if not hidden:
+            if self._uvs is None or self._uvs.size < points.size:
+                self._uvs = wp.empty(points.size, dtype=wp.vec2, device=points.device)
+            uvs = self._uvs[: points.size]
+            wp.launch(
+                _water_palette_uvs,
+                dim=points.size,
+                inputs=[colors, wp.vec3(WATER_COLOR), wp.vec3(BREW_COLOR)],
+                outputs=[uvs],
+                device=points.device,
+            )
+            viewer.log_mesh(
+                "/coffee_water_mesh",
+                points,
+                indices,
+                normals=normals,
+                uvs=uvs,
+                texture=self._palette,
+                hidden=True,
+                backface_culling=False,
+                dynamic=True,
+            )
+            self._published = True
+        if self._published:
+            self._opacity.fill_(0.42 + 0.40 * fraction)
+            viewer.log_instances(
+                "/coffee_water_surface",
+                "/coffee_water_mesh",
+                self._pose,
+                scales=None,
+                colors=self._white,
+                materials=self._material,
+                opacities=self._opacity,
+                hidden=hidden,
+            )
 
 
 class CoffeeRendering:
@@ -198,7 +250,6 @@ class CoffeeRendering:
         self._widths = wp.empty_like(self._radii)
         self._colors = wp.empty(count, dtype=wp.vec3, device=device)
         self._color_mass_scale = color_mass_scale
-        self._water = env.scene["water"] if "water" in env.scene.keys() else None
         self._liquid_ids = None
         self._liquid_flags = None
         self._liquid_points = None
@@ -211,14 +262,9 @@ class CoffeeRendering:
         self._tint_elapsed = 0.0
         self._appearance_time = None
         self._vertex_colors = None
-        self._gl_uvs = None
-        self._gl_palette = np.asarray(((WATER_COLOR, BREW_COLOR),), dtype=np.float32)
-        self._gl_empty_point = wp.zeros(1, dtype=wp.vec3, device=device)
         self._empty_points = wp.empty(0, dtype=wp.vec3, device=device)
         self._empty_indices = wp.empty(0, dtype=wp.int32, device=device)
-        if self._water is not None:
-            if self._dissolution is None:
-                raise ValueError("Water presentation requires physics-owned coffee dissolution.")
+        if self._dissolution is not None:
             # Fixed capacity lets newly converted particles join without moving
             # buffers. Inactive dry coffee is excluded by the liquid mask.
             self._liquid_ids = self._dissolution.liquid_ids
@@ -272,7 +318,7 @@ class CoffeeRendering:
         self._appearance_time = now
         self._surface_cache = None
         state = self._backend_manager.backend.state_0
-        if self._water is not None:
+        if self._dissolution is not None:
             wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
             # The coupled MPM view owns the converted particles' actual radii.
             wp.copy(self._liquid_radii, wp.indexedarray(self._solver.model.particle_radius, self._liquid_ids))
@@ -327,57 +373,10 @@ class CoffeeRendering:
             device=self._model.device,
         )
 
-    def draw(self, viewer) -> None:
-        """Publish geometry while a Newton viewer frame is active."""
-        self.update()
-        viewer.log_points(
-            "/coffee_grains",
-            self._points,
-            radii=self._radii,
-            colors=self._colors,
-        )
-        if self._surface is None:
-            return
-        points, indices, normals, colors, fraction = self._water_surface_arrays()
-        hidden = points is None
-        uvs, texture = None, None
-        if not hidden and indices.size:
-            if self._gl_uvs is None or self._gl_uvs.size < points.size:
-                self._gl_uvs = wp.empty(points.size, dtype=wp.vec2, device=self._model.device)
-            uvs = self._gl_uvs[: points.size]
-            wp.launch(
-                _water_palette_uvs,
-                dim=points.size,
-                inputs=[colors, wp.vec3(WATER_COLOR), wp.vec3(BREW_COLOR)],
-                outputs=[uvs],
-                device=self._model.device,
-            )
-            texture = self._gl_palette
-        viewer.log_mesh(
-            "/coffee_water_surface",
-            self._gl_empty_point if hidden else points,
-            self._empty_indices if hidden else indices,
-            normals=self._gl_empty_point if hidden else normals,
-            uvs=uvs,
-            texture=texture,
-            hidden=hidden,
-            backface_culling=False,
-            color=(1.0, 1.0, 1.0),
-            roughness=0.08,
-            metallic=0.0,
-            dynamic=True,
-            opacity=0.42 + 0.40 * fraction,
-        )
-        if texture is not None:
-            # Native GL dynamic meshes require the texture sampler flag too.
-            water_mesh = viewer.objects[viewer._qualify("/coffee_water_surface")]
-            roughness, metallic, checker, _ = water_mesh.material
-            water_mesh.material = (roughness, metallic, checker, 1.0)
-
     def draw_kit(self, visualizer) -> None:
         """Publish the same grains and local liquid colours to Kit's USD stage."""
         self.update()
-        visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._water is not None)
+        visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._dissolution is not None)
         if self._surface is not None:
             points, indices, normals, colors, fraction = self._water_surface_arrays()
             visualizer.update_water(
@@ -427,7 +426,7 @@ class CoffeeRendering:
         self._tint_elapsed = 0.0
         self._appearance_time = None
         self._surface_cache = None
-        if self._water is not None:
+        if self._dissolution is not None:
             self._dye_mass.zero_()
             # Dry carriers retain their tracer until physics activates them as liquid.
             water_count = self._dissolution.water_ids.size
@@ -446,8 +445,7 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
     """Spawn the shared RTX backdrop before scene cameras initialize."""
     from pxr import UsdGeom
 
-    from .assets import spawn_kitchen
-    from .demo_env_cfg import CoffeeKitchenCfg
+    from .assets import COFFEE_ASSET_DIR
 
     stage = sim_utils.get_current_stage()
     root = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
@@ -456,7 +454,8 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
     _add_coffee_studio_lights(stage, f"{prim_path}/Lights")
     if cfg.backdrop == "kitchen":
         kitchen_path = f"{prim_path}/Kitchen"
-        spawn_kitchen(kitchen_path, CoffeeKitchenCfg())
+        kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
+        kitchen_cfg.func(kitchen_path, kitchen_cfg)
         for prim in stage.Traverse():
             if prim.GetName() == "StudioFloor":
                 UsdGeom.Imageable(prim).MakeInvisible()
@@ -502,27 +501,43 @@ def _vertex_color_material(stage, path, color, *, roughness: float, opacity: flo
     return UsdShade.Material.Get(stage, path), shader
 
 
-def _water_material(stage, path):
-    """Share the authored absorption shader and PreviewSurface fallback across RTX renderers."""
-    from pxr import Usd, UsdShade
+def create_coffee_points(stage, path):
+    """Define the grain point cloud and bind its vertex-color material."""
+    from pxr import UsdGeom, UsdShade
+
+    grains = UsdGeom.Points.Define(stage, path)
+    grains.CreateWidthsAttr()
+    grains.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
+    grains.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex)
+    material, _ = _vertex_color_material(stage, f"{path}/Material", COFFEE_COLOR, roughness=0.85)
+    UsdShade.MaterialBindingAPI.Apply(grains.GetPrim()).Bind(material)
+    return grains
+
+
+def create_water_mesh(stage, path):
+    """Define the liquid mesh with PreviewSurface and MDL terminals on one material."""
+    from pxr import Sdf, UsdGeom, UsdShade
 
     from isaaclab.utils.assets import retrieve_file_path
 
     from .assets import COFFEE_ASSET_DIR
 
-    material, preview_shader = _vertex_color_material(stage, path, WATER_COLOR, roughness=0.08)
-    mdl = sim_utils.MdlFileCfg(mdl_path=retrieve_file_path(f"{COFFEE_ASSET_DIR}/CoffeeWater.mdl"))
-    with sim_utils.use_stage(stage):
-        shader = mdl.func(f"{path}/MDL", mdl)
-    mdl_path = f"{path}/Liquid"
-    editor = Usd.NamespaceEditor(stage)
-    if not editor.MovePrimAtPath(shader.GetPath(), mdl_path) or not editor.ApplyEdits():
-        raise RuntimeError("Cannot move the native liquid shader into its bound material.")
-    stage.RemovePrim(f"{path}/MDL")
-    output = UsdShade.Shader.Get(stage, mdl_path).ConnectableAPI()
+    water = UsdGeom.Mesh.Define(stage, path)
+    water.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+    water.CreateDoubleSidedAttr(True)
+    water.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
+    water.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex)
+    material_path = f"{path}/Material"
+    material, preview_shader = _vertex_color_material(stage, material_path, WATER_COLOR, roughness=0.08)
+    shader = UsdShade.Shader.Define(stage, f"{material_path}/Liquid")
+    shader.SetSourceAsset(Sdf.AssetPath(retrieve_file_path(f"{COFFEE_ASSET_DIR}/CoffeeWater.mdl")), "mdl")
+    shader.SetSourceAssetSubIdentifier("CoffeeWater", "mdl")
+    output = shader.CreateOutput("out", Sdf.ValueTypeNames.Token)
+    output.SetRenderType("material")
     for terminal in (material.CreateSurfaceOutput, material.CreateVolumeOutput, material.CreateDisplacementOutput):
-        terminal("mdl").ConnectToSource(output, "out")
-    return material, preview_shader
+        terminal("mdl").ConnectToSource(output)
+    UsdShade.MaterialBindingAPI.Apply(water.GetPrim()).Bind(material)
+    return water, preview_shader
 
 
 @wp.func

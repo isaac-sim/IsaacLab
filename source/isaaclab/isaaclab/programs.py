@@ -63,10 +63,14 @@ def _run_script(path: Path) -> None:
     module.__package__ = None
     module.__spec__ = None
     original_main = sys.modules.get("__main__")
+    original_search_path = sys.path
     try:
+        # Match normal Python script execution so examples can import their siblings.
+        sys.path = [str(path.parent), *original_search_path]
         sys.modules["__main__"] = module
         exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     finally:
+        sys.path = original_search_path
         if original_main is None:
             sys.modules.pop("__main__", None)
         else:
@@ -170,7 +174,7 @@ EXAMPLES = (
         "rizon-sharpa-teapot",
         "examples/rizon_sharpa_teapot.py",
         "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
-        required_modules=("isaaclab_contrib",),
+        required_modules=("isaaclab_assets", "isaaclab_tasks"),
     ),
     ProgramSpec(
         "procedural-terrain",

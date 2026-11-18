@@ -27,7 +27,7 @@ There are no rewards, training presets, policy checkpoints or automatic episode 
   `ISAACLAB_SHARPA_RJ45_VISUAL_ROOT` to an alternate bundle root.
 - Robot: `Robots/Rizon4sSharpa` in the same bundle, loaded through the native USD resolver by default.
   Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to a local USD bundle with its complete textures
-  for offline use. Explicit local bundles retain the revision and integrity checks in `assets.py`.
+  for offline use. Explicit local bundles are checked against the published robot bundle digest.
 - Connector: Newton's canonical `rj45_plug.usd`; set `ISAACLAB_RJ45_PLUG_USD`
   if it is absent from the installation. The resolver reports its pinned download URL.
 - The prerequisite [Newton dependency update](https://github.com/isaac-sim/IsaacLab/pull/8524) includes the merged

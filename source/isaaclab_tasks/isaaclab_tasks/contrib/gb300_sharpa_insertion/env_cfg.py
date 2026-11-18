@@ -13,9 +13,15 @@ from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
 )
 from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
-from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
-from isaaclab_newton.sim.schemas import NewtonCollisionCfg
+from isaaclab_newton.physics import (
+    HydroelasticSDFCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+    VBDSolverCfg,
+)
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -27,14 +33,18 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from . import mdp
-from .assets import (
-    RIZON_SHARPA_ARM_JOINT_NAMES,
-    RIZON_SHARPA_END_EFFECTOR_BODY_NAME,
-    RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES,
-    RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD,
+from isaaclab_assets.robots.rizon_sharpa import (
+    ARM_JOINT_NAMES,
+    HAND_JOINT_NAMES,
+    PALM_BODY_NAME,
+    ROBOT_USD_PATH,
+    resolve_robot_usd,
 )
+
+from . import mdp
+from .assets import RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD
 from .cable import CONNECTOR_SPAN_M, PATCH_CABLE_COLOR, PatchCableCfg, hanging_cable_positions
+from .hydroelastic import cable_collision_pipeline
 from .robot_cfg import ROBOT_BASE_POSITION_E, rizon_sharpa_articulation_cfg
 from .workcell import SOCKET_POSITION_E, UPPER_SOCKET_POSITION_E
 
@@ -103,7 +113,7 @@ class ActionsCfg:
 
     right_palm = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
-        joint_names=list(RIZON_SHARPA_ARM_JOINT_NAMES),
+        joint_names=list(ARM_JOINT_NAMES),
         controller=NewtonIKSolverCfg(
             class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.ik:CapturedNewtonIKSolver",
             iterations=4,
@@ -111,7 +121,7 @@ class ActionsCfg:
         objectives=[
             NewtonIKPoseObjectiveCfg(
                 name="right_palm",
-                body_name=RIZON_SHARPA_END_EFFECTOR_BODY_NAME,
+                body_name=PALM_BODY_NAME,
                 use_relative_mode=False,
                 scale=1.0,
             ),
@@ -121,11 +131,11 @@ class ActionsCfg:
     )
     right_hand = base_mdp.JointPositionActionCfg(
         asset_name="robot",
-        joint_names=list(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES),
+        joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
         use_default_offset=False,
         scale=1.0,
-        clip=dict(zip(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD, strict=True)),
+        clip=dict(zip(HAND_JOINT_NAMES, RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD, strict=True)),
     )
 
 
@@ -148,6 +158,14 @@ class EventsCfg:
     reset_scene = EventTermCfg(func=base_mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
 
+_RIGID_BODIES = [
+    r"{ENV_REGEX_NS}/Robot",
+    r"{ENV_REGEX_NS}/Fixtures",
+    r"{ENV_REGEX_NS}/Cable/head",
+    r"{ENV_REGEX_NS}/Cable/latch",
+]
+
+
 @configclass
 class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
     """Absolute control of a native VBD cable with hydroelastic hand/plug contact."""
@@ -162,7 +180,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
     """Compliant finger-cover pressure gradient [N/m^3]."""
     rigid_connector_contact_stiffness: float = 1.0e5
     """Connector-housing ordinary-contact stiffness [N/m]."""
-    tcp_body_name: str = RIZON_SHARPA_END_EFFECTOR_BODY_NAME
+    tcp_body_name: str = PALM_BODY_NAME
     target_socket_position_e: tuple[float, float, float] = SOCKET_POSITION_E
     """Target socket origin in environment coordinates [m]."""
     grasp_body_patterns: tuple[str, ...] = (
@@ -172,12 +190,10 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
         "right_middle_",
     )
 
-    def __post_init__(self) -> None:
-        from .hydroelastic import configure_hydroelastic_physics
-
-        self.sim.dt = 1.0 / 120.0
-        self.sim.render_interval = self.decimation
-        self.sim.physics = NewtonCfg(
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
+        dt=1.0 / 120.0,
+        visualizer_cfgs=VisualizerCfg(eye=(0.92, -0.02, 2.22), lookat=(0.52, 0.30, 2.075), focal_length=22.0),
+        physics=NewtonCfg(
             num_substeps=4,
             use_cuda_graph=True,
             default_shape_cfg=NewtonShapeCfg(mu=1.0, ke=1.0e4, kd=0.1),
@@ -185,8 +201,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                 entries=[
                     CouplerEntryCfg(
                         name="rigid",
-                        bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Fixtures"],
-                        substeps=1,
+                        bodies=_RIGID_BODIES,
                         solver_cfg=MJWarpSolverCfg(
                             cone="elliptic",
                             ls_iterations=50,
@@ -199,31 +214,37 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     ),
                     CouplerEntryCfg(
                         name="cable",
-                        bodies=[r"{ENV_REGEX_NS}/Cable"],
-                        substeps=1,
-                        include_static_shapes=True,
+                        bodies=[r"{ENV_REGEX_NS}/Cable/(?!(?:head|latch)(?:/|$)).*"],
+                        shape_label_patterns=[r"/World/GroundPlane/.*"],
                         solver_cfg=VBDSolverCfg(
+                            class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolver",
                             iterations=4,
                             rigid_joint_angular_ke=10.0,
                             rigid_body_contact_buffer_size=1024,
                         ),
                     ),
                 ],
+                # MJWarp owns the robot and plug contacts. VBD follows their poses in its own collision pass.
+                outer_contact_entry="rigid",
+                proxies=[
+                    CouplerProxyMappingCfg(
+                        source="rigid",
+                        destination="cable",
+                        bodies=_RIGID_BODIES.copy(),
+                        mode="staggered",
+                        collision_pipeline=cable_collision_pipeline,
+                    )
+                ],
             ),
-        )
-        configure_hydroelastic_physics(self.sim.physics)
-        self.sim.physics.collision_cfg.contact_matching = "latest"
-        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.92, -0.02, 2.22), lookat=(0.52, 0.30, 2.075), focal_length=22.0)
-        # Millimeter-scale grasps do not need the default 10 mm search halo.
-        self.scene.robot.spawn.collision_props = {
-            "/.*": [NewtonCollisionCfg(contact_gap=0.001)],
-            # Tucked digits are visual-only for this three-finger scripted pinch.
-            "/right_(?:ring|pinky)_.*/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
-        }
-        for name in ("right_thumb", "right_fingers"):
-            actuator = self.scene.robot.actuators[name]
-            actuator.stiffness = 96.0
-            actuator.damping = 2.4
-            # Honor the authored per-joint limits; regularize tiny finger inertias.
-            actuator.joint_effort_limit = None
-            actuator.armature = 2.0e-4
+            collision_decimation=1,
+            collision_cfg=NewtonCollisionPipelineCfg(
+                contact_matching="latest",
+                sdf_hydroelastic_config=HydroelasticSDFCfg(output_contact_surface=True, margin_contact_area=1.0e-6),
+            ),
+        ),
+    )
+
+    def __post_init__(self) -> None:
+        self.sim.render_interval = self.decimation
+        if self.scene.robot.spawn.usd_path == ROBOT_USD_PATH:
+            self.scene.robot.spawn.usd_path = resolve_robot_usd()

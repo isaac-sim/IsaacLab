@@ -5,8 +5,6 @@
 
 """Coffee surface publication at the native GL rendering boundary."""
 
-from types import SimpleNamespace
-
 import numpy as np
 import pytest
 import warp as wp
@@ -15,7 +13,7 @@ from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.visualizers import WindowCfg
 
-from isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering import BREW_COLOR, WATER_COLOR, CoffeeRendering
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering import BREW_COLOR, WATER_COLOR, _GLWaterSurface
 
 pytestmark = [pytest.mark.rendering, pytest.mark.kitless]
 
@@ -38,27 +36,13 @@ def test_coffee_surface_draw_handles_empty_and_changing_color(device: str) -> No
             normals = wp.full(4, wp.vec3(0.0, -1.0, 0.0), dtype=wp.vec3)
             water = wp.full(4, wp.vec3(WATER_COLOR), dtype=wp.vec3)
             brew = wp.full(4, wp.vec3(BREW_COLOR), dtype=wp.vec3)
-            # Only the upstream physics/surface extraction is replaced. Draw, UV generation,
-            # native mesh upload, texture sampling, and pixel readback run normally.
-            presentation = object.__new__(CoffeeRendering)
-            presentation.update = lambda: None
-            presentation._surface = object()
-            presentation._model = SimpleNamespace(device=device)
-            presentation._points = wp.array(((1000.0, 1000.0, 1000.0),), dtype=wp.vec3)
-            presentation._radii = wp.full(1, 0.001, dtype=float)
-            presentation._colors = wp.full(1, wp.vec3(1.0), dtype=wp.vec3)
-            presentation._gl_uvs = None
-            presentation._gl_palette = np.asarray(((WATER_COLOR, BREW_COLOR),), dtype=np.float32)
-            presentation._gl_empty_point = wp.zeros(1, dtype=wp.vec3)
-            presentation._empty_points = wp.empty(0, dtype=wp.vec3)
-            presentation._empty_indices = wp.empty(0, dtype=wp.int32)
+            presentation = _GLWaterSurface(device)
             frames = []
             for frame, colors in enumerate((None, water, brew, None, water)):
                 # Hold opacity fixed so a color failure cannot pass through an opacity change.
                 surface = (None, None, None, None, 0.5) if colors is None else (points, indices, normals, colors, 0.5)
-                presentation._water_surface_arrays = lambda: surface
                 viewer.begin_frame(frame / 60.0)
-                presentation.draw(viewer)
+                presentation.draw(viewer, *surface)
                 viewer.end_frame()
                 frames.append(viewer.get_frame().numpy())
             visible = np.any(frames[1] != frames[0], axis=-1)

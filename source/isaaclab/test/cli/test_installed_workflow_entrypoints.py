@@ -278,16 +278,23 @@ def test_program_command_forwards_help_to_selected_module():
 
 
 def test_program_runner_preserves_command_name_and_restores_process_arguments(tmp_path):
-    """Running a program must not leak its arguments to the caller."""
+    """The console launcher supports sibling imports and restores the caller's context when a script exits."""
     original_argv = sys.argv
+    original_search_path = sys.path.copy()
     script = tmp_path / "demos" / "example.py"
     script.parent.mkdir()
-    script.write_text("import sys\nassert sys.argv[0] == 'isaaclab demo temporary'\n", encoding="utf-8")
+    (script.parent / "temporary_program_sibling.py").write_text("raise SystemExit(42)\n", encoding="utf-8")
+    script.write_text(
+        "import sys\nassert sys.argv[0] == 'isaaclab demo temporary'\nimport temporary_program_sibling\n",
+        encoding="utf-8",
+    )
     program = programs.ProgramSpec("temporary", f"examples/demos/{script.name}", "Temporary test program.")
-    with mock.patch.object(programs, "_program_root", return_value=tmp_path):
+    with mock.patch.object(programs, "_program_root", return_value=tmp_path), pytest.raises(SystemExit) as exit_info:
         programs.run_program("demo", program, ["--physics", "newton_mjwarp"])
 
+    assert exit_info.value.code == 42
     assert sys.argv is original_argv
+    assert sys.path == original_search_path
 
 
 @pytest.mark.parametrize("command", [cli.demo, cli.example])

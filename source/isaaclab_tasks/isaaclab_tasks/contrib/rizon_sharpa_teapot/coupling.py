@@ -68,19 +68,19 @@ class TeapotColliderSyncSolver(SolverCoupled):
     def _entry_visible_shapes(self, cfg, visible_bodies):
         visible = super()._entry_visible_shapes(cfg, visible_bodies)
         if cfg.name == "robot":
-            visible = {i for i in visible if "/PourContainer/geometry/" not in self.model.shape_label[i]}
+            visible = {i for i in visible if not self.model.shape_label[i].endswith("/PourContainer/mesh")}
             visible.update(
                 i
                 for i, label in enumerate(self.model.shape_label)
                 if "/TabletopCollider/" in label or label.startswith("/World/Ground/")
             )
         else:
-            visible.update(i for i, label in enumerate(self.model.shape_label) if "/PourContainer/geometry/" in label)
+            visible.update(i for i, label in enumerate(self.model.shape_label) if label.endswith("/PourContainer/mesh"))
             visible = {
                 i
                 for i in visible
                 if "/PourContainer/" not in self.model.shape_label[i]
-                or "/PourContainer/geometry/" in self.model.shape_label[i]
+                or self.model.shape_label[i].endswith("/PourContainer/mesh")
             }
         return visible
 
@@ -112,7 +112,7 @@ def repair_teapot_hulls(builder: ModelBuilder) -> None:
     for body, label in enumerate(builder.body_label):
         if not label.endswith("/PourContainer"):
             continue
-        shell = next(i for i, name in enumerate(builder.shape_label) if name.startswith(label + "/geometry/"))
+        shell = next(i for i, name in enumerate(builder.shape_label) if name == label + "/mesh")
         transform = builder.shape_transform[shell]
         points = Rotation.from_quat(transform.q).apply(
             builder.shape_source[shell].vertices * np.asarray(builder.shape_scale[shell])

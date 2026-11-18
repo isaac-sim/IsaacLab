@@ -121,28 +121,6 @@ class CoffeeKitBackendCfg(KitBackendCfg):
     """Global RTX settings for the Kit viewport and its recorded frames."""
 
 
-KITCHEN_CAMERA_EYE = (0.86, -0.61, 0.70)
-"""Kitchen camera position relative to its environment origin [m]."""
-
-KITCHEN_CAMERA_LOOKAT = (0.53, -0.03, 0.10)
-"""Kitchen camera target relative to its environment origin [m]."""
-
-KITCHEN_CAMERA_FOCAL_LENGTH = 24.0
-"""Kitchen camera focal length [mm]."""
-
-
-@configclass
-class CoffeeKitchenCfg(sim_utils.UsdFileCfg):
-    """Shared kitchen geometry with optional benchmark lighting and ceiling removal."""
-
-    func: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.assets:spawn_kitchen"
-    usd_path: str = f"{COFFEE_ASSET_DIR}/kitchen.usda"
-    disable_lights: bool = False
-    """Disable authored kitchen lights when the scene supplies its own lighting."""
-    remove_ceiling: bool = False
-    """Remove the ceiling when scene lights must illuminate the tabletop from above."""
-
-
 @configclass
 class CoffeePresentationCfg(sim_utils.SpawnerCfg):
     """Author the coffee backdrop as ordinary scene content."""

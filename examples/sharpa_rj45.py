@@ -487,11 +487,12 @@ def _run(args: argparse.Namespace) -> int:
     from isaaclab.utils.math import subtract_frame_transforms
 
     from isaaclab_tasks.contrib.gb300_sharpa_insertion import mdp
-    from isaaclab_tasks.contrib.gb300_sharpa_insertion.assets import RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.env_cfg import GB300SharpaInsertionEnvCfg
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.robot_cfg import CLOSE_HAND_RAD
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.visual_scene import add_gl_visuals, configure_visual_scene
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.workcell import head_goal_for_socket
+
+    from isaaclab_assets.robots.rizon_sharpa import HAND_JOINT_NAMES
 
     cfg = GB300SharpaInsertionEnvCfg()
     cfg.seed = args.seed
@@ -513,36 +514,44 @@ def _run(args: argparse.Namespace) -> int:
             if env.action_manager.total_action_dim != 29:
                 raise RuntimeError("The example must provide absolute TCP and 22 finger targets.")
             robot = env.scene["robot"]
-            hand_ids, _ = robot.find_joints(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, preserve_order=True)
+            hand_ids, _ = robot.find_joints(HAND_JOINT_NAMES, preserve_order=True)
 
-            def controller_state(status: torch.Tensor) -> np.ndarray:
-                # One readback of poses, clip geometry, finger opening and state validity.
+            def controller_state(observations: dict[str, torch.Tensor]) -> dict:
+                # Transfer the controller measurements and validity flag together once per control step.
                 captured, margins, release, exit_margin = mdp.latch_metrics(env)
-                return (
-                    torch.cat(
-                        (
-                            mdp.tcp_pose(env)[0],
-                            mdp.head_pose(env)[0],
-                            mdp.latch_state(env)[0, :1],
-                            captured[0, None],
-                            margins[0],
-                            release[0, None],
-                            exit_margin[0, None],
-                            robot.data.joint_pos.torch[0, hand_ids],
-                            status,
-                        )
-                    )
-                    .cpu()
-                    .numpy()
+                fields = (
+                    mdp.tcp_pose(env)[0],
+                    mdp.head_pose(env)[0],
+                    mdp.latch_state(env)[0, :1],
+                    captured[0, None],
+                    margins[0],
+                    release[0, None],
+                    exit_margin[0, None],
+                    robot.data.joint_pos.torch[0, hand_ids],
+                    torch.isfinite(observations["state"]).all()[None],
                 )
+                packed = torch.cat(fields).cpu()
+                tcp, head, angle, engaged, margins, release, exit_margin, hand, finite = packed.split(
+                    [field.numel() for field in fields]
+                )
+                if not finite.item():
+                    raise RuntimeError("Cable cycle encountered a non-finite simulation state.")
+                return {
+                    "tcp_pose_w": tcp.numpy(),
+                    "head_pose_w": head.numpy(),
+                    "latch_engaged": bool(engaged.item()),
+                    "latch_angle_rad": angle.item(),
+                    "capture_margins_m": margins.numpy(),
+                    "keeper_release_margin_m": release.item(),
+                    "keeper_exit_margin_m": exit_margin.item(),
+                    "hand_joint_pos": hand.numpy(),
+                }
 
-            state = controller_state(torch.isfinite(observations["state"]).all()[None])
-            if not state[-1]:
-                raise RuntimeError("Cable cycle encountered a non-finite reset state.")
+            state = controller_state(observations)
             goal_position = np.asarray(head_goal_for_socket(cfg.target_socket_position_e))
             goal_position += env.scene.env_origins[0].cpu().numpy()
             machine = CableCycleStateMachine(
-                state[:7],
+                state["tcp_pose_w"],
                 np.r_[goal_position, 2**-0.5, 0.0, 0.0, 2**-0.5],
                 env.step_dt,
                 CLOSE_HAND_RAD,
@@ -561,16 +570,7 @@ def _run(args: argparse.Namespace) -> int:
                         env.sim.render()
                         continue
                     if failure_step is None:
-                        command, fingers = machine.update(
-                            state[:7],
-                            state[7:14],
-                            latch_engaged=bool(state[15]),
-                            latch_angle_rad=float(state[14]),
-                            capture_margins_m=state[16:19],
-                            keeper_release_margin_m=float(state[19]),
-                            keeper_exit_margin_m=float(state[20]),
-                            hand_joint_pos=state[21:43],
-                        )
+                        command, fingers = machine.update(**state)
                     if machine.phase != prior_phase:
                         logger.info("[GB300 cycle] step=%d phase=%s", step, machine.phase)
                         prior_phase = machine.phase
@@ -597,9 +597,7 @@ def _run(args: argparse.Namespace) -> int:
                         hand_targets = torch.lerp(initial_hand, closed_hand, fraction)
                     observations, _ = env.step(torch.cat((position, rotation, hand_targets), dim=-1))
                     step += 1
-                    state = controller_state(torch.isfinite(observations["state"]).all()[None])
-                    if not state[-1]:
-                        raise RuntimeError("Cable cycle encountered a non-finite simulation state.")
+                    state = controller_state(observations)
             success = machine.phase == "DONE" and machine.insertion_completed
             print(
                 json.dumps(
