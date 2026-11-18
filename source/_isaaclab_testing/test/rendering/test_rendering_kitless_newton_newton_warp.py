@@ -5,6 +5,8 @@
 
 """Golden scenes rendered by Newton Warp without Kit while Newton advances physics."""
 
+import os
+
 import pytest
 import rendering_runner
 from isaaclab_newton.renderers import NewtonOptixRendererCfg
@@ -31,7 +33,14 @@ def test_rendering(
 def test_rendering_optix(
     stage_variant: str, case: RenderCase, request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Newton OptiX renders the Newton Warp golden images."""
-    pytest.importorskip("warp_optix")
+    """Newton OptiX renders the Newton Warp golden images.
+
+    Skips without the ``optix`` extra, unless ``ISAACLAB_TEST_REQUIRE_OPTIX`` is set: the kitless legacy
+    rendering CI job sets it so a broken OptiX install fails instead of passing with nothing run.
+    """
+    if os.environ.get("ISAACLAB_TEST_REQUIRE_OPTIX"):
+        import warp_optix  # noqa: F401
+    else:
+        pytest.importorskip("warp_optix")
     monkeypatch.setattr(rendering_runner, "NewtonWarpRendererCfg", NewtonOptixRendererCfg)
     run_kitless_rendering_case(stage_variant, case, request, monkeypatch)
