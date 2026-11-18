@@ -150,10 +150,11 @@ class randomize_rigid_body_material(ManagerTermBase):
                 wp.from_torch(modes, dtype=wp.uint8),
                 indices,
             )
-        view.set_material_properties(
-            wp.from_torch(materials.contiguous(), dtype=wp.float32),
-            indices,
-        )
+        else:
+            view.set_material_properties(
+                wp.from_torch(materials.contiguous(), dtype=wp.float32),
+                indices,
+            )
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
