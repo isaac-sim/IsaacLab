@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+5.3.3 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added trailing ``KEY=VALUE`` environment config overrides, such as ``physics=newton_mjwarp``, to the RLinf
+  ``train`` and ``play`` commands. They are applied in every RLinf train and eval environment worker.
+
+
 5.3.2 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~
 
