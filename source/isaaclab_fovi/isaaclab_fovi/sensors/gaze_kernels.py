@@ -27,12 +27,12 @@ _WARP_STREAMS: dict[int, wp.Stream] = {}
 """Warp streams by the CUDA stream handle of the PyTorch stream they launch on."""
 
 
-def torch_stream(device: torch.device | str) -> wp.ScopedStream | wp.ScopedDevice:
-    """Scope that launches Warp kernels on the tensors' device and, on CUDA, PyTorch's current stream."""
+def warp_stream(device: torch.device | str) -> wp.Stream | None:
+    """The Warp stream of PyTorch's current stream on a CUDA device, or None on the CPU."""
     device = torch.device(device)
     if device.type != "cuda":
         wp.init()
-        return wp.ScopedDevice(wp.device_from_torch(device))
+        return None
     handle = torch.cuda.current_stream(device).cuda_stream
     stream = _WARP_STREAMS.get(handle)
     if stream is None:
@@ -42,7 +42,21 @@ def torch_stream(device: torch.device | str) -> wp.ScopedStream | wp.ScopedDevic
         if stream.cuda_stream != handle:
             stream = wp.stream_from_torch(torch.cuda.current_stream(device))
         _WARP_STREAMS[handle] = stream
+    return stream
+
+
+def torch_stream(device: torch.device | str) -> wp.ScopedStream | wp.ScopedDevice:
+    """Scope that launches Warp kernels on the tensors' device and, on CUDA, PyTorch's current stream."""
+    stream = warp_stream(device)
+    if stream is None:
+        return wp.ScopedDevice(wp.device_from_torch(torch.device(device)))
     return wp.ScopedStream(stream, sync_enter=False, sync_exit=False)
+
+
+def record_launch(kernel, dim, inputs, outputs=(), device: torch.device | str = "cpu") -> wp.Launch:
+    """A launch recorded once and replayed each step with :meth:`warp.Launch.launch`, skipping argument packing."""
+    wp.init()
+    return wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=str(device), record_cmd=True)
 
 
 @wp.struct
@@ -189,6 +203,39 @@ def sensor_visibility_kernel(
     """Whether the physical camera sees each canonical ray turned by each environment's gaze."""
     env, sample = wp.tid()
     valid[env, sample] = project_direction(rotation[env] * rays[sample], camera)[2] > 0.5
+
+
+@wp.kernel(enable_backward=False)
+def publish_grid_kernel(
+    source: wp.array3d(dtype=wp.uint8),
+    indices: wp.array(dtype=wp.int32),
+    footprint: wp.array(dtype=wp.bool),
+    rays: wp.array(dtype=wp.vec3f),
+    rotation: wp.array(dtype=wp.mat33f),
+    camera: CameraParams,
+    mask_to_sensor: wp.int32,
+    record_visible: wp.int32,
+    visible: wp.array2d(dtype=wp.bool),
+    target: wp.array3d(dtype=wp.uint8),
+):
+    """Copy rendered samples into the upright grid, zeroing samples outside the footprint or, when masking, the
+    physical camera's view.
+
+    ``source`` and ``target`` hold each sample's channels as raw bytes, so one kernel serves every output type.
+    """
+    env, cell = wp.tid()
+    sample = indices[cell]
+    keep = footprint[sample]
+    if mask_to_sensor != 0:
+        seen = project_direction(rotation[env] * rays[sample], camera)[2] > 0.5
+        if record_visible != 0:
+            visible[env, sample] = seen
+        keep = keep and seen
+    for k in range(target.shape[2]):
+        if keep:
+            target[env, cell, k] = source[env, sample, k]
+        else:
+            target[env, cell, k] = wp.uint8(0)
 
 
 @wp.kernel(enable_backward=False)

@@ -20,9 +20,11 @@ from .gaze_kernels import (
     apply_gaze_kernel,
     apply_gaze_masked_kernel,
     camera_params,
+    record_launch,
     sensor_visibility_kernel,
     set_gaze_kernel,
     torch_stream,
+    warp_stream,
 )
 from .native_grid import GRID_STYLE, native_grid_directions
 
@@ -50,18 +52,21 @@ class VirtualGaze:
             self._gaze_pose_delta = torch.empty(len(angles), 4, device=angles.device)
             self._gaze_rotation_wp = wp.from_torch(self._gaze_rotation, dtype=wp.mat33f)
             self._gaze_pose_delta_wp = wp.from_torch(self._gaze_pose_delta, dtype=wp.quatf)
-        # Callers usually pass the same buffer every step; wrap it once.
+            self._gaze_angles_key = None
+            self._gaze_pose_launches = {}
+        # Callers usually pass the same buffer every step; record its launch once.
         key = (angles.data_ptr(), angles.shape, angles.device)
         if key != self._gaze_angles_key:
             self._gaze_angles_wp = wp.from_torch(angles, dtype=wp.vec2f)
             self._gaze_angles_key = key
-        with torch_stream(angles.device):
-            wp.launch(
+            self._set_gaze_launch = record_launch(
                 set_gaze_kernel,
-                dim=len(angles),
-                inputs=[self._gaze_angles_wp, *self._gaze_frames],
-                outputs=[self._gaze_rotation_wp, self._gaze_pose_delta_wp],
+                len(angles),
+                [self._gaze_angles_wp, *self._gaze_frames],
+                [self._gaze_rotation_wp, self._gaze_pose_delta_wp],
+                angles.device,
             )
+        self._set_gaze_launch.launch(warp_stream(angles.device))
 
     def _apply_gaze_pose(
         self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None
@@ -71,16 +76,25 @@ class VirtualGaze:
         orientation = self._data.quat_w_world
         orientation = orientation.warp if hasattr(orientation, "warp") else wp.from_torch(orientation, dtype=wp.quatf)
         delta = self._gaze_pose_delta_wp
-        with torch_stream(self._gaze_pose_delta.device):
-            if env_mask is not None:
-                wp.launch(apply_gaze_masked_kernel, dim=len(delta), inputs=[orientation, delta, env_mask])
-            elif env_ids is None:
-                wp.launch(apply_gaze_kernel, dim=len(delta), inputs=[orientation, delta])
-            else:
-                if not isinstance(env_ids, wp.array):
-                    ids = torch.as_tensor(env_ids, dtype=torch.int32, device=self._gaze_pose_delta.device)
-                    env_ids = wp.from_torch(ids.contiguous())
+        device = self._gaze_pose_delta.device
+        if env_ids is not None and env_mask is None:
+            if not isinstance(env_ids, wp.array):
+                ids = torch.as_tensor(env_ids, dtype=torch.int32, device=device)
+                env_ids = wp.from_torch(ids.contiguous())
+            with torch_stream(device):
                 wp.launch(apply_gaze_indexed_kernel, dim=len(env_ids), inputs=[orientation, delta, env_ids])
+            return
+        # Every frame updates the same pose buffer, for all environments or under the camera's update mask.
+        launch, sources = self._gaze_pose_launches.get(env_mask is None, (None, None))
+        if sources is None or sources[0] is not orientation or sources[1] is not env_mask:
+            if env_mask is None:
+                launch = record_launch(apply_gaze_kernel, len(delta), [orientation, delta], device=device)
+            else:
+                launch = record_launch(
+                    apply_gaze_masked_kernel, len(delta), [orientation, delta, env_mask], device=device
+                )
+            self._gaze_pose_launches[env_mask is None] = (launch, (orientation, env_mask))
+        launch.launch(warp_stream(device))
 
     def _gaze_validity(self, batch_size: int) -> torch.Tensor:
         """Return which samples the physical camera sees at the current gaze, shape (batch_size, num_samples)."""
@@ -115,6 +129,7 @@ class VirtualGaze:
         self._gaze_rays = self._gaze_rays.float().contiguous()
         self._gaze_rays_wp: dict[torch.device, wp.array] = {}
         self._gaze_angles_key = None
+        self._gaze_pose_launches: dict[bool, tuple[wp.Launch, tuple]] = {}
         device = self._gaze_rays.device
         self._gaze_identity = torch.eye(3, device=device)
         angle = math.radians(self.cfg.image_rotation_deg)

@@ -92,12 +92,14 @@ def test_gaze_step_kernel_matches_the_torch_update():
     expected_velocity = (expected - gaze) / dt
 
     velocity, angles = torch.empty_like(gaze), torch.empty_like(gaze)
+    state = torch.empty(count, 4)
     with torch_stream("cpu"):
         wp.launch(
             gaze_step_kernel,
             dim=count,
             inputs=[
                 *(wp.from_torch(buffer, dtype=wp.vec2f) for buffer in (actions, gaze, velocity, angles)),
+                wp.from_torch(state, dtype=wp.vec4f),
                 step,
                 limit,
                 dt,
@@ -107,6 +109,7 @@ def test_gaze_step_kernel_matches_the_torch_update():
     torch.testing.assert_close(gaze, expected, atol=1e-6, rtol=1e-6)
     torch.testing.assert_close(velocity, expected_velocity, atol=1e-3, rtol=1e-5)
     torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
+    torch.testing.assert_close(state, torch.cat((gaze, velocity), dim=-1))
 
 
 def test_teacher_labels_kernel_matches_the_torch_labels():
