@@ -11,7 +11,6 @@ import math
 from typing import Any, Literal, Protocol
 
 import torch
-import warp as wp
 from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
 
 IDEAL_IMAGE_WIDTH = 1024
@@ -152,47 +151,3 @@ def convert_camera_frame_quaternion(
     else:
         raise ValueError(f"Unsupported camera conversion: {origin!r} to {target!r}")
     return torch.stack(components, dim=-1) * 0.5
-
-
-@wp.kernel(enable_backward=False)
-def _rotate_camera_rays(
-    rays: wp.array(dtype=wp.vec3),
-    rotations: wp.array(dtype=wp.mat33),
-    output: wp.array2d(dtype=wp.vec3),
-):
-    batch, sample = wp.tid()
-    output[batch, sample] = rotations[batch] * rays[sample]
-
-
-def rotate_camera_rays(canonical_rays: torch.Tensor, rotation: torch.Tensor) -> torch.Tensor:
-    """Rotate visibility rays with IEEE float32, independent of model TF32 settings."""
-    if canonical_rays.is_cuda and canonical_rays.dtype == rotation.dtype == torch.float32:
-        wp.init()  # stream_from_torch requires an initialized Warp runtime.
-        result = canonical_rays.new_empty((len(rotation), len(canonical_rays), 3))
-        torch_stream = torch.cuda.current_stream(canonical_rays.device)
-        stream = wp.get_stream(wp.device_from_torch(canonical_rays.device))
-        # Temporary aliases unregister even a live Warp-owned stream when destroyed.
-        if stream.cuda_stream != torch_stream.cuda_stream:
-            stream = wp.stream_from_torch(torch_stream)
-        with wp.ScopedStream(
-            stream,
-            sync_enter=False,
-            sync_exit=False,
-        ):
-            wp.launch(
-                _rotate_camera_rays,
-                dim=result.shape[:2],
-                inputs=[
-                    wp.from_torch(canonical_rays.contiguous(), dtype=wp.vec3),
-                    wp.from_torch(rotation.contiguous(), dtype=wp.mat33),
-                ],
-                outputs=[wp.from_torch(result, dtype=wp.vec3)],
-            )
-        return result
-    return canonical_rays @ rotation.transpose(-1, -2)
-
-
-def sensor_visibility(camera: CameraModel, canonical_rays: torch.Tensor, rotation: torch.Tensor) -> torch.Tensor:
-    """Mask OpenCV-frame canonical rays, turned by the gaze, against the fixed physical camera."""
-    _, valid = camera.project(rotate_camera_rays(canonical_rays, rotation))
-    return valid

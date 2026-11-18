@@ -13,11 +13,7 @@ import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel, angular_directions
 from fovi.sensing.retina import RetinalTransform
-from isaaclab_fovi.sensors.calibrated_geometry import (
-    retinal_directions,
-    rotate_camera_rays,
-    sampling_geometry,
-)
+from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions, sampling_geometry
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 from isaaclab_fovi.sensors.virtual_gaze import VirtualGaze
@@ -241,38 +237,18 @@ def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
-def test_visibility_ray_rotation_preserves_precision_and_cuda_capture(tf32_enabled) -> None:
-    device = "cuda"
-    generator = torch.Generator(device=device).manual_seed(42)
-    rays = torch.randn(16384, 3, device=device, generator=generator)
-    rays = rays / rays.norm(dim=-1, keepdim=True)
-    rotations = matrix_from_quat(torch.randn(48, 4, device=device, generator=generator))
-    expected = (rays.double() @ rotations.double().transpose(-1, -2)).float()
-    for _ in range(3):
-        actual = rotate_camera_rays(rays, rotations)
-    graph = torch.cuda.CUDAGraph()
-    with torch.cuda.graph(graph):
-        actual = rotate_camera_rays(rays, rotations)
-    graph.replay()
-    torch.testing.assert_close(actual, expected, atol=2e-7, rtol=1e-6)
-    assert torch.get_float32_matmul_precision() == "high"
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
-def test_visibility_ray_rotation_preserves_shared_stream_for_warp_capture() -> None:
+def test_gaze_kernels_preserve_shared_stream_for_warp_capture() -> None:
     wp.init()
     stream = wp.Stream("cuda:0")
     with wp.ScopedStream(stream), torch.cuda.stream(wp.stream_to_torch(stream)):
-        rays = torch.tensor([[1.0, 2.0, 3.0], [-2.0, 4.0, 1.0]], device="cuda:0")
-        rotation = torch.tensor([[[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]], device="cuda:0")
-        target = wp.zeros((1, 2), dtype=wp.vec3, device="cuda:0")
-        actual = rotate_camera_rays(rays, rotation)
-        source = wp.from_torch(actual, dtype=wp.vec3)
-        # Physics must still be able to capture after the camera's temporary scope exits.
+        camera = GazeHarness()
+        camera._gaze_rays = camera._gaze_rays.to("cuda:0")
+        camera.set_gaze_angles(torch.tensor([[5.0, -8.0], [0.0, 0.0]], device="cuda:0"))
+        valid = camera._gaze_validity(2)
+        target = wp.zeros(valid.shape, dtype=wp.bool, device="cuda:0")
+        # Physics must still be able to capture after the camera's temporary stream scopes exit.
         with wp.ScopedCapture(stream=stream) as capture:
-            wp.copy(target, source)
+            wp.copy(target, wp.from_torch(valid))
         wp.capture_launch(capture.graph)
-        torch.testing.assert_close(
-            wp.to_torch(target),
-            torch.tensor([[[-2.0, 1.0, 3.0], [-4.0, -2.0, 1.0]]], device="cuda:0"),
-        )
+        torch.testing.assert_close(wp.to_torch(target), valid)
+        assert valid[1].any()
