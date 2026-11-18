@@ -103,7 +103,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
     Renderer and data-type presets can be combined::
 
-        presets = newton_renderer, rgb
+        presets = newton_warp, rgb
     """
 
     default: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(

@@ -44,6 +44,7 @@ class PhysicsEvent(Enum):
     """Physics model is being constructed.
     Fired during scene building, before simulation can run. Use this to register
     physics representations (rigid bodies, joints, constraints) with the solver.
+    Native handles need not be available yet; this event does not imply binding readiness.
     """
 
     PHYSICS_READY = "physics_ready"
@@ -148,6 +149,18 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
 
     backend_name: ClassVar[str]
     """Backend implementation key used by asset and sensor factories."""
+
+    binding_init_event: Enum = PhysicsEvent.PHYSICS_READY
+    """Lifecycle event on which assets and contact sensors acquire native physics bindings.
+
+    Backends may select an earlier event, dispatched after native handles are valid and before
+    public readiness. The manager dispatches the selected event on non-soft resets; consumers use
+    it to register initialization callbacks without depending on backend-specific event names.
+    When early binding is unnecessary, backends may combine this phase with
+    :attr:`PhysicsEvent.PHYSICS_READY` in callback priority order.
+    Construction callbacks on :attr:`PhysicsEvent.MODEL_INIT` need not run on every reset,
+    so they cannot replace this binding-readiness contract for late-created consumers.
+    """
 
     def __init__(self, cfg: PhysicsCfg):
         """Store the physics configuration this manager runs.
@@ -404,7 +417,16 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in self._callbacks.items() if ev == event]
+        self._dispatch_events((event,), payload)
+
+    def _dispatch_events(self, events: tuple[Enum, ...], payload: Any = None) -> None:
+        """Dispatch subscribers to the selected events together in callback priority order.
+
+        Args:
+            events: Lifecycle phases whose subscribers should run in one ordered pass.
+            payload: Optional data to pass to callbacks.
+        """
+        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in self._callbacks.items() if ev in events]
         matching.sort(key=lambda x: x[2])
 
         for _, callback, _ in matching:

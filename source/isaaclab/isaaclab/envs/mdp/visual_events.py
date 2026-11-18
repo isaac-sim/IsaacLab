@@ -72,7 +72,7 @@ class randomize_visual_shape(FactoryBase, ManagerTermBase):
             *(cfg.backend.visualizer_type for cfg in env.sim.cfg.visualizer_cfgs if cfg.backend),
             *env.sim.render_context.renderer_types,
         )
-        supported = ("newton", "newton_warp", "ovrtx")
+        supported = ("newton", "newton_warp", "ovrtx", "newton_optix")
         if consumers and all(name in supported for name in consumers):
             return "newton"
         raise NotImplementedError(

@@ -35,9 +35,9 @@ def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch, recwar
     monkeypatch.setattr(physx_app.KitLauncher, "close", SimulationLauncher.close)
     monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
     options = (
-        ["physics=newton_mjwarp", "renderer=newton_renderer", f"visualizer={selection}"],
-        ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", selection],
-        ["--physics=newton_mjwarp", "--renderer=newton_renderer", "--visualizer", selection],
+        ["physics=newton_mjwarp", "renderer=newton_warp", f"visualizer={selection}"],
+        ["--physics", "newton_mjwarp", "--renderer", "newton_warp", "--viz", selection],
+        ["--physics=newton_mjwarp", "--renderer=newton_warp", "--visualizer", selection],
     )
     for option in options:
         parser = argparse.ArgumentParser()
