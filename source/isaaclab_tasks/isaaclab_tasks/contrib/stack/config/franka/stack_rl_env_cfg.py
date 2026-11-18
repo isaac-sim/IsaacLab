@@ -11,7 +11,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -25,11 +26,12 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import SuccessMonitorCfg, preset
 
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
 from ... import mdp
 from ...constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
 from ...spawners import ColoredCuboidCfg
 from ...stack_env_cfg import StackCommonTerminationsCfg, StackEnvCfg, apply_default_semantics
-from .franka_robot_cfg import FRANKA_PANDA_DEXSUITE_CFG
 
 
 @configclass
@@ -180,9 +182,7 @@ class FrankaStackTerminationsCfg(StackCommonTerminationsCfg):
         params={"robot_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
     )
     nonfinite_cube_state = DoneTerm(func=mdp.nonfinite_cube_state)
-    cube_workspace_invalid = DoneTerm(
-        func=mdp.cube_out_of_workspace,
-    )
+    cube_workspace_invalid = DoneTerm(func=mdp.CubeOutOfWorkspace)
 
 
 @configclass
@@ -198,9 +198,61 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
 
-        self.scene.robot = FRANKA_PANDA_DEXSUITE_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
+        robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot.spawn.variants["Physics"] = "mujoco"
+        robot.init_state = ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "panda_joint1": 0.0444,
+                "panda_joint2": -0.1894,
+                "panda_joint3": -0.1107,
+                "panda_joint4": -2.5148,
+                "panda_joint5": 0.0044,
+                "panda_joint6": 2.3775,
+                "panda_joint7": 0.6952,
+                "panda_finger_joint.*": 0.04,
+            },
         )
+        # Keep the shared asset's passive mimic follower; tune only the active drives.
+        robot.actuators.update(
+            {
+                "panda_arm": ImplicitActuatorCfg(
+                    joint_names_expr=["panda_joint[1-7]"],
+                    joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+                    # Record the Panda's rated joint-speed envelope. MJWarp exposes but
+                    # does not enforce these fields; action scaling, gains, effort limits,
+                    # and armature determine the live Newton response.
+                    joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+                    stiffness={
+                        "panda_joint[1-4]": 600.0,
+                        "panda_joint5": 250.0,
+                        "panda_joint6": 150.0,
+                        "panda_joint7": 50.0,
+                    },
+                    damping={
+                        "panda_joint[1-4]": 50.0,
+                        "panda_joint5": 30.0,
+                        "panda_joint6": 25.0,
+                        "panda_joint7": 15.0,
+                    },
+                    armature={
+                        "panda_joint[1-2]": 0.6057,
+                        "panda_joint[3-4]": 0.4625,
+                        "panda_joint[5-7]": 0.2055,
+                    },
+                    viscous_friction=0.0,
+                ),
+                "panda_hand": ImplicitActuatorCfg(
+                    joint_names_expr=["panda_finger_joint1"],
+                    joint_effort_limit=70.0,
+                    joint_velocity_limit=2.0,
+                    stiffness=350.0,
+                    damping=175.0,
+                    armature=0.1,
+                    viscous_friction=0.0,
+                ),
+            }
+        )
+        self.scene.robot = robot
         apply_default_semantics(self.scene)
         self.gripper_joint_names = ["panda_finger_.*"]
         self.gripper_open_val = 0.04
@@ -235,12 +287,7 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
         self.sim.gravity = (0.0, 0.0, -9.81)
         self.scene.robot.spawn.rigid_props.disable_gravity = False
 
-        # Use MJWarp only as the rigid-body constraint solver. Contact
-        # generation is delegated to Newton's external collision pipeline.
-        # The Franka plus three cubes reached 148 constraint rows in
-        # the 4,096-environment reset distribution. Keep measured headroom so
-        # contacts are never silently truncated while avoiding an oversized
-        # contact buffer.
+        # Solve constraints with MJWarp and generate contacts with Newton's collision pipeline.
         physics = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
@@ -251,13 +298,8 @@ class FrankaCubeStackRLEnvCfg(StackEnvCfg):
                 cone="elliptic",
                 use_mujoco_contacts=False,
             ),
-            # Match the fast, stable Newton Cube Lift integration cadence:
-            # two 5 ms solver steps per 10 ms physics tick. Ten 1 ms substeps
-            # were stable but made collection roughly eight times slower.
+            # Refresh contacts for each 5 ms substep so a released tower can settle.
             num_substeps=2,
-            # Refresh external contacts for every 5 ms solver step. Reusing
-            # one contact set for the full 10 ms tick is sufficient for Lift,
-            # but lets a released three-cube tower drift or tip.
             collision_decimation=1,
             use_cuda_graph=True,
             collision_cfg=NewtonCollisionPipelineCfg(

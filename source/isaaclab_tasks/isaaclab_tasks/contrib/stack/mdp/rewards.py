@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -18,7 +19,7 @@ from .runtime_state import get_stack_reset_runtime_state
 from .terminations import _cube_pair_is_aligned
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -71,12 +72,12 @@ def irrecoverable_stack_failure(
     return failed.float() / max(float(env.step_dt), 1.0e-6)
 
 
-def _gripper_joint_positions(env: ManagerBasedRLEnv, robot: Articulation) -> torch.Tensor:
-    """Read both fingers of the Franka parallel gripper."""
+def _resolve_finger_joint_ids(env: ManagerBasedRLEnv, robot: Articulation) -> list[int]:
+    """Resolve both fingers of the Franka parallel gripper."""
     joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
     if len(joint_ids) != 2:
         raise ValueError("Franka stack gripper thresholds require a two-finger parallel gripper.")
-    return robot.data.joint_pos.torch[:, joint_ids]
+    return joint_ids
 
 
 _CUBE_PERMUTATIONS = (
@@ -89,15 +90,13 @@ _CUBE_PERMUTATIONS = (
 )
 
 
-def _order_invariant_cube_state(
+def _cube_positions(
     env: ManagerBasedRLEnv,
     cube_cfgs: tuple[SceneEntityCfg, ...],
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return cube COM positions [m] and spatial velocities [m/s, rad/s]."""
-    cubes: tuple[RigidObject, ...] = tuple(env.scene[cfg.name] for cfg in cube_cfgs)
-    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
-    velocities = torch.stack(tuple(cube.data.root_vel_w.torch for cube in cubes), dim=1)
-    return positions, velocities
+    env_ids: Sequence[int] | torch.Tensor | slice = slice(None),
+) -> torch.Tensor:
+    """Read selected world-frame cube positions [m]."""
+    return torch.stack([env.scene[cfg.name].data.root_pos_w.torch[env_ids] for cfg in cube_cfgs], dim=1)
 
 
 def order_invariant_stack_progress(
@@ -112,12 +111,17 @@ def order_invariant_stack_progress(
     cube_height: float = 0.04,
 ) -> torch.Tensor:
     """Return zero, one, or two stacked pairs without assigning cube roles."""
-    positions, _ = _order_invariant_cube_state(env, cube_cfgs)
+    return _stack_progress_from_positions(_cube_positions(env, cube_cfgs), xy_threshold, height_threshold, cube_height)
+
+
+def _stack_progress_from_positions(
+    positions: torch.Tensor, xy_threshold: float, height_threshold: float, cube_height: float
+) -> torch.Tensor:
     delta = positions[:, :, None, :] - positions[:, None, :, :]
     pair_is_stacked = _cube_pair_is_aligned(delta, xy_threshold, cube_height, height_threshold, True)
     pair_exists = pair_is_stacked.flatten(start_dim=1).any(dim=1)
 
-    complete = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    complete = torch.zeros_like(pair_exists)
     for base_id, middle_id, top_id in _CUBE_PERMUTATIONS:
         complete |= pair_is_stacked[:, middle_id, base_id] & pair_is_stacked[:, top_id, middle_id]
     return pair_exists.float() + complete.float()
@@ -248,8 +252,11 @@ def role_conditioned_stack_potential(
     xy_threshold: float = 0.025,
     height_threshold: float = 0.012,
     cube_height: float = 0.04,
+    *,
+    finger_joint_ids: Sequence[int] | None = None,
+    env_ids: Sequence[int] | torch.Tensor | slice = slice(None),
 ) -> torch.Tensor:
-    """Return fixed-center-base progress with either side-cube order.
+    """Return progress with the reset-assigned base and either movable cube order.
 
     Reset-time color permutations are gathered into stable physical roles.
     Role zero remains the base while the maximum over ``1→2`` and ``2→1``
@@ -257,13 +264,15 @@ def role_conditioned_stack_potential(
     """
     reset_state = get_stack_reset_runtime_state(env)
 
-    positions, _ = _order_invariant_cube_state(env, cube_cfgs)
-    role_to_cube = reset_state.role_to_cube.long()
+    positions = _cube_positions(env, cube_cfgs, env_ids)
+    role_to_cube = reset_state.role_to_cube[env_ids]
     gather_index = role_to_cube.unsqueeze(-1).expand(-1, -1, 3)
     role_positions = torch.gather(positions, 1, gather_index)
     robot: Articulation = env.scene[robot_cfg.name]
-    ee_position, _ = end_effector_pose(env, robot_cfg, tool_body_name, tool_offset)
-    finger_positions = _gripper_joint_positions(env, robot)
+    ee_position, _ = end_effector_pose(env, robot_cfg, tool_body_name, tool_offset, env_ids=env_ids)
+    if finger_joint_ids is None:
+        finger_joint_ids = _resolve_finger_joint_ids(env, robot)
+    finger_positions = robot.data.joint_pos.torch[env_ids][:, finger_joint_ids]
     gripper_release_progress = ((finger_positions.amin(dim=1) - 0.020) / (0.024 - 0.020)).clamp(0.0, 1.0)
     gripper_released = (finger_positions > 0.023).all(dim=1)
     gripper_closed = (finger_positions < maximum_grasp_finger_position).all(dim=1)

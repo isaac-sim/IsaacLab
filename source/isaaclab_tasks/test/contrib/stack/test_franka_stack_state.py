@@ -14,6 +14,7 @@ from isaaclab.managers import ObservationTermCfg, TerminationManager
 from isaaclab.utils.string import resolve_matching_names
 
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.contrib.stack.config.franka.stack_rl_env_cfg import FrankaCubeStackRLEnvCfg
 from isaaclab_tasks.contrib.stack.mdp.runtime_state import create_stack_reset_runtime_state
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -21,14 +22,14 @@ pytestmark = pytest.mark.kitless
 
 
 @pytest.fixture(scope="module")
-def stack_cfg():
+def stack_cfg() -> FrankaCubeStackRLEnvCfg:
     """Load the registered state task without starting a renderer."""
     cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Franka-RL", device="cpu", num_envs=3)
     cfg.validate_config()
     return cfg
 
 
-def test_state_policy_observation_order_matches_published_checkpoints(stack_cfg):
+def test_state_policy_observation_order_matches_published_checkpoints(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
     policy = stack_cfg.observations.policy
     assert [name for name, term in vars(policy).items() if isinstance(term, ObservationTermCfg)] == [
         "actions",
@@ -41,14 +42,59 @@ def test_state_policy_observation_order_matches_published_checkpoints(stack_cfg)
     ]
 
 
-def test_explicit_newton_selector_keeps_the_task_physics(stack_cfg):
+def test_cube_state_preserves_published_directed_pair_order(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
+    orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+    scene = {
+        "robot": SimpleNamespace(
+            data=SimpleNamespace(
+                body_pos_w=SimpleNamespace(torch=torch.zeros(1, 1, 3)),
+                body_quat_w=SimpleNamespace(torch=orientations.unsqueeze(1)),
+            ),
+            find_bodies=lambda name: ([0], [name]),
+        )
+    }
+    for index, position in enumerate(((0.5, 0.7, 0.9), (0.0, 0.0, 0.0), (0.2, 0.3, 0.4)), start=1):
+        scene[f"cube_{index}"] = SimpleNamespace(
+            data=SimpleNamespace(
+                root_pos_w=SimpleNamespace(torch=torch.tensor([position])),
+                root_quat_w=SimpleNamespace(torch=orientations),
+                root_vel_w=SimpleNamespace(torch=torch.zeros(1, 6)),
+            )
+        )
+
+    class Scene(dict):
+        env_origins = torch.zeros(1, 3)
+
+    env = SimpleNamespace(num_envs=1, device="cpu", scene=Scene(scene))
+    state = create_stack_reset_runtime_state(env)
+    state.role_to_cube[0] = torch.tensor([1, 2, 0])
+    term = stack_cfg.observations.policy.object
+    observation = term.func(env, **term.params)
+
+    assert observation.shape == (1, 64)
+    torch.testing.assert_close(
+        observation[0, 45:63].reshape(6, 3),
+        torch.tensor(
+            [
+                [0.2, 0.3, 0.44],
+                [0.5, 0.7, 0.94],
+                [-0.2, -0.3, -0.36],
+                [0.3, 0.4, 0.54],
+                [-0.5, -0.7, -0.86],
+                [-0.3, -0.4, -0.46],
+            ]
+        ),
+    )
+
+
+def test_explicit_newton_selector_keeps_the_task_physics(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
     explicit = parse_env_cfg(
         "IsaacContrib-Stack-Cube-Franka-RL", device="cpu", num_envs=3, overrides=["physics=newton_mjwarp"]
     )
     assert explicit.sim.physics == stack_cfg.sim.physics
 
 
-def test_play_mode_selects_randomized_table_starts(stack_cfg):
+def test_play_mode_selects_randomized_table_starts(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
     cfg = stack_cfg.copy()
     cfg.play_mode()
 
@@ -57,7 +103,7 @@ def test_play_mode_selects_randomized_table_starts(stack_cfg):
     assert cfg.actions.gripper_action.force_close_steps == 0
 
 
-def test_success_requires_an_order_invariant_released_stack_held_at_rest(stack_cfg):
+def test_success_requires_an_order_invariant_released_stack_held_at_rest(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
     class Scene(dict):
         env_origins = torch.zeros(3, 3)
 
