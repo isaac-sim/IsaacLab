@@ -56,9 +56,6 @@ class MotionCommand(CommandTerm):
         if cfg.body_names[0] != self.robot.body_names[0]:
             raise ValueError("The first tracked body must be the articulation root.")
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self.body_pos_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 3, device=self.device)
-        self.body_quat_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 4, device=self.device)
-        self.body_quat_relative_w[:, :, 3] = 1.0
         self.bin_count = int(self.motion.time_step_total // (1 / (env.cfg.decimation * env.cfg.sim.dt))) + 1
         self.bin_failed_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
         self._current_bin_failed = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
@@ -124,6 +121,21 @@ class MotionCommand(CommandTerm):
     def body_ang_vel_w(self) -> torch.Tensor:
         """The desired body angular velocities in the world frame. Shape is (num_envs, num_bodies, 3)."""
         return self.motion.body_ang_vel_w[self.time_steps]
+
+    @property
+    def body_pos_relative_w(self) -> torch.Tensor:
+        """Reference body positions aligned to the robot's current horizontal position and yaw."""
+        anchor_pos = self.robot_anchor_pos_w.clone()
+        anchor_pos[:, 2] = self.anchor_pos_w[:, 2]
+        yaw_delta = yaw_quat(quat_mul(self.robot_anchor_quat_w, quat_inv(self.anchor_quat_w)))
+        yaw_delta = yaw_delta[:, None, :].expand(-1, len(self.cfg.body_names), -1)
+        return anchor_pos[:, None, :] + quat_apply(yaw_delta, self.body_pos_w - self.anchor_pos_w[:, None, :])
+
+    @property
+    def body_quat_relative_w(self) -> torch.Tensor:
+        """Reference body orientations aligned to the robot's current yaw, retaining reference tilt."""
+        yaw_delta = yaw_quat(quat_mul(self.robot_anchor_quat_w, quat_inv(self.anchor_quat_w)))
+        return quat_mul(yaw_delta[:, None, :].expand(-1, len(self.cfg.body_names), -1), self.body_quat_w)
 
     @property
     def anchor_pos_w(self) -> torch.Tensor:
@@ -238,26 +250,13 @@ class MotionCommand(CommandTerm):
         self.robot.write_root_state_to_sim(
             torch.cat([root_pos, root_ori, root_lin_vel, root_ang_vel], dim=-1), env_ids=env_ids
         )
-        self._update_reference_alignment()
 
     def _update_command(self) -> None:
+        # The termination manager resets completed clips; keep disabled expiry safe for playback.
         self.time_steps += 1
-        env_ids = torch.where(self.time_steps >= self.motion.time_step_total)[0]
-        self._resample_command(env_ids)
-        self._update_reference_alignment()
+        self.time_steps.clamp_(max=self.motion.time_step_total - 1)
         self.bin_failed_count.lerp_(self._current_bin_failed, self.cfg.adaptive_alpha)
         self._current_bin_failed.zero_()
-
-    def _update_reference_alignment(self) -> None:
-        # Match the robot's horizontal position and yaw, retaining reference height and tilt.
-        delta_pos = self.robot_anchor_pos_w.clone()
-        delta_pos[:, 2] = self.anchor_pos_w[:, 2]
-        delta_quat = yaw_quat(quat_mul(self.robot_anchor_quat_w, quat_inv(self.anchor_quat_w)))
-        delta_quat = delta_quat[:, None, :].expand(-1, len(self.cfg.body_names), -1)
-        self.body_quat_relative_w = quat_mul(delta_quat, self.body_quat_w)
-        self.body_pos_relative_w = delta_pos[:, None, :] + quat_apply(
-            delta_quat, self.body_pos_w - self.anchor_pos_w[:, None, :]
-        )
 
     def _adaptive_sampling(self, env_ids: Sequence[int] | slice) -> None:
         """Adaptive sampling to compute the starting index of the motion."""

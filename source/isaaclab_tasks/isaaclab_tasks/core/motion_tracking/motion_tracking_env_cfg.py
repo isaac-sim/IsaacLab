@@ -180,6 +180,7 @@ class TerminationsCfg:
 
     # -- time out term
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    motion_end = DoneTerm(func=mdp.motion_end, time_out=True, params={"command_name": "motion"})
 
     # -- poor tracking terms
     anchor_pos = DoneTerm(

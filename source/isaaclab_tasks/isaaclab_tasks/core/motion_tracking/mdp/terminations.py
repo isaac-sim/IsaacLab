@@ -6,7 +6,7 @@
 # Adapted from HybridRobotics/whole_body_tracking (MIT).
 # See docs/licenses/dependencies/motion-tracking-license.txt.
 
-"""Terminate episodes when vertical pose or tilt tracking is lost."""
+"""End completed reference clips or terminate episodes when pose tracking is lost."""
 
 from __future__ import annotations
 
@@ -22,6 +22,12 @@ from .commands import MotionCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def motion_end(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """End the episode after tracking the last reference frame, without recording a tracking failure."""
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    return command.time_steps >= command.motion.time_step_total - 1
 
 
 def bad_anchor_pos_z_only(env: ManagerBasedRLEnv, command_name: str, threshold: float) -> torch.Tensor:
