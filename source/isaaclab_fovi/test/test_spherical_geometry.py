@@ -18,6 +18,7 @@ from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 
+from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     matrix_from_quat,
@@ -190,6 +191,19 @@ def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: fl
     expected = model.project(seen)[1]
     assert expected.any() and (~expected).any()
     assert (camera._gaze_validity(2) == expected).float().mean() > 0.999
+
+
+def test_moving_the_mount_is_recorded(monkeypatch) -> None:
+    monkeypatch.setattr(Camera, "set_world_poses", lambda *args, **kwargs: None)
+    monkeypatch.setattr(Camera, "set_world_poses_from_view", lambda *args, **kwargs: None)
+    for move in (
+        lambda camera: camera.set_world_poses(positions=torch.zeros(2, 3)),
+        lambda camera: camera.set_world_poses_from_view(torch.zeros(2, 3), torch.ones(2, 3)),
+    ):
+        camera = GazeHarness()
+        camera.mount_moved = False
+        move(camera)
+        assert camera.mount_moved
 
 
 def test_pose_update_records_the_mount_before_the_gaze() -> None:

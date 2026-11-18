@@ -5,12 +5,20 @@
 
 """Gaze geometry and gaze-supervised PPO, without a simulator."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp import angles_to_direction, clamp_gaze, direction_to_angles
-from isaaclab_fovi.mdp.gaze import gaze_reset_kernel, gaze_step_kernel, teacher_block_dim, teacher_labels_kernel
+from isaaclab_fovi.mdp.gaze import (
+    GazeAction,
+    gaze_reset_kernel,
+    gaze_step_kernel,
+    teacher_block_dim,
+    teacher_labels_kernel,
+)
 from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 from rsl_rl.models import MLPModel
@@ -158,6 +166,14 @@ def test_gaze_reset_kernel_matches_the_torch_reset(ids, random_start):
         )
     torch.testing.assert_close(angles, expected_angles, atol=0, rtol=0)
     torch.testing.assert_close(state, expected_state, atol=0, rtol=0)
+
+
+def test_fixed_mount_teacher_rejects_a_moved_mount():
+    term = object.__new__(GazeAction)
+    term.tracked_mount = False
+    term.camera = SimpleNamespace(mount_moved=True)
+    with pytest.raises(RuntimeError, match="mount='tracked'"):
+        GazeAction._teacher_labels(term, targets=None)
 
 
 def test_gaze_loss_ignores_invalid_labels():
