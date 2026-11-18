@@ -796,16 +796,9 @@ class StackResetStateTable(ManagerTermBase):
         selected_cube_ids = role_to_cube.gather(1, held_roles.clamp_min(0).unsqueeze(1)).squeeze(1)
         held_cube_ids = torch.where(has_held_cube, selected_cube_ids, -1)
 
-        # Restore the fixed base before applying the selected joint and cube state.
-        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
-        root_pose[:, :3] += env.scene.env_origins[env_ids]
-        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
-        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
-        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
-
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
-        joint_positions[:, self._arm_joint_ids] = self._arm_positions[row_ids]
+        authored_arm_positions = self._arm_positions[row_ids]
         joint_positions[:, self._hand_joint_ids] = self._hand_positions[row_ids]
         table_rows = self._recipe_ids[row_ids] == int(StackResetRecipe.TABLE)
         arm_noise_scale = torch.full(
@@ -815,21 +808,36 @@ class StackResetStateTable(ManagerTermBase):
             device=self.device,
         )
         arm_noise_scale[table_rows] = table_arm_joint_noise_range
-        # Joint-ID indexing may be advanced indexing and therefore return a
-        # copy. Write the randomized values back explicitly after clamping.
-        arm_positions = joint_positions[:, self._arm_joint_ids].clone()
-        arm_positions += (2.0 * torch.rand_like(arm_positions) - 1.0) * arm_noise_scale
+        arm_positions = authored_arm_positions + (2.0 * torch.rand_like(authored_arm_positions) - 1.0) * arm_noise_scale
         arm_lower = arm_positions.new_tensor(FRANKA_STACK_ARM_WORKSPACE_LOWER)
         arm_upper = arm_positions.new_tensor(FRANKA_STACK_ARM_WORKSPACE_UPPER)
         arm_positions.clamp_(min=arm_lower, max=arm_upper)
-        joint_positions[:, self._arm_joint_ids] = arm_positions
-        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
-        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
-        self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
-        self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
 
         role_positions = self._role_positions[row_ids].clone()
         role_quaternions = self._role_quaternions[row_ids].clone()
+        if arm_joint_noise_range > 0.0:
+            held_env_ids = has_held_cube.nonzero(as_tuple=False).flatten()
+            if held_env_ids.numel():
+                held_role_ids = held_roles[held_env_ids]
+                candidate_positions = _franka_tool_position(arm_positions[held_env_ids])
+                other_roles = (held_role_ids.unsqueeze(1) + torch.arange(1, 3, device=self.device)) % 3
+                rotations = matrix_from_quat(role_quaternions[held_env_ids])
+                rows = torch.arange(held_env_ids.numel(), device=self.device)
+                intersects = _oriented_cube_pair_intersections(
+                    candidate_positions[:, None].expand(-1, 2, -1),
+                    rotations[rows, held_role_ids][:, None].expand(-1, 2, -1, -1),
+                    role_positions[held_env_ids[:, None], other_roles],
+                    rotations[rows[:, None], other_roles],
+                    edge_length=self._CUBE_HEIGHT,
+                )
+                valid = (candidate_positions[:, 2] >= self._TABLE_HEIGHT - 1.0e-6) & ~intersects.any(dim=1)
+                # Restore the validated grasp as a pair if its noisy pose would intersect a support or the table.
+                arm_positions[held_env_ids] = torch.where(
+                    valid.unsqueeze(1), arm_positions[held_env_ids], authored_arm_positions[held_env_ids]
+                )
+                role_positions[held_env_ids, held_role_ids] = torch.where(
+                    valid.unsqueeze(1), candidate_positions, role_positions[held_env_ids, held_role_ids]
+                )
         if table_cube_planar_translation_range > 0.0:
             translation = (
                 2.0
@@ -869,10 +877,19 @@ class StackResetStateTable(ManagerTermBase):
             yaw_quaternions[..., 3] = yaw_w
             role_quaternions[table_rows] = normalize(quat_mul(yaw_quaternions, role_quaternions[table_rows]))
 
-        # Joint perturbations must never detach a reset-authored grasp. Move
-        # the held role to the perturbed FK tool center before colors are
-        # scattered over physical roles.
-        role_positions[has_held_cube, held_roles[has_held_cube]] = _franka_tool_position(arm_positions[has_held_cube])
+        # Restore the fixed base before applying the selected joint and cube state.
+        root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_velocity = self._robot.data.default_root_vel.torch[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+
+        joint_positions[:, self._arm_joint_ids] = arm_positions
+        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
+        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
+
         cube_positions = torch.zeros_like(role_positions)
         cube_quaternions = torch.zeros_like(role_quaternions)
         cube_positions.scatter_(
