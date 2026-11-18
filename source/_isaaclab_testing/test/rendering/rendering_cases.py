@@ -208,9 +208,17 @@ GAUSSIAN_KIT_CASES = (
     RenderCase(
         "physx",
         "isaac_rtx",
-        (RenderBufferKind.RGB_HDR, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE),
+        (RenderBufferKind.RGB_HDR,),
         scene="gaussian_splats_valiant_1env",
+        marks=(
+            pytest.mark.xfail(
+                reason="NVBUG 7071342: Valiant RTX HDR can mismatch the golden.",
+                raises=AssertionError,
+                strict=False,
+            ),
+        ),
     ),
+    RenderCase("physx", "isaac_rtx", (RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,), scene="gaussian_splats_valiant_1env"),
     RenderCase("newton", "newton_warp", _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_valiant_1env"),
     *(
         RenderCase(physics, renderer, _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_endeavor_4envs")

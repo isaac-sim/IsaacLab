@@ -40,7 +40,7 @@ def _compare(image: Image.Image, golden: Path, artifacts: Path) -> ImageComparis
 @pytest.mark.parametrize(
     ("data_type", "output", "expected_pixels", "expected_range"),
     [
-        ("depth", torch.tensor([[[[2.0], [6.0]]]]), [(0, 0, 0), (255, 255, 255)], (2.0, 6.0)),
+        ("depth", torch.tensor([[[[2.0], [4.0], [6.0]]]]), [(0, 0, 0), (128, 128, 128), (255, 255, 255)], (2.0, 6.0)),
         (
             "rgb_hdr",
             torch.tensor([[[[float("inf"), -0.1, float("nan")], [0.1, 1.0, 3.0]]]]),
@@ -75,6 +75,12 @@ def test_depth_hdr_pngs_use_the_golden_minmax(
     assert value_range == pytest.approx(expected_range)
     comparison = compare_to_golden(camera_output_image(output, data_type, value_range), golden, **kwargs)
     assert comparison.passed and comparison.diff_pct == 0.0
+    if data_type == "depth":
+        # A far sample must saturate without rescaling the remaining pixels.
+        farther = output.clone()
+        farther[..., -1, :] *= 2.0
+        comparison = compare_to_golden(camera_output_image(farther, data_type, value_range), golden, **kwargs)
+        assert comparison.passed and comparison.diff_pct == 0.0
 
 
 def test_runner_reuses_golden_range_for_rescaled_capture(
