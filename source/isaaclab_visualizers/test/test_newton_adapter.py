@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -1267,17 +1268,18 @@ def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
     assert spec.renderer == "frame"
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices())
-def test_marker_batches_preserve_selected_instances(device, marker_registry, monkeypatch):
+def test_marker_batches_preserve_selected_instances(device, marker_registry, monkeypatch) -> None:
     """Shared geometry keeps each prototype's color/scale, filtering, and live tensor updates."""
-    from contextlib import nullcontext
-
-    from isaaclab.sim import CuboidCfg, PreviewSurfaceCfg, UsdFileCfg
+    from isaaclab.sim import CuboidCfg, GroundPlaneCfg, PreviewSurfaceCfg, UsdFileCfg
 
     mesh = SimpleNamespace(
         vertices=np.zeros((3, 3), dtype=np.float32), indices=np.array([0, 1, 2], dtype=np.int32), normals=None, uvs=None
     )
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: mesh)
+    # Batch membership must use the initialization-time lookup, not per-frame set searches.
+    monkeypatch.setattr(torch, "isin", lambda *args, **kwargs: pytest.fail("marker batching must use lookup tables"))
     cfg = newton_markers.VisualizationMarkersCfg(
         prim_path="/test",
         markers={
@@ -1286,7 +1288,8 @@ def test_marker_batches_preserve_selected_instances(device, marker_registry, mon
                 scale=(1, 2, 3),
                 visual_material=PreviewSurfaceCfg(diffuse_color=(1, 0, 0)),
             ),
-            "box": CuboidCfg(size=(1, 1, 1)),
+            "box": CuboidCfg(size=(1, 1, 1), visual_material=PreviewSurfaceCfg(diffuse_color=(0, 0, 1))),
+            "unsupported": GroundPlaneCfg(),
             "green": UsdFileCfg(
                 usd_path="/assets/arrow_x.usd",
                 scale=(3, 2, 1),
@@ -1299,7 +1302,7 @@ def test_marker_batches_preserve_selected_instances(device, marker_registry, mon
     stream = torch.cuda.Stream(device=device) if torch.device(device).type == "cuda" else None
     with torch.cuda.stream(stream) if stream is not None else nullcontext():
         positions = torch.tensor([[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]], dtype=torch.float32, device=device)
-        marker.visualize(positions, None, torch.full_like(positions, 2), torch.tensor([1, 0, 2, 0], device=device))
+        marker.visualize(positions, None, torch.full_like(positions, 2), torch.tensor([1, 0, 3, 0], device=device))
         marker.render(viewer, [1], 2)
         assert viewer.log_instances.call_count == 2
         arrows = viewer.log_instances.call_args_list[0].args
@@ -1320,6 +1323,25 @@ def test_marker_batches_preserve_selected_instances(device, marker_registry, mon
     marker.set_visibility(False)
     marker.render(viewer, None, 2)
     assert all(call.kwargs["hidden"] for call in viewer.log_instances.call_args_list[-2:])
+
+    marker.set_visibility(True)
+    marker.visualize(positions, None, None, torch.tensor([-1, 99, 2, 3], device=device))
+    marker.render(viewer, None, 2)
+    np.testing.assert_array_equal(viewer.log_instances.call_args_list[-2].args[3].numpy()[:3], np.zeros((3, 3)))
+    np.testing.assert_array_equal(viewer.log_instances.call_args_list[-1].args[3].numpy(), np.zeros((4, 3)))
+
+    # Exercise Rerun's batch-wide appearance contract with shared geometry and an inactive first slot.
+    rerun = Mock(spec=newton_markers.ViewerRerun)
+    rerun.device, rerun.world_offsets = device, None
+    marker.visualize(positions, None, None, torch.tensor([1, 0, 3, 0], device=device))
+    marker.render(rerun, None, 2)
+    assert rerun.log_mesh.call_count == 2
+    assert rerun.log_instances.call_count == 3
+    for submission, expected_color in zip(rerun.log_instances.call_args_list, ((1, 0, 0), (0, 0, 1), (0, 1, 0))):
+        np.testing.assert_array_equal(submission.args[4].numpy(), [expected_color] * 4)
+    marker.set_visibility(False)
+    marker.render(rerun, None, 2)
+    assert all(call.kwargs["hidden"] for call in rerun.log_instances.call_args_list[-3:])
 
 
 # ---------------------------------------------------------------------------

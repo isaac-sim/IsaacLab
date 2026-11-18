@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 from newton import Axis, Mesh
-from newton.viewer import ViewerBase
+from newton.viewer import ViewerBase, ViewerRerun
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
@@ -33,6 +33,7 @@ class _NewtonMarkerSpec:
     mesh_params: dict[str, float | tuple[float, float, float]] | None = None
     scale: tuple[float, float, float] | None = None
     color: tuple[float, float, float] | None = None
+    line_width: float = 0.0025
     texture: Any | None = None
     # Pre-loaded newton.Mesh for "usd" mesh_type; excluded from hash/compare since Mesh is unhashable.
     preloaded_mesh: Any | None = field(default=None, hash=False, compare=False)
@@ -69,27 +70,32 @@ class NewtonVisualizationMarkers:
         self.marker_indices: torch.Tensor | None = None
         self.count = len(cfg.markers)
         self._registered_meshes: set[tuple[int, str]] = set()
-        self._marker_batches: list[tuple[str, _NewtonMarkerSpec, list[int]]] = []
-        self._prototype_scales = []
-        self._prototype_colors = []
+        self._batches: list[tuple[str, str, _NewtonMarkerSpec, int]] = []
+        self._rerun_batches: list[tuple[str, str, _NewtonMarkerSpec, int]] = []
+        batch_ids: dict[object, int] = {}
+        prototype_batches: list[int] = []
+        prototype_styles: list[tuple[float, ...]] = []
         for index, (name, marker_cfg) in enumerate(cfg.markers.items()):
             spec = _infer_newton_marker_cfg(marker_cfg)
-            self._prototype_scales.append(spec.scale or _extract_scale_hint(marker_cfg))
-            self._prototype_colors.append(spec.color or _extract_color(marker_cfg))
             if spec.renderer == "none":
                 logger.warning("Unsupported Newton marker prototype '%s' in '%s'; skipping.", name, self.group_id)
+                prototype_batches.append(-1)
+                prototype_styles.append((0.0,) * 6)
                 continue
-            # Primitive geometry is shared; color and scale belong to each instance.
-            for _, existing, indices in self._marker_batches:
-                if (
-                    spec.renderer == "mesh"
-                    and spec.mesh_type != "usd"
-                    and (spec.mesh_type == existing.mesh_type and spec.mesh_params == existing.mesh_params)
-                ):
-                    indices.append(index)
-                    break
-            else:
-                self._marker_batches.append((name, spec, [index]))
+            # Only primitive geometry is shared; USD meshes can have different textures.
+            key = (spec.mesh_type, tuple(spec.mesh_params.items())) if spec.mesh_params else name
+            if key not in batch_ids:
+                batch_ids[key] = len(self._batches)
+                self._batches.append((f"{self.group_id}/{name}", f"{self.group_id}/meshes/{name}", spec, index))
+            batch = batch_ids[key]
+            prototype_batches.append(batch)
+            prototype_styles.append(
+                (*(spec.scale or _extract_scale_hint(marker_cfg)), *(spec.color or _extract_color(marker_cfg)))
+            )
+            # Rerun colors an entire batch with its first color. Share its mesh, not its draw batch.
+            self._rerun_batches.append((f"{self.group_id}/{name}", self._batches[batch][1], spec, index))
+        self._prototype_batches = torch.tensor(prototype_batches, dtype=torch.int32)
+        self._prototype_styles = torch.tensor(prototype_styles, dtype=torch.float32).reshape(-1, 6)
 
         sim = sim_utils.SimulationContext.instance()
         self._registry = sim.vis_marker_registry if sim is not None else None
@@ -179,92 +185,90 @@ class NewtonVisualizationMarkers:
                     translations = translations + offsets[:, None, :]
                 translations = translations.flatten(0, 1)
 
-        hidden = not self.visible or count == 0
-        if not self._marker_batches or (translations is None and not hidden):
+        rerun = isinstance(viewer, ViewerRerun)
+        batches = self._rerun_batches if rerun else self._batches
+        if not self.visible or count == 0:
+            for batch_name, mesh_name, spec, _ in batches:
+                if spec.renderer == "mesh":
+                    self._ensure_mesh_registered(viewer, mesh_name, spec)
+                    viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
+                else:
+                    viewer.log_lines(batch_name, None, None, None, hidden=True)
+            return
+        if translations is None or not batches:
             return
 
         device = viewer.device
-        stream = (
-            wp.stream_from_torch(torch.cuda.current_stream(translations.device))
-            if (translations is not None and translations.is_cuda)
-            else None
-        )
+        stream = wp.stream_from_torch(torch.cuda.current_stream(translations.device)) if translations.is_cuda else None
         # Warp consumes Torch storage on its producing stream, including non-default streams.
         with wp.ScopedStream(stream, sync_exit=True):
-            if not hidden:
-                num_markers = translations.shape[0]
-                if orientations is None:
-                    orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
-                xforms = wp.from_torch(torch.cat((translations, orientations), dim=1).float(), dtype=wp.transform).to(
-                    device
-                )
-                indices = (
-                    torch.zeros(num_markers, device=translations.device, dtype=torch.long)
-                    if (marker_indices is None)
-                    else marker_indices.long()
-                )
-                selected = indices.clamp(0, len(self.cfg.markers) - 1)
-                prototype_scales = translations.new_tensor(self._prototype_scales)[selected]
-                if scales is not None:
-                    prototype_scales = prototype_scales * scales
-                colors = translations.new_tensor(self._prototype_colors)[selected]
-                colors = wp.from_torch(colors.float().contiguous(), dtype=wp.vec3).to(device)
-
-            for name, spec, prototype_indices in self._marker_batches:
-                batch_name = f"{self.group_id}/{name}"
-                if spec.renderer == "mesh":
-                    mesh_name = f"{self.group_id}/meshes/{name}"
-                    registered_key = (id(viewer), mesh_name)
-                    if registered_key not in self._registered_meshes:
-                        mesh = _create_mesh(spec)
-                        viewer.log_mesh(
-                            mesh_name,
-                            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
-                            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
-                            normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3, device=device)
-                            if mesh.normals is not None and mesh.normals.size
-                            else None,
-                            uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2, device=device)
-                            if mesh.uvs is not None and mesh.uvs.size
-                            else None,
-                            texture=spec.texture,
-                            hidden=True,
-                        )
-                        self._registered_meshes.add(registered_key)
-                    if hidden:
-                        viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
-                        continue
-                elif hidden:
-                    viewer.log_lines(batch_name, None, None, None, hidden=True)
-                    continue
-
-                shown = torch.isin(indices, indices.new_tensor(prototype_indices))
-                marker_scales = prototype_scales * shown.unsqueeze(-1)
-                if spec.renderer == "mesh":
-                    # ViewerGL uses material.w to enable texture sampling.
-                    materials = translations.new_tensor((0.0, 0.0, 0.0, float(spec.texture is not None)))
-                    materials = materials.expand(num_markers, -1).float().contiguous()
-                    viewer.log_instances(
-                        batch_name,
-                        mesh_name,
-                        xforms,
-                        wp.from_torch(marker_scales.float().contiguous(), dtype=wp.vec3).to(device),
-                        colors,
-                        wp.from_torch(materials, dtype=wp.vec4).to(device),
-                        hidden=False,
-                    )
-                else:
-                    starts, ends, line_colors = _build_frame_lines(translations, orientations, marker_scales)
-                    shown_scales = marker_scales[shown]
-                    width = max(float(shown_scales.mean().item()) * 0.05, 0.0025) if shown_scales.numel() else 0.0025
+            num_markers = translations.shape[0]
+            if orientations is None:
+                orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
+            self._prototype_batches = self._prototype_batches.to(translations.device)
+            self._prototype_styles = self._prototype_styles.to(translations)
+            indices = (
+                translations.new_zeros(num_markers, dtype=torch.int32) if marker_indices is None else marker_indices
+            )
+            valid = (indices >= 0) & (indices < len(self._prototype_batches))
+            selected = indices.clamp(0, len(self._prototype_batches) - 1)
+            instance_batches = torch.index_select(self._prototype_batches, 0, selected)
+            instance_scales, instance_colors = torch.index_select(self._prototype_styles, 0, selected).split(3, dim=1)
+            if scales is not None:
+                instance_scales = instance_scales * scales
+            xforms = None
+            for batch_id, (batch_name, mesh_name, spec, prototype) in enumerate(batches):
+                shown = valid & (indices == prototype if rerun else instance_batches == batch_id)
+                marker_scales = instance_scales * shown.unsqueeze(-1)
+                if spec.renderer == "frame":
+                    starts, ends, colors = _build_frame_lines(translations, orientations, marker_scales)
                     viewer.log_lines(
                         batch_name,
                         wp.from_torch(starts.float().contiguous(), dtype=wp.vec3).to(device),
                         wp.from_torch(ends.float().contiguous(), dtype=wp.vec3).to(device),
-                        wp.from_torch(line_colors.float().contiguous(), dtype=wp.vec3).to(device),
-                        width=width,
+                        wp.from_torch(colors.float().contiguous(), dtype=wp.vec3).to(device),
+                        width=spec.line_width,
                         hidden=False,
                     )
+                    continue
+                self._ensure_mesh_registered(viewer, mesh_name, spec)
+                if xforms is None:
+                    xforms = wp.from_torch(
+                        torch.cat((translations, orientations), dim=1).float(), dtype=wp.transform
+                    ).to(device)
+                # Hidden slots must carry this batch's color too: Rerun reads colors[0].
+                colors = self._prototype_styles[prototype, 3:].expand(num_markers, -1) if rerun else instance_colors
+                materials = translations.new_tensor((0.0, 0.0, 0.0, float(spec.texture is not None)))
+                viewer.log_instances(
+                    batch_name,
+                    mesh_name,
+                    xforms,
+                    wp.from_torch(marker_scales.float().contiguous(), dtype=wp.vec3).to(device),
+                    wp.from_torch(colors.float().contiguous(), dtype=wp.vec3).to(device),
+                    wp.from_torch(materials.expand(num_markers, -1).float().contiguous(), dtype=wp.vec4).to(device),
+                    hidden=False,
+                )
+
+    def _ensure_mesh_registered(self, viewer: ViewerBase, mesh_name: str, spec: _NewtonMarkerSpec) -> None:
+        # Registration belongs to each viewer, even when marker state is shared.
+        registered_key = (id(viewer), mesh_name)
+        if registered_key in self._registered_meshes:
+            return
+        mesh = _create_mesh(spec)
+        viewer.log_mesh(
+            mesh_name,
+            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=viewer.device),
+            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=viewer.device),
+            normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3, device=viewer.device)
+            if mesh.normals is not None and mesh.normals.size
+            else None,
+            uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2, device=viewer.device)
+            if mesh.uvs is not None and mesh.uvs.size
+            else None,
+            texture=spec.texture,
+            hidden=True,
+        )
+        self._registered_meshes.add(registered_key)
 
 
 def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
@@ -295,7 +299,9 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
                 scale=(default_scale[0], default_scale[1] * 2.5, default_scale[2] * 2.5),
             )
         if usd_path_lower.endswith("frame_prim.usd"):
-            return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
+            return _NewtonMarkerSpec(
+                renderer="frame", scale=default_scale, line_width=max(sum(default_scale) / 3 * 0.05, 0.0025)
+            )
         newton_mesh = _load_usd_mesh(usd_path)
         if newton_mesh is not None:
             mesh_color = newton_mesh.color
