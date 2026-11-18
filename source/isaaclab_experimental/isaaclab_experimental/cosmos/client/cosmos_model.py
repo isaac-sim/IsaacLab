@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import socket
@@ -229,6 +230,19 @@ def _validate_seeds(seeds: tuple[int, ...], count: int) -> None:
         raise ValueError("Cosmos requires one integer seed in [0, 2**31) for each opened or reset view.")
 
 
+def _image_seed(seed: int, count: int) -> int:
+    """Return the seed of a view's image ``count`` (from 0) in the episode that starts from ``seed``.
+
+    Episode seeds of neighbouring views and episodes differ by small integers, so ``seed + count`` would give a view
+    the noise of another view's or episode's image, and identical images for identical controls. Later images take
+    a hash of the episode seed and the image count instead.
+    """
+    if count == 0:
+        return seed
+    digest = hashlib.blake2b(f"{seed}:{count}".encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "little") % 2**31
+
+
 class _SentStep(NamedTuple):
     """A step sent to a service, whose reply is outstanding."""
 
@@ -438,9 +452,10 @@ class _CosmosStream:
     def _single_frame_step(self, frames: list[int], reset_rows: tuple[int, ...], seeds: tuple[int, ...]) -> dict:
         """Return a single-frame step's service request fields: every view restarts with one frame.
 
-        ``reset_rows`` names the views starting a new environment episode, with its seed. Every other generation of a
-        view continues from that seed, one step per image. A view's new episode moves to its next prompt, unless the
-        ending episode was the view's first and generated only its first image (the environment's initial reset).
+        ``reset_rows`` names the views starting a new environment episode, with its seed. A view's first image of the
+        episode uses that seed and later images a seed derived from it (see :func:`_image_seed`). A view's new episode
+        moves to its next prompt, unless the ending episode was the view's first and generated only its first image
+        (the environment's initial reset).
         """
         if any(count != 1 for count in frames):
             raise ValueError("Single-frame Cosmos sends one frame per view.")
@@ -459,7 +474,7 @@ class _CosmosStream:
         else:
             fields = {
                 "reset_rows": tuple(range(len(frames))),
-                "seeds": tuple((seed + count) % 2**31 for seed, count in zip(self._view_seeds, self._view_frames)),
+                "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
             }
             if new_prompt:
                 prompts = [
