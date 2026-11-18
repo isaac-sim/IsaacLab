@@ -469,18 +469,6 @@ def entity_point(
     return position + quat_apply(orientation, offset.expand_as(position))
 
 
-def teacher_labels(env: ManagerBasedEnv, points: torch.Tensor, action_name: str = "gaze") -> torch.Tensor:
-    """The teacher's gaze action toward world points and its validity, shape (num_envs, 3).
-
-    A training label, never a policy input. Tasks whose target changes, for example from an object to a goal once
-    the object is grasped, choose the points and call this.
-    """
-    term: GazeAction = env.action_manager.get_term(action_name)
-    labels, values = term._teacher_labels(wp.from_torch(points.float().contiguous(), dtype=wp.vec3f))
-    _log_teacher(env, values)
-    return labels
-
-
 def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
     """Log the mean gaze error to valid targets and the fraction of valid targets."""
     # Loggers keep each step's entries, so they get a copy rather than the buffer the next step overwrites.

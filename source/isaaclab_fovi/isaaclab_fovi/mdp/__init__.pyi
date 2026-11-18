@@ -14,7 +14,6 @@ __all__ = [
     "gaze_teacher_labels",
     "motor_action_l2",
     "random_gaze",
-    "teacher_labels",
 ]
 
 from .gaze import (
@@ -27,6 +26,5 @@ from .gaze import (
     gaze_teacher_labels,
     motor_action_l2,
     random_gaze,
-    teacher_labels,
 )
 from .gaze_cfg import GazeActionCfg

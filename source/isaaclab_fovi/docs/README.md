@@ -120,8 +120,7 @@ physical camera's image at the current gaze.
 - `gaze_state`: the gaze, in field radii, and its velocity, in field radii per
   second.
 - `gaze_teacher_labels`: a teacher's gaze action toward a point fixed to an
-  asset, and whether that point is a valid target. `teacher_labels` takes any
-  world points, for a task whose target changes during an episode.
+  asset, and whether that point is a valid target.
 - `motor_action_l2`: the stock action penalty without the gaze.
 
 `isaaclab_fovi.rsl_rl.GazeSupervisedPPOCfg` trains PPO with an added loss that
