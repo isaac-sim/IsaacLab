@@ -1,6 +1,6 @@
-# Cosmos Transfer demo setup and training
+# Cosmos Transfer Shadow Hand demo
 
-Run the Shadow Hand camera task with Cosmos3-Nano-Sim-Transfer using the setup below.
+Train the Shadow Hand camera task on images that Cosmos3-Nano-Sim-Transfer generates from the camera's depth.
 It uses the public [Cosmos Framework](https://github.com/NVIDIA/cosmos-framework) and the
 public [nvidia/Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer)
 checkpoint.
@@ -18,8 +18,8 @@ Isaac Lab environments separate. The demo requires **48 GB of VRAM for one
 environment**, with approximately **8 GB more for each additional environment**.
 Choose hardware with enough VRAM before increasing `--num_envs`.
 
-For service options and camera configuration, see [Serving Cosmos](cosmos_service.md)
-and [Cosmos camera integration](cosmos.md).
+To put Cosmos on another camera task or change the service's options, see
+[Cosmos camera integration](cosmos.md).
 
 ## 1. Set paths
 
@@ -87,7 +87,7 @@ uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" 2>&1 |
 Wait for `Cosmos ready at ...` before starting training. Leave this terminal
 running; its output is also saved in `server.log` in the Framework checkout.
 
-## 5. Start Isaac Lab training in terminal 2
+## 5. Train in terminal 2
 
 Set the path variables to the same absolute paths as in terminal 1, then run:
 
@@ -107,14 +107,29 @@ uv run isaaclab train \
 ```
 
 The Cosmos task sends camera depth to the service and uses the generated RGB
-images for training. This command runs 20 training iterations with one environment. With more
-environments, `env.cosmos.prompt` takes one prompt per environment; see
-[Several environments](cosmos.md#several-environments).
+images for training. This command runs 20 training iterations with one environment; use
+`--max_iterations 1` for a short smoke run. With more environments, `env.cosmos.prompt` takes one prompt per
+environment; see [Several environments](cosmos.md#several-environments).
 
-## 6. Optional: record a video
+## 6. Play a trained policy
 
-After the previous training process exits, run this command in the Isaac Lab
-terminal to train again while recording 300 steps of the Newton GL streaming view:
+The task trains its feature extractor from the generated images, so published feature-extractor checkpoints for
+the default `120 x 120`, seven-channel camera do not fit its `640 x 640`, three-channel input, and the task does not
+fall back to them. Play a policy checkpoint from a Cosmos training run, with its `cnn_*.pth` feature-extractor
+checkpoint kept in the run's log directory:
+
+```bash
+uv run isaaclab play \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
+  --rl_library rsl_rl \
+  --checkpoint /path/to/cosmos-run/model_99.pt \
+  --num_envs 1
+```
+
+## 7. Optional: record a video
+
+After the previous process exits, run this command in the Isaac Lab terminal to train again while
+recording 300 steps of the Newton GL streaming view:
 
 ```bash
 cd "$ISAAC_LAB"
@@ -129,5 +144,46 @@ uv run --extra video isaaclab train \
 ```
 
 Without a screen, run `unset DISPLAY` before the recording command. The training
-process prints the recording's output directory. Press Ctrl+C in terminal 1 when
-finished to stop the Cosmos service and release the model.
+process prints the recording's output directory. To record the camera image the policy sees instead, use
+`--video sensor:tiled_camera:rgb`: it records environment 0, including the held frames between Cosmos updates.
+Press Ctrl+C in terminal 1 when finished to stop the Cosmos service and release the model.
+
+## The task
+
+`Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct` and `Isaac-Reorient-Cube-Shadow-Camera-Cosmos` are the Direct
+task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task `Isaac-Reorient-Cube-Shadow-Camera`
+with the same Cosmos camera. They live in `isaaclab_experimental.cosmos.tasks` and reuse the core tasks, which do
+not import Cosmos and keep their existing camera. The package registers them through the `isaaclab.tasks` entry
+point, so `isaaclab train` and `isaaclab play` find them by name; reinstall the environment (`uv sync`) once if the
+names are not found. Both use one environment unless `--num_envs` sets more.
+
+- **Camera:** a `640 x 640` RGB camera with depth controls covering `0.1` to `1.5` meters, a prompt describing a
+  Shadow Hand manipulating a cube, and the default endpoint.
+- **Timing:** like the task's other cameras, it captures every environment step, 60 times per second of simulation
+  time. After the initial generated frame, Cosmos updates every four captures, so fresh images arrive at 15 Hz of
+  simulation time; generation latency sets how long those captures take. The 10-second episode requests 601
+  frames: one capture per step, plus the initial capture.
+- **Capturing less often:** with one environment, `env.scene.tiled_camera.update_period=0.1` captures at 10 Hz
+  (101 frames), with fewer Cosmos requests and images that change less often. Several environments need a capture
+  every step: environments that reset at different times would otherwise capture on different steps, and the
+  feature extractor pairs each new image with the current cube pose.
+- **Rendering:** the task requires `scene.lazy_sensor_update=True` and synchronous rendering so each image stays
+  aligned with its simulation state. With OVRTX, set `env.scene.tiled_camera.renderer_cfg.async_rendering=False`.
+- **Supervision:** while an image is held, its supervised cube-pose target is held too: each environment's target
+  is the cube pose of the step its image appeared, kept until that image changes. An environment showing black
+  after a reset is left out of the loss until its next image.
+
+The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, set with ordinary Isaac Lab
+overrides:
+
+| Option | Override |
+|---|---|
+| Prompt | `env.cosmos.prompt=<text>` |
+| Prompt per environment | `env.cosmos.prompt="['<text>', '<text>']"` |
+| Prompt files | `env.cosmos.prompt_files="['prompts/*.json']"` |
+| Service endpoint | `env.cosmos.endpoint=<url>` |
+| Transport | `env.cosmos.transport=socket` |
+
+For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct
+env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options keep the task's values, and the overrides
+keep its image size, tensor processors, and feature-extractor supervision.

@@ -1,44 +1,139 @@
 # Cosmos camera integration
 
-`isaaclab_experimental.cosmos` connects camera tensor processors to a resident Cosmos
-Sim-Transfer service. Run Isaac Lab with a camera configured to connect to the
-service's endpoint. Training uses the existing Isaac Lab environment and command.
+`isaaclab_experimental.cosmos` puts Cosmos3-Nano-Sim-Transfer on Isaac Lab cameras. The camera's tensor processors
+send a control image, depth by default, to a Cosmos service running in its own environment, and publish the image
+Cosmos generates as the camera's `rgb`. Training uses the existing Isaac Lab environment and commands.
 
-For the demo's dependency setup and its single-environment training
-and recording commands, follow the [Cosmos Transfer demo walkthrough](cosmos_transfer.md).
+For a step-by-step run, follow the [Shadow Hand demo](cosmos_transfer.md). This page covers serving Cosmos, putting
+it on your own camera task, and running it with several environments, cameras, and GPUs.
 
-## Connect to a running service
+## Serve Cosmos
 
-Start a compatible streaming service using the separate
-[Cosmos service setup guide](cosmos_service.md), or use an endpoint provided by the
-service operator. The default camera endpoint is the server's default: on Linux the Unix socket
-`/tmp/isaaclab-cosmos-<uid>.sock`, which only your user can open, and `tcp://127.0.0.1:5555` on Windows.
-The public Framework's Ray HTTP server has a different interface and cannot be
-used as this camera endpoint.
+The service runs in a Cosmos Framework environment, separate from Isaac Lab's, and keeps the model loaded between
+camera sessions. It uses Cosmos Framework for inference and the standalone `isaaclab-cosmos` package, the Cosmos
+directory of the Isaac Lab checkout, for the camera-session protocol. It does not need the `isaaclab` or
+`isaaclab_experimental` distributions, Isaac Sim, or a running simulation.
 
-In a second terminal, use the normal Isaac Lab environment and checkout. The camera
-client is included in `isaaclab_experimental`; it does not require Cosmos Framework
-or a separate `isaaclab-cosmos` install in the training environment.
+Cosmos Framework also provides a native
+[Ray serving interface](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/faq.md#q-how-do-i-run-online-inference-with-ray).
+That service accepts HTTP generation requests and returns output files, so it cannot be a camera endpoint. The
+server below supplies the incremental camera interface, over a Unix socket on the same machine or TCP from another
+machine.
 
-Check readiness:
+### Install the server
+
+Prepare a Cosmos Framework checkout and a supported CUDA environment using its
+[official setup guide](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/setup.md).
+The service was tested with Framework commit `001fe1835d3b9a987bd29c521a4bd2fa6b454066`;
+check it out before `uv sync --locked`, which installs the dependencies that commit locks.
+The CUDA 13.0 group used below requires Python 3.13 and Torch 2.10; the Isaac Lab environment uses Python 3.12 and
+Torch 2.11. Framework owns its Torch, CUDA, and compiled model dependencies.
+
+In the server terminal, set these variables to your absolute paths. The server commands on this page use them; set
+them again when opening a new terminal.
+
+```bash
+export ISAAC_LAB_ROOT=/absolute/path/to/IsaacLab
+export COSMOS_FRAMEWORK_ROOT=/absolute/path/to/cosmos-framework
+export COSMOS_CHECKPOINT=/absolute/path/to/Cosmos3-Nano-Sim-Transfer
+```
+
+Create the Framework environment, install **only the Cosmos directory** into it, and download the
+[Cosmos3-Nano-Sim-Transfer checkpoint](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer):
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+uv sync --locked --all-extras --group=cu130-train
+uv run --no-sync uv pip install --editable \
+  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer --local-dir "$COSMOS_CHECKPOINT"
+```
+
+`uv run` uses the Framework environment without shell activation. The editable install provides
+`isaaclab-cosmos-server` from your checkout; keep the checkout in place. Use `--no-sync` on later Framework commands
+to preserve the separately installed package; if you run `uv sync` again, repeat the install.
+
+The checkpoint directory must contain the weights and complete model configuration metadata, including a
+`config.json` with a `model` section for an unregistered HF export, with model classes and configuration aliases
+that the Framework revision understands. An `Unknown Cosmos target alias` or `Unknown Cosmos type alias` error means
+the checkpoint needs compatible metadata or a matching Framework revision. Installing the service package does not
+convert the checkpoint.
+
+### Start the server
+
+Follow Framework's
+[library-path setup](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/setup.md#environment-variables)
+to avoid conflicting host libraries, then start the server. For an eager inference launch:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+export LD_LIBRARY_PATH=
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --no-compile --warmup
+```
+
+Wait for `Cosmos ready at unix:///tmp/isaaclab-cosmos-<uid>.sock`, then leave this terminal running. The server
+listens on that Unix socket, which only your user can open; it opens no network port. The worker reserves the
+endpoint before loading the model once on `cuda:0`, so a conflicting endpoint fails immediately, and accepts
+requests after model loading and warmup.
+
+- `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph path, which can take additional
+  time on its first use.
+- `--warmup` runs a disposable one-view session through the full history window (`1 + 4 * --kv-window` frames, 121
+  by default) before reporting readiness. No camera has connected yet, so it warms the recipe's default
+  `(480, 832)` canvas. With compiled inference, a session with another canvas, view count, or prompt compiles again
+  on its first step, while the warmup's compiled state keeps its GPU memory. Use `--warmup` for one camera on the
+  `(480, 832)` canvas; otherwise omit it to accept requests after model loading.
+- `--kv-window N` and `--attention-sink M` set the generation history the model attends to, in latent frames (four
+  video frames each). The defaults, 30 and 3, follow the Sim-Transfer recipe. A shorter window is faster and needs
+  less memory, especially with several environments, but remembers less of each episode.
+- `--device cuda:1` runs the model on another GPU; see [Cosmos on another GPU](#cosmos-on-another-gpu).
+- `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` serves another endpoint, for example TCP
+  for Isaac Lab on another machine; see [Endpoints and transports](#endpoints-and-transports).
+
+The server sets no episode length or view count: each camera session requests its own frame budget (see
+[Episode frame budget](#episode-frame-budget)) and number of views (see [Several environments](#several-environments)).
+The equivalent module entrypoint is `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the
+same arguments. Press Ctrl+C in the server terminal to stop the service and release the model.
+
+### Connect Isaac Lab
+
+In a second terminal, use the normal Isaac Lab environment and checkout. The camera client is included in
+`isaaclab_experimental`; it does not need Cosmos Framework or a separate `isaaclab-cosmos` install. Check readiness:
 
 ```bash
 cd /absolute/path/to/IsaacLab
 uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
-A successful response contains `"ready": true` and the model's capabilities. Check
-that `"session_active": false` before connecting: this service supports one active
-camera session. Wait for the service to finish loading and warming up before
-starting training.
-For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` to
-`status` and set the camera's `CosmosModelCfg.endpoint` to the same address.
+A ready service reports `"ready": true` and the model's capabilities. Check that `"session_active": false` before
+connecting: the service runs one active camera session, so close another camera or Isaac Lab process first. The
+default camera endpoint is the server's default: on Linux the Unix socket `/tmp/isaaclab-cosmos-<uid>.sock`, and
+`tcp://127.0.0.1:5555` on Windows. For another endpoint, pass the same `--endpoint` to `status` and set the camera's
+`CosmosModelCfg.endpoint` to it.
+
+Resetting or closing a camera clears its generation history while keeping the model loaded. Closing Isaac Lab
+leaves the service running for the next command.
+
+### Client and server packages
+
+The implementation has three boundaries:
+
+| Package or module | Responsibility | Environment |
+| --- | --- | --- |
+| `isaaclab_experimental.cosmos.client` | Camera controls, frame queues, requests, resets, and RGB publication | Isaac Lab |
+| `isaaclab_experimental.cosmos.server` | Checkpoint loading, inference, serving, and process startup | Cosmos Framework |
+| `isaaclab_experimental.cosmos._protocol` | Shared socket message format and endpoints | Both |
+
+The server imports the shared protocol and its inference adapter without the full `isaaclab` or
+`isaaclab_experimental` distributions, and starting it does not import the camera client. The client uses Isaac
+Lab's Torch and NumPy dependencies without importing Cosmos Framework or loading model weights. The top-level
+`isaaclab_experimental.cosmos` package also exports the camera client API for existing task configurations.
 
 ## Put Cosmos on a camera task
 
-Cosmos goes on a camera through the task's configuration. The Shadow Hand camera tasks have Cosmos versions (see
-"Run the Shadow Hand camera task"), and their options are ordinary Isaac Lab overrides of `env.cosmos`.
-For any other compatible camera task, replace its camera with `cosmos_camera` in the task's configuration.
+Cosmos goes on a camera through the task's configuration: replace the task's camera with `cosmos_camera`. The
+[Shadow Hand demo](cosmos_transfer.md)'s tasks are built this way, and their options are ordinary Isaac Lab
+overrides of `env.cosmos` (see [the task](cosmos_transfer.md#the-task)).
 
 `cosmos_camera` takes the task's camera that publishes only `rgb`, renders it at a Cosmos canvas with the same aspect
 ratio and view, generates with Cosmos, and scales the result back to the camera's size, so the policy's observation
@@ -85,7 +180,7 @@ Requirements:
 - Without a `prompt`, Cosmos runs without a scene description.
 
 Tasks that train an image encoder from a pretrained checkpoint may need their own configuration, as the Shadow Hand
-Cosmos tasks below do, because the encoder sees new images.
+Cosmos tasks do (see [the task](cosmos_transfer.md#the-task)), because the encoder sees new images.
 
 ## Depth control and prompts
 
@@ -96,112 +191,6 @@ control, mapped to white (near) through black (far).
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
 lighting, and camera usually follows the control more closely).
-
-## Run the Shadow Hand camera task
-
-`Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct` and `Isaac-Reorient-Cube-Shadow-Camera-Cosmos` are the Direct
-task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task `Isaac-Reorient-Cube-Shadow-Camera`
-with the same Cosmos camera. They live in `isaaclab_experimental.cosmos.tasks` and reuse the core tasks, which do
-not import Cosmos. The package registers them through the `isaaclab.tasks` entry point, so `isaaclab train` and
-`isaaclab play` find them by name; reinstall the environment (`uv sync`) once if the names are not found.
-
-Both tasks use one environment unless `--num_envs` sets more; see [Several environments](#several-environments).
-
-After `status` reports readiness, run a Cosmos task:
-
-```bash
-uv run isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
-  --rl_library rsl_rl \
-  --num_envs 1 \
-  --max_iterations 100
-```
-
-This runs 100 training iterations. Use `--max_iterations 1` for a short training
-smoke run. Recording also requires
-the `video` extra:
-
-```bash
-uv run --extra video isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
-  --rl_library rsl_rl \
-  --num_envs 1 \
-  --max_iterations 100 \
-  --video sensor:tiled_camera:rgb \
-  --video_length 100
-```
-
-The recording reads the camera's generated RGB, including held frames between
-Cosmos updates.
-
-The task selects a `640 x 640` RGB camera and depth controls
-covering `0.1` to `1.5` meters. Its prompt describes a Shadow Hand manipulating a
-cube, and it connects to the default endpoint. Like the task's other cameras, it
-captures every environment step, 60 times per second of simulation time. After the
-initial generated frame, Cosmos updates every four captures, so fresh generated
-observations arrive at 15 Hz of simulation time. Generation latency determines the
-elapsed time needed to run those captures.
-The task keeps its 10-second episode length and requests 601 frames: one capture per step, plus the initial capture.
-For fewer Cosmos requests with one environment, capture less often, for example
-`env.scene.tiled_camera.update_period=0.1` (10 Hz, 101 frames); generated images then change less often. Training
-with several environments needs a capture every step: environments that reset at different times would otherwise
-capture on different steps, and the feature extractor pairs each new image with the current cube pose.
-The task requires `scene.lazy_sensor_update=True` and synchronous rendering so
-each image remains aligned with its simulation state. With OVRTX, set
-`env.scene.tiled_camera.renderer_cfg.async_rendering=False` on the command line.
-
-The Cosmos task trains its feature extractor from generated RGB. While an image
-is held, its supervised cube-pose target is held too: each environment's target is
-the cube pose of the step its image appeared, kept until that image changes. An
-environment showing black after a reset is left out of the loss until its next image. Published
-feature-extractor checkpoints for the default `120 x 120`, seven-channel camera
-are incompatible with this `640 x 640`, three-channel input, so the task disables
-that pretrained fallback. For playback, use a policy checkpoint from a Cosmos
-training run and keep its corresponding `cnn_*.pth` feature-extractor checkpoint
-in the run's log directory.
-
-```bash
-uv run isaaclab play \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
-  --rl_library rsl_rl \
-  --checkpoint /path/to/cosmos-run/model_99.pt \
-  --num_envs 1
-```
-
-The core tasks without `-Cosmos` in their names keep their existing camera configuration.
-
-The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, and they are set with ordinary
-Isaac Lab overrides:
-
-| Option | Override |
-|---|---|
-| Prompt | `env.cosmos.prompt=<text>` |
-| Prompt per environment | `env.cosmos.prompt="['<text>', '<text>']"` |
-| Service endpoint | `env.cosmos.endpoint=<url>` |
-| Transport | `env.cosmos.transport=socket` |
-
-For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct
-env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options preserve the task's values, and the overrides keep its
-image size, tensor processors, and feature-extractor supervision.
-
-## Client and server packages
-
-The implementation has three boundaries:
-
-| Package or module | Responsibility | Environment |
-| --- | --- | --- |
-| `isaaclab_experimental.cosmos.client` | Camera controls, frame queues, requests, resets, and RGB publication | Isaac Lab |
-| `isaaclab_experimental.cosmos.server` | Checkpoint loading, inference, serving, and process startup | Cosmos Framework |
-| `isaaclab_experimental.cosmos._protocol` | Shared socket message format and endpoints | Both |
-
-The standalone `isaaclab-cosmos` distribution installs only the Cosmos directory
-into the Framework environment. The server imports the shared protocol and its
-inference adapter without requiring the full `isaaclab` or `isaaclab_experimental`
-distributions. Follow [Cosmos service setup](cosmos_service.md) to install it.
-
-The client uses Isaac Lab's Torch and NumPy dependencies without importing Cosmos
-Framework or loading model weights. The top-level `isaaclab_experimental.cosmos`
-package also exports the camera client API for existing task configurations.
 
 ## Configure another camera task
 
@@ -560,6 +549,55 @@ a sliding history window; longer episodes still need quality and memory validati
 The service also tells the model the images' frame rate, `CosmosModelCfg.fps`, 30 by default as in the Sim-Transfer
 recipe. A task whose prompt and settings were calibrated at another rate sets it; it need not equal the capture rate.
 
-See [Image transfer for camera images](image_transfer.md) for the underlying model
-contract and camera scheduling. Service shutdown and
-environment setup are covered in [Cosmos service setup](cosmos_service.md).
+## Image transfer
+
+Cosmos is built on `isaaclab_experimental.image_transfer`, which connects an application-owned image-generation
+model to cameras through tensor processors. It does not load models, download assets, or select a network
+transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `FunctionProcessorCfg` with
+`depth_to_control` prepares the control:
+
+```python
+from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTransferProcessorCfg, depth_to_control
+
+wrist_camera = CameraCfg(
+    ...,
+    data_types=["rgb"],
+    tensor_processors=[
+        FunctionProcessorCfg(
+            function=depth_to_control,
+            params={"near": 0.2, "far": 12.0},
+            inputs=["distance_to_image_plane"],
+            outputs=["control"],
+        ),
+        ImageTransferProcessorCfg(backend=MyModelCfg(), initial_frames=1, update_frames=4),
+    ],
+)
+```
+
+- **Model contract:** `backend` is a `BackendCfg` whose `class_type` builds an `ImageTransferModel`. Equal
+  configurations share one model through `SimulationContext.get_or_create_backend`, so the model holds only shared
+  resources such as weights; without a simulation context, the processor builds and owns the model. Each processor
+  opens its own `ImageTransferStream` with `open_stream(num_views, seeds)`, which holds the temporal state of its
+  views. `ImageTransferStream.step(controls, reset_rows, seeds)` receives one owned uint8 THWC three-channel control
+  sequence per view and returns uint8 sRGB images with the same sequence lengths and image size, with no implicit
+  crop or resize. Calls run on the current Torch stream, and returned tensors must be ready on it. `close()` must be
+  idempotent; the camera closes its processors, and with them their streams, when it is released.
+- **Scheduling:** `initial_frames` and `update_frames` set the first and later chunk sizes, both one by default. The
+  output holds the last generated image until the next chunk, so larger chunks add observation age as well as
+  latency. Every view needs a complete chunk before a chunk is generated, and `max_pending_frames` bounds each
+  view's queue. The camera passes `env_mask` to the processor, which queues controls only for the views captured in
+  each call.
+- **Resets:** resetting a view clears its queued controls and its visible image. Its next chunk uses the initial
+  size, and `step` receives the view index and a new deterministic seed: view `i` starts from `seed + i`, or from
+  `seed[i]` when `seed` lists one seed per view, and each reset advances it by the number of views, modulo `2**31`.
+  The stream must discard all episode state for those views. An exception or invalid result marks the processor as
+  failed; recreate the camera instead of retrying against a stream that may already have advanced.
+- **Controls:** `depth_to_control` maps metric depth to near-white, far-black controls; missing, nonfinite, and
+  nonpositive depth becomes black. Any processor that produces uint8 `(N, H, W, 3)` controls under the image
+  transfer processor's first input can take its place.
+
+The image transfer tests run the processors on CPU with small stand-in models and need no model or service:
+
+```bash
+uv run python -m pytest source/isaaclab_experimental/test/sensors/test_image_transfer.py
+```
