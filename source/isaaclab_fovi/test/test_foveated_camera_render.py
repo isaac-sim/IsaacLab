@@ -46,5 +46,10 @@ def test_gaze_stays_relative_to_a_moved_mount(backend):
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
+def test_gaze_survives_a_position_only_move(backend):
+    cases.gaze_survives_a_position_only_move(BACKENDS[backend])
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
 def test_foveated_camera_samples_densest_at_the_fixation(backend):
     cases.foveated_camera_samples_densest_at_the_fixation(BACKENDS[backend])

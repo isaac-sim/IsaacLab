@@ -13,6 +13,7 @@ import warp as wp
 from fovi.sensing.coords import SamplingCoords
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
+from isaaclab_fovi.sensors.pooling import ModalPooler
 
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData
@@ -120,6 +121,77 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     assert camera._data.output["rgba"] is public_rgba
     torch.testing.assert_close(camera._data.output["rgb"].torch, expected[..., :3], rtol=0, atol=0)
     assert camera._data.output["rgb"].warp.ptr == public_rgba.warp.ptr
+
+
+def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatch) -> None:
+    """A pooled camera's segmentation output holds each sample's majority label exactly, IDs above 2**24 included."""
+    coords = SamplingCoords(60.0, 0.591, 16, style="warped_cartesian_as_grid", field_geometry="spherical", device="cpu")
+    highres = coords.clone(resolution=32)
+    runs = torch.arange(len(coords))
+    # Each pooled sample's neighbours are a run of four rendered samples, nearest first.
+    neighbors = torch.stack([4 * runs + j for j in range(4)])
+    average = torch.nn.AdaptiveAvgPool1d(len(coords))
+
+    def build_pooler(cfg, lowres, high, device, mode=None):
+        return (ModalPooler(neighbors, len(highres)) if mode == "mode" else average), 4
+
+    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
+    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
+    monkeypatch.setattr(newton_camera, "build_pooler", build_pooler)
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", lambda self: None)
+
+    def initialize_renderer(camera):
+        size = (2, camera.cfg.height, camera.cfg.width)
+        camera.renderer_rgba = torch.zeros((*size, 4), dtype=torch.uint8)
+        camera.renderer_labels = torch.zeros((*size, 1), dtype=torch.int32)
+        camera._data = SimpleNamespace(
+            output={
+                "rgba": ProxyArray(wp.from_torch(camera.renderer_rgba)),
+                "semantic_segmentation": ProxyArray(wp.from_torch(camera.renderer_labels)),
+            }
+        )
+        camera._render_data = SimpleNamespace(camera_rays=None)
+        camera._renderer = SimpleNamespace(cleanup=lambda render_data: None)
+
+    # In each run, three samples share a label above 2**24 and one differs; float32 would merge neighbouring labels.
+    majority = 2**24 + 1 + 2 * runs
+    labels = majority[:, None].repeat(1, 4)
+    labels[:, 2] = 2**30 + runs
+    labels = torch.stack((labels.reshape(-1), (labels + 7).reshape(-1)))
+
+    def render(camera, env_mask):
+        camera.renderer_labels.copy_(labels.to(torch.int32).reshape(camera.renderer_labels.shape))
+
+    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    camera = object.__new__(FoveatedNewtonCamera)
+    camera._device = "cpu"
+    camera.cfg = SimpleNamespace(
+        foveated_style="warped_cartesian_as_grid",
+        mask_to_sensor_fov=False,
+        pool_enabled=True,
+        pool_mode="avg",
+        pool_int_mode="mode",
+        pool_sample_cortex=False,
+        image_rotation_deg=0,
+        data_types=["rgba", "semantic_segmentation"],
+        renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
+    )
+    camera._initialize_impl()
+    camera._update_buffers_impl(None)
+
+    # The modal label of each run after the footprint mask zeroes samples outside the retina, ties to the nearest.
+    rendered = labels.clone()
+    rendered[:, ~highres.valid_mask] = 0
+    expected = torch.zeros(2, len(coords), dtype=torch.int64)
+    for env in range(2):
+        for sample in range(len(coords)):
+            run = rendered[env, 4 * sample : 4 * sample + 4].tolist()
+            expected[env, sample] = max(run, key=lambda label: (run.count(label), -run.index(label)))
+    published = camera._data.output["semantic_segmentation"].torch
+    assert published.dtype == torch.int32
+    torch.testing.assert_close(published[..., 0].long(), coords.as_grid(expected, sample_dim=1), rtol=0, atol=0)
+    assert camera.image_shape == (16, 16) and camera._data.image_shape == (16, 16)
 
 
 @pytest.mark.parametrize("size, valid", [(83, False), (100, False), (128, True)])

@@ -117,7 +117,8 @@ def _render(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
 
-    With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set.
+    With ``moved_mount`` (eye, target), the last environment's camera is moved there after its gaze is set; a target
+    of None moves only its position.
     With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders one more frame.
 
     Returns:
@@ -143,7 +144,8 @@ def _render(
             last = len(gaze) - 1
             eye, target = moved_mount
             position = scene.env_origins[last : last + 1] + torch.tensor([eye], device=sim.device)
-            orientation = torch.tensor([_look_at(eye, target)], device=sim.device)
+            # Without a target, only the position moves and the mount keeps its orientation.
+            orientation = None if target is None else torch.tensor([_look_at(eye, target)], device=sim.device)
             camera.set_world_poses(position, orientation, env_ids=[last], convention="opengl")
         for _ in range(WARMUP_STEPS):
             sim.step()
@@ -206,6 +208,20 @@ def gaze_stays_relative_to_a_moved_mount(backend: tuple):
     gaze = torch.tensor([[0.0, -10.0], [0.0, -10.0]])
     eye, target = (0.3, -0.4, 3.2), (2.0, 0.3, 0.0)
     distance, field = _render(backend, gaze, moved_mount=(eye, target))
+
+    row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
+    assert float(distance[0, row, column]) == pytest.approx(_ground_distance_along_gaze(0.0, -10.0), rel=0.01)
+    assert float(distance[1, row, column]) == pytest.approx(
+        _ground_distance_along_gaze(0.0, -10.0, eye, target), rel=0.01
+    )
+
+
+def gaze_survives_a_position_only_move(backend: tuple):
+    """Moving only a camera's position keeps its orientation, so the gaze is not applied a second time."""
+    gaze = torch.tensor([[0.0, -10.0], [0.0, -10.0]])
+    eye = (0.4, -0.3, 3.0)
+    target = tuple(e + t - c for e, t, c in zip(eye, CAM_TARGET, CAM_EYE))
+    distance, field = _render(backend, gaze, moved_mount=(eye, None))
 
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
     assert float(distance[0, row, column]) == pytest.approx(_ground_distance_along_gaze(0.0, -10.0), rel=0.01)

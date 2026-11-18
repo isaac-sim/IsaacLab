@@ -46,5 +46,9 @@ def test_gaze_stays_relative_to_a_moved_mount():
     cases.gaze_stays_relative_to_a_moved_mount(BACKEND)
 
 
+def test_gaze_survives_a_position_only_move():
+    cases.gaze_survives_a_position_only_move(BACKEND)
+
+
 def test_foveated_camera_samples_densest_at_the_fixation():
     cases.foveated_camera_samples_densest_at_the_fixation(BACKEND)
