@@ -127,10 +127,10 @@ def test_vbd_solver_force_input_capability():
     "overrides",
     [
         {},
-        {"rigid_compliant_alm": False, "friction_epsilon": 1.0e-3},
+        {"friction_epsilon": 1.0e-3},
         {"rigid_contact_history": True, "rigid_avbd_contact_alpha": 0.25},
     ],
-    ids=["defaults", "legacy", "contact-history"],
+    ids=["defaults", "explicit", "contact-history"],
 )
 def test_vbd_rigid_solver_controls(overrides):
     """VBD configuration preserves native defaults and forwards explicit controls."""
@@ -143,7 +143,6 @@ def test_vbd_rigid_solver_controls(overrides):
     native_solver = SolverVBD(model, **overrides)
     configured_solver = physics.VBDSolver(physics.VBDSolverCfg(**overrides), model, NOT_GUARANTEED).native
     for name in (
-        "rigid_compliant_alm",
         "rigid_joint_linear_ke",
         "rigid_joint_angular_ke",
         "friction_epsilon",
@@ -160,7 +159,7 @@ def test_vbd_contact_history_initializes_matches_and_resets(device):
     body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.09)))
     builder.add_shape_sphere(body=body, radius=0.1)
     builder.color()
-    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True)
+    solver_cfg = physics.VBDSolverCfg(rigid_contact_history=True)
     collision_cfg = physics.NewtonCollisionPipelineCfg(broad_phase="nxn")
     manager = NewtonManager(NewtonCfg(solver_cfg=solver_cfg, collision_cfg=collision_cfg))
     manager._device = device
@@ -221,9 +220,8 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.add_articulation([joint])
     builder.color()
     model = builder.finalize(device="cpu")
-    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
+    solver_cfg = physics.VBDSolverCfg(rigid_body_contact_buffer_size=256)
     solver = physics.VBDSolver(solver_cfg, model, NOT_GUARANTEED).native
-    assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
     state_0, state_1 = model.state(), model.state()
@@ -254,7 +252,7 @@ def test_vbd_structural_joint_stiffness_under_load():
     model = builder.finalize(device="cpu")
     linear_ke, angular_ke = 1.0e3, 1.0e2
     solver_cfg = replace(
-        physics.VBDSolverCfg(rigid_compliant_alm=True, iterations=15),
+        physics.VBDSolverCfg(iterations=15),
         rigid_joint_linear_ke=linear_ke,
         rigid_joint_angular_ke=angular_ke,
     )

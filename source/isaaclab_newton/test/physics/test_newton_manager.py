@@ -345,7 +345,9 @@ def _recording_backend(
 # ----- Solver initialization and contacts ----------------------------------------------------
 
 
-@pytest.mark.parametrize("solver_cfg", [KaminoPADMMSolverCfg(), MPMSolverCfg()], ids=["kamino", "mpm"])
+@pytest.mark.parametrize(
+    "solver_cfg", [KaminoPADMMSolverCfg(), MPMSolverCfg(), MJWarpSolverCfg()], ids=["kamino", "mpm", "mjwarp"]
+)
 def test_init_solver_rejects_a_determinism_guarantee_the_solver_cannot_honor(solver_cfg):
     cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
     backend = backend_stub(cfg=cfg, model=None, deterministic_mode=newton_backend._resolve_deterministic_mode(cfg))
@@ -359,7 +361,7 @@ def test_init_solver_rejects_a_determinism_guarantee_the_solver_cannot_honor(sol
     [
         pytest.param(XPBDSolverCfg(), False, "not_guaranteed", wp.DeterministicMode.NOT_GUARANTEED, id="no_request"),
         pytest.param(XPBDSolverCfg(), True, "not_guaranteed", wp.DeterministicMode.RUN_TO_RUN, id="generic_request"),
-        pytest.param(MJWarpSolverCfg(), True, "gpu_to_gpu", wp.DeterministicMode.GPU_TO_GPU, id="explicit_mode_wins"),
+        pytest.param(XPBDSolverCfg(), True, "gpu_to_gpu", wp.DeterministicMode.GPU_TO_GPU, id="explicit_mode_wins"),
         pytest.param(
             MJWarpSolverCfg(use_mujoco_cpu=True), True, "not_guaranteed", wp.DeterministicMode.NOT_GUARANTEED, id="cpu"
         ),

@@ -440,6 +440,7 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend: OvPhysxSceneDataBackend | None = None
         self.kinematics_dirty: bool = False
         self._gravity: tuple[float, float, float] | None = None
+        self._gravity_stage: ovstage.Stage | None = None
 
     # USD plugin registries are process-wide; simulation state remains instance-owned.
     _physx_schemas_registered = False
@@ -550,6 +551,7 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         self._ensure_physx_schemas_registered()
         self._gravity = tuple(sim_context.cfg.gravity)
+        self._gravity_stage = None
         self._warmup_done = False
         self._requires_full_stage = False
         self._stage_usda = None
@@ -638,6 +640,7 @@ class OvPhysxManager(PhysicsManager):
                         self._atexit_registered = False
             finally:
                 self._stage_usda = None
+                self._gravity_stage = None
                 self._warmup_done = False
                 self._requires_full_stage = False
                 self._clone_recipes = []
@@ -673,7 +676,8 @@ class OvPhysxManager(PhysicsManager):
         The OvPhysX runtime accepts live scene changes only as sealed OvStage
         control updates. This method authors the scene's gravity direction and
         magnitude at the next control ordinal, seals it, and applies that
-        single ordinal to the running simulation.
+        single ordinal to the running simulation. Repeated values already
+        applied successfully to the current stage do not create control updates.
 
         Args:
             gravity: World-frame gravity vector [m/s^2].
@@ -689,12 +693,21 @@ class OvPhysxManager(PhysicsManager):
         if gravity_array.shape != (3,) or not np.all(np.isfinite(gravity_array)):
             raise ValueError("Gravity must contain three finite values.")
 
+        gravity_value = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
+        # Reset events may sample the same vector repeatedly. Only skip values
+        # successfully applied to this exact stage; the first request always runs.
+        if self._gravity_stage is self.backend.stage and self._gravity == gravity_value:
+            return
+
         magnitude = float(np.linalg.norm(gravity_array))
         if math.isclose(magnitude, 0.0):
             direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
         else:
             direction = (gravity_array / magnitude).reshape(1, 3)
         scene = self.backend.scene
+        # A failed native update may partially apply the change. Force a retry
+        # even if the next request matches the previously successful vector.
+        self._gravity_stage = None
         # Physics must consume only this control edit, not pending rendering/output writes.
         scene.commit()
         ordinal = scene.ordinal
@@ -708,7 +721,8 @@ class OvPhysxManager(PhysicsManager):
             ovphysx_compat.finish_stage_operation(self.backend.physx, operation)
 
         # Publish only after successful completion; a failed native update need not be atomic.
-        self._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
+        self._gravity = gravity_value
+        self._gravity_stage = self.backend.stage
 
     def get_scene_data_backend(self) -> SceneDataBackend:
         """Return the SDP backend created during initialization; native bindings are acquired lazily."""
@@ -742,6 +756,7 @@ class OvPhysxManager(PhysicsManager):
                 "Shared OVStage cloning does not support full-stage physics imports. "
                 "Disable ISAAC_LAB_SHARE_OVSTAGE for this scene."
             )
+        self._gravity_stage = None
         plan = sim.get_clone_plan()
         entries = None
         if plan is not None:

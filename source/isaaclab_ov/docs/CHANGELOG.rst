@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.2 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ovstage physics population overriding RTX exposure settings by excluding properties in the ``exposure`` namespace.
+
+
 9.1.1 (2026-11-16)
 ~~~~~~~~~~~~~~~~~~
 

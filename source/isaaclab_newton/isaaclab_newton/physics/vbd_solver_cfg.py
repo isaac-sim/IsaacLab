@@ -58,9 +58,6 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
-    rigid_compliant_alm: bool | None = None
-    """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
-
     rigid_avbd_contact_alpha: float | None = None
     """Body-body contact C0 stabilization strength [dimensionless], in [0, 1]; ``None`` uses Newton's mode default."""
 

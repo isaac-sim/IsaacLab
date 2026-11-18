@@ -13,7 +13,7 @@ import warp as wp
 from newton import CollisionPipeline, Model, ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
-from .newton_solver import NewtonSolver, solver_kwargs
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .newton_manager_cfg import NewtonCollisionPipelineCfg
@@ -51,13 +51,6 @@ class VBDSolver(NewtonSolver):
         args = collision_cfg.to_pipeline_args()
         args["deterministic"] = mode != wp.DeterministicMode.NOT_GUARANTEED
         return CollisionPipeline(model, **args)
-
-    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverVBD:
-        """Construct VBD, leaving :attr:`~VBDSolverCfg.rigid_compliant_alm` to Newton's default when unset."""
-        kwargs = solver_kwargs(self.solver_class, self.cfg, mode)
-        if self.cfg.rigid_compliant_alm is None:
-            kwargs.pop("rigid_compliant_alm", None)
-        return self.solver_class(model, **kwargs)
 
     def applies_body_forces(self) -> bool:
         return not self.cfg.integrate_with_external_rigid_solver

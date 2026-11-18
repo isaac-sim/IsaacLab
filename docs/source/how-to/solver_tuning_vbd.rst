@@ -170,10 +170,8 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``friction_epsilon``
       - Default: ``1.0e-2`` [m/s]. Relative tangential-speed threshold for smoothing friction near rest. Reducing it retains Coulomb-like friction at lower sliding speeds.
-    * - ``rigid_compliant_alm``
-      - Default: ``None``. Preserves Newton's rigid solver mode. In Newton 1.6, ``None`` selects deprecated legacy AVBD. Set to ``True`` to use compliant ALM for rigid joints and body-body contacts, or ``False`` to explicitly retain legacy AVBD.
     * - ``rigid_avbd_contact_alpha``
-      - Default: ``None``. Body-body contact C0 stabilization strength in [0, 1]. ``None`` uses Newton's mode default (``0.0`` for compliant ALM; ``0.95`` for legacy AVBD). Under ALM this does not set contact stiffness or multiplier retention.
+      - Default: ``None``. Body-body contact C0 stabilization strength in [0, 1]. ``None`` uses Newton's default (``0.0``). This does not set contact stiffness or multiplier retention.
     * - ``rigid_contact_history``
       - Default: ``False``. Warm-starts matched body-body contacts across steps. Standalone VBD requires ``NewtonCfg.collision_cfg.contact_matching`` set to ``"latest"`` or ``"sticky"`` when it integrates rigid bodies. Coupled entries that integrate rigid bodies do not support history; Newton ignores it with external rigid integration.
     * - ``rigid_joint_linear_ke``
@@ -198,26 +196,22 @@ simulation because Newton captures these material values during solver construct
 Rigid Cables
 ^^^^^^^^^^^^
 
-For new rigid-cable configurations, explicitly enable compliant ALM:
+VBD solves rigid joints and body-body contacts with compliant ALM, which uses
+finite material stiffness. Validate the cable's stretch, bend, and contact
+stiffness under the intended loads and timestep. Cables usually need more
+body-body contact capacity than the default:
 
 .. code-block:: python
 
     from isaaclab_newton.physics import VBDSolverCfg
 
-    cable_solver_cfg = VBDSolverCfg(
-        rigid_compliant_alm=True,
-        rigid_body_contact_buffer_size=256,
-    )
+    cable_solver_cfg = VBDSolverCfg(rigid_body_contact_buffer_size=256)
 
-Compliant ALM uses finite material stiffness for rigid joints and body-body
-contacts. Validate the cable's stretch, bend, and contact stiffness under the
-intended loads and timestep when switching from legacy AVBD. Increasing contact
-capacity only increases the available storage; it does not change stiffness.
+Increasing contact capacity only increases the available storage; it does not
+change stiffness.
 
 ``VBDSolverCfg`` leaves Newton's C0 stabilization parameter ``rigid_avbd_alpha``
-unset. Newton 1.6 defaults it to ``0.0`` for compliant ALM and ``0.95`` for legacy
-AVBD, for both rigid joints and body-body contacts. Setting alpha to zero alone
-does not enable ALM.
+unset, so Newton uses ``0.0`` for rigid joints and body-body contacts.
 
 Enable standalone contact history with collision matching as shown below;
 Isaac Lab clears both histories for reset worlds.
@@ -227,7 +221,7 @@ Isaac Lab clears both histories for reset worlds.
     from isaaclab_newton.physics import NewtonCfg, NewtonCollisionPipelineCfg, VBDSolverCfg
 
     physics_cfg = NewtonCfg(
-        solver_cfg=VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True),
+        solver_cfg=VBDSolverCfg(rigid_contact_history=True),
         collision_cfg=NewtonCollisionPipelineCfg(contact_matching="latest"),
     )
 

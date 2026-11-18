@@ -54,8 +54,8 @@ class NewtonSolver:
     single_state: ClassVar[bool] = False
     """Whether the solver steps in place on one :class:`newton.State`."""
 
-    deterministic: ClassVar[bool] = False
-    """Whether the solver can honor a Warp determinism guarantee."""
+    max_deterministic_mode: ClassVar[wp.DeterministicMode] = wp.DeterministicMode.NOT_GUARANTEED
+    """Strongest Warp determinism guarantee the solver can honor."""
 
     contact_sensors: ClassVar[bool] = True
     """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
