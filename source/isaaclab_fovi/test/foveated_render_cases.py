@@ -18,7 +18,6 @@ import numpy as np
 import pytest
 import torch
 from fovi.sensing.projection import angular_directions
-from isaaclab_fovi.mdp import direction_to_angles
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 
 import isaaclab.sim as sim_utils
@@ -26,10 +25,11 @@ from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.test.utils.devices import resolve_test_sim_device
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
-DEVICE = "cuda:0"
+DEVICE = resolve_test_sim_device()
 WARMUP_STEPS = 4
 RESOLUTION = 32
 
@@ -162,7 +162,9 @@ def _render(
         field = coords.as_grid(coords.cartesian, sample_dim=0).detach().cpu().float().clone()
         # Each cell's camera-frame ray (OpenCV: x right, y down, z forward) from fovi's angular projection.
         rays = angular_directions(field.double(), coords.fov)
-        return distance, field, direction_to_angles(rays).float()
+        x, y, z = rays.unbind(-1)
+        angles = torch.stack((-torch.atan2(y, torch.sqrt(x.square() + z.square())), -torch.atan2(x, z)), -1)
+        return distance, field, angles.rad2deg().float()
 
 
 def foveated_camera_follows_gaze(backend: tuple, source: str):

@@ -22,6 +22,8 @@ from isaaclab_fovi.sensors.native_grid import (
     unbounded_angular_radius,
 )
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 pytestmark = pytest.mark.kitless
 
 # Each footprint and each sensor roll once; the inverse path does not depend on the grid size.
@@ -163,10 +165,8 @@ def test_upright_grid_masks_and_channel_aliases():
 
 
 @pytest.mark.parametrize("dtype,channels", [(torch.uint8, 4), (torch.float32, 1), (torch.int32, 1)])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_output_permutation_preserves_dtype_and_captures(dtype, channels, device):
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA required")
     coords = make_coords(16).to(device=device)
     source = {
         "value": torch.arange(3 * len(coords) * channels, device=device).to(dtype).reshape(3, len(coords), 1, channels)
@@ -176,7 +176,7 @@ def test_output_permutation_preserves_dtype_and_captures(dtype, channels, device
     copy_grid_outputs(source, target, indices)
     expected = coords.as_grid(source["value"][:, :, 0], sample_dim=1)
     torch.testing.assert_close(target["value"], expected, atol=0, rtol=0)
-    if device == "cuda":
+    if torch.device(device).type == "cuda":
         torch.cuda.synchronize()
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph):

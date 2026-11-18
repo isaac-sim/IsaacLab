@@ -17,8 +17,7 @@ import warp as wp
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.warp import ProxyArray
 
-from .calibrated_geometry import retinal_directions
-from .foveated_camera import FoveatedCamera
+from .foveated_camera import OPENGL_TO_ROS_AXES, FoveatedCamera
 from .native_grid import (
     GRID_STYLE,
     allocate_grid_outputs,
@@ -26,7 +25,6 @@ from .native_grid import (
     grid_output_shape,
     grid_sample_indices,
     mask_grid_samples,
-    native_grid_directions,
     proxy_outputs,
 )
 from .pooling import build_highres_coords, build_lowres_coords, build_pooler
@@ -123,15 +121,9 @@ class FoveatedNewtonCamera(FoveatedCamera):
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )
 
-        # The rays keep the canonical sample order; image_rotation_deg rolls their directions to undo a rolled mount.
-        if self._native_grid:
-            self._ray_directions = native_grid_directions(
-                self._ray_coords, image_rotation_deg=self.cfg.image_rotation_deg
-            )
-        else:
-            self._ray_directions = retinal_directions(
-                self._ray_coords.cartesian, self._ray_coords.fov, self.cfg.image_rotation_deg
-            )
+        # The gaze geometry's rendered rays, in canonical sample order and rolled by image_rotation_deg, back in the
+        # OpenGL frame Newton traces.
+        self._ray_directions = self._gaze_rays * self._gaze_rays.new_tensor(OPENGL_TO_ROS_AXES)
         self._foveated_rays = explicit_rays(self._ray_directions, self.cfg.height, self.cfg.width)
         render_samples = self.cfg.height * self.cfg.width
         # Renderer buffers remain whole tiles; zero-copy canonical views hide
@@ -147,6 +139,17 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
         self._allocate_pooled_buffers()
         source = self._pooled_output if self._pooler is not None else self._flat_render_output
+        self._sample_output = None
+        if self._pooler is None and not self._native_grid:
+            # Newton redraws every environment, so sample sets publish a copy that changes only on update.
+            self._sample_output = {
+                name: torch.zeros_like(value.torch)
+                for name, value in self._flat_render_output.items()
+                if not (name == "rgb" and "rgba" in self._flat_render_output)
+            }
+            if "rgba" in self._sample_output and "rgb" in self._flat_render_output:
+                self._sample_output["rgb"] = self._sample_output["rgba"][..., :3]
+            source = self._sample_output
         if self._native_grid:
             self._grid_output = allocate_grid_outputs(source, self._sampling_coords)
             self._grid_indices = grid_sample_indices(self._sampling_coords)
@@ -224,8 +227,8 @@ class FoveatedNewtonCamera(FoveatedCamera):
         """Render, then mask and publish the updated environments, pooling high-resolution samples if enabled.
 
         Newton redraws every environment's render buffer, each at the pose and gaze it last received, so the sensor
-        mask covers every row with that row's gaze. The buffers the camera owns, pooled or laid out as a grid, change
-        only for the updated environments.
+        mask covers every row with that row's gaze. The published buffers, which the camera owns, change only for the
+        updated environments.
         """
         self._data.output.clear()
         self._data.output.update(self._render_output)
@@ -240,9 +243,12 @@ class FoveatedNewtonCamera(FoveatedCamera):
             if self._grid_publish:
                 self._publish_grid(env_mask)
             else:
-                # The published samples are Newton's own render buffer.
-                mask_grid_samples(self._flat_render_output, self._ray_coords)
                 self._apply_sensor_fov_mask(self._flat_render_output)
+                updated = wp.to_torch(env_mask)[:, None, None, None]
+                for name, samples in self._sample_output.items():
+                    if name == "rgb" and "rgba" in self._sample_output:
+                        continue  # rgba alias
+                    samples.copy_(torch.where(updated, self._flat_render_output[name].torch, samples))
             return
         mask_grid_samples(self._highres_output, self._ray_coords)
         self._apply_sensor_fov_mask(self._highres_output)

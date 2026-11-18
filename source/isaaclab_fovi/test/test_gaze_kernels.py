@@ -22,11 +22,13 @@ from isaaclab_fovi.sensors.gaze_kernels import (
 )
 from isaaclab_fovi.sensors.native_grid import GRID_STYLE, grid_sample_indices, native_grid_directions
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 pytestmark = pytest.mark.kitless
 
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+DEVICE = next(iter(test_devices(DeviceScope.DEFAULT_CUDA)), "cpu")
+"""The run's default GPU, or the CPU when the run selects none."""
 wp.init()
 
 CAMERAS = {

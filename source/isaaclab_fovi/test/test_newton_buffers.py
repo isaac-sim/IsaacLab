@@ -13,11 +13,37 @@ import warp as wp
 from fovi.sensing.coords import SamplingCoords
 from isaaclab_fovi.sensors import foveated_camera as base_camera
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
+from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
+from isaaclab_fovi.sensors.native_grid import native_grid_directions
 
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
+
+
+def rendered_rays_only(camera) -> None:
+    """Stand-in for the gaze geometry: only the rendered rays, in the ROS frame the camera keeps them in."""
+    coords = camera._ray_coords
+    if coords.style == "warped_cartesian_as_grid":
+        rays = native_grid_directions(coords, image_rotation_deg=0)
+    else:
+        rays = retinal_directions(coords.cartesian, coords.fov, 0)
+    camera._gaze_rays = (rays * rays.new_tensor((1.0, -1.0, -1.0))).float()
+
+
+def new_camera() -> FoveatedNewtonCamera:
+    """A Newton camera without its constructor: the state its constructor sets and the handles its destructor reads."""
+    camera = object.__new__(FoveatedNewtonCamera)
+    camera._gaze_angles = camera._gaze_rotation = camera._visibility = camera._grid_publish = None
+    camera._published_shape = camera._pooler_int = camera._segmentation_neighbors = None
+    camera._initialize_handle = None
+    camera._invalidate_initialize_handle = None
+    camera._prim_deletion_handle = None
+    camera._view = None
+    camera._renderer = None
+    camera._device = "cpu"
+    return camera
 
 
 @pytest.mark.parametrize("pooled", [False, True])
@@ -29,7 +55,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
     monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (pooler, 4))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", lambda self: None)
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
 
     def initialize_renderer(camera):
         # Newton launches image tiles; a vector-shaped width of one is not valid.
@@ -55,13 +81,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 
     monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
-    camera = object.__new__(FoveatedNewtonCamera)
-    camera._initialize_handle = None
-    camera._invalidate_initialize_handle = None
-    camera._prim_deletion_handle = None
-    camera._view = None
-    camera._renderer = None
-    camera._device = "cpu"
+    camera = new_camera()
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
@@ -79,7 +99,8 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 
     rays = wp.to_torch(camera._foveated_rays)
     assert rays.shape == (ray_coords.resolution, ray_coords.resolution, 1, 2, 3)
-    torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], camera._ray_directions)
+    expected_rays = native_grid_directions(ray_coords, image_rotation_deg=0).float()
+    torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], expected_rays)
     public_rgba = camera._data.output["rgba"]
     camera.frame_offset = 0
     camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
@@ -103,6 +124,48 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     assert not torch.equal(published[1], expected[1])
 
 
+def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeypatch) -> None:
+    """A sample-set camera publishes its own buffers: Newton redraws every row, but only updated rows change."""
+    coords = SamplingCoords(60.0, 0.591, 8, style="isotropic", field_geometry="spherical", device="cpu")
+    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 8))
+    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: None)
+    monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (None, None))
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
+
+    def initialize_renderer(camera):
+        depth = torch.zeros((2, camera.cfg.height, camera.cfg.width, 1))
+        camera._data = SimpleNamespace(output={"distance_to_camera": ProxyArray(wp.from_torch(depth))})
+        camera._render_data = SimpleNamespace(camera_rays=None)
+        camera.renderer_depth = depth
+
+    def render(camera, env_mask):
+        camera.renderer_depth.fill_(camera.frame_value)
+
+    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    camera = new_camera()
+    camera.cfg = SimpleNamespace(
+        foveated_style="isotropic",
+        mask_to_sensor_fov=False,
+        pool_enabled=False,
+        image_rotation_deg=0,
+        update_period=0.0,
+        data_types=["distance_to_camera"],
+        renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
+    )
+    camera._initialize_impl()
+    published = camera._data.output["distance_to_camera"]
+    assert published.torch.shape == (2, len(coords), 1, 1)
+    assert published.warp.ptr != camera._flat_render_output["distance_to_camera"].warp.ptr
+
+    camera.frame_value = 1.0
+    camera._update_buffers_impl(wp.ones(2, dtype=wp.bool, device="cpu"))
+    camera.frame_value = 2.0
+    camera._update_buffers_impl(wp.array([False, True], dtype=wp.bool, device="cpu"))
+    assert camera._data.output["distance_to_camera"] is published
+    assert bool((published.torch[0] == 1.0).all()) and bool((published.torch[1] == 2.0).all())
+
+
 def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatch) -> None:
     """A pooled camera's segmentation output holds each sample's majority label exactly, IDs above 2**24 included."""
     coords = SamplingCoords(60.0, 0.591, 16, style="warped_cartesian_as_grid", field_geometry="spherical", device="cpu")
@@ -115,9 +178,9 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
     monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (average, 4))
+    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
     # The camera reads the modal neighbourhoods from its standard pooler.
     monkeypatch.setattr(base_camera, "segmentation_neighbor_indices", lambda pooler: neighbors)
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", lambda self: None)
 
     def initialize_renderer(camera):
         size = (2, camera.cfg.height, camera.cfg.width)
@@ -143,13 +206,7 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
 
     monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
-    camera = object.__new__(FoveatedNewtonCamera)
-    camera._initialize_handle = None
-    camera._invalidate_initialize_handle = None
-    camera._prim_deletion_handle = None
-    camera._view = None
-    camera._renderer = None
-    camera._device = "cpu"
+    camera = new_camera()
     camera.cfg = SimpleNamespace(
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
