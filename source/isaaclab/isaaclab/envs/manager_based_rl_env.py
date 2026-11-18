@@ -269,6 +269,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
+                if (
+                    self.render_enabled
+                    and is_rendering
+                    and self.has_rtx_sensors
+                    and self.cfg.num_rerenders_on_reset > 0
+                ):
+                    for _ in range(self.cfg.num_rerenders_on_reset):
+                        self.sim.render()
                 self.recorder_manager.record_post_reset(manual_reset_ids)
 
         self.command_manager.compute(dt=self.step_dt)
