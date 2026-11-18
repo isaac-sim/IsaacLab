@@ -105,7 +105,7 @@ def cosmos_camera(
         height=canvas_height,
         spawn=_canvas_spawn(camera, canvas_height, canvas_width),
         tensor_processors=processors,
-        # An ISP processes the rendered image, which Cosmos replaces; the camera no longer renders it.
+        # An ISP processes the rendered image, and the camera publishes the Cosmos image instead.
         isp_cfg=None,
     )
 

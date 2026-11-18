@@ -255,7 +255,7 @@ not told which kind it receives, so any processors that write the `control` buff
 ```python
 import torch
 
-from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera
+from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
 
@@ -266,7 +266,10 @@ def segmentation_to_control(data: torch.Tensor) -> torch.Tensor:
 
 camera_cfg = cosmos_camera(
     task_camera_cfg,
-    CosmosModelCfg(prompt="A robot arm manipulating an object on a workbench."),
+    CosmosModelCfg(
+        prompt="A robot arm manipulating an object on a workbench.",
+        max_episode_frames=episode_frame_budget(env_cfg, task_camera_cfg.update_period)[2],
+    ),
     control=[
         FunctionProcessorCfg(
             function=segmentation_to_control, inputs=["semantic_segmentation"], outputs=["control"]

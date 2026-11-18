@@ -144,7 +144,7 @@ class ImageTransferProcessor(TensorProcessor):
             self._reset_rows.clear()
         return dict(self._outputs)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Discard the queued controls and episode state of the selected views.
 
         Args:
