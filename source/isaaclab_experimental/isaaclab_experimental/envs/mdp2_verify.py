@@ -65,7 +65,9 @@ def verify_capture(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> 
 def _with_reproducible_physics(cfg: MDP2EnvCfg) -> bool:
     """Make the config's physics reproducible run to run, where the backend offers it. Returns whether it does."""
     physics = cfg.sim.physics
-    if type(physics).__module__.split(".")[0] != "isaaclab_newton" or not physics.solver_cfg.class_type.deterministic:
+    if type(physics).__module__.split(".")[0] != "isaaclab_newton":
+        return False
+    if physics.solver_cfg.class_type.max_deterministic_mode < wp.DeterministicMode.RUN_TO_RUN:
         return False
     cfg.sim = dataclasses.replace(cfg.sim, physics=dataclasses.replace(physics, deterministic_mode="run_to_run"))
     return True
