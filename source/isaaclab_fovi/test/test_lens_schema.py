@@ -8,8 +8,8 @@
 import pytest
 
 Usd = pytest.importorskip("pxr.Usd")
-from isaaclab_fovi.sensors.generalized_projection import (  # noqa: E402
-    apply_generalized_projection_to_prim,
+from isaaclab_fovi.sensors.lens_lut import (  # noqa: E402
+    apply_lens_lut_to_prim,
 )
 
 from pxr import UsdGeom  # noqa: E402
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.kitless
 def test_lut_schema_has_explicit_model_and_assets_after_export() -> None:
     stage = Usd.Stage.CreateInMemory()
     prim = UsdGeom.Camera.Define(stage, "/Camera").GetPrim()
-    apply_generalized_projection_to_prim(prim, "/tmp/direction.exr", "/tmp/exit.exr")
+    apply_lens_lut_to_prim(prim, "/tmp/direction.exr", "/tmp/exit.exr")
     restored = Usd.Stage.CreateInMemory()
     restored.GetRootLayer().ImportFromString(stage.GetRootLayer().ExportToString())
     prim = restored.GetPrimAtPath("/Camera")
