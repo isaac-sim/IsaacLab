@@ -242,11 +242,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         self.recorder_manager.record_post_step()
 
-        # Consume UI resets before capture, so every boundary has a pre-reset observation.
-        if self.sim.consume_reset_request():
-            self.reset_terminated |= ~self.reset_buf
-            self.reset_buf[:] = True
-
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
@@ -262,6 +257,20 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
             self.recorder_manager.record_post_reset(reset_env_ids)
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # Only reset envs not already reset this step to avoid redundant resets.
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            index_fill_(not_yet_reset, reset_env_ids, False)
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                # mark as terminated so RL wrappers observe the episode boundary
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
+                # mirror the recorder lifecycle used for normal resets
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_idx(manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:

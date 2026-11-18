@@ -47,11 +47,11 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     compute_final_obs: bool = False
     """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    When any environment terminates, times out or is manually reset, capture every observation
-    group once before reset, command updates and interval events in ``extras["final_obs"]``.
+    When any environment terminates or times out, capture every observation group
+    once before reset, command updates and interval events in ``extras["final_obs"]``.
     The tensors live on ``env.device`` and own their storage. Only rows for environments that
     reset are valid for bootstrapping; they use the command from before this step's command update.
-    The key is absent on steps without resets.
+    The key is absent on steps without automatic resets.
 
     Preview reads include the current sample in delay and observation history without committing
     it. Custom stateful observation terms should check ``env.is_observation_preview``; stateful

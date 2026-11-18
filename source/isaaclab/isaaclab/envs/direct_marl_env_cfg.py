@@ -83,10 +83,10 @@ class DirectMARLEnvCfg:
     compute_final_obs: bool = False
     """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    When any environment terminates, times out or is manually reset, capture the per-agent
-    observations once before reset and interval events in ``extras[agent]["final_obs"]``. The tensors
+    When any environment terminates or times out, capture the per-agent observations
+    once before reset and interval events in ``extras[agent]["final_obs"]``. The tensors
     live on ``env.device`` and own their storage. Only rows for environments that reset are valid
-    for bootstrapping. The key is absent on steps without resets.
+    for bootstrapping. The key is absent on steps without automatic resets.
 
     Observation history and other state are managed by the task's observation hooks. During this
     extra observation read, ``env.is_observation_preview`` is True. Stateful hooks must check this

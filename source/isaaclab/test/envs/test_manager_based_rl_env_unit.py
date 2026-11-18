@@ -106,7 +106,7 @@ def test_obs_space_follows_clip_constraint():
 
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
 def test_final_observations_precede_resets_and_events(env_kind):
-    """Every boundary captures once, including manual resets, with owned pre-event successors."""
+    """Automatic resets capture an owned successor before reset and interval events."""
     import torch
 
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv
@@ -126,12 +126,11 @@ def test_final_observations_precede_resets_and_events(env_kind):
     )
     state = torch.tensor([[10.0], [20.0]])
     reset_calls = []
-    preview_values = []
-    ui_requests = iter((False, False, True, True))
+    preview_calls = []
 
     def observe():
         if env.is_observation_preview:
-            preview_values.append(state.clone())
+            preview_calls.append(True)
         return state
 
     def reset(ids):
@@ -145,7 +144,7 @@ def test_final_observations_precede_resets_and_events(env_kind):
         device="cpu",
         is_rendering=False,
         is_playing=lambda: True,
-        consume_reset_request=lambda: next(ui_requests),
+        consume_reset_request=lambda: False,
         step=lambda **kwargs: state.add_(1),
     )
     env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None)
@@ -202,18 +201,18 @@ def test_final_observations_precede_resets_and_events(env_kind):
             env.extras.update(time_outs=wrapper_timeouts, log={"final_obs": "keep"})
             actions = {"a": torch.zeros(2, 1), "b": torch.zeros(2, 1)}
     first_terminal = None
-    for auto_reset, manual_reset in ((True, False), (False, False), (False, True), (True, True)):
+    for auto_reset in (True, False, True):
         done.zero_()
         done[0] = auto_reset
         expected = state + 1
         reset_calls.clear()
-        preview_values.clear()
+        preview_calls.clear()
         _, _, terminated, _, extras = env.step(actions)
         terminated = terminated["a"] if env_kind == "marl" else terminated
-        assert terminated.tolist() == [auto_reset or manual_reset, manual_reset]
+        assert terminated.tolist() == [auto_reset, False]
         assert not env.is_observation_preview
-        assert len(preview_values) == len(reset_calls) == int(auto_reset or manual_reset)
-        if not (auto_reset or manual_reset):
+        assert len(preview_calls) == len(reset_calls) == int(auto_reset)
+        if not auto_reset:
             if env_kind == "marl":
                 assert all("final_obs" not in env.extras[agent] for agent in env.possible_agents)
             else:
@@ -221,7 +220,7 @@ def test_final_observations_precede_resets_and_events(env_kind):
             continue
         terminal = extras["a"]["final_obs"] if env_kind == "marl" else extras["final_obs"]["policy"]
         torch.testing.assert_close(terminal, expected)
-        assert reset_calls[0].tolist() == ([0, 1] if manual_reset else [0])
+        assert reset_calls[0].tolist() == [0]
         if first_terminal is None:
             first_terminal = terminal
     torch.testing.assert_close(first_terminal, torch.tensor([[11.0], [21.0]]))

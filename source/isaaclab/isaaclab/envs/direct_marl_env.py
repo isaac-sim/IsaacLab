@@ -445,18 +445,23 @@ class DirectMARLEnv(gym.Env):
         self.reset_buf[:] = math.prod(self.terminated_dict.values()) | math.prod(self.time_out_dict.values())
         self.reward_dict = self._get_rewards()
 
-        # Consume UI resets before capture and reset each environment at most once.
-        if self.sim.consume_reset_request():
-            for terminated in self.terminated_dict.values():
-                terminated |= ~self.reset_buf
-            self.reset_buf[:] = True
-
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             if self.cfg.compute_final_obs:
                 self._capture_final_obs()
             self._reset_idx(reset_env_ids)
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            if len(reset_env_ids) > 0:
+                index_fill_(not_yet_reset, reset_env_ids, False)
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
+            if len(manual_reset_ids) > 0:
+                for agent in self.terminated_dict:
+                    index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
+                self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
         if self.cfg.events:

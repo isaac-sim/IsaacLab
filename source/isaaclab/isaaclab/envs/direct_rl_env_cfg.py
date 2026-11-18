@@ -82,10 +82,10 @@ class DirectRLEnvCfg:
     compute_final_obs: bool = False
     """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    When any environment terminates, times out or is manually reset, capture every observation
-    group once before reset and interval events in ``extras["final_obs"]``. The tensors live on
+    When any environment terminates or times out, capture every observation group
+    once before reset and interval events in ``extras["final_obs"]``. The tensors live on
     ``env.device`` and own their storage. Only rows for environments that reset are valid for
-    bootstrapping. The key is absent on steps without resets.
+    bootstrapping. The key is absent on steps without automatic resets.
 
     Observation history and other state are managed by the task's observation hooks. During this
     extra observation read, ``env.is_observation_preview`` is True. Stateful hooks must check this
@@ -256,8 +256,6 @@ class DirectRLEnvCfg:
     * When this is greater than 0, the specified number of extra render steps will be performed to update the
       sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
       render steps will be performed after each time an environment is reset.
-
-    During stepping, this applies to both automatic and visualizer UI resets when RTX rendering is enabled.
     """
 
     wait_for_textures: bool = True

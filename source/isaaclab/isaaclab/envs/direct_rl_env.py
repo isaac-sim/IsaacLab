@@ -439,11 +439,6 @@ class DirectRLEnv(gym.Env):
         self.reset_buf = self.reset_terminated | self.reset_time_outs
         self.reward_buf = self._get_rewards()
 
-        # Include UI-requested boundaries in the same pre-reset capture and reset pass.
-        if self.sim.consume_reset_request():
-            self.reset_terminated |= ~self.reset_buf
-            self.reset_buf[:] = True
-
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self._reset_envs_from_buffer()
         if reset_env_ids is None:
@@ -460,6 +455,19 @@ class DirectRLEnv(gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            if reset_env_ids is None:
+                manual_reset_ids = torch.arange(self.num_envs, device=self.device, dtype=torch.int32)
+            else:
+                not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+                if len(reset_env_ids) > 0:
+                    index_fill_(not_yet_reset, reset_env_ids, False)
+                manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
+                self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
         if self.cfg.events:

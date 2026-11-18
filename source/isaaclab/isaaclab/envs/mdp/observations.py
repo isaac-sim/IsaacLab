@@ -459,7 +459,7 @@ class image_rgb(CameraImageBase):
         result = self._frames(
             images,
             functools.partial(normalize_rgb, mean=mean, out=out) if normalize else None,
-            preview=env.is_observation_preview,
+            preview=getattr(env, "is_observation_preview", False),
         )
         if out is None:
             return result
@@ -515,7 +515,7 @@ class image_depth(CameraImageBase):
             normalizer = functools.partial(
                 normalize_depth, invalid_value=invalid_value, max_depth=max_depth, tanh_scale=tanh_scale
             )
-        return self._frames(images, normalizer, preview=env.is_observation_preview)
+        return self._frames(images, normalizer, preview=getattr(env, "is_observation_preview", False))
 
 
 class image_normals(CameraImageBase):
@@ -550,7 +550,9 @@ class image_normals(CameraImageBase):
         data_type: str = "normals",
     ) -> torch.Tensor:
         images = _read_camera_output(env, sensor_cfg, data_type)
-        return self._frames(images, normalize_normals if normalize else None, preview=env.is_observation_preview)
+        return self._frames(
+            images, normalize_normals if normalize else None, preview=getattr(env, "is_observation_preview", False)
+        )
 
 
 class image_segmentation(CameraImageBase):
@@ -584,7 +586,9 @@ class image_segmentation(CameraImageBase):
         frame_stack: int = 1,
     ) -> torch.Tensor:
         images = _read_camera_output(env, sensor_cfg, data_type)
-        return self._frames(images, normalize_segmentation if normalize else None, preview=env.is_observation_preview)
+        return self._frames(
+            images, normalize_segmentation if normalize else None, preview=getattr(env, "is_observation_preview", False)
+        )
 
 
 class image_features(ManagerTermBase):
@@ -878,7 +882,7 @@ class stacked_image(ManagerTermBase):
         return self._frames(
             images,
             functools.partial(normalize_camera_image, data_type=data_type) if normalize else None,
-            preview=env.is_observation_preview,
+            preview=getattr(env, "is_observation_preview", False),
         )
 
 
