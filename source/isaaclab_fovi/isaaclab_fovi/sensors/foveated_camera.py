@@ -260,8 +260,13 @@ class FoveatedCamera(Camera):
             self.mount_turns += 1
 
     def set_intrinsic_matrices(self, matrices, focal_length=None, env_ids=None):
-        """Skip runtime intrinsics with a warning, as stock cameras with an OpenCV lens model do: the retina and
-        :attr:`camera_model` define a foveated camera's rays, and the renderer must keep rendering them.
+        """Keep the camera as configured and log a warning.
+
+        A foveated camera's projection comes from its retina and :attr:`camera_model`, which pinhole intrinsics
+        cannot describe, so this call changes nothing: the rendered rays and the reported intrinsic matrices stay as
+        configured. Stock cameras with an OpenCV lens model handle the call the same way. To change the projection,
+        configure :attr:`~isaaclab_fovi.sensors.FoveatedCameraCfg.camera_model` (or ``spawn``) and
+        :attr:`~isaaclab_fovi.sensors.FoveatedCameraCfg.cmf_a_deg`.
 
         Args are those of :meth:`isaaclab.sensors.Camera.set_intrinsic_matrices`.
         """
