@@ -5,12 +5,15 @@
 
 """Unit tests for MDP action terms."""
 
+from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
 import torch
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
+from isaaclab.controllers.rmp_flow import RmpFlowController
+from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import (
     AbsBinaryJointPositionActionCfg,
     BinaryJointPositionActionCfg,
@@ -22,10 +25,13 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
 from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
 from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
+from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
+from isaaclab.envs.mdp.actions.rmpflow_task_space_actions import RMPFlowAction
 from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
     OperationalSpaceControllerAction,
 )
+from isaaclab.managers import ActionTerm, ActionTermCfg
 
 pytestmark = pytest.mark.unit
 
@@ -73,6 +79,17 @@ def _diff_ik_cfg(
         controller=DifferentialIKControllerCfg(
             command_type=command_type, use_relative_mode=use_relative_mode, ik_method="dls"
         ),
+        clip=clip,
+    )
+
+
+def _rmpflow_cfg(use_relative_mode: bool, clip: dict[str, tuple[float, float]] | None = None) -> RMPFlowActionCfg:
+    return RMPFlowActionCfg(
+        asset_name="robot",
+        joint_names=[".*"],
+        body_name="tool",
+        controller=RmpFlowControllerCfg(),
+        use_relative_mode=use_relative_mode,
         clip=clip,
     )
 
@@ -131,15 +148,27 @@ def test_diff_ik_action_names(command_type: str, use_relative_mode: bool, expect
     assert len(action.action_names) == action.action_dim
 
 
-def test_diff_ik_clip_matches_task_space_names(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("action_cls", "make_cfg"),
+    [
+        (DifferentialInverseKinematicsAction, lambda clip: _diff_ik_cfg("pose", True, clip=clip)),
+        (RMPFlowAction, lambda clip: _rmpflow_cfg(True, clip=clip)),
+    ],
+    ids=["diff_ik", "rmpflow"],
+)
+def test_task_space_clip_matches_task_space_names(
+    monkeypatch: pytest.MonkeyPatch,
+    action_cls: type[ActionTerm],
+    make_cfg: Callable[[dict[str, tuple[float, float]]], ActionTermCfg],
+) -> None:
     """Clip keys select task-space components; unmatched components are left alone."""
-    cfg = _diff_ik_cfg("pose", True, clip={"pos_.*": (-0.05, 0.05), "rot_z": (-0.1, 0.1)})
-    action = DifferentialInverseKinematicsAction(cfg, _make_env())
+    action = action_cls(make_cfg({"pos_.*": (-0.05, 0.05), "rot_z": (-0.1, 0.1)}), _make_env())
     assert action.action_names == ["pos_x", "pos_y", "pos_z", "rot_x", "rot_y", "rot_z"]
     assert len(action.action_names) == action.action_dim
     ee_pos = torch.zeros(NUM_ENVS, 3)
     ee_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(NUM_ENVS, 1)
     monkeypatch.setattr(action, "_compute_frame_pose", lambda: (ee_pos, ee_quat))
+    monkeypatch.setattr(RmpFlowController, "set_command", lambda self, command: None)
 
     raw = torch.tensor([[0.2, -0.2, 0.01, 0.5, -0.5, 0.5], [-0.01, 0.03, -0.3, -1.0, 1.0, -1.0]])
     expected = torch.tensor([[0.05, -0.05, 0.01, 0.5, -0.5, 0.1], [-0.01, 0.03, -0.05, -1.0, 1.0, -0.1]])
@@ -149,16 +178,36 @@ def test_diff_ik_clip_matches_task_space_names(monkeypatch: pytest.MonkeyPatch) 
     torch.testing.assert_close(action.processed_actions, expected)
 
 
-def test_diff_ik_clip_with_joint_names_raises() -> None:
+@pytest.mark.parametrize(
+    ("action_cls", "make_cfg"),
+    [
+        (DifferentialInverseKinematicsAction, lambda clip: _diff_ik_cfg("pose", True, clip=clip)),
+        (RMPFlowAction, lambda clip: _rmpflow_cfg(True, clip=clip)),
+    ],
+    ids=["diff_ik", "rmpflow"],
+)
+def test_task_space_clip_with_joint_names_raises(
+    action_cls: type[ActionTerm], make_cfg: Callable[[dict[str, tuple[float, float]]], ActionTermCfg]
+) -> None:
     """Joint-name keys do not describe task-space components and are rejected instead of mis-indexing."""
     with pytest.raises(ValueError, match="action names"):
-        DifferentialInverseKinematicsAction(_diff_ik_cfg("pose", True, clip={"joint.*": (-1.0, 1.0)}), _make_env())
+        action_cls(make_cfg({"joint.*": (-1.0, 1.0)}), _make_env())
 
 
-def test_diff_ik_clip_quaternion_raises() -> None:
+@pytest.mark.parametrize(
+    ("action_cls", "make_cfg"),
+    [
+        (DifferentialInverseKinematicsAction, lambda clip: _diff_ik_cfg("pose", False, clip=clip)),
+        (RMPFlowAction, lambda clip: _rmpflow_cfg(False, clip=clip)),
+    ],
+    ids=["diff_ik", "rmpflow"],
+)
+def test_task_space_clip_quaternion_raises(
+    action_cls: type[ActionTerm], make_cfg: Callable[[dict[str, tuple[float, float]]], ActionTermCfg]
+) -> None:
     """Clamping quaternion components does not give a valid orientation, so it is rejected."""
     with pytest.raises(ValueError, match="quaternion"):
-        DifferentialInverseKinematicsAction(_diff_ik_cfg("pose", False, clip={"quat_.*": (-1.0, 1.0)}), _make_env())
+        action_cls(make_cfg({"quat_.*": (-1.0, 1.0)}), _make_env())
 
 
 def test_osc_action_names() -> None:

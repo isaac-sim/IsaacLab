@@ -473,8 +473,16 @@ def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypa
         assert calls == [(native_stage, "#usda 1.0", 7, 3 if physics else 1)]
 
 
-def test_physics_population_preserves_resolved_values_and_clone_relationships():
-    """Population retains units-aware defaults, overrides, material bindings, and cloned joint targets."""
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    "populate_physics, defer_render_copies",
+    [(True, False), (True, True), (False, True)],
+    ids=["eager-physics", "deferred-physics", "deferred-rendering-only"],
+)
+def test_population_respects_physics_config_and_preserves_clone_data(
+    populate_physics: bool, defer_render_copies: bool
+) -> None:
+    """Import physics only when requested, retaining resolved values and clone data with either copy timing."""
     import numpy as np
     import ovstage
     from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, _handle_raw_id
@@ -496,6 +504,9 @@ def test_physics_population_preserves_resolved_values_and_clone_relationships():
         UsdPhysics.RigidBodyAPI.Apply(body)
         UsdPhysics.CollisionAPI.Apply(body)
         body.AddAppliedSchema("PhysxRigidBodyAPI")
+    stage.GetPrimAtPath("/World/Prototype/Body").CreateAttribute("user:note", Sdf.ValueTypeNames.String).Set(
+        "unrelated metadata"
+    )
     stage.GetPrimAtPath("/World/Prototype/Other").CreateAttribute(
         "physxRigidBody:sleepThreshold", Sdf.ValueTypeNames.Float
     ).Set(0.123)
@@ -511,9 +522,11 @@ def test_physics_population_preserves_resolved_values_and_clone_relationships():
     UsdPhysics.CollisionAPI.Apply(UsdGeom.Plane.Define(stage, "/World/Plane").GetPrim())
     UsdPhysics.CollisionAPI.Apply(UsdGeom.Cylinder.Define(stage, "/World/Cylinder").GetPrim())
 
-    with closing(OvstageBackend(OvstageBackendCfg(populate_physics=True))) as backend:
+    cfg = OvstageBackendCfg(populate_physics=populate_physics, defer_render_copies=defer_render_copies)
+    with closing(OvstageBackend(cfg)) as backend:
         backend.clone_copies = [("/World/Prototype", ["/World/Copy"])]
         backend.populate(stage.ExportToString())
+        backend.complete_render_copies()
 
         def read(path, attribute):
             with backend.query([path]) as query:
@@ -522,12 +535,23 @@ def test_physics_population_preserves_resolved_values_and_clone_relationships():
                 ) as result:
                     result.wait()
                     group = result.fetch_next()
-                    assert group is not None, (path, attribute)
+                    if group is None:
+                        return None
                     with group:
                         # OVStage 0.4 also changed reads from one group per column to grouped columns.
                         column = group.columns[0] if hasattr(group, "columns") else group
                         assert column.tensor_count == 1, (path, attribute)
                         return np.array(column.array(0)).reshape(-1)
+
+        np.testing.assert_allclose(read("/World/Copy/Other", "omni:xform"), np.eye(4).reshape(-1))
+        if not populate_physics:
+            for path in ("/World/Prototype/Other", "/World/Copy/Other"):
+                assert read(path, "physxRigidBody:sleepThreshold") is None
+            return
+
+        if not hasattr(ovstage.PopulationDomain, "PHYSICS"):
+            assert read("/World/Prototype/Body", "user:note") is None
+            assert read("/World/Copy/Body", "user:note") is None
 
         np.testing.assert_allclose(read("/", "usd-metadata:metersPerUnit"), [0.01])
         np.testing.assert_allclose(read("/", "usd-metadata:kilogramsPerUnit"), [0.001])

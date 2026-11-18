@@ -244,7 +244,6 @@ def _build_system(builder: newton.ModelBuilder) -> tuple[int, list[wp.transform]
         positions=straight_points,
         quaternions=straight_quaternions,
         radius=CABLE_RADIUS,
-        body_frame_origin="com",
         cfg=newton.ModelBuilder.ShapeConfig(density=10.0, ke=1.0e5, kd=0.0, mu=0.1, gap=CABLE_GAP),
         wrap_in_articulation=False,
         color=(0.82, 0.72, 0.46),

@@ -52,7 +52,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
             "train.py",
             "--task=Foo-v0",
             "physics=newton_mjwarp",
-            "renderer=newton_renderer",
+            "renderer=newton_warp",
             "presets=albedo,depth",
             "env.sim.dt=0.001",
         ],
@@ -62,7 +62,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
     _, remaining = setup_preset_cli(_make_parser())
     assert remaining == [
         "physics=newton_mjwarp",
-        "renderer=newton_renderer",
+        "renderer=newton_warp",
         "presets=albedo,depth",
         "env.sim.dt=0.001",
     ]
@@ -71,7 +71,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
 @pytest.mark.parametrize("spelling", ["hydra", "flags", "equals"])
 def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch, spelling):
     """Task selectors never leak into Kit arguments; explicit Kit settings stay untouched."""
-    selections = dict(physics="newton_mjwarp", renderer="newton_renderer", visualizer="newton")
+    selections = dict(physics="newton_mjwarp", renderer="newton_warp", visualizer="newton")
     tokens = []
     for key, value in selections.items():
         if spelling == "flags":
@@ -138,7 +138,7 @@ def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
         },
         "renderer": {
             "default": _RendVariant(),
-            "newton_renderer": _RendVariant(),
+            "newton_warp": _RendVariant(),
         },
         "sim": {
             "default": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
@@ -161,7 +161,7 @@ def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
     result = enumerate_task_presets("Test")
     # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
     assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= set(result[PresetTarget.PHYSICS])
-    assert "newton_renderer" in result[PresetTarget.RENDERER]
+    assert "newton_warp" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
     assert {"plain", "light", "heavy"} <= set(result[PresetTarget.DOMAIN])
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.

@@ -5,15 +5,73 @@
 
 """Dependency-selection regressions that also run without the simulation runtime."""
 
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
 import tomllib
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.mark.parametrize("branch_state", ["missing", "image-pin-only", "review-fix"])
+def test_nightly_image_update_preserves_review_fixes(tmp_path: Path, branch_state: str):
+    environment = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    remote = tmp_path / "remote.git"
+    checkout = tmp_path / "checkout"
+
+    def git(*args: str, cwd: Path = checkout) -> str:
+        return subprocess.check_output(["git", *args], cwd=cwd, env=environment, text=True).strip()
+
+    git("init", "--bare", str(remote), cwd=tmp_path)
+    git("init", "-b", "main", str(checkout), cwd=tmp_path)
+    git("config", "user.name", "Test maintainer")
+    git("config", "user.email", "test@example.com")
+    config = checkout / "config.yaml"
+    config.write_text("original image\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-m", "Initial image")
+    git("remote", "add", "origin", str(remote))
+    branch = "ci/image-update"
+    previous = None
+    if branch_state != "missing":
+        git("switch", "-c", branch)
+        config.write_text("previous candidate\n", encoding="utf-8")
+        if branch_state == "review-fix":
+            (checkout / "collider-fix.py").write_text("# Preserve this reviewed fix.\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "Prepare image update")
+        git("push", "origin", branch)
+        previous = git("rev-parse", "HEAD")
+        git("switch", "main")
+
+    config.write_text("latest candidate\n", encoding="utf-8")
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/nightly-isaacsim-image.yml").read_text())
+    script = next(
+        step["run"]
+        for step in workflow["jobs"]["update-image-pin"]["steps"]
+        if step.get("name") == "Commit and push the update branch"
+    )
+    result = subprocess.run(
+        ["bash", "-c", script],
+        cwd=checkout,
+        env={**environment, "CONFIG_PATH": "config.yaml", "UPDATE_BRANCH": branch},
+        capture_output=True,
+        text=True,
+    )
+    actual = git("rev-parse", f"refs/heads/{branch}", cwd=remote)
+    if branch_state == "review-fix":
+        assert actual == previous, result.stdout + result.stderr
+        assert result.returncode != 0
+        assert git("show", f"{branch}:collider-fix.py", cwd=remote) == "# Preserve this reviewed fix."
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert git("show", f"{branch}:config.yaml", cwd=remote) == "latest candidate"
 
 
 class TestSecurityDependencies(unittest.TestCase):

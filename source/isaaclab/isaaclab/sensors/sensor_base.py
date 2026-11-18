@@ -17,6 +17,7 @@ import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -53,6 +54,14 @@ class SensorBase(ABC):
     Reset leaves cleared sensor outputs valid. Derived-query sensors explicitly invalidate their
     cached results after initialization or reset. Backend kernels consume the resulting masks;
     they must not repeat reset-readiness checks or introduce class-level reset policies.
+    """
+
+    initialize_event: Enum = PhysicsEvent.PHYSICS_READY
+    """Lifecycle event on which this sensor acquires its native resources.
+
+    Backend sensor implementations may select an earlier event when their native resources are
+    valid. Physics-binding consumers can use :attr:`~isaaclab.physics.PhysicsManager.binding_init_event`
+    from their backend manager. The event is selected when initialization callbacks are registered.
     """
 
     def __init__(self, cfg: SensorBaseCfg):
@@ -356,12 +365,12 @@ class SensorBase(ABC):
         def _invoke(callback_name, event):
             getattr(obj_ref, callback_name)(event)
 
-        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        # Physics-only sensors may bind before render consumers and public readiness.
         self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
-            PhysicsEvent.PHYSICS_READY,
+            self.initialize_event,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(
@@ -388,8 +397,9 @@ class SensorBase(ABC):
         """Initializes the scene elements.
 
         .. note::
-            Physics handles are only valid once the simulation is ready. This callback runs when
-            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
+            The backend dispatches this callback once this sensor's native resources are valid.
+            Sensors initialize on :attr:`PhysicsEvent.PHYSICS_READY` unless their backend selects
+            an earlier binding phase.
         """
         if not self._is_initialized:
             self._initialize_impl()
