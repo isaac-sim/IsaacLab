@@ -12,9 +12,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
+from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.sensors.camera.camera import Camera
+from isaaclab.sim import PinholeCameraCfg
 
 pytestmark = pytest.mark.kitless
 
@@ -77,26 +81,35 @@ def test_releasing_the_camera_removes_its_lens_textures(monkeypatch, tmp_path) -
     assert not directory.exists() and camera._lut_dir is None
 
 
-def test_construction_unlocks_spawned_cameras_without_changing_the_config(monkeypatch) -> None:
-    """The gaze moves every foveated camera, so RTX must not treat a spawned camera as static."""
+@pytest.mark.parametrize("renderer_cfg", [IsaacRtxRendererCfg(), OVRTXRendererCfg()], ids=["isaac_rtx", "ovrtx"])
+def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_config(monkeypatch, renderer_cfg):
+    """Construction authors the lens lookup on every camera prim and unlocks it, since the gaze moves every foveated
+    camera; the caller's configuration, spawn and texture size included, stays as it was."""
     pxr = pytest.importorskip("pxr")
     stage = pxr.Usd.Stage.CreateInMemory()
-    prim = pxr.UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera").GetPrim()
-    prim.CreateAttribute("omni:kit:cameraLock", pxr.Sdf.ValueTypeNames.Bool).Set(True)
+    prims = [pxr.UsdGeom.Camera.Define(stage, f"/World/envs/env_{i}/Camera").GetPrim() for i in range(2)]
+    for prim in prims:
+        prim.CreateAttribute("omni:kit:cameraLock", pxr.Sdf.ValueTypeNames.Bool).Set(True)
 
     def construct(self, cfg):
         self.cfg = cfg
         self.stage = stage
 
+    def prepare(self):
+        self.cfg.height = self.cfg.width = 64
+        self._dir_tex_path, self._exit_tex_path = "/textures/enter.exr", "/textures/exit.exr"
+
     monkeypatch.setattr(Camera, "__init__", construct)
+    monkeypatch.setattr(FoveatedRTXCamera, "_prepare_projection", prepare)
     monkeypatch.setattr(FoveatedRTXCamera, "__del__", lambda self, *args, **kwargs: None)
-    spawn = SimpleNamespace(lock_camera=True)
-    cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Camera",
-        spawn=spawn,
-        mask_to_sensor_fov=False,
-        renderer_cfg=SimpleNamespace(renderer_type="isaac_rtx"),
+    cfg = FoveatedCameraCfg(
+        prim_path="/World/envs/env_.*/Camera", spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg, data_types=["rgb"]
     )
-    FoveatedRTXCamera(cfg)
-    assert prim.GetAttribute("omni:kit:cameraLock").Get() is False
-    assert cfg.spawn is spawn and spawn.lock_camera
+    assert cfg.spawn.lock_camera
+    camera = FoveatedRTXCamera(cfg)
+    for prim in prims:
+        assert prim.GetAttribute("omni:kit:cameraLock").Get() is False
+        assert prim.GetAttribute("omni:lensdistortion:model").Get() == "lut"
+        assert prim.GetAttribute("omni:lensdistortion:lut:rayEnterDirectionTexture").Get().path == "/textures/enter.exr"
+    assert camera.cfg is not cfg and camera.cfg.height == 64
+    assert cfg.spawn.lock_camera and (cfg.height, cfg.width) == (1, 1)

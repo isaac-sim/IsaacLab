@@ -80,21 +80,20 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._texture_output: dict[str, torch.Tensor] = {}
         self._foveated_output: dict[str, torch.Tensor] = {}
         self._pooled_output: dict[str, torch.Tensor] | None = None
-        if ovrtx:
-            # The projection sets the texture size on the configuration before the parent allocates for it; the
-            # caller's configuration stays untouched.
-            cfg = clone(cfg)
-            self.cfg = cfg
-            self._prepare_projection()
+        # The projection sets the texture size on the configuration before the parent allocates for it; the caller's
+        # configuration stays untouched.
+        cfg = clone(cfg)
+        self.cfg = cfg
+        self._prepare_projection()
         super().__init__(cfg)
+        # The lens belongs to the camera prims from construction: OVRTX snapshots the stage when the renderer starts.
         for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage):
             # A locked camera may be treated as static, which skips the motion vectors that DLSS reprojection needs;
             # the gaze moves every foveated camera.
             lock = prim.GetAttribute("omni:kit:cameraLock")
             if lock.IsValid() and lock.Get():
                 lock.Set(False)
-            if ovrtx:
-                lens_lut.apply_lens_lut_to_prim(prim, self._dir_tex_path, self._exit_tex_path)
+            lens_lut.apply_lens_lut_to_prim(prim, self._dir_tex_path, self._exit_tex_path)
 
     def __del__(self, *args, **kwargs):
         """Release the renderer, then the lens textures it reads."""
@@ -234,16 +233,8 @@ class FoveatedRTXCamera(FoveatedCamera):
         self.cfg.width = tw
 
     def _initialize_impl(self) -> None:
-        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
-            self._prepare_projection()
         tw, th = self._texture_width, self._texture_height
-        # Author the lens before Camera prepares the renderer's stage. OVRTX
-        # snapshots a detached stage, so later USD edits would miss its cameras.
         prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
-        for prim in prims:
-            lens_lut.apply_lens_lut_to_prim(
-                prim, direction_texture_path=self._dir_tex_path, exit_texture_path=self._exit_tex_path
-            )
         # OVRTX's lookup-table range is measured from the near-clipped ray origin.
         self._near_clip = self._near_clipping_distance(prims[0]) if prims else 0.0
 
