@@ -25,6 +25,7 @@ dependencies = [
     "isaaclab-assets",
     "isaaclab-contrib",
     "isaaclab-experimental",
+    "isaaclab-neural",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-isaacsim",
@@ -219,6 +220,10 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
+# Cosmos3 world-model backend (isaaclab_neural.models.cosmos3). Source-only: it needs a Git dependency.
+cosmos3 = [
+    "cosmos-framework @ git+https://github.com/NVIDIA/cosmos-framework.git@3a84cd3b67f60520f523e184fa7b82011bc75cb4 ; sys_platform == 'linux'",
+]
 leapp = [
     "leapp==0.7.2",
 ]
@@ -299,6 +304,7 @@ section-order = [
     "omniverse-extensions",
     "isaaclab",
     "isaaclab-contrib",
+    "isaaclab-neural",
     "isaaclab-rl",
     "isaaclab-mimic",
     "isaaclab-tasks",
@@ -322,6 +328,7 @@ section-order = [
 "isaaclab" = ["isaaclab"]
 "isaaclab-assets" = ["isaaclab_assets"]
 "isaaclab-contrib" = ["isaaclab_contrib"]
+"isaaclab-neural" = ["isaaclab_neural"]
 "isaaclab-rl" = ["isaaclab_rl"]
 "isaaclab-mimic" = ["isaaclab_mimic"]
 "isaaclab-tasks" = ["isaaclab_tasks"]
@@ -417,6 +424,14 @@ environments = [
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
+# Cosmos3 inference (``cosmos3`` extra) needs only a part of what the Cosmos Framework and Tyro declare. The rest serves
+# training, checkpoint downloads, Tyro's CLI type checking and the Framework's own guardrails.
+exclude-dependencies = [
+    { package = { name = "tyro", version = "1.0.17" }, dependencies = ["typeguard"] },
+    { package = { name = "cosmos-framework", version = "1.2.2" }, dependencies = [
+        "nvidia-cudnn-frontend", "obstore", "iopath", "uv",
+    ] },
+]
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.17.0",
@@ -434,6 +449,8 @@ override-dependencies = [
     "mujoco-usd-converter==0.7.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
+    # cosmos-framework (``cosmos3`` extra) declares transformers<5, but its inference path runs on Isaac Lab's version.
+    "transformers==5.10.4",
     # isaacsim-core 6.2 pins fsspec 2026.2.0, while torch 2.11 requires 2026.6.0.
     "fsspec>=2026.6.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
@@ -461,6 +478,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-neural" = { path = "source/isaaclab_neural", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-isaacsim" = { path = "source/isaaclab_isaacsim", editable = true }
