@@ -471,12 +471,23 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
-@pytest.mark.parametrize("name", ["isaacsim_physx", "isaacsim_rtx"])
-def test_selecting_a_declared_isaac_sim_preset_warns_and_still_resolves(name):
+def test_selecting_a_preset_that_picks_the_kit_backend_warns_and_still_resolves():
     """A deprecated Isaac Sim (Kit) preset keeps working and warns that it runs on Kit."""
+    from isaaclab_isaacsim.physics import PhysxCfg as KitPhysxCfg
+
+    env = PresetCfgEnvCfg()
+    env.backend = preset(default=NewtonCfg(), isaacsim_physx=KitPhysxCfg())
+    with pytest.warns(FutureWarning, match=r"'isaacsim_physx' runs on Isaac Sim"):
+        env_cfg, _, _ = _register(env, overrides=["presets=isaacsim_physx"])
+    assert isinstance(env_cfg.backend, KitPhysxCfg)
+
+
+@pytest.mark.parametrize("name", ["isaacsim_physx", "isaacsim_rtx"])
+def test_a_preset_named_like_a_kit_selector_that_changes_another_field_does_not_warn(name):
     env = PresetCfgEnvCfg()
     env.decimation = preset(default=4, **{name: 8})
-    with pytest.warns(FutureWarning, match=rf"'{name}' runs on Isaac Sim"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
         env_cfg, _, _ = _register(env, overrides=[f"presets={name}"])
     assert env_cfg.decimation == 8
 

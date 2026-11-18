@@ -685,7 +685,8 @@ jobs:
         container-name: isaac-lab-newton-test
 
   test-isaaclab-isaacsim:
-    name: isaaclab_isaacsim
+    # The main/develop ruleset requires this check name, so it keeps the old package name.
+    name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]

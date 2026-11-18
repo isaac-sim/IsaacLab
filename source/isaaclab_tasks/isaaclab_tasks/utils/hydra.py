@@ -142,6 +142,25 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
     return replacement
 
 
+def _kit_selectors_in_use(env_cfg) -> set[str]:
+    """Names of the Kit selectors whose backend the resolved *env_cfg* uses.
+
+    A preset named like a Kit selector can change an unrelated field, so the warning follows the resolved backend.
+    """
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+
+    from isaaclab.app.sim_launcher import _walk_runtime_configs
+
+    nodes = _walk_runtime_configs(env_cfg)
+    in_use = set()
+    if any(isinstance(node, PhysxCfg) for node in nodes):
+        in_use.add("isaacsim_physx")
+    if any(isinstance(node, IsaacRtxRendererCfg) for node in nodes):
+        in_use.add("isaacsim_rtx")
+    return in_use
+
+
 @configclass
 class PresetCfg:
     """Base class for declarative preset definitions.
@@ -660,8 +679,9 @@ def register_task(
         env_cfg.sim.visualizer_cfgs = viewers
 
     # A deprecated Kit backend warns once its selection resolved, so a rejected choice reports only its own error.
+    kit_selectors = _kit_selectors_in_use(env_cfg)
     for name in dict.fromkeys(global_presets):
-        if name in consumed_presets:
+        if name in consumed_presets and name in kit_selectors:
             warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
 
     # apply play-mode overrides after preset resolution so they act on the resolved
