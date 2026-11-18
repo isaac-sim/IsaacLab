@@ -48,15 +48,19 @@ class VirtualGaze:
         if rotation is None or rotation.shape[0] != len(angles) or rotation.device != angles.device:
             self._gaze_rotation = torch.empty(len(angles), 3, 3, device=angles.device)
             self._gaze_pose_delta = torch.empty(len(angles), 4, device=angles.device)
+            self._gaze_rotation_wp = wp.from_torch(self._gaze_rotation, dtype=wp.mat33f)
+            self._gaze_pose_delta_wp = wp.from_torch(self._gaze_pose_delta, dtype=wp.quatf)
+        # Callers usually pass the same buffer every step; wrap it once.
+        key = (angles.data_ptr(), angles.shape, angles.device)
+        if key != self._gaze_angles_key:
+            self._gaze_angles_wp = wp.from_torch(angles, dtype=wp.vec2f)
+            self._gaze_angles_key = key
         with torch_stream(angles.device):
             wp.launch(
                 set_gaze_kernel,
                 dim=len(angles),
-                inputs=[wp.from_torch(angles, dtype=wp.vec2f), *self._gaze_frames],
-                outputs=[
-                    wp.from_torch(self._gaze_rotation, dtype=wp.mat33f),
-                    wp.from_torch(self._gaze_pose_delta, dtype=wp.quatf),
-                ],
+                inputs=[self._gaze_angles_wp, *self._gaze_frames],
+                outputs=[self._gaze_rotation_wp, self._gaze_pose_delta_wp],
             )
 
     def _apply_gaze_pose(
@@ -66,7 +70,7 @@ class VirtualGaze:
             return
         orientation = self._data.quat_w_world
         orientation = orientation.warp if hasattr(orientation, "warp") else wp.from_torch(orientation, dtype=wp.quatf)
-        delta = wp.from_torch(self._gaze_pose_delta, dtype=wp.quatf)
+        delta = self._gaze_pose_delta_wp
         with torch_stream(self._gaze_pose_delta.device):
             if env_mask is not None:
                 wp.launch(apply_gaze_masked_kernel, dim=len(delta), inputs=[orientation, delta, env_mask])
@@ -80,21 +84,22 @@ class VirtualGaze:
 
     def _gaze_validity(self, batch_size: int) -> torch.Tensor:
         """Return which samples the physical camera sees at the current gaze, shape (batch_size, num_samples)."""
-        rotation = self._gaze_rotation
-        if rotation is None:
+        if self._gaze_rotation is None:
             rotation = self._gaze_identity.expand(batch_size, -1, -1).contiguous()
-        rays = self._gaze_rays.to(rotation.device)
-        valid = torch.empty(batch_size, len(rays), dtype=torch.bool, device=rotation.device)
+            rotation_wp = wp.from_torch(rotation, dtype=wp.mat33f)
+        else:
+            rotation, rotation_wp = self._gaze_rotation, self._gaze_rotation_wp
+        device = rotation.device
+        rays_wp = self._gaze_rays_wp.get(device)
+        if rays_wp is None:
+            rays_wp = self._gaze_rays_wp[device] = wp.from_torch(self._gaze_rays.to(device), dtype=wp.vec3f)
+        valid = torch.empty(batch_size, len(self._gaze_rays), dtype=torch.bool, device=device)
         # A receptive field can overlap the sensor even when its center is outside it.
-        with torch_stream(rotation.device):
+        with torch_stream(device):
             wp.launch(
                 sensor_visibility_kernel,
                 dim=valid.shape,
-                inputs=[
-                    wp.from_torch(rays, dtype=wp.vec3f),
-                    wp.from_torch(rotation.contiguous(), dtype=wp.mat33f),
-                    self._gaze_camera,
-                ],
+                inputs=[rays_wp, rotation_wp, self._gaze_camera],
                 outputs=[wp.from_torch(valid, dtype=wp.bool)],
             )
         return valid
@@ -108,6 +113,8 @@ class VirtualGaze:
         else:
             self._gaze_rays = angular_directions(coords.cartesian, coords.fov)
         self._gaze_rays = self._gaze_rays.float().contiguous()
+        self._gaze_rays_wp: dict[torch.device, wp.array] = {}
+        self._gaze_angles_key = None
         device = self._gaze_rays.device
         self._gaze_identity = torch.eye(3, device=device)
         angle = math.radians(self.cfg.image_rotation_deg)

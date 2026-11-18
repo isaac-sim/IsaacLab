@@ -360,7 +360,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 continue
             tensor = output.torch if hasattr(output, "torch") else output
             tensor.masked_fill_(invalid, 0)
-        self._sensor_fov_valid_fraction = valid.float().mean(dim=1)
+        self._sensor_fov_valid = valid
 
     # ------------------------------------------------------------------
     #  Output helpers
@@ -385,4 +385,5 @@ class FoveatedNewtonCamera(FoveatedCamera):
     @property
     def sensor_fov_valid_fraction(self) -> torch.Tensor | None:
         """Per-environment fraction of samples inside the physical camera, or None before the first masked frame."""
-        return getattr(self, "_sensor_fov_valid_fraction", None)
+        valid = getattr(self, "_sensor_fov_valid", None)
+        return None if valid is None else valid.float().mean(dim=1)
