@@ -237,7 +237,7 @@ class CameraCfg(SensorBaseCfg):
     Defaults to an empty list.
 
     Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
-    documentation for inputs, outputs, the call ``args``, and asynchronous rendering support.
+    documentation for inputs, outputs, ``env_mask``, and asynchronous rendering support.
     """
 
     def __post_init__(self):

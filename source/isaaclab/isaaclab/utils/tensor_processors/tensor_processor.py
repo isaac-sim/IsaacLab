@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union
 
 import torch
@@ -26,15 +25,6 @@ TensorProcessorData = Union[  # noqa: UP007
     dict[str, "TensorProcessorData"],
 ]
 """A tensor or a nested collection of tensors accepted or returned by a processor."""
-
-
-@dataclass(frozen=True)
-class TensorProcessorArgs:
-    """Arguments of one processor call besides the data to process.
-
-    This base defines no fields. Callers pass a subclass with the fields they provide, for example
-    :class:`~isaaclab.sensors.SensorTensorProcessorArgs`.
-    """
 
 
 class TensorProcessor(ABC):
@@ -84,14 +74,14 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData, args: TensorProcessorArgs | None = None) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
-            args: Arguments of this call besides ``data``, as a subclass defined by the caller. Camera
-                implementations must accept this keyword. Observation-only implementations may omit it; the
-                observation manager passes only ``data``.
+            env_mask: For camera processors, a boolean mask of environments due for this capture, or None when
+                the renderer does not identify fresh rows. Camera implementations must accept this keyword.
+                Observation-only implementations may omit it; the observation manager passes only ``data``.
 
         Returns:
             Processed data with the structure defined by the implementation.

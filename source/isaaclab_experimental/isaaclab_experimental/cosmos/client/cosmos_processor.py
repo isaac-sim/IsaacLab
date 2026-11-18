@@ -14,7 +14,8 @@ from isaaclab_experimental.image_transfer import ImageTransferProcessor
 from .._protocol import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import SensorTensorProcessorArgs
+    import warp as wp
+
     from isaaclab.utils.warp import ProxyArray
 
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg
@@ -46,24 +47,22 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         if bind is not None:
             bind(cfg.camera)
 
-    def __call__(
-        self, data: dict[str, ProxyArray], args: SensorTensorProcessorArgs | None = None
-    ) -> dict[str, ProxyArray]:
+    def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
         """Consume controls only when the caller identifies which views have a fresh capture.
 
         Args:
             data: Named input buffers containing the controls.
-            args: Arguments whose ``env_mask`` marks the captured views. Direct callers must supply it.
+            env_mask: Boolean mask of captured views. Direct callers must supply it explicitly.
 
         Returns:
             The latest generated images under the configured output name.
 
         Raises:
-            ValueError: If ``args`` or its ``env_mask`` is None, as supplied by asynchronous cameras.
+            ValueError: If env_mask is None, as supplied by asynchronous cameras.
         """
-        if args is None or args.env_mask is None:
+        if env_mask is None:
             raise ValueError(
                 "Cosmos requires an explicit env_mask; use synchronous rendering"
                 " (renderer_cfg.async_rendering=False) for cameras."
             )
-        return super().__call__(data, args=args)
+        return super().__call__(data, env_mask=env_mask)

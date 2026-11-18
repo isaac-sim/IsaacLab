@@ -1,12 +1,12 @@
 * Added :mod:`isaaclab_experimental.image_transfer`, which generates camera images with an application-owned model
   as camera tensor processors: :class:`~isaaclab_experimental.image_transfer.ImageTransferProcessorCfg` queues
-  captures per view, following the camera's ``args.env_mask``, resets each view with its own deterministic seed
+  captures per view, following the camera's ``env_mask``, resets each view with its own deterministic seed
   (from a base seed or a list with one seed per view), and
   shares one model per configuration through the simulation context.
   :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` and ``depth_to_control`` prepare controls.
 * Added :mod:`isaaclab_experimental.cosmos`, which puts Cosmos3-Nano-Sim-Transfer on a camera: the camera renders
   depth, and Cosmos generates the ``rgb`` the task reads. :func:`~isaaclab_experimental.cosmos.cosmos_camera`
-  converts a pinhole RGB camera. Cosmos processors require an explicit capture ``args.env_mask`` and reject asynchronous
+  converts a pinhole RGB camera. Cosmos processors require an explicit capture ``env_mask`` and reject asynchronous
   camera calls before queuing controls. Its ``control`` argument takes other processors that write the control image,
   for the segmentation, edge and blur controls the checkpoint also accepts.
   :func:`~isaaclab_experimental.cosmos.episode_frame_budget` sizes a session to the episode.

@@ -633,9 +633,7 @@ def test_camera_processors_receive_the_due_environments(camera_batch_context, la
     _, renderer, _ = camera_batch_context
     masks = []
     processor = Mock(
-        side_effect=lambda buffers, args: masks.append(
-            None if args.env_mask is None else args.env_mask.numpy().tolist()
-        )
+        side_effect=lambda buffers, env_mask: masks.append(None if env_mask is None else env_mask.numpy().tolist())
         or {}
     )
     camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor], async_rendering=async_rendering)
