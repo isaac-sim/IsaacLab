@@ -28,11 +28,14 @@ VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
 """Alternative ``--visualizer`` names and the identifiers they select."""
 
+VISUALIZER_ALIAS_OPTIONS = {"newton_rtx": {"initial_renderer": "rtx"}}
+"""Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
+
 DEPRECATED_VISUALIZER_ALIASES = {
     "newton_rtx": (
         "The 'newton_rtx' visualizer option is deprecated and will be removed in the next release; launching the"
-        " 'newton' visualizer instead. It supports RTX rendering: switch the Renderer to RTX in its window, or set"
-        " NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
+        " 'newton' visualizer instead, started with RTX rendering. Use 'newton' and switch the Renderer to RTX in its"
+        " window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
     )
 }
 """Names in :data:`VISUALIZER_ALIASES` that are deprecated, each with the warning that says what happens instead."""
