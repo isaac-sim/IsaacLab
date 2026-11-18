@@ -95,6 +95,9 @@ def validate_shadow_hand_cosmos_task(env_cfg) -> None:
             "scene.tiled_camera.update_period=0 (env.scene.tiled_camera.update_period=0 on the command line)."
         )
     transfer = _cosmos_transfer(env_cfg)
+    if transfer.backend.generation_mode == "single_frame":
+        # Each single-frame image is a one-frame episode on the service, so the episode needs no frame budget.
+        return
     _, episode_frames, budget = episode_frame_budget(env_cfg, camera.update_period)
     if transfer.backend.max_episode_frames is None:
         transfer.backend.max_episode_frames = budget
@@ -135,7 +138,7 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
         """Check the scene and episode fit the Cosmos service's stream limits."""
         super().validate_config()
         validate_shadow_hand_cosmos_task(self)
-        if self.max_consecutive_success != 0:
+        if self.max_consecutive_success != 0 and self.cosmos.generation_mode == "autoregressive":
             raise ValueError(
                 "The Shadow Hand Cosmos task requires max_consecutive_success=0 so goal successes "
                 "do not extend the camera episode beyond its frame budget."

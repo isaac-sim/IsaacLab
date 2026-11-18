@@ -223,6 +223,18 @@ def test_cosmos_tasks_accept_several_environments(task):
 
 
 @pytest.mark.parametrize(
+    "task,overrides", [(SHADOW_HAND_TASK, ("env.max_consecutive_success=1",)), (SHADOW_HAND_MANAGER_TASK, ())]
+)
+def test_single_frame_cosmos_tasks_need_no_episode_frame_budget(task, overrides):
+    """Each single-frame image is a one-frame episode on the service, so no frame budget limits the episode."""
+    single_frame = ("env.cosmos.generation_mode=single_frame", "env.cosmos.max_episode_frames=1")
+    env_cfg = parse_env_cfg(task, overrides=(*single_frame, *overrides))
+    env_cfg.validate()
+
+    assert env_cfg.cosmos.max_episode_frames == 1
+
+
+@pytest.mark.parametrize(
     "overrides,error",
     [
         (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
