@@ -289,8 +289,8 @@ def test_a_tracking_source_records_the_tracking_camera_not_the_selected_one():
             "Enable streaming_view",
         ),
         (
-            "viz:newton_gl:tracking",
-            lambda: _make_env(visualizers=[_without_tracking_view(_FakeViz("newton_gl"))]),
+            "viz:newton:tracking",
+            lambda: _make_env(visualizers=[_without_tracking_view(_FakeViz("newton"))]),
             RuntimeError,
             "declares no tracking camera",
         ),
