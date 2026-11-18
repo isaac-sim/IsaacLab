@@ -388,6 +388,29 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
 
 
+def test_single_frame_view_alone_on_its_service_takes_its_next_prompt_as_text(cosmos_services):
+    """A one-view service session takes one prompt, also when the camera's other views are on another service."""
+    first, second = cosmos_services
+    prompts = ["A lab.", "A kitchen.", "A field."]
+    client = CosmosModel(
+        CosmosModelCfg(
+            endpoint=[first.endpoint, second.endpoint], prompt=prompts, generation_mode="single_frame", timeout=2
+        )
+    )
+    stream = client.open_stream(num_views=2, seeds=(0, 1))
+    one = [_controls(), _controls()]
+    stream.step(one, (), ())
+    stream.step(one, (1,), (3,))  # the environment's initial reset keeps view 1's prompt
+    stream.step(one, (), ())
+    stream.step(one, (1,), (5,))
+    sessions = [first.resource.streams[0], second.resource.streams[0]]
+    client.close()
+
+    assert [session.settings["num_views"] for session in sessions] == [1, 1]
+    assert sessions[0].episode_prompts[-1] == "<kept>"
+    assert sessions[1].episode_prompts[-1] == prompts[2]
+
+
 def test_single_frame_settings_are_validated():
     with pytest.raises(ValueError, match="need single_frame"):
         CosmosModel(CosmosModelCfg(max_episode_frames=13, decision_interval=4))

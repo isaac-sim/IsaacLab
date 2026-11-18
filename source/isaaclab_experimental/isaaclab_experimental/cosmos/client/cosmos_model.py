@@ -480,7 +480,8 @@ class _CosmosStream:
                 prompts = [
                     prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
                 ]
-                fields["prompt"] = prompts if self._batched else prompts[0]
+                # The service takes one text for a one-view session, also for one view of a split camera.
+                fields["prompt"] = prompts if len(self._views) > 1 else prompts[0]
         self._view_frames = [count + 1 for count in self._view_frames]
         return fields
 
