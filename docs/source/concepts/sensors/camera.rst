@@ -74,7 +74,8 @@ See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
 
 With OVRTX, separate camera sensors share the scene and renderer when their renderer
-configurations match, while each sensor owns a separate tiled render product. For example,
+configurations match, while each sensor has its own tiled render products. By default each sensor
+starts with one render product, see :ref:`camera-render-products-per-sensor`. For example,
 ``env_0/head_camera`` and ``env_1/head_camera`` form one product, while
 ``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
 resolutions and output types, and their poses update independently. Define all camera prims
@@ -301,6 +302,54 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
+
+.. _camera-render-products-per-sensor:
+
+Render products per sensor
+--------------------------
+
+A camera sensor has one camera in every environment. By default, the renderer draws the images of
+all these cameras side by side into one large image, the tiled atlas. One render product describes
+this atlas.
+
+To render the atlas, the renderer uses GPU buffers that hold data for every pixel of the atlas. In
+the RTX path tracer, some of them also grow with the samples per pixel. One such buffer can hold at
+most 4 GiB. If a buffer needs more, the OVRTX renderer fails the frame with an error.
+
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits a camera sensor over several render
+products. Each render product has its own, smaller atlas, so a smaller value can keep each buffer
+below the limit. The outputs do not change: each data type still has one
+``(num_envs, height, width, channels)`` buffer, in the same environment order. The field accepts
+these values:
+
+* ``"auto"`` (the default): The sensor starts with one render product. If its first frame fails, the
+  OVRTX renderer searches for a split. The search halves the number of environments per render
+  product and renders the frame again.
+* ``"all"``: The sensor always has one render product.
+* An integer ``M`` of at least 1: The sensor always has ``ceil(num_envs / M)`` render products. Only
+  the OVRTX renderer accepts an integer. The other renderers reject it when the camera is created.
+
+When a smaller layout renders, a warning gives the integer that skips this search. For example,
+2560 environments of 128 x 128 pixels at 16 samples per pixel give 1280. Set it on later runs:
+
+.. code-block:: python
+
+   from isaaclab.utils import replace
+
+   large_batch_camera = replace(camera_cfg, max_envs_per_render_product=1280)
+
+The search has limits. With several sensors, it halves one sensor per failed frame. It first takes
+the sensor with the most atlas pixels times samples per pixel. One frame tries at most four smaller
+layouts, counted over all camera sensors. If the frame still fails, the renderer error reaches the
+caller, and an ``"auto"`` sensor without a rendered frame renders no more frames. During the search,
+the renderer can need more GPU memory, because it can keep the buffers of failed layouts for some
+time.
+
+Set ``"all"`` or an integer to turn the search off for a sensor. The layout then does not depend on
+the GPU, the driver or the renderer version. Path tracing and DLSS depend on the pixel position in
+the atlas, so another layout can change the color outputs a little. A failed frame also never changes
+the layout of this sensor, so a layout that is too large gives the renderer error. Each extra render
+product adds a fixed cost to every frame, so use the largest integer that renders.
 
 Post-render image signal processing
 -----------------------------------

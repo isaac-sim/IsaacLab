@@ -239,7 +239,7 @@ the physics backend.
 
 Increasing the camera count, resolution, or path-tracing samples per pixel (SPP) can cause camera
 views to become black or corrupted without raising an error. Simulation and training can continue
-with invalid observations.
+with invalid observations. The OVRTX renderer fails the frame with an error instead.
 
 Camera views are combined into a tiled image (an atlas). On affected renderer versions, the
 rendering workload for a large atlas can exceed the supported Vulkan shader-access range for a
@@ -248,7 +248,12 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-As a workaround, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
+With the OVRTX renderer (``renderer=ovrtx``), split the camera sensor over several render products
+with :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. Each render product then has
+a smaller atlas. The default ``"auto"`` searches for a split by itself when the first frame fails.
+See :ref:`camera-render-products-per-sensor`.
+
+With other RTX renderers, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
 images from all cameras before training. Reducing the camera count may leave the atlas dimensions
 unchanged because of tile padding. Path-tracing SPP is distinct from the direct-lighting
 ``samples_per_pixel`` setting.

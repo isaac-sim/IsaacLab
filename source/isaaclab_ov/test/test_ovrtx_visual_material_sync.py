@@ -28,6 +28,8 @@ if not _MISSING_MODULES:
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
+    from .test_ovrtx_renderer_contract import _make_ovrtx_camera_render_data
+
 
 class _Completion:
     def __init__(self, callback=None):
@@ -122,7 +124,7 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.backend = SimpleNamespace(render_products=set())
+    renderer.backend = SimpleNamespace(render_products=set(), unrendered={})
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
     renderer._needs_transform_initialization = False
@@ -221,12 +223,9 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
 )
 def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovstage, expected_events):
     renderer, events = _renderer(use_ovstage=use_ovstage)
-    renderer._camera_render_data = [
-        SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
-        for path in ("/Render/Product0", "/Render/Product1")
-    ]
+    renderer._camera_render_data = [_make_ovrtx_camera_render_data(f"RenderCamera_{index}") for index in range(2)]
     renderer.backend.render_products = {camera.render_product_path for camera in renderer._camera_render_data}
-    renderer._process_render_frame = lambda *args: None
+    renderer._process_render_frames = lambda *args: None
 
     class Writer:
         def publish(self):
@@ -248,7 +247,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 )
 def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_events):
     renderer, events = _renderer(use_ovstage=True)
-    renderer._camera_render_data = [SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None)]
+    renderer._camera_render_data = [_make_ovrtx_camera_render_data()]
 
     class Writer:
         def publish(self):

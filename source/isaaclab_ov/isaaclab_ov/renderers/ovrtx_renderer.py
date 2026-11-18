@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import dataclasses
+import itertools
 import logging
 import math
 import os
@@ -97,7 +99,7 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
-    render_var_prim_names_by_source,
+    render_var_prim_paths_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
@@ -118,8 +120,9 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-_RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
+_FAILED_FRAME_ERROR_TEXT = "failed to produce a frame"
+_MAX_SMALLER_LAYOUTS = 4
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
@@ -152,6 +155,32 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
+
+
+def _latest_frame(frames: Sequence[FrameOutput]) -> FrameOutput:
+    """Return the frame with the latest capture time."""
+    return frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
+
+
+def _tile_columns(num_envs: int) -> int:
+    """Return the number of tile columns in the atlas of ``num_envs`` environments."""
+    return math.ceil(math.sqrt(num_envs))
+
+
+@dataclasses.dataclass(frozen=True)
+class OVRTXRenderProduct:
+    """One render product of a camera sensor. It renders a contiguous range of environments into one tiled atlas."""
+
+    path: str
+    """Absolute prim path of the ``RenderProduct``."""
+    camera_paths: list[str]
+    """Camera prim paths of these environments, in the environment order of the sensor."""
+    env_offset: int
+    num_envs: int
+    num_cols: int
+    """Number of tile columns in the atlas of this product, ``ceil(sqrt(num_envs))``."""
+    num_rows: int
+    """Number of tile rows in the atlas of this product, ``ceil(num_envs / num_cols)``."""
 
 
 def _gpu_side_render_var_sync_enabled() -> bool:
@@ -196,6 +225,13 @@ def _decode_segmentation_map_packed(render_var: RenderVarOutput, decoder: Callab
 _decode_segmentation_map = (
     _decode_segmentation_map_named if OVRTX_USES_NAMED_SEGMENTATION_MAPS else _decode_segmentation_map_packed
 )
+
+
+def _label_map_bytes(id_map: IdentifierMap) -> Any:
+    """Return a host copy of the raw tensors of a label map. Equal copies give equal decoded maps."""
+    if isinstance(id_map, np.ndarray):
+        return id_map.dtype, id_map.shape, id_map.tobytes()
+    return {name: _label_map_bytes(tensor) for name, tensor in id_map.items()}
 
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
@@ -260,6 +296,9 @@ class OVRTXBackend:
         self.cfg = cfg
         self.attached = False
         self.render_products: set[str] = set()
+        # Camera sensors of every renderer on this engine without a rendered frame, and their renderers.
+        # The split search can replace their render products until a step renders.
+        self.unrendered: dict[OVRTXCameraRenderData, OVRTXRenderer] = {}
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
         if dependency.exists():
@@ -302,31 +341,46 @@ class OVRTXBackend:
             self.attached = False
 
 
+def _split_priority(data: OVRTXCameraRenderData) -> int:
+    """Return the pixels of the first and largest atlas of a camera sensor times its samples per pixel.
+
+    The largest path tracer buffer grows with both, so the split search halves the highest value first.
+    """
+    product = data.products[0]
+    spp = int(data.spec.cfg.render_settings.get("omni:rtx:rtpt:spp", ("Int", 1))[1])
+    return product.num_cols * data.width * product.num_rows * data.height * spp
+
+
 class OVRTXCameraRenderData:
-    """Owns one camera sensor's native resources and borrowed output buffers."""
+    """Owns one camera sensor's native resources and borrowed output buffers.
+
+    Each render product renders a contiguous range of environments into its own tiled atlas. All of them use
+    the RenderVars in the scope of the sensor. Until the first frame renders, the split search can change them.
+    """
 
     def __init__(self, spec: CameraRenderSpec, render_scope_name: str, camera_paths: list[str]):
         """Create render data for a camera in its assigned render scope.
 
         Args:
             spec: Camera render specification.
-            render_scope_name: Root scope containing this camera's render product and RenderVars.
+            render_scope_name: Root scope containing this camera's render products and RenderVars.
             camera_paths: Concrete camera paths in sensor row order.
         """
-        self.render_scope_name = render_scope_name
-        self.render_product_path = f"/{render_scope_name}/RenderProduct"
+        self.spec = spec
         self.camera_paths = camera_paths
-        self.render_var_keys = {
-            source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
-        }
         self.camera_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
         self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
         self.data_types = spec.cfg.data_types
-        self.num_cols = math.ceil(math.sqrt(self.num_envs))
-        self.num_rows = math.ceil(self.num_envs / self.num_cols)
+        max_envs = spec.cfg.max_envs_per_render_product
+        # Whether the split search may halve the render products of this sensor.
+        self.searches_split = max_envs == "auto" and len(camera_paths) == self.num_envs
+        # The error of the first frame if the split search gave up on this sensor. Later renders raise at once.
+        self.first_frame_error: RuntimeError | None = None
+        # "auto" and "all" both start with one render product for all environments.
+        self.set_layout(render_scope_name, max_envs if isinstance(max_envs, int) else self.num_envs)
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
@@ -344,6 +398,49 @@ class OVRTXCameraRenderData:
             from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
+
+    def set_layout(self, render_scope_name: str, max_envs: int) -> None:
+        """Divide the environments over render products of at most ``max_envs`` environments each.
+
+        Raises:
+            ValueError: If the sensor needs several render products but lacks one camera path per environment.
+        """
+        self.render_scope_name = render_scope_name
+        self.render_var_keys = render_var_prim_paths_by_source(render_scope_name)
+        chunk = min(max_envs, self.num_envs)
+        count = math.ceil(self.num_envs / chunk)
+        if count > 1 and len(self.camera_paths) != self.num_envs:
+            raise ValueError(
+                "max_envs_per_render_product needs one camera path per environment, got"
+                f" {len(self.camera_paths)} paths for {self.num_envs} environments."
+            )
+        self.products: list[OVRTXRenderProduct] = []
+        for k in range(count):
+            start, end = k * chunk, min((k + 1) * chunk, self.num_envs)
+            envs = end - start
+            cols = _tile_columns(envs)
+            # One product keeps the prim name from before the split, also when the limit is not below num_envs.
+            name = "RenderProduct" if count == 1 else f"RenderProduct_{k}"
+            self.products.append(
+                OVRTXRenderProduct(
+                    path=f"/{render_scope_name}/{name}",
+                    camera_paths=self.camera_paths[start:end],
+                    env_offset=start,
+                    num_envs=envs,
+                    num_cols=cols,
+                    num_rows=math.ceil(envs / cols),
+                )
+            )
+
+    @property
+    def render_product_path(self) -> str:
+        """Path of the first render product. With one render product, this is the same path as before the split."""
+        return self.products[0].path
+
+    @property
+    def render_product_paths(self) -> tuple[str, ...]:
+        """Paths of every render product of this sensor, in environment order."""
+        return tuple(product.path for product in self.products)
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -397,6 +494,7 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
         self._initialized_scene = False
+        # Flat scratch buffers for colorized segmentation, one per output, sized for the largest atlas.
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
@@ -624,33 +722,9 @@ class OVRTXRenderer(BaseRenderer):
                 for path in camera_paths
             ]
         render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
-        scope, product_path = render_data.render_scope_name, render_data.render_product_path
-        usd = build_render_product_as_string(
-            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
-        )
         try:
-            # Registration mutates the shared scene; finish renders using its existing products first.
-            errors = self.drain_pending_renders()
-            if errors:
-                raise ExceptionGroup("OVRTX renders failed before camera registration", errors)
-            if self.cfg.temp_usd_dir is not None:
-                _write_combined_stage(Path(self.cfg.temp_usd_dir), usd)
+            self._add_render_products(render_data)
             if self._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
-                render_data.resources.callback(self._remove_usd_reference, reference)
-                ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
-                with self.scene.query([product_path]) as query:
-                    # USD references drop external camera targets; author the relationship in Fabric.
-                    self.scene.stage.write_attribute(
-                        query,
-                        "camera",
-                        ordinal=self.scene.ordinal,
-                        tensors=np.array(
-                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
-                        ),
-                        is_array=True,
-                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-                    ).wait()
                 render_data.camera_xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
                 self.scene.stage.write_attribute(
                     render_data.camera_xform_binding,
@@ -675,13 +749,6 @@ class OVRTXRenderer(BaseRenderer):
                         semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()
             else:
-                reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
-                render_data.resources.callback(self.backend.renderer.remove_usd, reference)
-                self.backend.renderer.write_array_attribute(
-                    prim_paths=[product_path],
-                    attribute_name="camera",
-                    tensors=[camera_paths],
-                )
                 render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
                     prim_paths=camera_paths,
                     attribute_name="omni:xform",
@@ -718,9 +785,56 @@ class OVRTXRenderer(BaseRenderer):
             raise
         self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
-        self.backend.render_products.add(render_data.render_product_path)
-        render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
+        self.backend.unrendered[render_data] = self
+        render_data.resources.callback(self.backend.unrendered.pop, render_data, None)
         return render_data
+
+    def _add_render_products(self, render_data: OVRTXCameraRenderData) -> None:
+        """Add the render products of ``render_data`` to the scene, and render them in every later step."""
+        scope = render_data.render_scope_name
+        usd = build_render_product_as_string(
+            render_data.spec,
+            render_data,
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
+        )
+        # Registration mutates the shared scene; finish renders using its existing products first.
+        errors = self.drain_pending_renders()
+        if errors:
+            raise ExceptionGroup("OVRTX renders failed before render product registration", errors)
+        if self.cfg.temp_usd_dir is not None:
+            _write_combined_stage(Path(self.cfg.temp_usd_dir), usd)
+        # Write the cameras of each product on its own. One write for several products leaves them unable to render.
+        if self._use_ovstage:
+            reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
+            render_data.resources.callback(self._remove_usd_reference, reference)
+            ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
+            # USD references drop external camera targets; author the relationship in Fabric.
+            for product in render_data.products:
+                with self.scene.query([product.path]) as query:
+                    self.scene.stage.write_attribute(
+                        query,
+                        "camera",
+                        ordinal=self.scene.ordinal,
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in product.camera_paths],
+                            dtype=np.uint64,
+                        ),
+                        is_array=True,
+                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+                    ).wait()
+        else:
+            reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
+            render_data.resources.callback(self.backend.renderer.remove_usd, reference)
+            for product in render_data.products:
+                self.backend.renderer.write_array_attribute(
+                    prim_paths=[product.path],
+                    attribute_name="camera",
+                    tensors=[product.camera_paths],
+                )
+        for path in render_data.render_product_paths:
+            self.backend.render_products.add(path)
+            render_data.resources.callback(self.backend.render_products.discard, path)
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -820,23 +934,10 @@ class OVRTXRenderer(BaseRenderer):
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
     ) -> None:
-        """Extract segmentation pixels and decode their shared label map once per frame."""
-        semantic, instance = "semantic_segmentation", "instance_segmentation"
-        if semantic not in output_buffers and instance not in output_buffers:
-            return
-        maps = {key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
-        if instance in output_buffers and (missing := [key for key, value in maps.items() if value is None]):
-            raise RuntimeError(
-                f"instance_segmentation was requested but the following render vars are missing from the "
-                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars)}"
-            )
-        labels = None
-        if maps[_SEMANTIC_ID_MAP_VAR] is not None:
-            labels = _decode_segmentation_map(maps[_SEMANTIC_ID_MAP_VAR], decode_semantic_id_map)
-
+        """Extract the segmentation pixels of one render product."""
         for source, key, colorize in (
-            (_SEMANTIC_SEGMENTATION_VAR, semantic, self.cfg.colorize_semantic_segmentation),
-            (_INSTANCE_SEGMENTATION_VAR, instance, self.cfg.colorize_instance_segmentation),
+            (_SEMANTIC_SEGMENTATION_VAR, "semantic_segmentation", self.cfg.colorize_semantic_segmentation),
+            (_INSTANCE_SEGMENTATION_VAR, "instance_segmentation", self.cfg.colorize_instance_segmentation),
         ):
             render_var = frame.render_vars.get(render_data.render_var_keys[source])
             if key not in output_buffers or render_var is None:
@@ -846,9 +947,10 @@ class OVRTXRenderer(BaseRenderer):
                     continue
                 if colorize:
                     color_buffer = self._output_id_color_buffers.get(key)
-                    if color_buffer is None or color_buffer.shape != tiled_data.shape:
-                        color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
+                    if color_buffer is None or color_buffer.size < tiled_data.size:
+                        color_buffer = wp.zeros(tiled_data.size, dtype=wp.uint32, device=self._device)
                         self._output_id_color_buffers[key] = color_buffer
+                    color_buffer = color_buffer[: tiled_data.size].reshape(tiled_data.shape)
                     wp.launch(
                         generate_random_colors_from_ids_kernel,
                         tiled_data.shape,
@@ -865,6 +967,32 @@ class OVRTXRenderer(BaseRenderer):
                         tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
                     self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[key])
 
+    def _process_segmentation_metadata(
+        self, render_data: OVRTXCameraRenderData, frames: Sequence[FrameOutput], output_buffers: dict[str, wp.array]
+    ) -> None:
+        """Decode the label maps of the sensor into ``render_data.renderer_info``, once per step.
+
+        A label map lists the labels of the whole scene, not of one camera. So the method uses the maps of
+        the first product for every product of the sensor. It checks that the other products return the same
+        maps, because a wrong label for an ID would go unnoticed in training.
+
+        Raises:
+            RuntimeError: If ``instance_segmentation`` is requested and a map is missing from the frame, or if
+                two render products of the sensor return different label maps.
+        """
+        semantic, instance = "semantic_segmentation", "instance_segmentation"
+        if semantic not in output_buffers and instance not in output_buffers:
+            return
+        frame = frames[0]
+        maps = {key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
+        if instance in output_buffers and (missing := [key for key, value in maps.items() if value is None]):
+            raise RuntimeError(
+                f"instance_segmentation was requested but the following render vars are missing from the "
+                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars)}"
+            )
+        labels = None
+        if maps[_SEMANTIC_ID_MAP_VAR] is not None:
+            labels = _decode_segmentation_map(maps[_SEMANTIC_ID_MAP_VAR], decode_semantic_id_map)
         if semantic in output_buffers and labels is not None:
             render_data.renderer_info[semantic] = {
                 "idToLabels": build_semantic_id_to_labels(
@@ -878,6 +1006,30 @@ class OVRTXRenderer(BaseRenderer):
                 instances, paths, labels, colorize=self.cfg.colorize_instance_segmentation, device=self._device
             )
             render_data.renderer_info[instance] = {"idToLabels": id_to_labels, "idToSemantics": id_to_semantics}
+        if len(frames) == 1:
+            return
+        used = [(_SEMANTIC_ID_MAP_VAR, decode_semantic_id_map, labels)] if labels is not None else []
+        if instance in output_buffers:
+            used += [
+                (_STABLE_ID_SEMANTIC_ID_MAP_VAR, decode_stable_id_semantic_id_map, instances),
+                (_STABLE_ID_MAP_VAR, decode_stable_id_map, paths),
+            ]
+        for key, decoder, expected in used:
+            # Decoding is slow, so only a map whose raw tensors differ from the first product is decoded.
+            first = _decode_segmentation_map(maps[key], _label_map_bytes)
+            for product, other in zip(render_data.products[1:], frames[1:]):
+                render_var = other.render_vars.get(render_data.render_var_keys[key])
+                if render_var is None or (
+                    _decode_segmentation_map(render_var, _label_map_bytes) != first
+                    and _decode_segmentation_map(render_var, decoder) != expected
+                ):
+                    raise RuntimeError(
+                        f"OVRTX returned a different {key} for render product {product.path!r} than for"
+                        f" {render_data.products[0].path!r}. The segmentation labels of a split camera sensor"
+                        ' assume one map for the whole scene. Set CameraCfg.max_envs_per_render_product to "all"'
+                        " to render this sensor through one render product, if its buffers stay below the"
+                        " renderer limit."
+                    )
 
     def _launch_extract_all_tiles(
         self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array, output_buffer: wp.array
@@ -892,8 +1044,8 @@ class OVRTXRenderer(BaseRenderer):
         Args:
             render_data: OVRTX render data for the current frame.
             tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
-            output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no
-                greater than ``tiled_buffer``'s channel count.
+            output_buffer: 4D array of shape (N, H, W, C) to receive the tiles of the N environments in
+                ``tiled_buffer``, with C no greater than ``tiled_buffer``'s channel count.
 
         Raises:
             ValueError: If ``output_buffer``'s channel count exceeds ``tiled_buffer``'s.
@@ -908,26 +1060,36 @@ class OVRTXRenderer(BaseRenderer):
 
         wp.launch(
             kernel=extract_all_tiles_kernel,
-            dim=(render_data.num_envs, render_data.height, render_data.width),
+            dim=(output_buffer.shape[0], render_data.height, render_data.width),
             inputs=[
                 tiled_buffer,
                 output_buffer,
-                render_data.num_cols,
+                _tile_columns(output_buffer.shape[0]),
                 render_data.width,
                 render_data.height,
             ],
             device=self._device,
         )
 
-    def _process_render_frame(
-        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+    def _process_render_frames(
+        self, render_data: OVRTXCameraRenderData, frames: Sequence[FrameOutput], output_buffers: dict[str, wp.array]
     ) -> None:
-        """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
+        """Extract the frame of each render product into the environment range of that product."""
         # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
         # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
+        for product, frame in zip(render_data.products, frames, strict=True):
+            stop = product.env_offset + product.num_envs
+            self._process_render_frame(
+                render_data, frame, {key: buffer[product.env_offset : stop] for key, buffer in output_buffers.items()}
+            )
+        self._process_segmentation_metadata(render_data, frames, output_buffers)
 
+    def _process_render_frame(
+        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+    ) -> None:
+        """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         ldr_color = frame.render_vars.get(render_data.render_var_keys[_LDR_COLOR_VAR])
         if ldr_color is not None:
             buffer_key = None
@@ -1022,14 +1184,14 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Populate camera outputs only after every requested product returned a frame."""
         for data in render_data:
-            if data.render_product_path not in products or not products[data.render_product_path].frames:
-                raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
+            for path in data.render_product_paths:
+                if path not in products or not products[path].frames:
+                    raise RuntimeError(f"OVRTX returned no frame for render product {path!r}.")
         for data in render_data:
-            frames = products[data.render_product_path].frames
             # DLSS-generated images have earlier capture times than the real frame. Keep all
             # camera outputs on the latest capture without assuming the returned list's order.
-            frame = frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
-            self._process_render_frame(data, frame, data.warp_buffers)
+            frames = [_latest_frame(products[path].frames) for path in data.render_product_paths]
+            self._process_render_frames(data, frames, data.warp_buffers)
 
             # Post-render PPISP uses each camera's own HDR source and RGBA destination.
             if data.ppisp_pipeline is not None:
@@ -1195,19 +1357,103 @@ class OVRTXRenderer(BaseRenderer):
         re-enters the set on a later step far more expensive. Only ``render_data`` is read
         back, so products left out of the request keep their previous outputs.
 
+        If the first frame fails, the split search halves the render products of a camera sensor with
+        ``max_envs_per_render_product = "auto"`` and renders the frame again. A warning then gives the value
+        that skips the search. See :meth:`_replace_failed_layouts`.
+
         Args:
             render_data: Cameras whose poses and output buffers have been prepared. An empty
                 sequence performs no work.
 
         Raises:
-            RuntimeError: If the scene is uninitialized or a requested product returns no frame.
+            RuntimeError: If the scene is uninitialized, if a requested product returns no frame, or if the
+                first frame fails and the search gives up. A camera whose search gave up raises in every later call.
         """
         if not render_data:
             return
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
+        failed = next((data for data in render_data if data.first_frame_error is not None), None)
+        if failed is not None:
+            raise RuntimeError(
+                f"Camera {failed.spec.cfg.prim_path} renders no frames, because the split search gave up."
+            ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
+        for smaller_layouts in itertools.count():
+            try:
+                self._render_batch_once(render_data)
+                break
+            except RuntimeError as error:
+                if not self._replace_failed_layouts(error, smaller_layouts):
+                    raise
+        for data in self.backend.unrendered:
+            if data.spec.cfg.max_envs_per_render_product == "auto" and len(data.products) > 1:
+                logger.warning(
+                    "Camera %s: the first frame failed with one render product. It now uses %d render products."
+                    " Set CameraCfg.max_envs_per_render_product=%d to skip this search.",
+                    data.spec.cfg.prim_path,
+                    len(data.products),
+                    data.products[0].num_envs,
+                )
+        self.backend.unrendered.clear()
+
+    def _replace_failed_layouts(self, error: RuntimeError, smaller_layouts: int) -> bool:
+        """After a failed first frame, move every camera sensor without a rendered frame to new render products.
+
+        A failed step fails for every sensor on the engine, and OVRTX can abort when it renders a failed render
+        product again. So each such sensor gets a new scope, and its old render products leave the steps. Of the
+        sensors with ``"auto"``, the one with the highest :func:`_split_priority` gets half as many environments
+        per render product. The others keep their split. The search gives up when no sensor can be halved or
+        after ``_MAX_SMALLER_LAYOUTS`` smaller layouts. A sensor with ``"auto"`` then renders no frames.
+
+        Args:
+            error: Error of the failed step.
+            smaller_layouts: Number of smaller layouts that this render batch tried before ``error``.
+
+        Returns:
+            ``True`` if the next step uses a smaller layout. ``False`` if the caller must raise ``error``.
+        """
+        cameras = self.backend.unrendered
+        if _FAILED_FRAME_ERROR_TEXT not in str(error) or not cameras:
+            return False
+        candidates = [data for data in cameras if data.searches_split and data.products[0].num_envs > 1]
+        halved = max(candidates, key=_split_priority) if candidates and smaller_layouts < _MAX_SMALLER_LAYOUTS else None
+        if halved is None:
+            if smaller_layouts:
+                error.add_note(
+                    f"The first frame also failed with {smaller_layouts} smaller render product layout(s). The"
+                    " renderer log shows the cause. Smaller render products do not fix a lack of GPU memory."
+                )
+            fixed = [data.spec.cfg for data in cameras if data.spec.cfg.max_envs_per_render_product != "auto"]
+            if fixed:
+                values = ", ".join(f"{cfg.prim_path} ({cfg.max_envs_per_render_product!r})" for cfg in fixed)
+                error.add_note(
+                    "The split search changes only camera sensors with CameraCfg.max_envs_per_render_product="
+                    f'"auto", not {values}. A failed frame can come from a tiled atlas above a renderer limit.'
+                    ' "auto" or a smaller integer can avoid it.'
+                )
+        # First remove every failed render product from the set that each step renders. If a scene
+        # write below fails, the set then holds no failed render product.
+        for data in cameras:
+            self.backend.render_products.difference_update(data.render_product_paths)
+        for data, renderer in list(cameras.items()):
+            if halved is None and data.searches_split:
+                # The search gave up on this sensor. Another step cannot render it, so it leaves the steps
+                # for good, and a later render of it raises at once. Its old scope stays until the cleanup.
+                data.first_frame_error = error
+                cameras.pop(data)
+                continue
+            max_envs = data.products[0].num_envs
+            data.set_layout(
+                f"RenderCamera_{renderer.scene.next_camera_id}", math.ceil(max_envs / 2) if data is halved else max_envs
+            )
+            renderer.scene.next_camera_id += 1
+            renderer._add_render_products(data)
+        return halved is not None
+
+    def _render_batch_once(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
+        """Render one step with every registered render product, and read back the images of ``render_data``."""
         products = self.backend.render_products.copy()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
@@ -1224,6 +1470,11 @@ class OVRTXRenderer(BaseRenderer):
             elif self.cfg.async_rendering:
                 unread = {data.ready[0] for data in render_data if data.ready is not None}
                 operation = self.backend.renderer.step_async(render_products=products, delta_time=_RENDER_DELTA_TIME)
+                if self.backend.unrendered:
+                    # The first frame of a new sensor is read in this step anyway, so this wait costs little.
+                    # A failed frame then raises here, before a camera stores the failed operation.
+                    # Only render_batch can replace the failed render products, so the error must raise in it.
+                    operation.wait()
                 for data in render_data:
                     previous = data.pending
                     data.pending = (operation, data.capture)

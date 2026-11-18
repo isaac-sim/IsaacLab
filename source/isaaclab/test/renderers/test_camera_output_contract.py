@@ -16,7 +16,7 @@ pytest.importorskip("isaaclab_physx")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, RendererCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
@@ -255,6 +255,54 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
     validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("simple_shading_full_mdl"))
+
+
+@pytest.mark.parametrize(
+    "max_envs, valid",
+    [("auto", True), ("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
+)
+def test_camera_cfg_validates_render_product_split(max_envs, valid):
+    """The split is "auto", "all" or an integer >= 1. Other values are rejected before any renderer runs."""
+    cfg = replace(_make_camera_cfg(["rgb"]), max_envs_per_render_product=max_envs)
+    if valid:
+        validate(cfg)
+    else:
+        with pytest.raises(ValueError, match='max_envs_per_render_product must be "auto", "all" or an integer >= 1'):
+            validate(cfg)
+
+
+@pytest.mark.parametrize(
+    "module_name, cfg_name, supports_split",
+    [
+        ("isaaclab_physx.renderers", "IsaacRtxRendererCfg", False),
+        ("isaaclab_newton.renderers", "NewtonWarpRendererCfg", False),
+        ("isaaclab_ov.renderers", "OVRTXRendererCfg", True),
+    ],
+)
+def test_render_product_split_check_follows_renderer_support(module_name, cfg_name, supports_split):
+    """Every renderer accepts "auto" and "all". Only a renderer with split support accepts an integer."""
+    from isaaclab.sensors.camera.camera import check_render_product_split
+
+    renderer_cfg = getattr(pytest.importorskip(module_name), cfg_name)()
+    cfg = _make_camera_cfg(["rgb"])
+    for max_envs in ("auto", "all"):
+        check_render_product_split(replace(cfg, max_envs_per_render_product=max_envs), renderer_cfg)
+    split = replace(cfg, max_envs_per_render_product=3)
+    if supports_split:
+        check_render_product_split(split, renderer_cfg)
+    else:
+        with pytest.raises(ValueError, match=f'{cfg_name} .* must be "auto" or "all", got 3'):
+            check_render_product_split(split, renderer_cfg)
+
+
+def test_camera_cfg_accepts_render_product_split_for_a_placeholder_renderer():
+    """The configuration check accepts a split for the "auto_rtx" placeholder, which a launcher replaces later."""
+    cfg = replace(
+        _make_camera_cfg(["rgb"]),
+        renderer_cfg=RendererCfg(renderer_type="auto_rtx"),
+        max_envs_per_render_product=3,
+    )
+    validate(cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])
