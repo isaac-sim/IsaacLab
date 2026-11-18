@@ -190,9 +190,9 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
         assert prim_paths[source] == path
 
 
-@pytest.mark.parametrize("max_envs_per_render_product", [None, 4, 8], ids=["none", "equal", "larger"])
+@pytest.mark.parametrize("max_envs_per_render_product", ["auto", "all", 4, 8], ids=["auto", "all", "equal", "larger"])
 def test_default_render_product_layout_is_single_product(camera_spec, max_envs_per_render_product):
-    """With no limit, or a limit not below the environment count, the sensor keeps one product with its old name."""
+    """With "auto", "all" or a limit not below the environment count, the sensor has one product with its old name."""
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
 
     render_data = _make_render_data(camera_spec, max_envs_per_render_product)

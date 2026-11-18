@@ -166,14 +166,17 @@ def check_render_product_split(cfg: CameraCfg, renderer_cfg) -> None:
     The camera calls this when it gets its renderer, before the scene is cloned. The configuration check runs
     earlier, while a launcher can still replace a placeholder renderer configuration.
 
+    A renderer that cannot split accepts ``"auto"`` and ``"all"``. Both give one render product there.
+
     Raises:
-        ValueError: If ``cfg.max_envs_per_render_product`` is set and the renderer cannot split.
+        ValueError: If ``cfg.max_envs_per_render_product`` is an integer and the renderer cannot split.
     """
-    if cfg.max_envs_per_render_product is not None and not renderer_cfg.supports_render_product_split:
+    max_envs = cfg.max_envs_per_render_product
+    if max_envs not in ("auto", "all") and not renderer_cfg.supports_render_product_split:
         raise ValueError(
             f"Renderer {type(renderer_cfg).__name__} renders every environment through one render product,"
-            " so CameraCfg.max_envs_per_render_product must be None. Only renderers whose configuration sets"
-            " supports_render_product_split accept another value."
+            f' so CameraCfg.max_envs_per_render_product must be "auto" or "all", got {max_envs!r}. Only'
+            " renderers whose configuration sets supports_render_product_split accept an integer."
         )
 
 

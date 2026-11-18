@@ -104,24 +104,32 @@ class CameraCfg(SensorBaseCfg):
     for an interactive camera. These settings do not change the shared renderer configuration.
     """
 
-    max_envs_per_render_product: int | None = None
-    """Maximum number of environments in one render product. Defaults to None.
+    max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
+    """Maximum number of environments in one render product. Defaults to ``"auto"``.
 
     The renderer draws the images of all environments side by side into one large image, the tiled
-    atlas. One render product describes one atlas. With ``None``, the sensor starts with one render
-    product for all its environments. With an integer ``M``, the sensor gets ``ceil(num_envs / M)``
-    render products. The first one renders the first ``M`` environments, the next one the next ``M``,
-    and so on. The outputs stay one ``(num_envs, height, width, channels)`` buffer per data type.
+    atlas. One render product describes one atlas. A large atlas can need a renderer buffer larger than
+    4 GiB, which the renderer does not support. Several render products give smaller atlases and smaller
+    buffers. The outputs stay one ``(num_envs, height, width, channels)`` buffer per data type.
 
-    A large atlas can need a renderer buffer larger than 4 GiB, which the renderer does not support.
-    With ``None``, the OVRTX renderer (OVRTX 0.7 or later) then halves the largest render product
-    while the first frame fails. It logs the integer to set here to skip this search next time. The
-    camera sensor documentation (``docs/source/concepts/sensors/camera.rst``) explains the limit and
+    - ``"auto"``: The sensor starts with one render product for all its environments. If the first frame
+      fails, the OVRTX renderer (OVRTX 0.7 or later) searches for a split. It halves the render products of
+      one sensor while the first frame fails. With several sensors, it picks the one with the most atlas
+      pixels times samples per pixel. It logs the integer to set here to skip this search next time.
+    - ``"all"``: The sensor always has one render product for all its environments. The renderer never
+      searches for a split of this sensor. So a failed frame raises the renderer error, unless the search
+      can halve another sensor with ``"auto"`` and the frame then renders.
+    - An integer ``M`` of at least 1: The sensor always has ``ceil(num_envs / M)`` render products. The
+      first one renders the first ``M`` environments, the next one the next ``M``, and so on. The
+      renderer never searches for a split of this sensor.
+
+    The camera sensor documentation (``docs/source/concepts/sensors/camera.rst``) explains the limit and
     the search.
 
     Only renderers whose configuration sets
-    :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept a value other than
-    ``None``. Today that is the OVRTX renderer (:class:`~isaaclab_ov.renderers.OVRTXRendererCfg`).
+    :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept an integer. Today that is
+    the OVRTX renderer (:class:`~isaaclab_ov.renderers.OVRTXRendererCfg`). Other renderers accept ``"auto"``
+    and ``"all"``, and both give one render product there.
     """
 
     update_latest_camera_pose: bool = False
@@ -283,9 +291,11 @@ class CameraCfg(SensorBaseCfg):
     def validate_config(self) -> None:
         """Validate the render product split and the requested data types against the renderer contract."""
         max_envs = self.max_envs_per_render_product
-        if max_envs is not None and (isinstance(max_envs, bool) or not isinstance(max_envs, int) or max_envs < 1):
+        # A bool is an int in Python. The check rejects it, because True or False is not an environment count.
+        is_count = isinstance(max_envs, int) and not isinstance(max_envs, bool) and max_envs >= 1
+        if not is_count and max_envs not in ("auto", "all"):
             raise ValueError(
-                f"CameraCfg.max_envs_per_render_product must be None or an integer >= 1, got {max_envs!r}."
+                f'CameraCfg.max_envs_per_render_product must be "auto", "all" or an integer >= 1, got {max_envs!r}.'
             )
         # Whether the renderer can split is checked when the camera gets its renderer. A launcher can still
         # replace a placeholder renderer configuration here, for example the "auto_rtx" preset.

@@ -345,8 +345,8 @@ def _split_priority(data: OVRTXCameraRenderData) -> tuple[int, int]:
 
     The path tracer buffers that can pass the limit grow with the pixels of the atlas, and the largest one also
     grows with the samples per pixel. So the rank is the pixel count of the largest atlas times the samples per
-    pixel that the sensor sets in ``render_settings``. A sensor that does not set them uses the shared value of
-    the renderer, which is the same for every sensor, so it counts as 1. The rank only orders the sensors. A
+    pixel that the sensor sets in ``render_settings``. A sensor that does not set them uses the renderer-wide
+    value. Isaac Lab never changes that value, so it is the OVRTX default of 1. The rank only orders the sensors. A
     wrong guess costs extra failed frames: halving a sensor lowers its rank, so the next step can pick another one.
     """
     # The first render product of a sensor is its largest one.
@@ -363,9 +363,10 @@ def _split_priority(data: OVRTXCameraRenderData) -> tuple[int, int]:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and borrowed output buffers.
 
-    The sensor has ``K = ceil(num_envs / max_envs_per_render_product)`` render products. All of them use
-    the same RenderVars, which are in the scope of the sensor. Product ``k`` renders a contiguous range of
-    environments into its own tiled atlas. It then writes that range of the output buffers of the sensor.
+    With an integer ``max_envs_per_render_product = M``, the sensor has ``K = ceil(num_envs / M)`` render
+    products. With ``"auto"`` or ``"all"``, it starts with one render product. All of them use the same
+    RenderVars, which are in the scope of the sensor. Product ``k`` renders a contiguous range of environments
+    into its own tiled atlas. It then writes that range of the output buffers of the sensor.
 
     Until the first frame renders, the split search can call :meth:`set_layout`. This replaces the render
     products, moves them to a new scope and updates the RenderVar keys. See :meth:`OVRTXRenderer.render_batch`.
@@ -380,8 +381,8 @@ class OVRTXCameraRenderData:
             camera_paths: Concrete camera paths in sensor row order.
 
         Raises:
-            ValueError: If ``spec.cfg.max_envs_per_render_product`` splits the sensor but ``camera_paths``
-                does not hold one path per environment.
+            ValueError: If an integer ``spec.cfg.max_envs_per_render_product`` splits the sensor but
+                ``camera_paths`` does not hold one path per environment.
         """
         self.spec = spec
         self.camera_paths = camera_paths
@@ -392,10 +393,10 @@ class OVRTXCameraRenderData:
         self.num_envs = spec.num_instances
         self.data_types = spec.cfg.data_types
         max_envs = spec.cfg.max_envs_per_render_product
-        self.searches_split = max_envs is None and len(camera_paths) == self.num_envs
+        self.searches_split = max_envs == "auto" and len(camera_paths) == self.num_envs
         """Whether the split search may still halve the render products of this sensor.
 
-        Only a sensor without an explicit limit and with one camera path per environment starts with ``True``.
+        Only a sensor with ``"auto"`` and with one camera path per environment starts with ``True``.
         The value becomes ``False`` when the search gives up.
         """
         self.first_frame_error: RuntimeError | None = None
@@ -404,7 +405,8 @@ class OVRTXCameraRenderData:
         Such a sensor has no render products in the steps any more, and every later render of it raises at once.
         Another try cannot work, because the search already tried the smallest layouts it allows.
         """
-        self.set_layout(render_scope_name, max_envs)
+        # "auto" and "all" both start with one render product for all environments.
+        self.set_layout(render_scope_name, max_envs if isinstance(max_envs, int) else self.num_envs)
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
@@ -423,13 +425,13 @@ class OVRTXCameraRenderData:
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
-    def set_layout(self, render_scope_name: str, max_envs: int | None) -> None:
+    def set_layout(self, render_scope_name: str, max_envs: int) -> None:
         """Divide the environments of this sensor over render products in the scope ``render_scope_name``.
 
         Args:
             render_scope_name: Root scope containing this camera's render products and RenderVars.
-            max_envs: Maximum number of environments in one render product. ``None`` gives one render
-                product for all environments.
+            max_envs: Maximum number of environments in one render product. A value of at least the
+                environment count gives one render product for all environments.
 
         Raises:
             ValueError: If ``max_envs`` splits the sensor but :attr:`camera_paths` does not hold one
@@ -440,7 +442,7 @@ class OVRTXCameraRenderData:
             source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
         }
         camera_paths = self.camera_paths
-        chunk = self.num_envs if max_envs is None else min(max_envs, self.num_envs)
+        chunk = min(max_envs, self.num_envs)
         count = math.ceil(self.num_envs / chunk)
         if count > 1 and len(camera_paths) != self.num_envs:
             raise ValueError(
@@ -1055,11 +1057,25 @@ class OVRTXRenderer(BaseRenderer):
             for key, decoder, expected in used:
                 render_var = other.render_vars.get(render_data.render_var_keys[key])
                 if render_var is None or _decode_segmentation_map(render_var, decoder) != expected:
+                    if render_data.spec.cfg.max_envs_per_render_product == "auto":
+                        # Only the search splits a sensor with "auto". The search can halve this sensor although
+                        # another sensor caused the failed frame. Only then can "all" on this sensor help.
+                        advice = (
+                            "The split search split this sensor after a failed first frame. If the search also"
+                            ' split another camera sensor, "all" on this sensor can avoid the split. Fewer'
+                            " environments, a lower resolution or fewer samples per pixel can also let one render"
+                            " product render."
+                        )
+                    else:
+                        advice = (
+                            'Set CameraCfg.max_envs_per_render_product to "all" to render this sensor through'
+                            " one render product. This works only if the buffers of one render product stay below"
+                            " the renderer limit."
+                        )
                     raise RuntimeError(
                         f"OVRTX returned a different {key} for render product {product.path!r} than for"
                         f" {render_data.products[0].path!r}. The segmentation labels of a split camera sensor"
-                        " assume one map for the whole scene. Set CameraCfg.max_envs_per_render_product to"
-                        " None or to the environment count to render this sensor through one render product."
+                        f" assume one map for the whole scene. {advice}"
                     )
 
     def _launch_extract_all_tiles(
@@ -1409,10 +1425,12 @@ class OVRTXRenderer(BaseRenderer):
         re-enters the set on a later step far more expensive. Only ``render_data`` is read
         back, so products left out of the request keep their previous outputs.
 
-        A camera sensor with ``max_envs_per_render_product = None`` starts with one render product. If the
-        first frame fails, this method halves the largest render product of such a sensor and renders the
-        frame again. It repeats this until the frame renders or the search gives up. When a smaller layout
-        renders, a warning gives the value of ``max_envs_per_render_product`` that skips this search.
+        A camera sensor with ``max_envs_per_render_product = "auto"`` starts with one render product. If the
+        first frame fails, this method halves the render products of one such sensor, the one with the
+        highest :func:`_split_priority`, and renders the frame again. It repeats this until the frame
+        renders or the search gives up. When a smaller layout renders, a warning gives the value of
+        ``max_envs_per_render_product`` that skips this search. A sensor with ``"all"`` or an integer keeps
+        its layout, so its failed frame raises.
 
         Args:
             render_data: Cameras whose poses and output buffers have been prepared. An empty
@@ -1446,7 +1464,7 @@ class OVRTXRenderer(BaseRenderer):
                     raise
                 smaller_layouts += 1
         for data in self.backend.unrendered:
-            if data.spec.cfg.max_envs_per_render_product is None and len(data.products) > 1:
+            if data.spec.cfg.max_envs_per_render_product == "auto" and len(data.products) > 1:
                 logger.warning(
                     "Camera %s: one render product for all %d environments failed its first frame. The renderer log"
                     " shows the cause. The sensor now uses %d render products of at most %d environments. Set"
@@ -1491,14 +1509,25 @@ class OVRTXRenderer(BaseRenderer):
                     f"The first frame also failed with {smaller_layouts} smaller render product layout(s). The"
                     " renderer log shows the cause. Smaller render products do not fix a lack of GPU memory."
                 )
-            explicit = [
-                data.spec.cfg.prim_path for data in cameras if data.spec.cfg.max_envs_per_render_product is not None
+            one_product = [
+                data.spec.cfg.prim_path for data in cameras if data.spec.cfg.max_envs_per_render_product == "all"
             ]
-            if explicit:
+            integer_limit = [
+                data.spec.cfg.prim_path
+                for data in cameras
+                if isinstance(data.spec.cfg.max_envs_per_render_product, int)
+            ]
+            if one_product:
                 error.add_note(
-                    "The search does not change a camera sensor with an explicit"
-                    f" CameraCfg.max_envs_per_render_product: {', '.join(explicit)}. A tiled atlas above a renderer"
-                    " limit is one cause of a failed frame. A smaller value, or None, can avoid it."
+                    'The search does not change a camera sensor with CameraCfg.max_envs_per_render_product="all":'
+                    f" {', '.join(one_product)}. A tiled atlas above a renderer limit is one cause of a failed"
+                    ' frame. The value "auto" or an integer can avoid it, because both can split the sensor.'
+                )
+            if integer_limit:
+                error.add_note(
+                    "The search does not change a camera sensor with an integer"
+                    f" CameraCfg.max_envs_per_render_product: {', '.join(integer_limit)}. A tiled atlas above a"
+                    " renderer limit is one cause of a failed frame. A smaller value can avoid it."
                 )
         # First remove every failed render product from the set that each step renders. If a scene
         # write below fails, the set then holds no failed render product.

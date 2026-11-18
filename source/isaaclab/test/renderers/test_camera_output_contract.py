@@ -5,7 +5,6 @@
 
 """Tests for the renderer→camera output contract."""
 
-import importlib.util
 import warnings
 from types import SimpleNamespace
 
@@ -259,10 +258,24 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
 
 
 @pytest.mark.parametrize(
-    "max_envs, valid", [(None, True), (3, True), (0, False), (2.0, False), (True, False), (False, False)]
+    "max_envs, valid",
+    [
+        ("auto", True),
+        ("all", True),
+        (1, True),
+        (3, True),
+        (None, False),
+        (0, False),
+        (-2, False),
+        (2.0, False),
+        (True, False),
+        (False, False),
+        ("none", False),
+        ("ALL", False),
+    ],
 )
 def test_camera_cfg_validates_render_product_split(max_envs, valid):
-    """The render product split is None or a positive integer; other values are rejected before any renderer runs."""
+    """The split is "auto", "all" or an integer >= 1. Other values are rejected before any renderer runs."""
     pytest.importorskip("isaaclab_ov")
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -277,22 +290,41 @@ def test_camera_cfg_validates_render_product_split(max_envs, valid):
     if valid:
         validate(cfg)
     else:
-        with pytest.raises(ValueError, match="max_envs_per_render_product"):
+        with pytest.raises(ValueError, match='max_envs_per_render_product must be "auto", "all" or an integer >= 1'):
             validate(cfg)
 
 
-def test_camera_rejects_render_product_split_on_single_product_renderer():
-    """The camera rejects a split when its renderer, here the default Isaac RTX one, cannot split."""
+@pytest.mark.parametrize("renderer", ["isaac_rtx", "newton_warp", "ovrtx"])
+def test_render_product_split_check_follows_renderer_support(renderer):
+    """Renderers without split support accept "auto" and "all", which mean one render product, and reject an integer.
+
+    The OVRTX renderer can split, so it also accepts an integer.
+    """
     from isaaclab.sensors.camera.camera import check_render_product_split
 
-    cfg = CameraCfg(height=64, width=64, prim_path="/World/Camera", spawn=_SPAWN, max_envs_per_render_product=3)
-    validate(cfg)
-    with pytest.raises(ValueError, match="IsaacRtxRendererCfg.*max_envs_per_render_product"):
-        check_render_product_split(cfg, cfg.renderer_cfg)
-    if importlib.util.find_spec("isaaclab_ov") is not None:
+    cfg = CameraCfg(height=64, width=64, prim_path="/World/Camera", spawn=_SPAWN)
+    if renderer == "newton_warp":
+        pytest.importorskip("isaaclab_newton")
+        pytest.importorskip("newton")
+        from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+        renderer_cfg = NewtonWarpRendererCfg()
+    elif renderer == "ovrtx":
+        pytest.importorskip("isaaclab_ov")
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        check_render_product_split(cfg, OVRTXRendererCfg())
+        renderer_cfg = OVRTXRendererCfg()
+    else:
+        # The default renderer configuration of a camera is Isaac RTX.
+        renderer_cfg = cfg.renderer_cfg
+    for max_envs in ("auto", "all"):
+        check_render_product_split(replace(cfg, max_envs_per_render_product=max_envs), renderer_cfg)
+    split = replace(cfg, max_envs_per_render_product=3)
+    if renderer == "ovrtx":
+        check_render_product_split(split, renderer_cfg)
+    else:
+        with pytest.raises(ValueError, match=f'{type(renderer_cfg).__name__} .* must be "auto" or "all", got 3'):
+            check_render_product_split(split, renderer_cfg)
 
 
 def test_camera_cfg_accepts_render_product_split_for_a_placeholder_renderer():

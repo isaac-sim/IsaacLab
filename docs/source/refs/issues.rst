@@ -238,8 +238,9 @@ Large RTX camera workloads can return black or corrupted images
 the physics backend.
 
 Increasing the camera count, resolution, or path-tracing samples per pixel (SPP) can cause camera
-views to become black or corrupted without raising an error. Simulation and training can continue
-with invalid observations.
+views to become black or corrupted. With OVRTX 0.6 this happens without an error, so simulation and
+training can continue with invalid observations. OVRTX 0.7 and later fail the frame with an error
+instead.
 
 Camera views are combined into a tiled image (an atlas). On affected renderer versions, the
 rendering workload for a large atlas can exceed the supported Vulkan shader-access range for a
@@ -250,8 +251,8 @@ reproduction steps, and fix status.
 
 With the OVRTX renderer (``renderer=ovrtx``), split the camera sensor over several render products
 with :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. Each render product then has
-a smaller atlas. With OVRTX 0.7 or later, the default ``None`` finds a working split by itself. With
-OVRTX 0.6, set an integer. See :ref:`camera-render-products-per-sensor`.
+a smaller atlas. With OVRTX 0.7 or later, the default ``"auto"`` searches for a split by itself when the
+first frame fails. With OVRTX 0.6, set an integer. See :ref:`camera-render-products-per-sensor`.
 
 With other RTX renderers, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
 images from all cameras before training. Reducing the camera count may leave the atlas dimensions
