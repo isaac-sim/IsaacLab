@@ -228,6 +228,14 @@ class CameraCfg(SensorBaseCfg):
     documentation for inputs, outputs, ``env_mask``, asynchronous rendering, and ``prepare_camera``.
     """
 
+    tensor_processors: list[TensorProcessorCfg] = []
+    """Processors that compute camera outputs from render outputs, run in order after each capture.
+    Defaults to an empty list.
+
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
+    documentation for inputs, outputs, ``env_mask``, and asynchronous rendering support.
+    """
+
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
 
