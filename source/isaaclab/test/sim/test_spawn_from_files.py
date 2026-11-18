@@ -10,7 +10,7 @@ launch_test_simulation()
 import os
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -147,6 +147,30 @@ def test_spawn_urdf(sim):
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mjcf_make_uninstanceable_applies_collision_props_to_mesh_colliders(sim, tmp_path):
+    """Test applying collision properties to the mesh colliders the MJCF importer authors inside instances."""
+    (tmp_path / "tetra.obj").write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\nf 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n")
+    mjcf_path = tmp_path / "asset.xml"
+    mjcf_path.write_text(
+        '<mujoco><asset><mesh file="tetra.obj"/></asset>'
+        '<worldbody><body name="base"><freejoint/><geom type="mesh" mesh="tetra"/></body></worldbody></mujoco>'
+    )
+    cfg = sim_utils.MjcfFileCfg(
+        asset_path=str(mjcf_path),
+        usd_dir=str(tmp_path / "usd"),
+        make_uninstanceable=True,
+        collision_props=PhysxCollisionCfg(contact_offset=0.0123),
+    )
+    prim = cfg.func("/World/Robot", cfg)
+
+    colliders = [p for p in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()) if p.HasAPI(UsdPhysics.CollisionAPI)]
+    assert colliders
+    for collider in colliders:
+        assert not collider.IsInstanceProxy()
+        assert collider.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.0123)
 
 
 @pytest.mark.isaacsim_ci

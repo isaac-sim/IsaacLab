@@ -702,14 +702,12 @@ def spawn_from_usd_file(
 
     from . import from_files_cfg  # noqa: PLC0415
 
-    # variant selection and instancing overrides only exist on USD file spawners
-    if isinstance(cfg, from_files_cfg.UsdFileCfg):
-        # modify variants
-        if cfg.variants is not None:
-            select_usd_variants(prim_path, cfg.variants)
-        # make instance proxies editable before any override tries to author properties on them
-        if cfg.make_uninstanceable:
-            make_uninstanceable(prim_path, stage=stage)
+    # variant selection only exists on USD file spawners
+    if isinstance(cfg, from_files_cfg.UsdFileCfg) and cfg.variants is not None:
+        select_usd_variants(prim_path, cfg.variants)
+    # make instance proxies editable before any override tries to author properties on them
+    if cfg.make_uninstanceable:
+        make_uninstanceable(prim_path, stage=stage)
 
     # author the deformable dict slot first so any collision_props keyed to the created sim mesh
     # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
