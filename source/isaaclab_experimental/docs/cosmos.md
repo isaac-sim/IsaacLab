@@ -4,8 +4,9 @@
 send a control image, depth by default, to a Cosmos service running in its own environment, and publish the image
 Cosmos generates as the camera's `rgb`. Training uses the existing Isaac Lab environment and commands.
 
-For a step-by-step run, follow the [Shadow Hand demo](cosmos_transfer.md). This page covers serving Cosmos, putting
-it on your own camera task, and running it with several environments, cameras, and GPUs.
+For a step-by-step run, follow the [Shadow Hand demo](cosmos_transfer.md) or the
+[apple pick-and-place demo](cosmos_transfer_apple.md). This page covers serving Cosmos, putting it on your own camera
+task, and running it with several environments, cameras, and GPUs.
 
 ## Serve Cosmos
 

@@ -28,8 +28,7 @@ run. Cosmos needs **48 GB of VRAM for one environment**, with approximately **8 
 each additional environment**. Give the GR00T server a GPU too; the examples put it on GPU 1.
 Use **uv 0.11.29** for the Cosmos Framework environment.
 
-For service options and camera configuration, see [Serving Cosmos](cosmos_service.md)
-and [Cosmos camera integration](cosmos.md).
+For service options and camera configuration, see [Cosmos camera integration](cosmos.md).
 
 ## 1. Set paths
 
