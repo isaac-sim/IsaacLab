@@ -464,7 +464,7 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
 
 
 def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service, monkeypatch):
-    """Views a capture does not select keep their image, and a capture that selects no view changes nothing."""
+    """Views a capture does not select keep their image, at decision points and between them."""
     monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
     backend = CosmosModelCfg(
         endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=2, timeout=2
@@ -482,11 +482,10 @@ def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service
         return [int(image.float().mean()) for image in processor(buffers, env_mask=mask)["rgb"].torch]
 
     try:
-        # A capture of no view does not count, so the next capture is still a decision point.
-        assert capture(False, False) == [0, 0]
         assert capture(True, False) == [127, 0]
         assert capture(False, True) == [127, 50]
-        assert len(cosmos_service.resource.streams[0].steps) == 1
+        assert capture(False, False) == [127, 50]
+        assert len(cosmos_service.resource.streams[0].steps) == 2
     finally:
         processor.close()
 

@@ -35,7 +35,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
     With :attr:`CosmosModelCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
     from the current capture's control, every ``decision_interval`` captures from the latest reset and with
     probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Only the
-    views a capture selects publish a new image, and a capture that selects no view changes nothing.
+    views a capture selects publish a new image.
     """
 
     def __init__(self, cfg: CosmosTransferProcessorCfg, data: dict[str, ProxyArray]):
@@ -92,7 +92,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         """Discard the selected views' episode state; in single-frame mode the next capture is a decision point."""
         super().reset(env_ids, env_mask)
         if self._single_frame:
-            # Reset is not a hot path; the base class reads the mask on the host too.
+            # The base class has already read the mask on the host for its queues.
             selected = bool(wp.to_torch(env_mask).any()) if env_mask is not None else env_ids is None or len(env_ids)
             if selected:
                 self._capture_index = 0
@@ -105,19 +105,13 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         frames = data[cfg.inputs[0]].torch
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
-        # Read on the host, as the base class reads it; only the captured views advance.
-        rows = [row for row, captured in enumerate(wp.to_torch(env_mask).tolist()) if captured]
-        if not rows:
-            return dict(self._outputs)
+        # Views the capture does not select keep their image; the mask stays on the device.
+        selected = wp.to_torch(env_mask).to(self._output.device).view(-1, 1, 1, 1)
         decision = self._capture_index % cfg.backend.decision_interval == 0
         self._capture_index += 1
         with torch.no_grad():
             if not decision or self._random.random() >= cfg.backend.augmentation_probability:
-                rgb = data["rgb"].torch[..., :3]
-                if len(rows) == len(self._output):
-                    self._output.copy_(rgb)
-                else:
-                    self._output[rows] = rgb[rows]
+                torch.where(selected, data["rgb"].torch[..., :3], self._output, out=self._output)
                 return dict(self._outputs)
             num_views = self._data_dim[0]
             resets = tuple(sorted(self._reset_rows)) if self._started else ()
@@ -133,8 +127,8 @@ class CosmosTransferProcessor(ImageTransferProcessor):
                 self._failed = True
                 raise
             # The batch generates every view; views not captured now keep their image.
-            for row in rows:
-                self._output[row].copy_(generated[row][0])
+            images = torch.cat(generated).to(self._output.device)
+            torch.where(selected, images, self._output, out=self._output)
             self._started = True
             self._reset_rows.clear()
         return dict(self._outputs)
