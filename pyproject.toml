@@ -181,13 +181,13 @@ isaacsim = [
 ]
 
 ov = [
-    "ovphysx==0.7.0.74035321",
-    "ovrtx==0.6.0.1791947691",
-    "ovstage==0.3.0.1791986420",
+    "ovphysx==0.8.0.43443703471",
+    "ovrtx==0.7.0.1794596436",
+    "ovstage==0.4.0.1794520352",
     "physx-usd-schemas==25.11.2.72696984",
 ]
-ovphysx = ["ovphysx==0.7.0.74035321", "ovstage==0.3.0.1791986420", "physx-usd-schemas==25.11.2.72696984"]
-ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
+ovphysx = ["ovphysx==0.8.0.43443703471", "ovstage==0.4.0.1794520352", "physx-usd-schemas==25.11.2.72696984"]
+ovrtx = ["ovrtx==0.7.0.1794596436", "ovstage==0.4.0.1794520352"]
 
 mimic = [
     "isaaclab-mimic",
@@ -234,9 +234,9 @@ isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
-ovphysx = "0.7.0.74035321"
-ovrtx = "0.6.0.1791947691"
-ovstage = "0.3.0.1791986420"
+ovphysx = "0.8.0.43443703471"
+ovrtx = "0.7.0.1794596436"
+ovstage = "0.4.0.1794520352"
 newton = "1.9.0.dev0"
 warp = "1.17.0"
 
