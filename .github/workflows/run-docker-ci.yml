@@ -40,42 +40,24 @@ jobs:
         run: |
           set -efuo pipefail
 
-          # Normalize CRLF and trim trailing whitespace/newlines so web or mobile
-          # comments ending in a line break still match ``run-ci [option ...]``.
-          body="${COMMENT_BODY//$'\r'/}"
-          body="${body%"${body##*[![:space:]]}"}"
-          if [[ -z "$body" || "${body:0:1}" =~ [[:space:]] || "$body" == *$'\n'* ]]; then
-            echo "::error::'run-ci' must be a single-line command without leading whitespace: 'run-ci [option ...]' (supported options: ovstage)."
-            exit 1
-          fi
-
-          read -r -a tokens <<< "$body"
-          command_name="${tokens[0]:-}"
-          if [ "${command_name,,}" != "run-ci" ]; then
-            echo "::error::Unsupported command '$command_name'. Use 'run-ci' or 'run-ci <option> ...' (supported options: ovstage)."
-            exit 1
-          fi
-
-          use_ovstage=false
-          for raw_opt in "${tokens[@]:1}"; do
-            case "${raw_opt,,}" in
-              ovstage)
-                use_ovstage=true
-                ;;
-              *)
-                echo "::error::Unknown run-ci option '$raw_opt'. Supported options: ovstage."
-                exit 1
-                ;;
-            esac
-          done
-
-          if [ "$use_ovstage" = true ]; then
-            label="ci:run-ovstage"
-            canonical_command="run-ci ovstage"
-          else
-            label="ci:run-docker"
-            canonical_command="run-ci"
-          fi
+          # Normalize CRLF and trim trailing whitespace/newlines so comments ending
+          # in a line break still match ``run-ci`` or ``run-ci ovstage``.
+          command="${COMMENT_BODY//$'\r'/}"
+          command="${command%"${command##*[![:space:]]}"}"
+          case "${command,,}" in
+            "run-ci")
+              label="ci:run-docker"
+              canonical_command="run-ci"
+              ;;
+            "run-ci ovstage")
+              label="ci:run-ovstage"
+              canonical_command="run-ci ovstage"
+              ;;
+            *)
+              echo "::error::Unsupported command '$command'. Use 'run-ci' or 'run-ci ovstage'."
+              exit 1
+              ;;
+          esac
 
           read -r pr_author pr_state head_sha < <(
             gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state, .head.sha] | @tsv'
@@ -133,9 +115,6 @@ jobs:
           fi
 
           endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
-          if [ "$LABEL" = "ci:run-docker" ]; then
-            gh api --method DELETE "$endpoint/ci:run-ovstage" --silent >/dev/null 2>&1 || true
-          fi
           gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
           gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
           gh api --method DELETE "$endpoint/$LABEL" --silent

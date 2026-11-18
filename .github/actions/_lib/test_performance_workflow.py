@@ -20,131 +20,27 @@ _WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
 _RUN_CI_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/run-docker-ci.yml"
 
 
-def _labeled(login: str, label: str | None = None) -> dict[str, str | dict[str, str]]:
-    event: dict[str, str | dict[str, str]] = {"event": "labeled", "actor": {"login": login}}
-    if label is not None:
-        event["label"] = {"name": label}
-    return event
-
-
-def _bot_pulse(label: str) -> list[dict[str, str | dict[str, str]]]:
-    return [
-        _labeled("isaaclab-bot[bot]", label),
-        {"event": "unlabeled", "actor": {"login": "isaaclab-bot[bot]"}, "label": {"name": label}},
-    ]
+def _labeled(login: str) -> dict[str, str | dict[str, str]]:
+    return {"event": "labeled", "actor": {"login": login}}
 
 
 def test_ci_activation_and_runner_selection() -> None:
     workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     assert "synchronize" in workflow.get("on", workflow.get(True, {}))["pull_request"]["types"]
     jobs = workflow["jobs"]
-    ovstage_job = jobs["test-rendering-correctness-kitless-ovstage"]
-    assert "changes" in ovstage_job["needs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
     removed_label = [_labeled("maintainer"), {"event": "unlabeled"}]
     paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, _labeled("isaaclab-bot[bot]")]]
     ignored = [[_labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
-    ovstage_pulse = _bot_pulse("ci:run-ovstage")
-    default_pulse = _bot_pulse("ci:run-docker")
     cases = [
-        ("push", "push", "", "", [], [], True, True, False, True),
-        ("actions bot", "pull_request", "synchronize", "", [], ignored, False, False, True, False),
-        ("removed human label", "pull_request", "synchronize", "", [], [removed_label], False, True, True, False),
-        ("paginated bot label", "pull_request", "synchronize", "", [], paginated, False, True, True, False),
-        ("API error", "pull_request", "synchronize", "", [], [], True, False, True, False),
-        (
-            "API error after page 1 activation",
-            "pull_request",
-            "synchronize",
-            "",
-            [],
-            [ovstage_pulse],
-            True,
-            True,
-            True,
-            True,
-        ),
-        ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], [], True, True, True, False),
-        (
-            "plain run-ci overrides attached ovstage",
-            "pull_request",
-            "labeled",
-            "ci:run-docker",
-            ["ci:run-ovstage"],
-            [],
-            True,
-            True,
-            True,
-            False,
-        ),
-        ("ovstage rerun", "pull_request", "labeled", "ci:run-ovstage", [], [], True, True, True, True),
-        ("ovstage synchronize", "pull_request", "synchronize", "", [], [ovstage_pulse], False, True, True, True),
-        (
-            "ovstage cleared by plain run-ci",
-            "pull_request",
-            "synchronize",
-            "",
-            [],
-            [[*ovstage_pulse, *default_pulse]],
-            False,
-            True,
-            True,
-            False,
-        ),
-        (
-            "plain run-ci resets attached ovstage on synchronize",
-            "pull_request",
-            "synchronize",
-            "",
-            ["ci:run-ovstage"],
-            [[_labeled("maintainer", "ci:run-ovstage"), *default_pulse]],
-            False,
-            True,
-            True,
-            False,
-        ),
-        (
-            "ovstage preserved across triage label",
-            "pull_request",
-            "labeled",
-            "triage",
-            [],
-            [ovstage_pulse],
-            False,
-            True,
-            False,
-            True,
-        ),
-        (
-            "human unlabeled ovstage",
-            "pull_request",
-            "synchronize",
-            "",
-            [],
-            [
-                [
-                    _labeled("maintainer", "ci:run-ovstage"),
-                    {"event": "unlabeled", "actor": {"login": "maintainer"}, "label": {"name": "ci:run-ovstage"}},
-                ]
-            ],
-            False,
-            True,
-            True,
-            False,
-        ),
-        (
-            "attached ovstage label",
-            "pull_request",
-            "synchronize",
-            "",
-            ["ci:run-ovstage"],
-            [[_labeled("maintainer", "ci:run-ovstage")]],
-            False,
-            True,
-            True,
-            True,
-        ),
-        ("other label", "pull_request", "labeled", "triage", [], [], True, True, False, False),
+        ("push", "push", "", "", [], True, True, False, True),
+        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True, False),
+        ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True, False),
+        ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True, False),
+        ("API error", "pull_request", "synchronize", "", [], True, False, True, False),
+        ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], True, True, True, False),
+        ("ovstage rerun", "pull_request", "labeled", "ci:run-ovstage", [], True, True, True, True),
+        ("other label", "pull_request", "labeled", "triage", [], True, True, False, False),
     ]
     data = {
         "script": activation["with"]["script"],
@@ -152,7 +48,7 @@ def test_ci_activation_and_runner_selection() -> None:
         "cases": cases,
         "runner": jobs["build"]["runs-on"].removeprefix("${{").removesuffix("}}"),
         "curobo": jobs["build-curobo"]["if"],
-        "ovstage": ovstage_job["if"],
+        "ovstage": jobs["test-rendering-correctness-kitless-ovstage"]["if"],
         "stop": next(step for step in jobs["build"]["steps"] if step.get("name") == "Explain missing PR activation"),
         "cancel": workflow["concurrency"]["cancel-in-progress"].removeprefix("${{").removesuffix("}}"),
     }
@@ -160,35 +56,25 @@ def test_ci_activation_and_runner_selection() -> None:
 const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
 const assert = require('node:assert/strict');
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
-const startsWith = (s, p) => String(s ?? '').toLowerCase().startsWith(String(p ?? '').toLowerCase());
-const contains = (search, item) => Array.isArray(search)
-  ? search.some(v => String(v).toLowerCase() === String(item).toLowerCase())
-  : String(search ?? '').toLowerCase().includes(String(item ?? '').toLowerCase());
 (async () => {
   for (const row of input.cases) {
-    const [name, eventName, action, label, attached, pages, error, activated, expectedCancel, expectedOvstage] = row;
+    const [name, eventName, action, label, pages, error, activated, expectedCancel, expectedOvstage] = row;
     const outputs = {};
-    const prLabels = attached.map(l => ({name: l}));
-    const context = {eventName, payload: {action, pull_request: {number: 42, labels: prLabels}, label: {name: label}},
+    const context = {eventName, payload: {action, pull_request: {number: 42}, label: {name: label}},
                      repo: {owner: 'owner', repo: 'lab'}};
     const core = {setOutput: (k,v) => outputs[k] = v};
     const github = {rest: {issues: {listEvents: 'events'}}, paginate: {iterator: async function*() {
-      for (const data of pages) yield {data};
       if (error) throw new Error('network unavailable');
+      for (const data of pages) yield {data};
     }}};
     try {
       await new AsyncFunction('context', 'github', 'core', input.script)(context, github, core);
     } catch (error) {
       if (!input.continue_on_error) throw new Error(name + ': ' + error.message);
     }
-    const needs = {
-      build: {result: 'success'},
-      changes: {outputs: {activated: outputs.activated, ci_extras: outputs.ci_extras, should_run: 'true'}},
-    };
+    const needs = {build: {result: 'success'}, changes: {outputs: {activated: outputs.activated, should_run: 'true'}}};
     const event = {event_name: eventName, event: context.payload};
-    const evaluate = code => new Function(
-      'needs', 'github', 'fromJSON', 'startsWith', 'contains', `return (${code})`
-    )(needs, event, JSON.parse, startsWith, contains);
+    const evaluate = code => new Function('needs', 'github', 'fromJSON', `return (${code})`)(needs, event, JSON.parse);
     assert.deepEqual(
       [
         evaluate(input.runner),
@@ -304,15 +190,14 @@ process.stdout.write(ok ? '1' : '0');
     assert not gate_allows(False, "run-ci")
     for skipped_comment in ("LGTM", "`run-ci`", "  run-ci"):
         assert not gate_allows(True, skipped_comment), skipped_comment
-    # Leading whitespace is rejected by the parser as well as the job gate.
     code, _, _, calls = run_authorize("  run-ci")
     assert code != 0 and calls == []
 
-    for body, expected_label, expected_cmd, run_trigger, expected_deletes in [
-        ("run-ci", "ci:run-docker", "run-ci", True, ["ci:run-ovstage", "ci:run-docker", "ci:run-docker"]),
-        ("run-ci \r\n", "ci:run-docker", "run-ci", False, []),
-        ("run-ci ovstage\r\n", "ci:run-ovstage", "run-ci ovstage", True, ["ci:run-ovstage", "ci:run-ovstage"]),
-        ("run-ci OVSTAGE ovstage", "ci:run-ovstage", "run-ci ovstage", False, []),
+    for body, expected_label, expected_cmd, run_trigger in [
+        ("run-ci", "ci:run-docker", "run-ci", True),
+        ("run-ci \r\n", "ci:run-docker", "run-ci", False),
+        ("run-ci ovstage\r\n", "ci:run-ovstage", "run-ci ovstage", True),
+        ("run-ci OVSTAGE", "ci:run-ovstage", "run-ci ovstage", False),
     ]:
         assert gate_allows(True, body), body
         code, output, outputs, calls = run_authorize(body, run_trigger=run_trigger)
@@ -320,13 +205,10 @@ process.stdout.write(ok ? '1' : '0');
         assert outputs == {"head_sha": "abcdef1234567890", "label": expected_label, "command": expected_cmd}
         if run_trigger:
             label_calls = [c for c in calls if any("labels" in arg for arg in c)]
-            deletes = [c for c in label_calls if c[c.index("--method") + 1] == "DELETE"]
-            posts = [c for c in label_calls if c[c.index("--method") + 1] == "POST"]
-            assert [
-                c[c.index("--method") + 1] + ":" + next(a.split("/labels/")[-1] for a in c if "labels" in a)
-                for c in deletes
-            ] == [f"DELETE:{name}" for name in expected_deletes]
-            assert len(posts) == 1 and f"labels[]={expected_label}" in posts[0]
+            assert [c[c.index("--method") + 1] for c in label_calls] == ["DELETE", "POST", "DELETE"]
+            assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[0]
+            assert f"labels[]={expected_label}" in label_calls[1]
+            assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[2]
 
     for invalid_body in ("run-ci unknown", "run-ci-ovstage", "run-ci\nextra"):
         if gate_allows(True, invalid_body):
