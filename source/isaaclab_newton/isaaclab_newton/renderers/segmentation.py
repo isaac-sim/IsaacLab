@@ -164,50 +164,50 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
 
 @wp.kernel(enable_backward=False)
 def _remap_shape_index_to_id_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
+    shape_index: wp.array(dtype=wp.uint32, ndim=3),
     shape_to_id: wp.array(dtype=wp.uint32),
     shape_count: wp.int32,
-    out_id: wp.array(dtype=wp.int32, ndim=4),
+    out_id: wp.array(dtype=wp.int32, ndim=3),
 ):
     """Write the segmentation id of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
+    w, y, x = wp.tid()
+    idx = shape_index[w, y, x]
     if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
         # Ray missed all geometry — no surface was hit.
-        out_id[w, c, y, x] = wp.int32(wp.static(BACKGROUND_ID))
+        out_id[w, y, x] = wp.int32(wp.static(BACKGROUND_ID))
     elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
         # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
+        out_id[w, y, x] = wp.int32(wp.static(UNLABELLED_ID))
     elif idx < wp.uint32(shape_count):
         # Normal geometry hit — look up the pre-built segmentation id for this shape.
-        out_id[w, c, y, x] = wp.int32(shape_to_id[wp.int32(idx)])
+        out_id[w, y, x] = wp.int32(shape_to_id[wp.int32(idx)])
     else:
         # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
+        out_id[w, y, x] = wp.int32(wp.static(UNLABELLED_ID))
 
 
 @wp.kernel(enable_backward=False)
 def _remap_shape_index_to_color_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
+    shape_index: wp.array(dtype=wp.uint32, ndim=3),
     shape_to_color: wp.array(dtype=wp.uint32),
     shape_count: wp.int32,
-    out_color: wp.array(dtype=wp.uint32, ndim=4),
+    out_color: wp.array(dtype=wp.uint32, ndim=3),
 ):
     """Write the packed RGBA color of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
+    w, y, x = wp.tid()
+    idx = shape_index[w, y, x]
     if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
         # Ray missed all geometry — no surface was hit.
-        out_color[w, c, y, x] = wp.uint32(0)
+        out_color[w, y, x] = wp.uint32(0)
     elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
         # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
+        out_color[w, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
     elif idx < wp.uint32(shape_count):
         # Normal geometry hit — look up the pre-built color for this shape.
-        out_color[w, c, y, x] = shape_to_color[wp.int32(idx)]
+        out_color[w, y, x] = shape_to_color[wp.int32(idx)]
     else:
         # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
+        out_color[w, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
 
 
 @dataclass
@@ -229,8 +229,8 @@ class NewtonSegmentationMapping:
         """Generate the segmentation output into ``out_view`` (colorized packed RGBA or raw int32 ids).
 
         Args:
-            shape_index: Newton ``shape_index_image`` scratch, ``(world_count, 1, H, W)`` uint32.
-            out_view: Destination view aliasing the camera output buffer as ``(world_count, 1, H, W)``,
+            shape_index: Newton ``shape_index_image`` scratch, ``(view_count, H, W)`` uint32.
+            out_view: Destination view aliasing the camera output buffer as ``(view_count, H, W)``,
                 dtype uint32 when colorized and int32 otherwise.
         """
         if self.shape_count == 0:
