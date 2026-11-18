@@ -19,7 +19,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from . import rng
-from .config import FieldSelector, Phase, SubsetSelector, episode_length, last_action, term_state, terminated
+from .config import Entity, FieldSelector, Phase, SubsetSelector, episode_length, last_action, term_state, terminated
 from .plan import ActionOp, ExecutionPlan, Launches, Segment, TermOp, segments
 from .scene import SceneData, SceneSchema
 
@@ -45,7 +45,7 @@ class MDPState:
     - ``"reward_weights"``: ``(num_worlds, num_rewards)``, which may change while the MDP runs, also in a CUDA graph;
     - ``("timer", op)``: seconds left per world, for a timed op;
     - ``("history", op)``: ``(num_worlds, history_length, size)``, for an observation with a history;
-    - ``("scratch", op)``: the output of an eager term or of a Warp hook that launches its own kernels;
+    - ``("scratch", op)``: the output of a Python hook in a Warp MDP;
     - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
     - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
@@ -54,8 +54,8 @@ class MDPState:
 
     arrays: dict[Hashable, ProxyArray]
     arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the backend of its hooks
-    scene_data: SceneData  # The scene the state is bound to, for eager terms
-    caches: dict[str, dict] = field(default_factory=dict)  # Host objects that eager terms keep, by op name
+    scene_data: SceneData  # The scene the state is bound to, whose entities Python hooks may take
+    caches: dict[str, dict] = field(default_factory=dict)  # Host objects that Python hooks keep, by op name
 
     @property
     def episode_length(self) -> ProxyArray:
@@ -252,7 +252,9 @@ class MDP:
 
         selectors = [op.target for op in self.ops[Phase.ACTIONS]]
         selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
-        selectors += [selector for op in self.term_ops for selector in op.inputs.values()]
+        selectors += [
+            selector for op in self.term_ops for selector in op.inputs.values() if not isinstance(selector, Entity)
+        ]
         noises = [op.observation.noise for op in self.ops[Phase.OBSERVATIONS]]
         selectors += [noise.scale for noise in noises if noise is not None and noise.scale is not None]
         for selector in selectors:
@@ -276,7 +278,7 @@ class MDP:
             if op.observation is not None and op.observation.history_length:
                 history_shape = (op.observation.history_length, math.prod(op.shape))
                 arrays["history", op.name] = self._zeros(self.num_worlds, *history_shape)
-            launches = op.eager or self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
+            launches = self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
             if launches and op.phase not in events:
                 arrays["scratch", op.name] = self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
             # Hooks of ops active in only some worlds get the reset worlds among those.
@@ -288,20 +290,26 @@ class MDP:
                     active = np.isin(np.arange(self.num_worlds), op.worlds)
                     arrays["active", op.name] = ProxyArray(wp.array(active, dtype=wp.bool, device=self.device))
 
-        # The hook arguments view the fields and the state; Torch hooks get Torch views, also in a Warp MDP.
+        # The hook arguments view the fields and the state; Torch hooks get Torch views, also in a Warp MDP. Python
+        # hooks also get the scene entities bound to them, and a cache for host objects.
         torch_views = {key: array.torch for key, array in arrays.items()}
         warp_views = {key: array.warp for key, array in arrays.items()}
-        arguments = {}
+        arguments, caches = {}, {}
         for op in self.term_ops:
             views = torch_views if self.backend is Backend.TORCH or op.torch_hooks else warp_views
+            python = not isinstance(op.compute, wp.Function)
             arguments[op.name] = {
-                **{arg: views[op.array_key(arg)] for arg in op.inputs},
+                **{
+                    arg: scene_data.entity(selector.name) if isinstance(selector, Entity) else views[op.array_key(arg)]
+                    for arg, selector in op.inputs.items()
+                },
+                **({"cache": caches.setdefault(op.name, {})} if python else {}),
                 **{name: views[term_state(op.use, name)] for name in op.state},
                 **({"rng": views["rng"][op.stream]} if op.random else {}),
                 **op.params,
             }
 
-        return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data)
+        return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data, caches=caches)
 
     def observations(self) -> dict[str, ProxyArray]:
         """Allocate one zeroed observation buffer per group, of shape ``(num_worlds, group_dim)``."""

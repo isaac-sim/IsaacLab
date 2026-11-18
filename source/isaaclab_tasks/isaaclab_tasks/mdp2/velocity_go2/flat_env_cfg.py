@@ -189,13 +189,13 @@ TASK = mdp2.TaskCfg(
         "physics_material": mdp2.Event(
             mdp.randomize_rigid_body_material,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": bodies},
+            inputs={"asset": robot, "body_ids": bodies},
             params={"friction_range": (0.8, 0.8), "restitution_range": (0.0, 0.0)},
         ),
         "add_base_mass": mdp2.Event(
             mdp.randomize_rigid_body_mass,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": base},
+            inputs={"asset": robot, "body_ids": base},
             params={
                 "mass_distribution_params": (1 / 1.25, 1.25),
                 "operation": "scale",
@@ -205,7 +205,7 @@ TASK = mdp2.TaskCfg(
         "base_com": mdp2.Event(
             mdp.randomize_rigid_body_com,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": base},
+            inputs={"asset": robot, "body_ids": base},
             params={"com_range": ((-0.05, 0.05), (-0.05, 0.05), (-0.01, 0.01))},
         ),
         "reset_base": mdp2.Event(

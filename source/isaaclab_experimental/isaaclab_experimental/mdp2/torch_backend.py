@@ -12,7 +12,6 @@ import torch
 from . import rng
 from .compiled import MDP, MDPState
 from .config import FieldSelector, Phase, last_action, term_state, terminated
-from .eager import call_eager
 from .plan import Call, Launch, Launches, Step, StepKind, TermOp
 from .terms import hook_arguments
 
@@ -131,17 +130,10 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
     state, transition = call.state, call.transition
     # Events and commands write their outputs in place, for the masked worlds.
     if op.phase in (Phase.STARTUP_EVENTS, Phase.COMMANDS, Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS):
-        if op.eager:
-            call_eager(mdp, op, state, mask)
-        else:
-            op.compute(mask=mask, **hook_arguments(op.compute, state.arguments[op.name]))
+        op.compute(mask=mask, **hook_arguments(op.compute, state.arguments[op.name]))
         return
 
-    if op.eager:
-        call_eager(mdp, op, state)
-        value = state.arrays["scratch", op.name].torch
-    else:
-        value = op.compute(**hook_arguments(op.compute, state.arguments[op.name]))
+    value = op.compute(**hook_arguments(op.compute, state.arguments[op.name]))
     if op.phase is Phase.QUANTITIES:
         destination = state.arrays[op.writes[0]].torch
         if mask is not None:

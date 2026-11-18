@@ -13,6 +13,7 @@ draws on both backends.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import torch
 import warp as wp
@@ -264,8 +265,10 @@ push_by_setting_velocity = Term(torch=_push_by_setting_velocity_torch, warp=_pus
 """Add uniform samples from ``velocity_range`` to the root velocity. Floating bases only."""
 
 
-# Physical properties. These events change the physics model, so they are eager and best run at startup. Like MDP1,
-# each call randomizes the values that the term's ``init`` stores at startup, so repeated calls do not compound.
+# Physical properties. These events change the physics model through the asset, bound as the ``asset`` input. Like
+# MDP1, each call randomizes the values that the term's ``init`` stores at startup, so repeated calls do not compound.
+# Most select their worlds on the host and run between the CUDA graphs, so they are best run at startup;
+# ``randomize_joint_parameters`` writes through the asset's masked writers and runs inside them.
 
 
 def _check_randomization(operation: str, distribution: str) -> None:
@@ -325,30 +328,34 @@ _BODY_DEFAULTS = {
 
 
 def _randomize_rigid_body_mass(
-    ctx: TermContext,
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    body_ids: torch.Tensor,
+    mass: torch.Tensor,
+    inertia: torch.Tensor,
     *,
     mass_distribution_params: tuple[float, float],
     operation: str,
     distribution: str = "uniform",
     recompute_inertia: bool = True,
 ) -> None:
-    asset = ctx.entity("body_ids")
-    body_ids = ctx.inputs["body_ids"].long()
-    env_ids = ctx.mask.nonzero().squeeze(-1)
+    body_ids = body_ids.long()
+    env_ids = mask.nonzero().squeeze(-1)
 
-    samples = _samples(ctx.rng, mass_distribution_params, distribution, (len(body_ids),))[env_ids]
-    masses = ctx.state["mass"][env_ids]
+    samples = _samples(rng, mass_distribution_params, distribution, (len(body_ids),))[env_ids]
+    masses = mass[env_ids]
     new_masses = _apply(masses, samples, operation).clamp(min=1e-6)
     asset.set_masses_index(masses=new_masses, body_ids=body_ids, env_ids=env_ids)
 
     # Assume uniform density: the inertia scales with the mass.
     if recompute_inertia:
-        inertias = ctx.state["inertia"][env_ids] * (new_masses / masses)[..., None]
+        inertias = inertia[env_ids] * (new_masses / masses)[..., None]
         asset.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
 
 randomize_rigid_body_mass = Term(
-    eager=_randomize_rigid_body_mass, init=_init_body_defaults, state=_BODY_DEFAULTS, random=True
+    torch=_randomize_rigid_body_mass, init=_init_body_defaults, state=_BODY_DEFAULTS, random=True, capturable=False
 )
 """Add to, scale, or set (``operation`` ``"add"``, ``"scale"``, ``"abs"``) the masses of the ``body_ids`` bodies.
 
@@ -358,27 +365,30 @@ Samples come from ``mass_distribution_params`` with ``distribution`` ``"uniform"
 
 
 def _randomize_rigid_body_inertia(
-    ctx: TermContext,
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    body_ids: torch.Tensor,
+    inertia: torch.Tensor,
     *,
     inertia_distribution_params: tuple[float, float],
     operation: str = "add",
     distribution: str = "uniform",
     diagonal_only: bool = True,
 ) -> None:
-    asset = ctx.entity("body_ids")
-    body_ids = ctx.inputs["body_ids"].long()
-    env_ids = ctx.mask.nonzero().squeeze(-1)
+    body_ids = body_ids.long()
+    env_ids = mask.nonzero().squeeze(-1)
 
     # The inertia tensor is stored as 9 elements; the diagonal is elements 0, 4, and 8.
     elements = [0, 4, 8] if diagonal_only else list(range(9))
-    samples = _samples(ctx.rng, inertia_distribution_params, distribution, (len(body_ids),))[env_ids]
-    inertias = ctx.state["inertia"][env_ids]
+    samples = _samples(rng, inertia_distribution_params, distribution, (len(body_ids),))[env_ids]
+    inertias = inertia[env_ids]
     inertias[..., elements] = _apply(inertias[..., elements], samples[..., None], operation)
     asset.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
 
 randomize_rigid_body_inertia = Term(
-    eager=_randomize_rigid_body_inertia, init=_init_body_defaults, state=_BODY_DEFAULTS, random=True
+    torch=_randomize_rigid_body_inertia, init=_init_body_defaults, state=_BODY_DEFAULTS, random=True, capturable=False
 )
 """Add to, scale, or set the inertias at startup of the ``body_ids`` bodies, one sample per world and body.
 
@@ -396,39 +406,44 @@ def _init_actuator_gains(ctx: TermContext, *, operation: str = "abs", distributi
 
 
 def _randomize_actuator_gains(
-    ctx: TermContext,
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    joint_ids: torch.Tensor,
+    stiffness: torch.Tensor,
+    damping: torch.Tensor,
     *,
     stiffness_distribution_params: tuple[float, float] | None = None,
     damping_distribution_params: tuple[float, float] | None = None,
     operation: str = "abs",
     distribution: str = "uniform",
 ) -> None:
-    asset = ctx.entity("joint_ids")
-    joint_ids = ctx.inputs["joint_ids"].long()
-    env_ids = ctx.mask.nonzero().squeeze(-1)
+    joint_ids = joint_ids.long()
+    env_ids = mask.nonzero().squeeze(-1)
     if not all(actuator.is_implicit_model for actuator in asset.actuators.values()):
         raise ValueError("randomize_actuator_gains supports implicit actuators only.")
 
     # Stiffness and damping draw from separate parts of the stream.
     num_joints = len(joint_ids)
     if stiffness_distribution_params is not None:
-        samples = _samples(ctx.rng, stiffness_distribution_params, distribution, (num_joints,))[env_ids]
-        stiffness = _apply(ctx.state["stiffness"][env_ids], samples, operation)
-        asset.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids)
+        samples = _samples(rng, stiffness_distribution_params, distribution, (num_joints,))[env_ids]
+        values = _apply(stiffness[env_ids], samples, operation)
+        asset.write_joint_stiffness_to_sim_index(stiffness=values, joint_ids=joint_ids, env_ids=env_ids)
     if damping_distribution_params is not None:
-        samples = _samples(ctx.rng, damping_distribution_params, distribution, (num_joints,), offset=num_joints)
-        damping = _apply(ctx.state["damping"][env_ids], samples[env_ids], operation)
-        asset.write_joint_damping_to_sim_index(damping=damping, joint_ids=joint_ids, env_ids=env_ids)
+        samples = _samples(rng, damping_distribution_params, distribution, (num_joints,), offset=num_joints)
+        values = _apply(damping[env_ids], samples[env_ids], operation)
+        asset.write_joint_damping_to_sim_index(damping=values, joint_ids=joint_ids, env_ids=env_ids)
 
 
 randomize_actuator_gains = Term(
-    eager=_randomize_actuator_gains,
+    torch=_randomize_actuator_gains,
     init=_init_actuator_gains,
     state={
         "stiffness": State(shape=("worlds", "joint_ids"), persistent=True),
         "damping": State(shape=("worlds", "joint_ids"), persistent=True),
     },
     random=True,
+    capturable=False,
 )
 """Add to, scale, or set the startup stiffness and damping of the ``joint_ids`` joints, one sample per world and joint.
 
@@ -448,32 +463,36 @@ def _init_joint_parameters(
 
 
 def _randomize_joint_parameters(
-    ctx: TermContext,
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    joint_ids: torch.Tensor,
+    friction: torch.Tensor,
+    armature: torch.Tensor,
     *,
     friction_distribution_params: tuple[float, float] | None = None,
     armature_distribution_params: tuple[float, float] | None = None,
     operation: str = "abs",
     distribution: str = "uniform",
 ) -> None:
-    asset = ctx.entity("joint_ids")
-    joint_ids = ctx.inputs["joint_ids"].long()
-    env_ids = ctx.mask.nonzero().squeeze(-1)
-
-    num_joints = len(joint_ids)
+    # Whole rows for every world, written through the masked writers: no host reads, so it runs inside CUDA graphs.
+    joint_ids = joint_ids.long()
+    env_mask = wp.from_torch(mask)
+    num_joints = joint_ids.shape[0]
     if friction_distribution_params is not None:
-        samples = _samples(ctx.rng, friction_distribution_params, distribution, (num_joints,))[env_ids]
-        friction = _apply(ctx.state["friction"][env_ids], samples, operation).clamp(min=0.0)
-        asset.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=friction, joint_ids=joint_ids, env_ids=env_ids
-        )
+        samples = _samples(rng, friction_distribution_params, distribution, (num_joints,))
+        values = asset.data.joint_friction_coeff.torch.clone()
+        values[:, joint_ids] = _apply(friction, samples, operation).clamp(min=0.0)
+        asset.write_joint_friction_coefficient_to_sim_mask(joint_friction_coeff=values, env_mask=env_mask)
     if armature_distribution_params is not None:
-        samples = _samples(ctx.rng, armature_distribution_params, distribution, (num_joints,), offset=num_joints)
-        armature = _apply(ctx.state["armature"][env_ids], samples[env_ids], operation)
-        asset.write_joint_armature_to_sim_index(armature=armature, joint_ids=joint_ids, env_ids=env_ids)
+        samples = _samples(rng, armature_distribution_params, distribution, (num_joints,), offset=num_joints)
+        values = asset.data.joint_armature.torch.clone()
+        values[:, joint_ids] = _apply(armature, samples, operation)
+        asset.write_joint_armature_to_sim_mask(armature=values, env_mask=env_mask)
 
 
 randomize_joint_parameters = Term(
-    eager=_randomize_joint_parameters,
+    torch=_randomize_joint_parameters,
     init=_init_joint_parameters,
     state={
         "friction": State(shape=("worlds", "joint_ids"), persistent=True),
@@ -483,8 +502,8 @@ randomize_joint_parameters = Term(
 )
 """Add to, scale, or set the startup friction coefficients and armatures of the ``joint_ids`` joints.
 
-One sample per world and joint; friction coefficients stay non-negative. MDP1's joint position limit randomization is
-not supported.
+One sample per world and joint; friction coefficients stay non-negative. It runs inside CUDA graphs, also as a reset
+event. MDP1's joint position limit randomization is not supported.
 """
 
 
@@ -494,21 +513,29 @@ def _init_rigid_body_com(ctx: TermContext, **params) -> None:
     ctx.state["com"].copy_(asset.data.body_com_pos_b.torch[:, ctx.inputs["body_ids"].long()])
 
 
-def _randomize_rigid_body_com(ctx: TermContext, *, com_range: tuple[tuple[float, float], ...]) -> None:
-    asset = ctx.entity("body_ids")
-    body_ids = ctx.inputs["body_ids"].long()
-    env_ids = ctx.mask.nonzero().squeeze(-1)
+def _randomize_rigid_body_com(
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    body_ids: torch.Tensor,
+    com: torch.Tensor,
+    *,
+    com_range: tuple[tuple[float, float], ...],
+) -> None:
+    body_ids = body_ids.long()
+    env_ids = mask.nonzero().squeeze(-1)
 
-    offset = torch.stack([uniform(ctx.rng, low, high, offset=axis) for axis, (low, high) in enumerate(com_range)], -1)
-    coms = ctx.state["com"][env_ids] + offset[env_ids, None]
+    offset = torch.stack([uniform(rng, low, high, offset=axis) for axis, (low, high) in enumerate(com_range)], -1)
+    coms = com[env_ids] + offset[env_ids, None]
     asset.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
 
 randomize_rigid_body_com = Term(
-    eager=_randomize_rigid_body_com,
+    torch=_randomize_rigid_body_com,
     init=_init_rigid_body_com,
     state={"com": State(shape=("worlds", "body_ids", 3), persistent=True)},
     random=True,
+    capturable=False,
 )
 """Offset the startup centers of mass of the ``body_ids`` bodies by one uniform sample per world from ``com_range``.
 
@@ -517,18 +544,23 @@ randomize_rigid_body_com = Term(
 
 
 def _randomize_rigid_body_material(
-    ctx: TermContext, *, friction_range: tuple[float, float], restitution_range: tuple[float, float]
+    mask: torch.Tensor,
+    rng: torch.Tensor,
+    asset: Any,
+    body_ids: torch.Tensor,
+    *,
+    friction_range: tuple[float, float],
+    restitution_range: tuple[float, float],
 ) -> None:
     from newton import ModelFlags  # noqa: PLC0415
 
     from isaaclab.assets import Articulation  # noqa: PLC0415
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
-    asset = ctx.entity("body_ids")
     manager = SimulationContext.instance().backend_manager
     if manager.shares_materials:
         raise ValueError("randomize_rigid_body_material does not support solvers that share materials across worlds.")
-    env_ids = ctx.mask.nonzero().squeeze(-1)
+    env_ids = mask.nonzero().squeeze(-1)
 
     model = manager.backend.model
     friction = wp.to_torch(asset._root_view.get_attribute("shape_material_mu", model)[:, 0])
@@ -538,19 +570,19 @@ def _randomize_rigid_body_material(
     # object has one body, so all its shapes.
     if isinstance(asset, Articulation):
         body_shapes = asset._root_view.body_shapes
-        body_ids = asset.map_body_ids_to_backend(ctx.inputs["body_ids"].tolist())
-        shapes = [shape for body in body_ids for shape in body_shapes[body]]
-        shape_ids = torch.tensor(shapes, device=ctx.mask.device)
+        backend_ids = asset.map_body_ids_to_backend(body_ids.tolist())
+        shapes = [shape for body in backend_ids for shape in body_shapes[body]]
+        shape_ids = torch.tensor(shapes, device=mask.device)
     else:
-        shape_ids = torch.arange(friction.shape[1], device=ctx.mask.device)
+        shape_ids = torch.arange(friction.shape[1], device=mask.device)
     num_shapes = len(shape_ids)
-    friction[env_ids[:, None], shape_ids] = uniform(ctx.rng, *friction_range, (num_shapes,))[env_ids]
-    restitution_samples = uniform(ctx.rng, *restitution_range, (num_shapes,), offset=num_shapes)
+    friction[env_ids[:, None], shape_ids] = uniform(rng, *friction_range, (num_shapes,))[env_ids]
+    restitution_samples = uniform(rng, *restitution_range, (num_shapes,), offset=num_shapes)
     restitution[env_ids[:, None], shape_ids] = restitution_samples[env_ids]
     manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
-randomize_rigid_body_material = Term(eager=_randomize_rigid_body_material, random=True)
+randomize_rigid_body_material = Term(torch=_randomize_rigid_body_material, random=True, capturable=False)
 """Draw the friction and restitution of the shapes of the ``body_ids`` bodies uniformly, per world and shape.
 
 Articulations and rigid objects on Newton only. Newton has one friction coefficient, so there is no separate dynamic

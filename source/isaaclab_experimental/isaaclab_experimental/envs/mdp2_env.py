@@ -32,23 +32,28 @@ from isaaclab_experimental.mdp2 import rng
 from isaaclab_experimental.mdp2.capture import torch_in_warp_capture
 from isaaclab_experimental.mdp2.plan import Call
 
-from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg
+from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg, StagePoint
 from .mdp2_scene_data import InteractiveSceneData
+from .mdp2_verify import verify_capture
 
 
 class MDP2Env:
     """An interactive scene driven by an MDP2 task, like a :class:`~isaaclab.envs.ManagerBasedEnv` without managers.
 
     A control step applies the actions, steps the physics ``decimation`` times, evaluates the MDP, resets the
-    worlds whose episodes ended, and observes them. Resets are masks over the worlds, so every step after the first
-    replays as CUDA graphs, physics included: one graph for a fully capturable MDP, and otherwise one per run of
-    capturable work, with the eager launches of the MDP run between them. Newton only.
+    worlds whose episodes ended, and observes them, with the config's :class:`~.mdp2_env_cfg.Stage` s at their points.
+    Resets are masks over the worlds, so every step after the first replays as CUDA graphs, physics included: one
+    graph for a fully capturable step, and otherwise one per run of capturable work, with the work that cannot be
+    captured run between them. Newton only.
     """
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
     final_observations: bool = False  # Whether evaluate writes the observations of the worlds that ended
 
     def __init__(self, cfg: MDP2EnvCfg) -> None:
+        if cfg.verify_capture:
+            # Two throwaway runs of the task, before this one exists: there is one simulation at a time.
+            verify_capture(type(self), cfg, cfg.verify_capture)
         self.cfg = cfg
         # The MDP's random streams start from the seed that was set, also when -1 asks for a random one.
         self._seed = 0 if cfg.seed is None else configure_seed(cfg.seed)
@@ -116,8 +121,9 @@ class MDP2Env:
         self.common_step_counter = 0
         self.extras: dict[str, Any] = {}
 
+        self._work = self._step_work()  # The work of a step, in order, each with whether a graph can capture it
         self._capturable = cfg.capture and wp.get_device(self.device).is_cuda
-        self._runs: list[Callable[[], None]] | None = None  # The captured step: graph replays and eager launches
+        self._runs: list[Callable[[], None]] | None = None  # The captured step: graph replays and the work between them
         self.num_graphs = 0  # CUDA graphs that one captured step replays
         self._pool = torch.cuda.MemPool() if self._capturable else None  # Torch memory that the graphs use
         self._stepped = False
@@ -154,7 +160,8 @@ class MDP2Env:
             seed = configure_seed(seed)
             # In place: captured graphs hold the buffer's address.
             self.state.rng.torch.copy_(rng.streams(seed, self.mdp.streams, self.num_envs, self.device))
-        self._reset(self._all_envs)
+        for _, work in self._reset_work(self._all_envs):
+            work()
         return self.observations, self.extras
 
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
@@ -184,10 +191,8 @@ class MDP2Env:
             for run in self._runs:
                 run()
         else:
-            self._simulate()
-            mdp2.evaluate(self.mdp, self.state, self.transition)
-            self._after_evaluate()
-            self._reset(self.transition.done)
+            for _, work in self._work:
+                work()
 
         self._stepped = True
         self.common_step_counter += 1
@@ -199,29 +204,48 @@ class MDP2Env:
         if physics_steps // interval > (physics_steps - decimation) // interval and self.sim.is_rendering:
             self.sim.render()
 
-    def _capture_step(self) -> list[Callable[[], None]]:
-        """Capture each run of capturable work of a step as one graph, and bind the eager launches between them.
+    def _step_work(self) -> list[tuple[bool, Callable[[], None]]]:
+        """Return the work of a control step, in order, each with whether a CUDA graph can capture it: the stages at
+        their points, the physics, the launches of ``evaluate``, and the reset of the worlds that ended."""
+        transition = self.transition
+        evaluate = Call(self.state, transition=transition, observations=transition.observations)
+        work = self._stage_work(StagePoint.BEFORE_PHYSICS)
+        work += [(True, self._simulate), *self._stage_work(StagePoint.AFTER_PHYSICS)]
+        work += [(launch.capturable, functools.partial(launch, evaluate)) for launch in self.mdp.launches.evaluate]
+        work += [(True, self._after_evaluate), *self._stage_work(StagePoint.BEFORE_RESET)]
+        work += self._reset_work(transition.done)
+        return work + self._stage_work(StagePoint.AFTER_OBSERVE)
 
-        The work is that of an eager step, in its order: physics, then the launches of ``evaluate``, ``reset``, and
-        ``observe``, with the scene's resets and commits.
-        """
-        state, transition, mask = self.state, self.transition, self.transition.done
+    def _reset_work(self, mask: ProxyArray) -> list[tuple[bool, Callable[[], None]]]:
+        """Return the work of resetting the masked worlds: the scene's reset, the MDP's reset launches, the commit of
+        their writes, the stages after resets, and the launches that observe the worlds."""
         launches = self.mdp.launches
         commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
-        evaluate = Call(state, transition=transition, observations=transition.observations)
-        reset = Call(state, mask=mask, commit=commit)
-        observe = Call(state, mask=mask, observations=transition.observations)
-
-        work = [(True, self._simulate)]
-        work += [(launch.capturable, functools.partial(launch, evaluate)) for launch in launches.evaluate]
-        work += [(True, self._after_evaluate)]
-        work += [(True, functools.partial(self._reset_scene, mask))]
+        reset = Call(self.state, mask=mask, commit=commit)
+        observe = Call(self.state, mask=mask, observations=self.transition.observations)
+        work = [(True, functools.partial(self._reset_scene, mask))]
         work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
-        work += [(True, functools.partial(self._commit, mask))]
-        work += [(launch.capturable, functools.partial(launch, observe)) for launch in launches.observe]
+        work += [(True, functools.partial(self._commit, mask)), *self._stage_work(StagePoint.AFTER_RESET)]
+        return work + [(launch.capturable, functools.partial(launch, observe)) for launch in launches.observe]
 
+    def _stage_work(self, point: StagePoint) -> list[tuple[bool, Callable[[], None]]]:
+        """Return the config's stages at a point, bound to the environment, each followed by the simulation's forward,
+        which passes model and state changes that it made through the assets to the solver. Inside a graph, forward
+        records nothing when there are none."""
+        return [
+            (stage.capturable, functools.partial(self._run_stage, stage.fn))
+            for stage in self.cfg.stages
+            if stage.at is point
+        ]
+
+    def _run_stage(self, fn: Callable[[MDP2Env], None]) -> None:
+        fn(self)
+        self.sim.forward()
+
+    def _capture_step(self) -> list[Callable[[], None]]:
+        """Capture each run of capturable work of a step as one graph, and bind the other work between them."""
         runs = []
-        for capturable, group in itertools.groupby(work, lambda item: item[0]):
+        for capturable, group in itertools.groupby(self._work, lambda item: item[0]):
             steps = [step for _, step in group]
             if not capturable:
                 # Eager work may change the model or the state through the assets, such as new masses, which the
@@ -252,17 +276,6 @@ class MDP2Env:
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.scene.update(dt=self.physics_dt * self._substeps)
-
-    def _reset(self, mask: ProxyArray) -> None:
-        """Reset the masked worlds, commit their new state to the solver, and observe them."""
-        self._reset_scene(mask)
-
-        # Reset events write scene fields in place, which the scene commits to the solver.
-        commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
-        mdp2.reset(self.mdp, self.state, mask, commit)
-        self._commit(mask)
-
-        mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
 
     def _commit(self, mask: ProxyArray) -> None:
         """Commit the writes of the reset events in the masked worlds, and of the interval events of the last step in

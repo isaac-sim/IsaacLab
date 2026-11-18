@@ -5,8 +5,9 @@
 
 """Clearance criteria of the lift task's start states: terminations that are true where a state is invalid.
 
-Both check the object's surface points and the vertices of the robot's collision meshes. They are eager terms: they
-keep Warp meshes, and only the prefill of the reset bank runs them, once, before training.
+Both check the object's surface points and the vertices of the robot's collision meshes. They are Python hooks that
+take the robot and the object, keep Warp meshes in their cache, and run between CUDA graphs: only the prefill of the
+reset bank runs them, once, before training.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_experimental.mdp2 import Term, TermContext
+from isaaclab_experimental.mdp2 import Term
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -242,15 +243,15 @@ def _warp_meshes(meshes: list, device: str) -> dict:
     }
 
 
-def _geometry(ctx: TermContext, num_object_points: int) -> dict:
+def _geometry(
+    cache: dict, robot: Articulation, target: RigidObject, body_ids: torch.Tensor, num_object_points: int
+) -> dict:
     """Return the object's surface points and the robot's collision vertices, built on the first call."""
-    cache = ctx.cache
     if cache:
         return cache
 
-    robot, target = ctx.entity("body_link_pose_w"), ctx.entity("object_pose_w")
     device = robot.device
-    robot_meshes = _robot_meshes(robot, ctx.inputs["body_ids"])
+    robot_meshes = _robot_meshes(robot, body_ids)
     points = sample_object_point_cloud(target, num_object_points)
     vertex_body = np.concatenate([np.full(len(mesh.vertices), body) for body, mesh in robot_meshes.items()])
 
@@ -262,17 +263,25 @@ def _geometry(ctx: TermContext, num_object_points: int) -> dict:
     cache["vertex_body"] = wp.array(vertex_body, dtype=wp.int32, device=device)
     cache["body_link_pose_w"] = robot.data.body_link_pose_w.warp
     cache["object_pose_w"] = target.data.root_link_pose_w.warp
-    cache["clearance"] = wp.zeros(ctx.num_worlds, dtype=wp.float32, device=device)
+    cache["clearance"] = wp.zeros(robot.num_instances, dtype=wp.float32, device=device)
     return cache
 
 
-def _mesh_clearance(ctx: TermContext, *, min_clearance: float, num_object_points: int = 64) -> None:
-    cache = _geometry(ctx, num_object_points)
+def _mesh_clearance(
+    robot: Articulation,
+    target: RigidObject,
+    body_ids: torch.Tensor,
+    cache: dict,
+    *,
+    min_clearance: float,
+    num_object_points: int = 64,
+) -> torch.Tensor:
+    cache = _geometry(cache, robot, target, body_ids, num_object_points)
     device = cache["clearance"].device
     if "robot" not in cache:
         cache["robot"] = _warp_meshes(list(cache["robot_meshes"].values()), device)
         cache["mesh_body"] = wp.array(list(cache["robot_meshes"]), dtype=wp.int32, device=device)
-        object_meshes, world_mesh = _object_meshes(ctx.entity("object_pose_w"))
+        object_meshes, world_mesh = _object_meshes(target)
         cache["object"] = _warp_meshes(object_meshes, device)
         cache["world_mesh"] = wp.array(world_mesh, dtype=wp.int32, device=device)
 
@@ -298,7 +307,7 @@ def _mesh_clearance(ctx: TermContext, *, min_clearance: float, num_object_points
     )
     wp.launch(
         _robot_vertices_object_clearance,
-        dim=(ctx.num_worlds, len(cache["vertices"])),
+        dim=(clearance.shape[0], len(cache["vertices"])),
         inputs=[
             cache["vertices"],
             cache["vertex_body"],
@@ -313,32 +322,37 @@ def _mesh_clearance(ctx: TermContext, *, min_clearance: float, num_object_points
         outputs=[clearance],
         device=device,
     )
-    ctx.out.copy_(wp.to_torch(clearance) < min_clearance)
+    return wp.to_torch(clearance) < min_clearance
 
 
-mesh_clearance = Term(eager=_mesh_clearance)
+mesh_clearance = Term(torch=_mesh_clearance, capturable=False)
 """Whether the object and the robot's ``body_ids`` bodies come closer than ``min_clearance``, or overlap.
 
 Reset draws can place the object inside the arm, which the solver resolves ballistically when the episode starts.
 Signed distances from the object's ``num_object_points`` surface points to the robot's collision meshes, and from the
-robot's collision vertices to the object's collision mesh; the sign catches full containment. Inputs:
-``body_link_pose_w`` of the robot, ``body_ids``, and ``object_pose_w``.
+robot's collision vertices to the object's collision mesh; the sign catches full containment. Inputs: the ``robot``
+and ``target`` entities, ``body_ids``, and the fields the term reads, ``body_link_pose_w`` of the robot and
+``object_pose_w``.
 """
 
 
 def _slab_clearance(
-    ctx: TermContext,
+    robot: Articulation,
+    target: RigidObject,
+    body_ids: torch.Tensor,
+    env_origins: torch.Tensor,
+    cache: dict,
     *,
     obstacle_slabs: tuple[tuple[tuple[float, float] | None, tuple[float, float] | None, float], ...],
     min_clearance: float,
     num_object_points: int = 64,
-) -> None:
-    cache = _geometry(ctx, num_object_points)
+) -> torch.Tensor:
+    cache = _geometry(cache, robot, target, body_ids, num_object_points)
     device = cache["clearance"].device
     if "slabs" not in cache:
         bounds = [[*(x or (0.0, 0.0)), *(y or (0.0, 0.0))] for x, y, _ in obstacle_slabs]
         cache["slabs"] = [
-            wp.from_torch(ctx.inputs["env_origins"].contiguous(), dtype=wp.vec3f),
+            wp.from_torch(env_origins.contiguous(), dtype=wp.vec3f),
             wp.array([top for _, _, top in obstacle_slabs], dtype=wp.float32, device=device),
             wp.array(bounds, dtype=wp.float32, device=device),
             wp.array([[x is not None, y is not None] for x, y, _ in obstacle_slabs], dtype=wp.bool, device=device),
@@ -355,15 +369,15 @@ def _slab_clearance(
     )
     wp.launch(
         _robot_vertices_slab_clearance,
-        dim=(ctx.num_worlds, len(cache["vertices"])),
+        dim=(clearance.shape[0], len(cache["vertices"])),
         inputs=[cache["vertices"], cache["vertex_body"], cache["body_link_pose_w"], *cache["slabs"], min_clearance],
         outputs=[clearance],
         device=device,
     )
-    ctx.out.copy_(wp.to_torch(clearance) < min_clearance)
+    return wp.to_torch(clearance) < min_clearance
 
 
-slab_clearance = Term(eager=_slab_clearance)
+slab_clearance = Term(torch=_slab_clearance, capturable=False)
 """Whether the object or the robot's ``body_ids`` bodies are less than ``min_clearance`` above a slab.
 
 Reset draws can pose the arm into the table, and long objects through its top. ``obstacle_slabs`` are horizontal

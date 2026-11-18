@@ -6,7 +6,7 @@
 """Compiled ops, the execution plan that lists the steps each runtime function runs, and the launches that run them.
 
 A backend compiles the plan into launches: kernels, and hooks that launch their own work. Consecutive capturable
-launches form a segment that can be captured as one CUDA graph; eager terms and other non-capturable hooks run
+launches form a segment that can be captured as one CUDA graph; hooks that cannot be captured run
 between the graphs.
 """
 
@@ -18,13 +18,14 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .config import FieldSelector, Phase, SubsetSelector, UniformNoise, last_action
+from .config import Entity, FieldSelector, Phase, SubsetSelector, UniformNoise, last_action
 from .terms import State
 
 if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
     from .compiled import MDPState, Transition
+    from .scene import SceneSchema
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,7 @@ class TermOp:
     compute: Callable
     update: Callable | None
     reset: Callable | None
-    inputs: Mapping[str, FieldSelector | SubsetSelector]  # Hook arguments bound to fields and subsets
+    inputs: Mapping[str, FieldSelector | SubsetSelector | Entity]  # Hook arguments bound to fields, subsets, entities
     params: Mapping[str, Any]
     state: Mapping[str, State]  # Shapes resolved to sizes, including the world dimension
     shape: tuple[int, ...]  # Output dimensions after the world dimension
@@ -77,10 +78,10 @@ class TermOp:
     stream: int | None = None  # Row of MDPState.rng, for timers and random terms
     random: bool = False  # Whether the term draws from its stream
     capturable: bool = True  # Whether its hooks may run inside a CUDA graph
-    eager: bool = False  # Whether ``compute`` is an eager term's ``fn(ctx, **params)``, see :mod:`.eager`
     torch_hooks: bool = False  # Whether a Warp MDP runs the term's Torch hooks, for a term without Warp ones
     init: Callable | None = None  # Eager ``fn(ctx, **params)`` that fills the state once, before the startup events
-    commit: bool = False  # Reset events: whether the scene commits the earlier events' writes before it runs
+    # Reset events: whether the scene commits the earlier events' writes before it runs, None to infer it
+    commit: bool | None = False
     log: bool = False  # Quantities: whether the environment logs it as a metric
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     # Actions of its world config, if it reads the last actions and other world configs have more
@@ -145,7 +146,7 @@ class ExecutionPlan:
     observe: tuple[Step, ...]
 
 
-def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
+def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan:
     """Order the steps of every runtime function from the ops of each phase. This defines the step contract."""
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
@@ -177,10 +178,13 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
             terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
 
     reset_events = []
+    pending: set[FieldSelector] = set()  # Scene fields written since the last commit
     for op in ops[Phase.RESET_EVENTS]:
-        if op.commit:
+        if op.commit or op.commit is None and pending and _reads_stale(op, pending, schema):
             reset_events.append(Step(StepKind.COMMIT, op))
+            pending.clear()
         reset_events.append(Step(StepKind.COMPUTE, op))
+        pending.update(selector for selector in op.writes if selector.scene)
 
     return ExecutionPlan(
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
@@ -205,6 +209,24 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
         ),
         observe=(*observed, *observations),
     )
+
+
+def _reads_stale(op: TermOp, pending: set[FieldSelector], schema: SceneSchema) -> bool:
+    """Return whether a reset event reads a scene field derived from fields that earlier events wrote, which the
+    scene has not recomputed yet, or takes an entity whose fields they wrote, whose data it may read unseen."""
+    written = {(selector.entity, selector.field) for selector in pending}
+    entities = {entity for entity, _ in written}
+    for selector in op.inputs.values():
+        if isinstance(selector, Entity):
+            if selector.name in entities:
+                return True
+            continue
+        if not isinstance(selector, FieldSelector) or not selector.scene or selector in op.writes:
+            continue
+        derived_from = schema.entities[selector.entity].fields[selector.field].derived_from
+        if any((selector.entity, field) in written for field in derived_from):
+            return True
+    return False
 
 
 @dataclass

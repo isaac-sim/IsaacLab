@@ -21,6 +21,8 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
    MDP2EnvCfg
    MDP2RLEnv
    MDP2RLEnvCfg
+   Stage
+   StagePoint
 
 .. autoclass:: DirectRLEnvWarp
    :show-inheritance:
@@ -45,3 +47,8 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
 
 .. autoclass:: MDP2RLEnvCfg
    :show-inheritance:
+
+.. autoclass:: Stage
+
+.. autoclass:: StagePoint
+   :members:

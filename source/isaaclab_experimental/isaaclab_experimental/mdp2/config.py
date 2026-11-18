@@ -90,6 +90,9 @@ class Entity:
             raise AttributeError(name)
         return FieldSelector(self.name, name, self.scene)
 
+    def __str__(self) -> str:
+        return self.name
+
     def joints(self, *patterns: str) -> SubsetSelector:
         """Select the joints whose names match any of the patterns."""
         return SubsetSelector(self.name, "joints", patterns)
@@ -216,8 +219,10 @@ class Event(TermCfg):
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the event writes them
     mode: EventMode = EventMode.RESET
     interval_range_s: tuple[float, float] | None = None  # Seconds between interval events
-    # Reset events: commit the writes of the earlier reset events first, so that it reads the body poses they gave
-    commit: bool = False
+    # Reset events: whether the scene commits the writes of the earlier reset events before it runs, so that it reads
+    # what they changed. None infers it: before an event that reads a field derived from written ones, such as the
+    # body poses after joint writes. True always commits first, and False never does.
+    commit: bool | None = None
 
     @property
     def phase(self) -> Phase:

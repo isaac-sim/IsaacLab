@@ -25,6 +25,7 @@ from .compiled import MDP, Backend, WorldConfig
 from .config import (
     Command,
     DirectAction,
+    Entity,
     Event,
     EventMode,
     FieldSelector,
@@ -381,7 +382,7 @@ class MDPBuilder:
             device=device,
             backend=backend,
             ops=ops,
-            plan=build_plan(ops),
+            plan=build_plan(ops, self.schema),
             action_dim=action_dim,
             observation_dims=MappingProxyType(observation_dims),
             max_episode_length=None if time_limit is None else math.ceil(time_limit / self.schema.step_dt),
@@ -506,11 +507,22 @@ class MDPBuilder:
         if len(set(names)) != len(names):
             errors.append(f"{entry}: inputs, outputs, state, params, and rng must have distinct names, got {names}.")
 
+        # Scene entities bound as inputs or outputs reach Python hooks as objects, such as articulations.
+        bound = {**cfg.inputs, **outputs}
+        entities = {arg: selector for arg, selector in bound.items() if isinstance(selector, Entity)}
+        for arg, entity in entities.items():
+            if not entity.scene or entity.name not in self.schema.entities:
+                errors.append(f"{entry}: {arg!r} binds {entity.name!r}, which is not an entity of the scene.")
+        hooks = vars(implementation).values() if implementation is not None else ()
+        if entities and any(isinstance(hook, wp.Function) for hook in hooks):
+            errors.append(
+                f"{entry}: wp.func hooks cannot take scene entities ({sorted(entities)}); use a Python hook instead."
+            )
         fields = {
-            arg: self._resolve(entry, arg, selector, context) for arg, selector in {**cfg.inputs, **outputs}.items()
+            arg: self._resolve(entry, arg, selector, context) for arg, selector in bound.items() if arg not in entities
         }
         for arg, selector in outputs.items():
-            if fields[arg] is not None:
+            if arg not in entities and fields[arg] is not None:
                 self._check_writable(entry, selector, errors)
         # Int params, such as a number of points, can also size dimensions.
         sizes = {name: value for name, value in cfg.params.items() if type(value) is int}
@@ -530,7 +542,7 @@ class MDPBuilder:
             errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
         if isinstance(cfg, Quantity) and cfg.log and output_shape:
             errors.append(f"{entry}: a logged quantity must have shape ('worlds',), got {output_shape}.")
-        if isinstance(cfg, Event) and cfg.commit and cfg.mode is not EventMode.RESET:
+        if isinstance(cfg, Event) and cfg.commit is True and cfg.mode is not EventMode.RESET:
             errors.append(f"{entry}: only reset events can ask for a commit.")
         if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
             errors.append(f"{entry}: commands write their state when they resample, so they have no reset hook.")
@@ -555,13 +567,11 @@ class MDPBuilder:
                 inspect.signature(term.init).bind(None, **dict.fromkeys(cfg.params))
             except TypeError as error:
                 errors.append(f"{entry}: init {term.init.__name__!r} is called with (ctx, **params): {error}.")
+        # Python hooks may also take ``cache``, a dict the use keeps for host objects.
+        if not isinstance(implementation.compute, wp.Function):
+            arguments["cache"] = None
         # Events and commands take the mask of the worlds to write; other Warp functions take the output to write.
-        if term.eager is not None:
-            try:
-                inspect.signature(term.eager).bind(None, **dict.fromkeys(cfg.params))
-            except TypeError as error:
-                errors.append(f"{entry}: eager term {term.eager.__name__!r} is called with (ctx, **params): {error}.")
-        elif isinstance(cfg, (Command, Event)):
+        if isinstance(cfg, (Command, Event)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
         else:
             extra = "out" if implementation is term.warp else None
@@ -616,20 +626,27 @@ class MDPBuilder:
                 ),
                 shape=output_shape,
                 dtype=dtype,
-                writes=entry.writes,
+                # An entity output writes any of the entity's writable fields.
+                writes=tuple(dict.fromkeys(selector for write in entry.writes for selector in self._fields_of(write))),
                 weights=(cfg.weight,) if isinstance(cfg, Reward) else (),
                 time_out=cfg.time_out if isinstance(cfg, Termination) else False,
                 observation=observation,
                 timer=timer,
                 random=term.random,
-                capturable=term.capturable and term.eager is None,
-                eager=term.eager is not None,
+                capturable=term.capturable,
                 torch_hooks=context.backend is Backend.WARP and implementation is term.torch,
                 init=term.init,
-                commit=isinstance(cfg, Event) and cfg.commit,
+                commit=cfg.commit if isinstance(cfg, Event) else False,
                 log=isinstance(cfg, Quantity) and cfg.log,
             )
         )
+
+    def _fields_of(self, selector: FieldSelector | Entity) -> tuple[FieldSelector, ...]:
+        """Return the fields a write covers: a field itself, or the writable fields of a scene entity."""
+        if not isinstance(selector, Entity):
+            return (selector,)
+        fields = self.schema.entities[selector.name].fields
+        return tuple(FieldSelector(selector.name, name) for name, schema in fields.items() if schema.writable)
 
     def _check_writable(self, entry: ScheduleEntry, selector: FieldSelector, errors: list[str]) -> None:
         """Record an error if a use writes a scene field that writes would not reach, such as a derived one."""
@@ -680,11 +697,6 @@ def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -
     A Warp MDP runs the Torch hooks of a term without Warp ones, between its generated kernels.
     """
     term = entry.cfg.term
-    if term.eager is not None:
-        if term.torch is not None or term.warp is not None:
-            errors.append(f"{entry}: an eager term cannot also have Torch or Warp implementations.")
-        return Implementation(compute=term.eager)
-
     implementation = term.torch if backend is Backend.TORCH else term.warp or term.torch
     if implementation is None:
         errors.append(f"{entry}: the term has no '{backend.value}' implementation.")
@@ -790,7 +802,8 @@ def _dependency_errors(schedule: tuple[ScheduleEntry, ...] | list[ScheduleEntry]
                 else []
             )
             for selector in dict.fromkeys(reader.reads):
-                if selector in writer.writes or selector in state:
+                written = selector in writer.writes or Entity(selector.entity) in writer.writes
+                if written or selector in state:
                     errors.append(f"'{reader}' reads '{selector}', so it must run after '{writer}', which writes it.")
     return errors
 

@@ -36,8 +36,8 @@ def torch_in_warp_capture(device: str, pool: torch.cuda.MemPool) -> Iterator[Non
 class CapturedMDP:
     """The runtime functions of an MDP, bound to fixed buffers and replayed as CUDA graphs.
 
-    Consecutive capturable launches of a function are captured as one graph, and eager terms and other
-    non-capturable hooks run eagerly between the graphs. Capturing runs nothing. Before each call, write the actions
+    Consecutive capturable launches of a function are captured as one graph, and hooks that cannot be captured run
+    eagerly between the graphs. Capturing runs nothing. Before each call, write the actions
     and the mask of the worlds to reset or observe into the bound ``actions`` and ``mask`` buffers. On CPU, the
     launches run eagerly.
     """

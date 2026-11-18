@@ -171,6 +171,8 @@ CANDIDATES = mdp2.TaskCfg(
         "object_robot_clearance": mdp2.Termination(
             mesh_clearance,
             inputs={
+                "robot": robot,
+                "target": target,
                 "body_link_pose_w": robot.body_link_pose_w,
                 "body_ids": robot.bodies(".*"),
                 "object_pose_w": target.root_link_pose_w,
@@ -180,6 +182,8 @@ CANDIDATES = mdp2.TaskCfg(
         "robot_table_clearance": mdp2.Termination(
             slab_clearance,
             inputs={
+                "robot": robot,
+                "target": target,
                 "body_link_pose_w": robot.body_link_pose_w,
                 # Everything but the arm's base, which stands on the ground; finger links are also *_link_N.
                 "body_ids": robot.bodies("(?!iiwa7_link_0$).*"),
@@ -218,13 +222,13 @@ CANDIDATES = mdp2.TaskCfg(
                 "velocity_range": ((0.0, 0.0),) * 6,
             },
         ),
-        # A quarter of the candidates start with the object at the palm, whose pose the joint resets changed.
+        # A quarter of the candidates start with the object at the palm, whose pose the joint resets changed: the
+        # scene commits them first, since the palm pose is derived from the joint state.
         "reset_object_to_target": mdp2.Event(
             lift.reset_to_target,
             inputs={"body_link_pose_w": robot.body_link_pose_w, "body_ids": robot.bodies("palm_link")},
             outputs=object_state,
             params={"position_range": ((0.03, 0.07), (-0.04, 0.04), (0.02, 0.08)), "probability": 0.25},
-            commit=True,
         ),
     },
 )
@@ -388,25 +392,25 @@ TASK = mdp2.TaskCfg(
         "robot_physics_material": mdp2.Event(
             mdp.randomize_rigid_body_material,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": robot.bodies(".*")},
+            inputs={"asset": robot, "body_ids": robot.bodies(".*")},
             params={"friction_range": (0.5, 1.0), "restitution_range": (0.0, 0.0)},
         ),
         "object_physics_material": mdp2.Event(
             mdp.randomize_rigid_body_material,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": target.bodies(".*")},
+            inputs={"asset": target, "body_ids": target.bodies(".*")},
             params={"friction_range": (0.5, 1.0), "restitution_range": (0.0, 0.0)},
         ),
         "object_physics_inertia": mdp2.Event(
             mdp.randomize_rigid_body_inertia,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": target.bodies(".*")},
+            inputs={"asset": target, "body_ids": target.bodies(".*")},
             params={"inertia_distribution_params": (0.01, 0.01), "operation": "add", "diagonal_only": True},
         ),
         "joint_stiffness_and_damping": mdp2.Event(
             mdp.randomize_actuator_gains,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"joint_ids": joints},
+            inputs={"asset": robot, "joint_ids": joints},
             params={
                 "stiffness_distribution_params": (0.5, 2.0),
                 "damping_distribution_params": (0.5, 2.0),
@@ -416,20 +420,20 @@ TASK = mdp2.TaskCfg(
         "joint_friction": mdp2.Event(
             mdp.randomize_joint_parameters,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"joint_ids": joints},
+            inputs={"asset": robot, "joint_ids": joints},
             params={"friction_distribution_params": (0.0, 5.0), "operation": "scale"},
         ),
         "object_scale_mass": mdp2.Event(
             mdp.randomize_rigid_body_mass,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"body_ids": target.bodies(".*")},
+            inputs={"asset": target, "body_ids": target.bodies(".*")},
             params={"mass_distribution_params": (0.2, 2.5), "operation": "scale"},
         ),
         # The armature sets the effort-to-inertia ratio, so this randomizes how fast the fingers close.
         "finger_closing_speed": mdp2.Event(
             mdp.randomize_joint_parameters,
             mode=mdp2.EventMode.STARTUP,
-            inputs={"joint_ids": robot.joints("(index|middle|ring|thumb)_joint_(0|1|2|3)")},
+            inputs={"asset": robot, "joint_ids": robot.joints("(index|middle|ring|thumb)_joint_(0|1|2|3)")},
             params={
                 "armature_distribution_params": (0.1, 1.0),
                 "operation": "scale",

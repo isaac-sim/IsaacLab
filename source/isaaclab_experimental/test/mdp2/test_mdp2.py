@@ -38,8 +38,10 @@ class PointMassScene:
         fields = dict.fromkeys(
             ("joint_pos", "joint_vel", "joint_effort_target"), mdp2.FieldSchema(("joints",), writable=True)
         )
-        # Derived by the simulation, as joint accelerations are: read-only.
+        # Derived by the simulation, as joint accelerations are: read-only. The tip is computed from the joints, as body
+        # poses are, so reading it after joint writes needs a commit.
         fields["joint_acc"] = mdp2.FieldSchema(("joints",))
+        fields["tip"] = mdp2.FieldSchema(("joints",), derived_from=("joint_pos",))
 
         self.schema = mdp2.SceneSchema(
             num_worlds=num_worlds,
@@ -54,6 +56,10 @@ class PointMassScene:
 
     def data(self, entity: str, field: str) -> ProxyArray:
         return self._data[entity][field]
+
+    def entity(self, name: str) -> "PointMassScene":
+        """The scene object of an entity: the scene itself, whose data it reads."""
+        return self
 
     def commit(self, mask: wp.array, fields: Collection[mdp2.FieldSelector]) -> None:
         """Nothing to commit: the fields are the simulation state."""
@@ -326,22 +332,20 @@ push_robot = mdp2.Event(
 )
 
 
-def eager_joint_pos_l2_fn(ctx: mdp2.TermContext):
-    joint_pos = ctx.inputs["joint_pos"]
-
-    # Reading a value on the host fails inside a CUDA graph, which eager terms never run in.
+def host_joint_pos_l2_fn(joint_pos):
+    # Reading a value on the host fails inside a CUDA graph, which hooks that are not capturable never run in.
     if joint_pos.isfinite().all().item():
-        ctx.out.copy_(joint_pos.square().sum(dim=-1))
+        return joint_pos.square().sum(dim=-1)
+    return torch.zeros_like(joint_pos[:, 0])
 
 
-def eager_reset_joints_by_offset_fn(ctx: mdp2.TermContext):
-    joint_pos = ctx.outputs["joint_pos"]
-    joint_pos.add_(ctx.mask[:, None] * mdp2.uniform(ctx.rng, -0.5, 0.5, joint_pos.shape[1:]))
+def host_reset_joints_by_offset_fn(mask, joint_pos, rng):
+    joint_pos.add_(mask[:, None] * mdp2.uniform(rng, -0.5, 0.5, joint_pos.shape[1:]))
 
 
-eager_joint_pos_l2 = mdp2.Term(eager=eager_joint_pos_l2_fn)
-eager_reset_joints_by_offset = mdp2.Term(eager=eager_reset_joints_by_offset_fn, random=True)
-"""Eager versions of joint_pos_l2 and reset_joints_by_offset."""
+host_joint_pos_l2 = mdp2.Term(torch=host_joint_pos_l2_fn, capturable=False)
+host_reset_joints_by_offset = mdp2.Term(torch=host_reset_joints_by_offset_fn, random=True, capturable=False)
+"""Versions of joint_pos_l2 and reset_joints_by_offset that run on the host, between CUDA graphs."""
 
 
 def make_task(
@@ -349,11 +353,11 @@ def make_task(
     backend: str = "torch",
     episode_length_s: float = 1.0,
     random: bool = False,
-    eager: bool = False,
+    host: bool = False,
     torch_hooks: bool = False,
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
     """Finalize the task of :func:`make_builder` and create its state."""
-    builder = make_builder(scene.schema, episode_length_s, random, eager, torch_hooks=torch_hooks)
+    builder = make_builder(scene.schema, episode_length_s, random, host, torch_hooks=torch_hooks)
     mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
 
@@ -362,13 +366,14 @@ def make_builder(
     schema: mdp2.SceneSchema,
     episode_length_s: float = 1.0,
     random: bool = False,
-    eager: bool = False,
+    host: bool = False,
     joint_pos_weight: float = -10.0,
     torch_hooks: bool = False,
 ) -> mdp2.MDPBuilder:
     """Return a point-mass task. With ``random``, it also has a command, noisy observations, and events.
 
-    With ``eager``, the joint position penalty and the reset event are eager terms. With ``torch_hooks``, terms with
+    With ``host``, the joint position penalty and the reset event run on the host, between CUDA graphs. With
+    ``torch_hooks``, terms with
     state, random draws, or masks have Torch hooks only, which a Warp MDP runs between its kernels.
     """
 
@@ -388,7 +393,7 @@ def make_builder(
         rewards={
             "alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}),
             "joint_pos_l2": mdp2.Reward(
-                eager_joint_pos_l2 if eager else joint_pos_l2,
+                host_joint_pos_l2 if host else joint_pos_l2,
                 inputs={"joint_pos": robot.joint_pos},
                 weight=joint_pos_weight,
             ),
@@ -440,7 +445,7 @@ def make_builder(
     for name, observation in mdp_observations.items():
         builder.add_observation("policy", name, observation)
 
-    reset_term = eager_reset_joints_by_offset if eager else torch_only(reset_joints_by_offset)
+    reset_term = host_reset_joints_by_offset if host else torch_only(reset_joints_by_offset)
     builder.add_event("push_robot", push_robot)
     builder.add_event("reset_robot_joints", mdp2.Event(reset_term, outputs={"joint_pos": robot.joint_pos}))
     return builder
@@ -510,8 +515,8 @@ def test_finalize_reports_all_errors():
         " ['pos']" in message
     )
     assert (
-        "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'rng'] of ['pos', 'rng']:"
-        " missing a required argument: 'joint_pos'" in message
+        "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'rng'] of"
+        " ['cache', 'pos', 'rng']: missing a required argument: 'joint_pos'" in message
     )
     assert "events.read_only: 'robot.joint_acc' is read-only" in message
 
@@ -840,13 +845,14 @@ def test_warp_matches_torch():
     assert any(results[2].any() for results, _ in runs["torch", False])
 
 
-def test_eager_terms_match_compiled_terms():
-    """Eager terms see the same data and draw from the same streams as compiled terms, for their worlds only."""
+def test_host_hooks_match_compiled_terms():
+    """Hooks that run on the host see the same data and draw from the same streams as compiled terms, for their worlds
+    only."""
     for backend in ("torch", "warp"):
         runs = []
-        for eager in (False, True):
+        for host in (False, True):
             scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
-            mdp, state = make_task(scene, backend=backend, random=True, eager=eager)
+            mdp, state = make_task(scene, backend=backend, random=True, host=host)
             transition = mdp.transition()
 
             mask = torch.tensor([True, True, False, True], device=DEVICE)
@@ -855,9 +861,9 @@ def test_eager_terms_match_compiled_terms():
             env_step(mdp, state, scene, torch.full((4, mdp.action_dim), 0.1, device=DEVICE), transition)
             runs.append((joint_pos, transition.rewards.torch.clone()))
 
-        (compiled_pos, compiled_rewards), (eager_pos, eager_rewards) = runs
-        assert torch.equal(eager_pos, compiled_pos) and (eager_pos[2] == 0.0).all()
-        torch.testing.assert_close(eager_rewards, compiled_rewards)
+        (compiled_pos, compiled_rewards), (host_pos, host_rewards) = runs
+        assert torch.equal(host_pos, compiled_pos) and (host_pos[2] == 0.0).all()
+        torch.testing.assert_close(host_rewards, compiled_rewards)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
@@ -869,7 +875,7 @@ def test_captured_mdp_replays_like_eager_calls():
         for capture in (False, True):
             scene = PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
             mdp, state = make_task(
-                scene, backend=backend, episode_length_s=0.2, random=True, eager=True, torch_hooks=torch_hooks
+                scene, backend=backend, episode_length_s=0.2, random=True, host=True, torch_hooks=torch_hooks
             )
             assert not mdp.is_fully_capturable
             transition = mdp.transition()
@@ -970,7 +976,7 @@ def test_world_configs_match_single_config_runs():
             assert (mixed_step["policy"][split:, width:] == 0.0).all() and (mixed_step["noisy"][split:] == 0.0).all()
 
 
-eager_action_l2 = mdp2.Term(eager=lambda ctx: ctx.out.copy_(ctx.inputs["actions"].square().sum(dim=-1)))
+host_action_l2 = mdp2.Term(torch=lambda actions: actions.square().sum(dim=-1), capturable=False)
 
 
 def test_world_configs_with_fewer_actions_read_their_own_actions():
@@ -987,7 +993,7 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
             config.add_observation("policy", "action_l2", mdp2.Observation(mdp2.mdp.action_l2, inputs=actions))
             rate = mdp2.Observation(mdp2.mdp.action_rate_l2, inputs=actions)
             config.add_observation("policy", "narrow_rate" if subset else "action_rate_l2", rate)
-            config.add_observation("policy", "eager_l2", mdp2.Observation(eager_action_l2, inputs=actions))
+            config.add_observation("policy", "eager_l2", mdp2.Observation(host_action_l2, inputs=actions))
             configs.append(config)
         builder = mdp2.MDPBuilder(scene.schema)
         builder.replicate(configs[0], 2)
@@ -1476,8 +1482,8 @@ def test_uses_that_read_each_other_are_reported_as_a_cycle():
 
 
 def test_reset_commits_before_events_that_ask_for_it():
-    """The scene commits the writes of the earlier reset events before an event that asks for it. An eager event,
-    which may read the scene without declaring it, runs after them."""
+    """The scene commits the writes of the earlier reset events before an event that asks for it, and before an event
+    that takes the entity they wrote, which may read any of its data."""
     for backend in ("torch", "warp"):
         scene = PointMassScene(num_worlds=2, device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
@@ -1485,8 +1491,10 @@ def test_reset_commits_before_events_that_ask_for_it():
         scale = mdp2.Event(scale_joint_vel, outputs={"joint_vel": robot.joint_vel}, params={"factor": 3.0}, commit=True)
         builder.add_event("scale", scale)
         seen = []
-        record = mdp2.Term(eager=lambda ctx: seen.append(ctx.scene_data.data("robot", "joint_vel").torch.clone()))
-        builder.add_event("record", mdp2.Event(record))
+        record = mdp2.Term(
+            torch=lambda mask, robot: seen.append(robot.data("robot", "joint_vel").torch.clone()), capturable=False
+        )
+        builder.add_event("record", mdp2.Event(record, inputs={"robot": robot}))
         mdp = builder.finalize(device=DEVICE, backend=backend)
         state = mdp.state(scene)
         joint_velocities = scene.data("robot", "joint_vel").torch
@@ -1495,5 +1503,50 @@ def test_reset_commits_before_events_that_ask_for_it():
         mask = ProxyArray(wp.from_torch(torch.ones(2, dtype=torch.bool, device=DEVICE)))
         mdp2.reset(mdp, state, mask, commit=lambda: committed.append(joint_velocities.clone()))
 
-        assert len(committed) == 1 and (committed[0] == 1.0).all()
+        assert len(committed) == 2 and (committed[0] == 1.0).all() and (committed[1] == 3.0).all()
         assert (joint_velocities == 3.0).all() and (seen[0] == 3.0).all()
+
+
+record_tip = mdp2.Term(torch=lambda mask, tip: None)
+"""An event that reads the tip, a field derived from the joint positions."""
+
+
+def test_reset_commits_before_events_that_read_derived_fields():
+    """A commit is inferred before a reset event that reads a field derived from fields earlier events wrote, and
+    nowhere else; an event can opt out."""
+    scene = PointMassScene(num_worlds=1, device=DEVICE)
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_event("push", mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}))
+    builder.add_event("read_tip_early", mdp2.Event(record_tip, inputs={"tip": robot.tip}))
+    builder.add_event("offset", mdp2.Event(reset_joints_by_offset, outputs={"joint_pos": robot.joint_pos}))
+    builder.add_event("read_tip", mdp2.Event(record_tip, inputs={"tip": robot.tip}))
+    builder.add_event("read_tip_again", mdp2.Event(record_tip, inputs={"tip": robot.tip}))
+    builder.add_event("offset_again", mdp2.Event(reset_joints_by_offset, outputs={"joint_pos": robot.joint_pos}))
+    builder.add_event("opt_out", mdp2.Event(record_tip, inputs={"tip": robot.tip}, commit=False))
+    mdp = builder.finalize(device=DEVICE, backend="torch")
+
+    commits = [step.op.name for step in mdp.plan.reset if step.kind is mdp2.StepKind.COMMIT]
+    assert commits == ["events.read_tip"]
+
+
+def test_entity_outputs_write_every_writable_field_of_the_entity():
+    """An event that writes through an entity covers its writable fields: events that read one run after it, the
+    scene commits them, and fused wp.func hooks cannot take an entity."""
+    schema = PointMassScene(num_worlds=1).schema
+    through_robot = mdp2.Event(mdp2.Term(torch=lambda mask, robot: None), outputs={"robot": robot})
+    read_joints = mdp2.Event(mdp2.Term(torch=lambda mask, joint_pos: None), inputs={"joint_pos": robot.joint_pos})
+
+    builder = mdp2.MDPBuilder(schema)
+    reader = builder.add_event("read_joints", read_joints)
+    writer = builder.add_event("through_robot", through_robot)
+    with pytest.raises(ValueError, match="'events.read_joints' reads 'robot.joint_pos', so it must run after"):
+        builder.validate()
+    builder.move_after(reader, writer)
+    mdp = builder.finalize(device=DEVICE, backend="torch")
+    written = {"robot.joint_pos", "robot.joint_vel", "robot.joint_effort_target"}
+    assert {str(selector) for selector in mdp.reset_writes} == written
+
+    builder = mdp2.MDPBuilder(schema)
+    builder.add_event("fused", mdp2.Event(push_by_adding_velocity, inputs={"robot": robot}))
+    with pytest.raises(ValueError, match="wp.func hooks cannot take scene entities"):
+        builder.validate(backend="warp")

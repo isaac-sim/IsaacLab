@@ -27,6 +27,9 @@ class FieldSchema:
     # Whether events and actions may write it. Derived data, such as body poses that forward kinematics computes, and
     # sensor data are read-only: writes would not reach the simulation.
     writable: bool = False
+    # Fields of the same entity that it is computed from, such as body poses from the joint and root state: a reset
+    # event that reads it after an earlier one wrote them gets a commit first.
+    derived_from: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -56,7 +59,7 @@ class SceneData(Protocol):
         ...
 
     def entity(self, name: str) -> Any:
-        """Return the scene object of an entity, such as an articulation, for eager terms."""
+        """Return the scene object of an entity, such as an articulation, for Python hooks that take it."""
         ...
 
     def commit(self, mask: wp.array, fields: Collection[FieldSelector]) -> None:

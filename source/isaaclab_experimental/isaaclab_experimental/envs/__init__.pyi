@@ -11,6 +11,8 @@ __all__ = [
     "MDP2EnvCfg",
     "MDP2RLEnv",
     "MDP2RLEnvCfg",
+    "Stage",
+    "StagePoint",
     "ManagerBasedEnvWarp",
     "ManagerBasedRLEnvWarp",
 ]
@@ -20,5 +22,5 @@ from .direct_rl_env_warp import DirectRLEnvWarp
 from .manager_based_env_warp import ManagerBasedEnvWarp
 from .manager_based_rl_env_warp import ManagerBasedRLEnvWarp
 from .mdp2_env import MDP2Env, MDP2RLEnv
-from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg
+from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg, Stage, StagePoint
 from .mdp2_scene_data import InteractiveSceneData

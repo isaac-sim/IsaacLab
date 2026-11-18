@@ -21,8 +21,7 @@ import torch
 import warp as wp
 
 from .compiled import MDP
-from .config import FieldSelector, Phase, episode_length, last_action, term_state, terminated
-from .eager import call_eager
+from .config import Entity, FieldSelector, Phase, episode_length, last_action, term_state, terminated
 from .fusion import Fusion
 from .plan import Call, Launches, Step, StepKind, TermOp
 from .terms import hook_arguments
@@ -354,13 +353,11 @@ def _run(
     """Run a hook that has no output.
 
     A func runs in the world thread under ``conditions``, and ``writes`` are the keys of the arguments it writes.
-    A function that launches its own kernels, a Torch hook, or an eager term, runs on its own, and gets ``mask(call)``
-    as ``mask`` if it takes it.
+    A Python hook, which launches its own kernels or is a Torch hook, runs on its own, and gets ``mask(call)`` as
+    ``mask`` if it takes it.
     """
     if isinstance(hook, wp.Function):
         code.world(*_under(conditions, _call(code, op, hook)), writes=writes)
-    elif op.eager:
-        code.call(lambda call: call_eager(mdp, op, call.state, wp.to_torch(mask(call))), False, *_accesses(op))
     else:
 
         def run(call: Call) -> None:
@@ -369,21 +366,19 @@ def _run(
                 selected = wp.to_torch(selected)
             hook(**hook_arguments(hook, {**call.state.arguments[op.name], "mask": selected}))
 
-        code.call(run, op.capturable, *_accesses(op))
+        code.call(run, op.capturable, *_accesses(op, mdp))
 
 
 def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
     """Return source for an op's output at the thread's world and element.
 
-    A compute hook that launches its own kernels, a Torch hook, or an eager term, runs first, and the source reads its
+    A Python compute hook, which launches its own kernels or is a Torch hook, runs first, and the source reads its
     scratch buffer.
     """
     if isinstance(op.compute, wp.Function):
         return _call(code, op, op.compute, op.shape)
 
-    if op.eager:
-        code.call(_own_state(op, lambda call: call_eager(mdp, op, call.state)), False, *_accesses(op))
-    elif op.torch_hooks:
+    if op.torch_hooks:
         code.call(
             _own_state(
                 op,
@@ -392,7 +387,7 @@ def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
                 ),
             ),
             op.capturable,
-            *_accesses(op),
+            *_accesses(op, mdp),
         )
     else:
         code.call(
@@ -404,7 +399,7 @@ def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
                 ),
             ),
             op.capturable,
-            *_accesses(op),
+            *_accesses(op, mdp),
         )
     scratch = _array(code, ("scratch", op.name), wp.array(dtype=op.dtype, ndim=1 + len(op.shape)))
     return f"{scratch}[{_index(op.shape)}]"
@@ -493,10 +488,18 @@ def _timer(code: Fusion, op: TermOp) -> str:
     return f"world, {low}, {high}, {_rng(code)}[{op.stream}, world], {time_left}"
 
 
-def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
-    """Return the keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
+def _accesses(op: TermOp, mdp: MDP) -> tuple[set[Hashable], set[Hashable]]:
+    """Return the keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`.
+
+    A hook that takes a scene entity may read any of its fields; it writes those its entity outputs cover.
+    """
     state = {term_state(op.use, name) for name in op.state}
-    reads = {*map(op.array_key, op.inputs), *state, ("selected", op.name), *(["rng"] if op.random else [])}
+    reads = {*state, ("selected", op.name), *(["rng"] if op.random else [])}
+    for arg, selector in op.inputs.items():
+        if isinstance(selector, Entity):
+            reads.update(FieldSelector(selector.name, field) for field in mdp.schema.entities[selector.name].fields)
+        else:
+            reads.add(op.array_key(arg))
     return reads, {*op.writes, *state, ("scratch", op.name)}
 
 

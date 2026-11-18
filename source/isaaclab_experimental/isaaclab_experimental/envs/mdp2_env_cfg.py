@@ -7,13 +7,44 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, replace
+import enum
+from collections.abc import Callable
+from dataclasses import MISSING, dataclass, replace
+from typing import Any
 
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_experimental.mdp2 import Backend, TaskCfg
+
+
+class StagePoint(enum.Enum):
+    """Where a :class:`Stage` runs in a control step, which applies the actions, steps the physics, evaluates the MDP,
+    resets the worlds that ended, and observes them."""
+
+    BEFORE_PHYSICS = enum.auto()  # Before the actions are applied and the physics steps
+    AFTER_PHYSICS = enum.auto()  # After the physics steps, before the MDP is evaluated
+    BEFORE_RESET = enum.auto()  # After the MDP is evaluated, before the worlds that ended are reset
+    AFTER_RESET = enum.auto()  # After the reset events and their commit, before the reset worlds are observed
+    AFTER_OBSERVE = enum.auto()  # At the end of the step
+
+
+@dataclass(frozen=True)
+class Stage:
+    """User work at a point of every control step, such as kernels that update a scene field the MDP reads.
+
+    ``fn(env)`` may read and write anything, through the environment, its scene, and its MDP state. A capturable stage
+    runs inside the step's CUDA graph: it is called once, at capture, and its launches replay every step, so it must
+    not read values on the host or draw from Torch's random generators, and Python branches take the path they took
+    at capture. Check it with
+    ``MDP2EnvCfg.verify_capture``. A stage that is not capturable runs on the host between the graphs. Stages at
+    :attr:`StagePoint.AFTER_RESET` also run in :meth:`~isaaclab_experimental.envs.MDP2Env.reset`.
+    """
+
+    fn: Callable[[Any], None]
+    at: StagePoint
+    capturable: bool = True
 
 
 @configclass
@@ -29,6 +60,10 @@ class MDP2EnvCfg:
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None
     capture: bool = True  # Replay each step, physics included, as one CUDA graph when the MDP allows it
+    stages: list[Stage] = []  # User work at points of every step, in order
+    # Debug: before building, step the task this many times uncaptured and captured, and raise where they differ,
+    # naming the value; see verify_capture. 0 to skip.
+    verify_capture: int = 0
 
 
 @configclass

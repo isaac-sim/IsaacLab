@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable, Collection
 from typing import Any
 
@@ -50,9 +51,11 @@ class InteractiveSceneData:
     filter.
 
     Events and actions write fields in place, and :meth:`commit` makes the simulation see the writes to the joint and
-    root state. Where the asset's data is the solver's own state, as Newton's usually is, a commit only tells the
-    solver which worlds changed. Otherwise, as for the joint positions of Newton articulations with ball joints or on
-    other physics backends, it passes the written worlds through the asset's ``write_*_to_sim_mask`` methods. The
+    root state. Where the asset's data is the solver's own state, as Newton's joint positions and root state usually
+    are, a commit only tells the solver which worlds changed. Otherwise, as for the joint positions of Newton
+    articulations with ball joints or on other physics backends, it passes the written worlds through the asset's
+    ``write_*_to_sim_mask`` methods; joint velocities always go through them, since the asset keeps the previous ones
+    for joint accelerations. The
     default state and the joint targets are plain buffers that need no commit. ``gravity_w`` is writable where it is
     the physics model's own (Newton). Derived and sensor fields are read-only.
     """
@@ -85,7 +88,14 @@ class InteractiveSceneData:
                 "root_com_vel_w": FieldSchema((), wp.spatial_vectorf, writable=True),
                 "default_root_pose": FieldSchema((), wp.transformf, writable=True),
                 "default_root_vel": FieldSchema((), wp.spatial_vectorf, writable=True),
-                "body_link_pose_w": FieldSchema(("bodies",), wp.transformf),
+                # Forward kinematics computes it from the root and joint state.
+                "body_link_pose_w": FieldSchema(
+                    ("bodies",),
+                    wp.transformf,
+                    derived_from=("root_link_pose_w", "joint_pos")
+                    if name in scene.articulations
+                    else ("root_link_pose_w",),
+                ),
             }
             names = {"bodies": tuple(asset.body_names)}
             state = {
@@ -146,8 +156,8 @@ class InteractiveSceneData:
                     "joint_pos": lambda mask, a=asset, v=views["joint_pos"]: a.write_joint_position_to_sim_mask(
                         position=v.warp, env_mask=mask
                     ),
-                    "joint_vel": lambda mask, a=asset, v=views["joint_vel"]: a.write_joint_velocity_to_sim_mask(
-                        velocity=v.warp, env_mask=mask
+                    "joint_vel": lambda mask, a=asset, v=views["joint_vel"], skip=False: (
+                        a.write_joint_velocity_to_sim_mask(velocity=v.warp, env_mask=mask, skip_forward=skip)
                     ),
                 }
 
@@ -157,6 +167,10 @@ class InteractiveSceneData:
                     self._solver_state[selector] = asset
                     if (change := newton.model_change(asset, field)) is not None:
                         self._model_changes[selector] = change
+                    if newton.keeps_derived(field):
+                        # The asset updates what it derives, in its writer's kernel, and the commit recomputes the
+                        # kinematics once per asset.
+                        self._writers[selector] = functools.partial(writer, skip=True)
                 else:
                     self._writers[selector] = writer
 
@@ -254,12 +268,19 @@ class _NewtonBackend:
         self.joint_properties = ModelFlags.JOINT_PROPERTIES
 
     def is_solver_state(self, asset: Any, field: str) -> bool:
-        """Whether a state field of an asset is the solver's own buffer: joint positions are not for articulations
-        with ball joints, whose quaternion coordinates the asset converts."""
+        """Whether a state field of an asset is the solver's own buffer, so that the commit only tells the solver which
+        worlds changed. Joint positions are not for articulations with ball joints, whose quaternion coordinates the
+        asset converts."""
         if field != "joint_pos":
             return True
         view = asset.root_view
         return not view.joint_coord_counts or view.joint_coord_counts == view.joint_dof_counts
+
+    @staticmethod
+    def keeps_derived(field: str) -> bool:
+        """Whether the asset keeps data derived from a field that its writer updates: the previous joint velocities,
+        from which it computes joint accelerations."""
+        return field == "joint_vel"
 
     def model_change(self, asset: Any, field: str) -> int | None:
         """The model property that a write changes: the root pose of a fixed base is the frame of the joint that fixes

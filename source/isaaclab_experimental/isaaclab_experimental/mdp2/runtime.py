@@ -18,7 +18,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
-from .eager import call_eager
+from .eager import call_init
 from .plan import Call
 
 
@@ -26,7 +26,7 @@ def startup(mdp: MDP, state: MDPState) -> None:
     """Run the ``init`` hooks of the terms, then the startup events, once, in every world."""
     for op in mdp.term_ops:
         if op.init is not None:
-            call_eager(mdp, op, state, hook=op.init)
+            call_init(mdp, op, state, op.init)
 
     mask = ProxyArray(wp.ones(mdp.num_worlds, dtype=wp.bool, device=mdp.device))
     call = Call(state, mask=mask)

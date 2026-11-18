@@ -52,6 +52,12 @@ class Implementation:
     - A func gets ``rng`` as its world's ``int32`` seed. It must only write its own world, and may read other
       worlds only where no term writes.
 
+    A Python hook, a Torch hook or a Warp hook that launches kernels itself, may also take scene entities bound as
+    inputs, such as ``inputs={"robot": robot}``, to call any of their methods, and ``cache``, a dict that the use keeps
+    across calls for host objects. A capturable Python hook runs once, at capture, and its launches replay: it must not
+    read values on the host or draw from Torch's random generators, and its Python branches take the path they took at
+    capture. Mark the term ``capturable=False`` otherwise: it then runs on the host between the graphs.
+
     A Warp hook can instead be a function that launches kernels itself, with the Torch arguments plus ``out`` for
     ``compute``, an array of the output shape to fill for every world, and ``rng`` as the stream of every world.
     It runs between the generated kernels.
@@ -75,9 +81,10 @@ class Term:
     shape: tuple[str | int, ...] = ("worlds",)  # Output shape; other names are dimensions of inputs or int params
     state: dict[str, State] = field(default_factory=dict)
     random: bool = False  # Pass the use's per-world random stream as ``rng``, see :mod:`.rng`
-    eager: Callable | None = None  # ``fn(ctx, **params)`` run eagerly instead of the hooks, see :mod:`.eager`
-    init: Callable | None = None  # ``fn(ctx, **params)`` run eagerly once by ``startup``, to fill the state
-    capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
+    init: Callable | None = None  # ``fn(ctx, **params)`` run on the host once by ``startup``, to fill the state
+    # False for Python hooks that cannot run inside a CUDA graph, such as hooks that read values on the host. They run
+    # between the graphs, which splits them.
+    capturable: bool = True
 
     def __post_init__(self) -> None:
         if self.torch is not None and not isinstance(self.torch, Implementation):

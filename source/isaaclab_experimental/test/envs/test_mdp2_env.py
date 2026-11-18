@@ -6,6 +6,7 @@
 """Tests for MDP2RLEnv on a headless Newton Cartpole, built from a local USD file."""
 
 import math
+import weakref
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental import mdp2
-from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, mdp2_env, mdp2_scene_data
+from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, Stage, StagePoint, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -50,18 +51,18 @@ def reset_joints(subset: mdp2.SubsetSelector, position_range: tuple, velocity_ra
     )
 
 
-def eager_joint_vel_l1(ctx: mdp2.TermContext):
-    joint_vel = ctx.inputs["joint_vel"][:, ctx.inputs["joint_ids"].long()]
-
-    # Reading a value on the host fails inside a CUDA graph, which eager terms never run in.
+def host_joint_vel_l1(joint_vel, joint_ids):
+    joint_vel = joint_vel[:, joint_ids.long()]
+    # Reading a value on the host fails inside a CUDA graph, which hooks that are not capturable never run in.
     if joint_vel.isfinite().all().item():
-        ctx.out.copy_(joint_vel.abs().sum(dim=-1))
+        return joint_vel.abs().sum(dim=-1)
+    return torch.zeros_like(joint_vel[:, 0])
 
 
-def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = False) -> MDP2RLEnvCfg:
+def cartpole_cfg(backend: str = "warp", capture: bool = True, host: bool = False) -> MDP2RLEnvCfg:
     """The Cartpole task of ``Isaac-Cartpole``, on the fixed Cartpole of the Newton tests, with a 1 s episode.
 
-    With ``eager``, the cart velocity penalty is an eager term.
+    With ``host``, the cart velocity penalty runs on the host, between the CUDA graphs.
     """
     scene = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=4.0)
     scene.robot = ArticulationCfg(
@@ -110,7 +111,7 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True, eager: bool = Fals
                 weight=-1.0,
             ),
             "cart_vel": mdp2.Reward(
-                mdp2.Term(eager=eager_joint_vel_l1) if eager else mdp.joint_vel_l1,
+                mdp2.Term(torch=host_joint_vel_l1, capturable=False) if host else mdp.joint_vel_l1,
                 inputs={"joint_vel": robot.joint_vel, "joint_ids": cart},
                 weight=-0.01,
             ),
@@ -339,17 +340,18 @@ def test_asset_writers_match_writes_to_the_solver_state(monkeypatch):
 
 
 def test_captured_steps_match_eager_steps_and_the_torch_backend():
-    """A captured step replays one graph, or graphs around the eager terms, and gives bitwise the eager results."""
+    """A captured step replays one graph, or graphs around the hooks that run on the host, and gives bitwise the results
+    of uncaptured steps."""
     num_steps = 80  # Past the time-out of every world.
     num_graphs, captured_run = rollout(cartpole_cfg(), num_steps)
     eager_graphs, eager_run = rollout(cartpole_cfg(capture=False), num_steps)
     assert num_graphs == 1 and eager_graphs == 0
     assert any(step["terminated"].any() for step in captured_run[1:])
 
-    # The Torch backend with an eager term: the capture split does not depend on the backend.
-    torch_graphs, torch_run = rollout(cartpole_cfg(backend="torch", eager=True), num_steps)
-    _, torch_eager_run = rollout(cartpole_cfg(backend="torch", capture=False, eager=True), num_steps)
-    # The eager reward splits evaluate: physics and the terms before it, then the rest of the step.
+    # The Torch backend with a host hook: the capture split does not depend on the backend.
+    torch_graphs, torch_run = rollout(cartpole_cfg(backend="torch", host=True), num_steps)
+    _, torch_eager_run = rollout(cartpole_cfg(backend="torch", capture=False, host=True), num_steps)
+    # The host reward splits evaluate: physics and the terms before it, then the rest of the step.
     assert torch_graphs == 2
     for captured_step, eager_step, torch_step in zip(captured_run, eager_run, torch_run):
         for key, value in captured_step.items():
@@ -433,20 +435,32 @@ def test_startup_and_interval_events_reach_the_solver():
         env.close()
 
 
-def raise_pole_armature(ctx: mdp2.TermContext):
-    robot = ctx.entity("joint_pos")
+def raise_pole_armature(mask, robot):
     armature = robot.data.joint_armature.torch.clone()
     armature[:, 1] += 0.1
-    robot.write_joint_armature_to_sim_mask(armature=armature, env_mask=wp.from_torch(ctx.mask))
+    robot.write_joint_armature_to_sim_mask(armature=armature, env_mask=wp.from_torch(mask))
 
 
-def test_eager_events_change_the_model_of_captured_steps():
-    """Model changes that an eager reset event queues reach the solver, also between the graphs of captured steps."""
+def raise_pole_armature_stage(env):
+    raise_pole_armature(env.transition.done.torch, env.scene["robot"])
+
+
+@pytest.mark.parametrize(
+    ("where", "capturable"),
+    [("event", True), ("event", False), (StagePoint.AFTER_RESET, True), (StagePoint.AFTER_OBSERVE, True)],
+    ids=("event-captured", "event-between-graphs", "stage-after-reset", "stage-after-observe"),
+)
+def test_model_changes_reach_the_solver_of_captured_steps(where, capturable):
+    """Model changes that a reset event or a stage makes through the robot reach the solver in every step that
+    replays: from inside the graph, from between the graphs, and from stages after the step's commit."""
     cfg = cartpole_cfg()
     cfg.task.terminations["time_out"] = mdp2.TimeLimit(episode_length_s=0.05)
-    cfg.task.events["raise_pole_armature"] = mdp2.Event(
-        mdp2.Term(eager=raise_pole_armature), inputs={"joint_pos": robot.joint_pos}
-    )
+    if where == "event":
+        cfg.task.events["raise_pole_armature"] = mdp2.Event(
+            mdp2.Term(torch=raise_pole_armature, capturable=capturable), inputs={"robot": robot}
+        )
+    else:
+        cfg.stages = [Stage(raise_pole_armature_stage, at=where)]
     env = MDP2RLEnv(cfg)
     try:
         env.reset()
@@ -456,7 +470,137 @@ def test_eager_events_change_the_model_of_captured_steps():
         backend = env.sim.backend_manager.backend
         model = backend.model.joint_armature.numpy().reshape(NUM_ENVS, -1)
         solver = backend.solver.mjw_model.dof_armature.numpy().reshape(NUM_ENVS, -1)
-        assert env.is_captured and model[0, 1] > 0.3
+        # Raised in several resets, the last ones by replayed steps.
+        assert env.is_captured and env.num_graphs == (1 if capturable else 2) and model[0, 1] > 0.25
         np.testing.assert_allclose(solver, model, rtol=1e-6)
+    finally:
+        env.close()
+
+
+def test_stages_run_at_their_points_inside_and_between_graphs():
+    """Stages run every step at their points, inside the graph when capturable, and after resets also in reset()."""
+    counts = {point: torch.zeros(1, device="cuda:0") for point in StagePoint}
+
+    def count(point: StagePoint):
+        return lambda env: counts[point].add_(1.0)
+
+    cfg = cartpole_cfg()
+    cfg.stages = [Stage(count(point), at=point) for point in StagePoint]
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(5):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.is_captured and env.num_graphs == 1
+        assert {point: int(value.item()) for point, value in counts.items()} == {
+            point: 6 if point is StagePoint.AFTER_RESET else 5 for point in StagePoint
+        }
+    finally:
+        env.close()
+
+    # A stage that cannot be captured runs between two graphs.
+    cfg.stages = [Stage(count(StagePoint.AFTER_PHYSICS), at=StagePoint.AFTER_PHYSICS, capturable=False)]
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(3):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.num_graphs == 2 and counts[StagePoint.AFTER_PHYSICS].item() == 8
+    finally:
+        env.close()
+
+
+def test_verify_capture_finds_python_state_that_the_graph_freezes():
+    """The debug check passes a task whose captured steps are exact, and names a stage whose Python-side state the
+    graph froze at capture."""
+    cfg = cartpole_cfg()
+    cfg.verify_capture = 4
+    MDP2RLEnv(cfg).close()
+
+    calls = weakref.WeakKeyDictionary()  # Per environment, so that each run of the check counts from zero
+
+    def drifting_reward_weights(env):
+        # A Python counter: replayed steps keep the weight it gave at capture.
+        calls[env] = calls.get(env, 0) + 1
+        env.state.reward_weights.torch.fill_(float(calls[env]))
+
+    cfg.stages = [Stage(drifting_reward_weights, at=StagePoint.AFTER_PHYSICS)]
+    with pytest.raises(RuntimeError, match=r"Captured step \d+ differs .* at 'rewards'.*stage drifting_reward_weights"):
+        MDP2RLEnv(cfg)
+
+    # A reset event with Python-side state: the worlds that reset in captured steps get the value of the capture. Only
+    # time-outs end episodes here, after 60 steps, so the check itself must make the worlds reset.
+    cfg.task.terminations["cart_out_of_bounds"] = None
+
+    def counted_reset(mask, joint_pos, cache):
+        # Counted in the use's cache, which each environment has its own of.
+        cache["calls"] = cache.get("calls", 0) + 1
+        joint_pos.add_(mask[:, None] * float(cache["calls"]))
+
+    cfg.stages = []
+    cfg.task.events["counted_reset"] = mdp2.Event(
+        mdp2.Term(torch=counted_reset), outputs={"joint_pos": robot.joint_pos}
+    )
+    with pytest.raises(RuntimeError, match=r"Captured step \d+ differs.*events.counted_reset"):
+        MDP2RLEnv(cfg)
+
+
+def test_joint_accelerations_start_from_the_reset_velocities():
+    """The first acceleration of an episode differences the velocities against the ones the reset gave, not against
+    those the last episode ended with: resets pass joint velocities through the asset, which keeps them."""
+    cfg = cartpole_cfg()
+    cfg.decimation = 1  # One physics step per control step, so the acceleration is the step's finite difference
+    cfg.task.terminations["time_out"] = mdp2.TimeLimit(episode_length_s=0.05)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        joint_vel = env.scene_data.data("robot", "joint_vel").torch
+        joint_acc = env.scene_data.data("robot", "joint_acc").torch
+        previous, reset = joint_vel.clone(), torch.zeros(NUM_ENVS, dtype=torch.bool, device=env.device)
+        first_steps = 0
+        for _ in range(14):
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            started = reset & ~(terminated | truncated)
+            expected = (joint_vel - previous) / env.step_dt
+            torch.testing.assert_close(joint_acc[started], expected[started], rtol=1e-4, atol=1e-2)
+            first_steps += int(started.sum())
+            reset, previous = terminated | truncated, joint_vel.clone()
+        assert env.is_captured and first_steps > 0
+    finally:
+        env.close()
+
+
+def move_reset_carts(env):
+    robot_asset = env.scene["robot"]
+    joint_pos = robot_asset.data.joint_pos.torch.clone()
+    joint_pos[:, 0] = 0.3
+    robot_asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=wp.from_torch(env.transition.done.torch))
+
+
+cart_offset = mdp2.Term(torch=lambda body_link_pose_w: body_link_pose_w[:, 1, 0] - body_link_pose_w[:, 0, 0])
+"""The cart's position along the rail, from the body poses."""
+
+
+def test_stages_that_write_the_scene_are_seen_by_later_work():
+    """A stage after the resets that moves the reset carts through the robot is seen by the observations of the same
+    step, which read the body poses: the step recomputes the kinematics after the stage."""
+    cfg = cartpole_cfg()
+    cfg.task.terminations["time_out"] = mdp2.TimeLimit(episode_length_s=0.05)
+    cfg.task.observations["policy"]["cart_offset"] = mdp2.Observation(
+        cart_offset, inputs={"body_link_pose_w": robot.body_link_pose_w}
+    )
+    cfg.stages = [Stage(move_reset_carts, at=StagePoint.AFTER_RESET)]
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        restarted = 0
+        for _ in range(8):
+            observations, _, terminated, truncated, _ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            ended = terminated | truncated
+            torch.testing.assert_close(
+                observations["policy"][ended, -1], torch.full_like(observations["policy"][ended, -1], 0.3)
+            )
+            restarted += int(ended.sum())
+        assert env.is_captured and restarted > 0
     finally:
         env.close()

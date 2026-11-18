@@ -364,7 +364,7 @@ def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MD
     events = {
         "base_mass": mdp2.Event(
             mdp.randomize_rigid_body_mass,
-            inputs={"body_ids": base},
+            inputs={"asset": robot, "body_ids": base},
             params={
                 "mass_distribution_params": (0.8, 1.25),
                 "operation": "scale",
@@ -373,7 +373,7 @@ def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MD
         ),
         "base_com": mdp2.Event(
             mdp.randomize_rigid_body_com,
-            inputs={"body_ids": base},
+            inputs={"asset": robot, "body_ids": base},
             params={"com_range": ((-0.05, 0.05), (-0.05, 0.05), (-0.01, 0.01))},
         ),
     }
@@ -416,7 +416,7 @@ def test_model_events_reject_unsupported_randomizations(env: MDP2Env):
         builder = mdp2.MDPBuilder(env.scene_data.schema)
         event = mdp2.Event(
             mdp.randomize_rigid_body_mass,
-            inputs={"body_ids": robot.bodies("base")},
+            inputs={"asset": robot, "body_ids": robot.bodies("base")},
             params={"mass_distribution_params": (0.8, 1.25), **params},
         )
         builder.add_event("base_mass", event)

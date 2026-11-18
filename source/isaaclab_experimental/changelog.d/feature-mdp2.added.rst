@@ -13,8 +13,9 @@
   few generated kernels per runtime function, or functions that launch kernels themselves. A Warp MDP runs the Torch
   hooks of terms without Warp ones between its kernels. Terms may keep per-world or shared
   :class:`~isaaclab_experimental.mdp2.State`, filled once by an ``init`` hook and optionally persistent across
-  episodes, and random terms draw from per-world streams that are bitwise identical on both backends. Eager terms,
-  ``Term(eager=fn)``, are Python functions with direct access to the scene for work that cannot run in a CUDA graph.
+  episodes, and random terms draw from per-world streams that are bitwise identical on both backends. Python hooks
+  may take scene entities bound as inputs, such as ``inputs={"robot": robot}``, to call their methods, and keep host
+  objects in ``cache``; terms with ``capturable=False`` run on the host between the CUDA graphs.
 * Added :meth:`~isaaclab_experimental.mdp2.MDPBuilder.replicate`, and task lists in
   :class:`~isaaclab_experimental.envs.MDP2EnvCfg` with ``task_worlds``, to run different task configs in different
   worlds of one scene. Uses the configs share run once, the others only in their worlds, reward weights are per
@@ -23,10 +24,13 @@
 * Added :class:`~isaaclab_experimental.envs.MDP2Env` and :class:`~isaaclab_experimental.envs.MDP2RLEnv`, which run an
   MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are masks
   over the worlds, so every step after the first replays as CUDA graphs, physics included, on both backends: one
-  graph without eager terms, and the eager terms between graphs otherwise. Reset events write scene fields in place,
-  including fixed-base root poses and gravity, and ``Event(commit=True)`` makes the simulation see earlier writes. A
+  graph, or graphs around the work that cannot be captured. :class:`~isaaclab_experimental.envs.Stage` s add user
+  work at points of every step, and ``verify_capture`` checks that captured steps compute what uncaptured ones do.
+  Reset events write scene fields in place, including fixed-base root poses and gravity, and the scene commits them
+  before an event that reads derived fields, such as body poses, or that takes an entity they wrote. A
   commit tells the solver which worlds changed where a field is its own state, and passes the writes through the
-  assets' ``write_*_to_sim_mask`` methods otherwise, such as for ball joints. Fields that the simulation computes are
+  assets' ``write_*_to_sim_mask`` methods otherwise, such as for ball joints and joint velocities, whose writers keep
+  joint accelerations right. Fields that the simulation computes are
   read-only.
   ``extras["log"]`` holds per-term episode statistics and logged quantities, and with ``compute_final_obs``,
   ``extras["final_obs"]`` holds the observations of the worlds that ended before their reset, which the generated
