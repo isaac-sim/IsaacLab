@@ -14,7 +14,7 @@ import warp as wp
 
 from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
 from isaaclab.utils import replace
-from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorArgs
+from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg, normalize_ppisp_cfg, resolve_and_normalize
@@ -100,7 +100,7 @@ class PpispProcessor(TensorProcessor):
         rgb = wp.array(ptr=rgba.ptr, shape=(*hdr.shape[:3], 3), strides=rgba.strides, dtype=wp.uint8, device=hdr.device)
         self._outputs = {"rgb": ProxyArray(rgb), "rgba": ProxyArray(rgba)}
 
-    def __call__(self, data: dict[str, ProxyArray], args: TensorProcessorArgs | None = None) -> dict[str, ProxyArray]:
+    def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
         self._pipeline.apply(data[self._cfg.inputs[0]].warp, self._outputs["rgba"].warp)
         return dict(self._outputs)
 
