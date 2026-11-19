@@ -172,8 +172,8 @@ def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[Simula
         return False
     if backend.rtx_camera is not None:
         return backend.rtx_camera
-    on_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg, OvPhysxCfg)) for sim in simulations)
-    return importlib.util.find_spec("ovrtx") is not None and not on_physx
+    on_kit_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg)) for sim in simulations)  # OVPhysX is kitless
+    return importlib.util.find_spec("ovrtx") is not None and not on_kit_physx
 
 
 def _declare_viewer_camera(
@@ -201,6 +201,7 @@ def _declare_viewer_camera(
         ),
         offset=CameraCfg.OffsetCfg(pos=visualizer.eye, rot=tuple(rotation), convention="opengl"),
         renderer_cfg=visualizer.backend.rtx_renderer_cfg, background_color=visualizer.background_color,
+        render_on_demand=True,
         render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.rtx_render_settings},
     )  # fmt: skip
     visualizer.streaming_view = True  # The window lists scene cameras, including this one, as view sources.

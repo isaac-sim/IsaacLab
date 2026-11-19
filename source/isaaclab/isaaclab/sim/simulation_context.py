@@ -458,8 +458,8 @@ class SimulationContext:
                             if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 rtx_path = getattr(visualizer.cfg.backend, "rtx_camera_prim_path", None)
-                rgb_requested = "rgb" in visualizer.cfg.streaming_gt_types  # the viewer camera provides only RGBA
-                if rgb_requested and rtx_path is not None and not (visualizer.cfg.cameras is None or tracking_only):
+                rgb_only = set(visualizer.cfg.streaming_gt_types) == {"rgb"}  # the viewer camera provides only RGBA
+                if rgb_only and rtx_path is not None and not (visualizer.cfg.cameras is None or tracking_only):
                     # Explicit cameras skip discovery; the Renderer switch still needs this window's RTX camera.
                     cameras.append(SceneCameraCfg(prim_path=rtx_path))
                 for index, source in enumerate(cameras):
