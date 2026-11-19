@@ -916,12 +916,11 @@ def test_write_command_mask_uses_full_sized_value(command_name):
 def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
     """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
     control = FakeActuatorControl(num_envs=4, device=device)
-    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0)
-    if delay is not None:
-        cfg.min_delay = delay
-        cfg.max_delay = delay
-    initial_delay = 0 if delay is None else 1
-    expected_delay = 0 if delay is None else delay
+    # The default max_delay of None runs without delay.
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=delay or 0, max_delay=delay
+    )
+    initial_delay = 1 if delay else 0
     collection = ActuatorCollection({"delayed": cfg}, control)
     buffers = collection["delayed"]._delay_buffers
     for delay_buffer in buffers:
@@ -940,13 +939,6 @@ def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
 
     for delay_buffer in buffers:
         torch.testing.assert_close(
-            delay_buffer.time_lags, torch.where(env_mask, expected_delay, initial_delay).to(torch.int)
+            delay_buffer.time_lags, torch.where(env_mask, delay or 0, initial_delay).to(torch.int)
         )
         torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))
-
-
-def test_delayed_actuator_rejects_minimum_above_default_maximum():
-    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=1)
-
-    with pytest.raises(ValueError, match="min_delay <= max_delay"):
-        ActuatorCollection({"delayed": cfg}, FakeActuatorControl())

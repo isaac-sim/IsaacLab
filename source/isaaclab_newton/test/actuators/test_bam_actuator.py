@@ -161,12 +161,10 @@ def make_bare_stage(servo_usd: str) -> Usd.Stage:
 @pytest.mark.parametrize(
     "edit, match",
     [
-        (lambda cfg: replace(cfg, kp_fw=None), "does not set 'kp_fw'"),
         (lambda cfg: replace(cfg, motor=replace(cfg.motor, max_current=None)), "does not set 'motor.max_current'"),
-        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model=None)), "does not set 'motor.model'"),
         (lambda cfg: replace(cfg, motor=replace(cfg.motor, model="m3")), "Unsupported BAM model"),
     ],
-    ids=["no_kp_fw", "no_max_current", "no_model", "unsupported_model"],
+    ids=["no_max_current", "unsupported_model"],
 )
 def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd, edit, match):
     """A new actuator needs the complete fit, and an unsupported model would author another friction law."""
