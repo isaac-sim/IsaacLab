@@ -18,7 +18,12 @@ if TYPE_CHECKING:
 
 @configclass
 class RerunBackendCfg(VisualizerBackendCfg):
-    """Configuration for Rerun visualizer (web-based visualization)."""
+    """Configuration for Rerun visualizer (web-based visualization).
+
+    .. deprecated:: 3.2.0
+        The Rerun visualizer will be removed in Isaac Lab 3.3. Use
+        :class:`~isaaclab_visualizers.viser.ViserBackendCfg` instead.
+    """
 
     class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"
     """Visualizer implementation class."""
