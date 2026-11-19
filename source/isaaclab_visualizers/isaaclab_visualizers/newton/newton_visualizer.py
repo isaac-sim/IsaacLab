@@ -744,7 +744,6 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     _overlay_publisher: OverlayMeshPublisher | None = None
     _rtx_arrows_pending = False
-    _rtx_visibility_limited = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
 
