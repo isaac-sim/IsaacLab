@@ -236,11 +236,7 @@ _DLPACK_TO_WARP_SCALAR: dict[tuple[int, int, int], Any] = {
 
 
 def _binding_scalar_dtype(binding: _BindingLike) -> Any:
-    dtype = getattr(binding, "dtype", None)
-    if dtype is None:
-        raise OvPhysxView.DtypeMismatch(
-            "OVPhysX binding does not expose DLPack dtype metadata; install the OVPhysX 0.5 dependency."
-        )
+    dtype = binding.dtype
     code = getattr(dtype.code, "value", dtype.code)
     key = (int(code), int(dtype.bits), int(dtype.lanes))
     try:
