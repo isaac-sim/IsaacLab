@@ -1,0 +1,376 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""World-frame lidar hits shared by every visualizer."""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
+
+from isaaclab.utils.math import project_points, quat_apply, quat_apply_inverse
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.lidar.lidar import Lidar
+    from isaaclab.sim import SimulationContext
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+
+LIDAR_LOG_INTERVAL = 10
+"""Visualizer steps between host copies of one environment's lidar hits."""
+
+LIDAR_POINT_RADIUS = 0.02
+"""Sphere radius, in meters, used by viewers that log a point batch."""
+
+LIDAR_POINT_COLOR = (1.0, 0.0, 0.0)
+"""RGB color of logged lidar hits."""
+
+_LIDAR_PIXEL_COLOR = (255, 0, 0)
+_LIDAR_PIXEL_RADIUS = 1
+
+
+def _iso8855_to_prim(points: torch.Tensor) -> torch.Tensor:
+    """Map ISO 8855 sensor points onto the prim's camera axes.
+
+    The beam travels along the prim's local ``-Z``. ``SENSOR`` returns use a different
+    frame: ``+X`` is forward, ``+Y`` is left, and ``+Z`` is up. The pose quaternion
+    rotates the prim axes, so a return has to be rewritten into those axes first.
+    """
+    forward, left, up = points.unbind(dim=-1)
+    return torch.stack((-left, up, -forward), dim=-1)
+
+
+def lidar_world_points(sensor: Lidar, env_ids: list[int] | None) -> np.ndarray:
+    """Return finite lidar hits in world coordinates.
+
+    ``WORLD`` returns are already in world coordinates. ``SENSOR`` returns are in the
+    ISO 8855 sensor frame. They are rewritten onto the prim's camera axes, then
+    rotated and translated by the pose the sensor writes to the renderer. Misses are
+    omitted.
+
+    Args:
+        sensor: Lidar whose latest buffers are read.
+        env_ids: Environments to include. None includes every environment.
+
+    Returns:
+        Hit positions with shape ``(num_hits, 3)``. An empty cloud has shape ``(0, 3)``.
+    """
+    clouds = [cloud for _, cloud in lidar_env_hits(sensor, env_ids) if len(cloud)]
+    if not clouds:
+        return np.empty((0, 3), dtype=np.float32)
+    if len(clouds) == 1:
+        return clouds[0]
+    return np.concatenate(clouds, axis=0)
+
+
+def lidar_env_hits(sensor: Lidar, env_ids: list[int] | None) -> list[tuple[int, np.ndarray]]:
+    """Return each environment's finite lidar hits in world coordinates.
+
+    The transform matches :func:`lidar_world_points`. Environments are listed in ``env_ids`` order,
+    or in scene order when ``env_ids`` is None. An environment with no finite hits is omitted.
+
+    Args:
+        sensor: Lidar whose latest buffers are read.
+        env_ids: Environments to include. None includes every environment.
+
+    Returns:
+        ``(env_index, points)`` pairs. ``points`` has shape ``(num_hits, 3)``.
+    """
+    points = sensor.data.points.torch
+    valid = sensor.data.valid.torch
+    if env_ids is None:
+        ids = list(range(points.shape[0]))
+    else:
+        ids = [int(env_id) for env_id in env_ids]
+        if not ids:
+            return []
+        index = torch.as_tensor(ids, device=points.device, dtype=torch.long)
+        points = points.index_select(0, index)
+        valid = valid.index_select(0, index)
+    if sensor.cfg.frame_of_reference == "SENSOR":
+        position = sensor._pos_w
+        rotation = sensor._quat_w
+        if position is None or rotation is None:
+            return []
+        position = position.torch
+        rotation = rotation.torch
+        if env_ids is not None:
+            index = torch.as_tensor(ids, device=position.device, dtype=torch.long)
+            position = position.index_select(0, index)
+            rotation = rotation.index_select(0, index)
+        points = quat_apply(rotation.unsqueeze(1), _iso8855_to_prim(points)) + position.unsqueeze(1)
+    finite = valid & torch.isfinite(points).all(dim=-1)
+    packed = points[finite].detach().to(dtype=torch.float32, device="cpu").numpy()
+    counts = finite.sum(dim=-1).detach().to(device="cpu").numpy()
+    offset = 0
+    hits = []
+    for env_id, count in zip(ids, counts, strict=True):
+        count = int(count)
+        if count:
+            hits.append((env_id, packed[offset : offset + count]))
+        offset += count
+    return hits
+
+
+def _as_vec3(values) -> tuple[float, float, float]:
+    """Return three floats from a camera vector."""
+    return (float(values[0]), float(values[1]), float(values[2]))
+
+
+def _origins_cpu(origins) -> torch.Tensor | None:
+    """Return environment origins as a CPU ``(num_envs, 3)`` tensor."""
+    if origins is None:
+        return None
+    origin = torch.as_tensor(origins, dtype=torch.float32).detach()
+    if origin.ndim != 2 or origin.shape[1] != 3 or origin.shape[0] == 0:
+        return None
+    return origin.to(device="cpu")
+
+
+def frame_environments(eye, lookat, origins) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Back the camera up until every environment origin fits in view.
+
+    The look target moves to the center of the origins and keeps its configured height. The eye
+    keeps the configured view direction. A close-up of a single environment stays put. The fit
+    uses a 30-degree half-angle, which covers a typical 3D view.
+
+    Args:
+        eye: Camera eye position, shape ``(3,)``.
+        lookat: Camera look target, shape ``(3,)``.
+        origins: Environment origins, shape ``(num_envs, 3)``.
+
+    Returns:
+        Eye and look target.
+    """
+    eye_t = torch.tensor(_as_vec3(eye), dtype=torch.float32)
+    look_t = torch.tensor(_as_vec3(lookat), dtype=torch.float32)
+    origin = _origins_cpu(origins)
+    if origin is None:
+        return _as_vec3(eye), _as_vec3(lookat)
+    look = origin.mean(dim=0)
+    look[2] = look_t[2]
+    direction = eye_t - look_t
+    span = torch.linalg.vector_norm(direction)
+    if float(span) < 1e-4:
+        direction = torch.tensor([1.0, -1.0, 0.5])
+        span = torch.linalg.vector_norm(direction)
+    direction = direction / span
+    radius = torch.linalg.vector_norm(origin - look, dim=-1).amax()
+    needed = float(radius) / math.tan(math.radians(30.0)) * 1.15
+    distance = max(float(span), needed)
+    return _as_vec3(look + direction * distance), _as_vec3(look)
+
+
+def frame_visualizer_closeup(visualizer: BaseVisualizer, cameras) -> None:
+    """Aim one visualizer so every environment origin fits in view.
+
+    Perspective cameras captured before initialization keep the same eye and look target as
+    the visualizer configuration, so both are updated together. A partial environment subset
+    keeps the configured camera.
+
+    Args:
+        visualizer: Visualizer whose configuration supplies the camera.
+        cameras: Cameras passed to the visualizer's ``initialize``.
+    """
+    if visualizer._env_ids is not None:
+        return
+    scene = visualizer._sim.get_scene_data_provider().get_interactive_scene()
+    origins = None if scene is None else getattr(scene, "env_origins", None)
+    eye, lookat = frame_environments(visualizer.cfg.eye, visualizer.cfg.lookat, origins)
+    visualizer.cfg.eye = eye
+    visualizer.cfg.lookat = lookat
+    sources = list(cameras)
+    for view in visualizer._image_views:
+        source = getattr(getattr(view, "cfg", None), "source", None)
+        if source is not None:
+            sources.append(source)
+    for camera in sources:
+        if isinstance(camera, PerspectiveCameraCfg):
+            camera.eye = eye
+            camera.lookat = lookat
+
+
+def collect_lidar_hits(
+    sim: SimulationContext, env_ids: list[int] | None, step_counter: int
+) -> list[tuple[str, np.ndarray]] | None:
+    """Return every visualized environment's lidar hits on every tenth visualizer step.
+
+    ``env_ids`` None includes every environment. Each lidar is included even when its cloud is
+    empty, so a viewer can hide the previous batch. Other sensors are ignored.
+
+    Args:
+        sim: Simulation whose interactive scene owns the lidars.
+        env_ids: Visualized environments. None includes every environment.
+        step_counter: Visualizer step. Hits are collected when this is a multiple of
+            :data:`LIDAR_LOG_INTERVAL`.
+
+    Returns:
+        ``(sensor_name, points)`` pairs, or None when this step is not logged.
+    """
+    if step_counter % LIDAR_LOG_INTERVAL != 0:
+        return None
+    scene = sim.get_scene_data_provider().get_interactive_scene()
+    if scene is None:
+        return []
+
+    from isaaclab.sensors.lidar.lidar import Lidar
+
+    selected = None if env_ids is None else list(env_ids)
+    hits = []
+    for name, sensor in scene.sensors.items():
+        if isinstance(sensor, Lidar):
+            hits.append((name, lidar_world_points(sensor, selected)))
+    return hits
+
+
+def collect_lidar_env_hits(
+    sim: SimulationContext, env_ids: list[int] | None, step_counter: int
+) -> list[tuple[int, np.ndarray]] | None:
+    """Return lidar hits grouped by environment on every tenth visualizer step.
+
+    Sensors are concatenated per environment. Environments with no finite hits are omitted.
+
+    Args:
+        sim: Simulation whose interactive scene owns the lidars.
+        env_ids: Visualized environments. None includes every environment.
+        step_counter: Visualizer step. Hits are collected when this is a multiple of
+            :data:`LIDAR_LOG_INTERVAL`.
+
+    Returns:
+        ``(env_index, points)`` pairs, or None when this step is not logged.
+    """
+    if step_counter % LIDAR_LOG_INTERVAL != 0:
+        return None
+    scene = sim.get_scene_data_provider().get_interactive_scene()
+    if scene is None:
+        return []
+
+    from isaaclab.sensors.lidar.lidar import Lidar
+
+    selected = None if env_ids is None else list(env_ids)
+    grouped: dict[int, list[np.ndarray]] = {}
+    for sensor in scene.sensors.values():
+        if not isinstance(sensor, Lidar):
+            continue
+        for env_id, cloud in lidar_env_hits(sensor, selected):
+            grouped.setdefault(env_id, []).append(cloud)
+    hits = []
+    for env_id, clouds in grouped.items():
+        hits.append((env_id, clouds[0] if len(clouds) == 1 else np.concatenate(clouds, axis=0)))
+    return hits
+
+
+def log_lidar_hits(viewer, hits: list[tuple[str, np.ndarray]], radius: float = LIDAR_POINT_RADIUS) -> None:
+    """Log collected hits through a viewer ``log_points`` method.
+
+    An empty cloud is logged as an empty batch for Rerun. ``None`` clears the Rerun entity, which
+    drops the static point cloud. Newton GL and Viser hide the previous batch when ``points`` is None.
+    Newton GL's point kernel runs on the viewer device, so that batch and its per-point colors are
+    allocated there. Rerun and Viser receive a CPU batch and the shared color tuple.
+
+    Args:
+        viewer: Newton, Viser, or Rerun viewer.
+        hits: Sensor names and world-frame clouds from :func:`collect_lidar_hits`.
+        radius: Sphere radius in meters.
+    """
+    import warp as wp
+
+    rerun = "Rerun" in type(viewer).__name__
+    # ``NewtonViewerGL`` subclasses ``ViewerGL``. Both launch ``update_vbo_transforms_from_points``
+    # on ``viewer.device`` and upload colors with ``colors.numpy()``.
+    gl = type(viewer).__name__.endswith("GL")
+    device = viewer.device if gl else "cpu"
+    for name, points in hits:
+        if len(points) == 0 and not rerun:
+            cloud = None
+            colors = LIDAR_POINT_COLOR
+        else:
+            cloud = wp.array(points, dtype=wp.vec3, device=device)
+            if gl and len(points) > 0:
+                colors = wp.full(len(points), wp.vec3(*LIDAR_POINT_COLOR), dtype=wp.vec3, device=device)
+            else:
+                colors = LIDAR_POINT_COLOR
+        viewer.log_points(f"lidar/{name}", cloud, radii=radius, colors=colors)
+
+
+def paint_lidar_hits(
+    image: np.ndarray,
+    points: np.ndarray,
+    *,
+    position: np.ndarray,
+    rotation: np.ndarray,
+    intrinsics: np.ndarray,
+    tile_origin: tuple[int, int] = (0, 0),
+    tile_size: tuple[int, int] | None = None,
+    color: tuple[int, int, int] = _LIDAR_PIXEL_COLOR,
+) -> np.ndarray:
+    """Paint world-frame hits into one camera tile.
+
+    ``rotation`` is the camera orientation in ``(x, y, z, w)`` following the ROS optical frame:
+    ``+X`` right, ``+Y`` down, and ``+Z`` forward. Points at or behind the camera, and points
+    outside the tile, are left unchanged. The paint is display-only.
+
+    Args:
+        image: uint8 image, shape ``(height, width, channels)``. The painted pixels are written in place.
+        points: World-frame hit positions, shape ``(num_hits, 3)``.
+        position: Camera position in world coordinates, shape ``(3,)``.
+        rotation: Camera quaternion in ``(x, y, z, w)``, shape ``(4,)``.
+        intrinsics: Pinhole intrinsic matrix, shape ``(3, 3)``.
+        tile_origin: ``(row, column)`` of the tile's top-left pixel.
+        tile_size: ``(height, width)`` of the tile. None uses the whole image.
+        color: RGB color written into each hit pixel.
+
+    Returns:
+        The same image array.
+    """
+    if len(points) == 0:
+        return image
+    row0, col0 = tile_origin
+    height = image.shape[0] - row0 if tile_size is None else tile_size[0]
+    width = image.shape[1] - col0 if tile_size is None else tile_size[1]
+    if height <= 0 or width <= 0:
+        return image
+
+    cloud = torch.as_tensor(points, dtype=torch.float32)
+    origin = torch.as_tensor(position, dtype=torch.float32)
+    camera_points = quat_apply_inverse(torch.as_tensor(rotation, dtype=torch.float32), cloud - origin)
+    projected = project_points(camera_points, torch.as_tensor(intrinsics, dtype=torch.float32))
+    rows = torch.round(projected[:, 1]).to(torch.int64) + row0
+    cols = torch.round(projected[:, 0]).to(torch.int64) + col0
+    visible = (
+        (projected[:, 2] > 1e-4) & (rows >= row0) & (cols >= col0) & (rows < row0 + height) & (cols < col0 + width)
+    )
+    rows = rows[visible]
+    cols = cols[visible]
+    if len(rows) == 0:
+        return image
+
+    radius = _LIDAR_PIXEL_RADIUS
+    for offset_row in range(-radius, radius + 1):
+        for offset_col in range(-radius, radius + 1):
+            pixel_rows = rows + offset_row
+            pixel_cols = cols + offset_col
+            inside = (
+                (pixel_rows >= row0)
+                & (pixel_cols >= col0)
+                & (pixel_rows < row0 + height)
+                & (pixel_cols < col0 + width)
+                & (pixel_rows < image.shape[0])
+                & (pixel_cols < image.shape[1])
+            )
+            if not bool(inside.any()):
+                continue
+            selected_rows = pixel_rows[inside].numpy()
+            selected_cols = pixel_cols[inside].numpy()
+            image[selected_rows, selected_cols, 0] = color[0]
+            image[selected_rows, selected_cols, 1] = color[1]
+            image[selected_rows, selected_cols, 2] = color[2]
+            if image.shape[-1] > 3:
+                image[selected_rows, selected_cols, 3] = 255
+    return image
