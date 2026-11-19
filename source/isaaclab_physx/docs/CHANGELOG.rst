@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+13.1.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Isaac Sim PhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including
+  deformable objects.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.get_gravity` to read the scene gravity, as
+  :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` does.
+
+Fixed
+^^^^^
+
+* Applied the Gaussian tonemapping policy to explicit ``rgb_hdr`` requests in Isaac RTX,
+  including cameras without PPISP, using both the legacy setting and render-product attribute.
+* Included joint armature in PhysX articulation mass matrices used by inertia-based controllers.
+
+
 13.0.2 (2026-11-16)
 ~~~~~~~~~~~~~~~~~~~
 
