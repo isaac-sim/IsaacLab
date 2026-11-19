@@ -44,7 +44,6 @@ class KukaAllegroObjectCfg(lift.ObjectCfg):
         },
         cache_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "simready_objects.json"),
         make_uninstanceable=True,
-        move_rigid_body_to_root=True,
         rigid_props=lift.ObjectCfg().shapes.rigid_props,
         collision_props=lift.ObjectCfg().shapes.collision_props,
     )

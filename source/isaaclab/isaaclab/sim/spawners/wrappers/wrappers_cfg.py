@@ -110,6 +110,14 @@ class SimReadyUsdFileCfg(MultiUsdFileCfg):
     cache_file: str = MISSING
     """JSON file holding the search and its USD paths, rewritten when it holds another search."""
 
+    move_rigid_body_to_root: bool = True
+    """Whether to move each file's single rigid body onto the spawned prim. Defaults to True.
+
+    SimReady props nest their rigid body at a file-specific path, such as ``/Geometry/socket_01_obj_00``,
+    which files spawned together cannot share. Set it to False for files without exactly one rigid body,
+    such as static props.
+    """
+
     def __post_init__(self):
         root = f"{ISAAC_NUCLEUS_DIR}/SimReady/"
         # 1. the search as the cache stores it (tuples become lists), so that an unchanged search matches it
