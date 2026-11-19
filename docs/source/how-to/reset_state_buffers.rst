@@ -124,6 +124,10 @@ Set ``ResetStateSamplerCfg.seed`` to initialize the sampler's per-environment ra
 Use ``sampler.reseed(seed)`` between rollouts to restart those streams while retaining
 history and assignments. A captured graph observes the new streams.
 
+A framework that owns its random streams passes them instead: ``sampler.reset(mask, rng=seeds)``
+takes one int32 seed per environment, draws ``wp.randf(wp.rand_init(seeds[env], 0))``, and leaves
+the internal streams untouched. The caller advances its seeds between resets, as MDP2 does.
+
 Configure useful practice
 --------------------------
 
@@ -203,6 +207,44 @@ replays explicit starts. With adaptive sampling enabled, supply
 that took at least one step. The event credits the existing success reward's sticky
 flag before the reward manager clears it and restores root-link poses, COM velocities,
 joints, and controller targets through public mask writers.
+
+Use the MDP2 reset event
+------------------------
+
+MDP2 tasks use ``isaaclab_experimental.mdp2.mdp.reset_from_bank``. It composes the same three parts:
+a fill builds a :class:`~isaaclab.envs.reset.ResetStateBuffer` once at startup, a
+:class:`~isaaclab.envs.reset.ResetStateSampler` credits each ended episode and draws the next start
+from the use's random stream, and the event gathers the drawn states into its ``outputs``, which
+MDP2 commits. The outputs are the state: any writable scene fields.
+
+.. code-block:: python
+
+   from isaaclab_experimental import mdp2
+   from isaaclab_experimental.mdp2 import mdp
+
+   "reset": mdp2.Event(
+       mdp.reset_from_bank,
+       inputs={"succeeded": mdp2.quantities.success},
+       outputs={"joint_pos": robot.joint_pos, "object_pose_w": target.root_link_pose_w},
+       params={
+           "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=16),
+           "sampler": ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(target=0.5)]),
+       },
+   )
+
+* ``fill`` returns the states. :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FillFromCandidates` rolls the reset events of a
+  ``candidates`` task, keeps the states its terminations accept, and, given a ``descriptor``
+  observation group, keeps the most spread of an oversampled harvest. :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FillFromStates`
+  takes given states, such as states saved from an earlier fill or demonstrations.
+* ``sampler`` weighs states by recent success; ``None`` draws uniformly. Binding ``succeeded``
+  credits each ended episode to the state it started from.
+* ``shared`` selects one bank for every world instead of one bank per world. Bind
+  ``env_origins`` so poses are stored relative to each world's origin. Share a bank only between
+  worlds whose states fit each other, such as worlds that spawn the same object.
+
+Place the event after the other reset events: it overwrites the outputs they wrote. The init
+hook warms every kernel, so the event is captured with the rest of the step.
+``Isaac-Lift-KukaAllegro-MDP2`` uses a bank per world with the core Lift sampler settings.
 
 Migrating existing reset configurations
 ---------------------------------------

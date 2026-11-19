@@ -5,6 +5,7 @@
 
 """Tests for the MDP2 Kuka Allegro lift task on Newton."""
 
+import dataclasses
 import math
 from collections.abc import Iterator
 from types import SimpleNamespace
@@ -30,7 +31,6 @@ pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_availabl
 
 NUM_ENVS = 16
 FINGERTIPS = ("index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3")
-BANKED = ("playing", "bank_joint_pos", "bank_joint_vel", "bank_object_pose_w", "bank_object_vel_w")
 PROGRESS = mdp2.term_state("events.adr", "progress")
 
 
@@ -43,7 +43,8 @@ def scenario() -> Iterator[SimpleNamespace]:
     cfg.sim.device = "cuda:0"
     cfg.scene.num_envs = NUM_ENVS
     cfg.seed = 0
-    cfg.task.events["reset"].params["bank_size"] = 2
+    params = cfg.task.events["reset"].params
+    params["fill"] = dataclasses.replace(params["fill"], bank_size=2)
     env = MDP2RLEnv(cfg)
     try:
         generator = torch.Generator(device=env.device).manual_seed(0)
@@ -80,8 +81,8 @@ def scenario() -> Iterator[SimpleNamespace]:
 
 def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
     """Return, per banked field, the banked state that each world plays and the field's value in the scene."""
-    bank = {name: state.arrays[mdp2.term_state("events.reset", name)].torch for name in BANKED}
-    rows = torch.arange(NUM_ENVS, device=env.device), bank["playing"].long()
+    cache = state.caches["events.reset"]
+    banked = cache["bank"].get_state(cache["sampler"].indices)
     robot, target = env.scene["robot"].data, env.scene["object"].data
     fields = {
         "joint_pos": robot.joint_pos,
@@ -89,16 +90,26 @@ def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tupl
         "object_pose_w": target.root_link_pose_w,
         "object_vel_w": target.root_com_vel_w,
     }
-    return {name: (bank[f"bank_{name}"][rows].clone(), field.torch.clone()) for name, field in fields.items()}
+    return {name: (banked[name].torch.clone(), field.torch.clone()) for name, field in fields.items()}
+
+
+def sampler_arrays(state: mdp2.MDPState) -> dict[str, torch.Tensor]:
+    """Return copies of the reset sampler's device state: its assignments, outcome history, and draw weights."""
+    sampler = state.caches["events.reset"]["sampler"]
+    arrays = {name: value for name, value in vars(sampler).items() if isinstance(value, (wp.array, ProxyArray))}
+    return {name: wp.to_torch(value.warp if isinstance(value, ProxyArray) else value) for name, value in arrays.items()}
 
 
 def build(scenario: SimpleNamespace, backend: str) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    """Compile the task for a backend, with the environment's term state: its point clouds and its bank."""
+    """Compile the task for a backend, with the environment's term state, its point clouds, and its reset bank."""
     env = scenario.env
     builder = mdp2.MDPBuilder(env.scene_data.schema)
     builder.add_task(scenario.cfg.task)
     mdp = builder.finalize(device=env.device, backend=backend, diagnostics=True)
     state = mdp.state(env.scene_data)
+    for name, cache in env.state.caches.items():
+        if name in state.caches:
+            state.caches[name].update(cache)  # in place: the hooks' arguments hold these dicts
 
     for op in mdp.term_ops:
         for name in op.state:
@@ -235,13 +246,16 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
     env = scenario.env
     assert env.mdp.is_fully_capturable and env.is_captured and env.num_graphs == 1
 
-    # Both backends draw the same banked state for every world, and restore it.
+    # Both backends draw the same banked state for every world from the same sampler state, and restore it.
     mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
+    before = {name: value.clone() for name, value in sampler_arrays(env.state).items()}
     playing = {}
     for backend in ("torch", "warp"):
         mdp, state = build(scenario, backend)
+        for name, value in sampler_arrays(state).items():
+            value.copy_(before[name])
         mdp2.reset(mdp, state, mask)
-        playing[backend] = state.arrays[mdp2.term_state("events.reset", "playing")].torch.clone()
+        playing[backend] = state.caches["events.reset"]["sampler"].indices.torch.clone()
         for name, (banked, restored) in bank_and_scene_state(env, state).items():
             torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
     assert torch.equal(playing["torch"], playing["warp"])
