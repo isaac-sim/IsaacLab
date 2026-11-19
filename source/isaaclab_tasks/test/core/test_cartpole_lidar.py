@@ -93,11 +93,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment(task):
         # Sensor-frame scans of the same cart agree. World-frame scans sit on origins 20 m apart.
         spread = torch.linalg.norm(centers - centers.mean(dim=0), dim=-1).max()
         assert spread < 5.0, f"sensor-frame hit centers differ by {float(spread):.2f} m"
-
-        image = scene["tiled_camera"].data.output["rgb"].torch
-        assert image.shape[0] == 4 and image.shape[-1] == 3
-        assert image.shape[1] > 1 and image.shape[2] > 1
-        assert int(image.abs().sum()) > 0
+        assert "tiled_camera" not in scene.sensors
     finally:
         if env is not None:
             env.close()

@@ -53,7 +53,7 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
 
 @pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
 def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
-    """The lidar preset pins the camera and the lidar to OVRTX with motion BVH enabled."""
+    """The lidar preset pins the lidar to OVRTX with motion BVH enabled and drops the camera."""
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     from isaaclab.sensors import LidarCfg
@@ -62,12 +62,11 @@ def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
     validate(cfg)
     assert isinstance(cfg.scene.lidar, LidarCfg)
     assert isinstance(cfg.scene.lidar.renderer_cfg, OVRTXRendererCfg)
-    assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert cfg.scene.tiled_camera is None
     assert cfg.scene.lidar.frame_of_reference == "SENSOR"
     assert cfg.scene.lidar.far_range == 12.0
     assert cfg.scene.lidar.renderer_cfg.motion_bvh == "auto"
-    assert cfg.scene.tiled_camera.renderer_cfg.motion_bvh == "auto"
-    assert cfg.scene.lidar.renderer_cfg == cfg.scene.tiled_camera.renderer_cfg
+    assert cfg.scene.num_envs == 64
     if cfg_cls is CartpoleDirectCameraEnvCfg:
         from isaaclab_tasks.core.cartpole.cartpole_common import (
             CARTPOLE_LIDAR_AZIMUTH_COUNT,
@@ -106,24 +105,21 @@ def test_lidar_preset_selects_cnn_agents():
     assert "cnn" in direct_rl_games_cfg["params"]["network"]
     assert direct_rl_games_config["name"] == "cartpole_lidar_direct"
     assert direct_rl_games_config["normalize_input"] is False
-    default_rl_games_cfg = resolve_presets(rl_games_direct_camera_cfg(), set())
-    assert "cnn" in default_rl_games_cfg["params"]["network"]
 
     direct_rsl_rl_cfg = resolve_presets(CartpoleCameraDirectPPORunnerPresetsCfg(), {"lidar"})
     assert direct_rsl_rl_cfg.actor.class_name == "CNNModel"
     assert direct_rsl_rl_cfg.actor.obs_normalization is False
     assert direct_rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
     assert direct_rsl_rl_cfg.experiment_name == "cartpole_lidar_direct"
-    default_rsl_rl_cfg = resolve_presets(CartpoleCameraDirectPPORunnerPresetsCfg(), set())
-    assert default_rsl_rl_cfg.actor.class_name == "CNNModel"
 
     direct_skrl_cfg = resolve_presets(skrl_direct_camera_cfg(), {"lidar"})
     assert "conv2d" in direct_skrl_cfg["models"]["policy"]["network"][0]["layers"][0]
-    assert "conv2d" in direct_skrl_cfg["models"]["value"]["network"][0]["layers"][0]
-    assert direct_skrl_cfg["agent"]["state_preprocessor"] is None
+    assert direct_skrl_cfg["models"]["separate"] is True
+    value_net = direct_skrl_cfg["models"]["value"]["network"][0]
+    assert value_net["input"] == "STATES"
+    assert value_net["layers"] == [32, 32]
+    assert direct_skrl_cfg["agent"]["state_preprocessor"] == "RunningStandardScaler"
     assert direct_skrl_cfg["agent"]["experiment"]["directory"] == "cartpole_lidar_direct"
-    default_skrl_cfg = resolve_presets(skrl_direct_camera_cfg(), set())
-    assert "conv2d" in default_skrl_cfg["models"]["policy"]["network"][0]["layers"][0]
 
 
 def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():

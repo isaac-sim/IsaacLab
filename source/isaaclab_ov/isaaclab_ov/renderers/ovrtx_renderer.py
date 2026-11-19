@@ -156,6 +156,29 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 
 
+def _lidar_cuda_map_unusable(exc: BaseException) -> bool:
+    """Return whether a CUDA point-cloud map should fall back to the host map."""
+    message = str(exc).lower()
+    return "failed to map" in message or "unpublish" in message or "point cloud was empty" in message
+
+
+def _mapped_point_count(mapped) -> int:
+    """Return the number of coordinate values, or zero when that channel is unusable.
+
+    This reads the DLPack shape and does not export the tensor, so a later copy can still map it.
+    """
+    try:
+        if "Coordinates" not in mapped:
+            return 0
+        shape = mapped["Coordinates"].shape
+    except (TypeError, KeyError, RuntimeError, AttributeError):
+        return 0
+    count = 1
+    for dim in shape:
+        count *= int(dim)
+    return count
+
+
 def _gpu_side_render_var_sync_enabled() -> bool:
     """Return whether a render-var mapping is ordered by a GPU-side wait rather than a host wait.
 
@@ -421,6 +444,8 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_capture_key: tuple[int, float] | None = None
         self._force_pose_wait = False
         self._lidar_sync_warned = False
+        self._lidar_cuda_map_logged = False
+        self._lidar_cpu_map_logged = False
         self.meshes: dict[str, OVRTXMesh] = {}
         self.markers: dict[Any, OVRTXMarkers] = {}
         self.marker_groups: Iterable = ()
@@ -1506,23 +1531,49 @@ class OVRTXRenderer(BaseRenderer):
                 f"OVRTX lidar frame has no point cloud at {render_data.point_cloud_path!r}. "
                 f"Available render vars: {list(frame.render_vars)}."
             )
-        # PointCloud is a host buffer. Mapping it as CUDA reports an empty product.
         try:
-            with point_cloud.map(device=Device.CPU, sync_stream=0) as mapped:
-                if mapped.wait_event is not None:
-                    mapped.wait()
-                copy_tiled_point_cloud(
-                    mapped, render_data.points.torch, render_data.intensity.torch, render_data.valid.torch
-                )
+            self._copy_mapped_lidar_point_cloud(point_cloud, render_data, Device.CUDA)
         except Exception as exc:
-            message = str(exc).lower()
-            if "failed to map" in message or "unpublish" in message:
-                logger.warning("OVRTX lidar point cloud was not ready: %s", exc)
-                render_data.points.torch.fill_(float("inf"))
-                render_data.intensity.torch.fill_(0)
-                render_data.valid.torch.fill_(False)
-                return
-            raise
+            if not _lidar_cuda_map_unusable(exc):
+                raise
+            if not self._lidar_cpu_map_logged:
+                logger.info("OVRTX lidar point cloud is copied from the CPU map: %s", exc)
+                self._lidar_cpu_map_logged = True
+            try:
+                self._copy_mapped_lidar_point_cloud(point_cloud, render_data, Device.CPU)
+            except Exception as cpu_exc:
+                message = str(cpu_exc).lower()
+                if "failed to map" in message or "unpublish" in message:
+                    logger.warning("OVRTX lidar point cloud was not ready: %s", cpu_exc)
+                    render_data.points.torch.fill_(float("inf"))
+                    render_data.intensity.torch.fill_(0)
+                    render_data.valid.torch.fill_(False)
+                    return
+                raise
+
+    def _copy_mapped_lidar_point_cloud(self, point_cloud, render_data, device: Device) -> None:
+        """Map one point cloud and copy it into the lidar buffers.
+
+        A CUDA map that produces no coordinates raises so the caller can fall back to the CPU map.
+        The dense CUDA copy finishes before this returns, which lets the map be released.
+        """
+        mapped = point_cloud.map(device=device, sync_stream=0)
+        try:
+            if mapped.wait_event is not None:
+                mapped.wait()
+            if device is Device.CUDA and _mapped_point_count(mapped) == 0:
+                raise RuntimeError("OVRTX lidar CUDA point cloud was empty")
+            copy_tiled_point_cloud(
+                mapped, render_data.points.torch, render_data.intensity.torch, render_data.valid.torch
+            )
+        finally:
+            if device is Device.CUDA:
+                mapped.unmap(stream=self._warp_device.stream.cuda_stream or 1)
+            else:
+                mapped.unmap()
+        if device is Device.CUDA and not self._lidar_cuda_map_logged:
+            logger.info("OVRTX lidar point cloud is mapped on CUDA.")
+            self._lidar_cuda_map_logged = True
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.

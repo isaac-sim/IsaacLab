@@ -139,28 +139,6 @@ The sensor is 5 m from the rail and the cart can travel 3 m, so the local robot 
 The next environment is 20 m away. A 12 m range includes the local cart and pole and excludes the neighbors.
 """
 
-CARTPOLE_LIDAR_POINT_SCALE = 0.4
-"""Scale from sensor-frame meters into the policy observation.
-
-RL-Games clips every observation component to ±5. A return at
-:data:`CARTPOLE_LIDAR_FAR_RANGE` scaled by 0.4 is 4.8, inside that clip.
-"""
-
-
-def cartpole_lidar_camera_cfg() -> CameraCfg:
-    """Return the side RGB camera pinned to the lidar's OVRTX renderer.
-
-    The cartpole camera presets keep a selectable renderer. This concrete camera keeps the lidar
-    preset from falling through to the Newton Warp renderer.
-
-    Returns:
-        Camera configuration whose renderer matches :func:`cartpole_lidar_cfg`.
-    """
-    return CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-        data_types=["rgb"],
-        renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
-    )
-
 
 def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
     """Pack one scan into a range image on the lidar's elevation-azimuth grid.
@@ -185,22 +163,6 @@ def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
     distance = torch.linalg.vector_norm(grid, dim=-1)
     distance = torch.nan_to_num(distance, nan=0.0, posinf=0.0, neginf=0.0)
     return distance.div_(CARTPOLE_LIDAR_FAR_RANGE).clamp_(0.0, 1.0)
-
-
-def cartpole_lidar_policy_points(points: torch.Tensor) -> torch.Tensor:
-    """Flatten one sensor-frame scan per environment and fit it to the policy clip.
-
-    Misses are non-finite and become zeros. Finite coordinates are multiplied by
-    :data:`CARTPOLE_LIDAR_POINT_SCALE`.
-
-    Args:
-        points: Lidar returns of shape ``(num_envs, num_rays, 3)``, in meters.
-
-    Returns:
-        Tensor of shape ``(num_envs, num_rays * 3)``.
-    """
-    flat = torch.nan_to_num(points.reshape(points.shape[0], -1), nan=0.0, posinf=0.0, neginf=0.0)
-    return flat * CARTPOLE_LIDAR_POINT_SCALE
 
 
 def cartpole_lidar_cfg() -> LidarCfg:

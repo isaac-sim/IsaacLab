@@ -17,7 +17,7 @@ from typing_extensions import deprecated
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
-from ..cartpole_common import cartpole_lidar_policy_points, cartpole_lidar_range_image
+from ..cartpole_common import cartpole_lidar_range_image
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -52,7 +52,7 @@ class CameraImageStack(ManagerTermBase):
         return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
 
 
-class lidar_range_image(ManagerTermBase):
+class LidarRangeImage(ManagerTermBase):
     """Stacked lidar range image, channel-first, for the cartpole policy.
 
     Each frame is :func:`~isaaclab_tasks.core.cartpole.cartpole_common.cartpole_lidar_range_image`:
@@ -95,21 +95,3 @@ class lidar_range_image(ManagerTermBase):
         points = env.scene.sensors[sensor_cfg.name].data.points.torch
         scan = cartpole_lidar_range_image(points).unsqueeze(-1)
         return self._frames(scan)
-
-
-def lidar_points(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return one lidar's sensor-frame points, scaled to fit the policy observation clip.
-
-    :attr:`~isaaclab.sensors.lidar.LidarData.points` keeps non-finite values for rays that miss.
-    Those values cannot be concatenated with the joint state, so this term writes zeros there and scales
-    the remaining coordinates by
-    :data:`~isaaclab_tasks.core.cartpole.cartpole_common.CARTPOLE_LIDAR_POINT_SCALE`.
-
-    Args:
-        env: Environment whose scene owns the lidar.
-        sensor_cfg: Scene entity that names the lidar sensor.
-
-    Returns:
-        Tensor of shape ``(num_envs, num_rays * 3)``.
-    """
-    return cartpole_lidar_policy_points(env.scene.sensors[sensor_cfg.name].data.points.torch)

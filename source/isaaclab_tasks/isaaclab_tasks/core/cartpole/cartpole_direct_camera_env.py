@@ -30,7 +30,7 @@ class CartpoleCameraEnv(CartpoleEnv):
 
     The ``lidar`` preset instead returns two stacked range images, one channel per scan, shaped
     ``(frame_stack, elevation, azimuth)``. Misses are 0 and a hit at the far range is 1. The critic
-    still reads the joint state. The side RGB camera remains in the scene.
+    still reads the joint state.
     """
 
     cfg: CartpoleCameraEnvCfg
@@ -47,8 +47,8 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._tiled_camera = self.scene["tiled_camera"]
         self._lidar = self.scene["lidar"] if uses_lidar else None
+        self._tiled_camera = None if uses_lidar else self.scene["tiled_camera"]
         if self._lidar is None and len(self.cfg.scene.tiled_camera.data_types) != 1:
             raise ValueError(
                 "The Cartpole camera environment only supports one image type at a time but the following were"

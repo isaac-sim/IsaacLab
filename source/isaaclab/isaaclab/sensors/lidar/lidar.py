@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
@@ -37,31 +36,6 @@ logger = logging.getLogger(__name__)
 
 _PATTERN = "p001"
 _API_SCHEMAS = ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFiringPatternAPI:{_PATTERN}")
-_schemas_registered = False
-
-
-# HDC_TODO: move to isaaclab_ov
-def _register_omni_sensor_schemas() -> None:
-    """Ask the host USD registry to load ovrtx's sensor schemas.
-
-    The schema directory ships plugInfo metadata without a host-loadable library, and ovrtx's USD
-    must not be loaded into Isaac Lab's ``pxr``. Registration is attempted once and authoring does
-    not depend on it succeeding.
-    """
-    global _schemas_registered
-    if _schemas_registered:
-        return
-    _schemas_registered = True
-    try:
-        import ovrtx
-
-        from pxr import Plug
-
-        schema_dir = Path(ovrtx.__file__).resolve().parent / "bin" / "usd_plugins" / "omni_sensors"
-        if schema_dir.is_dir():
-            Plug.Registry().RegisterPlugins([str(schema_dir)])
-    except Exception:
-        logger.debug("OVRTX omniSensor schemas were not registered with the host USD runtime.", exc_info=True)
 
 
 def _set_attr(prim, name: str, type_name, value) -> None:
@@ -135,8 +109,17 @@ def _author_lidar(prim, cfg: LidarCfg) -> None:
 
 @clone
 def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
-    """Spawn one ``OmniLidar`` prim. The clone decorator replicates it across matching parents."""
-    _register_omni_sensor_schemas()
+    """Spawn one ``OmniLidar`` prim. The clone decorator replicates it across matching parents.
+
+    Schema registration lives in ``isaaclab_ov`` and is skipped when that package cannot load the
+    plugin. The prim is still authored, because ovrtx reads the explicit attributes.
+    """
+    try:
+        from isaaclab_ov.renderers.ovrtx_usd import register_omni_sensor_schemas
+
+        register_omni_sensor_schemas()
+    except Exception:
+        logger.debug("OVRTX omniSensor schemas were not registered with the host USD runtime.", exc_info=True)
     stage = get_current_stage()
     prim = stage.DefinePrim(prim_path, "OmniLidar")
     if not prim.IsValid():
