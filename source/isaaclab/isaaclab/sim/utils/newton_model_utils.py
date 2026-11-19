@@ -204,6 +204,30 @@ def _resolve_shape_color(
     return material_color
 
 
+def resolve_display_color(stage: Usd.Stage, prim_path: str) -> tuple[float, float, float] | None:
+    """Return a prim's sRGB display color from its bound material or ``displayColor``, or ``None``.
+
+    Args:
+        stage: USD stage containing the prim.
+        prim_path: Path of the geometry prim.
+    """
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        return None
+    material_prim = _get_bound_material_prim(prim)
+    if not material_prim.IsValid():
+        rgb = _get_primvar_display_color(prim)
+    else:
+        shader_prim = _get_surface_shader(material_prim)
+        if not shader_prim.IsValid():
+            return None
+        if _is_omnipbr_shader(shader_prim):
+            rgb = _get_omnipbr_albedo(shader_prim)
+        else:
+            rgb = _get_input_value(UsdShade.Shader(shader_prim), "diffuseColor")
+    return None if rgb is None else tuple(_linear_channel_to_srgb(c) for c in rgb)
+
+
 def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
     """Align a Newton ``ModelBuilder``'s shape colors with the USD stage before clone replication.
 

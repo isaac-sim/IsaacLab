@@ -768,7 +768,7 @@ def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -
     task_name = "Isaac-ExternalCallbackOrderTest"
     callback_module_name = "_external_callback_order_test"
     callback_module = types.ModuleType(callback_module_name)
-    selections = ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", "kit"]
+    selections = ["--physics", "newton_mjwarp", "--renderer", "newton_warp", "--viz", "kit"]
 
     def register_task() -> list[str]:
         gym.register(
@@ -795,7 +795,7 @@ def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -
     assert args.task == task_name
     if mode == "train":
         assert not args.resume_optimizer_state
-    assert sys.argv[1:] == ["physics=newton_mjwarp", "renderer=newton_renderer", "visualizer=kit"]
+    assert sys.argv[1:] == ["physics=newton_mjwarp", "renderer=newton_warp", "visualizer=kit"]
     assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
 
 
