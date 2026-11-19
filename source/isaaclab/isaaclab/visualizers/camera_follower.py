@@ -127,8 +127,8 @@ class CameraFollower:
         """
         cfg = self.cfg
         origin = self._scene.env_origins[self._env]
-        offsets = torch.tensor((cfg.eye, cfg.lookat), dtype=torch.float32, device=origin.device)
         if self._asset is None:
+            offsets = torch.tensor((cfg.eye, cfg.lookat), dtype=torch.float32, device=origin.device)
             eye, target = (origin + offsets).tolist()
             return tuple(eye), tuple(target)
         asset = self._asset
@@ -151,8 +151,13 @@ class CameraFollower:
             dt, self._time = (0.0 if self._time is None else max(time - self._time, 0.0)), time
             yaw = self._filtered_yaw(state[3:], state[:3], dt)
             cos, sin = math.cos(yaw), math.sin(yaw)
-            rotation = torch.tensor(((cos, -sin, 0.0), (sin, cos, 0.0), (0.0, 0.0, 1.0)), device=offsets.device)
-            offsets = offsets @ rotation.T
+            # the state is already on the host, so the offsets turn there without another device round trip
+            eye, target = (
+                (state[0] + cos * x - sin * y, state[1] + sin * x + cos * y, state[2] + z)
+                for x, y, z in (cfg.eye, cfg.lookat)
+            )
+            return eye, target
+        offsets = torch.tensor((cfg.eye, cfg.lookat), dtype=torch.float32, device=position.device)
         eye, target = (position + offsets).tolist()
         return tuple(eye), tuple(target)
 

@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 pytest.importorskip("newton")
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
@@ -51,7 +52,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     def set_camera(pos, pitch, yaw):
         camera.pos, camera.pitch, camera.yaw = pos, pitch, yaw
 
-    viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera, is_paused=lambda: False)
+    viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera, is_paused=lambda: False, world_offsets=None)
     viz._sim = SimpleNamespace(
         get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: _Scene()),
         get_physics_step_count=lambda: 10,
@@ -181,3 +182,12 @@ def test_the_tracking_camera_recording_keeps_its_last_frame_while_rendering_is_p
     tracking.frame = SimpleNamespace(data=object(), timestamp=4)
     tracking.read_rgb = lambda step: step
     assert viz.render_tracking_rgb_array() == 4
+
+
+def test_a_tracking_camera_follows_the_world_offset_the_viewer_draws_its_environment_at():
+    task = _view(TrackingCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0)))
+    viz = _visualizer([task])
+    viz._viewer.world_offsets = wp.array([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]], dtype=wp.vec3)
+    assert viz._apply_view_pose(task)
+    camera = viz._viewer.camera
+    assert (camera.pos.x, camera.pos.y, camera.pos.z) == (16.0, 2.0, 3.0)
