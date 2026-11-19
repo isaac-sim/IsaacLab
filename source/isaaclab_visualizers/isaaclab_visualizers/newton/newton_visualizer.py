@@ -892,6 +892,11 @@ class NewtonViewerGL(ViewerGL):
         )
 
 
+def _is_ovrtx(renderer_cfg) -> bool:
+    """Whether a camera's renderer config selects the OVRTX renderer."""
+    return getattr(renderer_cfg, "renderer_type", None) == "ovrtx"
+
+
 class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
@@ -1042,19 +1047,31 @@ class NewtonVisualizerBase(BaseVisualizer):
                 f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
                 backface_culling, color, roughness, metallic, dynamic, opacity,
             )  # fmt: skip
-        if renderers and self.rtx_rendering:
+        view = self.current_image_view
+        camera = getattr(view, "camera", None)
+        if renderers and camera is not None and (self.rtx_rendering or _is_ovrtx(camera.cfg.renderer_cfg)):
             # The cached RTX image predates the mesh, which matters while paused or between renders.
-            view = self._image_views[self.rtx_view_index]
             view.camera._invalidate_buffers()
             view.invalidate()
 
     @property
     def _rtx_renderers(self) -> tuple:
-        """OVRTX renderers of the viewer camera; empty when the scene has none."""
-        index = getattr(self, "rtx_view_index", None)
-        if index is None or self._sim is None:
+        """OVRTX renderers of the viewer camera and of the scene camera the window displays; empty when neither is."""
+        if self._sim is None:
             return ()
-        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
+        index = getattr(self, "rtx_view_index", None)
+        views = [] if index is None else [self._image_views[index]]
+        current = getattr(self, "current_image_view", None)
+        if current is not None and all(current is not view for view in views):
+            views.append(current)
+        renderers = {}
+        for view in views:
+            camera = getattr(view, "camera", None)
+            cfg = None if camera is None else camera.cfg.renderer_cfg
+            if cfg is not None and (index is not None and view is self._image_views[index] or _is_ovrtx(cfg)):
+                renderer = self._sim.get_or_create_backend(cfg)
+                renderers[id(renderer)] = renderer
+        return tuple(renderers.values())
 
     @staticmethod
     def _is_tracking_view(view) -> bool:
@@ -1199,6 +1216,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         def intensity(label: str, value: float, high: float) -> tuple[bool, float]:
             return imgui.slider_float(label, value, 0.0, high, "%.0f", imgui.SliderFlags_.logarithmic)
 
+        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.55, 0.7, 0.95, 0.85))
+        imgui.text_wrapped(
+            "In RTX mode, changing the lighting edits the scene itself, so cameras that share its renderer see it too."
+        )
+        imgui.pop_style_color()
         imgui.separator_text("Lights")
         if appearance.lights:
             changed, appearance.scene_enabled = imgui.checkbox("Scene Lights", appearance.scene_enabled)
@@ -2211,7 +2233,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
-            self._select_camera(self._image_views.index(back) if back is not None else fallback, keep_pose=True)
+            target = self._image_views.index(back) if back is not None else fallback
+            # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
+            self._select_camera(target, keep_pose=self._image_views[target].camera is None)
             self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
 
     def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:

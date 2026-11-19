@@ -168,7 +168,10 @@ def _switchable(views):
     viz._sim.get_or_create_backend = lambda cfg: cfg
     viz.hidden, viz.current_image_view = [], views[0]
 
+    viz.keep_pose = []
+
     def select(index, keep_pose=False):
+        viz.keep_pose.append(keep_pose)
         viz.current_image_view = viz._image_views[index]
 
     viz._select_camera = select
@@ -197,6 +200,18 @@ def test_leaving_rtx_without_a_free_perspective_view_shows_the_first_other_sourc
     viz.set_rtx_rendering(False)
 
     assert viz.current_image_view is sensor
+    assert viz.keep_pose == [False]  # A scene sensor is not moved to the viewer's pose.
+
+
+def test_meshes_reach_the_ovrtx_scene_camera_a_standalone_window_displays():
+    ovrtx = SimpleNamespace(renderer_type="ovrtx")
+    sensor = _View("sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Camera", renderer_cfg=ovrtx)))
+    other = _View("other", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Other", renderer_cfg=ovrtx)))
+    viz = _switchable([sensor, other])
+    viz._sim.get_or_create_backend = lambda cfg: cfg
+
+    assert viz.rtx_view_index is None
+    assert viz._rtx_renderers == (ovrtx,)  # only the displayed sensor, not every scene camera
 
 
 def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
