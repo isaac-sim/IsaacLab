@@ -347,17 +347,17 @@ def test_mount_record_starts_at_the_current_pose() -> None:
     )
 
 
-def test_prim_writing_camera_reads_its_mount_until_a_gaze_is_written() -> None:
-    """Isaac RTX writes the gaze into its prims, so its pose is the mount only until the first gaze."""
-    camera = GazeHarness()
-    camera.gaze_angles
-    expected = convert_camera_frame_orientation_convention(camera.orientation, "world", "ros")
-    torch.testing.assert_close(
-        matrix_from_quat(camera.ungazed_quat_w_ros()), matrix_from_quat(expected), atol=1e-6, rtol=0
-    )
-    camera.set_gaze_angles(torch.zeros(2, 2))
-    with pytest.raises(RuntimeError, match="already hold a gaze"):
-        camera.ungazed_quat_w_ros()
+def test_prim_writing_camera_reads_its_mount_before_and_after_a_gaze() -> None:
+    """Isaac RTX writes the gaze into its prims; its mount reads the same before and after a gaze is set, so a
+    fixed-mount teacher created after a gaze aims from the real mount."""
+    camera = RtxGazeHarness(MOUNT)
+    # The last pose update read the bare mount.
+    camera.orientation.copy_(convert_camera_frame_orientation_convention(MOUNT, "opengl", "world"))
+    expected = matrix_from_quat(convert_camera_frame_orientation_convention(MOUNT, "opengl", "ros"))
+    torch.testing.assert_close(matrix_from_quat(camera.ungazed_quat_w_ros()), expected, atol=1e-6, rtol=0)
+    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
+    assert not torch.allclose(matrix_from_quat(camera._view.local), matrix_from_quat(MOUNT), atol=1e-3)
+    torch.testing.assert_close(matrix_from_quat(camera.ungazed_quat_w_ros()), expected, atol=1e-6, rtol=0)
 
 
 def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() -> None:

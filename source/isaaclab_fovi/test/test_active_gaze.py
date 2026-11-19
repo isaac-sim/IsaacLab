@@ -19,6 +19,7 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
+    motor_action_l2,
     teacher_block_dim,
     teacher_labels_kernel,
 )
@@ -32,6 +33,7 @@ from rsl_rl.models import MLPModel
 from rsl_rl.storage import RolloutStorage
 from tensordict import TensorDict
 
+from isaaclab.envs.mdp.rewards import action_l2
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
@@ -323,6 +325,19 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
     term._asset.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction.teacher_mounts(term)
+
+
+def test_motor_penalty_is_the_action_l2_of_the_actions_before_the_gaze():
+    actions = torch.tensor([[1.0, -2.0, 0.5, 0.9, -0.7], [0.0, 3.0, -1.0, 0.1, 0.2]])
+
+    def env(terms: list[str], dims: list[int]) -> SimpleNamespace:
+        manager = SimpleNamespace(active_terms=terms, action_term_dim=dims, total_action_dim=sum(dims), action=actions)
+        return SimpleNamespace(action_manager=manager)
+
+    expected = action_l2(SimpleNamespace(action_manager=SimpleNamespace(action=actions[:, :3])))
+    torch.testing.assert_close(motor_action_l2(env(["joints", "gaze"], [3, 2])), expected)
+    with pytest.raises(ValueError, match="last action term"):
+        motor_action_l2(env(["gaze", "joints"], [2, 3]))
 
 
 def test_gaze_loss_ignores_invalid_labels():
