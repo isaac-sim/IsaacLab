@@ -49,7 +49,10 @@ from isaaclab.test.utils import test_devices
 def _model_stub(state_attributes=()) -> SimpleNamespace:
     """Model stand-in carrying what solver construction reads before the Newton solver exists."""
     return SimpleNamespace(
-        get_requested_state_attributes=lambda: list(state_attributes), articulation_start=None, articulation_end=None
+        get_requested_state_attributes=lambda: list(state_attributes),
+        articulation_start=None,
+        articulation_end=None,
+        _has_body_variants=False,
     )
 
 
@@ -309,8 +312,8 @@ def test_kamino_dvi_cfg_forwards_its_fields():
 
     newton_cfg = solver_cfg.to_solver_config()
 
-    assert newton_cfg.dynamics_solver == "dvi"
-    _assert_forwarded(newton_cfg.dvi, _KAMINO_DVI_FIELD_VALUES)
+    assert newton_cfg.dynamics_solver == "scc"
+    _assert_forwarded(newton_cfg.scc, _KAMINO_DVI_FIELD_VALUES)
     _assert_forwarded(newton_cfg.dynamics, _KAMINO_DYNAMICS_FIELD_VALUES[:1])
 
 

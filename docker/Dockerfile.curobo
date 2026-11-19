@@ -14,6 +14,10 @@ ARG ISAACSIM_VERSION_ARG=6.2.0
 # uv, pinned by digest. Declared after the ARGs so those stay global for the base FROM.
 FROM ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff AS uv
 
+# Use the oldest supported Ubuntu toolchain build so its compiler binaries also
+# run on newer Isaac Sim bases without installing foreign-distribution packages.
+FROM nvidia/cuda:13.0.3-devel-ubuntu22.04@sha256:3869b846a8cc495ce11c172d87cfc0da8874b910d14a9810bec6b6182e9ee9f8 AS cuda
+
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
@@ -64,6 +68,7 @@ RUN apt-get update && \
     libglib2.0-0 \
     ncurses-term \
     cmake \
+    patch \
     git \
     curl \
     wget \
@@ -88,32 +93,19 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# Match the compiler toolkit to Torch's CUDA 13.0 build. Torch's runtime libraries
-# come from uv.lock; extra system cuDNN/NCCL packages would compete with those and Kit.
-RUN set -euo pipefail && \
-    . /etc/os-release && \
-    case "$ID" in \
-      ubuntu) \
-        case "$VERSION_ID" in \
-          "22.04") cuda_repo="ubuntu2204";; \
-          "24.04") cuda_repo="ubuntu2404";; \
-          *) echo "Unsupported Ubuntu $VERSION_ID"; exit 1;; \
-        esac ;; \
-      *) echo "Unsupported base OS: $ID"; exit 1 ;; \
-    esac && \
-    apt-get update && apt-get install -y --no-install-recommends wget gnupg ca-certificates && \
-    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
-    dpkg -i cuda-keyring_1.1-1_all.deb && \
-    rm -f cuda-keyring_1.1-1_all.deb && \
-    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
-    mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends cuda-toolkit-13-0 && \
-    apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
-
+# Match Torch's CUDA compiler version; runtime libraries stay owned by uv.lock.
+COPY --from=cuda /usr/local/cuda-13.0/ /usr/local/cuda-13.0/
 ENV CUDA_HOME=/usr/local/cuda-13.0
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
+
+# glibc 2.43 adds noexcept rsqrt declarations, which CUDA 13.0 must match.
+COPY docker/patches/cuda-13.0-glibc-2.43.patch /tmp/cuda-glibc.patch
+RUN . /etc/os-release && \
+    if [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 26.04 ]; then \
+        patch --batch --fuzz=0 -p1 -d "${CUDA_HOME}" < /tmp/cuda-glibc.patch; \
+    fi && \
+    rm /tmp/cuda-glibc.patch
 
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \

@@ -400,6 +400,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         model=SimpleNamespace(num_envs=4, world_count=4, body_count=0),
         state_0=state,
         geometry_offsets={},
+        geometry_change_version=0,
         contacts=None,
     )
 
@@ -439,6 +440,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer = cfg.backend.class_type(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
+    visualizer._geometry_change_version = backend.geometry_change_version
     visualizer._viewer = viewer = Viewer()
     visualizer.current_image_view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     visualizer._sim = SimpleNamespace(

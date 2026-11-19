@@ -307,8 +307,8 @@ def _select_render_variants(
             selector = next(
                 (candidate for candidate in ("isaacsim_rtx", "rtx", "ovrtx") if candidate in variants), None
             )
-        elif backend == "newton" and "newton_renderer" in variants:
-            selector = "newton_renderer"
+        elif backend == "newton" and "newton_warp" in variants:
+            selector = "newton_warp"
         if selector is not None:
             selections.append((backend, selector))
     return selections

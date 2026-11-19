@@ -3,6 +3,55 @@ Changelog
 
 .. towncrier release notes start
 
+13.2.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added bucketed contact stiffness and damping randomization to the material event, preserving unspecified gains and selected environments/bodies. Explicit gain updates used force-based contacts; damping updates required a uniform authored friction combine mode.
+
+Fixed
+^^^^^
+
+* Fixed material randomization across multiple environments with all shapes selected and resolved physics material bindings using the USD physics material purpose.
+* Kept damping updates on the compliant-material setter so a subsequent rigid-material write did not reset damping.
+
+
+13.1.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Isaac Sim PhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including
+  deformable objects.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.get_gravity` to read the scene gravity, as
+  :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` does.
+
+Fixed
+^^^^^
+
+* Applied the Gaussian tonemapping policy to explicit ``rgb_hdr`` requests in Isaac RTX,
+  including cameras without PPISP, using both the legacy setting and render-product attribute.
+* Included joint armature in PhysX articulation mass matrices used by inertia-based controllers.
+
+
+13.0.2 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the :class:`~isaaclab_physx.assets.Articulation` fixed and spatial tendon mask setters to write the
+  tendon buffers through the masks instead of converting them to indices, removing a host wait per call.
+
+Fixed
+^^^^^
+
+* Initialized the joint-limit clamping counter in mocked PhysX articulation benchmarks so joint position limit writes completed.
+
+
 13.0.1 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~~
 

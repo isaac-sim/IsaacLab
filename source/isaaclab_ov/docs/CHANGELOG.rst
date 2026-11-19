@@ -3,6 +3,58 @@ Changelog
 
 .. towncrier release notes start
 
+9.2.1 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Rejected explicit contact stiffness/damping ranges in material randomization because OVPhysX does not expose runtime gain bindings.
+* Updated the Omniverse library dependency pins to OVRTX 0.7.0.1794596436,
+  OvPhysX 0.8.0.43443703471, and OvStage 0.4.0.1794520352.
+
+
+9.2.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including deformable objects.
+
+Changed
+^^^^^^^
+
+* Replaced the handwritten physics population description with the OvPhysX SDK contract,
+  while preserving legacy domain-based population. Custom properties outside the physics
+  and requested rendering domains are no longer copied to the native stage; the source
+  USD scene remains unchanged.
+
+Fixed
+^^^^^
+
+* Skipped redundant OvPhysX gravity control updates to avoid repeated OVStage seals when reset events sampled unchanged gravity.
+* Included joint armature in OvPhysX articulation mass matrices used by inertia-based controllers.
+
+
+9.1.2 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ovstage physics population overriding RTX exposure settings by excluding properties in the ``exposure`` namespace.
+
+
+9.1.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized scene-data bookkeeping and articulation command bindings in mocked OVPhysX asset benchmarks so pose writes and joint targets completed.
+
+
 9.1.0 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~
 
