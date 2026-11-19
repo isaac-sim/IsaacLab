@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
@@ -39,13 +39,6 @@ class VisualMaterialBatch:
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
-
-    provides_frame_history: ClassVar[bool] = False
-    """Whether :meth:`read_output` fills :attr:`CameraData.frame_history` and its mask itself.
-
-    Renderers that capture one image per update leave this ``False``: the camera pushes each capture into the
-    history. A renderer that produces several frames per update, such as a world model, sets it to ``True``.
-    """
 
     def __init__(self, cfg: RendererCfg, *, sim: SimulationContext) -> None:
         """Bind this renderer to its owning simulation.
