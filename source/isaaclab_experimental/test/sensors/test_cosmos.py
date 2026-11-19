@@ -757,7 +757,7 @@ class LazyCamera:
 
     def __init__(self, cfg, name, value, image_size=None):
         self.processor_cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name, image_size=image_size)
-        self.cfg = SimpleNamespace(tensor_processors=[self.processor_cfg])
+        self.cfg = SimpleNamespace(tensor_processors=[self.processor_cfg], update_period=0.0)
         self.processor = None
         self.value = value
         self.due = False
@@ -890,6 +890,20 @@ def test_an_eager_update_needs_the_cosmos_processor_last_on_a_camera_published_l
             camera.render()
         with pytest.raises(ValueError, match="'front' runs tensor processors after its Cosmos processor"):
             front.process()
+    finally:
+        model.close()
+    assert not cosmos_service.resource.streams
+
+
+def test_cameras_sharing_a_session_need_the_same_update_period(cosmos_service, monkeypatch):
+    """Different periods fail at the first capture, which the cameras still take together."""
+    model, cameras = _camera_group(cosmos_service, monkeypatch)
+    front, wrist = cameras["front"], cameras["wrist"]
+    wrist.cfg.update_period = 0.1
+    try:
+        front.due = wrist.due = True
+        with pytest.raises(ValueError, match=r"same update period, got \{'front': 0.0, 'wrist': 0.1\}"):
+            front.data
     finally:
         model.close()
     assert not cosmos_service.resource.streams

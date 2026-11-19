@@ -492,8 +492,9 @@ for name in names:
   camera; with more, give one prompt per view.
 - Each camera keeps its own output size. One session has one canvas, so pass the same `canvas` for every camera;
   each camera's view is the canvas's center crop, scaled back to its size.
-- The cameras need the same update period, so they capture together. Each camera must be read at every capture,
-  as observation terms do; a camera that misses a shared capture stops the session with an error.
+- The cameras need the same update period, so they capture together; different periods are an error at the first
+  capture. Each camera must be read at every capture, as observation terms do; a camera that misses a shared
+  capture stops the session with an error.
 - Keep the Cosmos processor last in each camera's tensor processors, as `cosmos_camera` builds them. With eager
   sensor updates (`scene.lazy_sensor_update=False`), a camera's images are published when the last camera of the
   capture generates, after its own processors ran, so a processor after Cosmos stops the session with an error.

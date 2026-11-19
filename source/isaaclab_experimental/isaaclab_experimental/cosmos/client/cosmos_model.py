@@ -770,6 +770,10 @@ class _CameraGroup:
         self._chunks[stream.index] = (controls, reset_rows, seeds)
         try:
             cameras = _scene_cameras()
+            if self._session is None:
+                periods = {name: cameras[name].cfg.update_period for name in self._cameras if name in cameras}
+                if len(set(periods.values())) > 1:
+                    raise ValueError(f"Cameras sharing a Cosmos session need the same update period, got {periods}.")
             for index, name in enumerate(self._cameras):
                 if self._images is not None or index in self._chunks:
                     continue
