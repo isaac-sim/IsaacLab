@@ -30,9 +30,9 @@ from ...utils.math import (
 from ...utils.warp import ProxyArray
 from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
-from .camera_cfg import _render_data_types
+from .camera_cfg import ExposureCfg, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
-from .camera_exposure import ExposureCfg, apply_neutral_exposure
+from .camera_exposure import apply_neutral_exposure
 
 if TYPE_CHECKING:
     from ...utils.tensor_processors import TensorProcessor

@@ -145,7 +145,7 @@ def test_camera_async_ppisp_supports_explicit_and_legacy_configs(monkeypatch):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
     from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
-    from isaaclab.sensors.camera.camera_exposure import ExposureCfg
+    from isaaclab.sensors.camera import ExposureCfg
 
     with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())) as sim:
         # Construction authors USD and validates configs; this test does not render.

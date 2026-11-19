@@ -309,6 +309,20 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     assert authored_schemas.deletedItems == ["RetiredAPI"]
 
 
+def test_neutral_exposure_needs_the_rtx_schemas_that_apply_it():
+    """Neutral exposure values without the RTX exposure schemas do not reach RTX, so they are not neutral."""
+    from isaaclab.sensors.camera.camera_exposure import NEUTRAL_EXPOSURE, apply_neutral_exposure, has_neutral_exposure
+
+    stage = Usd.Stage.CreateInMemory()
+    prim = _author_camera(stage)
+    for name, value_type, value in NEUTRAL_EXPOSURE:
+        prim.CreateAttribute(name, getattr(Sdf.ValueTypeNames, value_type)).Set(value)
+
+    assert not has_neutral_exposure(prim)
+    apply_neutral_exposure(stage, [str(prim.GetPath())])
+    assert has_neutral_exposure(prim)
+
+
 @pytest.mark.parametrize("renderer_type", ["isaac_rtx", "ovrtx", "newton_warp"])
 def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type, caplog):
     """Camera preparation resolves discovery and, on RTX, requires neutral exposure instead of authoring it."""

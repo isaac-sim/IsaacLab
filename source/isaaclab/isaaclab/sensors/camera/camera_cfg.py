@@ -13,7 +13,6 @@ from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
-from .camera_exposure import ExposureCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
@@ -31,6 +30,24 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "semantic_segmentation_mapping": {},
     "depth_clipping_behavior": "none",
 }
+
+
+@configclass
+class ExposureCfg:
+    """Camera exposure.
+
+    Isaac RTX and OVRTX apply the exposure authored on the camera prim to every color output of the camera.
+    The Newton Warp renderer applies no exposure, so it ignores this setting.
+    """
+
+    mode: Literal["default", "neutral"] = "default"
+    """Exposure behavior. Defaults to ``"default"``.
+
+    - ``"default"``: keep the exposure authored on the camera prim, or the renderer's own default.
+    - ``"neutral"``: disable automatic exposure and author unit exposure on the camera prims, so color outputs keep
+      the scene's linear radiance. Image processors that apply their own exposure, such as PPISP, require it on
+      Isaac RTX and OVRTX.
+    """
 
 
 @configclass
