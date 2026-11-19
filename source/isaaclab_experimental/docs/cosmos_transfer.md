@@ -619,9 +619,12 @@ wrist_camera = CameraCfg(
   configurations share one model through `SimulationContext.get_or_create_backend`, so the model holds only shared
   resources such as weights; without a simulation context, the processor builds and owns the model. Each processor
   opens its own `ImageTransferStream` with `open_stream(num_views, seeds)`, which holds the temporal state of its
-  views. `ImageTransferStream.step(controls, reset_rows, seeds)` receives one owned uint8 THWC three-channel control
+  views. `ImageTransferStream.step(controls, reset_rows, seeds)` receives one uint8 THWC three-channel control
   sequence per view and returns uint8 sRGB images with the same sequence lengths and image size, with no implicit
-  crop or resize. Calls run on the current Torch stream, and returned tensors must be ready on it. `close()` must be
+  crop or resize. The controls are valid until `step` returns, since the processor reuses their storage, so a stream
+  that keeps a chunk copies it. A stream may return None instead and deliver the images later through a callback, as
+  cameras sharing a Cosmos session do. Calls run on the current Torch stream, and returned tensors must be ready on
+  it. `close()` must be
   idempotent; the camera closes its processors, and with them their streams, when it is released.
 - **Scheduling:** `initial_frames` and `update_frames` set the first and later chunk sizes, both one by default. The
   output holds the last generated image until the next chunk, so larger chunks add observation age as well as

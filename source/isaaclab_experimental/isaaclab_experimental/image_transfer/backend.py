@@ -16,16 +16,21 @@ if TYPE_CHECKING:
 class ImageTransferStream(Protocol):
     """One batched generation stream with temporal state for each camera view.
 
-    Controls are owned uint8 THWC three-channel image sequences, one per view. Returned images
-    must be uint8 THWC sRGB with the same sequence lengths and image size. Calls run on the
-    current Torch stream; returned tensors must be ready on that stream. Reset rows discard all
-    episode state and start again from the given seeds.
+    Controls are uint8 THWC three-channel image sequences, one per view, valid until :meth:`step`
+    returns: the processor reuses their storage for later captures, so a stream that keeps a chunk
+    copies it. Returned images must be uint8 THWC sRGB with the same sequence lengths and image
+    size. Calls run on the current Torch stream; returned tensors must be ready on that stream.
+    Reset rows discard all episode state and start again from the given seeds.
     """
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
-    ) -> list[torch.Tensor]:
-        """Consume one chunk per view and return the corresponding images."""
+    ) -> list[torch.Tensor] | None:
+        """Consume one chunk per view and return the corresponding images.
+
+        A stream may instead return None and deliver the images later through a callback from its owner, as Cosmos
+        cameras sharing a session do with their processor's publication.
+        """
         ...
 
     def close(self) -> None:
