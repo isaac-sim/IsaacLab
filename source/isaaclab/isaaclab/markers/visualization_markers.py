@@ -262,7 +262,7 @@ class VisualizationMarkers:
 
         # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
         # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
-        # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
+        # a Kit visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
         # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
         # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
         # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
@@ -274,13 +274,15 @@ class VisualizationMarkers:
             or bool(sim.get_setting("/isaaclab/xr/enabled"))
             or getattr(sim, "has_offscreen_render", False)
             or any(
-                viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+                viz.supports_markers() and viz.cfg.backend.visualizer_type == "kit" and viz.cfg.enable_markers
+                for viz in sim.visualizers
             )
         )
         if needs_kit_backend:
             self._ensure_kit_backend(sim)
         if any(
-            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+            viz.supports_markers() and viz.cfg.backend.visualizer_type != "kit" and viz.cfg.enable_markers
+            for viz in sim.visualizers
         ):
             self._ensure_newton_backend()
 
