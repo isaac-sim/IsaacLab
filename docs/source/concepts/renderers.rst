@@ -8,7 +8,8 @@ Renderers produce camera images for policy observations and synthetic data.
 :doc:`Visualizers <visualization>` provide interactive views for inspection and
 recording. All renderers implement :class:`~isaaclab.renderers.BaseRenderer`.
 
-Isaac Lab supports three rendering backends. See :ref:`renderer-details` for their execution models,
+Isaac Lab supports three rendering backends; the Newton renderer ray traces with Warp or, on RTX GPUs,
+with OptiX (``renderer=newton_optix``). See :ref:`renderer-details` for their execution models,
 output coverage, and limitations, and :ref:`camera-supported-annotators` for the output-by-backend
 support matrix.
 
@@ -34,7 +35,10 @@ Choosing a renderer backend
       Warp ray tracing with direct lighting. Use it when camera throughput and memory matter more than
       material and lighting fidelity.
 
-      ``renderer=newton_renderer``
+      ``renderer=newton_warp``
+
+      On RTX GPUs, ``renderer=newton_optix`` traces the same scenes in hardware with OptiX. Install it
+      with ``uv sync --extra optix``. It does not support particles or deformable surfaces.
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
@@ -192,7 +196,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+            physics=newton_mjwarp renderer=newton_warp presets=rgb
 
       Enable directional-light shadows explicitly:
 
@@ -200,7 +204,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+            physics=newton_mjwarp renderer=newton_warp presets=rgb \
             env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
    .. tab-item:: OVRTX Minimal
