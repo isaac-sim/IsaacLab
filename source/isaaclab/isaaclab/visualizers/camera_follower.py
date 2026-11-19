@@ -25,6 +25,9 @@ _RESET_YAW_JUMP = 1.5
 
 A fixed angle, unlike a rate, does not misfire when two updates are a few milliseconds apart."""
 
+_CATCH_UP_LAG = math.pi / 2
+"""Lag [rad] behind the robot heading beyond which the camera heading catches up faster."""
+
 
 class CameraFollower:
     """Turns a :class:`~isaaclab.visualizers.TrackingCameraCfg` tied to an environment into world poses.
@@ -154,21 +157,30 @@ class CameraFollower:
         return tuple(eye), tuple(target)
 
     def _filtered_yaw(self, quat: list[float], position: list[float], dt: float) -> float:
-        """Return the yaw of the xyzw *quat*, filtered along the shortest rotation.
+        """Return the yaw of the xyzw *quat*, filtered so the camera follows the turn in the direction it happened.
 
-        The first sample, and the sample after an environment resets, is not filtered.
+        The heading is tracked unwrapped, so a camera that falls more than half a turn behind keeps turning the same
+        way instead of reversing, and it catches up faster the further it lags. The first sample, and the sample after
+        an environment resets, is not filtered.
         """
         x, y, z, w = quat
         yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
         last, self._last_position = self._last_position, position
         reset = self._yaw is None or last is None or math.dist(position, last) > _RESET_JUMP
+        step = 0.0 if reset else math.remainder(yaw - self._raw_yaw, math.tau)
         if not reset:
             # an environment can reset in place with a new heading; the raw heading is compared, since the filtered
             # one lags behind a steady turn
-            reset = abs(math.remainder(yaw - self._raw_yaw, math.tau)) > _RESET_YAW_JUMP
-        self._raw_yaw = yaw
+            reset = abs(step) > _RESET_YAW_JUMP
+        # signed heading changes add up, so the target keeps the direction of the turn
+        self._raw_yaw = yaw if reset else self._raw_yaw + step
         tau = self.cfg.heading_smoothing_time_constant
         if tau > 0.0 and not reset:
-            yaw = self._yaw + -math.expm1(-dt / tau) * math.remainder(yaw - self._yaw, math.tau)
+            lag = self._raw_yaw - self._yaw
+            if abs(lag) > _CATCH_UP_LAG:
+                tau *= _CATCH_UP_LAG / abs(lag)
+            yaw = self._yaw + -math.expm1(-dt / tau) * lag
+        else:
+            yaw = self._raw_yaw
         self._yaw = yaw
         return yaw

@@ -51,7 +51,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     def set_camera(pos, pitch, yaw):
         camera.pos, camera.pitch, camera.yaw = pos, pitch, yaw
 
-    viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera)
+    viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera, is_paused=lambda: False)
     viz._sim = SimpleNamespace(
         get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: _Scene()),
         get_physics_step_count=lambda: 10,
@@ -74,6 +74,7 @@ class _View:
 
     def __init__(self, cfg: PerspectiveCameraCfg):
         self.cfg = SimpleNamespace(source=cfg)
+        self.frame = SimpleNamespace(data=None, timestamp=-1)
 
 
 def _view(cfg: PerspectiveCameraCfg) -> _View:
@@ -120,7 +121,7 @@ def test_the_tracking_camera_recording_picks_the_first_tied_view():
 
 
 def test_the_tracking_camera_recording_reports_a_visualizer_without_one():
-    with pytest.raises(RuntimeError, match="tied to an environment or an asset"):
+    with pytest.raises(RuntimeError, match="declares no tracking camera"):
         _visualizer([_view(PerspectiveCameraCfg())]).render_tracking_rgb_array()
 
 
@@ -169,3 +170,13 @@ def test_a_visualizer_reports_whether_it_declares_a_tracking_view():
     free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))
     assert not _visualizer([free]).has_tracking_view
     assert _visualizer([free, task]).has_tracking_view
+
+
+def test_the_tracking_camera_recording_keeps_its_last_frame_while_rendering_is_paused():
+    tracking = _view(TrackingCameraCfg(track_path="robot"))
+    viz = _visualizer([_view(PerspectiveCameraCfg()), tracking])
+    viz._sim.get_physics_step_count = lambda: 9
+    viz._viewer.is_paused = lambda: True
+    tracking.frame = SimpleNamespace(data=object(), timestamp=4)
+    tracking.read_rgb = lambda step: step
+    assert viz.render_tracking_rgb_array() == 4

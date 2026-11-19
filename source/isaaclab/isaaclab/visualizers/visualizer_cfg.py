@@ -229,7 +229,8 @@ class VisualizerCfg:
 
     PerspectiveCameraCfg configures the interactive view, TrackingCameraCfg a view that frames an environment
     or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
-    Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
+    view in front of a leading TrackingCameraCfg (see ``with_free_view``) and shows that one first.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.

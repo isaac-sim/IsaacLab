@@ -78,9 +78,8 @@ class VideoRecorderCfg:
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
       ``streaming_view=True`` on its :class:`~isaaclab.visualizers.VisualizerCfg`).
-    * ``"viz:<type>:tracking"``        – the first perspective view of that visualizer that is tied to an
-      environment or an asset (:class:`~isaaclab.visualizers.TrackingCameraCfg` with ``env_index`` or
-      ``track_path``), whichever view its window shows. Only Newton GL supports it.
+    * ``"viz:<type>:tracking"``        – the first :class:`~isaaclab.visualizers.TrackingCameraCfg` of
+      that visualizer, whichever view its window shows. Only Newton GL supports it.
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).

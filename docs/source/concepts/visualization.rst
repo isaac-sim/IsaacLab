@@ -802,7 +802,9 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 
 **Following a moving robot**
 
-Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`.
+This is Newton GL only. Kit ignores a ``TrackingCameraCfg`` and follows an asset with
+``KitBackendCfg(origin_type="asset", origin_track_path="robot")`` instead. For Newton GL:
 
 .. code-block:: python
 
