@@ -228,14 +228,15 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, f
         torch.testing.assert_close(obj.data.root_pos_w.torch, actual[:, :3])
 
 
-@pytest.mark.parametrize("device", _CUDA)
+@pytest.mark.parametrize("device", _CPU + _CUDA)
 def test_heterogeneous_clone_collision_isolation(device):
-    """Collision groups isolate overlapping environments, including both retained sources."""
+    """Collision groups isolate overlapping environments on CPU and CUDA, including both retained sources."""
     with build_simulation_context(
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
     ) as sim:
         # Without GPU environment-ID filtering, 2048 overlapping worlds exhaust broadphase pairs.
-        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=2048, env_spacing=0.0))
+        num_envs = 2048 if device.startswith("cuda") else 64
+        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=num_envs, env_spacing=0.0))
         sim.reset()
         for _ in range(60):
             sim.step()

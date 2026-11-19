@@ -25,6 +25,96 @@ OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
     sim_cfg = SimulationCfg(physics=OvPhysxCfg())
 
+Explicit backend operations
+---------------------------
+
+The OvPhysX manager owns an :class:`~isaaclab_ov.physics.OvPhysxBackend` for its
+simulation context. Obtain that backend after initializing and resetting the
+simulation, then call its methods directly:
+
+.. code-block:: python
+
+    backend = sim.backend_manager.backend
+    backend.set_gravity((0.0, 0.0, -3.0), physics_prim_path=sim.cfg.physics_prim_path)
+    backend.step(sim.cfg.dt)
+
+``backend.step(dt)`` advances the selected native runtime and waits for the
+step to complete. It does not advance the manager's simulation clock.
+``backend.forward()`` refreshes state without advancing time;
+``backend.update_kinematics()`` applies a pending kinematic refresh. Backend state,
+including ``kinematics_dirty``, ``gravity`` and ``scene_data``, belongs to the
+backend instance. The existing ``sim.backend_manager`` methods remain available;
+use ``sim.step()`` for simulation-context clock and rendering orchestration.
+
+For direct use without a :class:`~isaaclab.sim.SimulationContext`:
+
+.. code-block:: python
+
+    from isaaclab_ov.physics import OvPhysxBackend, OvPhysxBackendCfg
+
+    backend = OvPhysxBackend(OvPhysxBackendCfg(device="cpu"))
+    try:
+        backend.load(stage_usda)
+        # Complete any native cloning before initializing physics buffers.
+        backend.warmup()
+        backend.step(0.01)
+        poses = backend.scene_data.transforms.transforms  # wp.transformf per rigid body
+    finally:
+        backend.close()
+
+The exported USD string must contain configured ``PhysicsScene``
+prims, including dynamics and broadphase attributes matching the selected CPU or
+CUDA device. The manager authors these scene settings automatically.
+``load()`` leaves ``backend.is_ready`` false so native cloning can finish before
+``warmup()`` initializes physics buffers. A completed ``step()`` also makes the
+backend ready. Requesting a scene-data publication before either operation raises
+``RuntimeError``; the request can be retried after initialization. Reloading or
+closing clears the old publication and readiness.
+
+``backend.set_gravity()`` requires the ``physics_prim_path`` keyword argument naming
+a physics scene in the attached stage; OVStage does not report unknown paths.
+Successfully applied vectors are stored in ``backend.gravity`` by physics-scene
+path; editing one scene does not replace another scene's entry, and ``load()``
+clears the cache. Repeating a vector that is already applied creates no control update. The manager's ``get_gravity()`` reads its configured scene's
+entry, falling back to the simulation configuration until that scene is updated.
+
+Native construction settings are defined by :class:`~isaaclab_ov.physics.OvPhysxBackendCfg`
+in ``isaaclab_ov.physics.ovphysx_backend_cfg``, separate from manager settings.
+Scene publication is implemented by
+:class:`~isaaclab_ov.physics.ovphysx_scene_data.OvPhysxSceneDataBackend`.
+The configuration classes remain exported by :mod:`isaaclab_ov.physics`, and
+existing imports of the moved classes from the manager modules remain available.
+
+Native runtime scope
+~~~~~~~~~~~~~~~~~~~~
+
+Python backend state is owned by each instance. The OvPhysX runtime
+supports multiple independently attached OVStages in one process. Construct a
+separate backend and stage for each simulation; the stages can use identical prim
+paths. Stepping, reloading, or closing one backend leaves the other backend's
+state and publications intact. The same OVStage cannot be attached twice.
+
+Several ``PhysicsScene`` prims can share an attached stage, but a native step
+advances those scenes together. Use separate backends and stages for independent
+stepping.
+
+Native process configuration, logging, the tolerance scale, and recording transport
+remain shared. The cooked-collider cache location is selected when its datastore
+starts; later backends in the process must name the same directory. CPU and CUDA
+dynamics are authored per scene; ``PhysX.set_cpu_mode(True)`` instead requests an
+irreversible process-wide CPU-only policy. Isaac Lab's CPU backend uses scene
+attributes so CUDA scenes can coexist.
+
+Compatible CPU or CUDA backends can also be constructed after another backend
+starts stepping. Startup settings are applied only when needed, and
+the backends use compatible common Carbonite settings. This does not permit
+arbitrary process settings to differ between backend instances.
+
+Serialize native calls on each backend, including stepping and tensor access.
+Separate worker processes started with ``spawn`` remain an option for process
+isolation. Do not fork a process after constructing a native ``PhysX`` instance:
+the runtime, CUDA and Carbonite state are not fork-safe.
+
 Why use OvPhysX?
 ----------------
 

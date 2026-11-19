@@ -230,7 +230,7 @@ def _make_asset_shell(
 ) -> OvPhysxDeformableObject:
     asset = object.__new__(OvPhysxDeformableObject)
     asset._backend_manager = OvPhysxManager(OvPhysxCfg())
-    asset._backend_manager._scene_data_backend = OvPhysxSceneDataBackend(asset._backend_manager)
+    asset._backend_manager._scene_data_backend = OvPhysxSceneDataBackend()
     asset._device = "cpu"
     asset._check_shapes = True
     asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
