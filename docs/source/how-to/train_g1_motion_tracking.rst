@@ -25,8 +25,7 @@ the RSL-RL and video-recording dependencies from the repository root:
    uv sync --extra rsl-rl --extra video
 
 The first run downloads and caches the official G1 USD and the selected reference motion.
-Internet access is required until those assets are cached. This task fixes the physics backend
-in its configuration; no ``physics=`` or ``presets=`` selection is needed.
+Internet access is required until those assets are cached.
 
 The :ref:`Command Builder <environment-browser>` also lists ``Isaac-Motion-Tracking-G1``.
 Select **Train** or **Play** and **rsl_rl** to generate the base command.
@@ -56,12 +55,6 @@ Six 50 Hz clips are available under the asset-server prefix
    * - CR7 celebration (default)
      - ``g1_cr7_grounded.npz``
 
-Each NPZ includes joint and body names; no separate metadata file is needed for these clips.
-See the `data format and provenance <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/README.txt>`__
-and `SHA-256 checksums <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/SHA256SUMS>`__.
-Custom motion files must match the policy rate and provide the robot's joint and tracked-body names;
-the :class:`~isaaclab.utils.datasets.MotionLoader` documents the required arrays and quaternion convention.
-
 Train
 -----
 
@@ -74,8 +67,6 @@ Train the default CR7 clip:
 The default budget is 30,000 PPO iterations, with 24 control steps per environment per iteration
 and a checkpoint every 500 iterations. Checkpoints and the saved environment/agent configurations
 are written under ``logs/rsl_rl/g1_motion_tracking/<run>/``.
-For a short setup check, replace ``--num_envs 4096`` with ``--num_envs 16 --max_iterations 2``.
-This checks the training pipeline and does not produce a trained policy.
 
 To train another clip, set ``env.commands.motion.motion_file`` to its full URL or a local NPZ path.
 Use a separate experiment name to keep its checkpoints together:
@@ -98,8 +89,7 @@ The G1 asset, motor gains, and tracked links are configured in ``config/g1/env_c
 Play and record
 ---------------
 
-The pretrained example tracks the default CR7 clip. Once the checkpoint is published, play it
-with the Newton GL viewer:
+Play the pretrained CR7 policy with the Newton GL viewer:
 
 .. code-block:: bash
 
