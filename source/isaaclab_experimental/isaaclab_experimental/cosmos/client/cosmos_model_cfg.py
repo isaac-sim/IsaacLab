@@ -103,9 +103,10 @@ class CosmosModelCfg(BackendCfg):
     ``"autoregressive"``."""
 
     decision_interval: int = 1
-    """Captures per generation in single-frame mode, counted from the camera's latest reset: 1 generates every
+    """Captures per generation in single-frame mode, counted from the camera's first capture: 1 generates every
     capture, 16 the first of every 16, for example once per 16-step action chunk. Other captures publish the
-    camera's rendered ``rgb``."""
+    camera's rendered ``rgb``. Resets do not restart the count, so a reset environment shows its rendered ``rgb``
+    until the next generation."""
 
     augmentation_probability: float = 1.0
     """Probability that a single-frame generation runs; otherwise the capture publishes the rendered ``rgb``. One

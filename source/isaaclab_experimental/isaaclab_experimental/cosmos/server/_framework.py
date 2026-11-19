@@ -184,7 +184,7 @@ class CosmosInferenceModel:
     ) -> _CosmosInferenceStream:
         """Open one fixed-resolution generation session with a fresh episode history.
 
-        Controls must already be depth images prepared by the camera. The Framework's
+        Controls must already be control images prepared by the camera, of any kind. The Framework's
         transfer system prompt and native duration/resolution formatting condition
         generation; no reference video or cookbook files are loaded.
 

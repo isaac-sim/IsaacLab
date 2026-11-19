@@ -12,14 +12,10 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-import torch
-
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
-
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
 from .._protocol import CANVAS_ASPECT_RATIOS
 from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
@@ -83,29 +79,22 @@ def cosmos_camera(
     if canvas is not None and tuple(canvas) not in COSMOS_CANVASES:
         raise ValueError(f"Cosmos canvases are {list(COSMOS_CANVASES)}, got {canvas}.")
     canvas_height, canvas_width = tuple(canvas) if canvas is not None else _closest_canvas(camera)
+    # The Cosmos processor, the last one, publishes the images at the camera's size.
+    image_size = (camera.height, camera.width)
     if control is None:
-        processors = depth_processor(model, near=near, far=far, camera=name)
+        processors = depth_processor(model, near=near, far=far, camera=name, image_size=image_size)
     else:
-        transfer = CosmosTransferProcessorCfg(backend=model, camera=name)
+        transfer = CosmosTransferProcessorCfg(backend=model, camera=name, image_size=image_size)
         if not any(transfer.inputs[0] in cfg.outputs for cfg in control):
             raise ValueError(f"The control processors must write the {transfer.inputs[0]!r} buffer Cosmos reads.")
         processors = [*control, transfer]
-    if (camera.height, camera.width) != (canvas_height, canvas_width):
-        processors.append(
-            FunctionProcessorCfg(
-                function=_center_crop_resize,
-                params={"width": camera.width, "height": camera.height},
-                inputs=["rgb"],
-                outputs=["rgb"],
-            )
-        )
     return replace(
         camera,
         width=canvas_width,
         height=canvas_height,
         spawn=_canvas_spawn(camera, canvas_height, canvas_width),
         tensor_processors=processors,
-        # An ISP processes the rendered image, which Cosmos replaces; the camera no longer renders it.
+        # An ISP processes the rendered image, and the camera publishes the Cosmos image instead.
         isp_cfg=None,
     )
 
@@ -135,16 +124,3 @@ def _canvas_spawn(camera: CameraCfg, canvas_height: int, canvas_width: int) -> A
     if canvas_width * vertical >= canvas_height * spawn.horizontal_aperture:
         return replace(spawn, horizontal_aperture=vertical * canvas_width / canvas_height, vertical_aperture=vertical)
     return replace(spawn, vertical_aperture=spawn.horizontal_aperture * canvas_height / canvas_width)
-
-
-def _center_crop_resize(data: torch.Tensor, width: int, height: int) -> torch.Tensor:
-    """Cut the camera's original view out of the canvas's center and area-resize it to the camera's size."""
-    _, rows, cols, _ = data.shape
-    if cols * height > rows * width:
-        crop = rows * width // height
-        data = data[:, :, (cols - crop) // 2 : (cols - crop) // 2 + crop]
-    else:
-        crop = cols * height // width
-        data = data[:, (rows - crop) // 2 : (rows - crop) // 2 + crop]
-    pixels = torch.nn.functional.interpolate(data.permute(0, 3, 1, 2).float(), size=(height, width), mode="area")
-    return pixels.round().clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1).contiguous()

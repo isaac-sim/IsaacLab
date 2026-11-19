@@ -35,6 +35,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_IDLE_TIMEOUT_S = 600.0
+"""Seconds a connection may stay silent before the service closes it, so a camera that stopped without closing its
+connection does not hold the model. The connection that owns a session whose weights are offloaded waits without
+limit, since a learner can use the GPU for longer between rollouts."""
+
 
 def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT, *, warmup: bool = False) -> None:
     """Reserve the endpoint, then serve a resident model until shutdown or interruption.
@@ -82,7 +87,8 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
             if resource is None:
                 resource = model()
             state = _ServiceState(resource)
-            state.transports, state.host_id, state.pci_bus_id = state.executor.submit(_transports, resource).result()
+            transports = state.executor.submit(_transports, resource).result()
+            state.transports, state.host_id, state.pci_bus_id, state.visible_gpus = transports
             if warmup:
                 _LOGGER.info("Cosmos warming up; the first compilation can take several minutes.")
                 state.executor.submit(resource.warmup).result()
@@ -92,7 +98,7 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
                     connection, _ = listener.accept()
                 except TimeoutError:
                     continue
-                connection.settimeout(600.0)
+                connection.settimeout(_IDLE_TIMEOUT_S)
                 if family == socket.AF_INET:
                     disable_nagle(connection)
                 with connections_lock:
@@ -205,10 +211,12 @@ class _ServiceState:
         self.transports: list[str] = ["socket"]
         self.host_id: str | None = None
         self.pci_bus_id: str | None = None
+        self.visible_gpus: list[str] = []
 
 
-def _transports(model: _Model) -> tuple[list[str], str | None, str | None]:
-    """Return the offered transports and, for CUDA IPC, the machine's boot ID and the PCI bus ID of the model's GPU.
+def _transports(model: _Model) -> tuple[list[str], str | None, str | None, list[str]]:
+    """Return the offered transports and, for CUDA IPC, the machine's boot ID, the PCI bus ID of the model's GPU,
+    and the PCI bus IDs of the GPUs this service can see, one of which must be the camera's.
 
     The device is read from its ``cuda:N`` name, so a service without Torch starts with the socket transport.
     """
@@ -216,8 +224,9 @@ def _transports(model: _Model) -> tuple[list[str], str | None, str | None]:
 
     kind, _, index = str(model.capabilities.get("device", "cpu")).partition(":")
     if kind != "cuda" or not _cuda_ipc.available():
-        return ["socket"], None, None
-    return ["socket", "cuda_ipc"], _cuda_ipc.host_id(), _cuda_ipc.pci_bus_id(int(index or 0))
+        return ["socket"], None, None, []
+    model_gpu = _cuda_ipc.pci_bus_id(int(index or 0))
+    return ["socket", "cuda_ipc"], _cuda_ipc.host_id(), model_gpu, _cuda_ipc.visible_gpus()
 
 
 def _run_inference(state: _ServiceState, function, *args, **kwargs):
@@ -246,6 +255,9 @@ def _handle_connection(
     num_views = 0
     try:
         while not state.stopping.is_set():
+            # A learner may keep its session's weights offloaded for longer than the idle timeout between rollouts.
+            offloaded = stream is not None and not getattr(state.model, "active", True)
+            connection.settimeout(None if offloaded else _IDLE_TIMEOUT_S)
             metadata, arrays = receive_message(connection)
             operation = metadata.get("op")
             if operation == "status":
@@ -262,6 +274,7 @@ def _handle_connection(
                             "transports": state.transports,
                             "host_id": state.host_id,
                             "pci_bus_id": state.pci_bus_id,
+                            "visible_gpus": state.visible_gpus,
                         },
                         "session_active": active,
                         "model_active": getattr(state.model, "active", True),
@@ -387,6 +400,8 @@ def _handle_connection(
                 if channel is not None:
                     # The camera may still have the output buffer open; it releases it before disconnecting. Without
                     # that confirmation, the buffer stays allocated until this service exits.
+                    with suppress(OSError):
+                        connection.settimeout(_IDLE_TIMEOUT_S)
                     released = camera_released or _await_disconnect(connection, state.stopping)
                     state.executor.submit(channel.close, peer_released=released).result()
             finally:

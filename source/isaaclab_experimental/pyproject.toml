@@ -19,10 +19,12 @@ requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
     "isaaclab",
+    "isaaclab_newton",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_newton = { path = "../isaaclab_newton", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

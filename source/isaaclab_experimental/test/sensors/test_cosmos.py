@@ -35,6 +35,7 @@ from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
+from isaaclab_experimental.cosmos.server import service as service_module
 from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -376,16 +377,40 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     assert session.settings["max_episode_frames"] == 1
     assert session.settings["prompt"] == prompts[:2]
     image_seed = cosmos_model_module._image_seed
+    # The first step also restarts every view, from its opening seed.
     assert [(rows, seeds) for _, rows, seeds in session.steps] == [
-        ((), ()),
+        ((0, 1), (0, 1)),
         ((0, 1), (2, image_seed(1, 1))),
         ((0, 1), (image_seed(2, 1), image_seed(1, 2))),
         ((0, 1), (4, image_seed(1, 3))),
     ]
     # No image shares another view's or episode's seed, which would give identical images for identical controls.
-    used = [0, 1, *(seed for _, _, seeds in session.steps for seed in seeds)]
+    used = [seed for _, _, seeds in session.steps for seed in seeds]
     assert len(set(used)) == len(used)
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
+
+
+def test_single_frame_view_alone_on_its_service_takes_its_next_prompt_as_text(cosmos_services):
+    """A one-view service session takes one prompt, also when the camera's other views are on another service."""
+    first, second = cosmos_services
+    prompts = ["A lab.", "A kitchen.", "A field."]
+    client = CosmosModel(
+        CosmosModelCfg(
+            endpoint=[first.endpoint, second.endpoint], prompt=prompts, generation_mode="single_frame", timeout=2
+        )
+    )
+    stream = client.open_stream(num_views=2, seeds=(0, 1))
+    one = [_controls(), _controls()]
+    stream.step(one, (), ())
+    stream.step(one, (1,), (3,))  # the environment's initial reset keeps view 1's prompt
+    stream.step(one, (), ())
+    stream.step(one, (1,), (5,))
+    sessions = [first.resource.streams[0], second.resource.streams[0]]
+    client.close()
+
+    assert [session.settings["num_views"] for session in sessions] == [1, 1]
+    assert sessions[0].episode_prompts[-1] == "<kept>"
+    assert sessions[1].episode_prompts[-1] == prompts[2]
 
 
 def test_single_frame_settings_are_validated():
@@ -419,14 +444,15 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
     try:
         published = [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(3)]
-        # A reset makes the next capture a decision point, so the view never shows black.
+        # A reset does not move the schedule: the next capture shows the rendered rgb, never black, and the one
+        # after it generates the view's new episode with its new seed.
         processor.reset([0])
-        published.append(int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()))
+        published += [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(2)]
         session = cosmos_service.resource.streams[0]
-        assert published == [127, 50, 127, 127]
+        assert published == [127, 50, 127, 50, 127]
         second = cosmos_model_module._image_seed(0, 1)
         assert second != 1
-        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (second,)), ((0,), (1,))]
+        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((0,), (0,)), ((0,), (second,)), ((0,), (1,))]
     finally:
         processor.close()
 
@@ -440,7 +466,101 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
     assert len(cosmos_service.resource.streams) == 1
 
 
-def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service):
+def test_single_frame_processor_publishes_only_the_captured_views(cosmos_service, monkeypatch):
+    """Views a capture does not select keep their image, at decision points and between them."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=2, timeout=2
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((2, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((2, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+
+    def capture(*views: bool) -> list[int]:
+        mask = wp.array(list(views), dtype=wp.bool, device="cpu")
+        return [int(image.float().mean()) for image in processor(buffers, env_mask=mask)["rgb"].torch]
+
+    try:
+        assert capture(True, False) == [127, 0]
+        assert capture(False, True) == [127, 50]
+        assert capture(False, False) == [127, 50]
+        assert len(cosmos_service.resource.streams[0].steps) == 2
+    finally:
+        processor.close()
+
+
+def test_single_frame_prompts_follow_episodes_that_ended_without_a_generation(cosmos_service, monkeypatch):
+    """A view that reset three times between two generations moves three prompts, as its seed moves three episodes."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint,
+        prompt=["A", "B", "C", "D"],
+        generation_mode="single_frame",
+        decision_interval=2,
+        timeout=2,
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((1, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((1, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    try:
+        # Captures 0 and 2 generate two images of the first episode; capture 3 shows the rendered rgb.
+        for _ in range(3):
+            processor(buffers, env_mask=mask)
+        processor.reset([0])
+        processor(buffers, env_mask=mask)
+        processor.reset([0])
+        processor.reset([0])
+        processor(buffers, env_mask=mask)
+        session = cosmos_service.resource.streams[0]
+        assert session.episode_prompts[-1] == "D"
+        assert session.steps[-1][1:] == ((0,), (3,))
+    finally:
+        processor.close()
+
+
+def test_single_frame_prompts_and_seeds_follow_episodes_before_the_first_generation(cosmos_service, monkeypatch):
+    """Episodes that showed only rendered rgb before the view's first image still move its prompt and seed."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint,
+        prompt=["A", "B", "C", "D"],
+        generation_mode="single_frame",
+        augmentation_probability=0.5,
+        timeout=2,
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((1, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((1, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+    # The first two episodes draw rendered rgb, the third a generated image.
+    monkeypatch.setattr(processor, "_random", SimpleNamespace(random=iter([0.9, 0.9, 0.0]).__next__))
+    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    try:
+        # Every episode starts with a reset, the first with the environment's initial reset.
+        for _ in range(3):
+            processor.reset()
+            processor(buffers, env_mask=mask)
+        session = cosmos_service.resource.streams[0]
+        assert len(session.steps) == 1
+        assert session.episode_prompts == ["C"]
+        assert session.steps[0][1:] == ((0,), (3,))
+    finally:
+        processor.close()
+
+
+def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service, monkeypatch):
     from isaaclab_experimental.cosmos.client import cli
 
     endpoint = cosmos_service.endpoint
@@ -449,12 +569,15 @@ def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmo
     assert not status["model_active"] and not status["session_active"]
     assert cli.main(["activate", "--endpoint", endpoint]) == 0
 
+    # A learner can keep its session offloaded for longer than the service's idle timeout.
+    monkeypatch.setattr(service_module, "_IDLE_TIMEOUT_S", 0.5)
     single = CosmosModel(CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2))
     stream = single.open_stream(num_views=1, seeds=(1,))
     stream.step([_controls()], reset_rows=(), seeds=())
     # Another connection cannot move the weights of a session it does not own.
     assert cli.main(["offload", "--endpoint", endpoint]) == 1
     single.offload()
+    time.sleep(1.0)
     single.activate()
     stream.step([_controls()], reset_rows=(), seeds=())
     single.close()
@@ -575,29 +698,43 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
 
 
 class LazyCamera:
-    """A scene camera that captures when its data is read, and only once per simulation step."""
+    """A scene camera that captures when its data is read, and only once per simulation step.
 
-    def __init__(self, cfg, name, value):
-        self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name)
+    :meth:`render` and :meth:`process` split a capture as an eager scene update does: it renders every camera, then
+    runs each camera's processors.
+    """
+
+    def __init__(self, cfg, name, value, image_size=None):
+        self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name, image_size=image_size)
         self.processor = None
         self.value = value
         self.due = False
         self.output = None
         self.capture_mask = wp.ones(2, dtype=wp.bool, device="cpu")
+        self.frame = _proxy(torch.zeros(2, dtype=torch.int64))
+        self.renders = 0
 
     @property
     def data(self):
         if self.due:
-            self.due = False
-            buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
-            # A camera constructs its processors at its first capture.
-            if self.processor is None:
-                self.processor = self.cfg.func(self.cfg, buffers)
-            self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
+            self.render()
+            self.process()
         return self.output
 
+    def render(self):
+        self.frame.torch.add_(1)
+        self.renders += 1
 
-def _camera_group(cosmos_service, monkeypatch):
+    def process(self):
+        self.due = False
+        buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
+        # A camera constructs its processors at its first capture.
+        if self.processor is None:
+            self.processor = self.cfg.func(self.cfg, buffers)
+        self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
+
+
+def _camera_group(cosmos_service, monkeypatch, image_size=None):
     """A front and a wrist camera of two environments, sharing one session through their simulation's model."""
     cfg = CosmosModelCfg(
         max_episode_frames=13,
@@ -609,7 +746,7 @@ def _camera_group(cosmos_service, monkeypatch):
     model = CosmosModel(cfg)
     sim = SimpleNamespace(get_or_create_backend=lambda backend: model)
     monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
-    cameras = {"front": LazyCamera(cfg, "front", 10), "wrist": LazyCamera(cfg, "wrist", 20)}
+    cameras = {name: LazyCamera(cfg, name, value, image_size) for name, value in (("front", 10), ("wrist", 20))}
     monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
 
     def echo(stream, controls, reset_rows, seeds, **episode):
@@ -659,6 +796,37 @@ def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_
     assert [control.shape[0] for control in session.steps[2][0]] == [4, 1, 4, 1]
     assert session.steps[2][1:] == ((1, 3), (seed + 3, seed + 3))
     assert session.closed.wait(2)
+
+
+@pytest.mark.parametrize("image_size", [None, (1, 1)])
+def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_service, monkeypatch, image_size):
+    """An eager scene update renders every camera, then runs their processors; the last camera generates for both.
+
+    Both cameras publish the generating capture's images, also at a size other than the control's.
+    """
+    model, cameras = _camera_group(cosmos_service, monkeypatch, image_size)
+    front, wrist = cameras["front"], cameras["wrist"]
+
+    def eager_update():
+        front.due = wrist.due = True
+        for camera in (front, wrist):
+            camera.render()
+        for camera in (front, wrist):
+            camera.process()
+        front.value, wrist.value = front.value + 1, wrist.value + 1
+
+    try:
+        eager_update()
+        # The wrist camera completes each capture and publishes the front camera's images too.
+        assert front.output[:, 0, 0, 0].tolist() == [10, 10] and wrist.output[:, 0, 0, 0].tolist() == [20, 20]
+        for _ in range(4):
+            eager_update()
+        assert front.renders == wrist.renders == 5
+        assert front.output[:, 0, 0, 0].tolist() == [14, 14] and wrist.output[:, 0, 0, 0].tolist() == [24, 24]
+        assert front.output.shape[1:3] == wrist.output.shape[1:3] == (image_size or (2, 3))
+    finally:
+        model.close()
+    assert len(cosmos_service.resource.streams[0].steps) == 2
 
 
 def test_cameras_sharing_a_closed_session_can_open_a_new_one(cosmos_service, monkeypatch):
@@ -719,7 +887,13 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
-_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:02:00.0"}
+_IPC_SERVICE = {
+    "transports": ["socket", "cuda_ipc"],
+    "host_id": "this-boot",
+    "pci_bus_id": "0000:02:00.0",
+    "visible_gpus": ["0000:01:00.0", "0000:02:00.0"],
+}
+_CAMERA_GPU = "0000:01:00.0"
 
 
 @pytest.mark.parametrize(
@@ -732,6 +906,8 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "p
         # A local endpoint tunneled to another machine whose GPU has a PCI bus ID this machine also uses.
         ("auto", "cuda:0", {**_IPC_SERVICE, "host_id": "other-boot"}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, None, True, "socket"),
+        # A service restricted to its own GPU cannot open the camera's buffers.
+        ("auto", "cuda:0", {**_IPC_SERVICE, "visible_gpus": ["0000:02:00.0"]}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, False, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 0, False, "cuda_ipc"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, True, "cuda_ipc"),
@@ -746,6 +922,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
     monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: _CAMERA_GPU)
     # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
     monkeypatch.setattr(
         _cuda_ipc, "device_by_bus_id", lambda bus_id: service_gpu if bus_id == _IPC_SERVICE["pci_bus_id"] else None
@@ -770,6 +947,7 @@ def test_transport_identifies_this_machine_by_boot_id_not_by_address(monkeypatch
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
     monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: _CAMERA_GPU)
     monkeypatch.setattr(_cuda_ipc, "device_by_bus_id", lambda bus_id: 0)
     monkeypatch.setattr(_cuda_ipc, "can_access_peer", lambda index, peer_index: True)
     cfg = CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.0.0.5:5555")
@@ -909,7 +1087,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     state.transports = ["socket", "cuda_ipc"]
     camera, connection = socket.socketpair()
     if end == "idle":
-        connection.settimeout(0.5)
+        monkeypatch.setattr(service, "_IDLE_TIMEOUT_S", 0.5)
     handler = threading.Thread(
         target=service._handle_connection, args=(connection, state, {connection}, threading.Lock())
     )

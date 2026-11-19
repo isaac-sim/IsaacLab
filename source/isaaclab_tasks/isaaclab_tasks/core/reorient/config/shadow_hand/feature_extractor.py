@@ -129,16 +129,6 @@ class FeatureExtractorCfg:
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
-    hold_image_targets: bool = False
-    """Pair each image with the pose of the step it appeared, for images that change less often than captures.
-
-    An image transfer that publishes a generated image every few captures holds it across captures. When True,
-    each view keeps its pose target from the step its image appears until that image changes, and views whose
-    image is black, such as a view waiting for its first generated image after a reset, are left out of the
-    loss. Views may update at different captures. Default is False, which pairs every capture with the current
-    pose.
-    """
-
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
@@ -158,6 +148,16 @@ class FeatureExtractorCfg:
     This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
     local ``*.pth`` checkpoint in the log directory, then retrieves this checkpoint when configured.
     Default is None.
+    """
+
+    hold_image_targets: bool = False
+    """Pair each image with the pose of the step it appeared, for images that change less often than captures.
+
+    An image transfer that publishes a generated image every few captures holds it across captures. When True,
+    each view keeps its pose target from the step its image appears until that image changes, and views whose
+    image is black, such as a view waiting for its first generated image after a reset, are left out of the
+    loss; a step where every view is black does not train. Views may update at different captures. Default is
+    False, which pairs every capture with the current pose.
     """
 
 
@@ -358,10 +358,15 @@ class FeatureExtractor:
                     predicted_pose = self.feature_extractor(img_input)
                     if trained is None:
                         pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
-                    elif trained.any():
-                        pose_loss = self.l2_loss(predicted_pose[trained], gt_pose[trained]) * 100
-                    else:
+                    elif not trained.any():
+                        # Nothing to learn from. An optimizer step on a zero loss would still move the weights
+                        # with Adam's momentum, so the step is skipped; this reads one flag from the GPU.
                         return None, predicted_pose
+                    else:
+                        # The mean over the views with an image, weighted on the GPU instead of selected by index.
+                        weights = trained.to(predicted_pose.dtype)[:, None]
+                        squared = (predicted_pose - gt_pose).square() * weights
+                        pose_loss = squared.sum() / (weights.sum() * predicted_pose.shape[1]) * 100
 
                     self.optimizer.zero_grad()
                     pose_loss.backward()

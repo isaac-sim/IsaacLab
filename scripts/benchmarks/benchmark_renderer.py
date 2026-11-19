@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 OVRTX_RENDERER = "ovrtx_renderer"
-NEWTON_RENDERER = "newton_renderer"
+NEWTON_RENDERER = "newton_warp"
 
 PROFILES = [
     {

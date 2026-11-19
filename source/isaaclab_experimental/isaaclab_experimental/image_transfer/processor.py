@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import instantiate, string_to_callable
+from isaaclab.utils import index_fill_, instantiate, string_to_callable
 from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
@@ -39,6 +39,10 @@ class ImageTransferProcessor(TensorProcessor):
     with its newest ``initial_frames`` and drops its older queued controls, so all views keep one chunk cadence.
     The output takes each view's last generated image and holds it until the next chunk; a reset view shows black
     until its episode starts.
+
+    The queues and the per-view state stay on the camera's device, so captures and resets apply ``env_mask`` without
+    waiting for the GPU. The host counts calls, which bounds how many controls each view can have, and reads the
+    state only when every view may have its chunk: once per chunk when every capture covers every view.
 
     A stream error or invalid result marks the processor as failed: the stream may already have advanced,
     so it is never retried against the same queues. Recreate the camera or processor instead.
@@ -70,16 +74,28 @@ class ImageTransferProcessor(TensorProcessor):
         seeds = cfg.seed if isinstance(cfg.seed, (list, tuple)) else [cfg.seed + row for row in range(num_views)]
         self._seeds = tuple(seed % _SEED_MODULUS for seed in seeds)
         self._stream = model.open_stream(num_views, self._seeds)
-        self._pending: list[list[torch.Tensor]] = [[] for _ in range(num_views)]
-        self._fresh = [True] * num_views
-        self._episodes = [0] * num_views
-        self._reset_rows: set[int] = set()
-        self._started = False
-        self._failed = False
-        self._closed = False
         output = wp.zeros(data_dim, dtype=wp.uint8, device=controls.device)
         self._outputs = {cfg.outputs[0]: ProxyArray(output)}
         self._output = self._outputs[cfg.outputs[0]].torch
+        device = self._output.device
+        # Allocated at the first capture. Slot max_pending_frames is a spare that a full view writes, so a write
+        # needs no host check.
+        self._queue: torch.Tensor | None = None
+        self._rows = torch.arange(num_views, device=device)
+        self._all_views = torch.ones(num_views, dtype=torch.bool, device=device)
+        self._selected = torch.zeros(num_views, dtype=torch.bool, device=device)
+        self._counts = torch.zeros(num_views, dtype=torch.int64, device=device)
+        self._fresh = torch.ones(num_views, dtype=torch.bool, device=device)
+        self._overflow = torch.zeros(num_views, dtype=torch.bool, device=device)
+        self._resets = torch.zeros(num_views, dtype=torch.bool, device=device)
+        self._episodes = torch.zeros(num_views, dtype=torch.int64, device=device)
+        # Captures each view needs, at least, before its chunk can be complete; exact after each host read.
+        self._waits = [cfg.initial_frames] * num_views
+        # Whether reset() ran since the resets were last read, so a generation reads them only after one.
+        self._reset_called = False
+        self._started = False
+        self._failed = False
+        self._closed = False
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
         """Queue one control per captured view and generate a chunk when every view has one.
@@ -93,7 +109,7 @@ class ImageTransferProcessor(TensorProcessor):
             later calls.
 
         Raises:
-            RuntimeError: If the processor is closed or failed, or a view's queue is full.
+            RuntimeError: If the processor is closed or failed, or a captured view's queue was full.
             ValueError: If the controls or the generated images have the wrong shape or type.
         """
         if self._closed or self._failed:
@@ -102,84 +118,143 @@ class ImageTransferProcessor(TensorProcessor):
         frames = data[cfg.inputs[0]].torch
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
-        # The queues are host-side lists, so the mask is read on the host.
-        captured = wp.to_torch(env_mask).tolist() if env_mask is not None else [True] * len(self._pending)
-        # Only views that capture now add a control; a full view that skips this capture does not block the others.
-        if any(captured[row] and len(queue) >= cfg.max_pending_frames for row, queue in enumerate(self._pending)):
-            raise RuntimeError("Image transfer control queue is full; views must reset and advance compatibly.")
         with torch.no_grad():
-            for row, queue in enumerate(self._pending):
-                if captured[row]:
-                    queue.append(frames[row].clone())
-            counts = [cfg.initial_frames if fresh else cfg.update_frames for fresh in self._fresh]
-            if not all(len(queue) >= count for queue, count in zip(self._pending, counts)):
+            if self._queue is None:
+                shape = (self._data_dim[0], cfg.max_pending_frames + 1, *self._data_dim[1:])
+                self._queue = torch.zeros(shape, dtype=torch.uint8, device=self._output.device)
+            # Every view writes its next free slot, a full view the spare one; only captured views keep theirs.
+            captured = self._select(None, env_mask)
+            full = self._counts >= cfg.max_pending_frames
+            self._queue[self._rows, self._counts] = frames
+            self._overflow |= captured & full
+            self._counts += captured & ~full
+            # A call adds at most one control per view, so no chunk can be complete before every wait ends.
+            self._waits = [max(wait - 1, 0) for wait in self._waits]
+            if any(self._waits):
+                return dict(self._outputs)
+            state = (self._counts, self._fresh.long(), self._overflow.long(), self._resets.long(), self._episodes)
+            counts, fresh, overflow, resets, episodes = torch.stack(state).tolist()
+            if any(overflow):
+                raise RuntimeError("Image transfer control queue is full; views must reset and advance compatibly.")
+            chunk = [cfg.initial_frames if start else cfg.update_frames for start in fresh]
+            self._waits = [max(size - count, 0) for size, count in zip(chunk, counts)]
+            if any(self._waits):
                 return dict(self._outputs)
             # A view starting while others continue joins at the next chunk with its newest controls.
             controls = [
-                torch.stack(queue[-count:] if fresh else queue[:count])
-                for queue, count, fresh in zip(self._pending, counts, self._fresh)
+                self._queue[row, count - size : count] if start else self._queue[row, :size]
+                for row, (count, size, start) in enumerate(zip(counts, chunk, fresh))
             ]
-            resets = tuple(sorted(self._reset_rows)) if self._started else ()
-            num_views = len(self._pending)
-            seeds = tuple((self._seeds[row] + self._episodes[row] * num_views) % _SEED_MODULUS for row in resets)
+            num_views = len(counts)
+            # The first chunk starts every view from the seed the stream opened with.
+            rows = tuple(row for row, reset in enumerate(resets) if reset) if self._started else ()
+            seeds = tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
             try:
-                generated = self._stream.step(controls, resets, seeds)
-                if len(generated) != num_views:
-                    raise ValueError("Image transfer returned the wrong number of views.")
-                for images, count in zip(generated, counts):
-                    if tuple(images.shape) != (count, *self._data_dim[1:]) or images.dtype != torch.uint8:
-                        raise ValueError("Image transfer must return uint8 THWC RGB matching each control chunk.")
+                generated = self._stream.step(controls, rows, seeds)
+                # A stream shared with other cameras returns None when it generates later, and publishes then.
+                if generated is not None:
+                    self._publish(generated, chunk)
             except Exception:
                 self._failed = True
                 raise
-            # Publish only after the whole result is validated.
-            for row, (images, count) in enumerate(zip(generated, counts)):
-                self._output[row].copy_(images[-1])
-                if self._fresh[row]:
-                    self._pending[row].clear()
-                else:
-                    del self._pending[row][:count]
-                self._fresh[row] = False
+            # Continuing views keep the controls after their chunk; starting views drop their older ones.
+            kept = [0 if start else count - size for count, size, start in zip(counts, chunk, fresh)]
+            for row, (left, size) in enumerate(zip(kept, chunk)):
+                if left:
+                    self._queue[row, :left] = self._queue[row, size : size + left].clone()
+            self._counts.copy_(torch.where(self._fresh, 0, self._counts - cfg.update_frames))
+            self._fresh.zero_()
+            self._resets.zero_()
+            self._waits = [cfg.update_frames - left for left in kept]
             self._started = True
-            self._reset_rows.clear()
         return dict(self._outputs)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None):
-        """Discard the queued controls and episode state of the selected views.
+    def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
+        """Publish each view's last generated image, once the whole result is validated.
+
+        A stream shared with other cameras calls this when it generates a chunk this processor stepped earlier.
 
         Args:
-            env_ids: Views to reset. Defaults to None, which resets all views.
+            generated: One uint8 THWC image chunk per view.
+            chunk: Frames each view's chunk must hold. None accepts any count.
+
+        Raises:
+            ValueError: If the images do not match the views; the processor is then failed.
+        """
+        sizes = chunk if chunk is not None else [len(images) for images in generated]
+        if len(generated) != self._data_dim[0] or any(
+            tuple(images.shape) != (size, *self._data_dim[1:]) or images.dtype != torch.uint8
+            for images, size in zip(generated, sizes)
+        ):
+            self._failed = True
+            raise ValueError("Image transfer must return uint8 THWC RGB matching each view's control chunk.")
+        for row, images in enumerate(generated):
+            self._output[row].copy_(images[-1])
+
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
+        """Discard the queued controls and episode state of the selected views.
+
+        Every reset counts as an episode, also before the first generation, so episode seeds and prompts follow
+        the environment's episodes from its start.
+
+        Args:
+            env_ids: Views to reset, as indices or a boolean mask. Defaults to None, which resets all views.
             env_mask: Boolean mask of the views to reset. Takes precedence over ``env_ids``. Defaults to None.
         """
         if self._closed:
             return
-        if env_mask is not None:
-            # The queues are host-side lists, so the mask is read on the host.
-            rows = [row for row, selected in enumerate(wp.to_torch(env_mask).tolist()) if selected]
-        elif env_ids is None:
-            rows = range(len(self._pending))
-        else:
-            rows = env_ids.tolist() if isinstance(env_ids, torch.Tensor) else list(env_ids)
-        for row in rows:
-            self._pending[row].clear()
-            self._fresh[row] = True
-            # A reset before the first generation has no episode to discard.
-            if self._started:
-                self._episodes[row] += 1
-                self._reset_rows.add(row)
-            self._output[row].zero_()
+        selected = self._select(env_ids, env_mask)
+        self._counts.masked_fill_(selected, 0)
+        self._fresh |= selected
+        self._overflow &= ~selected
+        self._episodes += selected
+        self._resets |= selected
+        self._reset_called = True
+        self._output.masked_fill_(selected.view(-1, 1, 1, 1), 0)
+        # A reset view needs only its initial chunk; the host does not read which views reset.
+        self._waits = [min(wait, self._cfg.initial_frames) for wait in self._waits]
 
     def close(self) -> None:
         """Close the stream and, without a simulation context, the model."""
         if self._closed:
             return
         self._closed = True
-        self._pending = [[] for _ in self._pending]
+        self._queue = None
         try:
             self._stream.close()
         finally:
             if self._owned_model is not None:
                 self._owned_model.close()
+
+    def _select(self, env_ids: Sequence[int] | torch.Tensor | None, env_mask: wp.array | None) -> torch.Tensor:
+        """Return the selected views as a boolean mask on the output's device, without reading it on the host.
+
+        The result may be reused storage, so callers do not modify it.
+        """
+        if env_mask is not None:
+            return wp.to_torch(env_mask).to(device=self._output.device, dtype=torch.bool)
+        if env_ids is None:
+            return self._all_views
+        # Indices or a boolean mask, as the other tensor processors take them.
+        self._selected.zero_()
+        index_fill_(self._selected, env_ids, True)
+        return self._selected
+
+    def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+        """Return the views that started an episode since the last generation, with their seeds and episode
+        numbers, and clear them. A view that reset several times is listed once, with its latest episode.
+
+        This reads the state on the host after a reset, so call it only where the generation itself waits for the
+        result.
+        """
+        if not self._reset_called:
+            return (), (), ()
+        self._reset_called = False
+        resets, episodes = torch.stack((self._resets.long(), self._episodes)).tolist()
+        self._resets.zero_()
+        rows = tuple(row for row, reset in enumerate(resets) if reset)
+        seeds = tuple((self._seeds[row] + episodes[row] * len(resets)) % _SEED_MODULUS for row in rows)
+        return rows, seeds, tuple(episodes[row] for row in rows)
 
 
 class FunctionProcessor(TensorProcessor):

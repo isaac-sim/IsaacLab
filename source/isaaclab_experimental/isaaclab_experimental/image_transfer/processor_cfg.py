@@ -99,4 +99,5 @@ class ImageTransferProcessorCfg(TensorProcessorCfg):
     """Captures required for subsequent chunks."""
 
     max_pending_frames: int = 8
-    """Maximum queued captures per view before backpressure raises an error."""
+    """Maximum queued captures per view. A capture beyond it raises an error when the processor next checks for a
+    complete chunk, at most ``max(initial_frames, update_frames)`` calls later."""

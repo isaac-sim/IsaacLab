@@ -127,7 +127,7 @@ checkpoint kept in the run's log directory:
 uv run isaaclab play \
   --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
-  --checkpoint /path/to/cosmos-run/model_99.pt \
+  --checkpoint /path/to/cosmos-run/model_19.pt \
   --num_envs 1
 ```
 

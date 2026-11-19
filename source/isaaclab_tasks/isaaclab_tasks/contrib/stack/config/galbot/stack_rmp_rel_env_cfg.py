@@ -155,13 +155,13 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             if cam is None:
                 continue
             renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
-            if renderer_type == "newton_warp":
+            if renderer_type in ("newton_warp", "newton_optix"):
                 unsupported = set(cam.data_types) - warp_supported
                 if unsupported:
                     raise ValueError(
                         f"Warp renderer only supports data types {sorted(warp_supported)}, "
                         f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
-                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
+                        "Choose a compatible preset, e.g. presets=newton_warp,rgb128."
                     )
 
     def __post_init__(self):

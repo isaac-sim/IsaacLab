@@ -115,7 +115,7 @@ result = run_runtime_benchmark(BenchmarkRuntimeRequest(
     num_envs=1,
     num_steps=2,
     warmup_steps=1,
-    presets=("newton_renderer", "rgb"),
+    presets=("newton_warp", "rgb"),
     hydra_args=("env.benchmark_mode=physics_render",),
     output=BenchmarkOutputConfig(path=Path(sys.argv[1]), formatters=("schema", "omniperf")),
 ))

@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 import numpy as np
 
 PROTOCOL_VERSION = 3
-"""Version 3 drops the control type from ``open``: controls are depth."""
+"""Version 3 drops the control type from ``open``: the service treats every control as an image."""
 CANVAS_ASPECT_RATIOS = {
     (480, 832): "16,9",
     (544, 736): "4,3",

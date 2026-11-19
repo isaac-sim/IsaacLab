@@ -136,6 +136,21 @@ def pci_bus_id(device_index: int) -> str:
         return buffer.value.decode().lower()
 
 
+def visible_gpus() -> list[str]:
+    """Return the PCI bus IDs of the CUDA devices this process can see, without creating a context on them."""
+    driver = _lib()
+    count = ctypes.c_int()
+    _check(driver, driver.cuDeviceGetCount(ctypes.byref(count)))
+    bus_ids = []
+    for index in range(count.value):
+        device = ctypes.c_int()
+        _check(driver, driver.cuDeviceGet(ctypes.byref(device), index))
+        buffer = ctypes.create_string_buffer(32)
+        _check(driver, driver.cuDeviceGetPCIBusId(buffer, 32, device))
+        bus_ids.append(buffer.value.decode().lower())
+    return bus_ids
+
+
 def device_by_bus_id(bus_id: str | None) -> int | None:
     """Return this process's index of the CUDA device with PCI bus ID ``bus_id``, or None if it cannot see it."""
     if not isinstance(bus_id, str):

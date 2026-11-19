@@ -110,7 +110,13 @@ def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
 
 @pytest.mark.parametrize(
     "selection",
-    [{"env_ids": torch.tensor([1])}, {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")}],
+    [
+        {"env_ids": torch.tensor([1])},
+        {"env_ids": [1]},
+        # A boolean list is a mask, as for the other tensor processors, not the indices 0 and 1.
+        {"env_ids": [False, True]},
+        {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")},
+    ],
 )
 def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection):
     processor, model = _processor(initial_frames=1, update_frames=1)
@@ -154,7 +160,29 @@ def test_a_capture_queues_controls_only_for_the_views_in_env_mask(no_sim):
     assert len(model.steps) == 2
     chunks = model.steps[1][0]
     assert chunks[0][:, 0, 0, 0].tolist() == [2, 4] and chunks[1][:, 0, 0, 0].tolist() == [3, 5]
-    assert [len(queue) for queue in processor._pending] == [0, 0]
+    assert processor._counts.tolist() == [0, 0]
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA to detect GPU synchronization.")
+def test_captures_and_resets_between_chunks_do_not_wait_for_the_gpu(no_sim):
+    """The mask stays on the GPU: only a chunk's generation reads the queue state on the host."""
+    controls = torch.zeros((2, 2, 3, 3), dtype=torch.uint8, device="cuda:0")
+    cfg = ImageTransferProcessorCfg(backend=RecordingModelCfg(), initial_frames=1, update_frames=4)
+    processor = cfg.func(cfg, _buffers(controls))
+    buffers = _buffers(controls)
+    captured = wp.array([True, True], dtype=wp.bool, device="cuda:0")
+    reset = wp.array([False, True], dtype=wp.bool, device="cuda:0")
+    processor(buffers, env_mask=captured)
+    torch.cuda.synchronize()
+    torch.cuda.set_sync_debug_mode("error")
+    try:
+        for _ in range(3):
+            processor(buffers, env_mask=captured)
+        processor.reset(env_mask=reset)
+    finally:
+        torch.cuda.set_sync_debug_mode("default")
+    assert len(processor._owned_model.steps) == 1
+    assert processor._counts.tolist() == [3, 0]
 
 
 def test_a_failed_generation_publishes_nothing_and_is_not_retried(no_sim):
@@ -234,9 +262,9 @@ def test_a_view_resetting_mid_chunk_joins_the_next_chunk_and_queues_stay_bounded
     chunks, resets, _ = model.steps[-1]
     assert [chunk.shape[0] for chunk in chunks] == [4, 1] and resets == (1,)
     assert int(chunks[1][0, 0, 0, 0]) == 5
-    assert [len(queue) for queue in processor._pending] == [0, 0]
+    assert processor._counts.tolist() == [0, 0]
     # Both views now follow one four-frame cadence for as long as the episode runs.
     for value in range(6, 30):
         _rgb(processor, value)
     assert all([chunk.shape[0] for chunk in step[0]] == [4, 4] for step in model.steps[2:])
-    assert max(len(queue) for queue in processor._pending) < 4
+    assert max(processor._counts.tolist()) < 4

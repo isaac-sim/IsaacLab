@@ -484,7 +484,7 @@ def _get_newton_solver_name(solver_cfg) -> str | None:
 
 def _normalize_render_backend_name(renderer_type: str) -> str:
     """Return the normalized render backend name for a renderer type identifier."""
-    if renderer_type == "newton_warp":
+    if renderer_type in {"newton_warp", "newton_optix"}:
         return "newton"
     if renderer_type in {"auto_rtx", "default", "isaac_rtx", "ovrtx", "rtx"}:
         return "rtx"
