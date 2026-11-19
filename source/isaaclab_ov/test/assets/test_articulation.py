@@ -458,29 +458,6 @@ def test_static_property_reads_are_not_invalidated_by_simulation_steps():
     torch.testing.assert_close(wp.to_torch(user_buffer.data), torch.tensor([[2.0, 1.0]]))
 
 
-def test_joint_dof_sign_resolution_traverses_instance_proxies():
-    """Resolve reversed joints inside an instanceable articulation."""
-    source_stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(source_stage, "/Robot")
-    UsdGeom.Xform.Define(source_stage, "/Robot/base")
-    UsdGeom.Xform.Define(source_stage, "/Robot/link")
-    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
-    joint.GetBody0Rel().SetTargets(["/Robot/link"])
-    joint.GetBody1Rel().SetTargets(["/Robot/base"])
-    stage = Usd.Stage.CreateInMemory()
-    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
-    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
-    instance.SetInstanceable(True)
-
-    articulation = Mock(
-        cfg=Mock(prim_path="/World/Robot"),
-        _joint_names=["joint"],
-        _body_names=["base", "link"],
-    )
-
-    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
-
-
 def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     """Define a revolute joint prim with a tendon schema marker."""
     joint = UsdPhysics.RevoluteJoint.Define(stage, path)

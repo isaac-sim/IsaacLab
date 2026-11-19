@@ -8,10 +8,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version
 
 import pytest
-from packaging.version import Version
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
@@ -75,14 +73,6 @@ class RenderCase:
         return f"{prefix}{self.physics}-{self.renderer}-{suffix}.png"
 
 
-def _sdk_version_before(package: str, release: tuple[int, int]) -> bool:
-    """Keep the shared Kit case inventory importable without the optional OVRTX SDKs."""
-    try:
-        return Version(version(package)).release[:2] < release
-    except PackageNotFoundError:
-        return False
-
-
 _KIT_CASES = [
     RenderCase("physx", "isaac_rtx", RTX_AOVS),
     RenderCase("newton", "isaac_rtx", RTX_AOVS),
@@ -104,7 +94,8 @@ _KITLESS_CASES = [
     RenderCase("newton", "ovrtx", OVRTX_AOVS),
     RenderCase("ovphysx", "newton_warp", NEWTON_WARP_AOVS),
     RenderCase("newton", "newton_warp", NEWTON_WARP_AOVS),
-    *(RenderCase("ovphysx", "ovrtx", (aov,)) for aov in SIMPLE_SHADING_AOVS),
+    # Keep the pre-0.7 black background. None selects the default dome-light background in OVRTX 0.7+.
+    *(RenderCase("ovphysx", "ovrtx", (aov,), background_color=(0.0, 0.0, 0.0)) for aov in SIMPLE_SHADING_AOVS),
     RenderCase(
         "ovphysx",
         "ovrtx",
@@ -249,16 +240,6 @@ GAUSSIAN_KITLESS_CASES = tuple(
             "ovrtx",
             (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR),
             scene="gaussian_splats_raspberry_4envs",
-            # Full-suite captures can be flat red on 0.6/0.3 even when the isolated case passes.
-            # The OVStage case passes with 0.7/0.4 (6.89% diff, SSIM 0.9754).
-            marks=(
-                pytest.mark.xfail(
-                    _sdk_version_before("ovrtx", (0, 7)) or _sdk_version_before("ovstage", (0, 4)),
-                    reason="OVRTX 0.6 / OVStage 0.3 can render Raspberry as flat red silhouettes; upgrade to 0.7/0.4.",
-                    raises=AssertionError,
-                    strict=False,
-                ),
-            ),
         ),
     )
     for stage in ("legacy", "ovstage")

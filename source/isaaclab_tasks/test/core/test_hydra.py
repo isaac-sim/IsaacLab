@@ -11,6 +11,7 @@ external environment configurations.
 
 import warnings
 from copy import deepcopy
+from dataclasses import dataclass
 
 import pytest
 
@@ -845,6 +846,18 @@ def test_resolve_presets_traverses_dict_values():
     resolved = resolve_presets(cfg)
     assert resolved.robot.actuators["legs"].armature == 0.0
     assert not isinstance(resolved.robot.actuators["legs"].armature, PresetCfg)
+
+
+def test_resolve_presets_keeps_unchanged_tuples_of_frozen_dataclasses():
+    """resolve_presets does not reassign a frozen dataclass field whose tuple holds no preset."""
+
+    @dataclass(frozen=True)
+    class FrozenTermCfg:
+        joint_ids: tuple = (0, 1)
+
+    term = FrozenTermCfg()
+    resolved = resolve_presets({"term": term})
+    assert resolved["term"] is term
 
 
 def test_dict_preset_global_newton_mjwarp():

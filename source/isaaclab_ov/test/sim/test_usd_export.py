@@ -228,13 +228,11 @@ def test_joint_values_ovphysx_reads_from_other_attributes_are_restated(
 ):
     """A joint value OVPhysX 0.7 reads from another attribute than the live engine's source is restated as the
     attribute an import reads."""
-    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+    from isaaclab_ov.physics import OvPhysxCfg
 
     from isaaclab.sim import SimulationCfg
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
-    if not ovphysx_compat.OVPHYSX_USES_TASKS:
-        pytest.skip("OVPhysX before 0.7 reads these attributes as the live engine does.")
     cfg = make_export_scene_cfg(tmp_path)
     robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
     hinge = robot.GetPrimAtPath("/Robot/Hinge")
