@@ -28,7 +28,6 @@ from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrappe
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, define_actuator_properties
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 
@@ -71,14 +70,9 @@ def make_cfg(goldens: dict[str, np.ndarray], **overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**{"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW, **overrides})
 
 
-def make_stage(servo_usd: str) -> Usd.Stage:
-    """Open a fresh fixture layer."""
-    return Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
-
-
 def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides: float | int) -> SimpleNamespace:
     """Build the fixture's BAM actuator with flat joint-state buffers the test writes into."""
-    stage = make_stage(servo_usd)
+    stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
     for joint_name in JOINT_NAMES:
         prim = stage.GetPrimAtPath(f"/Robot/servo_{joint_name}_actuator")
         for name, value in drive_overrides.items():
@@ -152,24 +146,22 @@ def test_bam_requires_the_newton_backend(monkeypatch, goldens):
 
 def make_bare_stage(servo_usd: str) -> Usd.Stage:
     """Open the fixture without its BAM actuator prims, so authoring defines new ones."""
-    stage = make_stage(servo_usd)
+    stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
     for name in JOINT_NAMES:
         stage.RemovePrim(f"/Robot/servo_{name}_actuator")
     return stage
 
 
-@pytest.mark.parametrize(
-    "edit, match",
-    [
-        (lambda cfg: replace(cfg, motor=replace(cfg.motor, max_current=None)), "does not set 'motor.max_current'"),
-        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model="m3")), "Unsupported BAM model"),
-    ],
-    ids=["no_max_current", "unsupported_model"],
-)
-def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd, edit, match):
+def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd):
     """A new actuator needs the complete fit, and an unsupported model would author another friction law."""
-    with pytest.raises(ValueError, match=match):
-        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": edit(make_cfg(goldens))})
+    cfg = make_cfg(goldens)
+    cfg.motor.max_current = None
+    with pytest.raises(ValueError, match="does not set 'motor.max_current'"):
+        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": cfg})
+    cfg = make_cfg(goldens)
+    cfg.motor.model = "m3"
+    with pytest.raises(ValueError, match="Unsupported BAM model"):
+        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": cfg})
 
 
 @pytest.mark.parametrize(
@@ -232,7 +224,7 @@ def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flag
 
 def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, caplog):
     """A partial configuration keeps the asset's fit and runtime values and overrides only what it sets."""
-    asset = make_stage(servo_usd)
+    asset = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
     for index, name in enumerate(JOINT_NAMES):
         prim = asset.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         # Integer-typed asset attributes must still accept fractional configuration overrides.

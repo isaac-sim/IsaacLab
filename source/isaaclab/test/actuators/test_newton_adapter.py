@@ -131,11 +131,9 @@ def _make_actuator_stage() -> Usd.Stage:
     return stage
 
 
-def _make_asset_stage(tmp_path: Path, asset: Usd.Stage | None = None) -> Usd.Stage:
-    """Reference *asset* (default ``_make_actuator_stage()``) as a spawned robot whose joints carry USD actuators."""
+def _make_asset_stage(tmp_path: Path, asset: Usd.Stage) -> Usd.Stage:
+    """Reference *asset* as a spawned robot whose joints carry USD actuators."""
     asset_path = tmp_path / "robot.usda"
-    # Keep the stage referenced: its root layer is released with it.
-    asset = asset or _make_actuator_stage()
     asset.GetRootLayer().Export(str(asset_path))
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World/Robot").GetReferences().AddReference(str(asset_path), "/World/Robot")
@@ -456,10 +454,9 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
 
 
 @pytest.mark.parametrize(
-    ("make_stage", "groups", "match"),
+    ("groups", "match"),
     [
         (
-            _make_asset_stage,
             {
                 "unsupported": ActuatorBaseCfg(
                     class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0
@@ -475,7 +472,6 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
             r"'unsupported' \(ActuatorBaseCfg\), 'custom_dc' \(DCMotorCfg\).*use_newton_actuators",
         ),
         (
-            _make_asset_stage,
             {
                 "group": DelayedPDActuatorCfg(
                     joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"missing_joint": 5.0}
@@ -484,12 +480,10 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
             "missing_joint",
         ),
         (
-            lambda tmp_path: _make_robot_stage(),
-            {"group": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)},
-            "saturation_effort.*dc_a",
+            {"group": DCMotorCfg(joint_names_expr=["pd_a"], stiffness=1.0, damping=1.0)},
+            "saturation_effort.*pd_a",
         ),
         (
-            _make_asset_stage,
             {"group": ActuatorNetMLPCfg(joint_names_expr=["pd_a"], network_file="unused.pt")},
             "network_file.*input_order",
         ),
@@ -497,13 +491,13 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     ids=[
         "unsupported_cfgs",
         "unmatched_effort_limit",
-        "new_prim_without_saturation",
+        "added_clamp_without_saturation",
         "incomplete_mlp_metadata",
     ],
 )
-def test_rejected_config_raises_before_editing_the_joint(tmp_path, make_stage, groups, match):
+def test_rejected_config_raises_before_editing_the_joint(groups, match):
     """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the joint."""
-    stage = make_stage(tmp_path)
+    stage = _make_actuator_stage()
     before = stage.GetRootLayer().ExportToString()
 
     with pytest.raises(ValueError, match=match):
