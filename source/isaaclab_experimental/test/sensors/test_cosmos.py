@@ -30,16 +30,17 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol, depth_control
+from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.cosmos.server import service as service_module
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
 from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -708,7 +709,7 @@ def test_failed_generation_is_not_retried_and_releases_the_session(cosmos_servic
 def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_service, no_sim):
     """Cosmos consumes masked captures; missing masks cannot start generation or contaminate a later chunk."""
     model = CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
-    cfgs = [depth_control(near=1.0, far=9.0), CosmosTransferProcessorCfg(backend=model)]
+    cfgs = [DepthControlProcessorCfg(near=1.0, far=9.0), CosmosTransferProcessorCfg(backend=model)]
     buffers = {"distance_to_image_plane": _proxy(torch.tensor([1.0, 9.0]).reshape(1, 1, 2, 1))}
     processors = []
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
@@ -880,7 +881,7 @@ def test_an_eager_update_needs_the_cosmos_processor_last_on_a_camera_published_l
     """A camera whose images arrive when a later camera generates cannot run a processor after Cosmos."""
     model, cameras = _camera_group(cosmos_service, monkeypatch)
     front, wrist = cameras["front"], cameras["wrist"]
-    front.cfg.tensor_processors.append(FunctionProcessorCfg(function=torch.clone, inputs=["rgb"], outputs=["rgb"]))
+    front.cfg.tensor_processors.append(TensorProcessorCfg(inputs=["rgb"], outputs=["rgb"]))
     try:
         for camera in (front, wrist):
             camera.render()

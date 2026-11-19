@@ -9,7 +9,8 @@ from contextlib import contextmanager
 
 import pytest
 import torch
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTransferProcessorCfg, depth_to_control
+import warp as wp
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -18,6 +19,8 @@ from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import BackendCfg, PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -107,12 +110,7 @@ def _newton_cube_camera(device: str, processors: list):
 def test_camera_publishes_generated_rgb_from_rendered_depth(device):
     """The camera renders only depth, runs the processors per capture, and resets and closes them."""
     processors = [
-        FunctionProcessorCfg(
-            function=depth_to_control,
-            params={"near": 0.5, "far": 3.0},
-            inputs=["distance_to_image_plane"],
-            outputs=["control"],
-        ),
+        DepthControlProcessorCfg(near=0.5, far=3.0),
         ImageTransferProcessorCfg(backend=_InvertModelCfg(), initial_frames=1, update_frames=2),
     ]
     with _newton_cube_camera(device, processors) as (camera, capture):
@@ -133,15 +131,32 @@ def test_camera_publishes_generated_rgb_from_rendered_depth(device):
     assert model.closed == 1
 
 
-def _rendered_to_control(data: torch.Tensor) -> torch.Tensor:
-    return data[..., :3].contiguous()
+class RgbControl(TensorProcessor):
+    """Publish the rendered image's color channels as the control."""
+
+    def __init__(self, cfg, data):
+        super().__init__(cfg)
+        source = data[cfg.inputs[0]]
+        control = wp.zeros((*source.shape[:-1], 3), dtype=wp.uint8, device=source.device)
+        self._outputs = {cfg.outputs[0]: ProxyArray(control)}
+
+    def __call__(self, data, env_mask=None):
+        self._outputs[self._cfg.outputs[0]].torch.copy_(data[self._cfg.inputs[0]].torch[..., :3])
+        return dict(self._outputs)
+
+
+@configclass
+class RgbControlCfg(TensorProcessorCfg):
+    func: type = RgbControl
+    inputs: list[str] = ["rgb"]
+    outputs: list[str] = ["control"]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_camera_generates_rgb_from_a_control_made_of_the_rendered_rgb(device):
     """A control computed from the rendered image, as edge and blur controls are: the published rgb is generated."""
     processors = [
-        FunctionProcessorCfg(function=_rendered_to_control, inputs=["rgb"], outputs=["control"]),
+        RgbControlCfg(),
         ImageTransferProcessorCfg(backend=_InvertModelCfg(), initial_frames=1, update_frames=1),
     ]
     with _newton_cube_camera(device, processors) as (_, capture):

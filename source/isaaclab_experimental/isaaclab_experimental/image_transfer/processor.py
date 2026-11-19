@@ -15,13 +15,13 @@ import torch
 import warp as wp
 
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import index_fill_, instantiate, string_to_callable
+from isaaclab.utils import index_fill_, instantiate
 from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .backend import ImageTransferModel
-    from .processor_cfg import FunctionProcessorCfg, ImageTransferProcessorCfg
+    from .processor_cfg import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 _SEED_MODULUS = 2**31
 
@@ -253,55 +253,31 @@ class ImageTransferProcessor(TensorProcessor):
         return tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
 
 
-class FunctionProcessor(TensorProcessor):
-    """Apply a Torch function to one camera buffer and publish the result in a persistent buffer.
+class DepthControlProcessor(TensorProcessor):
+    """Publish uint8 three-channel controls from the camera's metric depth; see :func:`depth_to_control`."""
 
-    The function takes the input tensor and :attr:`TensorProcessorCfg.params` as keyword arguments, and returns a
-    tensor with one row per view whose shape and dtype do not change between calls, for example
-    :func:`depth_to_control`. It runs once per capture, on the camera's buffer.
-    """
-
-    def __init__(self, cfg: FunctionProcessorCfg, data: dict[str, ProxyArray]):
-        """Resolve the function; the output is allocated from its first result.
+    def __init__(self, cfg: DepthControlProcessorCfg, data: dict[str, ProxyArray]):
+        """Allocate the controls for the views of the depth input.
 
         Args:
-            cfg: Processor configuration with one input and one output.
-            data: Named input buffers.
+            cfg: Processor configuration with the depth input, the control output and the depth range.
+            data: Named input buffers; the depth has shape ``(N, H, W, 1)``.
         """
         super().__init__(cfg)
-        function = cfg.function
-        self._function = string_to_callable(function) if isinstance(function, str) else function
-        self._outputs: dict[str, ProxyArray] = {}
-        self._output: torch.Tensor | None = None
+        depth = data[cfg.inputs[0]]
+        output = wp.zeros((*depth.shape[:-1], 3), dtype=wp.uint8, device=depth.device)
+        self._outputs = {cfg.outputs[0]: ProxyArray(output)}
+        self._output = self._outputs[cfg.outputs[0]].torch
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        """Apply the function to the input and publish the result for the captured views.
-
-        Args:
-            data: Named input buffers.
-            env_mask: Boolean mask of the views captured in this call; the others keep their published result, zero
-                before their first capture. Defaults to None, which means every view.
-
-        Returns:
-            The results under the output name. The buffer is reused by later calls.
-        """
+        """Convert the depth of every view and return the controls under the output name."""
+        cfg = self._cfg
         with torch.no_grad():
-            result = self._function(data[self._cfg.inputs[0]].torch, **self._cfg.params)
-            if self._output is None:
-                output = wp.zeros(
-                    tuple(result.shape), dtype=wp.dtype_from_torch(result.dtype), device=str(result.device)
-                )
-                self._outputs = {self._cfg.outputs[0]: ProxyArray(output)}
-                self._output = self._outputs[self._cfg.outputs[0]].torch
-            if env_mask is None:
-                self._output.copy_(result)
-            else:
-                captured = wp.to_torch(env_mask).to(device=result.device, dtype=torch.bool)
-                torch.where(captured.view(-1, *[1] * (result.ndim - 1)), result, self._output, out=self._output)
+            self._output.copy_(depth_to_control(data[cfg.inputs[0]].torch, near=cfg.near, far=cfg.far))
         return dict(self._outputs)
 
 
-def depth_to_control(data: torch.Tensor, near: float = 0.1, far: float = 10.0) -> torch.Tensor:
+def depth_to_control(data: torch.Tensor, near: float, far: float) -> torch.Tensor:
     """Map metric depth to uint8 three-channel controls.
 
     Hits at ``near`` become white and hits at ``far`` black. Missing, nonfinite, and nonpositive

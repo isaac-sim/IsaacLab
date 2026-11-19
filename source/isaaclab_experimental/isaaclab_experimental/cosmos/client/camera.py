@@ -17,8 +17,8 @@ from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
+from ...image_transfer import DepthControlProcessorCfg
 from .._protocol import CANVAS_ASPECT_RATIOS
-from .control_profiles import depth_control
 from .cosmos_model_cfg import CosmosModelCfg
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
@@ -26,6 +26,14 @@ logger = logging.getLogger(__name__)
 
 COSMOS_CANVASES = tuple(CANVAS_ASPECT_RATIOS)
 """Image sizes ``(height, width)`` the Cosmos service accepts."""
+
+# A tabletop workspace in front of a robot's camera lies within 0.1 m to 2 m. Set the range to match the scene:
+# depth outside it clips to white or black, and a wider range leaves less contrast for the objects.
+DEPTH_NEAR = 0.1
+"""Default depth rendered white [m]."""
+
+DEPTH_FAR = 2.0
+"""Default depth rendered black [m]."""
 
 
 def cosmos_camera(
@@ -53,11 +61,11 @@ def cosmos_camera(
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
         model: Cosmos service connection and prompt.
         control: Processors that write the ``control`` buffer from the camera's render outputs: uint8 images of
-            shape (N, H, W, 3) at the canvas size, for example a
-            :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` reading ``semantic_segmentation``
-            or the rendered ``rgb``. Defaults to None, which uses the depth control of :func:`depth_control`.
-        near: Depth rendered white [m] by the default depth control. Defaults to None, its default.
-        far: Depth rendered black [m] by the default depth control. Defaults to None, its default.
+            shape (N, H, W, 3) at the canvas size, for example a processor reading ``semantic_segmentation`` or
+            the rendered ``rgb``. Defaults to None, which uses
+            :class:`~isaaclab_experimental.image_transfer.DepthControlProcessorCfg`.
+        near: Depth rendered white [m] by the default depth control. Defaults to None, which uses 0.1 m.
+        far: Depth rendered black [m] by the default depth control. Defaults to None, which uses 2.0 m.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which
             selects the canvas closest to the camera's aspect ratio. Cameras sharing a session need one canvas.
         name: Scene name of the camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
@@ -82,10 +90,11 @@ def cosmos_camera(
     canvas_height, canvas_width = tuple(canvas) if canvas is not None else _closest_canvas(camera)
     # The Cosmos processor, the last one, publishes the images at the camera's size.
     image_size = (camera.height, camera.width)
-    depth_range = {key: value for key, value in (("near", near), ("far", far)) if value is not None}
     if control is None:
-        control = [depth_control(**depth_range)]
-    elif depth_range:
+        control = [
+            DepthControlProcessorCfg(near=DEPTH_NEAR if near is None else near, far=DEPTH_FAR if far is None else far)
+        ]
+    elif near is not None or far is not None:
         raise ValueError("near and far set the default depth control; set the range on the control processors.")
     transfer = CosmosTransferProcessorCfg(backend=model, camera=name, image_size=image_size)
     if not any(transfer.inputs[0] in cfg.outputs for cfg in control):

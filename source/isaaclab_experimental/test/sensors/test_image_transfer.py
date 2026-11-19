@@ -11,7 +11,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.image_transfer import (
-    FunctionProcessorCfg,
+    DepthControlProcessorCfg,
     ImageTransferProcessorCfg,
     depth_to_control,
 )
@@ -239,12 +239,7 @@ def test_depth_controls_feed_image_transfer(no_sim):
     depth = torch.tensor([1.0, 9.0, float("inf"), 0.0]).view(1, 1, 4, 1).expand(2, 2, 4, 1).contiguous()
     buffers = {"distance_to_image_plane": ProxyArray(wp.from_torch(depth))}
     cfgs = [
-        FunctionProcessorCfg(
-            function=depth_to_control,
-            params={"near": 1.0, "far": 9.0},
-            inputs=["distance_to_image_plane"],
-            outputs=["control"],
-        ),
+        DepthControlProcessorCfg(near=1.0, far=9.0),
         ImageTransferProcessorCfg(backend=RecordingModelCfg()),
     ]
 
@@ -252,36 +247,13 @@ def test_depth_controls_feed_image_transfer(no_sim):
     for cfg in cfgs:
         buffers.update(cfg.func(cfg, buffers)(buffers))
 
-    output = buffers["rgb"].torch
+    control, output = buffers["control"].torch, buffers["rgb"].torch
+    assert control.shape == (2, 2, 4, 3) and control.dtype == torch.uint8
+    assert control[0, 0, :, 0].tolist() == [255, 0, 0, 0]
     assert output.shape == (2, 2, 4, 3)
     assert output[0, 0, :, 0].tolist() == [0, 255, 255, 255]
     with pytest.raises(ValueError, match="near < far"):
         depth_to_control(depth, near=2.0, far=1.0)
-
-
-def test_a_function_processor_runs_once_per_capture_and_publishes_only_the_captured_views():
-    """Construction does not call the function; views a capture skips keep their result, zero before their first."""
-    calls = []
-
-    def double(data: torch.Tensor) -> torch.Tensor:
-        calls.append(data.clone())
-        return data * 2
-
-    cfg = FunctionProcessorCfg(function=double, inputs=["source"], outputs=["doubled"])
-    source = torch.tensor([[1.0], [2.0]])
-    buffers = {"source": ProxyArray(wp.from_torch(source))}
-    processor = cfg.func(cfg, buffers)
-    assert not calls
-
-    def capture(mask=None) -> list[float]:
-        env_mask = None if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
-        return processor(buffers, env_mask=env_mask)["doubled"].torch.flatten().tolist()
-
-    assert capture([True, False]) == [2.0, 0.0]
-    source.copy_(torch.tensor([[5.0], [6.0]]))
-    assert capture([False, True]) == [2.0, 12.0]
-    assert capture() == [10.0, 12.0]
-    assert len(calls) == 3
 
 
 def test_a_view_resetting_mid_chunk_joins_the_next_chunk_and_queues_stay_bounded(no_sim):

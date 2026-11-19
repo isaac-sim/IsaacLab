@@ -211,7 +211,8 @@ conditioning:
 import math
 
 from isaaclab.sensors import CameraCfg
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, depth_control
+from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
 
 model = CosmosModelCfg(
     prompt="A robot arm manipulating an object on a workbench.",
@@ -225,12 +226,15 @@ camera_cfg = CameraCfg(
     height=480,
     width=832,
     data_types=["rgb"],
-    tensor_processors=[depth_control(near=0.2, far=12.0), CosmosTransferProcessorCfg(backend=model)],
+    tensor_processors=[
+        DepthControlProcessorCfg(near=0.2, far=12.0),
+        CosmosTransferProcessorCfg(backend=model),
+    ],
 )
 ```
 
 The camera requests `distance_to_image_plane` from the renderer because the depth
-control reads it. `depth_control` converts metric depth to three-channel uint8
+control reads it. `DepthControlProcessorCfg` converts metric depth to three-channel uint8
 controls: near hits are white and far hits are black. Choose `near` and `far` for
 the scene. The Cosmos processor sends these controls to the service and publishes
 the generated images as `camera.data.output["rgb"]`. Observation terms can read
@@ -247,15 +251,33 @@ not told which kind it receives, so any processors that write the `control` buff
 `(N, H, W, 3)` at the canvas size. Pass them to `cosmos_camera` as `control`:
 
 ```python
-import torch
+import warp as wp
 
+from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab.utils.warp import ProxyArray
 from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
 
-def segmentation_to_control(data: torch.Tensor) -> torch.Tensor:
-    """Colorized segmentation of shape (N, H, W, 4) to three-channel controls."""
-    return data[..., :3].contiguous()
+class SegmentationControl(TensorProcessor):
+    """Publish the colorized segmentation, shape (N, H, W, 4), as three-channel controls."""
+
+    def __init__(self, cfg, data):
+        super().__init__(cfg)
+        segmentation = data[cfg.inputs[0]]
+        controls = wp.zeros((*segmentation.shape[:-1], 3), dtype=wp.uint8, device=segmentation.device)
+        self._outputs = {cfg.outputs[0]: ProxyArray(controls)}
+
+    def __call__(self, data, env_mask=None):
+        self._outputs[self._cfg.outputs[0]].torch.copy_(data[self._cfg.inputs[0]].torch[..., :3])
+        return dict(self._outputs)
+
+
+@configclass
+class SegmentationControlCfg(TensorProcessorCfg):
+    func: type = SegmentationControl
+    inputs: list[str] = ["semantic_segmentation"]
+    outputs: list[str] = ["control"]
 
 
 # env_cfg and camera are the task configuration and its camera, as in "Put Cosmos on a camera task".
@@ -265,11 +287,7 @@ env_cfg.scene.base_camera = cosmos_camera(
         prompt="A robot arm manipulating an object on a workbench.",
         max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
     ),
-    control=[
-        FunctionProcessorCfg(
-            function=segmentation_to_control, inputs=["semantic_segmentation"], outputs=["control"]
-        )
-    ],
+    control=[SegmentationControlCfg()],
 )
 ```
 
@@ -585,14 +603,14 @@ recipe. A task whose prompt and settings were calibrated at another rate sets it
 
 Cosmos is built on `isaaclab_experimental.image_transfer`, which connects an application-owned image-generation
 model to cameras through tensor processors. It does not load models, download assets, or select a network
-transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `FunctionProcessorCfg` with
-`depth_to_control` prepares the control:
+transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `DepthControlProcessorCfg` prepares
+the control:
 
 ```python
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTransferProcessorCfg, depth_to_control
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 
 @configclass
@@ -604,12 +622,7 @@ wrist_camera = CameraCfg(
     ...,
     data_types=["rgb"],
     tensor_processors=[
-        FunctionProcessorCfg(
-            function=depth_to_control,
-            params={"near": 0.2, "far": 12.0},
-            inputs=["distance_to_image_plane"],
-            outputs=["control"],
-        ),
+        DepthControlProcessorCfg(near=0.2, far=12.0),
         ImageTransferProcessorCfg(backend=MyModelCfg(), initial_frames=1, update_frames=4),
     ],
 )
@@ -637,10 +650,9 @@ wrist_camera = CameraCfg(
   The first `step` names the views that reset before it. The stream must discard all episode state for those
   views. An exception or invalid result marks the processor as
   failed; recreate the camera instead of retrying against a stream that may already have advanced.
-- **Controls:** `depth_to_control` maps metric depth to near-white, far-black controls; missing, nonfinite, and
+- **Controls:** `DepthControlProcessorCfg` maps metric depth to near-white, far-black controls; missing, nonfinite, and
   nonpositive depth becomes black. Any processor that produces uint8 `(N, H, W, 3)` controls under the image
-  transfer processor's first input can take its place. `FunctionProcessorCfg` calls its function once per capture
-  and publishes the result for the captured views; the others keep theirs.
+  transfer processor's first input can take its place.
 
 The image transfer tests run the processors on CPU with small stand-in models and need no model or service:
 
