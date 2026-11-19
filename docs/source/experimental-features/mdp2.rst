@@ -131,7 +131,8 @@ in them; it calls ``fn(env)`` with full access to the environment, inside the st
    cfg.reset_step.insert(cfg.reset_step.index(ResetStep.OBSERVE), Stage(move_objects))  # after the commit
    cfg.step.append(Stage(log_episode_length, capturable=False))                         # at the end, on the host
 
-The built-in steps must each appear once, in this order, except the optional ``Step.RENDER`` and ``ResetStep.RENDER``; the environment raises otherwise.
+The built-in steps must each appear once, in this order, except the optional ``Step.RENDER`` and
+``ResetStep.RENDER``; the environment raises otherwise.
 
 The fused ``wp.func`` path is what makes MDP2 fast: one kernel per statement instead of fused kernels costs Go2
 78 → 121 µs and Lift 234 → 293 µs per step at 4096 worlds, also inside a graph. Library terms use it; Python hooks and
