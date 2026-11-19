@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 import numpy as np
 
 PROTOCOL_VERSION = 3
-"""Version 3 drops the control type from ``open``: the service treats every control as an image."""
+"""Message format version. A client and a service reject each other's messages when their versions differ."""
 CANVAS_ASPECT_RATIOS = {
     (480, 832): "16,9",
     (544, 736): "4,3",
@@ -44,14 +44,23 @@ DEFAULT_ENDPOINT = (
 _ENDPOINT_FORMS = "unix:///absolute/path or tcp://host:port"
 _MAX_UNIX_PATH_BYTES = 107
 """Longest Unix socket path [bytes]: Linux ``sun_path`` holds 108 bytes, including the terminating null."""
+SEED_LIMIT = 2**31
+"""Seeds are integers in ``[0, SEED_LIMIT)``."""
+DEFAULT_TIMEOUT_S = 600.0
+"""Default wait per network operation [s]. The first generation of a session compiles, which can take minutes."""
 MAX_METADATA_BYTES = 64 * 1024
-MAX_ARRAY_BYTES = 256 * 1024 * 1024
+"""Largest JSON metadata of one message [bytes]. Prompts are the only long field; a longer message is rejected."""
 MAX_ARRAYS = 16
+"""Most image arrays in one message. A step sends one array per view, so the socket transport carries at most
+this many views; larger batches need CUDA IPC, which sends no arrays."""
+MAX_ARRAY_BYTES = 256 * 1024 * 1024
+"""Largest image payload of one message [bytes], checked before any buffer is allocated. :data:`MAX_ARRAYS` views
+of :data:`MAX_CHUNK_FRAMES` frames at the largest canvas need 79 MB."""
 _HEADER = struct.Struct("!4sIQ")
 _MAGIC = b"ILCS"
 
 
-def connect(endpoint: str, timeout: float = 600.0) -> socket.socket:
+def connect(endpoint: str, timeout: float = DEFAULT_TIMEOUT_S) -> socket.socket:
     """Connect to a ``unix:///path`` or ``tcp://host:port`` service with a finite timeout [s]."""
     family, address = parse_endpoint(endpoint)
     if not math.isfinite(timeout) or timeout <= 0:
@@ -204,7 +213,7 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
     return metadata, arrays
 
 
-def request(endpoint: str, metadata: dict, timeout: float = 600.0) -> tuple[dict, list[np.ndarray]]:
+def request(endpoint: str, metadata: dict, timeout: float = DEFAULT_TIMEOUT_S) -> tuple[dict, list[np.ndarray]]:
     """Perform a one-shot service request, raising on a failed service reply."""
     with connect(endpoint, timeout) as sock:
         send_message(sock, metadata)

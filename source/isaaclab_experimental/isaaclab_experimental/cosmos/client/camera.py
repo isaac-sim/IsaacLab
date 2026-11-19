@@ -18,7 +18,7 @@ from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from .._protocol import CANVAS_ASPECT_RATIOS
-from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
+from .control_profiles import depth_control
 from .cosmos_model_cfg import CosmosModelCfg
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
@@ -33,8 +33,8 @@ def cosmos_camera(
     model: CosmosModelCfg,
     *,
     control: Sequence[TensorProcessorCfg] | None = None,
-    near: float = DEPTH_NEAR,
-    far: float = DEPTH_FAR,
+    near: float | None = None,
+    far: float | None = None,
     canvas: tuple[int, int] | None = None,
     name: str = "",
 ) -> CameraCfg:
@@ -55,9 +55,9 @@ def cosmos_camera(
         control: Processors that write the ``control`` buffer from the camera's render outputs: uint8 images of
             shape (N, H, W, 3) at the canvas size, for example a
             :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` reading ``semantic_segmentation``
-            or the rendered ``rgb``. Defaults to None, which uses the depth control of :func:`depth_processor`.
-        near: Depth rendered white [m], for the default depth control.
-        far: Depth rendered black [m], for the default depth control.
+            or the rendered ``rgb``. Defaults to None, which uses the depth control of :func:`depth_control`.
+        near: Depth rendered white [m] by the default depth control. Defaults to None, its default.
+        far: Depth rendered black [m] by the default depth control. Defaults to None, its default.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which
             selects the canvas closest to the camera's aspect ratio. Cameras sharing a session need one canvas.
         name: Scene name of the camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
@@ -67,7 +67,8 @@ def cosmos_camera(
 
     Raises:
         ValueError: If the camera publishes outputs other than ``rgb``, already has tensor processors, uses a
-            fisheye lens, the canvas is unsupported, or ``control`` writes no ``control`` buffer.
+            fisheye lens, the canvas is unsupported, ``control`` writes no ``control`` buffer, or ``near`` or
+            ``far`` is given with ``control``.
     """
     if list(camera.data_types) != ["rgb"]:
         raise ValueError(
@@ -81,19 +82,20 @@ def cosmos_camera(
     canvas_height, canvas_width = tuple(canvas) if canvas is not None else _closest_canvas(camera)
     # The Cosmos processor, the last one, publishes the images at the camera's size.
     image_size = (camera.height, camera.width)
+    depth_range = {key: value for key, value in (("near", near), ("far", far)) if value is not None}
     if control is None:
-        processors = depth_processor(model, near=near, far=far, camera=name, image_size=image_size)
-    else:
-        transfer = CosmosTransferProcessorCfg(backend=model, camera=name, image_size=image_size)
-        if not any(transfer.inputs[0] in cfg.outputs for cfg in control):
-            raise ValueError(f"The control processors must write the {transfer.inputs[0]!r} buffer Cosmos reads.")
-        processors = [*control, transfer]
+        control = [depth_control(**depth_range)]
+    elif depth_range:
+        raise ValueError("near and far set the default depth control; set the range on the control processors.")
+    transfer = CosmosTransferProcessorCfg(backend=model, camera=name, image_size=image_size)
+    if not any(transfer.inputs[0] in cfg.outputs for cfg in control):
+        raise ValueError(f"The control processors must write the {transfer.inputs[0]!r} buffer Cosmos reads.")
     return replace(
         camera,
         width=canvas_width,
         height=canvas_height,
         spawn=_canvas_spawn(camera, canvas_height, canvas_width),
-        tensor_processors=processors,
+        tensor_processors=[*control, transfer],
         # An ISP processes the rendered image, and the camera publishes the Cosmos image instead.
         isp_cfg=None,
     )

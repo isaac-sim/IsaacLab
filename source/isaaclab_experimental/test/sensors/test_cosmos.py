@@ -30,7 +30,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol, depth_processor
+from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol, depth_control
 from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
@@ -186,6 +186,21 @@ def _controls():
     return torch.arange(18, dtype=torch.uint8).reshape(1, 3, 2, 3).transpose(1, 2)
 
 
+def _open_request(**fields) -> dict:
+    """Return an ``open`` request for one 2 x 3 view, with ``fields`` replacing or adding to its settings."""
+    request = {
+        "op": "open",
+        "num_views": 1,
+        "seeds": [1],
+        "prompt": None,
+        "height": 2,
+        "width": 3,
+        "max_episode_frames": 9,
+        "fps": 30.0,
+    }
+    return {**request, **fields}
+
+
 def _receive_packet(metadata, body=b"", *, claimed_body_size=None):
     """Send independently framed bytes, including corrupt envelopes that the sender API rejects."""
     sender, receiver = socket.socketpair()
@@ -338,16 +353,7 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
     with pytest.raises(ValueError, match="nonempty"):
         CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=[]))
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
-        open_request = {
-            "op": "open",
-            "num_views": 1,
-            "seeds": [1],
-            "prompt": "A lab.",
-            "height": 2,
-            "width": 3,
-            "max_episode_frames": 9,
-        }
-        _protocol.send_message(connection, open_request)
+        _protocol.send_message(connection, _open_request(prompt="A lab."))
         _protocol.check_reply(_protocol.receive_message(connection)[0])
         _protocol.send_message(
             connection, {"op": "step", "reset_rows": [], "seeds": [], "prompt": "A kitchen."}, [_controls().numpy()]
@@ -595,18 +601,7 @@ def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmo
 def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_service):
     """Abrupt disconnect releases the reservation; unrelated status connections remain usable."""
     connection = _protocol.connect(cosmos_service.endpoint, timeout=2)
-    _protocol.send_message(
-        connection,
-        {
-            "op": "open",
-            "num_views": 1,
-            "seeds": [7],
-            "prompt": "A camera view",
-            "height": 2,
-            "width": 3,
-            "max_episode_frames": 13,
-        },
-    )
+    _protocol.send_message(connection, _open_request(seeds=[7], prompt="A camera view", max_episode_frames=13))
     reply, _ = _protocol.receive_message(connection)
     assert reply["ok"]
     first_stream = cosmos_service.resource.streams[0]
@@ -656,9 +651,8 @@ def _proxy(tensor: torch.Tensor) -> ProxyArray:
 def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_service, monkeypatch):
     """Cosmos consumes masked captures; missing masks cannot start generation or contaminate a later chunk."""
     monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
-    cfgs = depth_processor(
-        CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2), near=1.0, far=9.0
-    )
+    model = CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
+    cfgs = [depth_control(near=1.0, far=9.0), CosmosTransferProcessorCfg(backend=model)]
     buffers = {"distance_to_image_plane": _proxy(torch.tensor([1.0, 9.0]).reshape(1, 1, 2, 1))}
     processors = []
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
@@ -1093,20 +1087,8 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     )
     handler.start()
     try:
-        _protocol.send_message(
-            camera,
-            {
-                "op": "open",
-                "num_views": 1,
-                "seeds": [1],
-                "prompt": None,
-                "height": 2,
-                "width": 3,
-                "max_episode_frames": 9,
-                "transport": "cuda_ipc",
-                "ipc": {"pci_bus_id": "0000:01:00.0", "control": "control", "control_ready": "control_ready"},
-            },
-        )
+        ipc = {"pci_bus_id": "0000:01:00.0", "control": "control", "control_ready": "control_ready"}
+        _protocol.send_message(camera, _open_request(transport="cuda_ipc", ipc=ipc))
         reply, _ = _protocol.receive_message(camera)
         assert reply["ok"] and reply["ipc"] == Channel.handles
         _protocol.send_message(camera, {"op": "step", "reset_rows": [], "seeds": [], "frames": [1]})
@@ -1168,18 +1150,7 @@ def test_a_service_without_cuda_ipc_rejects_shared_gpu_sessions(cosmos_service):
     reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=2)
     assert reply["capabilities"]["transports"] == ["socket"]
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
-        open_request = {
-            "op": "open",
-            "num_views": 1,
-            "seeds": [1],
-            "prompt": None,
-            "height": 2,
-            "width": 3,
-            "max_episode_frames": 9,
-            "transport": "cuda_ipc",
-            "ipc": {},
-        }
-        _protocol.send_message(connection, open_request)
+        _protocol.send_message(connection, _open_request(transport="cuda_ipc", ipc={}))
         reply, _ = _protocol.receive_message(connection)
     assert not reply["ok"] and "does not offer the cuda_ipc transport" in reply["error"]
 
@@ -1348,16 +1319,7 @@ def test_a_failing_service_closes_every_session_of_the_camera(cosmos_services, f
 
 def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
-        open_request = {
-            "op": "open",
-            "num_views": 2,
-            "seeds": [1, 2],
-            "prompt": None,
-            "height": 2,
-            "width": 3,
-            "max_episode_frames": 9,
-        }
-        _protocol.send_message(connection, open_request)
+        _protocol.send_message(connection, _open_request(num_views=2, seeds=[1, 2]))
         _protocol.check_reply(_protocol.receive_message(connection)[0])
         _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
         reply, _ = _protocol.receive_message(connection)

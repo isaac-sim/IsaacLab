@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from .._protocol import DEFAULT_ENDPOINT, MAX_CHUNK_FRAMES
+from .._protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
@@ -45,9 +45,8 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 class CosmosModelCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
-    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferProcessorCfg` after a depth control
-    processor, as :func:`~isaaclab_experimental.cosmos.depth_processor` arranges. Cosmos generates an initial
-    one-frame chunk, then four-frame chunks. Configure that processor with ``initial_frames=1`` and ``update_frames=4``.
+    Use with :class:`~isaaclab_experimental.cosmos.CosmosTransferProcessorCfg` after the processors that write the
+    control image, as :func:`~isaaclab_experimental.cosmos.cosmos_camera` arranges.
     """
 
     class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
@@ -74,8 +73,7 @@ class CosmosModelCfg(BackendCfg):
     prompt_files: str | list[str] | None = None
     """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
     :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
-    list; they are read when the camera's Cosmos client is created. Keeping paths in their own field means a prompt
-    is never mistaken for a path."""
+    list; they are read when the camera's Cosmos client is created."""
 
     cameras: tuple[str, ...] = ()
     """Scene names of the cameras that share one session, each configured with this model. Defaults to none, which
@@ -126,5 +124,5 @@ class CosmosModelCfg(BackendCfg):
     uses CUDA IPC when the service supports it, runs on this machine, and its GPU qualifies, and the socket otherwise.
     The endpoint carries the small step messages in both cases."""
 
-    timeout: float = 600.0
+    timeout: float = DEFAULT_TIMEOUT_S
     """Maximum wait per network operation [s], including the first generation."""

@@ -17,7 +17,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
     ShadowHandCameraSceneCfg,
-    _ShadowHandBaseTiledCameraCfg,
+    ShadowHandTiledCameraCfg,
 )
 
 from .. import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
@@ -29,28 +29,12 @@ _COSMOS_MODEL_CFG = CosmosModelCfg(
     ),
 )
 # The Cosmos tasks feed the 640 x 640 generated image to the CNN, so the camera already uses a Cosmos canvas.
-_COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640)
+_COSMOS_BASE_CAMERA_CFG = ShadowHandTiledCameraCfg().rgb.replace(height=640, width=640)
 
 # The camera looks down from 1.0 m above the hand, so 1.5 m keeps the hand and cube in the depth range and turns
 # everything farther black.
 SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
 """Camera rendering depth that Cosmos turns into the published ``rgb``; captures every environment step."""
-
-
-def shadow_hand_cosmos_settings(env_cfg) -> CosmosModelCfg:
-    """Return the Cosmos settings of the camera, the object its Cosmos step uses (not a copy).
-
-    Shared by the Direct and Manager-based tasks.
-
-    Args:
-        env_cfg: Environment configuration with ``scene.tiled_camera``.
-    """
-    return _cosmos_transfer(env_cfg).backend
-
-
-def set_shadow_hand_cosmos_settings(env_cfg, settings: CosmosModelCfg) -> None:
-    """Make the camera's Cosmos step use ``settings``."""
-    _cosmos_transfer(env_cfg).backend = settings
 
 
 def _cosmos_transfer(env_cfg) -> CosmosTransferProcessorCfg:
@@ -110,8 +94,32 @@ def validate_shadow_hand_cosmos_task(env_cfg) -> None:
         )
 
 
+class _ShadowHandCosmosTaskCfg:
+    """The Cosmos settings, validation and playback scene shared by the Direct and Manager-based tasks."""
+
+    @property
+    def cosmos(self) -> CosmosModelCfg:
+        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
+        return _cosmos_transfer(self).backend
+
+    @cosmos.setter
+    def cosmos(self, settings: CosmosModelCfg):
+        # configclass copies properties like fields when it copies a configuration, which needs a setter.
+        _cosmos_transfer(self).backend = settings
+
+    def validate_config(self):
+        """Check the scene and episode fit the Cosmos service's stream limits."""
+        super().validate_config()
+        validate_shadow_hand_cosmos_task(self)
+
+    def play_mode(self):
+        """Load this run's feature extractor and retain the single-camera scene."""
+        super().play_mode()
+        self.scene.num_envs = 1
+
+
 @configclass
-class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
+class ShadowHandCameraCosmosEnvCfg(_ShadowHandCosmosTaskCfg, ShadowHandCameraEnvCfg):
     """Direct Shadow Hand task with depth-guided Cosmos RGB observations.
 
     Registered as ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct``. Start the Cosmos service separately. The
@@ -124,34 +132,18 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
     # Cosmos holds each generated image over four captures, so the pose target follows the image, not the capture.
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, hold_image_targets=True)
 
-    @property
-    def cosmos(self) -> CosmosModelCfg:
-        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
-        return shadow_hand_cosmos_settings(self)
-
-    @cosmos.setter
-    def cosmos(self, settings: CosmosModelCfg):
-        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
-        set_shadow_hand_cosmos_settings(self, settings)
-
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""
         super().validate_config()
-        validate_shadow_hand_cosmos_task(self)
         if self.max_consecutive_success != 0 and self.cosmos.generation_mode == "autoregressive":
             raise ValueError(
                 "The Shadow Hand Cosmos task requires max_consecutive_success=0 so goal successes "
                 "do not extend the camera episode beyond its frame budget."
             )
 
-    def play_mode(self):
-        """Load this run's feature extractor and retain the single-camera scene."""
-        super().play_mode()
-        self.scene.num_envs = 1
-
 
 @configclass
-class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
+class ShadowHandCameraManagerCosmosEnvCfg(_ShadowHandCosmosTaskCfg, ShadowHandCameraManagerEnvCfg):
     """Manager-based Shadow Hand task with depth-guided Cosmos RGB observations.
 
     Registered as ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos``. The camera runs the same Cosmos processors as the
@@ -163,23 +155,3 @@ class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
         num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG
     )
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, hold_image_targets=True)
-
-    @property
-    def cosmos(self) -> CosmosModelCfg:
-        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
-        return shadow_hand_cosmos_settings(self)
-
-    @cosmos.setter
-    def cosmos(self, settings: CosmosModelCfg):
-        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
-        set_shadow_hand_cosmos_settings(self, settings)
-
-    def validate_config(self):
-        """Check the scene and episode fit the Cosmos service's stream limits."""
-        super().validate_config()
-        validate_shadow_hand_cosmos_task(self)
-
-    def play_mode(self):
-        """Load this run's feature extractor and retain the single-camera scene."""
-        super().play_mode()
-        self.scene.num_envs = 1

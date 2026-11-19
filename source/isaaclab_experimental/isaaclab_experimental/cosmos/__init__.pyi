@@ -9,7 +9,7 @@ __all__ = [
     "CosmosTransferProcessor",
     "CosmosTransferProcessorCfg",
     "cosmos_camera",
-    "depth_processor",
+    "depth_control",
     "episode_frame_budget",
     "read_prompt_files",
 ]
@@ -20,7 +20,7 @@ from .client import (
     CosmosTransferProcessor,
     CosmosTransferProcessorCfg,
     cosmos_camera,
-    depth_processor,
+    depth_control,
     episode_frame_budget,
     read_prompt_files,
 )

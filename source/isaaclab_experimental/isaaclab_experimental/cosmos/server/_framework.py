@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .._protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES
+from .._protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES, SEED_LIMIT
 
 if TYPE_CHECKING:
     import torch
@@ -30,6 +30,9 @@ _MAX_BATCH_LATENT_FRAMES = 1 << 30
 
 Each view's episode ends at its own frame budget, so the batch need not stop.
 """
+
+_SAMPLING = {"guidance": 1.0, "num_steps": 4, "shift": 5.0}
+"""Sampling settings of every generation: four steps of the distilled sampler, without guidance."""
 
 
 class CosmosInferenceModel:
@@ -220,7 +223,7 @@ class CosmosInferenceModel:
             raise ValueError(
                 f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(CANVAS_ASPECT_RATIOS)}."
             )
-        if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
+        if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % MAX_CHUNK_FRAMES:
             raise ValueError("Cosmos max_episode_frames must be 1 + 4*k.")
         if type(fps) not in (int, float) or not math.isfinite(fps) or fps <= 0:
             raise ValueError("Cosmos fps must be finite and positive.")
@@ -292,7 +295,7 @@ class CosmosInferenceModel:
         more than the history window holds. Its prompt, seed, VAE caches, and generation history are discarded
         before real cameras can connect. Other canvases or prompts can still require compilation on their first use.
         """
-        frames = 1 + 4 * self.capabilities["kv_window"]
+        frames = 1 + MAX_CHUNK_FRAMES * self.capabilities["kv_window"]
         stream = self.open_stream(
             num_views=1,
             seeds=(0,),
@@ -303,8 +306,8 @@ class CosmosInferenceModel:
         )
         try:
             stream.step([np.zeros((1, height, width, 3), dtype=np.uint8)], (), ())
-            controls = np.zeros((4, height, width, 3), dtype=np.uint8)
-            for _ in range((frames - 1) // 4):
+            controls = np.zeros((MAX_CHUNK_FRAMES, height, width, 3), dtype=np.uint8)
+            for _ in range((frames - 1) // MAX_CHUNK_FRAMES):
                 stream.step([controls], (), ())
         finally:
             stream.close()
@@ -342,9 +345,7 @@ class CosmosInferenceModel:
             num_frames=max_episode_frames,
             # The native metadata takes a whole frame rate; the conditioning below keeps a fractional one.
             fps=round(fps),
-            num_steps=4,
-            guidance=1.0,
-            shift=5.0,
+            **_SAMPLING,
             negative_metadata_mode="none",
             negative_prompt_keep_metadata=False,
             prompt_upsampling=False,
@@ -390,8 +391,8 @@ def _vae_cache_owner(tokenizer: Any) -> Any | None:
 
 
 def _validate_seed(seed: int) -> None:
-    if type(seed) is not int or not 0 <= seed < 2**63:
-        raise ValueError("Cosmos episode seeds must be integers in [0, 2**63).")
+    if type(seed) is not int or not 0 <= seed < SEED_LIMIT:
+        raise ValueError("Cosmos episode seeds must be integers in [0, 2**31).")
 
 
 _KEEP_PROMPT = object()
@@ -455,7 +456,7 @@ class _CosmosInferenceStream:
             raise ValueError("The Cosmos weights were offloaded during this episode; reset the view to continue.")
         if seeds:
             _validate_seed(seeds[0])
-        expected_frames = 1 if self._frame_count == 0 or reset_rows else 4
+        expected_frames = 1 if self._frame_count == 0 or reset_rows else MAX_CHUNK_FRAMES
         expected_shape = (expected_frames, *self._canvas)
         import torch
 
@@ -488,23 +489,11 @@ class _CosmosInferenceStream:
                         self._frame_count = 0
                     self._iterator = self._make_iterator()
                     self._suspended = False
-                if self._cache_scope is None:
-                    self._cache_scope = ExitStack()
-                    self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
-                    self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
-                pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
-                pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0)
-                pixels = pixels.to(**self._model.tensor_kwargs).div(127.5).sub(1)
-                latent = self._model.encode(pixels)
+                self._open_vae_caches()
+                latent = self._model.encode(self._pixels(control))
                 self._next_control = latent[:, :, -1:].clone()
                 generated = next(self._iterator)["vision"].clone()
-                decoded = self._model.decode(generated)
-                if tuple(decoded.shape) != (1, 3, expected_frames, *self._canvas[:2]):
-                    raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
-                packed = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8)
-                video = packed.permute(1, 2, 3, 0).contiguous()
-                if not on_device:
-                    video = video.cpu().numpy()
+                video = self._video(self._model.decode(generated), expected_frames, on_device)
                 self._frame_count = previous_frames + expected_frames
                 return [video]
         except BaseException:
@@ -530,18 +519,39 @@ class _CosmosInferenceStream:
             self._model = None
 
     def _make_iterator(self) -> Generator[dict[str, torch.Tensor], None, None]:
-        latent_frames = (self._max_episode_frames - 1) // 4 + 1
+        latent_frames = (self._max_episode_frames - 1) // MAX_CHUNK_FRAMES + 1
         return self._model.iter_samples_from_batch_autoregressive_streaming_transfer(
             data_batch=self._data_batch,
             control_latent_chunks=self._control_iterator(),
             num_frames=latent_frames,
             seeds=[self._seed],
-            guidance=1.0,
-            num_steps=4,
-            shift=5.0,
+            **_SAMPLING,
             normalize_cfg=False,
             sampler_mode="distilled",
         )
+
+    def _open_vae_caches(self) -> None:
+        """Use the tokenizer's cached encoder and decoder until the episode closes."""
+        if self._cache_scope is None:
+            self._cache_scope = ExitStack()
+            self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
+            self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
+
+    def _pixels(self, control: np.ndarray | torch.Tensor) -> torch.Tensor:
+        """Return a uint8 THWC control chunk as the model's input, shape (1, C, T, H, W) in [-1, 1]."""
+        import torch
+
+        pixels = control if isinstance(control, torch.Tensor) else torch.from_numpy(np.ascontiguousarray(control))
+        return pixels.permute(3, 0, 1, 2).unsqueeze(0).to(**self._model.tensor_kwargs).div(127.5).sub(1)
+
+    def _video(self, decoded: torch.Tensor, frames: int, on_device: bool) -> np.ndarray | torch.Tensor:
+        """Return decoded images of shape (1, 3, T, H, W) as a uint8 THWC chunk, a tensor or a NumPy array."""
+        import torch
+
+        if tuple(decoded.shape) != (1, 3, frames, *self._canvas[:2]):
+            raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
+        video = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8).permute(1, 2, 3, 0).contiguous()
+        return video if on_device else video.cpu().numpy()
 
     def _close_episode(self) -> None:
         try:
@@ -645,7 +655,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         import torch
 
         resets = set(reset_rows)
-        expected = [1 if not self._started or row in resets else 4 for row in range(num_views)]
+        expected = [1 if not self._started or row in resets else MAX_CHUNK_FRAMES for row in range(num_views)]
         if len(controls) != num_views:
             raise ValueError(f"Cosmos requires one control chunk per view, {num_views} in total.")
         on_device = isinstance(controls[0], torch.Tensor)
@@ -680,18 +690,13 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                     self._iterator = self._make_iterator()
                     self._suspended = False
                     model_resets = ()
-                if self._cache_scope is None:
-                    self._cache_scope = ExitStack()
-                    self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
-                    self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
+                self._open_vae_caches()
                 for row in resets:
                     self._vae_states[row] = self._fresh_vae_state()
                 latents = []
                 for row, control in enumerate(controls):
-                    pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
-                    pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0).to(**self._model.tensor_kwargs).div(127.5).sub(1)
                     with self._view_vae(row):
-                        latents.append(self._model.encode(pixels)[:, :, -1:])
+                        latents.append(self._model.encode(self._pixels(control))[:, :, -1:])
                 control_latent = torch.cat(latents, dim=0)  # [views,C,1,H,W]
                 if model_resets:
                     from cosmos_framework.model.generator.omni_mot_causal_model import StreamingTransferStep
@@ -706,11 +711,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                 for row in range(num_views):
                     with self._view_vae(row):
                         decoded = self._model.decode(generated[row : row + 1])
-                    if tuple(decoded.shape) != (1, 3, expected[row], *self._canvas[:2]):
-                        raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
-                    packed = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8)
-                    video = packed.permute(1, 2, 3, 0).contiguous()
-                    videos.append(video if on_device else video.cpu().numpy())
+                    videos.append(self._video(decoded, expected[row], on_device))
                 for row in range(num_views):
                     self._frames[row] = (0 if row in resets else self._frames[row]) + expected[row]
                 self._started = True
@@ -739,9 +740,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
             control_latent_chunks=self._control_iterator(),
             num_frames=_MAX_BATCH_LATENT_FRAMES,
             seeds=list(self._seeds),
-            guidance=1.0,
-            num_steps=4,
-            shift=5.0,
+            **_SAMPLING,
             normalize_cfg=False,
             sampler_mode="distilled",
         )

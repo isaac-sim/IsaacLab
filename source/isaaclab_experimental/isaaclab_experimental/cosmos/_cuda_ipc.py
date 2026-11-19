@@ -128,12 +128,16 @@ def host_id() -> str | None:
 def pci_bus_id(device_index: int) -> str:
     """Return the PCI bus ID of a CUDA device as seen by this process, for matching across processes."""
     with _Context(device_index) as driver:
-        device = ctypes.c_int()
-        _check(driver, driver.cuDeviceGet(ctypes.byref(device), device_index))
-        # A PCI bus ID such as "00000000:01:00.0" is 16 characters; 32 bytes leave room for the null terminator.
-        buffer = ctypes.create_string_buffer(32)
-        _check(driver, driver.cuDeviceGetPCIBusId(buffer, 32, device))
-        return buffer.value.decode().lower()
+        return _bus_id(driver, device_index)
+
+
+def _bus_id(driver: ctypes.CDLL, device_index: int) -> str:
+    device = ctypes.c_int()
+    _check(driver, driver.cuDeviceGet(ctypes.byref(device), device_index))
+    # A PCI bus ID such as "00000000:01:00.0" is 16 characters; 32 bytes leave room for the null terminator.
+    buffer = ctypes.create_string_buffer(32)
+    _check(driver, driver.cuDeviceGetPCIBusId(buffer, 32, device))
+    return buffer.value.decode().lower()
 
 
 def visible_gpus() -> list[str]:
@@ -141,14 +145,7 @@ def visible_gpus() -> list[str]:
     driver = _lib()
     count = ctypes.c_int()
     _check(driver, driver.cuDeviceGetCount(ctypes.byref(count)))
-    bus_ids = []
-    for index in range(count.value):
-        device = ctypes.c_int()
-        _check(driver, driver.cuDeviceGet(ctypes.byref(device), index))
-        buffer = ctypes.create_string_buffer(32)
-        _check(driver, driver.cuDeviceGetPCIBusId(buffer, 32, device))
-        bus_ids.append(buffer.value.decode().lower())
-    return bus_ids
+    return [_bus_id(driver, index) for index in range(count.value)]
 
 
 def device_by_bus_id(bus_id: str | None) -> int | None:
@@ -347,7 +344,7 @@ class SharedChannel:
         """Map the other process's buffer on ``device`` and import its event on this channel's GPU.
 
         ``device`` is this process's index of the GPU that holds the buffer. The event is imported on the GPU whose
-        stream waits for it: waiting on an event imported on the other GPU crashed the CUDA driver.
+        stream waits for it: a stream waiting on an event imported on another GPU crashes the CUDA driver.
 
         Raises:
             ValueError: If the handles do not name the other process's buffer and event.
