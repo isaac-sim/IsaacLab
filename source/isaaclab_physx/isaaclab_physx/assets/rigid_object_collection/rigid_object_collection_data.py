@@ -422,10 +422,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame.
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32.
         In torch this resolves to (num_instances, num_bodies, 9).
+
+        The tensors are flattened in row-major order and can be non-diagonal; their principal axes are given by
+        :attr:`body_com_quat_b`. World-frame inertia is ``R @ I @ R.transpose(-1, -2)``, where ``R`` is the
+        rotation matrix from :attr:`body_link_quat_w` and ``I`` is the reshaped 3-by-3 tensor.
         """
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia)

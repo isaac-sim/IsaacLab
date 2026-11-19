@@ -78,7 +78,7 @@ class ThrustActionCfg(ActionTermCfg):
     class_type: type[ThrustAction] | str = "{DIR}.thrust_actions:ThrustAction"
 
     asset_name: str = MISSING
-    """Name or regex expression of the asset that the action will be mapped to.
+    """Scene asset name that the action will be mapped to.
 
     This should match the name given to the multirotor asset in the scene configuration.
     For example, if the robot is defined as ``robot = MultirotorCfg(...)``, then

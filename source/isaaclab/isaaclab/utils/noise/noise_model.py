@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from . import noise_cfg
@@ -108,7 +109,7 @@ class NoiseModel:
         self._num_envs = num_envs
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method can be implemented by derived classes to reset the noise model.
@@ -117,6 +118,8 @@ class NoiseModel:
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
         pass
 
@@ -151,7 +154,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method resets the bias term for the specified environments.
@@ -159,7 +162,14 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
+        if env_mask is not None:
+            # sample every bias and keep the selected ones, so the mask is never compacted on the host
+            bias = self._bias_noise_cfg.func(self._zero_bias, self._bias_noise_cfg)
+            torch.where(wp.to_torch(env_mask)[:, None], bias, self._bias, out=self._bias)
+            return
         # resolve the environment ids
         if env_ids is None:
             env_ids = slice(None)

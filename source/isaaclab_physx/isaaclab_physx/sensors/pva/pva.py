@@ -158,9 +158,10 @@ class Pva(BasePva):
         """Refresh the cached gravity buffer when the scene gravity changed.
 
         Scene gravity is runtime-mutable (see
-        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
-        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
-        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`) but scene-wide on
+        this backend, so the direction is a single vector passed to the kernel by value rather
+        than a per-body buffer. The recorded launch bakes it in at record time, so
+        :meth:`_update_buffers_impl` re-binds the parameter whenever it changes.
         """
         if "projected_gravity" not in self._data.data_types:
             return

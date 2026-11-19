@@ -409,10 +409,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame.
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32.
         In torch this resolves to (num_instances, num_bodies, 9).
+
+        The tensors are flattened in row-major order and can be non-diagonal. World-frame inertia is
+        ``R @ I @ R.transpose(-1, -2)``, where ``R`` is the rotation matrix from :attr:`body_link_quat_w` and ``I``
+        is the reshaped 3-by-3 tensor.
         """
         return self._body_inertia_ta
 
@@ -611,11 +615,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_quat_w(self) -> ProxyArray:
-        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
+        """COM orientation (x, y, z, w) of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
-        This quantity is the orientation of the principal axes of inertia of the rigid bodies.
+        Newton keeps the COM axes aligned with the link frames, so these equal the body link orientations.
+        These axes need not coincide with the principal axes of inertia.
         """
         if self._body_com_quat_w_ta is None:
             self._body_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(self.body_com_pose_w.warp))
@@ -671,12 +676,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_quat_b(self) -> ProxyArray:
-        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
-        respective link frames.
+        """COM orientation (x, y, z, w) of all bodies in their respective link frames.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
-        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
+        Newton keeps the COM axes aligned with the link frames, so these are identity quaternions (0, 0, 0, 1).
+        The local inertia tensors can be non-diagonal in these axes.
         """
         if self._body_com_quat_b_ta is None:
             self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(self.body_com_pose_b.warp))

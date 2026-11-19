@@ -100,7 +100,7 @@ def _write_camera_intrinsics(
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
-    """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
+    """Build the semantics predicate from :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`.
 
     Replicator's semantic/instance segmentation annotators consume this via the synthetic-data pipeline.
     """
@@ -322,7 +322,7 @@ class IsaacRtxRenderer(BaseRenderer):
         needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
         )
-        if spec.cfg.isp_cfg is not None:
+        if needs_hdr_color:
             # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
             # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
@@ -441,7 +441,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
         # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
-        if spec.cfg.isp_cfg is not None:
+        if needs_hdr_color:
             stage.GetPrimAtPath(rp.path).CreateAttribute(
                 "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
             ).Set(False)

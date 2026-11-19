@@ -26,7 +26,7 @@ def _build_franka_stack_pipeline():
 
     Returns:
         OutputCombiner with a single "action" output containing the flattened
-        8D action tensor: [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z, gripper].
+        8D action tensor: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper].
     """
     from isaacteleop.retargeters import (
         GripperRetargeter,

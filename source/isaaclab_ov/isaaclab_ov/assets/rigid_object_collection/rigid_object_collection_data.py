@@ -457,7 +457,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Inertia tensor of all bodies, expressed at the center of mass [kg·m²].
+        """Inertia tensor of all bodies about the center of mass, expressed in the body link frame [kg·m²].
 
         Shape is (num_instances, num_bodies, 9), dtype = ``wp.float32``.
         The 9 components are the row-major flatten of the 3×3 inertia matrix
@@ -833,9 +833,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Eagerly allocate every per-body TimestampedBuffer and the slots for
         cached :class:`ProxyArray` wrappers.
 
-        Buffers use direct ``(num_instances, num_bodies, D)`` shapes, matching
-        the fused binding output.  No flat+strided tricks are needed because the
-        fused binding returns a contiguous ``(N, B, D)`` array directly.
+        Buffers use instance-major ``(num_instances, num_bodies, D)`` shapes. The
+        native fused binding returns body-major flat ``(N * B[, D])`` data, which the
+        read helpers reshape into these buffers through strided views or transposes.
         """
         super()._create_buffers()
 

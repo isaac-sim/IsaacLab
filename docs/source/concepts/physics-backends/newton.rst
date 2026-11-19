@@ -33,6 +33,9 @@ list configuration fields and defaults.
      - Workflow
    * - :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
      - :ref:`mjwarp-solver-tuning` for the primary validated solver path
+   * - :class:`~isaaclab_newton.physics.SteelSolverCfg`
+     - Experimental reduced-coordinate rigid-body solver with projected
+       Gauss-Seidel constraints; select ``presets=newton_steel`` on supported tasks
    * - :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
        :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`
      - :ref:`kamino-solver-tuning` for Kamino configuration
@@ -47,6 +50,13 @@ Additional solver configurations are
 :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`. Use their generated
 API references and the Newton solver guide when evaluating a task-specific
 preset.
+
+Steel uses Newton's collision pipeline and point friction by default
+(``friction_anchor_beta=0``). Its ``solve_mode="matrix_free"`` requires CUDA,
+and fixed-tendon tasks do not offer a Steel preset. For a
+runtime comparison at each task's configured environment count, run
+``isaaclab benchmark runtime --task TASK presets=newton_steel`` and repeat with
+``presets=newton_mjwarp`` without passing ``--num_envs``.
 
 Related workflows
 -----------------

@@ -113,10 +113,10 @@ class NullSpacePostureTaskCfg(PinkIKTaskCfg):
     """Task gain that scales the overall task contribution."""
 
     controlled_frames: list[str] = field(default_factory=list)
-    """Robot frames whose joints are included in the posture task."""
+    """Robot frames whose Jacobians define the primary tasks for null-space projection."""
 
     controlled_joints: list[str] = field(default_factory=list)
-    """Explicit list of joint names to include (overrides frame-based selection when non-empty)."""
+    """Joint names included in the posture task. If empty, no joints are controlled."""
 
     class_type: str | type | None = "{DIR}.null_space_posture_task:NullSpacePostureTask"
     """Default builder pointing to :class:`NullSpacePostureTask`."""

@@ -18,7 +18,7 @@ import torch
 from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import RewardTermCfg
-from ...utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+from ...utils.math import combine_frame_transforms, quat_apply_inverse, quat_error_magnitude, quat_mul, wrap_to_pi
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -126,6 +126,20 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.projected_gravity_b.torch[:, :2]), dim=1)
+
+
+def body_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize selected links' tilt from world vertical, independently of yaw.
+
+    Sum the squared horizontal components of unit gravity expressed in each link frame.
+    Unlike :func:`flat_orientation_l2`, this also measures bending at articulated joints.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
+    down = torch.zeros_like(quat[..., :3])
+    down[..., 2] = -1.0
+    gravity = quat_apply_inverse(quat, down)
+    return gravity[..., :2].square().sum(dim=(1, 2))
 
 
 def base_height_l2(
@@ -253,6 +267,15 @@ def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> tor
     return torch.sum(torch.square(angle), dim=1)
 
 
+def joint_pos_target_l1(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Sum absolute deviations of selected joint positions from ``target`` [rad].
+
+    Positions are not wrapped, so this term also penalizes excursions outside one revolution.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.abs(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - target).sum(dim=1)
+
+
 def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize joint positions that deviate from a target value using an L2 squared kernel.
 
@@ -285,7 +308,8 @@ def joint_vel_limits(
 ) -> torch.Tensor:
     """Penalize joint velocities if they cross the soft limits.
 
-    This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
+    For each joint, the excess is ``abs(joint_velocity) - soft_joint_velocity_limit * soft_ratio``.
+    Each excess is clipped to [0, 1] before summing over the selected joints, so the penalty is at most 1 per joint.
 
     Args:
         soft_ratio: The ratio of the soft limits to be used.
@@ -374,6 +398,17 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
     return torch.sum(violation.clip(min=0.0), dim=1)
 
 
+def self_collision_cost(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Count physics frames with robot-to-robot force on selected bodies above the threshold [N].
+
+    The sensor must filter against robot bodies only and retain one control step
+    of history. Multiple colliding pairs within a physics frame count once.
+    """
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    forces = sensor.data.force_matrix_w_history.torch[:, :, sensor_cfg.body_ids]
+    return (torch.linalg.vector_norm(forces, dim=-1).amax(dim=(-1, -2)) > threshold).sum(dim=-1).float()
+
+
 """
 Velocity-tracking rewards.
 """
@@ -429,7 +464,7 @@ def position_command_error_tanh(
     """Reward tracking of the position error using the tanh kernel.
 
     The position error [m] is computed as in :func:`position_command_error` and mapped through a tanh
-    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``[0, 1)``.
+    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``(0, 1]``.
     """
     distance = position_command_error(env, command_name, asset_cfg)
     return 1 - torch.tanh(distance / std)

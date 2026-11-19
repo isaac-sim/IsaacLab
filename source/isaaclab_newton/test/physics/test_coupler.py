@@ -497,6 +497,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
     """A coupled solver must inherit every nested MPM grid's capture capability."""
     mpm_solver = SimpleNamespace(
+        model=SimpleNamespace(device=SimpleNamespace(is_cuda=True)),
         grid_type=grid_type,
         max_active_cell_count=max_active_cell_count,
         grid_padding=0,

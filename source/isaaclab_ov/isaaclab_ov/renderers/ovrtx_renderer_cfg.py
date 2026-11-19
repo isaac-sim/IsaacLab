@@ -32,7 +32,8 @@ class OVRTXBackendCfg(BackendCfg):
     """None shares the simulation scene; standalone renderers retain their own scene policy."""
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Native renderer log destination."""
-    log_level: str = "verbose"
+    # FIXME: revert once OVRTX stops warning on every cloned attribute without data.
+    log_level: str = "error"
     """Native renderer log level."""
     use_ovstage: bool = MISSING
     """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
@@ -83,7 +84,8 @@ class OVRTXRendererCfg(RendererCfg):
     stage plus injected render products) under this directory. Must be writable.
     """
 
-    log_level: str = "verbose"
+    # FIXME: revert once OVRTX stops warning on every cloned attribute without data.
+    log_level: str = "error"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
@@ -116,7 +118,7 @@ class OVRTXRendererCfg(RendererCfg):
     """Whether to colorize instance segmentation output. Defaults to True.
 
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
-    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    If False, raw instance IDs are returned as an ``int32`` 1-channel array.
 
     Regardless of this setting, the instance ID (or color) to prim-path mapping is exposed via
     ``camera.data.info["instance_segmentation"]["idToLabels"]`` and the instance ID (or color) to
@@ -124,10 +126,10 @@ class OVRTXRendererCfg(RendererCfg):
     """
 
     colorize_instance_id_segmentation: bool = True
-    """Whether to colorize instance ID segmentation output. Defaults to True.
+    """Retained compatibility field; ignored by the OVRTX renderer. Defaults to True.
 
-    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
-    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    OVRTX does not support ``instance_id_segmentation_fast``. Use
+    :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:

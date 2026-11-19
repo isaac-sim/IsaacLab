@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-from golden_image import camera_output_image, compare_to_golden
+from golden_image import camera_output_image, compare_to_golden, read_golden_range
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -139,10 +139,7 @@ def run_rendering_case(
                 robot.actuators.target_command.set_position_index(value=targets)
             render_interval = 2 if case.scene == "mpm" else 4
             runtime.step(render=(step + 1) % render_interval == 0)
-        if case.scene in ("rendering_scene", "kuka_materials") or (
-            case.scene == "gaussian_splats_valiant_1env" and case.renderer == "isaac_rtx"
-        ):
-            # Valiant's PPISP RGB can still be a flat shader warm-up frame while its depth is already populated.
+        if case.scene in ("rendering_scene", "kuka_materials"):
             runtime.stabilize_camera()
         if case.scene == "kuka_materials":
             before = runtime.camera.data.output["rgb"].torch.clone()
@@ -203,9 +200,15 @@ def run_rendering_case(
             artifact_label = "-".join(
                 part for part in (case.scene, artifact_namespace, golden_filename.removesuffix(".png")) if part
             )
+            golden_path = _GOLDEN_ROOT / case.scene / golden_filename
+            output = outputs[aov]
+            if not (torch.isfinite(output) & (output != 0)).any().item():
+                failures.append(f"{aov}: Camera output is empty or contains no finite nonzero values.")
+                continue
+            image = camera_output_image(output, aov, read_golden_range(golden_path))
             comparison = compare_to_golden(
-                camera_output_image(outputs[aov], aov),
-                _GOLDEN_ROOT / case.scene / golden_filename,
+                image,
+                golden_path,
                 label=artifact_label,
                 artifact_dir=_ARTIFACT_DIR,
                 max_diff_pct=image_max_diff_pct,
