@@ -156,8 +156,8 @@ class FeatureExtractorCfg:
     An image transfer that publishes a generated image every few captures holds it across captures. When True,
     each view keeps its pose target from the step its image appears until that image changes, and views whose
     image is black, such as a view waiting for its first generated image after a reset, are left out of the
-    loss. Views may update at different captures. Default is False, which pairs every capture with the current
-    pose.
+    loss; a step where every view is black does not train. Views may update at different captures. Default is
+    False, which pairs every capture with the current pose.
     """
 
 
@@ -322,8 +322,8 @@ class FeatureExtractor:
             gt_pose: Ground truth pose tensor (position and keypoint corners). Shape: (N, 27).
 
         Returns:
-            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training
-                or when the network is disabled; zero when every view's held image is black) and the
+            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training,
+                when the network is disabled, or when every view's held image is black) and the
                 predicted pose embedding of shape (N, 27).
         """
         if self.cfg.write_image_to_file:
@@ -358,12 +358,15 @@ class FeatureExtractor:
                     predicted_pose = self.feature_extractor(img_input)
                     if trained is None:
                         pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
+                    elif not trained.any():
+                        # Nothing to learn from. An optimizer step on a zero loss would still move the weights
+                        # with Adam's momentum, so the step is skipped; this reads one flag from the GPU.
+                        return None, predicted_pose
                     else:
-                        # The mean over the views with an image, weighted on the GPU instead of selected on the
-                        # host; with every view black, the loss is zero.
+                        # The mean over the views with an image, weighted on the GPU instead of selected by index.
                         weights = trained.to(predicted_pose.dtype)[:, None]
                         squared = (predicted_pose - gt_pose).square() * weights
-                        pose_loss = squared.sum() / (weights.sum() * predicted_pose.shape[1]).clamp(min=1) * 100
+                        pose_loss = squared.sum() / (weights.sum() * predicted_pose.shape[1]) * 100
 
                     self.optimizer.zero_grad()
                     pose_loss.backward()

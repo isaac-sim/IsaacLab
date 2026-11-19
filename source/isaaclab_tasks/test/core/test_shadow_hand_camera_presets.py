@@ -20,6 +20,7 @@ Two test suites are provided:
    feature-extractor checkpoints.
 """
 
+import copy
 import types
 from pathlib import Path
 
@@ -369,10 +370,29 @@ def test_feature_extractor_pairs_each_view_with_its_own_image_update_and_skips_b
     expected_loss, _ = pair.step({"rgb": torch.cat((lit, lit + 1))}, torch.cat((pose, pose + 7.0)))
     torch.testing.assert_close(loss, expected_loss)
 
-    # When every view is black there is nothing to train on, so the loss is zero.
+    # When every view is black there is nothing to train on, so there is no loss.
     extractor.reset()
-    zero_loss, embeddings = extractor.step({"rgb": torch.cat((black, black))}, torch.cat((pose, pose)))
-    assert float(zero_loss.detach()) == 0.0 and embeddings.shape == (2, 27)
+    no_loss, embeddings = extractor.step({"rgb": torch.cat((black, black))}, torch.cat((pose, pose)))
+    assert no_loss is None and embeddings.shape == (2, 27)
+
+
+def test_feature_extractor_step_with_every_view_black_keeps_the_weights_and_optimizer_state(tmp_path):
+    """Adam's momentum moves the weights even on a zero loss, so an all-black step must not reach the optimizer."""
+    extractor = _held_image_extractor(tmp_path)
+    for group in extractor.optimizer.param_groups:
+        group["lr"] = 1e-3
+    lit = torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)
+    pose = torch.zeros(1, 27)
+    extractor.step({"rgb": lit}, pose + 1.0)
+    weights = {name: value.detach().clone() for name, value in extractor.feature_extractor.named_parameters()}
+    state = copy.deepcopy(extractor.optimizer.state_dict()["state"])
+
+    extractor.reset()
+    loss, _ = extractor.step({"rgb": torch.zeros_like(lit)}, pose)
+
+    torch.testing.assert_close(dict(extractor.feature_extractor.named_parameters()), weights, rtol=0, atol=0)
+    torch.testing.assert_close(extractor.optimizer.state_dict()["state"], state, rtol=0, atol=0)
+    assert loss is None
 
 
 @pytest.fixture
