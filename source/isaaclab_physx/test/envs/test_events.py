@@ -105,6 +105,7 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
         ("identity", torch.tensor([0], dtype=torch.int64, device=env.device)),
         ("reordered", slice(1, 2)),
         ("cube", torch.tensor([1], dtype=torch.int64, device=env.device)),
+        ("cube", None),
     ):
         asset = env.scene[asset_name]
         body_name = "right_tip" if asset_name != "cube" else "cube"
@@ -126,7 +127,12 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
             for i in range(env.num_envs)
             for name in asset.body_names
         }
-        selected = selection.start if isinstance(selection, slice) else selection.item()
+        selected_envs = (
+            list(range(env.num_envs))
+            if selection is None
+            else [selection.start if isinstance(selection, slice) else selection.item()]
+        )
+        selected = selected_envs[0]
         selected_view = views[selected, body_name]
         materials = wp.to_torch(selected_view.get_material_properties()).clone()
         materials[0, 0, 2] = -15700.0
@@ -137,10 +143,34 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
             EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env
         )
         term(env, selection, **params)
-        expected[selected, body_name][:] = expected[selected, body_name].new_tensor([0.4, 0.4, 0.1])
-        expected[selected, body_name][0, 0, 2] = -15700.0
+        for env_id in selected_envs:
+            values = expected[env_id, body_name]
+            values[..., :2] = 0.4
+            values[..., 2].masked_fill_(values[..., 2] >= 0, 0.1)
         for key, view in views.items():
             torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected[key])
+
+        expected_compliance = {
+            key: wp.to_torch(view.get_compliant_material_properties()[0]).clone() for key, view in views.items()
+        }
+        params.update(contact_stiffness_range=(2500.0, 2500.0), contact_damping_range=(100.0, 100.0))
+        term = mdp.randomize_rigid_body_material(
+            EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env
+        )
+        term(env, selection, **params)
+        for env_id in selected_envs:
+            expected[env_id, body_name][..., 2] = -2500.0
+            expected_compliance[env_id, body_name][..., 0] = 2500.0
+            expected_compliance[env_id, body_name][..., 1] = 100.0
+        for key, view in views.items():
+            torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected[key])
+            torch.testing.assert_close(
+                wp.to_torch(view.get_compliant_material_properties()[0]), expected_compliance[key]
+            )
+
+    params["contact_stiffness_range"] = (0.0, 0.0)
+    with pytest.raises(ValueError, match="custom event"):
+        mdp.randomize_rigid_body_material(EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env)
 
 
 def test_gravity_distribution(env: ManagerBasedEnv) -> None:

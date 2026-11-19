@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import re
 import sys
 
 
@@ -67,8 +68,8 @@ def _walk_packages(
         return False
 
     for info in pkgutil.iter_modules(path, prefix):
-        # check blacklisted
-        if any([black_pkg_name in info.name for black_pkg_name in blacklist_pkgs]):
+        # A blacklisted name matches whole package names: ".mdp" skips "x.mdp" and "x.mdp.y", not "x.mdp2".
+        if any(re.search(re.escape(name) + r"(\.|$)", info.name) for name in blacklist_pkgs):
             continue
 
         # Only import packages (directories with __init__.py), not plain .py

@@ -3,6 +3,33 @@ Changelog
 
 .. towncrier release notes start
 
+47.1.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional reference bounds to shared camera display normalization, with default display
+  behavior used when explicit bounds were invalid.
+* Added :meth:`~isaaclab.scene.InteractiveScene.export_to_usd` and
+  :attr:`~isaaclab.scene.InteractiveSceneCfg.export_usd_path` to export one initialized environment as USD.
+  The file keeps assets as references to their source files and writes every physics value of the
+  active backend that an import of the USD would not reproduce, such as actuator gains, armature and the
+  initial state of articulation joints and volume deformables. Explicit PD
+  actuators, which run outside the physics engine, are written as joint drive gains. Files the run
+  wrote to the temporary directory, such as re-saved actuator networks, are copied next to the export.
+  On PhysX and OvPhysX, exporting needs ``export_usd_path`` set when the scene is created.
+
+Fixed
+^^^^^
+
+* Fixed crashes and hangs in ``fork()`` when several threads fork at once by raising the ``scipy``
+  dependency floor to 1.18.0 and overriding the ``scipy==1.17.0`` pin from Isaac Sim 6.2. The OpenBLAS
+  bundled with SciPy 1.17.0 could run its pre-fork thread-pool shutdown concurrently and join freed threads.
+* Fixed collision properties being skipped on converted meshes nested beneath importer-created transforms.
+  Regenerate previously converted assets with ``force_usd_conversion=True`` to apply the corrected collider properties.
+
+
 47.0.0 (2026-11-17)
 ~~~~~~~~~~~~~~~~~~~
 

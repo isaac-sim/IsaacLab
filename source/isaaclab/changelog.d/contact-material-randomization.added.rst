@@ -1,0 +1,1 @@
+* Extended ``randomize_rigid_body_material`` with optional contact stiffness [N/m] and damping [N*s/m] ranges. Zero stiffness was rejected because it selects different contact models across engines; use a custom event for that behavior.
