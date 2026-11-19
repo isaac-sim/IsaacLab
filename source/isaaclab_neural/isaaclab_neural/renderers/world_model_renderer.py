@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -39,10 +39,8 @@ class WorldModelRenderer(BaseRenderer):
     """Copy the frames of the :class:`~isaaclab_neural.physics.WorldModelManager` into a camera.
 
     Every other renderer hook is a no-op. The model predicts a whole chunk per update, so this renderer fills the
-    camera's frame history itself.
+    camera's frame history itself (:attr:`~.WorldModelRendererCfg.provides_frame_history`).
     """
-
-    provides_frame_history: ClassVar[bool] = True
 
     cfg: WorldModelRendererCfg
 
