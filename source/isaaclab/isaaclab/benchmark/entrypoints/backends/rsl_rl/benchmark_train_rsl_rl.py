@@ -285,16 +285,16 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             # RSL-RL reports collection and learning durations separately in seconds. Ranks train in
             # lockstep, so rank 0's durations cover the whole world's work for that iteration.
-            coll = log_data.get("Perf/collection_time", [])
-            learn_ = log_data.get("Perf/learning_time", [])
+            coll = log_data.get("Performance/collection_time", [])
+            learn_ = log_data.get("Performance/learning_time", [])
             iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
             num_envs, steps_per_iteration = distributed.global_work(env.unwrapped.num_envs, agent_cfg.num_steps_per_env)
             collection_fps_series = [steps_per_iteration / c for c in coll if c > 0]
             total_fps_series = (
-                # RSL-RL's own total_fps counts only this rank's environments.
+                # Derive the world-wide rate from rank 0 durations instead of the rate RSL-RL logs.
                 [steps_per_iteration / t for t in iteration_times_s if t > 0]
                 if distributed.enabled
-                else list(log_data.get("Perf/total_fps", []))
+                else list(log_data.get("Performance/steps_per_second", []))
             )
 
             startup = StartupTime(
