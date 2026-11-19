@@ -15,12 +15,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import torch
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.policy_ghost_sync import PolicyGhostSync
-from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
@@ -29,7 +27,7 @@ from isaaclab.visualizers.policy_ghost import PolicyGhostCheckpoint
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -61,6 +59,7 @@ from ..policy_ghosts import (
     relaunch,
 )
 from . import cli_args_rsl_rl as cli_args
+from .runner_rsl_rl import create_rsl_rl_runner
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +133,8 @@ def _resolve_checkpoint(
     if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
         return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint == "pretrained":
+        if isinstance(agent_cfg, RslRlSacRunnerCfg):
+            raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
         return resolve_checkpoint_selector(
@@ -153,15 +154,6 @@ def _resolve_checkpoint(
     return get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
 
-def build_runner(env: RslRlVecEnvWrapper, agent_cfg: RslRlBaseRunnerCfg) -> OnPolicyRunner | DistillationRunner:
-    """Construct the RSL-RL runner of an agent config."""
-    if agent_cfg.class_name == "OnPolicyRunner":
-        return OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-    if agent_cfg.class_name == "DistillationRunner":
-        return DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-    raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-
-
 def create_policy_ghost_session(
     env: RslRlVecEnvWrapper,
     args_cli: argparse.Namespace,
@@ -174,7 +166,7 @@ def create_policy_ghost_session(
     """Build a Rollout Ghost session whose reference slot plays ``reference_path``."""
 
     def policy_factory(path: str):
-        runner = build_runner(env, agent_cfg)
+        runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
         runner.load(path)
         return runner.get_inference_policy(device=env.unwrapped.device)
 
@@ -343,11 +335,11 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
                 screen.close()
                 run_policy_ghosts(env, args_cli, agent_cfg, resume_path, log_root_path, slice_size, restart)
                 return
-            runner = build_runner(env, agent_cfg)
+            runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
-            runner.load(resume_path)
+            runner.load(resume_path, map_location=agent_cfg.device)
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
             export_model_dir = os.path.join(log_dir, "exported")

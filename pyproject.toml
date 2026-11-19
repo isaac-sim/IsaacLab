@@ -80,7 +80,8 @@ dependencies = [
     "packaging",
     "rich",
     "tqdm>=4.67.1",
-    "rsl-rl-lib==5.5.1",  # default RL framework
+    # Replace this validated source pin with a published release containing SAC before merging.
+    "rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd",
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin the current Newton development revision until it is included in a release.
@@ -164,7 +165,7 @@ rl-games = [
 
 wandb = ["wandb>=0.13.11"]
 
-rsl-rl = ["rsl-rl-lib==5.5.1"]
+rsl-rl = ["rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd"]
 
 torchrl = ["torchrl>=0.13"]
 
@@ -181,13 +182,13 @@ isaacsim = [
 ]
 
 ov = [
-    "ovphysx==0.7.0.74035321",
-    "ovrtx==0.6.0.1791947691",
-    "ovstage==0.3.0.1791986420",
+    "ovphysx==0.8.0.43443703471",
+    "ovrtx==0.7.0.1794596436",
+    "ovstage==0.4.0.1794520352",
     "physx-usd-schemas==25.11.2.72696984",
 ]
-ovphysx = ["ovphysx==0.7.0.74035321", "ovstage==0.3.0.1791986420", "physx-usd-schemas==25.11.2.72696984"]
-ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
+ovphysx = ["ovphysx==0.8.0.43443703471", "ovstage==0.4.0.1794520352", "physx-usd-schemas==25.11.2.72696984"]
+ovrtx = ["ovrtx==0.7.0.1794596436", "ovstage==0.4.0.1794520352"]
 
 mimic = [
     "isaaclab-mimic",
@@ -234,9 +235,9 @@ isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
-ovphysx = "0.7.0.74035321"
-ovrtx = "0.6.0.1791947691"
-ovstage = "0.3.0.1791986420"
+ovphysx = "0.8.0.43443703471"
+ovrtx = "0.7.0.1794596436"
+ovstage = "0.4.0.1794520352"
 newton = "1.9.0.dev0"
 warp = "1.17.0"
 

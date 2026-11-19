@@ -39,7 +39,6 @@ from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
     PerspectiveCameraCfg,
     SceneCameraCfg,
-    TrackingCameraCfg,
     VisualizerCfg,
     migrate_visualizer_cfgs,
     with_free_view,
@@ -440,10 +439,8 @@ class SimulationContext:
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
                 # tracking cameras only add to the scene cameras the visualizer would find on its own
-                tracking_only = bool(visualizer.cfg.cameras) and all(
-                    isinstance(camera, TrackingCameraCfg) for camera in visualizer.cfg.cameras
-                )
-                if visualizer.cfg.cameras is None or tracking_only:
+                discovered = visualizer.cfg.cameras is None or visualizer.cfg.tracking_cameras_only
+                if discovered:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:

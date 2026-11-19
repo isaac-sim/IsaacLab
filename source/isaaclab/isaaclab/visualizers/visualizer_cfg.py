@@ -96,8 +96,7 @@ class PerspectiveCameraCfg:
 class TrackingCameraCfg(PerspectiveCameraCfg):
     """A camera that frames an environment or follows an asset in it, however the scene is laid out.
 
-    The visualizer renders it from the viewer camera, so nothing is created in the scene. Only Newton GL
-    supports it; other visualizers ignore it.
+    The Newton GL window shows it in either renderer. Only Newton GL supports it; other visualizers ignore it.
     """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
@@ -277,7 +276,8 @@ class VisualizerCfg:
 
     PerspectiveCameraCfg configures the interactive view, TrackingCameraCfg a view that frames an environment
     or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
-    Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
+    view in front of a leading TrackingCameraCfg (see ``with_free_view``) and shows that one first.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -382,6 +382,11 @@ class VisualizerCfg:
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
+    @property
+    def tracking_cameras_only(self) -> bool:
+        """Whether every declared camera is a :class:`TrackingCameraCfg`, so scene cameras are still discovered."""
+        return bool(self.cameras) and all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras)
+
     def __post_init__(self) -> None:
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
@@ -392,7 +397,7 @@ class VisualizerCfg:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
             # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
-            if not all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras):
+            if not self.tracking_cameras_only:
                 self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not isinstance(
                 camera, TrackingCameraCfg

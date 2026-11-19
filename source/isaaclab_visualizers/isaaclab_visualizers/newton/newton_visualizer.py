@@ -943,6 +943,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_visibility_limited = False
     _policy_ghost_panel = None
     _capturing_another_view = False
+    _warned_recording_stopped = False
+    _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -959,6 +961,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
+        self._capturing_another_view = False
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
         self._overlay_publisher = None
@@ -1113,11 +1116,15 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @staticmethod
     def _is_tracking_view(view) -> bool:
-        """Whether *view* is a perspective view tied to an environment or an asset."""
+        """Whether *view* is a tracking camera."""
         return isinstance(view.cfg.source, TrackingCameraCfg)
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
+        if (
+            self._capturing_another_view
+        ):  # an off-screen capture swapped the view; the window controls must not act on it
+            return
         rtx_index = getattr(self, "rtx_view_index", None)
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
@@ -1139,7 +1146,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(True)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "OVRTX path-traced rendering of the scene; slower than OpenGL"
+                    "OVRTX path-traced rendering of the scene; slower than OpenGL. The first switch can take a minute"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
@@ -1690,7 +1697,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         }
 
     def _apply_view_pose(self, view) -> bool:
-        """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
+        """Point the viewer camera where a tracking camera looks, leaving the configured poses untouched.
 
         Returns:
             Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
@@ -1784,14 +1791,16 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        if view is current or (self.rtx_rendering and not self._is_tracking_view(view)):
-            # While the window shows RTX, a free view records what the window shows instead of an OpenGL render.
+        # a free view records what an RTX window shows, and so does the tracking camera the RTX view follows
+        if view is current or (
+            self.rtx_rendering and (not self._is_tracking_view(view) or view is self._rtx_pose_view)
+        ):
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
-            self.current_image_view = view
             self._capturing_another_view = True  # the HUD recording keeps the frames the window itself shows
+            self.current_image_view = view
             if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
                 source = view.cfg.source
                 camera.pos = PygletVec3(*source.eye)
@@ -1857,6 +1866,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._perspective_poses.clear()
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
+            if self._rtx_appearance.available:
+                self._rtx_appearance.suspend()
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
@@ -1942,18 +1953,22 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @property
     def has_tracking_view(self) -> bool:
-        """Whether a perspective view is tied to an environment or an asset."""
+        """Whether a tracking camera is declared."""
         return any(self._is_tracking_view(view) for view in self._image_views)
 
     def render_tracking_rgb_array(self) -> np.ndarray:
-        """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
+        """Download the first tracking camera view, whatever the window shows."""
         view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
         if view is None:
-            raise RuntimeError(
-                "No perspective view is tied to an environment or an asset. Declare "
-                "TrackingCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
-            )
-        return view.read_rgb(self._sim.get_physics_step_count())
+            raise RuntimeError("The visualizer declares no tracking camera. Add a TrackingCameraCfg to its cameras.")
+        frame = view.frame
+        # while rendering is paused the tracking view keeps its last frame, instead of picking up the window's view
+        frame_id = (
+            frame.timestamp
+            if self._viewer is not None and self._viewer.is_paused() and frame.data is not None
+            else self._sim.get_physics_step_count()
+        )
+        return view.read_rgb(frame_id)
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -2065,6 +2080,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -2160,6 +2176,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             elif not viewer.is_paused():
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
+                    if self._geometry_change_version != self.backend.geometry_change_version:
+                        viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                        self._geometry_change_version = self.backend.geometry_change_version
                     viewer.log_state(state)
                     contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
@@ -2177,9 +2196,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
-        if self._recording is not None and not self._capturing_another_view and viewer.is_running():
-            # A closed window has released its OpenGL resources; close() finishes the encoder instead.
-            self._recording.capture(paused=viewer.is_paused())
+        if self._recording is not None and not self._capturing_another_view:
+            if viewer.is_running():
+                self._recording.capture(paused=viewer.is_paused())
+            elif not self._warned_recording_stopped:
+                # A closed window has released its OpenGL resources; close() finishes the encoder instead.
+                self._warned_recording_stopped = True
+                logger.warning(
+                    "[NewtonVisualizer] The window closed, so the HUD recording stops here and is saved on exit."
+                )
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -2294,15 +2319,22 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         free = [
             i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_tracking_view(view)
         ]
+        # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
+        # camera product a second time; otherwise it renders only on demand.
+        self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
         if enabled:
             # A Tracking Camera keeps moving the OVRTX camera, which has no pose of its own.
             current = self.current_image_view
             self._rtx_pose_view = current if self._is_tracking_view(current) else None
             self._select_camera(rtx_index, keep_pose=True)
             self._apply_rtx_visible_envs()
+            if self._rtx_appearance is not None and self._rtx_appearance.available:
+                self._rtx_appearance.apply_lights()
         else:
             if self._overlay_publisher is not None:
                 self._overlay_publisher.hide_all(self._rtx_renderers)
+            if self._rtx_appearance is not None and self._rtx_appearance.available:
+                self._rtx_appearance.suspend()  # scene cameras share the stage, so they get its own lights back
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
             target = self._image_views.index(back) if back is not None else fallback
@@ -2513,7 +2545,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer._view_controls = self._draw_streaming_view_controls
         if self._picking_enabled:
@@ -2531,6 +2564,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._close_key_event_source()
         try:
+            if self._rtx_visibility_limited:  # the shared renderer must not keep hiding environments from sensors
+                self.rtx_rendering = False
+                self._apply_rtx_visible_envs()
             if self._overlay_publisher is not None:
                 try:
                     self._overlay_publisher.hide_all(self._rtx_renderers)
