@@ -10,6 +10,7 @@ import sys
 import types
 
 import pytest
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
@@ -57,10 +58,11 @@ def test_window_size_is_unchanged_without_a_display_to_query(monkeypatch: pytest
         (False, False, None, True, False),
         (None, True, None, True, False),
         (None, False, PhysxCfg(), True, False),
+        (None, False, OvPhysxCfg(), True, True),
         (None, False, None, False, False),
         (None, False, None, True, True),
     ],
-    ids=["explicit-on", "explicit-off", "recording-only-window", "physx", "no-ovrtx-package", "auto"],
+    ids=["explicit-on", "explicit-off", "recording-only-window", "physx", "ovphysx", "no-ovrtx-package", "auto"],
 )
 def test_viewer_camera_is_declared_only_where_it_can_be_used(
     monkeypatch: pytest.MonkeyPatch, rtx_camera, headless, physics, ovrtx_installed, expected
@@ -91,3 +93,15 @@ def test_starting_in_rtx_without_the_viewer_camera_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="requires rtx_camera"):
         sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)])
+
+
+def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> None:
+    from isaaclab.scene import InteractiveSceneCfg
+
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg())
+
+    name, *_ = sim_launcher._declare_viewer_camera(scene_cfg, 0, visualizer)
+
+    assert vars(scene_cfg)[name].render_on_demand
+    assert visualizer.backend.rtx_camera_path == f"/World/{name}"
