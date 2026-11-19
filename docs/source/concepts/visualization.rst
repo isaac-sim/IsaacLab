@@ -307,7 +307,8 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view. Policy Ghost tint, model overlays, and rigid-body dragging apply to the OpenGL view only.
+      the RTX view, and picking draws the drag arrow there. Policy Ghost tint and the model overlays (joint, contact,
+      spring, center-of-mass, inertia, collision, visual, edge, and wireframe) apply to the OpenGL view only.
 
       .. warning::
 
@@ -1026,8 +1027,9 @@ Limitations
      - ✗
      - ✓
 
-In Newton's RTX view, Policy Ghost tint, model overlays, and rigid-body dragging are not available. Ghosts are still
-overlaid on the reference.
+In Newton's RTX view, only the picking drag arrow is drawn; Policy Ghost tint and the model overlays (joint, contact,
+spring, center-of-mass, inertia, collision, visual, edge, and wireframe) are not available. Ghosts are still overlaid
+on the reference.
 
 **Lighting differences across visualizers**
 

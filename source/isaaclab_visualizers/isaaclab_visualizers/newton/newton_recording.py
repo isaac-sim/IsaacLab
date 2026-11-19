@@ -210,7 +210,10 @@ class NewtonRecordingPanel:
                 imgui.pop_style_color()
 
     def _output_path(self, kind: str, suffix: str, when: datetime | None = None) -> Path:
-        """Return the next file of ``kind`` from the output settings, creating its folder."""
+        """Return the next file of ``kind`` from the output settings, creating its folder.
+
+        A numbered file is created empty, which reserves its name until the recording replaces it.
+        """
         folder = resolve_output_dir(self.output_dir) / kind
         folder.mkdir(parents=True, exist_ok=True)
         name = Path(self.filename_prefix).name or "newton"  # The prefix names a file, never a folder.
@@ -220,7 +223,16 @@ class NewtonRecordingPanel:
             return folder / f"{name}{suffix}"
         pattern = re.compile(rf"^{re.escape(name)}_(\d+){re.escape(suffix)}$")
         indices = [int(match.group(1)) for file in folder.iterdir() if (match := pattern.match(file.name))]
-        return folder / f"{name}_{max(indices, default=0) + 1:04d}{suffix}"
+        index = max(indices, default=0) + 1
+        while True:
+            path = folder / f"{name}_{index:04d}{suffix}"
+            try:
+                with path.open("xb"):  # Reserve the name, so another process cannot choose the same number.
+                    pass
+            except FileExistsError:
+                index += 1
+                continue
+            return path
 
     # ------------------------------------------------------------------
     # Video
@@ -310,10 +322,13 @@ class NewtonRecordingPanel:
         temp = self._video_unsaved
         if temp is None:
             return
+        path = None
         try:
             path = self._output_path("video", ".mp4", self._video_started)
             shutil.move(temp, path)  # Also works when the folder is on another filesystem.
         except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
+            if path is not None and self.auto_increment:
+                path.unlink(missing_ok=True)  # Release the reserved name.
             self._message = f"Could not save the video: {exc}"
             return
         self._video_unsaved = None
@@ -351,10 +366,13 @@ class NewtonRecordingPanel:
         """Write one frame to the next screenshot file."""
         from PIL import Image  # noqa: PLC0415
 
+        path = None
         try:
             path = self._output_path("screenshot", ".png")
             Image.fromarray(np.ascontiguousarray(frame[..., :3], dtype=np.uint8)).save(path)
         except Exception as exc:
+            if path is not None and self.auto_increment:
+                path.unlink(missing_ok=True)  # Release the reserved name.
             logger.exception("[NewtonRecording] Could not save the screenshot.")
             self._message = f"Screenshot failed: {exc}"
             return

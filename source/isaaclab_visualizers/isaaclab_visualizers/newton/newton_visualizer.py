@@ -934,6 +934,11 @@ class NewtonViewerGL(ViewerGL):
         )
 
 
+def _is_ovrtx(renderer_cfg) -> bool:
+    """Whether a camera's renderer config selects the OVRTX renderer."""
+    return getattr(renderer_cfg, "renderer_type", None) == "ovrtx"
+
+
 class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
@@ -941,6 +946,9 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_camera_path: str | None = None
     """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
+    _rtx_visibility_limited = False
+    _capturing_another_view = False
+
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
     rtx_rendering: bool = False
@@ -1082,19 +1090,31 @@ class NewtonVisualizerBase(BaseVisualizer):
                 f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
                 backface_culling, color, roughness, metallic, dynamic, opacity,
             )  # fmt: skip
-        if renderers and self.rtx_rendering:
+        view = self.current_image_view
+        camera = getattr(view, "camera", None)
+        if renderers and camera is not None and (self.rtx_rendering or _is_ovrtx(camera.cfg.renderer_cfg)):
             # The cached RTX image predates the mesh, which matters while paused or between renders.
-            view = self._image_views[self.rtx_view_index]
             view.camera._invalidate_buffers()
             view.invalidate()
 
     @property
     def _rtx_renderers(self) -> tuple:
-        """OVRTX renderers of the viewer camera; empty when the scene has none."""
-        index = getattr(self, "rtx_view_index", None)
-        if index is None or self._sim is None:
+        """OVRTX renderers of the viewer camera and of the scene camera the window displays; empty when neither is."""
+        if self._sim is None:
             return ()
-        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
+        index = getattr(self, "rtx_view_index", None)
+        views = [] if index is None else [self._image_views[index]]
+        current = getattr(self, "current_image_view", None)
+        if current is not None and all(current is not view for view in views):
+            views.append(current)
+        renderers = {}
+        for view in views:
+            camera = getattr(view, "camera", None)
+            cfg = None if camera is None else camera.cfg.renderer_cfg
+            if cfg is not None and (index is not None and view is self._image_views[index] or _is_ovrtx(cfg)):
+                renderer = self._sim.get_or_create_backend(cfg)
+                renderers[id(renderer)] = renderer
+        return tuple(renderers.values())
 
     @staticmethod
     def _is_tracking_view(view) -> bool:
@@ -1239,6 +1259,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         def intensity(label: str, value: float, high: float) -> tuple[bool, float]:
             return imgui.slider_float(label, value, 0.0, high, "%.0f", imgui.SliderFlags_.logarithmic)
 
+        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.55, 0.7, 0.95, 0.85))
+        imgui.text_wrapped(
+            "In RTX mode, changing the lighting edits the scene itself, so cameras that share its renderer see it too."
+        )
+        imgui.pop_style_color()
         imgui.separator_text("Lights")
         if appearance.lights:
             changed, appearance.scene_enabled = imgui.checkbox("Scene Lights", appearance.scene_enabled)
@@ -1760,12 +1785,14 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        if view is current:
+        if view is current or (self.rtx_rendering and not self._is_tracking_view(view)):
+            # While the window shows RTX, a free view records what the window shows instead of an OpenGL render.
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
             self.current_image_view = view
+            self._capturing_another_view = True  # the HUD recording keeps the frames the window itself shows
             if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
                 source = view.cfg.source
                 camera.pos = PygletVec3(*source.eye)
@@ -1775,6 +1802,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:
+            self._capturing_another_view = False
             self.current_image_view = current
             camera.fov = saved[3]
             self._viewer.set_camera(*saved[:3])
@@ -2055,7 +2083,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
                 # Tile the first environments unless the view chose its own; the HUD changes how many.
                 self._sensor_tiles[view] = camera.num_instances
-                if self.cfg.view is None and view.cfg.envs == (0,):
+                if self.cfg.view is None and not isinstance(self.cfg.streaming_envs, list) and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
@@ -2147,7 +2175,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
-        if self._recording is not None:
+        if self._recording is not None and not self._capturing_another_view:
             self._recording.capture(paused=viewer.is_paused())
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
@@ -2274,7 +2302,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
-            self._select_camera(self._image_views.index(back) if back is not None else fallback, keep_pose=True)
+            target = self._image_views.index(back) if back is not None else fallback
+            # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
+            self._select_camera(target, keep_pose=self._image_views[target].camera is None)
             self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
 
     def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
@@ -2458,12 +2488,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
         num_envs = len(renderer._env_paths)
         if num_envs:
-            # The renderer is shared with scene cameras, so the limit applies only while the RTX view is shown.
+            # The renderer is shared with scene cameras, so the limit applies only while the RTX view is shown, and
+            # OpenGL leaves the renderer alone unless an earlier limit has to be lifted.
             limited = self._env_ids is not None and self.rtx_rendering
+            if not limited and not self._rtx_visibility_limited:
+                return
             visible = np.zeros(num_envs, dtype=bool) if limited else np.ones(num_envs, dtype=bool)
             if limited:
                 visible[np.asarray(list(self._env_ids), dtype=int)] = True
             renderer.set_environment_visibility(visible)
+            self._rtx_visibility_limited = limited
             self._image_views[index].invalidate()
 
     def reset(self, soft: bool = False) -> None:
