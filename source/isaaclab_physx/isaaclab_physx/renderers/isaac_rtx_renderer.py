@@ -70,6 +70,7 @@ SIMPLE_SHADING_AOV = "SimpleShadingSD"
 RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 RTX_MINIMAL_RENDER_MODE = "Minimal"
+RTX_COLOR_CAMERAS_SETTING = "/isaaclab/render/rtx_color_cameras"
 
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -121,6 +122,8 @@ class IsaacRtxRenderData:
     intrinsic_selection: Any = None
     intrinsic_row_attribute: str = ""
     intrinsic_stage: Any = None
+    color_render_registered: bool = False
+    """Whether this product owns one entry in the process-wide color-camera count."""
     ppisp_pipeline: PpispPipeline | None = None
     """Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set."""
     _hdr_scratch_wp: wp.array | None = None
@@ -281,9 +284,6 @@ class IsaacRtxRenderer(BaseRenderer):
             needs_color_render = any(
                 data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
             )
-            has_gui = settings.get("/isaaclab/has_gui")
-            if simple_shading_mode is None and (not needs_color_render or has_gui):
-                settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
         else:
             unsupported = []
             if "albedo" in spec.cfg.data_types:
@@ -461,12 +461,20 @@ class IsaacRtxRenderer(BaseRenderer):
 
             ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
-        return IsaacRtxRenderData(
+        render_data = IsaacRtxRenderData(
             annotators=annotators,
             render_product=rp,
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
+        if isaac_sim_version.major >= 6:
+            # Register only after product initialization succeeds. The setting is process-wide
+            # because cameras can be owned by different renderer instances.
+            render_data.color_render_registered = needs_color_render or simple_shading_mode is not None
+            color_cameras = (settings.get(RTX_COLOR_CAMERAS_SETTING) or 0) + int(render_data.color_render_registered)
+            settings.set(RTX_COLOR_CAMERAS_SETTING, color_cameras)
+            settings.set("/rtx/sdg/force/disableColorRender", not (settings.get("/isaaclab/has_gui") or color_cameras))
+        return render_data
 
     def _apply_simple_shading_settings(
         self,
@@ -745,7 +753,7 @@ class IsaacRtxRenderer(BaseRenderer):
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data is None:
+        if render_data is None or render_data.render_product is None:
             return
 
         for annotator in render_data.annotators.values():
@@ -753,6 +761,12 @@ class IsaacRtxRenderer(BaseRenderer):
 
         render_data.render_product.destroy()
         render_data.render_product = None
+        if render_data.color_render_registered:
+            settings = get_settings_manager()
+            color_cameras = settings.get(RTX_COLOR_CAMERAS_SETTING) - 1
+            settings.set(RTX_COLOR_CAMERAS_SETTING, color_cameras)
+            settings.set("/rtx/sdg/force/disableColorRender", not (settings.get("/isaaclab/has_gui") or color_cameras))
+            render_data.color_render_registered = False
 
         render_data.intrinsic_selection = None
         if render_data.intrinsic_stage is not None and render_data.spec is not None:
