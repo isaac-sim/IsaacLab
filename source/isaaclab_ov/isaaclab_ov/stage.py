@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections.abc import Iterator, Sequence
+from functools import cache
 
 import numpy as np
 import ovstage
@@ -22,8 +23,6 @@ from pxr import Sdf, Usd, UsdRender, UsdUtils
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-
-from .ovstage_compat import OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE, populate_stage
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +35,32 @@ OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, b
 OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
 
 
-def _handle_raw_id(handle: object) -> int:
-    """Return a numeric ID from an OVStage integer or typed token/path handle.
+def populate_stage(
+    stage: ovstage.Stage, usda: str, *, ordinal: int, domains: ovstage.PopulationDomain, physics: bool = False
+) -> None:
+    """Populate rendering and optional physics data using the pinned OVStage and OvPhysX SDKs.
 
-    OVStage 0.4 handles reject implicit integer conversion. Extract the ID only at
-    numeric buffer boundaries; native OVStage calls should retain typed handles.
+    Description-based population selects physics properties through the OvPhysX SDK
+    alongside the requested domains. Custom USD properties outside those selections
+    are not copied to the native stage; the source USD scene is unchanged.
+
+    Args:
+        stage: Native stage to populate.
+        usda: Exported USD scene.
+        ordinal: Population write ordinal, sealed by the caller after cloning.
+        domains: Native population domains, normally rendering.
+        physics: Whether an OVPhysX consumer also needs physics data.
     """
-    return getattr(handle, "raw_id", handle)
+    if physics:
+        ovstage.population.open_usd_from_string_with_desc(
+            stage,
+            usda,
+            ordinal=ordinal,
+            time=ovstage.population.DEFAULT_TIME,
+            descs=(ovstage.population.Desc(domains=domains), _physics_population_desc()),
+        )
+        return
+    ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
 
 
 def create_ovstage(name: str) -> ovstage.Stage:
@@ -144,7 +162,7 @@ def ovstage_replicate(
         ordinal: Input and output ordinal for hierarchy preparation, and write ordinal
             for the clones and environment placement.
     """
-    if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
+    if any(targets for _, targets in copies):
         # Propagate source transforms on CPU before cloning to avoid copying
         # GPU-resident transform columns per clone. Keep the runtime GPU default.
         # OVSTAGE tracking NVBUG 7027326, when fixed, we can remove this compute call.
@@ -166,7 +184,7 @@ class OvstageBackendCfg(BackendCfg):
     population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
     """Native USD domains to populate, independent of the physics population API."""
     populate_physics: bool = False
-    """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
+    """Include physics data for OVPhysX, using the OvPhysX population description."""
     defer_render_copies: bool = False
     """Populate physics originals first, completing render copies only after native physics bindings exist."""
 
@@ -323,7 +341,7 @@ class OvstageBackend:
             domains=self.cfg.population_domains,
             physics=self.cfg.populate_physics,
         )
-        if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
+        if any(targets for _, targets in copies):
             self.stage.compute_hierarchy(
                 input_ordinal=1, output_ordinal=1, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
             )
@@ -436,6 +454,13 @@ def export_stage_to_string(
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
     return layer.ExportToString()
+
+
+@cache
+def _physics_population_desc() -> ovstage.population.Desc:
+    from ovphysx.population import physics_population_desc
+
+    return physics_population_desc()
 
 
 def _apply_ovstage_copies(

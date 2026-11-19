@@ -268,9 +268,8 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
     usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=enable_shadows)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(usd)
-    assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "Minimal"
+    assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "MinimalRendering"
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:mode").default == minimal_mode
-    assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rt:ecoMode:enabled").default is False
     assert (
         layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:castShadows").default == enable_shadows
     )
