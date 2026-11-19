@@ -23,19 +23,12 @@ class ActuatorNetLSTMCfg(DCMotorCfg):
     damping = None
 
     network_file: str | None = None
-    """Path to the TorchScript checkpoint. Required by the Isaac Lab model and for a new native neural drive.
-
-    With :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps an existing USD actuator's checkpoint.
-    """
+    """Path to the TorchScript checkpoint. None keeps the USD actuator's checkpoint."""
 
 
 @configclass
 class ActuatorNetMLPCfg(DCMotorCfg):
-    """Configuration for MLP-based actuator model.
-
-    Input settings are required when supplying :attr:`network_file`. Leaving the checkpoint and its
-    input settings unset keeps an existing USD actuator's checkpoint and preprocessing metadata.
-    """
+    """Configuration for MLP-based actuator model."""
 
     class_type: type["ActuatorNetMLP"] | str = "{DIR}.actuator_net:ActuatorNetMLP"
     # we don't use stiffness and damping for actuator net
@@ -44,10 +37,7 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     damping = None
 
     network_file: str | None = None
-    """Path to the TorchScript checkpoint. Required by the Isaac Lab model and for a new native neural drive.
-
-    With :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps an existing USD actuator's checkpoint.
-    """
+    """Path to the TorchScript checkpoint. None keeps the USD actuator's checkpoint."""
 
     pos_scale: float | None = None
     """Scaling of the joint position errors input to the network."""

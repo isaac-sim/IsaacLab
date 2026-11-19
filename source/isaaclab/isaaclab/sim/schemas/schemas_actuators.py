@@ -25,7 +25,7 @@ import logging
 import tempfile
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from operator import attrgetter
 from typing import Any
 
@@ -33,14 +33,13 @@ import torch
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from ...actuators.actuator_bam_cfg import _BAM_MOTOR_DEFAULTS, BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
 from ...actuators.actuator_pd_cfg import (
-    _PD_ACTUATOR_DEFAULTS,
     DCMotorCfg,
     DelayedPDActuatorCfg,
     IdealPDActuatorCfg,
@@ -259,7 +258,7 @@ Private helpers.
 
 
 @dataclass(frozen=True)
-class _ActuatorField:
+class ActuatorField:
     """A ``NewtonActuator`` attribute that an actuator config can author."""
 
     name: str
@@ -295,7 +294,7 @@ class _ActuatorField:
 
 
 @dataclass(frozen=True)
-class _ActuatorLayout:
+class ActuatorLayout:
     """The ``NewtonActuator`` components and attributes of one actuator config type."""
 
     actuator_class: type[ActuatorBase] | None
@@ -304,7 +303,7 @@ class _ActuatorLayout:
     drive: str
     """Drive schema; an existing prim is authored onto only when it has this drive."""
 
-    fields: tuple[_ActuatorField, ...]
+    fields: tuple[ActuatorField, ...]
     """Attributes the config type can author; their schemas and the drive are all it keeps."""
 
     joint_attrs: tuple[tuple[str, Sdf.ValueTypeName, Any], ...] = ()
@@ -508,20 +507,20 @@ def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_name
 
 def _bam_value(
     name: str, type_name: Sdf.ValueTypeName = _FLOAT, default: float | None = None, required: bool = False
-) -> _ActuatorField:
+) -> ActuatorField:
     """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field, named after its DriveBam argument."""
     attr = f"newton:{to_camel_case(name.removeprefix('motor.'))}"
-    return _ActuatorField(name, BAM_DRIVE_API, attr, type_name, new_prim_default=default, required=required)
+    return ActuatorField(name, BAM_DRIVE_API, attr, type_name, new_prim_default=default, required=required)
 
 
-def _bam_model_flag(flag: str) -> _ActuatorField:
+def _bam_model_flag(flag: str) -> ActuatorField:
     """Return a BAM drive flag set by the friction model of the :class:`BamMotorCfg`."""
 
     def source(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, int]:
         model = cfg.motor.model
         return _configured_values(BAM_MODEL_FLAGS[model][flag] if model is not None else None, joint_names, int)
 
-    return _ActuatorField("motor.model", BAM_DRIVE_API, f"newton:{to_camel_case(flag)}", _INT, source, required=True)
+    return ActuatorField("motor.model", BAM_DRIVE_API, f"newton:{to_camel_case(flag)}", _INT, source, required=True)
 
 
 def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, float]:
@@ -541,22 +540,22 @@ def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str,
 
 
 _PD_GAINS = (
-    _ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=_PD_ACTUATOR_DEFAULTS.stiffness),
-    _ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=_PD_ACTUATOR_DEFAULTS.damping),
+    ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=0.0),
+    ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=0.0),
 )
-_MAX_EFFORT = _ActuatorField(
+_MAX_EFFORT = ActuatorField(
     "actuator_effort_limit", _MAX_EFFORT_API, "newton:maxEffort", new_prim_default=_new_prim_effort_limit
 )
 _DC_MOTOR = (
-    _ActuatorField("saturation_effort", _DC_MOTOR_API, "newton:saturationEffort", required=True),
-    _ActuatorField("actuator_velocity_limit", _DC_MOTOR_API, "newton:velocityLimit"),
-    _ActuatorField(
+    ActuatorField("saturation_effort", _DC_MOTOR_API, "newton:saturationEffort", required=True),
+    ActuatorField("actuator_velocity_limit", _DC_MOTOR_API, "newton:velocityLimit"),
+    ActuatorField(
         "actuator_effort_limit", _DC_MOTOR_API, "newton:maxMotorEffort", new_prim_default=_new_prim_effort_limit
     ),
 )
-_DELAY = _ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT, disabled_by=0)
+_DELAY = ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT, disabled_by=0)
 _POSITION_BASED = tuple(
-    _ActuatorField(
+    ActuatorField(
         "joint_parameter_lookup",
         _POSITION_BASED_API,
         attr,
@@ -570,7 +569,7 @@ _POSITION_BASED = tuple(
     )
     for attr, column in (("newton:lookupPositions", 0), ("newton:lookupEfforts", 2))
 )
-_NEURAL_MODEL = _ActuatorField(
+_NEURAL_MODEL = ActuatorField(
     "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path, required=True
 )
 
@@ -579,16 +578,25 @@ _NEURAL_MODEL = _ActuatorField(
 _BAM_FIELDS = (
     *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
     *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
+    *(_bam_value(f"motor.{name}", default=1.0) for name in ("max_pwm", "dtheta_stribeck", "alpha")),
     *(
-        _bam_value(f"motor.{field.name}", default=getattr(_BAM_MOTOR_DEFAULTS, field.name))
-        for field in fields(_BAM_MOTOR_DEFAULTS)
+        _bam_value(f"motor.{name}", default=0.0)
+        for name in (
+            "friction_stribeck",
+            "load_friction_motor",
+            "load_friction_external",
+            "load_friction_motor_stribeck",
+            "load_friction_external_stribeck",
+            "load_friction_motor_quad",
+            "load_friction_external_quad",
+        )
     ),
     *(_bam_model_flag(flag) for flag in ("stribeck", "load_dependent", "quadratic")),
     *(_bam_value(name, required=True) for name in ("kp_fw", "vin")),
     *(_bam_value(name) for name in ("vin_min", "delay_hold_prob")),
     *(_bam_value(name, _INT) for name in ("min_delay", "max_delay", "delay_update_period")),
     # Flag backlash drives so they never merge with regular ones; without a hinge template, keep the USD flag.
-    _ActuatorField(
+    ActuatorField(
         "backlash_joint_template",
         BAM_DRIVE_API,
         "newton:hasBacklash",
@@ -596,25 +604,25 @@ _BAM_FIELDS = (
         lambda cfg, names: dict.fromkeys(names, 1) if cfg.backlash_joint_template is not None else {},
     ),
     # A new prim requires kt, resistance and vin, so the default only fills joints a configured mapping skips.
-    _ActuatorField(
+    ActuatorField(
         "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _new_prim_effort_limit
     ),
 )
 
-_ACTUATOR_LAYOUTS: dict[type, _ActuatorLayout] = {
-    IdealPDActuatorCfg: _ActuatorLayout(IdealPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT)),
-    DelayedPDActuatorCfg: _ActuatorLayout(DelayedPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT, _DELAY)),
-    RemotizedPDActuatorCfg: _ActuatorLayout(RemotizedPDActuator, _PD_API, (*_PD_GAINS, *_POSITION_BASED, _DELAY)),
-    DCMotorCfg: _ActuatorLayout(DCMotor, _PD_API, (*_PD_GAINS, *_DC_MOTOR)),
-    ActuatorNetMLPCfg: _ActuatorLayout(ActuatorNetMLP, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
-    ActuatorNetLSTMCfg: _ActuatorLayout(ActuatorNetLSTM, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
+_ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
+    IdealPDActuatorCfg: ActuatorLayout(IdealPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT)),
+    DelayedPDActuatorCfg: ActuatorLayout(DelayedPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT, _DELAY)),
+    RemotizedPDActuatorCfg: ActuatorLayout(RemotizedPDActuator, _PD_API, (*_PD_GAINS, *_POSITION_BASED, _DELAY)),
+    DCMotorCfg: ActuatorLayout(DCMotor, _PD_API, (*_PD_GAINS, *_DC_MOTOR)),
+    ActuatorNetMLPCfg: ActuatorLayout(ActuatorNetMLP, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
+    ActuatorNetLSTMCfg: ActuatorLayout(ActuatorNetLSTM, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
     # Allocate the joint friction constraint; BAM overwrites this seed before each solve.
-    BamActuatorCfg: _ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS, joint_attrs=(("newton:friction", _FLOAT, 1.0),)),
+    BamActuatorCfg: ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS, joint_attrs=(("newton:friction", _FLOAT, 1.0),)),
 }
 """Newton actuator layout of each supported config type; subclasses use their closest base's layout."""
 
 
-def _actuator_layout(cfg: ActuatorBaseCfg) -> _ActuatorLayout | None:
+def _actuator_layout(cfg: ActuatorBaseCfg) -> ActuatorLayout | None:
     """Return the Newton actuator layout of *cfg*'s type, or None if Newton cannot author it."""
     return next((_ACTUATOR_LAYOUTS[cls] for cls in type(cfg).__mro__ if cls in _ACTUATOR_LAYOUTS), None)
 

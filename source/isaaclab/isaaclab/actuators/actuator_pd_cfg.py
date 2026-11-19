@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
@@ -33,17 +32,6 @@ Explicit Actuator Models.
 """
 
 
-@dataclass(frozen=True)
-class _PDActuatorDefaults:
-    """Creation defaults for PD gains when no compatible USD drive supplies them."""
-
-    stiffness: float = 0.0
-    damping: float = 0.0
-
-
-_PD_ACTUATOR_DEFAULTS = _PDActuatorDefaults()
-
-
 @configclass
 class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
@@ -62,9 +50,8 @@ class DCMotorCfg(IdealPDActuatorCfg):
 
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
     Joints in the same group that sit behind different gear reductions need different values,
-    so this accepts a joint-name-pattern dictionary as well as a scalar. Required by the Isaac Lab
-    actuator model; with :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps the value of the
-    joint's USD actuator (see :ref:`USD actuator overrides <actuators-usd-override>`).
+    so this accepts a joint-name-pattern dictionary as well as a scalar. None keeps the USD actuator's value
+    (see :ref:`USD actuator overrides <actuators-usd-override>`).
     """
 
 
@@ -78,12 +65,7 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
     max_delay: int | None = None
-    """Maximum number of physics time-steps with which the actuator command may be delayed.
-
-    None applies no delay on the Isaac Lab model. With :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`,
-    None keeps the delay of the joint's USD actuator and zero removes it (see :ref:`USD actuator overrides
-    <actuators-usd-override>`).
-    """
+    """Maximum command delay [physics steps]. None keeps the USD actuator's delay (none on the Isaac Lab path)."""
 
 
 @configclass
@@ -103,6 +85,5 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
-    Required by the Isaac Lab model and when adding a native lookup-table clamp. With
-    :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps an existing USD actuator's table.
+    None keeps the USD actuator's table.
     """

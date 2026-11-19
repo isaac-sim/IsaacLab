@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -22,34 +21,9 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
 """Drive flags of the friction terms each BAM model enables."""
 
 
-@dataclass(frozen=True)
-class _BamMotorDefaults:
-    """Creation defaults for optional BAM motor coefficients; existing USD values take precedence."""
-
-    max_pwm: float = 1.0
-    dtheta_stribeck: float = 1.0
-    alpha: float = 1.0
-    friction_stribeck: float = 0.0
-    load_friction_motor: float = 0.0
-    load_friction_external: float = 0.0
-    load_friction_motor_stribeck: float = 0.0
-    load_friction_external_stribeck: float = 0.0
-    load_friction_motor_quad: float = 0.0
-    load_friction_external_quad: float = 0.0
-
-
-_BAM_MOTOR_DEFAULTS = _BamMotorDefaults()
-
-
 @configclass
 class BamMotorCfg:
-    """Identified BAM motor and gearbox fit, shared by all joints of an actuator group.
-
-    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator needs
-    :attr:`model`, :attr:`kt`, :attr:`resistance`, :attr:`error_gain`, :attr:`max_current` and
-    :attr:`friction_base`; it defaults :attr:`max_pwm`, :attr:`dtheta_stribeck` and :attr:`alpha` to 1 and the
-    Stribeck and load-dependent friction terms to 0.
-    """
+    """Identified BAM motor and gearbox fit, shared by all joints of an actuator group; None keeps the USD value."""
 
     model: Literal["m1", "m2", "m5", "m6"] | None = None
     """Friction variant: Coulomb, Stribeck, directional load-dependent, or quadratic."""
@@ -116,17 +90,12 @@ class BamMotorCfg:
 class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
-    Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
-    actuators, it is authored onto the selected joints' USD BAM actuators: a drive value left as
-    None, here or in :attr:`motor`, keeps the asset's value. Joints without a BAM actuator get a
-    new one, which needs the motor fit, :attr:`kp_fw` and :attr:`vin`.
+    Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Values left as None keep the
+    joint's USD BAM actuator values (see :ref:`actuators-bam`).
 
     If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
     limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
-    :attr:`vin` when :attr:`vin_range` is unset. When the configuration does not set the
-    torque constant, resistance and voltage, the USD actuator's authored limit applies, or the
-    drive's ``vin * kt / resistance`` default when it has none, with a warning if the
-    configuration sets some of them.
+    :attr:`vin` when :attr:`vin_range` is unset.
     """
 
     class_type: type | None = None
@@ -176,8 +145,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
     For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
-    friction, and applied torque stay on the servo joint. None keeps the USD actuator's backlash flag, which is
-    off for a new actuator.
+    friction, and applied torque stay on the servo joint. None keeps the USD actuator's backlash flag.
     """
 
     stiff_frictionloss: bool = True
