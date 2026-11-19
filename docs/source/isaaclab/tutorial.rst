@@ -314,7 +314,7 @@ start with a smaller batch:
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark runtime --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --num_steps 1000 --warmup_steps 50 presets=newton_mjwarp,newton_renderer
+   uv run isaaclab benchmark runtime --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --num_steps 1000 --warmup_steps 50 presets=newton_mjwarp,newton_warp
 
 .. _tutorial-so101-train:
 
@@ -358,7 +358,7 @@ Pass the finished teacher to the camera task. Add the renderer preset because th
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --seed 42 --checkpoint /path/to/state_model.pt --run_name wrist_distillation_seed42 presets=newton_mjwarp,newton_renderer
+   uv run isaaclab train --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --seed 42 --checkpoint /path/to/state_model.pt --run_name wrist_distillation_seed42 presets=newton_mjwarp,newton_warp
 
 The camera task's default agent is RSL-RL's DAgger-style distillation runner: the student acts, the frozen teacher
 labels every visited state, and the labels are clipped to the executed ``[-1, 1]`` action range. Outputs are written
@@ -368,7 +368,7 @@ Play the distilled student with the same task ID used for training:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1 --checkpoint /path/to/distilled_model.pt --visualizer newton_gl presets=newton_mjwarp,newton_renderer
+   uv run isaaclab play --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1 --checkpoint /path/to/distilled_model.pt --visualizer newton_gl presets=newton_mjwarp,newton_warp
 
 Measure the policies
 ~~~~~~~~~~~~~~~~~~~~
@@ -384,7 +384,7 @@ Evaluate the distilled policy from the same 1,024 starting states:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --checkpoint /path/to/distilled_model.pt --external_callback isaaclab_tutorial.utils.evaluation.install_episode_counter presets=newton_mjwarp,newton_renderer
+   uv run isaaclab play --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --checkpoint /path/to/distilled_model.pt --external_callback isaaclab_tutorial.utils.evaluation.install_episode_counter presets=newton_mjwarp,newton_warp
 
 The callback runs each tracked start once and prints one ``SO101_EVAL_RESULT`` JSON record. Preserve that record,
 the checkpoint, seed, task ID, and resolved configuration when comparing experiments.
@@ -412,7 +412,7 @@ distill under the same preset:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101 --num_envs 4096 --checkpoint /path/to/state_model.pt presets=newton_mjwarp,sim2real
-   uv run isaaclab train --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --checkpoint /path/to/sim2real_state_model.pt presets=newton_mjwarp,newton_renderer,sim2real
+   uv run isaaclab train --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101-Camera --num_envs 1024 --checkpoint /path/to/sim2real_state_model.pt presets=newton_mjwarp,newton_warp,sim2real
 
 The repository's ``docs/SIM2REAL.md`` covers the physical setup, robot calibration, policy export, and deployment.
 
