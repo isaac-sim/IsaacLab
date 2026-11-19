@@ -428,8 +428,8 @@ def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(dev
     builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
     box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
     ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
-    box_mesh.build_sdf(margin=0.005, max_resolution=32)
-    ground_mesh.build_sdf(margin=0.005, max_resolution=32)
+    box_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+    ground_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
 
     builder.begin_world()
     body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.025), wp.quat_identity()))
