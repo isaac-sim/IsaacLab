@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""RTX camera contracts that need no renderer."""
+"""RTX camera contracts that need no renderer: construction, lens textures and their USD schema, and capture."""
 
+import math
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ import torch
 import warp as wp
 from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_fovi.sensors.lens_lut import apply_lens_lut_to_prim, build_lut_textures
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.sensors.camera.camera import Camera
@@ -119,3 +121,52 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
         assert prim.GetAttribute("omni:lensdistortion:lut:rayEnterDirectionTexture").Get().path == "/textures/enter.exr"
     assert camera.cfg is not cfg and camera.cfg.height == 64
     assert cfg.spawn.lock_camera and (cfg.height, cfg.width) == (1, 1)
+
+
+def test_lens_lut_survives_usd_export_without_schema_registration() -> None:
+    pxr = pytest.importorskip("pxr")
+    stage = pxr.Usd.Stage.CreateInMemory()
+    prim = pxr.UsdGeom.Camera.Define(stage, "/Camera").GetPrim()
+    apply_lens_lut_to_prim(prim, "/tmp/direction.exr", "/tmp/exit.exr")
+    restored = pxr.Usd.Stage.CreateInMemory()
+    restored.GetRootLayer().ImportFromString(stage.GetRootLayer().ExportToString())
+    prim = restored.GetPrimAtPath("/Camera")
+    assert "OmniLensDistortionLutAPI" in prim.GetMetadata("apiSchemas").GetAppliedItems()
+    assert prim.GetAttribute("omni:lensdistortion:model").Get() == "lut"
+    assert prim.GetAttribute("omni:lensdistortion:lut:rayEnterDirectionTexture").Get().path == "/tmp/direction.exr"
+    assert prim.GetAttribute("omni:lensdistortion:lut:rayExitPositionTexture").Get().path == "/tmp/exit.exr"
+    for name in (
+        "cameraProjectionType",
+        "generalizedProjectionDirectionTexturePath",
+        "generalizedProjectionNDCTexturePath",
+    ):
+        assert not prim.HasProperty(name), name
+
+
+def test_sample_set_lens_textures_place_samples_and_mark_rays_outside_the_field() -> None:
+    # A sample set with one sample per texel, in shuffled order, puts each sample's ray at its own texel.
+    size = 4
+    axis = (torch.arange(size) + 0.5) / size
+    row, col = torch.meshgrid(axis, axis, indexing="ij")
+    centres = torch.stack((col, row), -1).reshape(-1, 2)
+    order = torch.randperm(size * size, generator=torch.Generator().manual_seed(0))
+    directions = torch.nn.functional.normalize(torch.randn(size * size, 3, generator=torch.Generator().manual_seed(1)))
+    direction_texture, _ = build_lut_textures(centres[order], directions, size, size, 16, 16, device="cpu")
+    texels = (centres[order] * size).long()
+    torch.testing.assert_close(direction_texture[texels[:, 1], texels[:, 0]], directions)
+
+    # The inverse lookup sends each in-field ray to its nearest sample, and every other ray to the invalid UV, never
+    # to the fovea. Three samples: the optical axis (OpenGL -z) and two rays 10 degrees off it.
+    angle = math.radians(10.0)
+    directions = torch.tensor(
+        [[0.0, 0.0, -1.0], [math.sin(angle), 0.0, -math.cos(angle)], [0.0, math.sin(angle), -math.cos(angle)]]
+    )
+    uv = torch.tensor([[0.5, 0.5], [0.9, 0.5], [0.5, 0.9]])
+    _, exit_texture = build_lut_textures(uv, directions, 8, 8, 32, 32, device="cpu")
+    texels = exit_texture.reshape(-1, exit_texture.shape[-1])[:, :2]
+    invalid = (texels == -1.0).all(dim=-1)
+    # Rays outside the 10 degree field outnumber those inside it on the hemisphere's octahedral grid.
+    assert invalid.float().mean() > 0.5 and (~invalid).any()
+    assert all(any(torch.equal(texel, sample) for sample in uv) for texel in texels[~invalid])
+    # The octahedral centre is the optical axis, which reaches the axis sample.
+    torch.testing.assert_close(exit_texture[exit_texture.shape[0] // 2, exit_texture.shape[1] // 2, :2], uv[0])

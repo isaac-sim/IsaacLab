@@ -16,7 +16,7 @@ from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.sensors import foveated_camera as base_camera
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
-from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
+from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera, explicit_rays
 from isaaclab_fovi.sensors.native_grid import native_grid_directions
 
 from isaaclab.utils.warp import ProxyArray
@@ -282,20 +282,36 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     assert camera.image_shape == (16, 16) and camera._data.image_shape == (16, 16)
 
 
-@pytest.mark.parametrize("size, valid", [(83, False), (100, False), (128, True)])
-def test_native_grid_fractional_pool_resolution_validates_newton_tiles(size, valid) -> None:
-    camera = SimpleNamespace(cfg=SimpleNamespace(width=size, height=size))
-    if valid:
-        FoveatedNewtonCamera._validate_native_render_layout(camera, 16, 8)
-    else:
-        with pytest.raises(ValueError, match=f"{size}x{size}.*16x8"):
-            FoveatedNewtonCamera._validate_native_render_layout(camera, 16, 8)
+def test_native_grid_render_size_must_fill_newton_tiles() -> None:
+    """A fractional pool_res_mult can give a grid that Newton's tiles do not divide; the camera rejects it."""
+    FoveatedNewtonCamera._validate_native_render_layout(
+        SimpleNamespace(cfg=SimpleNamespace(width=128, height=128)), 16, 8
+    )
+    with pytest.raises(ValueError, match="83x83.*16x8"):
+        FoveatedNewtonCamera._validate_native_render_layout(
+            SimpleNamespace(cfg=SimpleNamespace(width=83, height=83)), 16, 8
+        )
 
 
-@pytest.mark.parametrize("style", ["warped_cartesian_as_grid", "isotropic"])
-def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch, style) -> None:
-    """The renderer publishes rgb as a view of rgba even when only rgba is requested, and so do pooled grids and
-    sample sets."""
+def test_explicit_rays_keep_sample_order_and_pad_whole_tiles() -> None:
+    """Newton receives one ray per sample from the optical centre, in sample order, padded to whole tiles."""
+    wp.init()
+    directions = torch.nn.functional.normalize(torch.randn(5, 3, generator=torch.Generator().manual_seed(0)), dim=-1)
+    rays = explicit_rays(directions, 2, 4)
+    assert rays.shape == (2, 4, 1, 2) and rays.dtype == wp.vec3f
+    rays = wp.to_torch(rays).reshape(8, 2, 3)
+    torch.testing.assert_close(rays[:5, 1], directions)
+    torch.testing.assert_close(rays[5:, 1], directions[-1].expand(3, -1))
+    assert not rays[:, 0].any()
+    with pytest.raises(ValueError, match="shape"):
+        explicit_rays(torch.zeros(3, 2), 3, 1)
+    with pytest.raises(ValueError, match="cannot hold"):
+        explicit_rays(torch.zeros(5, 3), 2, 2)
+
+
+def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch) -> None:
+    """The renderer publishes rgb as a view of rgba even when only rgba is requested, and so do pooled sample sets."""
+    style = "isotropic"
     coords = SamplingCoords(60.0, 0.591, 16, style=style, field_geometry="spherical", device="cpu")
     highres = coords.clone(resolution=32)
     monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))

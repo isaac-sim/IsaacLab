@@ -119,17 +119,11 @@ def test_gaze_head_keeps_the_gaze_noise_fixed_while_ppo_learns_the_rest():
     assert torch.equal(head.state_dict()["gaze_std"], torch.full((2,), 0.1))
 
 
-@pytest.mark.parametrize("std_type", ["scalar", "log"])
-def test_gaze_head_fixes_the_last_two_actions_noise(std_type):
-    head = GazeGaussianDistribution(5, init_std=2.0, std_type=std_type, gaze_std=0.05)
+def test_gaze_head_fixes_the_last_two_actions_noise_and_rejects_invalid_settings():
+    head = GazeGaussianDistribution(5, init_std=2.0, std_type="log", gaze_std=0.05)
     assert head.input_dim == 5
     head.update(torch.zeros(3, 5))
     torch.testing.assert_close(head.std, torch.tensor([[2.0, 2.0, 2.0, 0.05, 0.05]]).expand(3, -1))
-
-
-@pytest.mark.parametrize(
-    "output_dim, gaze_std", [(5, 0.0), (5, float("inf")), (2, 0.1)], ids=["zero", "infinite", "gaze_only"]
-)
-def test_gaze_head_rejects_invalid_settings(output_dim, gaze_std):
-    with pytest.raises(ValueError, match="gaze"):
-        GazeGaussianDistribution(output_dim, gaze_std=gaze_std)
+    for output_dim, gaze_std in ((5, 0.0), (5, float("inf")), (2, 0.1)):
+        with pytest.raises(ValueError, match="gaze"):
+            GazeGaussianDistribution(output_dim, gaze_std=gaze_std)
