@@ -308,10 +308,6 @@ class ConveyorResetStateTable(ManagerTermBase):
         """Borrowed read-only catalog assignments, owned by the shared sampler."""
         return self.reset_sampler.state_ids.torch
 
-    def reseed(self, seed: int) -> None:
-        """Reseed existing native streams without clearing the outcome history."""
-        self.reset_sampler.reseed((seed + self.cfg.params["sampling"].seed) % 2**32)
-
     def reset(self, env_ids=None) -> None:
         """Publish completed-outcome metrics after manager reset has cleared the log."""
         self._env.extras.setdefault("log", {}).update(

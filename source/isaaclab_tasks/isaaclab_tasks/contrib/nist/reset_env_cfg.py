@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.envs.reset import ResetStateSamplerCfg, TargetSuccessScoreCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 
@@ -24,6 +24,7 @@ from isaaclab_tasks.contrib.nist.factory_presets import (
     ResetAssetsCfg,
 )
 from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 _FRANKA_END_EFFECTOR = "panda_fingertip_centered"
 _FRANKA_ARM_JOINTS = ["panda_joint.*"]
@@ -228,10 +229,11 @@ SCENE_RESET = EventTerm(
                         "start_grasped_then_assembled": GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER,
                     },
                     "sampling": ResetStateSamplerCfg(
-                        history_length=100,
-                        scores=[TargetSuccessScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
+                        history_length=1,
+                        scores=[BetaSamplingScoreCfg(metric="monitor_success_rate", target=0.5, kappa=1.0, weight=0.5)],
                         uniform_weight=1e-4,
                     ),
+                    "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=100),
                     "report": preset(accumulator=False, choice=True, default=False),
                 },
             ),
@@ -269,10 +271,15 @@ ACCUMULATOR_RESET = EventTerm(
         "state_tag_names_bind": "list(reset_term.func.terms['reset_strategies'].func.term_partitions.keys())",
         "state_tag_indices_bind": "reset_term.func.terms['reset_strategies'].func.term_samples",
         "sampling": ResetStateSamplerCfg(
-            history_length=50,
-            scores=[TargetSuccessScoreCfg(target=0.66, kappa=1.0, weight=0.66**0.66 * 0.34**0.34)],
+            history_length=1,
+            scores=[
+                BetaSamplingScoreCfg(
+                    metric="monitor_success_rate", target=0.66, kappa=1.0, weight=0.66**0.66 * 0.34**0.34
+                )
+            ],
             uniform_weight=1e-4,
         ),
+        "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
         "reset_term": SCENE_RESET,
         "report": True,
     },

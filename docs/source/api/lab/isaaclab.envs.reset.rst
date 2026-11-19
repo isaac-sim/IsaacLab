@@ -14,7 +14,7 @@ broadcasting, custom metrics, and the existing Lift event integration.
    ResetStateSampler
    ResetStateSamplerCfg
    SamplingScoreCfg
-   TargetSuccessScoreCfg
+   BetaSamplingScoreCfg
 
 .. autoclass:: ResetStateBuffer
    :members:
@@ -32,6 +32,6 @@ broadcasting, custom metrics, and the existing Lift event integration.
    :members:
    :exclude-members: __init__
 
-.. autoclass:: TargetSuccessScoreCfg
+.. autoclass:: BetaSamplingScoreCfg
    :members:
    :exclude-members: __init__

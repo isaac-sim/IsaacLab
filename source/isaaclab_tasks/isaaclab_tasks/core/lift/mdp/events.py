@@ -305,7 +305,6 @@ class conditional_reset(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._seed = env.cfg.seed or 0
         self._sampler: ResetStateSampler | None = None
         self._bank: ResetStateBuffer | None = None
         self._success: wp.array | None = None
@@ -524,7 +523,7 @@ class conditional_reset(ManagerTermBase):
         else:
             success_term = env.reward_manager.get_term_cfg(success_reward_term).func
             success = wp.from_torch(success_term.succeeded)
-        cfg = replace(cfg, seed=(cfg.seed + self._seed) % 2**32)
+        cfg = replace(cfg, seed=(cfg.seed + (env.cfg.seed or 0)) % 2**32)
         self._sampler = ResetStateSampler(
             cfg, env.num_envs, buffer.shape[0], env.device, group_ids=groups, num_groups=num_groups
         )
@@ -562,13 +561,6 @@ class conditional_reset(ManagerTermBase):
         self._bank = ResetStateBuffer(states)
         self._success = success
 
-    def reseed(self, seed: int) -> None:
-        """Apply an explicit environment seed to the existing native streams."""
-        self._seed = seed
-        if self._sampler is not None:
-            cfg = self.cfg.params["reset_sampler"]
-            self._sampler.reseed((seed + (cfg.seed if cfg is not None else 0)) % 2**32)
-
     def reset_mask(
         self,
         mask: wp.array | None = None,
@@ -576,9 +568,10 @@ class conditional_reset(ManagerTermBase):
         state_ids: wp.array | None = None,
         completed: wp.array | None = None,
     ) -> None:
-        """Restore selected environments using only native arrays and preallocated storage.
+        """Restore selected environments through the backend's mask writers.
 
-        Prefill must complete through the ordinary event call before this method is captured.
+        Complete prefill through the ordinary event call first. Newton/MJWarp supports CUDA
+        graph capture of this method. Run it outside capture with OvPhysX or Kit-based PhysX.
         The full-environment mask and optional explicit catalog IDs may change between graph
         replays. Supply the full-environment ``completed`` mask for natural episode outcomes
         before the task's reward buffer is cleared. Exclude zero-step and unfinished episodes

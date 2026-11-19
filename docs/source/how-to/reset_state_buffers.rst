@@ -89,16 +89,20 @@ to the sampler; that shim populates a preallocated mask.
 
 .. figure:: ../_static/how-to/reset_states/reset_lifecycle.jpg
    :width: 100%
-   :alt: Initialization prepares validated states once; captured runtime records previous outcomes, scores entries, selects IDs, gathers snapshots, and restores masked worlds.
+   :alt: Initialization prepares validated states once. Runtime selects IDs, gathers snapshots, and restores masked worlds. Completed episode outcomes feed back into sampling.
 
    Generation and validation run during initialization. Runtime uses fixed storage and masks.
 
 Capture the runtime
 -------------------
 
-Warm the configured path before capturing it. Capture reset selection, gathering, and
-native asset writes together. The values in the bound arrays can change between
-replays. The choice to provide outcomes or explicit IDs is fixed at capture time:
+Warm the configured path before capture. The sampler and ``get_state(..., out=...)``
+can run in a CUDA graph. Lift's ``newton_mjwarp`` preset supports capturing both
+operations and the asset writes together. With OvPhysX or Kit-based PhysX, run Lift's
+asset writes outside capture.
+
+Update the contents of the bound arrays in place between graph replays. The choice to
+provide outcomes or explicit IDs is fixed at capture time.
 
 .. code-block:: python
 
@@ -112,35 +116,31 @@ replays. The choice to provide outcomes or explicit IDs is fixed at capture time
        reset_selected()
    wp.capture_launch(capture.graph)
 
-Prefill, rejection loops, loading, inspection, and logging remain initialization or
-host work. The allocating ``get_state(ids)`` convenience accessor is intended for
-inspection; use ``out=`` for the captured path. The manager-based environment around
-an event does not become a captured environment merely because its reset event is
-capturable. MDP2 native launch hooks can call the same runtime directly; its Torch backend uses
-zero-copy input shims. Fused Warp terms can reuse ``target_success_score`` and
-``sample_cdf``. No MDP2 dependency is required by the reset API.
+Run prefill, rejection loops, loading, inspection, and logging outside capture. Use
+``get_state(ids)`` to allocate a snapshot for inspection. The example captures only
+the reset operations.
 
-``sampler.reseed(seed)`` updates existing random-stream storage without clearing history
-or assignments. A captured graph observes the new streams. Explicitly seeded manager-based
-resets notify event terms before execution, so ``env.reset(seed=...)`` also reseeds the
-Lift and NIST samplers, including terms nested inside reset combinators.
+Set ``ResetStateSamplerCfg.seed`` to initialize the sampler's per-environment random streams.
+Use ``sampler.reseed(seed)`` between rollouts to restart those streams while retaining
+history and assignments. A captured graph observes the new streams.
 
 Configure useful practice
 --------------------------
 
-The default adds uniform weight to a score that peaks at 50 percent recent success.
-This favors starts of intermediate difficulty while giving every entry a chance to
-be drawn. Concentration narrows the score's peak while keeping its height fixed.
+The default adds uniform weight to a Beta kernel score that peaks at 50 percent recent
+success. This favors starts of intermediate difficulty while giving every entry a
+chance to be drawn. Concentration narrows the score's peak while keeping its height
+fixed at one.
 When all success rates are zero, the default draws uniformly. Include valid starts
 the policy can solve early so that the scores can begin to distinguish entries.
 
 .. code-block:: python
 
-   from isaaclab.envs.reset import TargetSuccessScoreCfg
+   from isaaclab.envs.reset import BetaSamplingScoreCfg
 
    adaptive = ResetStateSamplerCfg(
        history_length=50,
-       scores=[TargetSuccessScoreCfg(target=0.5, kappa=2.0, weight=0.25)],
+       scores=[BetaSamplingScoreCfg(target=0.5, kappa=2.0, weight=0.25)],
        uniform_weight=0.0501,
    )
    uniform = ResetStateSamplerCfg(scores=[])
@@ -151,6 +151,21 @@ the policy can solve early so that the scores can begin to distinguish entries.
 
    Example probabilities for five states with different success rates. The sampler
    adds ``0.0501`` to each score, then normalizes the weights within each asset group.
+
+.. image:: ../_static/how-to/reset_states/sgs-method-light.gif
+   :class: only-light
+   :width: 100%
+   :alt: An animation shows the policy training loop and the Beta score peaking at 50 percent success.
+
+.. image:: ../_static/how-to/reset_states/sgs-method-dark.gif
+   :class: only-dark
+   :width: 100%
+   :alt: An animation shows the policy training loop and the Beta score peaking at 50 percent success.
+
+The animation illustrates how rollouts and training change which starts are most useful.
+As the policy revisits starts, their estimated success rates shift along the Beta
+score curve. The curve shows the score before adding uniform weight.
+Animation courtesy of Octi Zhang.
 
 Custom configurations derive from :class:`~isaaclab.envs.reset.SamplingScoreCfg`.
 Their scorer implements ``score(metrics, out)`` with Warp operations on preallocated
@@ -183,20 +198,16 @@ Configure its existing ``events.conditional_reset.params`` entries:
   ``None`` selects uniformly without recording outcomes.
 
 After ordinary initialization, the event's ``reset_mask(mask, state_ids=ids)`` method
-is its native manual-replay entry. Supply ``completed=natural_episode_mask`` to
-record natural outcomes inside a captured runner. The caller sets this mask only
-for completed episodes and excludes unfinished or zero-step resets. The event
-restores root-link poses, COM velocities, joints, and
-controller targets through public mask writers. It credits the existing success
-reward's sticky flag before the reward manager clears it and excludes unfinished
-manual resets. The existing Lift observations, rewards, registrations, and agent
-configuration remain the use case.
+replays explicit starts. With adaptive sampling enabled, supply
+``completed=natural_episode_mask`` to record outcomes for completed natural episodes
+that took at least one step. The event credits the existing success reward's sticky
+flag before the reward manager clears it and restores root-link poses, COM velocities,
+joints, and controller targets through public mask writers.
 
 Migrating existing reset configurations
 ---------------------------------------
 
 Lift's ``success_monitor`` event parameter is replaced by ``reset_sampler``.
-NIST's ``sampling`` parameter now takes ``ResetStateSamplerCfg`` directly; set
-``history_length`` there instead of passing a separate ``success_monitor_cfg``.
-The previous NIST sampler and strategy imports are removed: use core score
-configurations and the mask-native sampler. No compatibility runtime is retained.
+NIST's ``sampling`` parameter takes ``ResetStateSamplerCfg`` with core score
+configurations. Its separate ``success_monitor_cfg`` still configures outcome
+history. Set ``metric="monitor_success_rate"`` on a score to use those rates.

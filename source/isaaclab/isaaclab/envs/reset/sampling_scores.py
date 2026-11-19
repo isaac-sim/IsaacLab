@@ -13,12 +13,12 @@ from typing import Any, Protocol
 
 import warp as wp
 
-from .sampling_scores_cfg import TargetSuccessScoreCfg
+from .sampling_scores_cfg import BetaSamplingScoreCfg
 
 
 @wp.func
-def target_success_score(rate: float, target: float, kappa: float) -> float:
-    """Return a target-success kernel with analytic peak one, suitable for inlining in MDP terms."""
+def beta_sampling_score(rate: float, target: float, kappa: float) -> float:
+    """Evaluate a Beta kernel scaled to one at its mode, ``target``."""
     if kappa == 0.0:
         return 1.0
     rate = wp.clamp(rate, 0.0, 1.0)
@@ -34,9 +34,9 @@ def target_success_score(rate: float, target: float, kappa: float) -> float:
 
 
 @wp.kernel
-def _target_success(metric: wp.array(dtype=Any), target: float, kappa: float, out: wp.array(dtype=float)):
+def _beta_sampling_score(metric: wp.array(dtype=Any), target: float, kappa: float, out: wp.array(dtype=float)):
     i = wp.tid()
-    out[i] = target_success_score(float(metric[i]), target, kappa)
+    out[i] = beta_sampling_score(float(metric[i]), target, kappa)
 
 
 class SamplingScore(Protocol):
@@ -47,10 +47,10 @@ class SamplingScore(Protocol):
         ...
 
 
-class TargetSuccessScore:
-    """Score current success rates through :func:`target_success_score`."""
+class BetaSamplingScore:
+    """Score the configured metric through :func:`beta_sampling_score`."""
 
-    def __init__(self, cfg: TargetSuccessScoreCfg) -> None:
+    def __init__(self, cfg: BetaSamplingScoreCfg) -> None:
         if not math.isfinite(cfg.target) or not 0.0 <= cfg.target <= 1.0:
             raise ValueError("target must be finite and in [0, 1].")
         if not math.isfinite(cfg.kappa) or cfg.kappa < 0.0:
@@ -60,7 +60,7 @@ class TargetSuccessScore:
     def score(self, metrics: Mapping[str, wp.array], out: wp.array) -> None:
         """Write scores using the current metric values, without device allocation or synchronization."""
         wp.launch(
-            _target_success,
+            _beta_sampling_score,
             out.shape,
             [metrics[self.cfg.metric], self.cfg.target, self.cfg.kappa, out],
             device=out.device,

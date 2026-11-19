@@ -196,44 +196,6 @@ def test_config_empty(env):
     assert len(event_man.active_terms) == 0
 
 
-def test_reseed_reaches_shared_nested_event_instances_once(env, monkeypatch):
-    """Seeded resets reach nested stream owners without notifying shared instances twice."""
-
-    class SeededReset(ManagerTermBase):
-        def __init__(self, cfg, env):
-            super().__init__(cfg, env)
-            self.generator = torch.Generator()
-            self.reseed_calls = 0
-
-        def reseed(self, seed):
-            self.generator.manual_seed(seed)
-            self.reseed_calls += 1
-
-        def __call__(self, env, env_ids):
-            env.dummy1[env_ids] = torch.rand(env.num_envs, 2, generator=self.generator)[env_ids]
-
-    def wrapped(env, env_ids, terms):
-        for term in terms.values():
-            term.func(env, env_ids)
-
-    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
-    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace()))
-    child = EventTermCfg(func=SeededReset, mode="reset")
-    manager = EventManager(
-        {"wrapped": EventTermCfg(func=wrapped, mode="reset", params={"terms": {"first": child, "second": child}})},
-        env,
-    )
-    manager.reseed(13)
-    manager.apply("reset", global_env_step_count=0)
-    first = env.dummy1.clone()
-    manager.reseed(13)
-    manager.apply("reset", global_env_step_count=1)
-    torch.testing.assert_close(env.dummy1, first)
-    children = manager.get_term_cfg("wrapped").params["terms"]
-    assert children["first"].func is children["second"].func
-    assert children["first"].func.reseed_calls == 2
-
-
 def test_invalid_event_func_module(env):
     """Test the handling of invalid event function's module in string representation."""
     cfg = {
