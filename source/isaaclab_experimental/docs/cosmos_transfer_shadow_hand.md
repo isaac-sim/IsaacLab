@@ -17,7 +17,7 @@ Use **uv 0.11.29** for the Framework environment. Keep the Cosmos Framework and
 Isaac Lab environments separate. The Cosmos service needs about **47 GB of VRAM for one
 environment**, with about **9 GB more for each additional environment**, and the Isaac Lab
 training process needs its own memory on top. Choose hardware with enough VRAM before
-increasing `--num_envs`.
+increasing `--num_envs`; see [Several environments](cosmos_transfer.md#several-environments).
 
 This demo applies the [Cosmos Transfer camera integration](cosmos_transfer.md) to the Shadow Hand camera task.
 Steps 1 to 4 install and start the service described in [Serve Cosmos](cosmos_transfer.md#serve-cosmos), and the

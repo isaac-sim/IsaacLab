@@ -417,8 +417,9 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `
   compiled inference. A service without the caches rejects the session when it opens; a service started with
   `--no-compile` stops the run with an error at the first independent reset.
 - With the socket transport, one step's image message carries at most 16 environments.
-- Each environment's history (30 latent frames) takes GPU memory. On a 48 GB GPU that Isaac Sim shares, one
-  environment fits; for more, give the service its own GPU (`--device cuda:1`) or a larger one, or let
+- Each environment's history (30 latent frames) takes GPU memory: the service needs about 47 GB of VRAM for one
+  environment and about 9 GB more for each additional one, and Isaac Lab needs its own memory on top. When they do
+  not fit on one GPU, give the service its own GPU (`--device cuda:1`) or a larger one, or let
   [several services](#several-gpus) split the environments across GPUs.
 
 ### Record several environments
