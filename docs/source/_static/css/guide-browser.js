@@ -85,7 +85,9 @@
         };
 
         const setBrowserVisible = (isVisible) => {
-            intro.hidden = !isVisible;
+            if (intro) {
+                intro.hidden = !isVisible;
+            }
             browser.hidden = !isVisible;
             guideList.hidden = !isVisible;
             note.hidden = !isVisible;

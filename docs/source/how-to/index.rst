@@ -256,6 +256,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Training a G1 motion-tracking policy </source/how-to/train_g1_motion_tracking>`
+
+         Select a reference motion, train the G1 with Newton, and play or record a checkpoint.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Training MicroDuck </source/how-to/train_microduck>`
 
          Train flat or rough walking and scale its recipe for distributed training.
