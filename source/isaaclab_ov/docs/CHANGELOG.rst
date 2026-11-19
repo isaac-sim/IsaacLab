@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.7 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the air and contact times of :class:`~isaaclab_ov.sensors.ContactSensor` drifting with the age of the
+  sensor clock. Each refresh added the difference of two growing float32 timestamps, which was off by up to 8e-5 s
+  after 40 s of simulated time. It now adds the float64 time since the last refresh kept by the sensor base class.
+
+
 5.1.6 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 
