@@ -59,6 +59,11 @@ def test_case_and_golden_inventory() -> None:
         f"{suite}/test_rendering_kitless_{case.physics}_{case.renderer}.py::test_rendering[{stage}-{case.id}]"
         for stage, case in KITLESS_RENDERING_CASES
     }
+    nodes |= {
+        f"{suite}/test_rendering_kitless_newton_newton_warp.py::test_rendering_optix[{stage}-{case.id}]"
+        for stage, case in KITLESS_RENDERING_CASES
+        if (case.physics, case.renderer, case.scene) == ("newton", "newton_warp", "rendering_scene")
+    }
     for subset in subsets.values():
         for node in subset:
             assert (_SOURCE.parent / node.split("::")[0]).is_file(), node

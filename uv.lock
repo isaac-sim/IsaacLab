@@ -21,7 +21,8 @@ overrides = [
     { name = "mujoco", specifier = "~=3.17.0" },
     { name = "mujoco-usd-converter", specifier = "==0.7.0" },
     { name = "mujoco-warp", specifier = "~=3.17.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
+    { name = "newton", extras = ["sim"], marker = "extra != 'optix'", git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
+    { name = "newton", extras = ["sim", "optix"], marker = "extra == 'optix'", git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1774,7 +1775,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "47.0.0"
+version = "47.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1932,6 +1933,9 @@ mimic = [
     { name = "isaaclab-teleop" },
     { name = "robomimic", marker = "sys_platform != 'win32'" },
 ]
+optix = [
+    { name = "newton", extra = ["optix", "sim"] },
+]
 ov = [
     { name = "ovphysx" },
     { name = "ovrtx" },
@@ -2072,6 +2076,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
+    { name = "newton", extras = ["optix"], marker = "extra == 'optix'" },
     { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
@@ -2079,13 +2084,13 @@ requires-dist = [
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
-    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.7.0.74035321", index = "https://pypi.org/simple" },
-    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.7.0.74035321", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.6.0.1791947691", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.6.0.1791947691", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.8.0.43443703471", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.8.0.43443703471", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.7.0.1794596436", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.7.0.1794596436", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.4.0.1794520352", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.4.0.1794520352", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.4.0.1794520352", index = "https://pypi.org/simple" },
     { name = "ovstorage", specifier = "==0.3.0", index = "https://pypi.org/simple" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
@@ -2151,7 +2156,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2159,10 +2164,14 @@ version = "3.0.0"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "isaaclab-newton" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
+]
 
 [[package]]
 name = "isaaclab-mimic"
@@ -2183,7 +2192,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "17.2.3"
+version = "18.0.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2194,7 +2203,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "9.1.2"
+version = "9.2.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2204,12 +2213,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "ovstage", specifier = "==0.3.0.1791986420" },
+    { name = "ovstage", specifier = "==0.4.0.1794520352" },
 ]
 
 [[package]]
 name = "isaaclab-physx"
-version = "13.0.2"
+version = "13.1.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2231,7 +2240,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "5.3.3"
+version = "5.4.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2248,17 +2257,19 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "30.4.0"
+version = "30.5.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-assets" },
+    { name = "isaaclab-experimental" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
+    { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
 ]
 
 [[package]]
@@ -3473,6 +3484,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+optix = [
+    { name = "warp-optix", marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
+]
 sim = [
     { name = "mujoco" },
     { name = "mujoco-warp" },
@@ -4052,7 +4066,7 @@ wheels = [
 
 [[package]]
 name = "ovphysx"
-version = "0.7.0.74035321"
+version = "0.8.0.43443703471"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ovstage" },
@@ -4060,25 +4074,25 @@ dependencies = [
     { name = "warp-lang" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/23/8206cf19ca63cedb98c9a50c3aed6fab00610a179b61853a2f83bc91619f/ovphysx-0.7.0.74035321-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:52f95d49d6c372984abc5afa24b7b99928579b785b3b81414759ffe005158c95", size = 136238203, upload-time = "2026-10-15T18:51:25.224Z" },
-    { url = "https://files.pythonhosted.org/packages/c9/41/b5baeec7acfcdfaa152ecbaf2be0ed848f926dcb79bb35f97e7ee99363e4/ovphysx-0.7.0.74035321-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:763e29e158c841822b041ca83d2747d949c7453eb261fc77ed9ac0e7a1eca64c", size = 135831310, upload-time = "2026-10-15T18:50:23.611Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/65/ec34e845b19b375866d9710110726e9f88ef023e523f4069e63c60dd8b81/ovphysx-0.7.0.74035321-py3-none-win_amd64.whl", hash = "sha256:b6f4a447abdab5effd78faf1ee9d3b8679281de19e4bd2e40528f0a608f8c57c", size = 131429159, upload-time = "2026-10-15T18:49:02.235Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/d3/a1f6843672fcfc7bdd6af1ccbfc8063e61846ca1dda93e689850a33eb94d/ovphysx-0.8.0.43443703471-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:97823201da0cbe73014ae5218fdcb2bbd22bd6b48ce4e27b0fba39a07771835e", size = 161716252, upload-time = "2026-11-13T21:03:53.538Z" },
+    { url = "https://files.pythonhosted.org/packages/91/99/4949b3d7d5b8e620d385100d1608d9fd7b462ce1af805fdb6f5700c28adc/ovphysx-0.8.0.43443703471-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:0b3186bae349e003a5e4e70641c2b349935ceb1d67342e2fcfe19960bab43ddd", size = 161284488, upload-time = "2026-11-13T21:01:15.459Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/e8/7c8e76fecd24d0abd9a640af4241aec83fea5ab44480142e458e1d8925c8/ovphysx-0.8.0.43443703471-py3-none-win_amd64.whl", hash = "sha256:25d9004bcb6b649e673cd0a96ea704bb3ad3c3b7a4178b521f716faa76eab841", size = 158498039, upload-time = "2026-11-13T21:05:08.211Z" },
 ]
 
 [[package]]
 name = "ovrtx"
-version = "0.6.0.1791947691"
+version = "0.7.0.1794596436"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bd/3a/e4f8c74f2f3b5c2de6682e0bd4eeaa460811df0f49f5426e6e530a9fe1c1/ovrtx-0.6.0.1791947691.tar.gz", hash = "sha256:2c2895d48aeab7b16c2795e3389114cd973a2990ac334b739ec7e824f754903e", size = 23088, upload-time = "2026-10-15T05:49:20.493Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/e1/5262eeddd6780b0b7fb1ad0715ac0e472a43f3b854eec26f3f00cc5ea7e2/ovrtx-0.7.0.1794596436.tar.gz", hash = "sha256:09e6eff07c7842e6cd36be768518906ad4285887c7b31e47466a8d1e7bcc81f1", size = 23229, upload-time = "2026-11-14T02:40:41.518Z" }
 
 [[package]]
 name = "ovstage"
-version = "0.3.0.1791986420"
+version = "0.4.0.1794520352"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/ae/f7348aec410a971f4126bd7b4cca92fcec25b7cca60f92267f5c98cc2ba2/ovstage-0.3.0.1791986420-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:1b9f983320a45703adab4bf72c9c17419728b9a874c300ae026abe46397f89dd", size = 64550686, upload-time = "2026-10-15T03:53:22.19Z" },
-    { url = "https://files.pythonhosted.org/packages/c8/d1/bebef33ec7c2fd2f7e776109092517b9ab2a4374fccca29b6c3351be77aa/ovstage-0.3.0.1791986420-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:35aa0c10c47549c495e65896356ce3b910041d2eaa602888f092f7e300586cf8", size = 66832291, upload-time = "2026-10-15T03:53:46.247Z" },
-    { url = "https://files.pythonhosted.org/packages/65/73/445749e2534e8fbd78a9f2ad2cc44d83cfd121a9bbdf459737c06c27adcd/ovstage-0.3.0.1791986420-py3-none-win_amd64.whl", hash = "sha256:400df4b7dc916edefa6f832aa11b674deb8a4d6831bba9ad3849169236b80c46", size = 38037230, upload-time = "2026-10-15T03:53:02.713Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/5f/68eb2aa9649d3fc46391b3f08bd7f93e86c4d4c0c51f9b2ab048caecf619/ovstage-0.4.0.1794520352-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:b63c91a11d04e07c30b7ee31647e2a00918f0b1ded3dd4e939326d31cda4e462", size = 59678093, upload-time = "2026-11-13T07:22:36.065Z" },
+    { url = "https://files.pythonhosted.org/packages/19/26/add7902c6f0d78358a736d4cd993cb1cfb6e5e627d0b4c3c9d90b14e8192/ovstage-0.4.0.1794520352-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:7473a79763af4f8fe8dc70cbd4d99468d822a8f96a0c58891c25801390958f0a", size = 62435549, upload-time = "2026-11-13T07:22:03.287Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/05/b1792a891ebda88345716f01e7260410063e9bdbd955a5b3dffb0bd513ae/ovstage-0.4.0.1794520352-py3-none-win_amd64.whl", hash = "sha256:c611727f27ba21222649137ffaed83c35ece44374e8e6686c660d1fa21b2d4ab", size = 37822368, upload-time = "2026-11-13T07:23:03.906Z" },
 ]
 
 [[package]]
@@ -4617,6 +4631,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/3d/8a6dde7092eeba0ddb0d75359e2cc1c7b61947b6f73da0bb73ac7ef9e997/pyopengl_accelerate-3.1.10-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3282e7edd22d7126a3874c08ebcb146122031d0cea774c52f872ae56aaf17f39", size = 3279849, upload-time = "2025-08-18T02:33:25.628Z" },
     { url = "https://files.pythonhosted.org/packages/50/4f/b4de3294248fcf0739356cc3730fb651b2106ddbe05fc528307df4331955/pyopengl_accelerate-3.1.10-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:7366b6be51aca799d6b4bfbe6a5e9e6e4b0968956d0920676498e6ac2b9ce028", size = 3140923, upload-time = "2025-08-18T02:33:27.106Z" },
     { url = "https://files.pythonhosted.org/packages/fe/1f/6e839b7ba4823c34f762d3f3e9e8f8405bd3e210314b60df862e030ad8ad/pyopengl_accelerate-3.1.10-cp312-cp312-win_amd64.whl", hash = "sha256:6fa0963d686462dc3a03d10123af385f012001c8b020e908774df29741136bd5", size = 389822, upload-time = "2025-08-18T02:33:29.685Z" },
+]
+
+[[package]]
+name = "pyoptix"
+version = "9.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/34/19c969b2c557c6244a3c83f74b61ad2d5aaf798a29926908a6252f9c9649/pyoptix-9.1.1.tar.gz", hash = "sha256:7255570544a5fdf2885998231172edc1978bce1fe883f86e9940a0ff2192f791", size = 8938965, upload-time = "2026-11-06T15:48:36.765Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/b0/da72e66b8ede0db8ab586a824c7aec584e6b9ee2243c884207868f8b45b3/pyoptix-9.1.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e8438e7a02b4b89333c6ba3e034d299ad40d62835b8792f3d9b4761e82c860a1", size = 818048, upload-time = "2026-11-06T15:48:31.455Z" },
+    { url = "https://files.pythonhosted.org/packages/46/39/5c41eb8b0f9a450bf6e3ab8afd42a92acd60298977e7211ac734a135962f/pyoptix-9.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:822f9bc6280b04e950cf3dc8afa89650c41cb0bc97a5e58b5c5d15c011425ad3", size = 457918, upload-time = "2026-11-06T15:48:32.787Z" },
 ]
 
 [[package]]
@@ -6166,6 +6190,21 @@ dependencies = [
 ]
 wheels = [
     { url = "https://pypi.nvidia.com/warp-nn/warp_nn-0.4.1-py3-none-any.whl", hash = "sha256:5a598043603f9a7c30ee5f02d832ac3c2065b9621d5c57f3a2dd8b64bb3be387" },
+]
+
+[[package]]
+name = "warp-optix"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyoptix" },
+    { name = "warp-lang" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/db/90/f61ceaf0d85592296f611bf58fc469e7118a5b28be4bc5fcb4345427fe98/warp_optix-0.3.0.tar.gz", hash = "sha256:9695d5c81a88eb4d6297cb2af654658ce10cac504c11d5b4316b6059e836a348", size = 1028895, upload-time = "2026-11-11T09:13:50.484Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/85/e8c069138970d4283b41ef4c7e398f6a2b9a96dd8a83b5c7cd1cd9ffb730/warp_optix-0.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:add960e79449cda2ac6d0a86344717f8b74246d13345db456e1f785ffd276355", size = 499652, upload-time = "2026-11-11T09:13:47.547Z" },
+    { url = "https://files.pythonhosted.org/packages/37/4e/2dc092e601c3f999b8e9c744cb6d3636c2cd1fecece6b6e823a137acb47f/warp_optix-0.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:a3038bcaf6d41489d70c6a026cfa8a2b8e6767e079dc48ead1b0245f5037f540", size = 470514, upload-time = "2026-11-11T09:13:49.001Z" },
 ]
 
 [[package]]
