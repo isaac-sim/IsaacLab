@@ -5,6 +5,7 @@
 
 __all__ = [
     "mdp",
+    "reset",
     "ui",
     "VecEnvObs",
     "VecEnvStepReturn",
@@ -30,7 +31,7 @@ __all__ = [
     "MimicEnvCfg",
 ]
 
-from . import mdp, ui
+from . import mdp, reset, ui
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 from .direct_marl_env import DirectMARLEnv
