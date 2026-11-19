@@ -4,23 +4,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "BetaSamplingScore",
+    "BetaSamplingScoreCfg",
     "ResetStateBuffer",
     "ResetStateSampler",
     "ResetStateSamplerCfg",
     "SamplingScore",
     "SamplingScoreCfg",
-    "TargetSuccessScore",
-    "TargetSuccessScoreCfg",
+    "beta_sampling_score",
     "sample_cdf",
-    "target_success_score",
 ]
 
 from .reset_state_buffer import ResetStateBuffer
 from .reset_state_sampler import ResetStateSampler, sample_cdf
 from .reset_state_sampler_cfg import ResetStateSamplerCfg
-from .sampling_scores import (
-    SamplingScore,
-    TargetSuccessScore,
-    target_success_score,
-)
-from .sampling_scores_cfg import SamplingScoreCfg, TargetSuccessScoreCfg
+from .sampling_scores import BetaSamplingScore, SamplingScore, beta_sampling_score
+from .sampling_scores_cfg import BetaSamplingScoreCfg, SamplingScoreCfg

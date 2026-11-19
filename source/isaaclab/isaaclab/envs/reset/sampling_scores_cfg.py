@@ -21,13 +21,13 @@ class SamplingScoreCfg:
 
 
 @configclass
-class TargetSuccessScoreCfg(SamplingScoreCfg):
-    """Configure an analytically normalized target-success score."""
+class BetaSamplingScoreCfg(SamplingScoreCfg):
+    """Configure a Beta kernel score with a peak of one at the target metric value."""
 
-    class_type: type | str = "{DIR}.sampling_scores:TargetSuccessScore"
+    class_type: type | str = "{DIR}.sampling_scores:BetaSamplingScore"
     metric: str = "success_rate"
     """Name of the per-entry metric, with values in [0, 1]."""
     target: float = 0.5
-    """Success rate where the score is one."""
+    """Metric value where the score is one."""
     kappa: float = 2.0
     """Concentration; zero gives a constant score, larger values narrow its unit-height peak."""

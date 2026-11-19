@@ -104,7 +104,8 @@ _KITLESS_CASES = [
     RenderCase("newton", "ovrtx", OVRTX_AOVS),
     RenderCase("ovphysx", "newton_warp", NEWTON_WARP_AOVS),
     RenderCase("newton", "newton_warp", NEWTON_WARP_AOVS),
-    *(RenderCase("ovphysx", "ovrtx", (aov,)) for aov in SIMPLE_SHADING_AOVS),
+    # Keep the pre-0.7 black background. None selects the default dome-light background in OVRTX 0.7+.
+    *(RenderCase("ovphysx", "ovrtx", (aov,), background_color=(0.0, 0.0, 0.0)) for aov in SIMPLE_SHADING_AOVS),
     RenderCase(
         "ovphysx",
         "ovrtx",
@@ -208,9 +209,17 @@ GAUSSIAN_KIT_CASES = (
     RenderCase(
         "physx",
         "isaac_rtx",
-        (RenderBufferKind.RGB_HDR, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE),
+        (RenderBufferKind.RGB_HDR,),
         scene="gaussian_splats_valiant_1env",
+        marks=(
+            pytest.mark.xfail(
+                reason="NVBUG 7071342: Valiant RTX HDR can mismatch the golden.",
+                raises=AssertionError,
+                strict=False,
+            ),
+        ),
     ),
+    RenderCase("physx", "isaac_rtx", (RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,), scene="gaussian_splats_valiant_1env"),
     RenderCase("newton", "newton_warp", _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_valiant_1env"),
     *(
         RenderCase(physics, renderer, _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_endeavor_4envs")

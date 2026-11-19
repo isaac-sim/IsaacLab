@@ -230,6 +230,9 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt)
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
@@ -459,7 +462,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.event_manager.reseed(self.seed(seed))
+            self.seed(seed)
 
         # reset state of scene
         self._reset_idx(env_ids)
@@ -519,7 +522,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.event_manager.reseed(self.seed(seed))
+            self.seed(seed)
 
         self._reset_idx(env_ids)
         # set the state
