@@ -91,6 +91,8 @@ class ImageTransferProcessor(TensorProcessor):
         self._episodes = torch.zeros(num_views, dtype=torch.int64, device=device)
         # Captures each view needs, at least, before its chunk can be complete; exact after each host read.
         self._waits = [cfg.initial_frames] * num_views
+        # Whether reset() ran since the resets were last read, so a generation reads them only after one.
+        self._reset_called = False
         self._started = False
         self._failed = False
         self._closed = False
@@ -144,6 +146,7 @@ class ImageTransferProcessor(TensorProcessor):
                 for row, (count, size, start) in enumerate(zip(counts, chunk, fresh))
             ]
             num_views = len(counts)
+            # The first chunk starts every view from the seed the stream opened with.
             rows = tuple(row for row, reset in enumerate(resets) if reset) if self._started else ()
             seeds = tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
             try:
@@ -191,6 +194,9 @@ class ImageTransferProcessor(TensorProcessor):
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Discard the queued controls and episode state of the selected views.
 
+        Every reset counts as an episode, also before the first generation, so episode seeds and prompts follow
+        the environment's episodes from its start.
+
         Args:
             env_ids: Views to reset, as indices or a boolean mask. Defaults to None, which resets all views.
             env_mask: Boolean mask of the views to reset. Takes precedence over ``env_ids``. Defaults to None.
@@ -201,10 +207,9 @@ class ImageTransferProcessor(TensorProcessor):
         self._counts.masked_fill_(selected, 0)
         self._fresh |= selected
         self._overflow &= ~selected
-        # A reset before the first generation has no episode to discard.
-        if self._started:
-            self._episodes += selected
-            self._resets |= selected
+        self._episodes += selected
+        self._resets |= selected
+        self._reset_called = True
         self._output.masked_fill_(selected.view(-1, 1, 1, 1), 0)
         # A reset view needs only its initial chunk; the host does not read which views reset.
         self._waits = [min(wait, self._cfg.initial_frames) for wait in self._waits]
@@ -239,10 +244,12 @@ class ImageTransferProcessor(TensorProcessor):
         """Return the views that started an episode since the last generation, with their seeds and episode
         numbers, and clear them. A view that reset several times is listed once, with its latest episode.
 
-        This reads the state on the host, so call it only where the generation itself waits for the result.
+        This reads the state on the host after a reset, so call it only where the generation itself waits for the
+        result.
         """
-        if not self._started:
+        if not self._reset_called:
             return (), (), ()
+        self._reset_called = False
         resets, episodes = torch.stack((self._resets.long(), self._episodes)).tolist()
         self._resets.zero_()
         rows = tuple(row for row, reset in enumerate(resets) if reset)

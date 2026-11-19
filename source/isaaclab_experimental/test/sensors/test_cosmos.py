@@ -377,14 +377,15 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     assert session.settings["max_episode_frames"] == 1
     assert session.settings["prompt"] == prompts[:2]
     image_seed = cosmos_model_module._image_seed
+    # The first step also restarts every view, from its opening seed.
     assert [(rows, seeds) for _, rows, seeds in session.steps] == [
-        ((), ()),
+        ((0, 1), (0, 1)),
         ((0, 1), (2, image_seed(1, 1))),
         ((0, 1), (image_seed(2, 1), image_seed(1, 2))),
         ((0, 1), (4, image_seed(1, 3))),
     ]
     # No image shares another view's or episode's seed, which would give identical images for identical controls.
-    used = [0, 1, *(seed for _, _, seeds in session.steps for seed in seeds)]
+    used = [seed for _, _, seeds in session.steps for seed in seeds]
     assert len(set(used)) == len(used)
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
 
@@ -451,7 +452,7 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
         assert published == [127, 50, 127, 50, 127]
         second = cosmos_model_module._image_seed(0, 1)
         assert second != 1
-        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (second,)), ((0,), (1,))]
+        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((0,), (0,)), ((0,), (second,)), ((0,), (1,))]
     finally:
         processor.close()
 
@@ -522,6 +523,39 @@ def test_single_frame_prompts_follow_episodes_that_ended_without_a_generation(co
         session = cosmos_service.resource.streams[0]
         assert session.episode_prompts[-1] == "D"
         assert session.steps[-1][1:] == ((0,), (3,))
+    finally:
+        processor.close()
+
+
+def test_single_frame_prompts_and_seeds_follow_episodes_before_the_first_generation(cosmos_service, monkeypatch):
+    """Episodes that showed only rendered rgb before the view's first image still move its prompt and seed."""
+    monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    backend = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint,
+        prompt=["A", "B", "C", "D"],
+        generation_mode="single_frame",
+        augmentation_probability=0.5,
+        timeout=2,
+    )
+    cfg = CosmosTransferProcessorCfg(backend=backend)
+    cfg.validate_config()
+    buffers = {
+        "control": _proxy(torch.full((1, 1, 2, 3), 10, dtype=torch.uint8)),
+        "rgb": _proxy(torch.full((1, 1, 2, 3), 50, dtype=torch.uint8)),
+    }
+    processor = cfg.func(cfg, buffers)
+    # The first two episodes draw rendered rgb, the third a generated image.
+    monkeypatch.setattr(processor, "_random", SimpleNamespace(random=iter([0.9, 0.9, 0.0]).__next__))
+    mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    try:
+        # Every episode starts with a reset, the first with the environment's initial reset.
+        for _ in range(3):
+            processor.reset()
+            processor(buffers, env_mask=mask)
+        session = cosmos_service.resource.streams[0]
+        assert len(session.steps) == 1
+        assert session.episode_prompts == ["C"]
+        assert session.steps[0][1:] == ((0,), (3,))
     finally:
         processor.close()
 

@@ -303,7 +303,6 @@ class _CosmosStream:
         self._view_resets = [0] * len(seeds)
         self._view_episodes = [0] * len(seeds)
         self._view_episode_numbers = [0] * len(seeds)
-        self._single_frame_started = False
         self._channel = None
         self._service_device: torch.device | None = None
         self.transport: str | None = None
@@ -485,8 +484,8 @@ class _CosmosStream:
         ``reset_rows`` names the views starting a new environment episode, with its seed and, from ``episodes``, its
         episode number. A view's first image of the episode uses that seed and later images a seed derived from it
         (see :func:`_image_seed`). A view moves one prompt for each episode that ended since its last image, also for
-        episodes that generated no image, except the view's first episode when it generated only its first image (the
-        environment's initial reset).
+        episodes that generated no image and episodes before the first image, except at the view's first reset while
+        it has at most one image: the environment's initial reset, which can follow one capture.
         """
         if any(count != 1 for count in frames):
             raise ValueError("Single-frame Cosmos sends one frame per view.")
@@ -503,21 +502,17 @@ class _CosmosStream:
                 self._view_episode_numbers[row] = episodes[index]
             self._view_resets[row] += 1
             self._view_seeds[row], self._view_frames[row] = seed, 0
-        if not self._single_frame_started:
-            # The session's first generation starts every view.
-            fields = {}
-            self._single_frame_started = True
-        else:
-            fields = {
-                "reset_rows": tuple(range(len(frames))),
-                "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
-            }
-            if new_prompt:
-                prompts = [
-                    prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
-                ]
-                # The service takes one text for a one-view session, also for one view of a split camera.
-                fields["prompt"] = prompts if len(self._views) > 1 else prompts[0]
+        # Every step restarts every view, the first too, so episodes that ended before it also select its prompts.
+        fields = {
+            "reset_rows": tuple(range(len(frames))),
+            "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
+        }
+        if new_prompt:
+            prompts = [
+                prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
+            ]
+            # The service takes one text for a one-view session, also for one view of a split camera.
+            fields["prompt"] = prompts if len(self._views) > 1 else prompts[0]
         self._view_frames = [count + 1 for count in self._view_frames]
         return fields
 
