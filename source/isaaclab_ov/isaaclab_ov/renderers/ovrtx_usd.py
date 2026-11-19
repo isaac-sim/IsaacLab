@@ -198,9 +198,9 @@ def build_render_product_as_string(
     # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
 
-    # HDR consumers such as PPISP need Gaussian splats tonemapped with the rest of the frame.
-    # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
-    if "rgb_hdr" in spec.cfg.data_types:
+    # A tensor processor that reads HDR color, such as PPISP, needs Gaussian splats tonemapped with the rest of the
+    # frame. OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
+    if any("rgb_hdr" in cfg.inputs for cfg in spec.cfg.tensor_processors):
         render_mode_lines.append("bool omni:rtx:gaussian:skipTonemapping:enabled = false")
 
     render_mode_block = "\n        ".join(render_mode_lines)

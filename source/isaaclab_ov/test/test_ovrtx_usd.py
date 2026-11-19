@@ -36,6 +36,7 @@ if not _MISSING_MODULES:
 
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
+    from isaaclab.utils.tensor_processors import TensorProcessorCfg  # noqa: E402
 else:
     Sdf = None
     Usd = None
@@ -275,15 +276,17 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
     )
 
 
-@pytest.mark.parametrize("data_type", ["rgb", "rgb_hdr"])
-def test_ovrtx_hdr_output_tonemaps_gaussian_splats(camera_spec, render_data, data_type):
-    """An ``rgb_hdr`` request, which PPISP makes, tonemaps Gaussian splats with the rest of the frame."""
-    camera_spec.cfg.data_types = [data_type]
+@pytest.mark.parametrize("reads_hdr", [False, True])
+def test_ovrtx_hdr_processor_tonemaps_gaussian_splats(camera_spec, render_data, reads_hdr):
+    """A tensor processor reading ``rgb_hdr``, as PPISP does, tonemaps Gaussian splats; the output alone does not."""
+    camera_spec.cfg.data_types = ["rgb_hdr"]
+    if reads_hdr:
+        camera_spec.cfg.tensor_processors = [TensorProcessorCfg(inputs=["rgb_hdr"], outputs=["rgb"])]
     usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=False)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(usd)
     attribute = layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled")
-    assert (attribute.default is False) if data_type == "rgb_hdr" else attribute is None
+    assert (attribute.default is False) if reads_hdr else attribute is None
 
 
 def test_ovrtx_duplicate_simple_shading_data_types_collapse():
