@@ -82,9 +82,10 @@ the camera's image.
 ``foveated_style="isotropic"`` instead places rings of samples evenly in :math:`w`, with as many samples around each
 ring as keep neighbours about equally far apart in every direction, as in the
 `fovi <https://nblauch.github.io/fovi>`__ model. The camera uses as many rings as keep the sample count at most
-:math:`N^2`, and publishes the samples as a set, of shape ``(num_envs, num_samples, 1, channels)``. Sample sets
-render directly on Newton and are experimental on the RTX renderers, where crowded samples can share a lens-texture
-texel.
+:math:`N^2`, and publishes the samples as a set, of shape ``(num_envs, num_samples, 1, channels)``;
+:attr:`~sensors.FoveatedCameraCfg.isotropic_plotting_type` picks the cortical layout fovi gives them (``"v1like"``,
+``"schwartz"`` or ``"warp"``). Sample sets render directly on Newton and are experimental on the RTX renderers, where
+crowded samples can share a lens-texture texel.
 
 Configure a foveated camera
 ---------------------------
@@ -104,7 +105,10 @@ retina is rendered:
        :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
      - A lens lookup texture on the camera prim maps the image to the retina's rays.
 
-The camera also accepts the Newton OptiX renderer (``optix`` extra), which receives the same rays as Newton Warp.
+The camera also accepts the Newton OptiX renderer (``optix`` extra), which receives the same rays as Newton Warp. On
+the RTX renderers, :attr:`~sensors.FoveatedCameraCfg.exit_texture_size` sets the side of the inverse lens texture,
+which maps rays back to samples; the default, four times the grid side and at least 128, separates neighbouring
+samples.
 
 .. figure:: ../../_static/overview/sensors/foveated_camera_renderers.jpg
    :target: ../../_static/overview/sensors/foveated_camera_renderers.jpg
@@ -161,6 +165,12 @@ and :math:`R` the gaze rotation, so a policy sees the same retina in simulation 
 
 The projection is set in the configuration. :meth:`~sensors.FoveatedCamera.set_intrinsic_matrices` leaves a
 foveated camera as configured and warns, as cameras with an OpenCV lens model do.
+
+:attr:`~sensors.FoveatedCameraCfg.retinal_window_fraction` shrinks the retina's window to a fraction of the image's
+short side, or of its long side with :attr:`~sensors.FoveatedCameraCfg.retinal_window_reference_side` set to
+``"long"``. For a camera mounted rolled, :attr:`~sensors.FoveatedCameraCfg.image_rotation_deg` turns the rays back
+about the optical axis (180 for an upside-down sensor), so the published image, the sensor mask and the gaze stay
+upright.
 
 Foveation strength
 ~~~~~~~~~~~~~~~~~~
@@ -222,8 +232,9 @@ Pooling
 A single ray per sample aliases where samples are sparse, in the periphery. With
 :attr:`~sensors.FoveatedCameraCfg.pool_enabled`, the camera renders a denser photoreceptor grid with the same field
 of view and CMF and pools it to the retina, as a retina's ganglion cells pool its photoreceptors.
-``pool_res_mult`` sets how much denser the photoreceptor grid is (an integer for grid styles), and ``pool_mode``
-how it pools: ``avg``, ``gaussian`` or ``max``, and for sample-set styles also ``sum``.
+``pool_res_mult`` sets how much denser the photoreceptor grid is: an integer for grid styles, and any value for
+sample-set styles, where :math:`\sqrt{2}` doubles the number of samples. ``pool_mode`` sets how it pools: ``avg``,
+``gaussian`` (with ``pool_gauss_sigma``) or ``max``, and for sample-set styles also ``sum``.
 
 .. figure:: ../../_static/overview/sensors/foveated_camera_pooling.jpg
    :target: ../../_static/overview/sensors/foveated_camera_pooling.jpg
@@ -239,8 +250,8 @@ window side squared; by default ``pool_res_mult`` squared), stepping by ``pool_r
 the CMF, a window covers a tiny patch of the visual field at the fixation and a wide one in the periphery.
 Photoreceptors outside the circular field are left out of the average. Sample-set styles such as ``isotropic`` pool
 each sample over its ``pool_k`` nearest photoreceptors instead (by default the ratio of photoreceptors to samples,
-about ``pool_res_mult`` squared), by distance along the cortex (``pool_sample_cortex="geodesic"``, the default) or in
-the visual field (``pool_sample_cortex=False``).
+about ``pool_res_mult`` squared), by distance along the cortex (``pool_sample_cortex="geodesic"``, the default),
+straight-line distance on the cortex (``True``, faster to set up), or distance in the visual field (``False``).
 
 The viewer shows which photoreceptors each sample pools, for both styles. Its isotropic neighbourhoods are the ones
 fovi computes for the camera.
