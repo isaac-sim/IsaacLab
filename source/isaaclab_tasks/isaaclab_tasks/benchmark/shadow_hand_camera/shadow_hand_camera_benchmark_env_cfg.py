@@ -21,10 +21,10 @@ class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
 
     The renderer backend and camera data types can still be selected via ``presets``::
 
-        presets = newton_renderer  # benchmark with Newton renderer
+        presets = newton_warp  # benchmark with Newton renderer
         presets = ovrtx  # benchmark with OVRTX renderer
         presets = rgb  # benchmark RGB rendering only
-        presets = depth, newton_renderer  # benchmark depth rendering with Newton
+        presets = depth, newton_warp  # benchmark depth rendering with Newton
     """
 
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(enabled=False)

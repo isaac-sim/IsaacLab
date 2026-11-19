@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from contextlib import nullcontext
 from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock, call
@@ -35,6 +36,7 @@ from isaaclab_visualizers.newton_adapter import (
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
 )
+from newton import ModelFlags
 
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -656,7 +658,9 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         state_0=state,
         geometry_offsets={},
         contacts=None,
+        geometry_change_version=0,
     )
+    visualizer._geometry_change_version = 0
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
     visualizer._transform_mapping = None
@@ -713,7 +717,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
-    backend = SimpleNamespace(model=new_model, state_0=new_state)
+    backend = SimpleNamespace(model=new_model, state_0=new_state, geometry_change_version=3)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
@@ -740,6 +744,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
+    assert visualizer._geometry_change_version == 3
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),
@@ -757,6 +762,19 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     else:
         sim.backend_manager.register_state_force_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
+
+
+def test_newton_visualizer_notifies_native_viewer_once_per_geometry_change():
+    viewer = _Viewer()
+    viewer.notify_model_changed = lambda flags: viewer.events.append(("notify", flags))
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer.backend.geometry_change_version = 1
+
+    visualizer.step(0.1)
+    visualizer.step(0.1)
+
+    assert viewer.events.count(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) == 1
+    assert viewer.events.index(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) < viewer.events.index("log_state")
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
@@ -1268,38 +1286,80 @@ def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
     assert spec.renderer == "frame"
 
 
-def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
-    import isaaclab_visualizers.newton.newton_visualization_markers as _mod
-    import numpy as np
-    from isaaclab_visualizers.newton.newton_visualization_markers import (
-        NewtonVisualizationMarkers,
-        _NewtonMarkerSpec,
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices())
+def test_marker_batches_preserve_selected_instances(device, marker_registry, monkeypatch) -> None:
+    """Shared geometry keeps each prototype's color/scale, filtering, and live tensor updates."""
+    from isaaclab.sim import CuboidCfg, GroundPlaneCfg, PreviewSurfaceCfg, UsdFileCfg
+
+    mesh = SimpleNamespace(
+        vertices=np.zeros((3, 3), dtype=np.float32), indices=np.array([0, 1, 2], dtype=np.int32), normals=None, uvs=None
     )
-
-    fake_mesh = SimpleNamespace(
-        vertices=np.zeros((4, 3), dtype=np.float32),
-        indices=np.array([0, 1, 2, 0, 2, 3], dtype=np.int32),
-        normals=None,
-        uvs=None,
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: mesh)
+    # Batch membership must use the initialization-time lookup, not per-frame set searches.
+    monkeypatch.setattr(torch, "isin", lambda *args, **kwargs: pytest.fail("marker batching must use lookup tables"))
+    cfg = newton_markers.VisualizationMarkersCfg(
+        prim_path="/test",
+        markers={
+            "red": UsdFileCfg(
+                usd_path="/assets/arrow_x.usd",
+                scale=(1, 2, 3),
+                visual_material=PreviewSurfaceCfg(diffuse_color=(1, 0, 0)),
+            ),
+            "box": CuboidCfg(size=(1, 1, 1), visual_material=PreviewSurfaceCfg(diffuse_color=(0, 0, 1))),
+            "unsupported": GroundPlaneCfg(),
+            "green": UsdFileCfg(
+                usd_path="/assets/arrow_x.usd",
+                scale=(3, 2, 1),
+                visual_material=PreviewSurfaceCfg(diffuse_color=(0, 1, 0)),
+            ),
+        },
     )
-    monkeypatch.setattr(_mod, "_create_mesh", lambda cfg: fake_mesh)
+    marker = newton_markers.NewtonVisualizationMarkers(cfg)
+    viewer = SimpleNamespace(device=device, world_offsets=None, log_mesh=Mock(), log_instances=Mock())
+    stream = torch.cuda.Stream(device=device) if torch.device(device).type == "cuda" else None
+    with torch.cuda.stream(stream) if stream is not None else nullcontext():
+        positions = torch.tensor([[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]], dtype=torch.float32, device=device)
+        marker.visualize(positions, None, torch.full_like(positions, 2), torch.tensor([1, 0, 3, 0], device=device))
+        marker.render(viewer, [1], 2)
+        assert viewer.log_instances.call_count == 2
+        arrows = viewer.log_instances.call_args_list[0].args
+        np.testing.assert_array_equal(arrows[2].numpy()[:, :3], [[2, 0, 0], [3, 0, 0]])
+        np.testing.assert_array_equal(arrows[3].numpy(), [[6, 10, 5], [2, 10, 15]])
+        np.testing.assert_array_equal(arrows[4].numpy(), [[0, 1, 0], [1, 0, 0]])
+        np.testing.assert_array_equal(viewer.log_instances.call_args_list[1].args[3].numpy(), np.zeros((2, 3)))
+        positions.add_(10)
+        marker.render(viewer, [1], 2)
+        np.testing.assert_array_equal(
+            viewer.log_instances.call_args_list[-2].args[2].numpy()[:, :3], [[12, 10, 10], [13, 10, 10]]
+        )
+    assert viewer.log_mesh.call_count == 2
+    assert all(call.kwargs["normals"] is None and call.kwargs["uvs"] is None for call in viewer.log_mesh.call_args_list)
+    viewer = SimpleNamespace(device=device, world_offsets=None, log_mesh=Mock(), log_instances=Mock())
+    marker.render(viewer, None, 2)
+    assert viewer.log_mesh.call_count == 2
+    marker.set_visibility(False)
+    marker.render(viewer, None, 2)
+    assert all(call.kwargs["hidden"] for call in viewer.log_instances.call_args_list[-2:])
 
-    log_calls = []
+    marker.set_visibility(True)
+    marker.visualize(positions, None, None, torch.tensor([-1, 99, 2, 3], device=device))
+    marker.render(viewer, None, 2)
+    np.testing.assert_array_equal(viewer.log_instances.call_args_list[-2].args[3].numpy()[:3], np.zeros((3, 3)))
+    np.testing.assert_array_equal(viewer.log_instances.call_args_list[-1].args[3].numpy(), np.zeros((4, 3)))
 
-    class _LoggingViewer:
-        device = "cpu"
-
-        def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
-            log_calls.append({"normals": normals, "uvs": uvs})
-
-    fake_self = SimpleNamespace(_registered_meshes=set())
-    spec = _NewtonMarkerSpec(renderer="mesh", mesh_type="usd", preloaded_mesh=fake_mesh)
-
-    NewtonVisualizationMarkers._ensure_mesh_registered(fake_self, _LoggingViewer(), "/test/mesh", spec)
-
-    assert len(log_calls) == 1
-    assert log_calls[0]["normals"] is None
-    assert log_calls[0]["uvs"] is None
+    # Exercise Rerun's batch-wide appearance contract with shared geometry and an inactive first slot.
+    rerun = Mock(spec=newton_markers.ViewerRerun)
+    rerun.device, rerun.world_offsets = device, None
+    marker.visualize(positions, None, None, torch.tensor([1, 0, 3, 0], device=device))
+    marker.render(rerun, None, 2)
+    assert rerun.log_mesh.call_count == 2
+    assert rerun.log_instances.call_count == 3
+    for submission, expected_color in zip(rerun.log_instances.call_args_list, ((1, 0, 0), (0, 0, 1), (0, 1, 0))):
+        np.testing.assert_array_equal(submission.args[4].numpy(), [expected_color] * 4)
+    marker.set_visibility(False)
+    marker.render(rerun, None, 2)
+    assert all(call.kwargs["hidden"] for call in rerun.log_instances.call_args_list[-3:])
 
 
 # ---------------------------------------------------------------------------

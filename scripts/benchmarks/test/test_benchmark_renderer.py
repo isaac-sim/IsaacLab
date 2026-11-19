@@ -52,7 +52,7 @@ def test_pixels_per_second(benchmark_renderer):
 
 
 def test_build_record_ok(benchmark_renderer):
-    profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah"}}
+    profile = {"name": "p", "preset": "newton_warp,rgb", "settings": {"tlas": "sah"}}
     results = {"size": 20, "median": 2.0, "mean": 2.1, "min": 1.5, "max": 3.0, "stdev": 0.2}
 
     record = benchmark_renderer.build_record(profile, results, num_envs=4, resolution=256)
@@ -64,13 +64,13 @@ def test_build_record_ok(benchmark_renderer):
 
 
 def test_build_record_failed(benchmark_renderer):
-    profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah"}}
+    profile = {"name": "p", "preset": "newton_warp,rgb", "settings": {"tlas": "sah"}}
 
     record = benchmark_renderer.build_record(profile, None, num_envs=4, resolution=256)
 
     assert record == {
         "name": "p",
-        "preset": "newton_renderer,rgb",
+        "preset": "newton_warp,rgb",
         "settings": {"tlas": "sah"},
         "status": "failed",
         "log": str(Path(benchmark_renderer.OUTPUT_PATH) / "p.log"),
@@ -172,7 +172,7 @@ def test_parse_profile_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_
 @pytest.mark.parametrize("write_timings", [False, True])
 def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings):
     """The run consumes its own profiling artifact; stale artifacts and timing logs cannot satisfy it."""
-    profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
+    profile = {"name": "p", "preset": "newton_warp,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
     profile_path = tmp_path / "p" / "profile_timings.json"
     profile_path.parent.mkdir()
     frames = benchmark_renderer.FRAME_PADDING + 2

@@ -348,8 +348,22 @@ class NewtonManager(PhysicsManager):
         self.builder.request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
-        """Register a model change to notify the solver at the next step."""
-        self.backend.model_changes.add(change)
+        """Register a model change to notify the solver at the next step.
+
+        Inside a graph capture, the refresh of this change alone is recorded instead, so every replay applies it;
+        changes queued before the capture stay queued for the next step.
+        """
+        backend = self.backend
+        if wp.get_device(backend.device).is_capturing:
+            queued, backend.model_changes = backend.model_changes, {change}
+            try:
+                backend.notify_model_changes()
+            finally:
+                backend.model_changes = queued
+        else:
+            backend.model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
@@ -492,7 +506,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+            backend.init_solver(
+                None if plan is None else plan.env_template,
+                relaxed_capture=self._relaxed_capture,
+                initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
+            )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()

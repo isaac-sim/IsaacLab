@@ -20,42 +20,26 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 
-# Joint indices in the full robot joint vector for observation extraction.
+# Joint order of the policy observations. Names rather than indices, since the joint order differs per backend.
 # Body joints: 29 DOF (legs, waist, arms, wrists)
-G1_29DOF_BODY_JOINT_INDICES: list[int] = [
-    0,
-    3,
-    6,
-    9,
-    13,
-    17,
-    1,
-    4,
-    7,
-    10,
-    14,
-    18,
-    2,
-    5,
-    8,
-    11,
-    15,
-    19,
-    21,
-    23,
-    25,
-    27,
-    12,
-    16,
-    20,
-    22,
-    24,
-    26,
-    28,
-]
+G1_29DOF_BODY_JOINT_NAMES: list[str] = [
+    "left_hip_pitch_joint", "left_hip_roll_joint", "left_hip_yaw_joint", "left_knee_joint",
+    "left_ankle_pitch_joint", "left_ankle_roll_joint", "right_hip_pitch_joint", "right_hip_roll_joint",
+    "right_hip_yaw_joint", "right_knee_joint", "right_ankle_pitch_joint", "right_ankle_roll_joint",
+    "waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint", "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint", "left_shoulder_yaw_joint", "left_elbow_joint", "left_wrist_roll_joint",
+    "left_wrist_pitch_joint", "left_wrist_yaw_joint", "right_shoulder_pitch_joint", "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint", "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+]  # fmt: skip
 
 # Dex3 hand joints: 14 DOF (left + right)
-G1_DEX3_JOINT_INDICES: list[int] = [31, 37, 41, 30, 36, 29, 35, 34, 40, 42, 33, 39, 32, 38]
+G1_DEX3_JOINT_NAMES: list[str] = [
+    "left_hand_thumb_0_joint", "left_hand_thumb_1_joint", "left_hand_thumb_2_joint", "left_hand_middle_0_joint",
+    "left_hand_middle_1_joint", "left_hand_index_0_joint", "left_hand_index_1_joint", "right_hand_thumb_0_joint",
+    "right_hand_thumb_1_joint", "right_hand_thumb_2_joint", "right_hand_middle_0_joint",
+    "right_hand_middle_1_joint", "right_hand_index_0_joint", "right_hand_index_1_joint",
+]  # fmt: skip
 
 # Default joint positions for the supported setup (G1 29DOF + Dex3).
 DEFAULT_JOINT_POS: dict[str, float] = {
