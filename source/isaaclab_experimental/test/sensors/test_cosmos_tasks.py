@@ -77,7 +77,7 @@ def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
     assert (camera.width, camera.height) == (640, 640)
     assert chain[1].backend.prompt == ["A lab.", "A kitchen."]
     assert chain[1].backend.max_episode_frames == 361  # 12 s at 1/30 s steps: 360 steps and the initial frame
-    assert chain[-1].params == {"width": 64, "height": 64}
+    assert len(chain) == 2 and chain[1].image_size == (64, 64)
 
 
 def test_the_capture_count_uses_the_sensor_update_tolerance():
@@ -102,12 +102,13 @@ def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
         setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), model, canvas=(640, 640), name=name))
     env_cfg.validate()
 
-    for name, size in (("base_camera", (64, 64)), ("wrist_camera", (128, 64))):
+    for name, size in (("base_camera", (64, 64)), ("wrist_camera", (64, 128))):
         camera = getattr(env_cfg.scene, name)
         chain = camera.tensor_processors
         assert (camera.width, camera.height) == (640, 640)
         assert chain[1].backend.cameras == names and chain[1].camera == name
-        assert (chain[-1].params["width"], chain[-1].params["height"]) == size
+        # The Cosmos processor publishes last, at the camera's (height, width).
+        assert chain[-1] is chain[1] and chain[1].image_size == size
 
 
 def test_the_shadow_hand_task_options_are_set_with_overrides():

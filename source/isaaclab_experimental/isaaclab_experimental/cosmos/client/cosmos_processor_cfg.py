@@ -35,6 +35,13 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     """Scene name of the processor's camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
     Defaults to empty, for a camera with its own session."""
 
+    image_size: tuple[int, int] | None = None
+    """Height and width of the published images. Defaults to None, the control's size. Another size publishes the
+    center crop of the control's canvas with that aspect ratio, area-resized, as
+    :func:`~isaaclab_experimental.cosmos.cosmos_camera` sets for a camera whose size is not a Cosmos canvas. The
+    processor resizes the images itself, so images a shared session generates after this processor ran still reach
+    the camera's published output."""
+
     def validate_config(self):
         """Have the camera render ``rgb`` when single-frame generation can skip captures and publish it instead.
 

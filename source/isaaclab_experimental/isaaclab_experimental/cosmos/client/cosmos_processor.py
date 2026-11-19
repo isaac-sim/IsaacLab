@@ -8,17 +8,18 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 from ...image_transfer import ImageTransferProcessor
 from .._protocol import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
-    from isaaclab.utils.warp import ProxyArray
-
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 
@@ -33,6 +34,9 @@ class CosmosTransferProcessor(ImageTransferProcessor):
     from the current capture's control, at every ``decision_interval``-th capture of the camera and with
     probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Resets do
     not move this schedule, and only the views a capture selects publish a new image.
+
+    With :attr:`CosmosTransferProcessorCfg.image_size`, the processor keeps the images at the control's size and
+    publishes their center crop at that size.
     """
 
     def __init__(self, cfg: CosmosTransferProcessorCfg, data: dict[str, ProxyArray]):
@@ -56,6 +60,13 @@ class CosmosTransferProcessor(ImageTransferProcessor):
                 " processor's inputs (validating the environment configuration adds it)."
             )
         super().__init__(cfg, data)
+        # Images land in the control-sized output; a camera of another size publishes a resized copy of it.
+        self._resized: torch.Tensor | None = None
+        if cfg.image_size is not None and tuple(cfg.image_size) != self._data_dim[1:3]:
+            shape = (self._data_dim[0], *cfg.image_size, 3)
+            resized = wp.zeros(shape, dtype=wp.uint8, device=str(self._output.device))
+            self._outputs = {cfg.outputs[0]: ProxyArray(resized)}
+            self._resized = self._outputs[cfg.outputs[0]].torch
         # A camera sharing a session takes its views there, and gets its images when the session generates them.
         bind = getattr(self._stream, "bind", None)
         if bind is not None:
@@ -100,6 +111,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         with torch.no_grad():
             if not decision or self._random.random() >= cfg.backend.augmentation_probability:
                 torch.where(selected, data["rgb"].torch[..., :3], self._output, out=self._output)
+                self._resize()
                 return dict(self._outputs)
             num_views = self._data_dim[0]
             # Episode numbers let the prompt list follow episodes that ended between two generations.
@@ -118,10 +130,40 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             # The batch generates every view; views not captured now keep their image.
             images = torch.cat(generated).to(self._output.device)
             torch.where(selected, images, self._output, out=self._output)
+            self._resize()
             self._started = True
         return dict(self._outputs)
+
+    def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
+        """Publish each view's last generated image, at :attr:`CosmosTransferProcessorCfg.image_size`."""
+        super()._publish(generated, chunk)
+        self._resize()
+
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
+        """Discard the selected views' queued controls and episode state, and publish them black."""
+        super().reset(env_ids, env_mask)
+        self._resize()
+
+    def _resize(self) -> None:
+        """Publish the control-sized images at the configured image size."""
+        if self._resized is not None:
+            height, width = self._cfg.image_size
+            self._resized.copy_(_center_crop_resize(self._output, width=width, height=height))
 
 
 def _skips_captures(cfg: CosmosTransferProcessorCfg) -> bool:
     """Whether single-frame generation can skip a capture and publish the rendered rgb instead."""
     return cfg.backend.decision_interval != 1 or cfg.backend.augmentation_probability != 1
+
+
+def _center_crop_resize(data: torch.Tensor, width: int, height: int) -> torch.Tensor:
+    """Cut the camera's original view out of the canvas's center and area-resize it to the camera's size."""
+    _, rows, cols, _ = data.shape
+    if cols * height > rows * width:
+        crop = rows * width // height
+        data = data[:, :, (cols - crop) // 2 : (cols - crop) // 2 + crop]
+    else:
+        crop = cols * height // width
+        data = data[:, (rows - crop) // 2 : (rows - crop) // 2 + crop]
+    pixels = torch.nn.functional.interpolate(data.permute(0, 3, 1, 2).float(), size=(height, width), mode="area")
+    return pixels.round().clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1).contiguous()

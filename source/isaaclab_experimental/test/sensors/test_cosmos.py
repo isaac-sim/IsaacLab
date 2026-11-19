@@ -704,8 +704,8 @@ class LazyCamera:
     runs each camera's processors.
     """
 
-    def __init__(self, cfg, name, value):
-        self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name)
+    def __init__(self, cfg, name, value, image_size=None):
+        self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name, image_size=image_size)
         self.processor = None
         self.value = value
         self.due = False
@@ -734,7 +734,7 @@ class LazyCamera:
         self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
 
 
-def _camera_group(cosmos_service, monkeypatch):
+def _camera_group(cosmos_service, monkeypatch, image_size=None):
     """A front and a wrist camera of two environments, sharing one session through their simulation's model."""
     cfg = CosmosModelCfg(
         max_episode_frames=13,
@@ -746,7 +746,7 @@ def _camera_group(cosmos_service, monkeypatch):
     model = CosmosModel(cfg)
     sim = SimpleNamespace(get_or_create_backend=lambda backend: model)
     monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
-    cameras = {"front": LazyCamera(cfg, "front", 10), "wrist": LazyCamera(cfg, "wrist", 20)}
+    cameras = {name: LazyCamera(cfg, name, value, image_size) for name, value in (("front", 10), ("wrist", 20))}
     monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
 
     def echo(stream, controls, reset_rows, seeds, **episode):
@@ -798,9 +798,13 @@ def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_
     assert session.closed.wait(2)
 
 
-def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_service, monkeypatch):
-    """An eager scene update renders every camera, then runs their processors; the last camera generates for both."""
-    model, cameras = _camera_group(cosmos_service, monkeypatch)
+@pytest.mark.parametrize("image_size", [None, (1, 1)])
+def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_service, monkeypatch, image_size):
+    """An eager scene update renders every camera, then runs their processors; the last camera generates for both.
+
+    Both cameras publish the generating capture's images, also at a size other than the control's.
+    """
+    model, cameras = _camera_group(cosmos_service, monkeypatch, image_size)
     front, wrist = cameras["front"], cameras["wrist"]
 
     def eager_update():
@@ -812,11 +816,14 @@ def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_serv
         front.value, wrist.value = front.value + 1, wrist.value + 1
 
     try:
-        for _ in range(5):
+        eager_update()
+        # The wrist camera completes each capture and publishes the front camera's images too.
+        assert front.output[:, 0, 0, 0].tolist() == [10, 10] and wrist.output[:, 0, 0, 0].tolist() == [20, 20]
+        for _ in range(4):
             eager_update()
         assert front.renders == wrist.renders == 5
-        # The wrist camera completes each capture and publishes the front camera's images too.
         assert front.output[:, 0, 0, 0].tolist() == [14, 14] and wrist.output[:, 0, 0, 0].tolist() == [24, 24]
+        assert front.output.shape[1:3] == wrist.output.shape[1:3] == (image_size or (2, 3))
     finally:
         model.close()
     assert len(cosmos_service.resource.streams[0].steps) == 2
