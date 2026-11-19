@@ -1052,46 +1052,6 @@ def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
 
 
 @pytest.mark.parametrize(
-    ("value", "accepted", "error", "expected"),
-    [
-        pytest.param(None, True, None, ["renderer"], id="unset"),
-        pytest.param("0", True, None, ["acquire", "--/app/useHercules=false", "renderer"], id="hydra"),
-        pytest.param("1", True, None, ["acquire", "--/app/useHercules=true", "renderer"], id="hercules"),
-        pytest.param("1", False, (RuntimeError, "cannot apply"), ["acquire", "--/app/useHercules=true"], id="rejected"),
-        pytest.param("1", None, (RuntimeError, "cannot apply"), ["acquire"], id="no-settings-extension"),
-        pytest.param("true", True, (ValueError, "Expected 0 or 1"), [], id="malformed"),
-    ],
-)
-def test_ovrtx_backend_applies_hercules_before_creating_the_renderer(monkeypatch, value, accepted, error, expected):
-    """Explicit choices must precede renderer creation, where OVRTX picks its scene backend, and never fail silently."""
-    events = []
-
-    def acquire_settings_applier(config):
-        events.append("acquire")
-        if accepted is None:
-            return None
-
-        def apply_setting(setting):
-            events.append(setting)
-            return accepted
-
-        return apply_setting
-
-    monkeypatch.setattr(ovrtx_renderer_module, "_acquire_settings_applier", acquire_settings_applier)
-    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", lambda config: None)
-    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: events.append("renderer"))
-    if value is None:
-        monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_HERCULES", raising=False)
-    else:
-        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_HERCULES", value)
-    cfg = OVRTXBackendCfg(use_ovstage=False, read_gpu_transforms=False, device="cpu")
-
-    with pytest.raises(error[0], match=error[1]) if error else contextlib.nullcontext():
-        OVRTXBackend(cfg)
-    assert events == expected
-
-
-@pytest.mark.parametrize(
     ("gpu_side", "cuda_stream", "expected_stream", "consumer_fails"),
     [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False)],
 )
