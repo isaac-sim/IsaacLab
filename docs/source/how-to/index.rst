@@ -360,7 +360,7 @@ How-to Guides
 
          :doc:`Select and configure a Renderer </source/how-to/configure_rendering>`
 
-         Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
+         Choose Newton Warp, Newton OptiX, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
          .. container:: guide-metadata
 
