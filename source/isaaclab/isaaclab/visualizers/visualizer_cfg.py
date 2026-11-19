@@ -382,7 +382,6 @@ class VisualizerCfg:
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
-    @property
     def tracking_cameras_only(self) -> bool:
         """Whether every declared camera is a :class:`TrackingCameraCfg`, so scene cameras are still discovered."""
         return bool(self.cameras) and all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras)
@@ -397,7 +396,7 @@ class VisualizerCfg:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
             # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
-            if not self.tracking_cameras_only:
+            if not self.tracking_cameras_only():
                 self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not isinstance(
                 camera, TrackingCameraCfg
