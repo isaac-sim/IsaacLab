@@ -1021,6 +1021,17 @@ jobs:
         python3 "$PERF_CONTROLLER/tools/performance_regression/source_revision.py" snapshot \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_MEASUREMENT_ROOT"
 
+    - name: Pull pull-request image
+      if: ${{ !cancelled() }}
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        pull-on-deps-hit: 'true'
+
     - name: Check out the PR base revision
       id: base_checkout
       continue-on-error: true
@@ -1038,11 +1049,13 @@ jobs:
       continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         cd "$PERF_CONTROLLER"
         python3 -m tools.performance_regression.pr_comparison restore \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
-          --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
+          --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv" \
+          --image "$CI_IMAGE_TAG"
 
     - name: Resolve the base revision's dependency image
       id: base_dependencies
@@ -1095,17 +1108,6 @@ jobs:
         ref: ${{ github.sha }}
         fetch-depth: 1
         lfs: true
-
-    - name: Pull pull-request image
-      if: ${{ !cancelled() }}
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-        pull-on-deps-hit: 'true'
 
     - name: Pin the base comparison for this tested PR revision
       if: always() && github.event_name == 'pull_request'

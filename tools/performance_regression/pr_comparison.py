@@ -515,6 +515,7 @@ def restore_baseline(args: argparse.Namespace, event: dict, measurement_manifest
     protocol = _benchmark_protocol(args.legs, measurement_manifest)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
+        runner_gpu_devices = _runner_gpu_devices(args.image)
         workflow_id = client.run_attempt(run_id, run_attempt).get("workflow_id")
         if not isinstance(workflow_id, int) or workflow_id <= 0:
             raise EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
@@ -565,6 +566,14 @@ def restore_baseline(args: argparse.Namespace, event: dict, measurement_manifest
                     raise EvidenceError("unverified_baseline", "Baseline is incomplete or its source proof is invalid.")
                 if evidence.identity["run_id"] == run_id and evidence.identity["run_attempt"] >= run_attempt:
                     continue
+                if any(
+                    _hardware(item["bundle"])["gpu_devices"] != runner_gpu_devices
+                    for samples in evidence.samples.values()
+                    for item in samples
+                ):
+                    raise EvidenceError(
+                        "gpu_mismatch", "Baseline GPU models are missing or differ from the current runner."
+                    )
                 selection.update(
                     baseline_reused=True,
                     baseline_origin=evidence.identity,
@@ -972,6 +981,47 @@ def _hardware(bundle: dict) -> dict:
     return identity
 
 
+def _runner_gpu_devices(image: str | None) -> list[str]:
+    """Read CUDA-visible GPU models in the image used for the upcoming PR benchmark."""
+    if not image:
+        raise EvidenceError("gpu_unavailable", "The PR benchmark image was not provided for the GPU check.")
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--gpus",
+                "all",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
+                "-e",
+                "HOME=/tmp/isaaclab-ci-home",
+                "-e",
+                "UV_CACHE_DIR=/tmp/isaaclab-ci-home/.cache/uv",
+                "--entrypoint",
+                "uv",
+                image,
+                "run",
+                "--no-sync",
+                "python",
+                "-c",
+                "import json, torch; print(json.dumps(["
+                "{'name': torch.cuda.get_device_properties(i).name} "
+                "for i in range(torch.cuda.device_count())]))",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        devices = _hardware({"hardware": {"gpu_devices": json.loads(result.stdout)}})["gpu_devices"]
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise EvidenceError("gpu_unavailable", f"Runner GPU check failed ({type(exc).__name__}).") from None
+    if devices is None:
+        raise EvidenceError("gpu_unavailable", "Runner GPU identity is unavailable in the PR benchmark image.")
+    return devices
+
+
 def _label(key: str) -> str:
     if key.startswith("unknown:"):
         return key.removeprefix("unknown:") + " (workload identity unavailable)"
@@ -1224,11 +1274,11 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--selection", type=Path, required=True)
         if name in ("restore", "capture"):
             command.add_argument("--legs", type=Path, required=True)
+            command.add_argument("--image", required=name == "capture")
             command.add_argument(
                 "--measurement_manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST")
             )
         if name == "capture":
-            command.add_argument("--image", required=True)
             command.add_argument("--role", choices=("baseline", "current"), required=True)
         if name == "bind":
             command.add_argument("--artifact-id")
@@ -1429,6 +1479,7 @@ if "pytest" in sys.modules:
             controller=tmp_path / "controller",
             client=FixtureClient(),
             image='[{"Id":"fixture","RepoDigests":[]}]',
+            gpu_probe='[{"name":"H100"}]',
         )
 
         def git(*args):
@@ -1489,6 +1540,14 @@ if "pytest" in sys.modules:
         def run(command, **kwargs):
             if command[:3] == ["docker", "image", "inspect"]:
                 return subprocess.CompletedProcess(command, 0, pair.image, "")
+            if command[:2] == ["docker", "run"]:
+                assert "fixture" in command
+                assert "--gpus=all" in command or any(
+                    command[index : index + 2] == ["--gpus", "all"] for index in range(len(command) - 1)
+                )
+                if isinstance(pair.gpu_probe, Exception):
+                    raise pair.gpu_probe
+                return subprocess.CompletedProcess(command, 0, pair.gpu_probe, "")
             return original_run(command, **kwargs)
 
         monkeypatch.setattr(subprocess, "run", run)
@@ -1496,7 +1555,7 @@ if "pytest" in sys.modules:
         defaults = {
             "resolve": dict(checkout_root=pair.root),
             "capture": paths | dict(image="fixture", role="current"),
-            "restore": paths | dict(selection=pair.selection),
+            "restore": paths | dict(selection=pair.selection, image="fixture"),
             "bind": dict(selection=pair.selection, output_dir=pair.output),
             "report": dict(repository=REPO, run_id=20, run_attempt=1, output_dir=pair.output),
         }
@@ -2190,7 +2249,7 @@ if "pytest" in sys.modules:
         assert selected.samples["second"][0]["bundle"]["run"]["status"] == "failed"
 
     @pytest.mark.parametrize(
-        "change", ["matrix", "launcher", "source_launcher", "measurement", "other_pr", "workflow", "base"]
+        "change", ["matrix", "launcher", "source_launcher", "measurement", "other_pr", "workflow", "base", "gpu"]
     )
     def test_reuse_keys(pair, change, monkeypatch):
         baseline = pair.client.publish(10, baseline_name(42, pair.base), artifact_files(pair))
@@ -2207,6 +2266,8 @@ if "pytest" in sys.modules:
             pair.event["pull_request"]["number"] = 43
         elif change == "workflow":
             pair.client.runs[10, 1]["workflow_id"] = 8
+        elif change == "gpu":
+            pair.gpu_probe = '[{"name":"A100"}]'
         else:
             monkeypatch.setenv("PERF_BASE_COMMIT", pair.old)
             pair.checkout(pair.old)
@@ -2215,9 +2276,41 @@ if "pytest" in sys.modules:
         if change in ("base", "other_pr"):
             assert pair.client.downloaded == [baseline["id"]]
         else:
-            rejection = "another workflow" if change == "workflow" else "protocol"
+            rejection = {"workflow": "another workflow", "gpu": "GPU models"}.get(change, "protocol")
             assert f"Artifact {baseline['id']} was not reused" in str(selection["issues"])
             assert rejection in str(selection["issues"])
+
+    @pytest.mark.parametrize("devices", [[{"name": "A100"}], [], [{"name": "H100"}, {"name": "H100"}]])
+    def test_reuse_checks_every_sample_gpu(pair, devices):
+        older = pair.client.publish(10, baseline_name(42, pair.base), artifact_files(pair))
+        pair.client.add_run(11)
+        files = artifact_files(pair, run_id=11)
+        path = "second/sample-3/benchmark_runtime_fixture.json"
+        files[path]["hardware"]["gpu_devices"] = devices
+        data = json.dumps(files[path]).encode()
+        files["second/sample-3/source-revision.json"]["outputs"][0].update(
+            sha256=hashlib.sha256(data).hexdigest(), bytes=len(data)
+        )
+        newer = pair.client.publish(11, baseline_name(42, pair.base), files)
+        selection = restore(pair)
+        assert selection["baseline_origin"]["artifact_id"] == older["id"]
+        assert pair.client.downloaded == [newer["id"], older["id"]]
+        assert f"Artifact {newer['id']} was not reused: Baseline GPU models" in str(selection["issues"])
+        older["expired"] = True
+        assert not restore(pair)["baseline_reused"]
+
+    @pytest.mark.parametrize(
+        "probe",
+        [FileNotFoundError(), subprocess.CalledProcessError(1, "docker"), "not JSON", "[]", '[{"name":"unknown"}]'],
+    )
+    def test_gpu_probe_failure_keeps_fresh_baseline(pair, probe):
+        pair.client.publish(10, baseline_name(42, pair.base), artifact_files(pair))
+        pair.gpu_probe = probe
+        selection = restore(pair)
+        assert_fields(selection, baseline_reused=False, baseline_origin=None)
+        assert "Runner GPU" in str(selection["issues"])
+        assert (pair.tmp / "github-output").read_text().splitlines()[-1] == "reused=false"
+        assert not pair.client.downloaded
 
     def test_lookup_failures_keep_fallback(pair, monkeypatch):
         monkeypatch.setenv("PERF_BASE_COMMIT", "")
