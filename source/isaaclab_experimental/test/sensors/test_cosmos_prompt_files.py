@@ -10,6 +10,8 @@ import json
 import pytest
 from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
 
+pytestmark = pytest.mark.unit
+
 _SCENE = {
     "subjects": [{"description": "A small apple with a yellow upper half and a red lower half."}],
     "context": "Preserve the geometry, camera pose and movements of the depth conditioning.",

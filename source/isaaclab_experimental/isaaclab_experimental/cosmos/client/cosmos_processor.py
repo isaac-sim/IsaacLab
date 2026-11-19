@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -18,6 +17,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from ...image_transfer import ImageTransferProcessor
 from .._protocol import MAX_CHUNK_FRAMES
+from .cosmos_processor_cfg import publishes_rendered_rgb
 
 if TYPE_CHECKING:
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg
@@ -54,7 +54,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             raise ValueError(f"Cosmos requires initial_frames=1 and update_frames={MAX_CHUNK_FRAMES}.")
         backend = cfg.backend
         self._single_frame = backend.generation_mode == "single_frame"
-        if self._single_frame and _skips_captures(cfg) and "rgb" not in data:
+        if publishes_rendered_rgb(backend) and "rgb" not in data:
             raise ValueError(
                 "Single-frame Cosmos publishes the rendered rgb when it skips a capture; add 'rgb' to the Cosmos"
                 " processor's inputs (validating the environment configuration adds it)."
@@ -73,13 +73,15 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             bind(cfg.camera, self._publish)
         self._capture_index = 0
         self._random = random.Random(self._seeds[0])
+        # Whether reset() ran since the resets were last read, so a generation reads them only after one.
+        self._reset_called = False
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        """Consume controls only when the caller identifies which views have a fresh capture.
+        """Queue or generate from the controls of the captured views.
 
         Args:
             data: Named input buffers containing the controls, and the rendered ``rgb`` in single-frame mode.
-            env_mask: Boolean mask of captured views. Direct callers must supply it explicitly.
+            env_mask: Boolean mask of the views captured in this call.
 
         Returns:
             The latest generated images under the configured output name.
@@ -87,23 +89,14 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         Raises:
             ValueError: If env_mask is None, as supplied by asynchronous cameras.
         """
-        if env_mask is None:
-            raise ValueError(
-                "Cosmos requires an explicit env_mask; use synchronous rendering"
-                " (renderer_cfg.async_rendering=False) for cameras."
-            )
         if not self._single_frame:
             return super().__call__(data, env_mask=env_mask)
         return self._generate_single_frame(data, env_mask)
 
     def _generate_single_frame(self, data: dict[str, ProxyArray], env_mask: wp.array) -> dict[str, ProxyArray]:
         """Publish, for the captured views, one generated image at a decision point, or the rendered rgb otherwise."""
-        if self._closed or self._failed:
-            raise RuntimeError("Image transfer processor is closed or failed; recreate it.")
         cfg = self._cfg
-        frames = data[cfg.inputs[0]].torch
-        if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
-            raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
+        frames = self._controls(data, env_mask)
         # Views the capture does not select keep their image; the mask stays on the device.
         selected = wp.to_torch(env_mask).to(self._output.device).view(-1, 1, 1, 1)
         decision = self._capture_index % cfg.backend.decision_interval == 0
@@ -131,29 +124,46 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             images = torch.cat(generated).to(self._output.device)
             torch.where(selected, images, self._output, out=self._output)
             self._resize()
-            self._started = True
         return dict(self._outputs)
 
-    def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
-        """Publish each view's last generated image, at :attr:`CosmosTransferProcessorCfg.image_size`."""
-        super()._publish(generated, chunk)
+    def _publish(self, generated: list[torch.Tensor] | None, chunk: list[int] | None = None) -> None:
+        """Publish each view's last generated image, at :attr:`CosmosTransferProcessorCfg.image_size`.
+
+        A session shared with other cameras returns None from a step and calls this without ``chunk`` when it
+        generates that chunk.
+        """
+        if generated is None:
+            return
+        super()._publish(generated, chunk if chunk is not None else [len(images) for images in generated])
         self._resize()
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
+    def _reset_views(self, selected: torch.Tensor) -> None:
         """Discard the selected views' queued controls and episode state, and publish them black."""
-        super().reset(env_ids, env_mask)
-        self._resize()
+        super()._reset_views(selected)
+        self._reset_called = True
+        if self._resized is not None:
+            self._resized.masked_fill_(selected.view(-1, 1, 1, 1), 0)
+
+    def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+        """Return the views that started an episode since the last generation, with their seeds and episode
+        numbers, and clear them. A view that reset several times is listed once, with its latest episode.
+
+        This reads the state on the host after a reset, so call it only where the generation itself waits for the
+        result.
+        """
+        if not self._reset_called:
+            return (), (), ()
+        self._reset_called = False
+        resets, episodes = torch.stack((self._resets.long(), self._episodes)).tolist()
+        self._resets.zero_()
+        rows = tuple(row for row, reset in enumerate(resets) if reset)
+        return rows, self._episode_seeds(rows, episodes), tuple(episodes[row] for row in rows)
 
     def _resize(self) -> None:
         """Publish the control-sized images at the configured image size."""
         if self._resized is not None:
             height, width = self._cfg.image_size
             self._resized.copy_(_center_crop_resize(self._output, width=width, height=height))
-
-
-def _skips_captures(cfg: CosmosTransferProcessorCfg) -> bool:
-    """Whether single-frame generation can skip a capture and publish the rendered rgb instead."""
-    return cfg.backend.decision_interval != 1 or cfg.backend.augmentation_probability != 1
 
 
 def _center_crop_resize(data: torch.Tensor, width: int, height: int) -> torch.Tensor:

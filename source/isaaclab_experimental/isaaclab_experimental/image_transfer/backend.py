@@ -20,17 +20,14 @@ class ImageTransferStream(Protocol):
     returns: the processor reuses their storage for later captures, so a stream that keeps a chunk
     copies it. Returned images must be uint8 THWC sRGB with the same sequence lengths and image
     size. Calls run on the current Torch stream; returned tensors must be ready on that stream.
-    Reset rows discard all episode state and start again from the given seeds.
+    Reset rows discard all episode state and start again from the given seeds; the first step names the views
+    that reset before it.
     """
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
-    ) -> list[torch.Tensor] | None:
-        """Consume one chunk per view and return the corresponding images.
-
-        A stream may instead return None and deliver the images later through a callback from its owner, as Cosmos
-        cameras sharing a session do with their processor's publication.
-        """
+    ) -> list[torch.Tensor]:
+        """Consume one chunk per view and return the corresponding images."""
         ...
 
     def close(self) -> None:

@@ -9,10 +9,11 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera
 from isaaclab_experimental.cosmos.client.cosmos_processor import _center_crop_resize
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 
 pytestmark = pytest.mark.unit
 
@@ -46,7 +47,7 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     assert (camera.width, camera.height) == canvas
     # The renderer produces depth; the processors produce the published rgb.
     assert chain[0].inputs == ["distance_to_image_plane"] and chain[-1].outputs == ["rgb"]
-    assert isinstance(chain[0], FunctionProcessorCfg) and chain[0].params == {"near": 0.2, "far": 1.5}
+    assert isinstance(chain[0], DepthControlProcessorCfg) and (chain[0].near, chain[0].far) == (0.2, 1.5)
     assert isinstance(chain[1], CosmosTransferProcessorCfg) and chain[1].inputs == ["control"]
     # Cosmos publishes last, at the camera's size.
     assert len(chain) == 2 and chain[1].image_size == (height, width)
@@ -68,8 +69,9 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     assert torch.equal(published, colors.expand(2, height, width, 3))
 
 
-def _first_three_channels(data: torch.Tensor) -> torch.Tensor:
-    return data[..., :3]
+def _processor(inputs=("rgb",), outputs=("control",)) -> TensorProcessorCfg:
+    """Configuration of a custom processor; these tests compose it and never run it."""
+    return TensorProcessorCfg(func=TensorProcessor, inputs=list(inputs), outputs=list(outputs))
 
 
 @pytest.mark.parametrize("render_output", ["semantic_segmentation", "rgb"])
@@ -77,19 +79,22 @@ def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output
     """A control other than depth: the camera renders what the control reads, and Cosmos still publishes rgb."""
     from isaaclab.sensors.camera.camera_cfg import _render_data_types
 
-    control = FunctionProcessorCfg(function=_first_three_channels, inputs=[render_output], outputs=["control"])
+    control = _processor(inputs=[render_output])
     camera = cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control])
     chain = camera.tensor_processors
 
-    assert chain[0].function is _first_three_channels and chain[0].inputs == [render_output]
+    assert chain[0].func is TensorProcessor and chain[0].inputs == [render_output]
     assert isinstance(chain[1], CosmosTransferProcessorCfg) and len(chain) == 2
     assert chain[1].inputs == ["control"] and chain[1].outputs == ["rgb"] and chain[1].image_size == (64, 64)
     # The renderer produces only the control's input, including rgb when the control is made from the rendered image.
     assert _render_data_types(camera) == [render_output]
 
-    unrelated = FunctionProcessorCfg(function=_first_three_channels, inputs=["rgb"], outputs=["mask"])
+    unrelated = _processor(outputs=["mask"])
     with pytest.raises(ValueError, match="'control' buffer"):
         cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[unrelated])
+    # The depth range belongs to the default depth control only.
+    with pytest.raises(ValueError, match="near and far set the default depth control"):
+        cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control], near=0.2)
 
 
 def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
@@ -101,7 +106,7 @@ def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
 def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
     with pytest.raises(ValueError, match="only 'rgb'"):
         cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg())
-    existing = FunctionProcessorCfg(function=torch.clone, inputs=["rgb"], outputs=["rgb"])
+    existing = _processor(outputs=["rgb"])
     with pytest.raises(ValueError, match="already has tensor processors"):
         cosmos_camera(_camera(64, 64, tensor_processors=[existing]), CosmosModelCfg())
     with pytest.raises(ValueError, match="fisheye"):

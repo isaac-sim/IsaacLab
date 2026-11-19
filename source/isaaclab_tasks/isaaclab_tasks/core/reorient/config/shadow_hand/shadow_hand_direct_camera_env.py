@@ -57,8 +57,10 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
 
         # train CNN to regress on keypoint positions
-        camera_output = self._tiled_camera.data.output
-        pose_loss, embeddings = self.feature_extractor.step(camera_output, object_pose)
+        pose_loss, embeddings = self.feature_extractor.step(
+            self._tiled_camera.data.output,
+            object_pose,
+        )
 
         self.embeddings = embeddings.clone().detach()
         # compute keypoints for goal cube

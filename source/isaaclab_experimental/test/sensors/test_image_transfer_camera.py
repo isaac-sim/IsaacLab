@@ -5,9 +5,12 @@
 
 """Image transfer processors running in a camera: rendered depth in, generated rgb out."""
 
+from contextlib import contextmanager
+
 import pytest
 import torch
-from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTransferProcessorCfg, depth_to_control
+import warp as wp
+from isaaclab_experimental.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -16,6 +19,8 @@ from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import BackendCfg, PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -55,24 +60,15 @@ class _InvertModelCfg(BackendCfg):
     class_type: type = _InvertModel
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_camera_publishes_generated_rgb_from_rendered_depth(device):
-    """The camera renders only depth, runs the processors per capture, and resets and closes them."""
+@contextmanager
+def _newton_cube_camera(device: str, processors: list):
+    """Yield a two-environment Newton camera above a cube that runs ``processors``, and a capture function."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     _InvertModel.instances.clear()
-    processors = [
-        FunctionProcessorCfg(
-            function=depth_to_control,
-            params={"near": 0.5, "far": 3.0},
-            inputs=["distance_to_image_plane"],
-            outputs=["control"],
-        ),
-        ImageTransferProcessorCfg(backend=_InvertModelCfg(), initial_frames=1, update_frames=2),
-    ]
     sim_cfg = sim_utils.SimulationCfg(
         device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
     )
@@ -101,13 +97,24 @@ def test_camera_publishes_generated_rgb_from_rendered_depth(device):
         camera = scene["camera"]
         sim.reset()
 
-        def capture() -> torch.Tensor:
+        def capture() -> dict:
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
             camera.update(sim.get_physics_dt(), force_recompute=True)
-            return camera.data.output["rgb"].torch
+            return camera.data.output
 
-        rgb = capture()
+        yield camera, capture
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_camera_publishes_generated_rgb_from_rendered_depth(device):
+    """The camera renders only depth, runs the processors per capture, and resets and closes them."""
+    processors = [
+        DepthControlProcessorCfg(near=0.5, far=3.0),
+        ImageTransferProcessorCfg(backend=_InvertModelCfg(), initial_frames=1, update_frames=2),
+    ]
+    with _newton_cube_camera(device, processors) as (camera, capture):
+        rgb = capture()["rgb"].torch
         model = _InvertModel.instances[0]
         assert model.num_views == 2 and model.steps == [([1, 1], ())]
         # The cube top at 1.7 m is a gray control, the floor beyond far a black one; the model inverts them.
@@ -124,54 +131,36 @@ def test_camera_publishes_generated_rgb_from_rendered_depth(device):
     assert model.closed == 1
 
 
-def _rendered_to_control(data: torch.Tensor) -> torch.Tensor:
-    return data[..., :3].contiguous()
+class RgbControl(TensorProcessor):
+    """Publish the rendered image's color channels as the control."""
+
+    def __init__(self, cfg, data):
+        super().__init__(cfg)
+        source = data[cfg.inputs[0]]
+        control = wp.zeros((*source.shape[:-1], 3), dtype=wp.uint8, device=source.device)
+        self._outputs = {cfg.outputs[0]: ProxyArray(control)}
+
+    def __call__(self, data, env_mask=None):
+        self._outputs[self._cfg.outputs[0]].torch.copy_(data[self._cfg.inputs[0]].torch[..., :3])
+        return dict(self._outputs)
+
+
+@configclass
+class RgbControlCfg(TensorProcessorCfg):
+    func: type = RgbControl
+    inputs: list[str] = ["rgb"]
+    outputs: list[str] = ["control"]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_camera_generates_rgb_from_a_control_made_of_the_rendered_rgb(device):
     """A control computed from the rendered image, as edge and blur controls are: the published rgb is generated."""
-    pytest.importorskip("isaaclab_newton")
-    pytest.importorskip("newton")
-    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    _InvertModel.instances.clear()
     processors = [
-        FunctionProcessorCfg(function=_rendered_to_control, inputs=["rgb"], outputs=["control"]),
+        RgbControlCfg(),
         ImageTransferProcessorCfg(backend=_InvertModelCfg(), initial_frames=1, update_frames=1),
     ]
-    sim_cfg = sim_utils.SimulationCfg(
-        device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
-    )
-    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
-        scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=2.0)
-        scene_cfg.cube = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=1.0),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            ),
-        )
-        scene_cfg.camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            width=32,
-            height=32,
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
-            spawn=PinholeCameraCfg(clipping_range=(0.1, 10.0)),
-            renderer_cfg=NewtonWarpRendererCfg(),
-            data_types=["rgb"],
-            tensor_processors=processors,
-        )
-        scene = InteractiveScene(scene_cfg)
-        camera = scene["camera"]
-        sim.reset()
-        sim.step(render=False)
-        scene.update(sim.get_physics_dt())
-        camera.update(sim.get_physics_dt(), force_recompute=True)
-        output = camera.data.output
+    with _newton_cube_camera(device, processors) as (_, capture):
+        output = capture()
         rendered, published = output["control"].torch, output["rgb"].torch
 
         assert published.shape == (2, 32, 32, 3) and published.dtype == torch.uint8

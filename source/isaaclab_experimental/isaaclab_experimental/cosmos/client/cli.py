@@ -16,7 +16,7 @@ import argparse
 import json
 import sys
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, request
+from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, request
 
 
 def main(args: list[str] | None = None) -> int:
@@ -29,8 +29,8 @@ def main(args: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     for name, description, timeout in (
         ("status", "Inspect the service.", 5.0),
-        ("offload", "Move an idle service's weights to host memory.", 600.0),
-        ("activate", "Move the service's weights back to its GPU.", 600.0),
+        ("offload", "Move an idle service's weights to host memory.", DEFAULT_TIMEOUT_S),
+        ("activate", "Move the service's weights back to its GPU.", DEFAULT_TIMEOUT_S),
     ):
         command = commands.add_parser(name, help=description)
         command.add_argument(

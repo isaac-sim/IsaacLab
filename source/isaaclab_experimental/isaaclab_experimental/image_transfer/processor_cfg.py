@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
@@ -16,43 +15,34 @@ from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 if TYPE_CHECKING:
-    import torch
-
-    from .processor import FunctionProcessor, ImageTransferProcessor
+    from .processor import DepthControlProcessor, ImageTransferProcessor
 
 
 @configclass
-class FunctionProcessorCfg(TensorProcessorCfg):
-    """Apply a Torch function to one camera buffer, for example to prepare controls:
+class DepthControlProcessorCfg(TensorProcessorCfg):
+    """Turn the camera's metric depth into the controls of an image transfer: near white, far black."""
 
-    .. code-block:: python
+    func: type[DepthControlProcessor] | str = "{DIR}.processor:DepthControlProcessor"
+    """Depth control processor class."""
 
-        FunctionProcessorCfg(
-            function=depth_to_control,
-            params={"near": 0.1, "far": 10.0},
-            inputs=["distance_to_image_plane"],
-            outputs=["control"],
-        )
-    """
+    inputs: list[str] = ["distance_to_image_plane"]
+    """The depth buffer [m]."""
 
-    func: type[FunctionProcessor] | str = "{DIR}.processor:FunctionProcessor"
-    """Function processor class."""
+    outputs: list[str] = ["control"]
+    """The control buffer."""
 
-    function: Callable[..., torch.Tensor] | str = MISSING
-    """Function applied to the input tensor, with :attr:`params` as keyword arguments, or its import string."""
+    near: float = MISSING
+    """Depth rendered white [m]."""
 
-    inputs: list[str] = MISSING
-    """The input buffer name."""
-
-    outputs: list[str] = MISSING
-    """The output buffer name."""
+    far: float = MISSING
+    """Depth rendered black [m]. Set the range to match the scene: depth outside it clips to white or black."""
 
 
 @configclass
 class ImageTransferProcessorCfg(TensorProcessorCfg):
     """Generate images from uint8 three-channel controls with an application-owned model.
 
-    Place it after a processor that prepares controls, for example :func:`depth_to_control`, in a
+    Place it after a processor that prepares controls, for example :class:`DepthControlProcessorCfg`, in a
     camera's tensor processors so that it runs once per captured image:
 
     .. code-block:: python
@@ -60,12 +50,7 @@ class ImageTransferProcessorCfg(TensorProcessorCfg):
         CameraCfg(
             data_types=["rgb"],
             tensor_processors=[
-                FunctionProcessorCfg(
-                    function=depth_to_control,
-                    params={"near": 0.1, "far": 10.0},
-                    inputs=["distance_to_image_plane"],
-                    outputs=["control"],
-                ),
+                DepthControlProcessorCfg(near=0.1, far=10.0),
                 ImageTransferProcessorCfg(backend=MyModelCfg(), update_frames=4),
             ],
         )

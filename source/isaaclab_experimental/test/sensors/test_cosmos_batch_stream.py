@@ -12,7 +12,10 @@ generator echoes each view's control so views can be told apart.
 from __future__ import annotations
 
 import gc
+import socket
 import sys
+import threading
+import time
 import types
 import weakref
 from contextlib import contextmanager
@@ -22,7 +25,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_experimental.cosmos.server import _framework
+from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, _protocol
+from isaaclab_experimental.cosmos.server import _framework, serve
 
 pytestmark = pytest.mark.unit
 
@@ -153,6 +157,59 @@ def _controls(*frames_and_values):
     return [np.full((frames, HEIGHT, WIDTH, 3), value, dtype=np.uint8) for frames, value in frames_and_values]
 
 
+@contextmanager
+def _served(owner):
+    """Serve ``owner`` with the production listener on a local TCP endpoint, and shut it down through it."""
+    owner._metadata_dir = SimpleNamespace(cleanup=lambda: None)
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        endpoint = f"tcp://127.0.0.1:{reserved.getsockname()[1]}"
+    thread = threading.Thread(target=serve, args=(owner, endpoint), daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                _protocol.request(endpoint, {"op": "status"}, timeout=0.2)
+                break
+            except OSError:
+                assert thread.is_alive() and time.monotonic() < deadline, "Cosmos service did not start"
+                time.sleep(0.01)
+        yield endpoint
+    finally:
+        if thread.is_alive():
+            _protocol.request(endpoint, {"op": "shutdown"}, timeout=10)
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "Cosmos service did not stop"
+
+
+@pytest.mark.parametrize("views", [1, 2])
+def test_a_single_frame_client_generates_through_the_service_on_the_server_streams(batch, views):
+    """The client's first step starts every view from the opening seeds, and its second restarts them all."""
+    stream, model = batch(views=views)
+    owner = stream._owner
+    stream.close()
+    seeds = tuple(range(5, 5 + views))
+    with _served(owner) as endpoint:
+        cfg = CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", transport="socket", timeout=30)
+        client = CosmosModel(cfg)
+        try:
+            session = client.open_stream(num_views=views, seeds=seeds)
+            for step in range(2):
+                values = [20 + 10 * step + view for view in range(views)]
+                controls = [torch.full((1, HEIGHT, WIDTH, 3), value, dtype=torch.uint8) for value in values]
+                images = session.step(controls, reset_rows=(), seeds=())
+                assert [tuple(image.shape) for image in images] == [(1, HEIGHT, WIDTH, 3)] * views
+                assert [int(image.float().mean()) for image in images] == values
+        finally:
+            client.close()
+
+    # The model starts every view from its opening seed, then restarts every view with a seed of its own.
+    seen = [seed for started in model.iterator_seeds for seed in started]
+    seen += [seed for _, restarted in model.steps for seed in restarted or ()]
+    assert seen[:views] == list(seeds) and len(set(seen)) == len(seen) == 2 * views
+
+
 def test_new_sessions_change_view_count_without_reloading_the_model(batch):
     """A resident model serves four views, then eight, then one, with fresh history and distinct images."""
     stream, model = batch(views=4)
@@ -195,8 +252,8 @@ def test_a_session_generates_its_whole_requested_budget_then_stops(batch):
         stream.close()
 
 
-def test_views_advance_together_and_a_restarting_view_sends_one_frame(batch):
-    """View 1 restarts with one frame while view 0 continues with four; each keeps its own images."""
+def test_views_advance_together_and_a_restarting_view_sends_one_frame_with_a_new_vae_cache(batch):
+    """View 1 restarts with one frame while view 0 continues with four; each keeps its own images and VAE cache."""
     stream, model = batch()
 
     first = stream.step(_controls((1, 40), (1, 200)), (), ())
@@ -210,16 +267,9 @@ def test_views_advance_together_and_a_restarting_view_sends_one_frame(batch):
     assert all(int(images[0].mean()) == 40 and int(images[1].mean()) == 200 for images in (first, update, restart))
     assert model.steps == [((), None), ((), None), ((1,), (21,))]
     assert stream._frames == [9, 1]
-
-
-def test_each_view_keeps_its_own_causal_vae_cache_and_a_restart_starts_a_new_one(batch):
-    stream, model = batch()
-    stream.step(_controls((1, 1), (1, 2)), (), ())
-    stream.step(_controls((4, 1), (4, 2)), (), ())
-    view0, view1 = model.encoded_caches[0], model.encoded_caches[1]
+    # Each view encodes with its own causal cache across chunks; the restarting view starts a new one.
+    view0, view1 = model.encoded_caches[:2]
     assert view0 != view1 and model.encoded_caches[2:4] == [view0, view1]
-
-    stream.step(_controls((4, 1), (1, 2)), (1,), (5,))
     assert model.encoded_caches[4] == view0 and model.encoded_caches[5] not in (view0, view1)
 
 
@@ -320,25 +370,35 @@ def test_closing_a_batch_releases_every_views_caches(batch):
 
 @pytest.mark.parametrize("window,frames", [(30, 121), (8, 33)])
 def test_warmup_fills_the_history_window(window, frames, monkeypatch):
-    """Warmup runs one latent past the history window, so the first real episode needs no new shapes."""
+    """Warmup runs one latent past the history window, so the first real episode needs no new shapes.
+
+    Its controls are uint8 tensors on the model's GPU.
+    """
+    if not torch.cuda.is_available():
+        pytest.skip("The Cosmos server selects a CUDA device")
     model = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
     model.capabilities = {"kv_window": window}
+    model._device = torch.device("cuda", torch.cuda.current_device())
     opened = {}
 
     class Stream:
         def step(self, controls, reset_rows, seeds):
-            opened["frames"] += controls[0].shape[0]
+            (control,) = controls
+            opened["frames"] += control.shape[0]
+            opened["on_gpu"] &= (
+                isinstance(control, torch.Tensor) and control.device == model._device and control.dtype == torch.uint8
+            )
 
         def close(self):
             opened["closed"] = True
 
     def open_stream(**settings):
-        opened.update(budget=settings["max_episode_frames"], frames=0)
+        opened.update(budget=settings["max_episode_frames"], frames=0, on_gpu=True)
         return Stream()
 
     monkeypatch.setattr(model, "open_stream", open_stream)
     model.warmup(height=4, width=4)
-    assert opened == {"budget": frames, "frames": frames, "closed": True}
+    assert opened == {"budget": frames, "frames": frames, "on_gpu": True, "closed": True}
 
 
 def test_text_conditioning_marks_a_transfer_request_at_the_requested_frame_rate(monkeypatch):

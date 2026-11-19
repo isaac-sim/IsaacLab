@@ -23,6 +23,7 @@ from .._protocol import (
     DEFAULT_ENDPOINT,
     MAX_ARRAYS,
     MAX_CHUNK_FRAMES,
+    SEED_LIMIT,
     ProtocolError,
     disable_nagle,
     parse_endpoint,
@@ -195,7 +196,7 @@ class _Model(Protocol):
         height: int,
         width: int,
         max_episode_frames: int,
-        fps: float = ...,
+        fps: float,
     ) -> _Stream: ...
 
     def close(self) -> None: ...
@@ -296,9 +297,8 @@ def _handle_connection(
                         "height",
                         "width",
                         "max_episode_frames",
+                        "fps",
                     }
-                    # Protocol 3 clients that omit fps get the model's default.
-                    | ({"fps"} if "fps" in metadata else set())
                     | ({"transport", "ipc"} if "transport" in metadata else set()),
                     arrays,
                 )
@@ -591,7 +591,7 @@ def _seeds(values: object, count: int) -> tuple[int, ...]:
     if (
         not isinstance(values, list)
         or len(values) != count
-        or any(type(seed) is not int or not 0 <= seed < 2**31 for seed in values)
+        or any(type(seed) is not int or not 0 <= seed < SEED_LIMIT for seed in values)
     ):
         raise ValueError("Cosmos requires one integer seed in [0, 2**31) for each opened or reset view.")
     return tuple(values)

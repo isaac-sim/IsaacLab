@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from .._protocol import (
     MAX_CHUNK_FRAMES,
+    SEED_LIMIT,
     ProtocolError,
     check_reply,
     connect,
@@ -117,10 +118,10 @@ class CosmosModel:
             ValueError: If the view count or seeds are invalid, or there are fewer views than services.
             RuntimeError: If the client model has already closed.
         """
+        if type(num_views) is not int or num_views < 1:
+            raise ValueError("Cosmos needs a positive number of camera views.")
+        _validate_seeds(seeds, num_views)
         if self._cfg.cameras:
-            if type(num_views) is not int or num_views < 1:
-                raise ValueError("Cosmos needs a positive number of camera views.")
-            _validate_seeds(seeds, num_views)
             with self._lock:
                 if self._closed:
                     raise RuntimeError("Cosmos client model is closed.")
@@ -133,16 +134,13 @@ class CosmosModel:
 
     def _open_session(self, num_views: int, seeds: tuple[int, ...]) -> _CosmosStream | _ShardedStream:
         """Create one session's stream, split across the services; see :meth:`open_stream`."""
-        if type(num_views) is not int or num_views < 1:
-            raise ValueError("Cosmos needs a positive number of camera views.")
-        _validate_seeds(seeds, num_views)
         endpoints = service_endpoints(self._cfg.endpoint)
         shares = split_views(num_views, len(endpoints))
         with self._lock:
             if self._closed:
                 raise RuntimeError("Cosmos client model is closed.")
             streams = [
-                _CosmosStream(self, self._cfg, endpoint, seeds[share.start : share.stop], share, batched=num_views > 1)
+                _CosmosStream(self, endpoint, seeds[share.start : share.stop], share, batched=num_views > 1)
                 for endpoint, share in zip(endpoints, shares)
             ]
             self._streams.update(streams)
@@ -225,9 +223,22 @@ def _validate_seeds(seeds: tuple[int, ...], count: int) -> None:
     if (
         not isinstance(seeds, tuple)
         or len(seeds) != count
-        or any(type(seed) is not int or not 0 <= seed < 2**31 for seed in seeds)
+        or any(type(seed) is not int or not 0 <= seed < SEED_LIMIT for seed in seeds)
     ):
         raise ValueError("Cosmos requires one integer seed in [0, 2**31) for each opened or reset view.")
+
+
+def _validate_resets(
+    reset_rows: tuple[int, ...], seeds: tuple[int, ...], episodes: tuple[int, ...] | None, num_views: int
+) -> None:
+    if (
+        not isinstance(reset_rows, tuple)
+        or any(type(row) is not int or not 0 <= row < num_views for row in reset_rows)
+        or list(reset_rows) != sorted(set(reset_rows))
+    ):
+        raise ValueError("Cosmos resets name distinct views in increasing order.")
+    _validate_seeds(seeds, len(reset_rows))
+    _validate_episodes(episodes, len(reset_rows))
 
 
 def _validate_episodes(episodes: tuple[int, ...] | None, count: int) -> None:
@@ -249,7 +260,7 @@ def _image_seed(seed: int, count: int) -> int:
     if count == 0:
         return seed
     digest = hashlib.blake2b(f"{seed}:{count}".encode(), digest_size=8).digest()
-    return int.from_bytes(digest, "little") % 2**31
+    return int.from_bytes(digest, "little") % SEED_LIMIT
 
 
 class _SentStep(NamedTuple):
@@ -267,7 +278,6 @@ class _CosmosStream:
     def __init__(
         self,
         model: CosmosModel,
-        cfg: CosmosModelCfg,
         endpoint: str,
         seeds: tuple[int, ...],
         views: range,
@@ -277,15 +287,14 @@ class _CosmosStream:
         """Prepare the session; it connects on its first step.
 
         Args:
-            model: Client model that tracks this session.
-            cfg: Client settings.
+            model: Client model that tracks this session and holds its settings.
             endpoint: Endpoint of this session's service.
             seeds: Initial seed of each view of this session.
             views: The camera's view indices this session generates; they select the views' prompts.
             batched: Whether the camera has several views. Each view then keeps one prompt for all its episodes.
         """
         self._model = model
-        self._cfg = cfg
+        self._cfg = model._cfg
         self._endpoint = endpoint
         self._seeds = seeds
         self._views = views
@@ -357,77 +366,96 @@ class _CosmosStream:
                 raise ValueError(
                     "Cosmos controls must hold one nonempty uint8 THWC tensor with three channels per view."
                 )
-            if (
-                not isinstance(reset_rows, tuple)
-                or any(type(row) is not int or not 0 <= row < num_views for row in reset_rows)
-                or list(reset_rows) != sorted(set(reset_rows))
-            ):
-                raise ValueError("Cosmos resets name distinct views in increasing order.")
-            _validate_seeds(seeds, len(reset_rows))
-            _validate_episodes(episodes, len(reset_rows))
+            _validate_resets(reset_rows, seeds, episodes, num_views)
             control = controls[0]
             image_shape = tuple(control.shape[1:])
             if any(tuple(view.shape[1:]) != image_shape or view.device != control.device for view in controls):
                 raise ValueError("Cosmos views must share one image size and device.")
             if self._shape is not None and image_shape != self._shape:
                 raise ValueError("Cosmos image size cannot change within a camera stream.")
-            if self._socket is None:
-                self._socket = connect(self._endpoint, self._cfg.timeout)
-                request = {
-                    "op": "open",
-                    "num_views": num_views,
-                    "seeds": self._seeds,
-                    "prompt": self._session_prompt(),
-                    "height": image_shape[0],
-                    "width": image_shape[1],
-                    # A single-frame image is a one-frame episode.
-                    "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
-                    "fps": self._cfg.fps,
-                }
-                self.transport = self._select_transport(control.device)
-                if self.transport == "cuda_ipc":
-                    from .. import _cuda_ipc
-
-                    self._channel = _cuda_ipc.SharedChannel(
-                        control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
-                    )
-                    # The service opens the controls on this GPU, which it finds by its PCI bus ID.
-                    ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(control.device.index or 0)}
-                    request.update(transport="cuda_ipc", ipc=ipc)
-                reply, arrays = self._exchange(request)
-                if arrays:
-                    raise ProtocolError("Cosmos open reply must not contain image arrays.")
-                if self._channel is not None:
-                    # The service writes generated images into a buffer on its own GPU.
-                    self._channel.open(self._service_device, reply.get("ipc"))
-                self._shape = image_shape
             frames = [view.shape[0] for view in controls]
             if max(frames) > MAX_CHUNK_FRAMES:
                 raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
-            request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
+            message = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
             episode = self._episode
             if self._single_frame:
-                request.update(self._single_frame_step(frames, reset_rows, seeds, episodes))
+                message.update(self._single_frame_step(frames, reset_rows, seeds, episodes))
             elif not self._batched and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
                 # A reset starts the next prompt's episode, unless the ending episode never got past its
                 # first frame, such as the capture taken before the environment's initial reset.
                 episode += 1 if self._episode_frames > 1 else 0
-                request["prompt"] = self._episode_prompt(episode)
+                message["prompt"] = self._episode_prompt(episode)
+            if self._socket is None:
+                self._open(control.device, image_shape, message)
             arrays = []
             if self._channel is not None:
                 # Controls and images stay on the GPU, one buffer row per view; events order the processes.
                 for view, (chunk, count) in enumerate(zip(controls, frames)):
                     self._channel.control.tensor[view, :count].copy_(chunk)
                 self._channel.control_ready.record()
-                request["frames"] = frames
+                message["frames"] = frames
             else:
                 # Images cross the process boundary through host memory and the socket.
                 arrays = [chunk.detach().cpu().numpy() for chunk in controls]
-            send_message(self._socket, request, arrays)
+            send_message(self._socket, message, arrays)
             return _SentStep(frames, control.device, episode, bool(reset_rows))
         except Exception:
             self._release(notify=False)
             raise
+
+    def _open(self, device: torch.device, image_shape: tuple[int, int, int], step: dict) -> None:
+        """Connect and open the session for the first step, whose resets become the session's opening state.
+
+        The service starts every view fresh, so the views ``step`` resets open with its seeds and prompts, and the
+        step itself is sent without resets.
+
+        Args:
+            device: Device of the controls.
+            image_shape: Control image shape ``(height, width, 3)``.
+            step: The first step's message; its ``reset_rows``, ``seeds`` and ``prompt`` are consumed.
+        """
+        num_views = len(self._seeds)
+        seeds = list(self._seeds)
+        prompt = step.pop("prompt", self._session_prompt())
+        for row, seed in zip(step["reset_rows"], step["seeds"]):
+            seeds[row] = seed
+        step.update(reset_rows=(), seeds=())
+        self._socket = connect(self._endpoint, self._cfg.timeout)
+        message = {
+            "op": "open",
+            "num_views": num_views,
+            "seeds": tuple(seeds),
+            "prompt": prompt,
+            "height": image_shape[0],
+            "width": image_shape[1],
+            # A single-frame image is a one-frame episode.
+            "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
+            "fps": self._cfg.fps,
+        }
+        self.transport = self._select_transport(device)
+        if self.transport == "cuda_ipc":
+            from .. import _cuda_ipc
+
+            self._channel = _cuda_ipc.SharedChannel(
+                device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
+            )
+            # The service opens the controls on this GPU, which it finds by its PCI bus ID.
+            ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(device.index or 0)}
+            message.update(transport="cuda_ipc", ipc=ipc)
+        try:
+            reply, arrays = self._exchange(message)
+        except RuntimeError:
+            # The service answered and rejected the session, so it holds none of this camera's buffers.
+            if self._channel is not None:
+                self._channel.close(peer_released=True)
+                self._channel = None
+            raise
+        if arrays:
+            raise ProtocolError("Cosmos open reply must not contain image arrays.")
+        if self._channel is not None:
+            # The service writes generated images into a buffer on its own GPU.
+            self._channel.open(self._service_device, reply.get("ipc"))
+        self._shape = image_shape
 
     def _receive(self, sent: _SentStep) -> list[torch.Tensor]:
         """Wait for the reply to a step from :meth:`_send` and return its images on the controls' device.
@@ -502,7 +530,8 @@ class _CosmosStream:
                 self._view_episode_numbers[row] = episodes[index]
             self._view_resets[row] += 1
             self._view_seeds[row], self._view_frames[row] = seed, 0
-        # Every step restarts every view, the first too, so episodes that ended before it also select its prompts.
+        # Every step restarts every view. On the first step the restarts open the session, so episodes that ended
+        # before it also select its seeds and prompts.
         fields = {
             "reset_rows": tuple(range(len(frames))),
             "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
@@ -639,16 +668,9 @@ class _ShardedStream:
             received = 0
             try:
                 num_views = self._shares[-1].stop
-                if (
-                    not isinstance(controls, list)
-                    or len(controls) != num_views
-                    or not isinstance(reset_rows, tuple)
-                    or any(type(row) is not int or not 0 <= row < num_views for row in reset_rows)
-                    or list(reset_rows) != sorted(set(reset_rows))
-                ):
-                    raise ValueError("Cosmos needs one control chunk per view and distinct reset views in order.")
-                _validate_seeds(seeds, len(reset_rows))
-                _validate_episodes(episodes, len(reset_rows))
+                if not isinstance(controls, list) or len(controls) != num_views:
+                    raise ValueError("Cosmos needs one control chunk per view.")
+                _validate_resets(reset_rows, seeds, episodes, num_views)
                 for stream, share in zip(self._streams, self._shares):
                     resets = [index for index, row in enumerate(reset_rows) if row in share]
                     sent.append(
@@ -694,8 +716,9 @@ class _CameraGroup:
     it. A camera that steps before the others reads their data, which renders them and runs their processors, unless
     they were already rendered for this capture, as an eager scene update renders every camera before running any
     processor: their processors then add their chunks next, and the last one publishes the earlier cameras' images.
-    All cameras thus publish images of the same capture, so they must capture at the same steps. A failure closes the
-    session for every camera.
+    All cameras thus publish images of the same capture, so they must capture at the same steps. A camera whose
+    images are published later must have its Cosmos processor last, since its own later processors already ran. A
+    failure closes the session for every camera.
     """
 
     def __init__(self, model: CosmosModel, cameras: tuple[str, ...]):
@@ -765,6 +788,13 @@ class _CameraGroup:
                     )
             if self._images is None:
                 if len(self._chunks) < len(self._cameras):
+                    name = self._cameras[stream.index]
+                    if getattr(cameras[name].cfg.tensor_processors[-1], "camera", None) != name:
+                        raise ValueError(
+                            f"Camera {name!r} runs tensor processors after its Cosmos processor, but its images are "
+                            "published when a later camera of the capture generates. Put the Cosmos processor last "
+                            "or use lazy sensor updates (scene.lazy_sensor_update=True)."
+                        )
                     # This camera's processor reuses its control queue before the session generates.
                     self._chunks[stream.index] = ([chunk.clone() for chunk in controls], reset_rows, seeds)
                     self._waiting.add(stream.index)
