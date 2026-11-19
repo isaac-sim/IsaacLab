@@ -178,43 +178,23 @@ def set_gaze_kernel(
     rotation[i] = gaze_rotation(angles)
 
 
-@wp.func
-def turn_pose(
-    i: wp.int32,
-    gaze: wp.mat33f,
-    basis: wp.mat33f,
-    to_opengl: wp.quatf,
-    to_world: wp.quatf,
-    to_ros: wp.quatf,
-    orientation: wp.array(dtype=wp.quatf),
-    mount: wp.array(dtype=wp.quatf),
-):
-    """Record camera ``i``'s mount in the ROS convention, then turn its world orientation by its gaze."""
-    base = orientation[i]
-    mount[i] = wp.normalize(base * to_ros)
-    orientation[i] = gaze_pose(base, gaze, basis, to_opengl, to_world)
-
-
 @wp.kernel(enable_backward=False)
 def apply_gaze_kernel(
     angles_deg: wp.array(dtype=wp.vec2f),
     basis: wp.mat33f,
     to_opengl: wp.quatf,
     to_world: wp.quatf,
-    to_ros: wp.quatf,
     mask: wp.array(dtype=wp.bool),
     use_mask: wp.int32,
     orientation: wp.array(dtype=wp.quatf),
     rotation: wp.array(dtype=wp.mat33f),
-    mount: wp.array(dtype=wp.quatf),
 ):
-    """Turn each camera's world orientation by its gaze, or only the masked ones, and record their mounts and gaze
-    rotations; every other camera keeps the rotation its pose was turned by."""
+    """Turn each updated camera and save the rotation used for its capture."""
     i = wp.tid()
     if use_mask == 0 or mask[i]:
         gaze = gaze_rotation(angles_deg[i])
         rotation[i] = gaze
-        turn_pose(i, gaze, basis, to_opengl, to_world, to_ros, orientation, mount)
+        orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
 
 
 @wp.kernel(enable_backward=False)
@@ -223,44 +203,21 @@ def apply_gaze_indexed_kernel(
     basis: wp.mat33f,
     to_opengl: wp.quatf,
     to_world: wp.quatf,
-    to_ros: wp.quatf,
     indices: wp.array(dtype=wp.int32),
     orientation: wp.array(dtype=wp.quatf),
     rotation: wp.array(dtype=wp.mat33f),
-    mount: wp.array(dtype=wp.quatf),
 ):
-    """Turn the indexed cameras' world orientations by their gaze, and record their mounts and gaze rotations."""
+    """Turn the indexed cameras' world orientations by their gaze, and record their gaze rotations."""
     i = indices[wp.tid()]
     gaze = gaze_rotation(angles_deg[i])
     rotation[i] = gaze
-    turn_pose(i, gaze, basis, to_opengl, to_world, to_ros, orientation, mount)
+    orientation[i] = gaze_pose(orientation[i], gaze, basis, to_opengl, to_world)
 
 
 @wp.func
 def sees(ray: wp.vec3f, gaze: wp.mat33f, frame: wp.mat33f, camera: CameraParams) -> wp.bool:
     """Whether the physical camera sees a rendered ray (ROS frame) turned by a gaze; ``frame`` is the mount roll."""
     return project_direction(frame * gaze * wp.transpose(frame) * ray, camera)[2] > 0.5
-
-
-@wp.kernel(enable_backward=False)
-def sensor_visibility_kernel(
-    rays: wp.array(dtype=wp.vec3f),
-    rotation: wp.array(dtype=wp.mat33f),
-    frame: wp.mat33f,
-    camera: CameraParams,
-    updated: wp.array(dtype=wp.bool),
-    valid: wp.array2d(dtype=wp.bool),
-    hidden: wp.array2d(dtype=wp.bool),
-):
-    """Whether the physical camera sees each rendered ray turned by each updated environment's gaze, and which
-    updated samples it does not see; other environments keep their last visibility and hide nothing."""
-    env, sample = wp.tid()
-    if not updated[env]:
-        hidden[env, sample] = False
-        return
-    seen = sees(rays[sample], rotation[env], frame, camera)
-    valid[env, sample] = seen
-    hidden[env, sample] = not seen
 
 
 @wp.kernel(enable_backward=False)
@@ -274,8 +231,6 @@ def publish_grid_kernel(
     frame: wp.mat33f,
     camera: CameraParams,
     mask_to_sensor: wp.int32,
-    record_visible: wp.int32,
-    visible: wp.array2d(dtype=wp.bool),
     target: wp.array3d(dtype=wp.uint8),
 ):
     """Copy the updated environments' rendered samples into the upright grid, zeroing samples outside the footprint
@@ -288,42 +243,10 @@ def publish_grid_kernel(
         return
     sample = indices[cell]
     keep = footprint[sample]
-    if mask_to_sensor != 0:
-        seen = sees(rays[sample], rotation[env], frame, camera)
-        if record_visible != 0:
-            visible[env, sample] = seen
-        keep = keep and seen
+    if keep and mask_to_sensor != 0:
+        keep = sees(rays[sample], rotation[env], frame, camera)
     for k in range(target.shape[2]):
         if keep:
             target[env, cell, k] = source[env, sample, k]
         else:
             target[env, cell, k] = wp.uint8(0)
-
-
-@wp.kernel(enable_backward=False)
-def project_directions_kernel(
-    directions: wp.array(dtype=wp.vec3f),
-    camera: CameraParams,
-    pixels: wp.array(dtype=wp.vec2f),
-    valid: wp.array(dtype=wp.bool),
-):
-    i = wp.tid()
-    result = project_direction(directions[i], camera)
-    pixels[i] = wp.vec2f(result[0], result[1])
-    valid[i] = result[2] > 0.5
-
-
-def project_directions(directions: torch.Tensor, camera: CameraParams) -> tuple[torch.Tensor, torch.Tensor]:
-    """Project (..., 3) camera-frame directions to (..., 2) pixels and (...,) validity, in one launch."""
-    flat = directions.detach().reshape(-1, 3).float().contiguous()
-    pixels = torch.empty(len(flat), 2, dtype=torch.float32, device=flat.device)
-    valid = torch.empty(len(flat), dtype=torch.bool, device=flat.device)
-    if len(flat):
-        with torch_stream(flat.device):
-            wp.launch(
-                project_directions_kernel,
-                dim=len(flat),
-                inputs=[wp.from_torch(flat, dtype=wp.vec3f), camera],
-                outputs=[wp.from_torch(pixels, dtype=wp.vec2f), wp.from_torch(valid, dtype=wp.bool)],
-            )
-    return pixels.reshape(*directions.shape[:-1], 2), valid.reshape(directions.shape[:-1])

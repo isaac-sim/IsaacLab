@@ -15,18 +15,17 @@ import warp as wp
 from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import CameraModel, angular_directions, gaze_rotation
 from fovi.sensing.retina import RetinalTransform
-from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions, sampling_geometry
+from isaaclab_fovi.sensors import FoveatedCameraCfg
 from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.gaze_kernels import (
+    CameraParams,
     camera_params,
-    project_directions,
-    publish_grid_kernel,
+    project_direction,
     set_gaze_kernel,
     torch_stream,
 )
-from isaaclab_fovi.sensors.native_grid import GRID_STYLE, grid_sample_indices, native_grid_directions
-from isaaclab_fovi.sensors.pooling import build_lowres_coords
+from isaaclab_fovi.sensors.native_grid import native_grid_directions
 
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.sensors.camera.camera_data import CameraData
@@ -37,7 +36,6 @@ from isaaclab.utils.math import (
     matrix_from_quat,
     quat_apply,
     quat_from_matrix,
-    quat_mul,
 )
 from isaaclab.utils.warp import ProxyArray
 
@@ -66,31 +64,32 @@ def camera_config() -> SimpleNamespace:
         retinal_window_reference_side="long",
         retinal_window_fraction=0.75,
         foveated_res=12,
-        foveated_style="isotropic",
-        fov_type="circular",
-        radius_norm=2.0,
-        isotropic_plotting_type="v1like",
+        mask_to_sensor_fov=True,
         image_rotation_deg=0.0,
     )
 
 
-def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
-    cfg = camera_config()
-    fov, a = sampling_geometry(cfg)
-    camera = CameraModel(**cfg.camera_model)
-    assert fov == pytest.approx(camera.field_of_view("long", 0.75))
-    assert a == 2.5
-    coords, _ = build_lowres_coords(cfg, "cpu")
-    retina = RetinalTransform(
-        fov=fov,
-        cmf_a=a,
+def test_camera_sampling_matches_software_sampling(monkeypatch) -> None:
+    data = camera_config()
+    model = CameraModel(**data.camera_model)
+    cfg = FoveatedCameraCfg(prim_path="/World/Camera", **vars(data))
+    monkeypatch.setattr(Camera, "__init__", lambda self, cfg: setattr(self, "cfg", cfg))
+    monkeypatch.setattr(Camera, "__del__", lambda self: None)
+    camera = FoveatedCamera.__new__(FoveatedCamera, cfg)
+    FoveatedCamera.__init__(camera, cfg)
+    software = RetinalTransform(
+        fov=model.field_of_view("long", 0.75),
+        cmf_a=2.5,
         resolution=12,
         device="cpu",
+        style="warped_cartesian_as_grid",
         field_geometry="spherical",
-        camera_model=camera,
+        camera_model=model,
         gaze_convention="pan_tilt",
     )
-    torch.testing.assert_close(coords.cartesian, retina.sampler.coords.cartesian)
+    torch.testing.assert_close(camera.sampling_coords.cartesian, software.sampler.coords.cartesian)
+    assert (camera.cfg.width, camera.cfg.height) == (12, 12)
+    assert (cfg.width, cfg.height) == (1, 1)
 
 
 class GazeHarness(FoveatedCamera):
@@ -106,15 +105,20 @@ class GazeHarness(FoveatedCamera):
         self._view = SimpleNamespace(count=count)
         self._device = device
         self._ALL_INDICES = wp.array(list(range(count)), dtype=wp.int32, device=device)
-        self._sampling_coords, _ = build_lowres_coords(self.cfg, device)
-        self._sampling_coords_highres = None
+        self._camera_model = CameraModel(**self.cfg.camera_model)
+        fov = self._camera_model.field_of_view(self.cfg.retinal_window_reference_side, self.cfg.retinal_window_fraction)
+        self._sampling_coords = SamplingCoords(
+            fov, self.cfg.cmf_a_deg, self.cfg.foveated_res, style="warped_cartesian_as_grid", field_geometry="spherical"
+        )
+        self._retinal_rays = native_grid_directions(
+            self._sampling_coords, image_rotation_deg=self.cfg.image_rotation_deg
+        )
         # The camera's own pose buffers, at the identity orientation, with their world-to-ROS conversion.
         self._data = CameraData()
         self._data.create_buffers(count, device)
         self._data.quat_w_world.torch[:, 3] = 1.0
         # Isaac RTX's behaviour; Newton and OVRTX turn the pose by the gaze in their pose update.
         self._gaze_pose_reads_angles = False
-        self._gaze_written = False
         self._initialize_gaze()
 
     @property
@@ -151,11 +155,11 @@ class PrimView:
 class RtxGazeHarness(GazeHarness, FoveatedRTXCamera):
     """The Isaac RTX camera's prim-writing gaze on stand-in camera prims."""
 
-    def __init__(self, mount_opengl: torch.Tensor) -> None:
-        super().__init__(count=len(mount_opengl))
+    def __init__(self, mount_opengl: torch.Tensor, device="cpu") -> None:
+        super().__init__(count=len(mount_opengl), device=device)
         self._view = PrimView(mount_opengl)
-        self._base_local_orientation = matrix_from_quat(mount_opengl)
-        self.mount_turns = 0
+        self._base_local_orientation = mount_opengl.clone()
+        self._gaze_basis_quat = quat_from_matrix(self._gaze_basis)
 
 
 MOUNT = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
@@ -167,7 +171,7 @@ def write_view(camera, eyes, targets, env_ids=None):
     looks at it; the others keep their poses."""
     rotation = create_rotation_matrix_from_view(eyes, targets, "Z")
     looks = ~torch.isnan(rotation).any(dim=(-2, -1))
-    ids = camera._env_indices(env_ids)[looks]
+    ids = (torch.arange(camera._view.count) if env_ids is None else torch.as_tensor(env_ids))[looks]
     camera._view.local[ids] = quat_from_matrix(rotation[looks])
 
 
@@ -182,23 +186,6 @@ def gaze_direction(angles_deg: torch.Tensor) -> torch.Tensor:
     """OpenCV camera-frame unit direction of (tilt, pan) gaze angles [deg]: up and left are positive."""
     tilt, pan = angles_deg.deg2rad().unbind(-1)
     return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
-
-
-def angles_toward(camera: CameraModel, pixel: tuple[float, float]) -> torch.Tensor:
-    """(tilt, pan) gaze angles [deg] that look along the ray through a source pixel (x, y)."""
-    direction, _ = camera.unproject(torch.tensor([pixel]))
-    x, y, z = direction.unbind(-1)
-    return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1).rad2deg()
-
-
-def test_sensor_mask_keeps_what_the_camera_sees_at_an_edge_gaze() -> None:
-    """Looking just past an image edge keeps the part of the retina the camera still sees; looking away keeps none."""
-    camera = GazeHarness(count=2)
-    edge = angles_toward(camera._camera_model, (120.5, 39.5))
-    camera.set_gaze_angles(torch.cat((edge, torch.tensor([[0.0, 180.0]]))))
-    valid = camera._gaze_validity()
-    assert valid[0].any() and not valid[0].all()
-    assert not valid[1].any()
 
 
 @pytest.mark.parametrize("device", CUDA)
@@ -254,65 +241,54 @@ def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, m
     assert torch.get_float32_matmul_precision() == "high"
 
 
-def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount() -> None:
-    """The mask sees exactly the rays the turned camera renders, found here through the camera pose instead."""
-    rotation_deg = 30.0
-    # An off-center, wide image makes a roll change which samples the camera sees.
-    model = CameraModel("pinhole", (80, 120), (60.0, 60.0, 45.0, 30.0))
-    camera = GazeHarness(camera_model=asdict(model), image_rotation_deg=rotation_deg)
-    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
+@pytest.mark.parametrize("model_name", ["distorted pinhole", "fisheye with image circle"])
+def test_camera_publishes_only_visible_samples_in_updated_rows(model_name):
+    model = KERNEL_CAMERAS[model_name]
+    camera = GazeHarness(
+        device=KERNEL_DEVICE,
+        camera_model=asdict(model),
+        image_rotation_deg=37.0,
+        retinal_window_reference_side="short",
+        retinal_window_fraction=0.7,
+    )
+    coords = camera.sampling_coords
+    n = coords.resolution
+    rgba = torch.arange(2 * n * n * 4, device=KERNEL_DEVICE).reshape(2, n, n, 4).to(torch.uint8)
+    depth = torch.arange(1, 2 * n * n + 1, device=KERNEL_DEVICE, dtype=torch.float32).reshape(2, n, n, 1)
+    camera._prepare_grid_publish({"rgba": rgba, "rgb": rgba[..., :3], "distance_to_camera": depth})
+    outputs = camera._data.output
+    angles = torch.tensor([[6.0, -11.0], [-9.0, 17.0]], device=KERNEL_DEVICE)
+    camera.set_gaze_angles(angles)
     mount = camera.orientation.clone()
     camera._apply_gaze_pose()
 
-    # Rendered rays leave the turned camera along its OpenGL frame; express them in the mount's OpenGL frame.
-    def opengl(orientation: torch.Tensor) -> torch.Tensor:
+    def opengl(orientation):
         return matrix_from_quat(convert_camera_frame_orientation_convention(orientation, "world", "opengl"))
 
-    turn = opengl(mount).transpose(-1, -2) @ opengl(camera.orientation)
-    coords = camera._sampling_coords
-    rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
-    seen = (turn[:, None] @ rays[None, :, :, None]).squeeze(-1) * torch.tensor([1.0, -1.0, -1.0])
-    expected = model.project(seen)[1]
-    assert expected.any() and (~expected).any()
-    assert (camera._gaze_validity() == expected).float().mean() > 0.999
+    rotation = opengl(mount).transpose(-1, -2) @ opengl(camera.orientation)
+    # fovi's direction generation in the physical frame, independently of the publication kernel.
+    ray = angular_directions(coords.cartesian, coords.fov)
+    x, y, z = ray.unbind(-1)
+    c, s = math.cos(math.radians(37)), math.sin(math.radians(37))
+    gl = torch.stack((c * x + s * y, s * x - c * y, -z), -1)
+    turned_ray = (gl @ rotation.transpose(-1, -2)) * gl.new_tensor((1.0, -1.0, -1.0))
+    keep = model.project(turned_ray)[1] & coords.valid_mask[None]
+    assert keep.any() and (~keep).any()
 
+    all_rows = wp.ones(2, dtype=wp.bool, device=KERNEL_DEVICE)
+    camera._publish_grid(all_rows)
+    for name, values in (("rgba", rgba), ("distance_to_camera", depth)):
+        canonical = values.reshape(2, n * n, -1)
+        expected = coords.as_grid(canonical * keep[..., None], sample_dim=1)
+        torch.testing.assert_close(outputs[name].torch, expected)
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
 
-def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
-    """The fixed-mount teacher reads the live camera position, so only writes that turn a mount count: not a position
-    move, and not writing back the reported mount (of either quaternion sign), even with a gaze held in the prims."""
-    monkeypatch.setattr(Camera, "set_world_poses", write_prims)
-    monkeypatch.setattr(Camera, "set_world_poses_from_view", write_view)
-    eyes = torch.zeros(2, 3)
-    targets = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
-
-    def view_twice(camera):
-        # Looking again from the same eye at the same target leaves the mount where the first view put it.
-        camera.set_world_poses_from_view(eyes, targets)
-        camera.mount_turns = 0
-        camera.set_world_poses_from_view(eyes, targets)
-
-    def reported(camera, env_ids=None):
-        return camera.get_world_poses(env_ids, convention="ros")[1]
-
-    def turn_second(camera):
-        # One degree about the second camera's optical axis.
-        half = torch.tensor(math.radians(1.0) / 2)
-        roll = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, float(half.sin()), float(half.cos())]])
-        camera.set_world_poses(orientations=quat_mul(reported(camera), roll))
-
-    for move, turned in (
-        (lambda camera: camera.set_world_poses(positions=torch.zeros(2, 3)), False),
-        (lambda camera: camera.set_world_poses(orientations=reported(camera)), False),
-        (lambda camera: camera.set_world_poses(orientations=-reported(camera, [1]), env_ids=[1]), False),
-        (turn_second, True),
-        (lambda camera: camera.set_world_poses_from_view(eyes, eyes), False),
-        (lambda camera: camera.set_world_poses_from_view(eyes, targets), True),
-        (view_twice, False),
-    ):
-        camera = RtxGazeHarness(MOUNT)
-        camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
-        move(camera)
-        assert camera.mount_turns == int(turned)
+    last = outputs["distance_to_camera"].torch.clone()
+    depth.add_(1)
+    camera._publish_grid(wp.array([False, True], dtype=wp.bool, device=KERNEL_DEVICE))
+    assert camera._data.output["distance_to_camera"] is outputs["distance_to_camera"]
+    assert torch.equal(last[0], outputs["distance_to_camera"].torch[0])
+    assert not torch.equal(last[1], outputs["distance_to_camera"].torch[1])
 
 
 def test_gaze_angles_need_one_row_per_camera() -> None:
@@ -322,68 +298,12 @@ def test_gaze_angles_need_one_row_per_camera() -> None:
     assert camera._gaze_angles is None
 
 
-def test_mount_record_starts_at_the_current_pose() -> None:
-    """Allocating the gaze before any pose update records the camera's current, ungazed mount, not zeros."""
-    camera = GazeHarness()
-    camera._gaze_pose_reads_angles = True
-    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
-    camera.orientation.copy_(mount)
-    camera.gaze_angles
-    expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
-    torch.testing.assert_close(
-        matrix_from_quat(camera.ungazed_quat_w_ros()), matrix_from_quat(expected), atol=1e-6, rtol=0
-    )
-
-
-def test_prim_writing_camera_reads_its_mount_before_and_after_a_gaze() -> None:
-    """Isaac RTX writes the gaze into its prims; its mount reads the same before and after a gaze is set, so a
-    fixed-mount teacher created after a gaze aims from the real mount."""
-    camera = RtxGazeHarness(MOUNT)
-    # The last pose update read the bare mount.
-    camera.orientation.copy_(convert_camera_frame_orientation_convention(MOUNT, "opengl", "world"))
-    expected = matrix_from_quat(convert_camera_frame_orientation_convention(MOUNT, "opengl", "ros"))
-    torch.testing.assert_close(matrix_from_quat(camera.ungazed_quat_w_ros()), expected, atol=1e-6, rtol=0)
-    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
-    assert not torch.allclose(matrix_from_quat(camera._view.local), matrix_from_quat(MOUNT), atol=1e-3)
-    torch.testing.assert_close(matrix_from_quat(camera.ungazed_quat_w_ros()), expected, atol=1e-6, rtol=0)
-
-
-def test_sensor_mask_reuses_its_buffer_and_keeps_rows_that_were_not_updated() -> None:
-    camera = GazeHarness()
-    camera.cfg.mask_to_sensor_fov = True
-    camera.set_gaze_angles(torch.tensor([[0.0, 0.0], [0.0, 0.0]]))
-    first = camera._gaze_validity()
-    kept = first[0].clone()
-    output = {"distance_to_camera": torch.ones(2, len(camera._gaze_rays), 1, 1)}
-    camera.set_gaze_angles(torch.tensor([[0.0, 180.0], [0.0, 180.0]]))
-    camera._apply_sensor_fov_mask(output, wp.array([False, True], dtype=wp.bool, device="cpu"))
-    assert camera._visibility["valid"].torch is first
-    # The environment that was not updated keeps its samples and its last visibility.
-    torch.testing.assert_close(first[0], kept)
-    assert bool(output["distance_to_camera"][0].all())
-    assert not output["distance_to_camera"][1].any()
-
-
-def test_pose_update_records_the_mount_before_the_gaze() -> None:
-    camera = GazeHarness()
-    mount = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
-    camera.orientation.copy_(mount)
-    camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
-    camera._apply_gaze_pose()
-    expected = convert_camera_frame_orientation_convention(mount, "world", "ros")
-    torch.testing.assert_close(
-        matrix_from_quat(camera._mount_quat_ros.torch), matrix_from_quat(expected), atol=1e-6, rtol=0
-    )
-    assert not torch.allclose(camera.orientation, mount)
-
-
 def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pose() -> None:
     camera = GazeHarness()
     angles = torch.tensor([[6.0, -11.0], [-9.0, 17.0]])
     camera.set_gaze_angles(angles)
     camera._apply_gaze_pose()
     forward = quat_apply(camera.orientation, torch.tensor([[1.0, 0.0, 0.0]]).expand(2, -1))
-    source = CameraModel(**camera.cfg.camera_model)
     # The world camera frame looks along +X with +Z up; OpenCV looks along +Z with +Y down.
     directions = gaze_direction(angles)
     expected = torch.stack((directions[:, 2], -directions[:, 0], -directions[:, 1]), -1)
@@ -393,28 +313,12 @@ def test_virtual_pose_aims_rays_without_translation_and_preserves_unselected_pos
     camera.orientation[0] = torch.tensor([0.0, 0.0, 0.0, 1.0])
     camera._apply_gaze_pose([0])
     torch.testing.assert_close(camera.orientation[1], untouched)
-    torch.testing.assert_close(
-        camera._gaze_validity(),
-        source.project(
-            angular_directions(camera._sampling_coords.cartesian, camera._sampling_coords.fov)
-            @ camera._gaze_rotation.torch.transpose(-1, -2)
-        )[1],
-    )
-
-
-def test_renderer_ray_frame_matches_cv_frame() -> None:
-    coords = torch.tensor([[0.0, 0.0], [0.3, -0.4], [-1.0, 0.0]])
-    rendered = retinal_directions(coords, 120)
-    cv = angular_directions(coords, 120)
-    torch.testing.assert_close(rendered, cv * torch.tensor([1, -1, -1]))
 
 
 @pytest.mark.parametrize("device", CUDA)
 def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
-    camera = GazeHarness(count=48, device=device)
-    camera._gaze_basis = camera._gaze_basis.to(device)
-    camera._base_local_orientation = matrix_from_quat(
-        torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(48, 1)
+    camera = RtxGazeHarness(
+        torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(48, 1), device=device
     )
     written = []
     camera._view = SimpleNamespace(
@@ -426,7 +330,6 @@ def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_
     for enabled in [False, True]:
         with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
             camera.set_gaze_angles(angles)
-            FoveatedRTXCamera._write_gaze_local_pose(camera)
     assert torch.isfinite(written[1]).all()
     assert written[1].dtype == torch.float32
     torch.testing.assert_close(written[1].norm(dim=-1), torch.ones(48, device=device))
@@ -437,6 +340,7 @@ def test_rtx_world_poses_are_the_mount_so_a_round_trip_keeps_mount_and_gaze(monk
     """Isaac RTX holds the gaze in its prims; its world poses still report the bare mount, as the other renderers'
     do, so writing them back (as a viewer navigating the camera does) neither moves the mount nor doubles the gaze."""
     monkeypatch.setattr(Camera, "set_world_poses", write_prims)
+    monkeypatch.setattr(Camera, "set_world_poses_from_view", write_view)
     camera = RtxGazeHarness(MOUNT)
     mount = MOUNT
     camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))
@@ -447,10 +351,22 @@ def test_rtx_world_poses_are_the_mount_so_a_round_trip_keeps_mount_and_gaze(monk
     expected = convert_camera_frame_orientation_convention(mount[1:], "opengl", "ros")
     torch.testing.assert_close(matrix_from_quat(orientations), matrix_from_quat(expected), atol=1e-6, rtol=0)
 
+    camera.set_world_poses(positions=torch.zeros(2, 3))
+    torch.testing.assert_close(matrix_from_quat(camera._view.local), matrix_from_quat(gazed), atol=1e-6, rtol=0)
     _, orientations = camera.get_world_poses(convention="world")
     camera.set_world_poses(orientations=orientations, convention="world")
-    torch.testing.assert_close(camera._base_local_orientation, matrix_from_quat(mount), atol=1e-6, rtol=0)
+    torch.testing.assert_close(
+        matrix_from_quat(camera._base_local_orientation), matrix_from_quat(mount), atol=1e-6, rtol=0
+    )
     torch.testing.assert_close(matrix_from_quat(camera._view.local), matrix_from_quat(gazed), atol=1e-6, rtol=0)
+
+    eyes = torch.zeros(2, 3)
+    targets = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    camera.set_world_poses_from_view(eyes, targets)
+    torch.testing.assert_close(matrix_from_quat(camera._view.local[:1]), matrix_from_quat(gazed[:1]), atol=1e-6, rtol=0)
+    _, pose = camera.get_world_poses(convention="opengl")
+    expected = create_rotation_matrix_from_view(eyes[1:], targets[1:], "Z")
+    torch.testing.assert_close(matrix_from_quat(pose[1:]), expected, atol=1e-6, rtol=0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
@@ -460,14 +376,17 @@ def test_gaze_kernels_preserve_shared_stream_for_warp_capture(device: str) -> No
     with wp.ScopedStream(stream), torch.cuda.stream(wp.stream_to_torch(stream)):
         camera = GazeHarness(device=device)
         camera.set_gaze_angles(torch.tensor([[5.0, -8.0], [0.0, 0.0]], device=device))
-        valid = camera._gaze_validity()
-        target = wp.zeros(valid.shape, dtype=wp.bool, device=device)
+        n = camera.sampling_coords.resolution
+        camera._prepare_grid_publish({"rgb": torch.ones(2, n, n, 3, dtype=torch.uint8, device=device)})
+        camera._publish_grid(wp.ones(2, dtype=wp.bool, device=device))
+        output = camera._data.output["rgb"].warp
+        target = wp.zeros_like(output)
         # Physics must still be able to capture after the camera's temporary stream scopes exit.
         with wp.ScopedCapture(stream=stream) as capture:
-            wp.copy(target, wp.from_torch(valid))
+            wp.copy(target, output)
         wp.capture_launch(capture.graph)
-        torch.testing.assert_close(wp.to_torch(target), valid)
-        assert valid[1].any()
+        torch.testing.assert_close(wp.to_torch(target), wp.to_torch(output))
+        assert wp.to_torch(output)[1].any()
 
 
 # -- The gaze kernels against fovi's camera geometry ------------------------------------------------------------------
@@ -507,6 +426,19 @@ def set_gaze(angles: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     return stored, rotation
 
 
+@wp.kernel
+def _probe_projection(
+    directions: wp.array(dtype=wp.vec3f),
+    camera: CameraParams,
+    pixels: wp.array(dtype=wp.vec2f),
+    valid: wp.array(dtype=wp.bool),
+):
+    i = wp.tid()
+    result = project_direction(directions[i], camera)
+    pixels[i] = wp.vec2f(result[0], result[1])
+    valid[i] = result[2] > 0.5
+
+
 @pytest.mark.parametrize("name", KERNEL_CAMERAS)
 def test_projection_kernel_matches_fovi(name: str) -> None:
     """The sensor mask projects with fovi's camera model, as the software sampler does on a real camera."""
@@ -517,7 +449,19 @@ def test_projection_kernel_matches_fovi(name: str) -> None:
     directions[:2000, 2] *= -1
     directions = torch.nn.functional.normalize(directions, dim=-1).to(KERNEL_DEVICE)
     expected_pixels, expected_valid = camera.project(directions)
-    pixels, valid = project_directions(directions, camera_params(camera))
+    pixels = torch.empty_like(expected_pixels)
+    valid = torch.empty_like(expected_valid)
+    with torch_stream(KERNEL_DEVICE):
+        wp.launch(
+            _probe_projection,
+            len(directions),
+            [
+                wp.from_torch(directions, dtype=wp.vec3f),
+                camera_params(camera),
+                wp.from_torch(pixels, dtype=wp.vec2f),
+                wp.from_torch(valid),
+            ],
+        )
     # Float32 rounding may flip a sample that lies on the image edge, nothing more.
     assert (valid == expected_valid).float().mean() > 0.9995
     assert expected_valid.any() and (~expected_valid).any()
@@ -533,60 +477,3 @@ def test_gaze_rotation_follows_fovis_pan_tilt_convention() -> None:
     direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
     torch.testing.assert_close(stored, angles, atol=0, rtol=0)
     torch.testing.assert_close(rotation, gaze_rotation(direction, "pan_tilt"), atol=1e-5, rtol=0)
-
-
-def test_publish_kernel_matches_masking_then_copying_to_the_grid() -> None:
-    camera = KERNEL_CAMERAS["distorted pinhole"]
-    coords = SamplingCoords(
-        camera.field_of_view("short"), 0.591, 24, style=GRID_STYLE, field_geometry="spherical", device=KERNEL_DEVICE
-    )
-    rays = (native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))).float().contiguous()
-    generator = torch.Generator().manual_seed(2)
-    angles = ((torch.rand(6, 2, generator=generator) * 2 - 1) * 25).to(KERNEL_DEVICE)
-    _, rotation = set_gaze(angles)
-    count = len(coords)
-    outputs = {
-        "rgba": torch.randint(1, 255, (6, count, 1, 4), generator=generator, dtype=torch.uint8).to(KERNEL_DEVICE),
-        "depth": (torch.rand(6, count, 1, 1, generator=generator) + 0.5).to(KERNEL_DEVICE),
-    }
-    valid = camera.project(rays @ rotation.transpose(-1, -2))[1]
-    # Environments 1 and 4 were not rendered this frame and keep their previous image.
-    updated = torch.tensor([True, False, True, True, False, True], device=KERNEL_DEVICE)
-
-    # The sequence the kernel replaces: footprint mask, sensor mask, then the upright layout. The layout comes from
-    # fovi's own grid reshaping rather than the index permutation the kernel uses.
-    keep = valid & coords.valid_mask[None]
-    expected_grid = {
-        name: coords.as_grid(value.squeeze(2) * keep[..., None], sample_dim=1) for name, value in outputs.items()
-    }
-    indices = grid_sample_indices(coords).to(torch.int32).contiguous()
-    visible = torch.zeros(6, count, dtype=torch.bool, device=KERNEL_DEVICE)
-    identity = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-    for name, value in outputs.items():
-        previous = torch.full_like(expected_grid[name], 7)
-        target = previous.clone()
-        with torch_stream(KERNEL_DEVICE):
-            wp.launch(
-                publish_grid_kernel,
-                dim=(6, count),
-                inputs=[
-                    wp.from_torch(value.squeeze(2).view(torch.uint8)),
-                    wp.from_torch(indices),
-                    wp.from_torch(coords.valid_mask.contiguous()),
-                    wp.from_torch(updated),
-                    wp.from_torch(rays, dtype=wp.vec3f),
-                    wp.from_torch(rotation, dtype=wp.mat33f),
-                    identity,
-                    camera_params(camera),
-                    1,
-                    int(name == "rgba"),
-                    wp.from_torch(visible),
-                ],
-                outputs=[wp.from_torch(target.view(6, count, -1).view(torch.uint8))],
-            )
-        # Float32 rounding may flip a sample on the image edge, nothing more.
-        assert (target[updated] == expected_grid[name][updated]).all(-1).float().mean() > 0.999
-        assert torch.equal(target[~updated], previous[~updated])
-    assert (visible[updated] == valid[updated]).float().mean() > 0.999
-    assert not visible[~updated].any()
-    assert valid.any() and (~valid).any()

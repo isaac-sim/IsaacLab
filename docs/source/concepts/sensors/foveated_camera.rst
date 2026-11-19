@@ -49,7 +49,7 @@ where :math:`a` is :attr:`~sensors.FoveatedCameraCfg.cmf_a_deg`, :math:`M` is th
 visual angle, and :math:`w` is the cortical distance from the fixation. Samples spaced evenly in :math:`w` are dense
 near the fixation and sparse far from it.
 
-The default ``foveated_style="warped_cartesian_as_grid"`` lays an :math:`N \times N` lattice over this cortical
+The camera lays an :math:`N \times N` lattice over this cortical
 space, with :math:`N` = :attr:`~sensors.FoveatedCameraCfg.foveated_res`. Lattice point
 :math:`\mathbf{c}_{ij} = (\xi_i, \xi_j)`, with :math:`\xi_i = -1 + (2i + 1)/N`, samples at angle
 :math:`\theta = \operatorname{atan2}(c_y, c_x)` around the fixation and eccentricity
@@ -68,24 +68,6 @@ points with :math:`\rho > 1` lie outside the circular field and publish zero. Th
 in the camera frame (:math:`x` right, :math:`y` down, :math:`z` forward), turns it by the gaze, and renders it. The
 published image keeps the lattice's layout, so it is an upright :math:`N \times N` image that convolutional networks
 take as is.
-
-The viewer below computes the same grids for two physical cameras, an ideal equidistant fisheye and an ideal pinhole,
-each with its own field of view. Each panel shows the retina's rays on the viewing sphere, and where they land in the
-camera's image. A fisheye keeps image distance proportional to angle, so it reaches 180° and beyond; a pinhole
-stretches the periphery, so wide fields spread its outer samples far apart. Move the gaze to see which samples leave
-the camera's image.
-
-.. raw:: html
-
-   <div class="fovi-viewer" data-fovi-sampling-viewer></div>
-
-``foveated_style="isotropic"`` instead places rings of samples evenly in :math:`w`, with as many samples around each
-ring as keep neighbours about equally far apart in every direction, as in the
-`fovi <https://nblauch.github.io/fovi>`__ model. The camera uses as many rings as keep the sample count at most
-:math:`N^2`, and publishes the samples as a set, of shape ``(num_envs, num_samples, 1, channels)``;
-:attr:`~sensors.FoveatedCameraCfg.isotropic_plotting_type` picks the cortical layout fovi gives them (``"v1like"``,
-``"schwartz"`` or ``"warp"``). Sample sets render directly on Newton and are experimental on the RTX renderers, where
-crowded samples can share a lens-texture texel.
 
 Configure a foveated camera
 ---------------------------
@@ -133,7 +115,7 @@ samples.
        foveated_res=64,
    )
 
-The camera computes its image size from the retina. With the default grid style it publishes an upright image of
+The camera computes its image size from the retina. It publishes an upright image of
 shape ``(num_envs, foveated_res, foveated_res, channels)`` in :attr:`~isaaclab.sensors.Camera.data`, like any
 camera, and any output the renderer supports.
 
@@ -183,9 +165,8 @@ at the fixation; the default, 0.591, is an estimate from human data. Neighbourin
    \Delta r \approx \frac{2}{N} \log\left(1 + \frac{r_{\max}}{a}\right) (r + a)
 
 apart at eccentricity :math:`r`. For the demo's 128 × 128 retina over a 90° field, that is 0.04° at the fixation
-and 3.1° at the edge, where a uniform 128 × 128 image spaces its pixels 0.7° apart. A value of :math:`a` much larger
-than the field of view samples nearly uniformly, which gives a matched non-foveated baseline with the same
-resolution, field of view and gaze:
+and 3.1° at the edge, compared with a uniform radial angular step of about 0.7°. A value of :math:`a` much larger
+than the field of view gives nearly uniform radial angular spacing on the same lattice:
 
 .. code-block:: bash
 
@@ -226,82 +207,12 @@ samples, so a policy meant for hardware should train with the mask.
    lies outside the image. Middle: without the mask, rays render beyond the camera's view. Right: with the mask, those
    samples are zero.
 
-Pooling
--------
+Gaze actions
+------------
 
-A single ray per sample aliases where samples are sparse, in the periphery. With
-:attr:`~sensors.FoveatedCameraCfg.pool_enabled`, the camera renders a denser photoreceptor grid with the same field
-of view and CMF and pools it to the retina, as a retina's ganglion cells pool its photoreceptors.
-``pool_res_mult`` sets how much denser the photoreceptor grid is: an integer for grid styles, and any value for
-sample-set styles, where :math:`\sqrt{2}` doubles the number of samples. ``pool_mode`` sets how it pools: ``avg``,
-``gaussian`` (with ``pool_gauss_sigma``) or ``max``, and for sample-set styles also ``sum``.
-
-.. figure:: ../../_static/overview/sensors/foveated_camera_pooling.jpg
-   :target: ../../_static/overview/sensors/foveated_camera_pooling.jpg
-   :align: center
-   :figwidth: 100%
-   :alt: A 32 x 32 retina without pooling and with 2x and 4x photoreceptor pooling, beside a 128 x 128 retina.
-
-   A 32 × 32 retina in the demo scene. Pooling averages 4 or 16 photoreceptors into each sample, which smooths the
-   edges of the cubes and spheres while the published image keeps its size.
-
-Grid styles pool each sample over a square window of the photoreceptor grid, ``pool_k`` photoreceptors in all (the
-window side squared; by default ``pool_res_mult`` squared), stepping by ``pool_res_mult``. Because the grid follows
-the CMF, a window covers a tiny patch of the visual field at the fixation and a wide one in the periphery.
-Photoreceptors outside the circular field are left out of the average. Sample-set styles such as ``isotropic`` pool
-each sample over its ``pool_k`` nearest photoreceptors instead (by default the ratio of photoreceptors to samples,
-about ``pool_res_mult`` squared), by distance along the cortex (``pool_sample_cortex="geodesic"``, the default),
-straight-line distance on the cortex (``True``, faster to set up), or distance in the visual field (``False``).
-
-The viewer shows which photoreceptors each sample pools, for both styles. Its isotropic neighbourhoods are the ones
-fovi computes for the camera.
-
-.. raw:: html
-
-   <div class="fovi-viewer" data-fovi-pooling-viewer data-fov="90" data-cmf-a="2" data-res="16"></div>
-
-Segmentation outputs pool by modal label in their own dtype (``pool_int_mode="modal"``),
-since averaging would mix labels into ones no object has. With the sensor mask, pooling leaves out the
-photoreceptors the physical camera does not see, so a pooled sample at the edge of the camera's image pools only the
-ones it sees, and is zero when it sees none.
-
-Further sampling options are passed to fovi's ``SamplingCoords``, whose
-`documentation <https://nblauch.github.io/fovi/docs/>`__ describes them: ``fov_type`` and ``radius_norm`` set the
-region the retina covers.
-
-Active gaze
------------
-
-:mod:`isaaclab_fovi.mdp` holds the manager terms for a policy that moves the gaze:
-
-* :class:`~mdp.GazeActionCfg`: two actions that move the gaze by up to ``step_size`` field radii per step, within
-  ``gaze_limit`` of the optical axis. Make it the last action term. With the default ``mount="fixed"`` the teacher
-  aims from the camera's orientation when the action is created; ``mount="tracked"`` lets the camera ride a moving
-  body, such as a turning head (Newton and OVRTX).
-* :func:`~mdp.gaze_state`: the gaze and its velocity.
-* :class:`~mdp.gaze_teacher_labels`: a teacher's gaze action toward a point fixed to an asset, and whether that point
-  is a valid target. It is a training label, never a policy input.
-
-The ``IsaacContrib-Cartpole-Camera-Fovi`` task in :mod:`isaaclab_tasks.contrib.active_gaze` puts them together. It is
-the stock Cartpole camera task with the camera foveated (a 32-sample retina), two gaze actions, and a teacher that looks
-at the pole's tip. Its PPO adds a loss that pulls the gaze actions toward the teacher's, and its action head keeps
-the gaze actions' noise fixed:
-
-.. code-block:: bash
-
-   uv run --extra fovi isaaclab train --rl_library rsl_rl --task IsaacContrib-Cartpole-Camera-Fovi
-
-The task is registered when the ``fovi`` extra is installed.
-
-.. figure:: ../../_static/overview/sensors/foveated_camera_active_gaze.jpg
-   :target: ../../_static/overview/sensors/foveated_camera_active_gaze.jpg
-   :align: center
-   :figwidth: 100%
-   :alt: Cartpole frames with the retina following the pole tip, and the policy's 32 x 32 images.
-
-   The Cartpole task with the teacher's labels as the gaze actions. Top: the scene from the task's camera, with the
-   retina's lattice and edge; the gaze follows the pole's tip. Bottom: the 32 × 32 image the policy receives, with
-   the pole large at the fixation. Black samples lie outside the camera's image.
+For a manager-based environment, :class:`~mdp.GazeActionCfg` adds two bounded tilt and pan increments in units of
+the retinal field radius. :func:`~mdp.gaze_state` reports the resulting angles and angular velocity. The action
+resets the gaze to the optical axis at the start of each episode.
 
 Further reading
 ---------------
