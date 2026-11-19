@@ -246,21 +246,25 @@ class FoveatedCamera(Camera):
 
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
         """
-        # The teachers read the camera's live position, so only a write that turns a selected mount counts; writing
-        # back the poses that get_world_poses reports does not.
-        turned = orientations is not None and self._turns_mount(orientations, env_ids, convention)
+        if orientations is None:
+            # A position-only move keeps every mount's orientation.
+            super().set_world_poses(positions, orientations, env_ids, convention)
+            return
+        before = self._mount_orientations(env_ids)
         super().set_world_poses(positions, orientations, env_ids, convention)
-        if turned:
-            self.mount_turns += 1
+        self._mount_written(env_ids)
+        self._count_mount_turn(before, env_ids)
 
     def set_world_poses_from_view(self, eyes, targets, env_ids=None):
         """Point the camera's mount from ``eyes`` at ``targets``; the gaze stays relative to the new mount.
 
         Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses_from_view`.
         """
+        before = self._mount_orientations(env_ids)
         super().set_world_poses_from_view(eyes, targets, env_ids)
-        if self._turned_by_view(eyes, targets).any():
-            self.mount_turns += 1
+        # Rows whose eye equals their target are skipped by the base method and keep their poses.
+        self._mount_written(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
+        self._count_mount_turn(before, env_ids)
 
     def set_intrinsic_matrices(self, matrices, focal_length=None, env_ids=None):
         """Keep the camera as configured and warn the caller.
@@ -357,8 +361,9 @@ class FoveatedCamera(Camera):
         frames = (self._gaze_angles, *self._gaze_frames)
         outputs = [orientation, self._gaze_rotation, self._mount_quat_ros]
         indexed = env_ids is not None and env_mask is None
-        if indexed and not isinstance(env_ids, wp.array):
-            env_ids = wp.from_torch(torch.as_tensor(env_ids, dtype=torch.int32, device=device).contiguous())
+        if indexed:
+            # The kernel takes contiguous int32 indices; this converts sequences, slices, tensors and Warp arrays.
+            env_ids = self._resolve_env_ids_wp(env_ids)
         # Every pose update writes the same pose buffer: for all environments, under the camera's update mask, or
         # for the indexed ones, whose indices each call swaps in.
         mode = "ids" if indexed else ("all" if env_mask is None else "mask")
@@ -377,12 +382,34 @@ class FoveatedCamera(Camera):
             launch.set_dim(len(env_ids))
         launch.launch(warp_stream(device))
 
-    def _turns_mount(self, orientations, env_ids, convention: str) -> bool:
-        """Whether writing ``orientations`` would turn any selected camera's mount, compared with its current one."""
-        _, current = self.get_world_poses(env_ids, convention=convention)
-        requested = self._as_device_tensor(orientations, 4).to(current.dtype).expand_as(current)
-        requested = torch.nn.functional.normalize(requested, dim=-1)
-        return bool((quat_error_magnitude(current, requested) > MOUNT_TURN_TOLERANCE_RAD).any())
+    def _mount_orientations(self, env_ids) -> torch.Tensor:
+        """The selected cameras' mount orientations (x, y, z, w), world convention, as :meth:`get_world_poses` reports
+        them."""
+        return self.get_world_poses(env_ids, convention="world")[1].clone()
+
+    def _mount_written(self, env_ids) -> None:
+        """Called after a pose write turned the selected cameras' mounts, before the turn is measured. Cameras that
+        hold the gaze in their prims write it onto the new mounts here."""
+
+    def _count_mount_turn(self, before: torch.Tensor, env_ids) -> None:
+        """Count a mount turn if any selected camera's mount now differs from ``before``.
+
+        The teachers read the camera's live position, so only orientation changes count, and writing back the reported
+        poses does not.
+        """
+        turned = quat_error_magnitude(before, self._mount_orientations(env_ids)) > MOUNT_TURN_TOLERANCE_RAD
+        if bool(turned.any()):
+            self.mount_turns += 1
+
+    def _env_indices(self, env_ids) -> torch.Tensor:
+        """The camera indices that ``env_ids`` selects, as a tensor."""
+        if env_ids is None:
+            return torch.arange(self._view.count, device=self._device)
+        if isinstance(env_ids, slice):
+            return torch.arange(self._view.count, device=self._device)[env_ids]
+        if isinstance(env_ids, wp.array):
+            env_ids = wp.to_torch(env_ids)
+        return torch.as_tensor(env_ids, device=self._device, dtype=torch.long).reshape(-1)
 
     def _turned_by_view(self, eyes, targets) -> torch.Tensor:
         """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""

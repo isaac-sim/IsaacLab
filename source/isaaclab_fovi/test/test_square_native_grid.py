@@ -183,7 +183,7 @@ def test_camera_pooling_preserves_square_shells(coverage: str) -> None:
         pool_res_mult=2.0,
     )
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     assert lowres.radius_norm == highres.radius_norm == math.inf
     for coords in (lowres, highres):
         assert coords.fov_type == coverage

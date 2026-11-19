@@ -49,7 +49,7 @@ def pooling_cfg(**overrides) -> FoveatedCameraCfg:
 def test_dual_grid_preserves_constant_channels_and_batch_order() -> None:
     cfg = pooling_cfg()
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     assert highres is not None
     assert len(highres) > len(lowres)
     assert highres.cmf_a == lowres.cmf_a
@@ -91,7 +91,7 @@ def test_pooling_mode_reduces_each_neighbourhood(mode: str) -> None:
     sigma = 0.5
     cfg = pooling_cfg(pool_mode=mode, pool_gauss_sigma=sigma)
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
     assert isinstance(pooler, KNNPoolingLayer)
     values = torch.rand(2, len(highres), 1, 3, generator=torch.Generator().manual_seed(0))
@@ -107,7 +107,7 @@ def test_pooling_mode_reduces_each_neighbourhood(mode: str) -> None:
 def test_disabled_pooling_uses_only_output_grid() -> None:
     cfg = pooling_cfg(pool_enabled=False)
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    assert build_highres_coords(cfg, matched, "cpu") is None
+    assert build_highres_coords(cfg, lowres, matched) is None
     assert build_pooler(cfg, lowres, None, "cpu") == (None, None)
 
 
@@ -187,7 +187,7 @@ def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Ten
 def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex: bool) -> None:
     cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex)
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     fovi_max, k = build_pooler(replace(cfg, pool_mode="max"), lowres, highres, "cpu")
     # The camera takes the table from its standard pooler, whatever that pooler's mode.
     standard, _ = build_pooler(cfg, lowres, highres, "cpu")
@@ -212,7 +212,7 @@ def test_modal_pooling_uses_fovi_neighbourhoods(monkeypatch, style: str, pool_k:
 def test_modal_neighbourhoods_stay_on_the_sensor_device(device: str) -> None:
     cfg = pooling_cfg()
     lowres, matched = build_lowres_coords(cfg, device)
-    highres = build_highres_coords(cfg, matched, device)
+    highres = build_highres_coords(cfg, lowres, matched)
     table = segmentation_neighbor_indices(build_pooler(cfg, lowres, highres, device)[0])
     assert table.device == torch.device(device)
     labels = torch.randint(0, 3, (1, len(highres), 1, 1), device=device)
@@ -239,7 +239,7 @@ def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, style, sample
         pool_k=9 if style.endswith("_as_grid") else 3,
     )
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     assert highres is not None
     pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
     values = torch.ones(1, len(highres), 1, 1)
@@ -264,7 +264,7 @@ def test_native_grid_default_kernel_matches_deployment(style: str, expected: typ
         pool_sample_cortex=True,
     )
     lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, matched, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
     pooler, resolved_k = build_pooler(cfg, lowres, highres, "cpu")
     assert resolved_k == 4
     assert isinstance(pooler, expected)

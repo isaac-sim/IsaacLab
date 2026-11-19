@@ -22,6 +22,7 @@ from .native_grid import (
     GRID_STYLE,
     allocate_grid_outputs,
     copy_grid_outputs,
+    copy_updated_rows,
     grid_output_shape,
     grid_sample_indices,
     mask_grid_samples,
@@ -78,7 +79,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
         # the CPU and the pooler is built on the sensor device after the parent initializes.
         self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
         self._native_grid = self.cfg.foveated_style == GRID_STYLE
-        self._sampling_coords_highres = build_highres_coords(self.cfg, matched_res, device="cpu")
+        self._sampling_coords_highres = build_highres_coords(self.cfg, self._sampling_coords, matched_res)
         self._num_valid_samples = len(self._sampling_coords)
         self._num_ray_samples = len(self._sampling_coords_highres or self._sampling_coords)
         logger.info(
@@ -241,20 +242,18 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 self._publish_grid(env_mask)
             else:
                 self._apply_sensor_fov_mask(self._flat_render_output, env_mask)
-                updated = wp.to_torch(env_mask)[:, None, None, None]
                 for name, samples in self._sample_output.items():
                     if name == "rgb" and "rgba" in self._sample_output:
                         continue  # rgba alias
-                    samples.copy_(torch.where(updated, self._flat_render_output[name].torch, samples))
+                    copy_updated_rows(self._flat_render_output[name].torch, samples, env_mask)
             return
         mask_grid_samples(self._highres_output, self._ray_coords)
         self._apply_sensor_fov_mask(self._highres_output, env_mask)
-        updated = wp.to_torch(env_mask)[:, None, None, None]
         for name, hi in self._highres_output.items():
             if name == "rgb" and "rgba" in self._highres_output:
                 continue  # rgba alias
-            pooled = self._pooled_output[name]
-            pooled.copy_(torch.where(updated, self._pool_output(name, hi.torch), pooled))
+            # Pooling covers every environment; only the updated ones are published.
+            copy_updated_rows(self._pool_output(name, hi.torch), self._pooled_output[name], env_mask)
         if self._native_grid:
             copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)
 

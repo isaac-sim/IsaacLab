@@ -105,23 +105,20 @@ def build_lut_textures(
     uv_t = _t(samples_uv, torch.float32, device)
     dirs_t = _t(ray_directions, torch.float32, device)
     N = uv_t.shape[0]
-    Q = texture_width * texture_height
 
     # Direction texture.
     dir_out = torch.zeros(texture_height, texture_width, 3, dtype=torch.float32, device=device)
     dir_out[:, :, 2] = -1.0
 
     if N > 0:
-        if N == Q:
-            dir_out.reshape(-1, 3)[:] = dirs_t
-        else:
-            u_t = (torch.arange(texture_width, dtype=torch.float32, device=device) + 0.5) / texture_width
-            v_t = (torch.arange(texture_height, dtype=torch.float32, device=device) + 0.5) / texture_height
-            U = u_t.unsqueeze(0).expand(texture_height, texture_width)
-            V = v_t.unsqueeze(1).expand(texture_height, texture_width)
-            texel_uv = torch.stack([U.reshape(-1), V.reshape(-1)], dim=1)
-            k_nn = _nn_chunk(texel_uv, uv_t, chunk)
-            dir_out.reshape(-1, 3)[:] = dirs_t[k_nn]
+        # Each texel takes the ray of the sample nearest it in UV, whatever order the samples come in.
+        u_t = (torch.arange(texture_width, dtype=torch.float32, device=device) + 0.5) / texture_width
+        v_t = (torch.arange(texture_height, dtype=torch.float32, device=device) + 0.5) / texture_height
+        U = u_t.unsqueeze(0).expand(texture_height, texture_width)
+        V = v_t.unsqueeze(1).expand(texture_height, texture_width)
+        texel_uv = torch.stack([U.reshape(-1), V.reshape(-1)], dim=1)
+        k_nn = _nn_chunk(texel_uv, uv_t, chunk)
+        dir_out.reshape(-1, 3)[:] = dirs_t[k_nn]
 
     # Exit texture: only texels whose direction lies within the samples' field (r <= max_r) map to a sample; the rest
     # hold the invalid UV (-1, -1), as in native-grid LUTs, so rays outside the field never reach the fovea.

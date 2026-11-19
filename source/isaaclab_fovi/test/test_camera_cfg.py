@@ -13,6 +13,7 @@ from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model, samp
 from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 
 from isaaclab.sim import (
+    CuboidCfg,
     FisheyeCameraCfg,
     OpenCvFisheyeDistortionCfg,
     OpenCvPinholeDistortionCfg,
@@ -104,6 +105,7 @@ def test_explicit_camera_model_wins_over_the_spawn() -> None:
     ("spawn", "message"),
     [
         (None, "camera_model"),
+        (CuboidCfg(size=(1.0, 1.0, 1.0)), "does not spawn a camera"),
         (FisheyeCameraCfg(), "OpenCvFisheyeDistortionCfg"),
         (PinholeCameraCfg(horizontal_aperture_offset=1.0), "Aperture offsets"),
         (
