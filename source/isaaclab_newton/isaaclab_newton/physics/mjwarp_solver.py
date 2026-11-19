@@ -104,7 +104,7 @@ class MJWarpSolver(NewtonSolver):
         if solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         solver.reset(state, world_mask=world_mask, flags=0)
-        if solver.update_data_interval != 1:
+        if self.cfg.update_data_interval != 1:
             # Newton has no public masked import. With sleeping disabled,
             # reset(flags=0) skips it, so reuse the pinned solver's conversion.
             data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data
