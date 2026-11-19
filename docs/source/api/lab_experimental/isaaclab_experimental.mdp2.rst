@@ -22,7 +22,9 @@ Terms and task configuration
    SubsetSelector
    TaskCfg
    DirectAction
+   Action
    Observation
+   ObservationGroup
    Reward
    Termination
    TimeLimit
@@ -32,6 +34,7 @@ Terms and task configuration
    Quantity
    UniformNoise
    term_state
+   compose
 
 Building and running
 --------------------
@@ -73,7 +76,9 @@ Scene data
 .. autoclass:: SubsetSelector
 .. autoclass:: TaskCfg
 .. autoclass:: DirectAction
+.. autoclass:: Action
 .. autoclass:: Observation
+.. autoclass:: ObservationGroup
 .. autoclass:: Reward
 .. autoclass:: Termination
 .. autoclass:: TimeLimit
@@ -84,6 +89,7 @@ Scene data
 .. autoclass:: Quantity
 .. autoclass:: UniformNoise
 .. autofunction:: term_state
+.. autofunction:: compose
 .. autoclass:: MDPBuilder
    :members:
 .. autoclass:: MDP

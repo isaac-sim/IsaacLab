@@ -18,11 +18,13 @@ from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
@@ -631,5 +633,72 @@ def test_stages_that_write_the_scene_are_seen_by_later_work():
             )
             restarted += int(ended.sum())
         assert env.is_captured and restarted > 0
+    finally:
+        env.close()
+
+
+def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
+    """Camera images are observed as uint8 terms and rendered by every replayed step, and an episode budget records
+    each episode, then stops the worlds."""
+    cfg = cartpole_cfg()
+    # The Cartpole has no geometry to render, so the camera watches a cube fall in front of it.
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+    image = mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity("camera").rgb})
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(terms={"rgb": image})
+    # Indexing with a 1-dimensional tensor, as a 0-dimensional one would be read on the host in the graph.
+    cart_x = mdp2.Term(torch=lambda joint_pos, joint_ids: joint_pos[:, joint_ids][:, 0])
+    cfg.task.quantities["cart_x"] = mdp2.Quantity(
+        cart_x, inputs={"joint_pos": robot.joint_pos, "joint_ids": cart}, record=True
+    )
+    budget = NUM_ENVS + 4
+    cfg.episode_budget = budget
+    env = MDP2RLEnv(cfg)
+    try:
+        assert env.single_observation_space["cameras"]["rgb"].shape == (64, 96, 3)
+        observations, _ = env.reset()
+        assert observations["cameras"]["rgb"].shape == (NUM_ENVS, 64, 96, 3)
+        assert observations["cameras"]["rgb"].dtype == torch.uint8
+        images = []
+        for step in range(13):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 9:
+                images.append(observations["cameras"]["rgb"].clone())
+        # The cube falls by pixels per step by then, so every replayed step renders a new image.
+        assert env.is_captured and env.num_graphs == 1
+        assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
+
+        # Push every cart out of its bounds until the budget is spent.
+        ended = []
+        while env.episodes_completed < budget:
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            ended.append(int((terminated | truncated).sum()))
+        records = env.episode_records()
+        assert sum(ended) == budget and len(records["world"]) == budget
+        # Every world ran an episode, the first worlds to end a second one, and none ended a third.
+        episodes = torch.bincount(records["world"].long(), minlength=NUM_ENVS)
+        assert episodes.min() == 1 and episodes.sum() == budget
+        assert records["termination/cart_out_of_bounds"].sum() + records["truncated"].sum() == budget
+        # Recorded values are those of the episode's last step, before its reset: out of bounds where it terminated.
+        out_of_bounds = records["cart_x"].abs() > 1.5
+        assert torch.equal(out_of_bounds, records["terminated"].bool())
+        for _ in range(env.max_episode_length):
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            assert not (terminated | truncated).any()
+        assert env.episodes_completed == budget
     finally:
         env.close()

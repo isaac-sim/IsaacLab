@@ -9,6 +9,12 @@ Observations
 .. automodule:: isaaclab_experimental.mdp2.mdp.observations
     :members:
 
+Actions
+-------
+
+.. automodule:: isaaclab_experimental.mdp2.mdp.actions
+    :members:
+
 Commands
 --------
 
@@ -37,4 +43,10 @@ Curriculums
 -----------
 
 .. automodule:: isaaclab_experimental.mdp2.mdp.curriculums
+    :members:
+
+Progress
+--------
+
+.. automodule:: isaaclab_experimental.mdp2.mdp.progress
     :members:

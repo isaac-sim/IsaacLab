@@ -22,6 +22,7 @@ from isaaclab_newton.physics.newton_backend import capture_graph
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.scene import InteractiveScene
+from isaaclab.sensors import Camera, SensorBase
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.seed import configure_seed
@@ -40,11 +41,14 @@ from .mdp2_verify import verify_capture
 class MDP2Env:
     """An interactive scene driven by an MDP2 task, like a :class:`~isaaclab.envs.ManagerBasedEnv` without managers.
 
-    A control step applies the actions, steps the physics ``decimation`` times, evaluates the MDP, resets the
-    worlds whose episodes ended, and observes them, in the order of the config's ``step`` and ``reset_step``, with
-    their :class:`~.mdp2_env_cfg.Stage` s. Resets are masks over the worlds, so every step after the first replays as
-    CUDA graphs, physics included: one graph for a fully capturable step, and otherwise one per run of capturable
-    work, with the work that cannot be captured run between them. Newton only.
+    A control step applies the actions, steps the physics ``decimation`` times, renders the cameras, evaluates the
+    MDP, resets the worlds whose episodes ended, and observes them, in the order of the config's ``step`` and
+    ``reset_step``, with their :class:`~.mdp2_env_cfg.Stage` s. Resets are masks over the worlds, so every step after
+    the first replays as CUDA graphs, physics and rendering included: one graph for a fully capturable step, and
+    otherwise one per run of capturable work, with the work that cannot be captured run between them. Newton only.
+
+    :attr:`observations` holds a tensor per concatenated group, and a dict of tensors, one per term with the term's
+    shape and type, per group of separate terms.
     """
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
@@ -82,7 +86,26 @@ class MDP2Env:
         sim.register_interactive_scene(self.scene)
         with use_stage(sim.stage):
             sim.reset()
-        self.scene.update(dt=self.physics_dt)
+        # The cameras render once per control step, the other sensors refresh with every physics step.
+        scene = self.scene
+        self._cameras = [sensor for sensor in scene.sensors.values() if isinstance(sensor, Camera)]
+        sensors = [sensor for sensor in scene.sensors.values() if not isinstance(sensor, Camera)]
+        # Sensors that support it refresh together, as in the scene's update.
+        self._batched_sensors = [sensor for sensor in sensors if sensor.supports_batch_update]
+        self._sensors = [sensor for sensor in sensors if not sensor.supports_batch_update]
+        self._assets = [
+            asset
+            for assets in (
+                scene.articulations,
+                scene.rigid_objects,
+                scene.rigid_object_collections,
+                scene.deformable_objects,
+                scene.cable_objects,
+                scene.surface_grippers,
+            )
+            for asset in assets.values()
+        ]
+        self._update_scene(self.physics_dt)
 
         sim.backend_manager.set_decimation(cfg.decimation)
         # Newton-native actuators step all substeps in one call.
@@ -113,6 +136,7 @@ class MDP2Env:
             # Startup events write scene fields in place, which the scene commits to the solver.
             self.scene_data.commit(self._all_envs.warp, self.mdp.startup_writes)
         self.transition = self.mdp.transition()
+        self._observations = self._views(self.transition.observations)
 
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
         # The worlds whose scene writes a step commits: those reset, and those where an interval event wrote.
@@ -153,7 +177,7 @@ class MDP2Env:
     @property
     def observations(self) -> VecEnvObs:
         """The observations of every group, as Torch views of buffers that each step overwrites."""
-        return {group: values.torch for group, values in self.transition.observations.items()}
+        return self._observations
 
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
         """Reset every world and return their observations. A seed also reseeds the MDP's random streams."""
@@ -161,7 +185,7 @@ class MDP2Env:
             seed = configure_seed(seed)
             # In place: captured graphs hold the buffer's address.
             self.state.rng.torch.copy_(rng.streams(seed, self.mdp.streams, self.num_envs, self.device))
-        for _, work in self._reset_work(self._all_envs):
+        for _, work in self._reset_work(self._all_envs, render=True):
             work()
         return self.observations, self.extras
 
@@ -214,6 +238,8 @@ class MDP2Env:
         for item in self.cfg.step:
             if item is Step.PHYSICS:
                 work.append((True, self._simulate))
+            elif item is Step.RENDER:
+                work += [(True, self._render)] if self._cameras else []
             elif item is Step.EVALUATE:
                 work += [
                     (launch.capturable, functools.partial(launch, evaluate)) for launch in self.mdp.launches.evaluate
@@ -225,19 +251,26 @@ class MDP2Env:
                 work.append(self._stage_work(item))
         return work
 
-    def _reset_work(self, mask: ProxyArray) -> list[tuple[bool, Callable[[], None]]]:
-        """Return the work of resetting the masked worlds, in the order of the config's ``reset_step``."""
+    def _reset_work(self, mask: ProxyArray, render: bool = False) -> list[tuple[bool, Callable[[], None]]]:
+        """Return the work of resetting the masked worlds, in the order of the config's ``reset_step``. With
+        ``render``, the cameras render before the observations also without ``ResetStep.RENDER``."""
         launches = self.mdp.launches
         commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
         reset = Call(self.state, mask=mask, commit=commit)
         observe = Call(self.state, mask=mask, observations=self.transition.observations)
+        rendering = [(True, self._render)] if self._cameras else []
+        render = render and ResetStep.RENDER not in self.cfg.reset_step
         work = []
         for item in self.cfg.reset_step:
+            if item is ResetStep.OBSERVE and render:
+                work += rendering
             if item is ResetStep.EVENTS:
                 work.append((True, functools.partial(self._reset_scene, mask)))
                 work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
             elif item is ResetStep.COMMIT:
                 work.append((True, functools.partial(self._commit, mask)))
+            elif item is ResetStep.RENDER:
+                work += rendering
             elif item is ResetStep.OBSERVE:
                 work += [(launch.capturable, functools.partial(launch, observe)) for launch in launches.observe]
             else:
@@ -287,7 +320,39 @@ class MDP2Env:
             mdp2.apply_actions(self.mdp, self.state, self.actions)
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            self.scene.update(dt=self.physics_dt * self._substeps)
+            self._update_scene(self.physics_dt * self._substeps)
+
+    def _update_scene(self, dt: float) -> None:
+        """Refresh the asset data and the sensors other than cameras after a physics step, as the scene would."""
+        self.sim.render_context.update_scene_state(self.sim.get_physics_step_count())
+        for asset in self._assets:
+            asset.update(dt)
+        if self._batched_sensors:
+            SensorBase.update_batch(self._batched_sensors, dt)
+        for sensor in self._sensors:
+            sensor.update(dt, force_recompute=True)
+
+    def _render(self) -> None:
+        """Render every camera in every world. Part of the captured step."""
+        if not self._cameras:
+            return
+        if all(camera.supports_batch_update for camera in self._cameras):
+            SensorBase.update_batch(self._cameras, self.step_dt)
+            return
+        for camera in self._cameras:
+            camera.update(self.step_dt, force_recompute=True)
+
+    def _views(self, buffers: dict[str, ProxyArray]) -> VecEnvObs:
+        """Return Torch views of observation buffers, grouped: a tensor per group, or a dict of term tensors."""
+        observations: VecEnvObs = {}
+        for buffer, values in buffers.items():
+            if "/" not in buffer:
+                observations[buffer] = values.torch
+                continue
+            group, term = buffer.split("/")
+            shape = self.mdp.observation_layouts[buffer][0]
+            observations.setdefault(group, {})[term] = values.torch.view(self.num_envs, *shape)
+        return observations
 
     def _commit(self, mask: ProxyArray) -> None:
         """Commit the writes of the reset events in the masked worlds, and of the interval events of the last step in
@@ -309,7 +374,8 @@ class MDP2Env:
 
 
 def _check_step(cfg: MDP2EnvCfg) -> None:
-    """Raise if the config's step or reset step leaves out, repeats, or reorders its built-in work."""
+    """Raise if the config's step or reset step leaves out, repeats, or reorders its built-in work. Rendering may be
+    left out."""
     orders = (
         (
             "step",
@@ -327,10 +393,11 @@ def _check_step(cfg: MDP2EnvCfg) -> None:
     )
     for name, items, order, reason in orders:
         builtin = [item for item in items if not isinstance(item, Stage)]
-        if builtin != order:
+        required = [item for item in order if item.name != "RENDER"]
+        if builtin != [item for item in order if item in builtin] or not set(required) <= set(builtin):
             raise ValueError(
                 f"MDP2EnvCfg.{name} must hold {', '.join(map(str, order))} once each, in this order, with stages"
-                f" anywhere between them, got {[str(item) for item in builtin]}: {reason}."
+                f" anywhere between them and RENDER optional, got {[str(item) for item in builtin]}: {reason}."
             )
 
 
@@ -355,17 +422,24 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self.final_observations = cfg.compute_final_obs
         super().__init__(cfg)
         if cfg.compute_final_obs:
-            self.extras["final_obs"] = {
-                group: values.torch for group, values in self.transition.final_observations.items()
-            }
+            self.extras["final_obs"] = self._views(self.transition.final_observations)
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
 
+        spaces: dict[str, Any] = {}
+        for buffer, (shape, dtype) in self.mdp.observation_layouts.items():
+            if dtype is wp.float32:
+                space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=shape)
+            else:
+                info = np.iinfo(wp.dtype_to_numpy(dtype))
+                space = gym.spaces.Box(low=info.min, high=info.max, shape=shape, dtype=wp.dtype_to_numpy(dtype))
+            if "/" in buffer:
+                group, term = buffer.split("/")
+                spaces.setdefault(group, {})[term] = space
+            else:
+                spaces[buffer] = space
         self.single_observation_space = gym.spaces.Dict(
-            {
-                group: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(dim,))
-                for group, dim in self.mdp.observation_dims.items()
-            }
+            {group: gym.spaces.Dict(space) if isinstance(space, dict) else space for group, space in spaces.items()}
         )
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.mdp.action_dim,))
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
@@ -402,6 +476,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._time_limit = time_limits[0] if time_limits else None
         self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.obs_buf: VecEnvObs = {}
+        if cfg.episode_budget is not None:
+            self._init_episode_budget(cfg.episode_budget)
 
     @property
     def max_episode_length(self) -> int | float:
@@ -430,16 +506,18 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         """Reset every world and return copies of their observations."""
         super().reset(seed, options)
         self._episode_rewards.zero_()
+        if self.cfg.episode_budget is not None:
+            self._restart_episode_budget()
 
         # Learners keep the observations across the next step, which overwrites the buffers.
-        self.obs_buf = {group: values.clone() for group, values in self.observations.items()}
+        self.obs_buf = _clone(self.observations)
         return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Apply the actions, step the physics, evaluate the MDP, reset the worlds that ended, and observe."""
         self._step_or_replay(action)
         self._log_episodes()
-        self.obs_buf = {group: values.clone() for group, values in self.observations.items()}
+        self.obs_buf = _clone(self.observations)
 
         transition = self.transition
         return (
@@ -450,9 +528,87 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             self.extras,
         )
 
+    @property
+    def episodes_completed(self) -> int:
+        """Episodes that ended since the last :meth:`reset`, with an episode budget. Waits for the device."""
+        return int(self._completed.item())
+
+    def episode_records(self) -> dict[str, torch.Tensor]:
+        """Return a row per completed episode, with an episode budget, as columns by name, in the order they ended.
+
+        The columns are ``world``, ``episode`` (its index among the world's episodes), ``length`` (control steps),
+        ``terminated`` and ``truncated``, the value at the end of each recorded quantity, and whether each termination
+        ended it, as ``termination/<name>``. Rows of episodes that ended in the same step are ordered by world.
+        Waits for the device.
+        """
+        rows = self._records[: self.episodes_completed]
+        return {name: rows[:, k] for k, name in enumerate(self._record_columns)}
+
+    def _init_episode_budget(self, budget: int) -> None:
+        """Allocate the episode counters and the record buffer. The buffer has a spare last row, which the worlds
+        that did not end write in the captured step."""
+        device = self.device
+        self._budget = budget
+        self._started = torch.zeros((), dtype=torch.long, device=device)
+        self._completed = torch.zeros((), dtype=torch.long, device=device)
+        self._active = torch.zeros(self.num_envs, dtype=torch.bool, device=device)
+        self._ended = torch.zeros(self.num_envs, dtype=torch.bool, device=device)  # Episodes that ended this step
+        self._episode_index = torch.zeros(self.num_envs, device=device)
+        recorded = [op for op in self.mdp.ops[mdp2.Phase.QUANTITIES] if op.record]
+        self._recorded = [self.state.arrays[op.writes[0]].torch for op in recorded]
+        self._record_columns = ["world", "episode", "length", "terminated", "truncated"]
+        self._record_columns += [op.name.split(".", 1)[1] for op in recorded]
+        self._record_columns += [f"termination/{name}" for name in self._termination_names]
+        self._records = torch.zeros(budget + 1, len(self._record_columns), device=device)
+        self._worlds = torch.arange(self.num_envs, device=device)
+
+    def _restart_episode_budget(self) -> None:
+        """Start the first episodes of the budget, in the first worlds."""
+        self._started.fill_(min(self._budget, self.num_envs))
+        self._completed.zero_()
+        self._episode_index.zero_()
+        torch.lt(self._worlds, self._budget, out=self._active)
+
+    def _spend_episode_budget(self) -> None:
+        """Record the episodes of active worlds that ended, and restart only as many as the budget has left.
+
+        Worlds that do not restart become inactive: they keep stepping, but their episodes no longer end or reset.
+        Part of the captured step, so it works on device tensors only.
+        """
+        transition, ended = self.transition, self._ended
+        torch.logical_and(transition.done.torch, self._active, out=ended)
+        rank = torch.cumsum(ended, dim=0)  # 1 for the first world that ended, and so on
+
+        # Rows of the ended episodes, in world order after those of earlier steps; the others write the spare row.
+        rows = torch.where(ended, self._completed + rank - 1, self._budget)
+        values = [
+            self._worlds.float(),
+            self._episode_index,
+            self.state.episode_length.torch.float(),
+            transition.terminated.torch.float(),
+            transition.truncated.torch.float(),
+            *self._recorded,
+            *transition.termination_terms.torch.float().unbind(1),
+        ]
+        self._records.index_copy_(0, rows, torch.stack(values, dim=1))
+        self._completed.add_(rank[-1])
+        self._episode_index.add_(ended.float())
+
+        restarted = ended & (self._started + rank <= self._budget)
+        self._started.add_(restarted.sum())
+        self._active.logical_and_(~ended | restarted)
+        # Only the worlds that restart are reset; the others report their episode once.
+        reported = ended | self._active
+        transition.terminated.torch.logical_and_(reported)
+        transition.truncated.torch.logical_and_(reported)
+        transition.done.torch.copy_(restarted)
+
     def _after_evaluate(self) -> None:
         """Keep the logged quantities of the worlds that ended, and whether they timed out, before their reset."""
-        done = self.transition.done.torch
+        # With an episode budget, only the episodes of active worlds count, and only some of them restart.
+        if self.cfg.episode_budget is not None:
+            self._spend_episode_budget()
+        done = self._ended if self.cfg.episode_budget is not None else self.transition.done.torch
         for value, last, _ in self._metrics.values():
             torch.where(done, value, last, out=last)
         if self._time_limit is not None:
@@ -462,7 +618,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def _log_episodes(self) -> None:
         """Add the step's term rewards to the episode sums, and record the episodes that ended in ``extras["log"]``."""
         transition = self.transition
-        ended = transition.done.torch[:, None]
+        ended = (self._ended if self.cfg.episode_budget is not None else transition.done.torch)[:, None]
         self._episode_rewards += transition.reward_terms.torch
 
         torch.where(ended, self._episode_rewards, self._last_episode_rewards, out=self._last_episode_rewards)
@@ -481,3 +637,11 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         for name, (_, last, worlds) in self._metrics.items():
             log[f"Metrics/{name}"] = last[worlds].mean()
         self.extras["log"] = log
+
+
+def _clone(observations: VecEnvObs) -> VecEnvObs:
+    """Copy observations, also the term tensors of groups of separate terms."""
+    return {
+        group: {term: values.clone() for term, values in value.items()} if isinstance(value, dict) else value.clone()
+        for group, value in observations.items()
+    }

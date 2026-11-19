@@ -104,6 +104,9 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 
     for step in mdp.plan.apply_actions:
         op = step.op
+        if isinstance(op, TermOp):
+            _apply_action_term(code, op)
+            continue
         target = code.argument(op.target, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.target))
         index = "element" if op.subset is None else f"{_array(code, op.subset, wp.array(dtype=wp.int32))}[element]"
         offset = code.constant(float, op.offset)
@@ -118,6 +121,27 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         )
 
     return code.steps()
+
+
+def _apply_action_term(code: Fusion, op: TermOp) -> None:
+    """Run an action term's compute hook, which writes its outputs from its columns of the action."""
+    if isinstance(op.compute, wp.Function):
+        writes = [*op.writes, *(term_state(op.use, name) for name in op.state)]
+        code.world(*_under(_active(code, op), _call(code, op, op.compute)), writes=writes)
+        return
+
+    def run(call: Call) -> None:
+        # Torch hooks get Torch views, and hooks that launch kernels Warp ones.
+        views = "torch" if op.torch_hooks else "warp"
+        active = call.state.arrays.get(("active", op.name))
+        arguments = {
+            **call.state.arguments[op.name],
+            "action": getattr(call.actions, views)[:, op.columns],
+            "mask": None if active is None else getattr(active, views),
+        }
+        op.compute(**hook_arguments(op.compute, arguments))
+
+    code.call(run, op.capturable, *_accesses(op))
 
 
 def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
@@ -278,9 +302,8 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
     """Compute an observation with its noise, clip, scale, and history into its columns of the group."""
     observation = op.observation
     group, start = observation.group, observation.columns.start
-    out = code.argument(
-        ("observations", group), wp.array2d(dtype=wp.float32), lambda call: call.observations[group].warp
-    )
+    dtype = mdp.observation_layouts[group][1]
+    out = code.argument(("observations", group), wp.array2d(dtype=dtype), lambda call: call.observations[group].warp)
 
     value = _value(code, mdp, op)
     if observation.noise is not None:
@@ -305,7 +328,7 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
             columns = [f"{start} + {h * size} + element" for h in range(observation.history_length)]
         copies = code.argument(
             ("final_observations", group),
-            wp.array2d(dtype=wp.float32),
+            wp.array2d(dtype=dtype),
             lambda call: call.transition.final_observations[group].warp,
         )
         final = _under(
@@ -441,6 +464,10 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
         elif name in op.inputs or name in op.state:
             key = op.array_key(name) if name in op.inputs else term_state(op.use, name)
             values.append(_array(code, key, annotation))
+        elif name == "action" and op.columns is not None:
+            # The action's columns, as a strided view of the actions.
+            columns = op.columns
+            values.append(code.argument(("action", op.name), annotation, lambda call: call.actions.warp[:, columns]))
         else:
             values.append(f"{_rng(code)}[{op.stream}, world]")
     return f"{code.function(hook)}({', '.join(values)})"

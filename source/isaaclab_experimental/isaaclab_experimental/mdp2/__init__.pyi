@@ -5,6 +5,7 @@
 
 __all__ = [
     "MDP",
+    "Action",
     "CapturedMDP",
     "Backend",
     "Command",
@@ -20,6 +21,7 @@ __all__ = [
     "MDPBuilder",
     "MDPState",
     "Observation",
+    "ObservationGroup",
     "Phase",
     "Quantity",
     "ExecutionPlan",
@@ -43,6 +45,7 @@ __all__ = [
     "WorldConfig",
     "apply_actions",
     "commands",
+    "compose",
     "episode_length",
     "evaluate",
     "last_action",
@@ -62,6 +65,7 @@ from .builder import MDPBuilder, ScheduleEntry
 from .capture import CapturedMDP
 from .compiled import MDP, Backend, MDPState, Transition, WorldConfig
 from .config import (
+    Action,
     Command,
     Constant,
     DirectAction,
@@ -70,6 +74,7 @@ from .config import (
     EventMode,
     FieldSelector,
     Observation,
+    ObservationGroup,
     Phase,
     Quantity,
     Reward,
@@ -80,6 +85,7 @@ from .config import (
     TimeLimit,
     UniformNoise,
     commands,
+    compose,
     episode_length,
     last_action,
     quantities,

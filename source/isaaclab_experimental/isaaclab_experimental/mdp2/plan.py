@@ -83,6 +83,8 @@ class TermOp:
     # Reset events: whether the scene commits the earlier events' writes before it runs, None to infer it
     commit: bool | None = False
     log: bool = False  # Quantities: whether the environment logs it as a metric
+    record: bool = False  # Quantities: whether the environment records it at the end of every episode
+    columns: slice | None = None  # Actions: the columns of the action that the term takes
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     # Actions of its world config, if it reads the last actions and other world configs have more
     action_dim: int | None = None
@@ -154,9 +156,9 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
     stateful = [
         op
         for phase in Phase
-        if phase not in (Phase.ACTIONS, Phase.COMMANDS)
+        if phase is not Phase.COMMANDS
         for op in ops[phase]
-        if op.reset is not None or any(not spec.persistent for spec in op.state.values())
+        if isinstance(op, TermOp) and (op.reset is not None or any(not spec.persistent for spec in op.state.values()))
     ]
 
     # Observations and action offsets read quantities between steps, also in worlds that were just reset, where
@@ -164,7 +166,7 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
     read = {selector for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values()}
     noises = [op.observation.noise for op in ops[Phase.OBSERVATIONS]]
     read |= {noise.scale for noise in noises if noise is not None and noise.scale is not None}
-    read |= {op.offset for op in ops[Phase.ACTIONS]}
+    read |= {op.offset for op in ops[Phase.ACTIONS] if isinstance(op, ActionOp)}
     observed = []
     for op in reversed(ops[Phase.QUANTITIES]):
         if op.writes[0] in read:

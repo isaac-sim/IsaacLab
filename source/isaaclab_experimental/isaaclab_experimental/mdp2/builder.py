@@ -23,6 +23,7 @@ import warp as wp
 from . import torch_backend, warp_backend
 from .compiled import MDP, Backend, WorldConfig
 from .config import (
+    Action,
     Command,
     DirectAction,
     Entity,
@@ -30,6 +31,7 @@ from .config import (
     EventMode,
     FieldSelector,
     Observation,
+    ObservationGroup,
     Phase,
     Quantity,
     Reward,
@@ -56,7 +58,13 @@ class ScheduleEntry:
     """Handle to one term use in the schedule, returned by the ``add_*`` methods."""
 
     path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
-    cfg: DirectAction | Command | Quantity | Observation | Reward | Termination | TimeLimit | Event
+    cfg: DirectAction | Action | Command | Quantity | Observation | Reward | Termination | TimeLimit | Event
+    separate: bool = False  # Observations: whether the use keeps its own buffer rather than its group's
+
+    @property
+    def buffer(self) -> str:
+        """Observations: the buffer the use writes, its group or, in a group of separate terms, "group/name"."""
+        return "/".join(self.path[1:]) if self.separate else self.path[1]
 
     def __str__(self) -> str:
         return ".".join(self.path)
@@ -84,7 +92,7 @@ class ScheduleEntry:
             return (FieldSelector(commands.name, self.path[1], scene=False),)
         if isinstance(self.cfg, Quantity):
             return (FieldSelector(quantities.name, self.path[1], scene=False),)
-        if isinstance(self.cfg, Event):
+        if isinstance(self.cfg, (Event, Action)):
             return tuple(self.cfg.outputs.values())
         return ()
 
@@ -122,7 +130,8 @@ class CompileContext:
         }
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
-    observation_dims: dict[str, int] = field(default_factory=dict)
+    observation_dims: dict[str, int] = field(default_factory=dict)  # Elements per world of each buffer
+    observation_layouts: dict[str, tuple[tuple[int, ...], type]] = field(default_factory=dict)  # Separate buffers
     action_dim: int = 0
 
 
@@ -164,9 +173,10 @@ class MDPBuilder:
             if quantity is not None:
                 self.add_quantity(name, quantity)
         for group, observations in task.observations.items():
-            for name, observation in observations.items():
+            separate = isinstance(observations, ObservationGroup)
+            for name, observation in (observations.terms if separate else observations).items():
                 if observation is not None:
-                    self.add_observation(group, name, observation)
+                    self.add_observation(group, name, observation, separate)
         for name, reward in task.rewards.items():
             if reward is not None:
                 self.add_reward(name, reward)
@@ -176,8 +186,9 @@ class MDPBuilder:
         for name, event in task.events.items():
             if event is not None:
                 self.add_event(name, event)
+        self._order_after(task)
 
-    def add_action(self, name: str, action: DirectAction) -> ScheduleEntry:
+    def add_action(self, name: str, action: DirectAction | Action) -> ScheduleEntry:
         return self._add(ScheduleEntry(("actions", name), action))
 
     def add_command(self, name: str, command: Command) -> ScheduleEntry:
@@ -189,8 +200,14 @@ class MDPBuilder:
     def add_event(self, name: str, event: Event) -> ScheduleEntry:
         return self._add(ScheduleEntry(("events", name), event))
 
-    def add_observation(self, group: str, name: str, observation: Observation) -> ScheduleEntry:
-        return self._add(ScheduleEntry(("observations", group, name), observation))
+    def add_observation(self, group: str, name: str, observation: Observation, separate: bool = False) -> ScheduleEntry:
+        """Add an observation to a group, concatenated with the group's other terms unless ``separate``."""
+        if "/" in group or "/" in name:
+            raise ValueError(f"Observation group and term names cannot contain '/': '{group}', '{name}'.")
+        uses = [entry for entry in self._entries.values() if entry.path[:2] == ("observations", group)]
+        if uses and uses[0].separate != separate:
+            raise ValueError(f"The observations of group '{group}' must all be separate or all be concatenated.")
+        return self._add(ScheduleEntry(("observations", group, name), observation, separate))
 
     def add_reward(self, name: str, reward: Reward) -> ScheduleEntry:
         return self._add(ScheduleEntry(("rewards", name), reward))
@@ -275,6 +292,29 @@ class MDPBuilder:
         backend_module = warp_backend if mdp.backend is Backend.WARP else torch_backend
         return replace(mdp, launches=backend_module.compile_launches(mdp))
 
+    def _order_after(self, task: TaskCfg) -> None:
+        """Move each event of a task after the events it names in ``after``, keeping the order otherwise."""
+        constrained = {name: event.after for name, event in task.events.items() if event is not None and event.after}
+        for name, after in constrained.items():
+            entry = self.entry("events", name)
+            for other in after:
+                anchor = self._entries.get(("events", other))
+                if anchor is None or anchor.phase is not entry.phase:
+                    raise ValueError(f"Event '{name}' runs after '{other}', which is not an event of the same mode.")
+        # Each pass moves events after their latest anchor; more passes than events mean a cycle.
+        for _ in range(len(constrained) + 1):
+            moved = False
+            for name, after in constrained.items():
+                order = [entry.path for entry in self.schedule()]
+                entry = self.entry("events", name)
+                anchor = max((self.entry("events", other) for other in after), key=lambda e: order.index(e.path))
+                if order.index(entry.path) < order.index(anchor.path):
+                    self.move_after(entry, anchor)
+                    moved = True
+            if not moved:
+                return
+        raise ValueError(f"The events {sorted(constrained)} run after each other in a cycle.")
+
     def _add(self, entry: ScheduleEntry) -> ScheduleEntry:
         if entry.path in self._entries:
             raise ValueError(f"The schedule already has an entry '{entry}'.")
@@ -338,8 +378,8 @@ class MDPBuilder:
                     errors.append(f"The world configs give '{op.writes[0]}' different shapes.")
             # The ops of one use share its state, each in its own worlds.
             for phase, ops in context.ops.items():
-                for op in ops if phase is not Phase.ACTIONS else ():
-                    for name, spec in op.state.items():
+                for op in ops:
+                    for name, spec in op.state.items() if isinstance(op, TermOp) else ():
                         selector = term_state(op.use, name)
                         if field_shapes.setdefault(selector, spec.shape) != spec.shape:
                             errors.append(f"The world configs give '{selector}' different shapes.")
@@ -375,6 +415,19 @@ class MDPBuilder:
         observation_dims = {
             group: max(context.observation_dims.get(group, 0) for context in contexts) for group in groups
         }
+        # Concatenated groups are padded to the widest world config; separate buffers must agree.
+        observation_layouts = {}
+        for context in contexts:
+            for buffer, layout in context.observation_layouts.items():
+                if observation_layouts.setdefault(buffer, layout) != layout:
+                    errors.append(f"The world configs give the observation '{buffer}' different shapes or types.")
+        mixed = {buffer.split("/")[0] for buffer in observation_layouts} & set(observation_dims)
+        if mixed:
+            errors.append(f"The world configs disagree on whether the groups {sorted(mixed)} are concatenated.")
+        for group, dim in observation_dims.items():
+            observation_layouts.setdefault(group, ((dim,), wp.float32))
+        if errors:
+            raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
         subsets = {selector: ids for context in contexts for selector, ids in context.subsets.items()}
         time_limit = time_limits.pop()
         return MDP(
@@ -385,6 +438,7 @@ class MDPBuilder:
             plan=build_plan(ops, self.schema),
             action_dim=action_dim,
             observation_dims=MappingProxyType(observation_dims),
+            observation_layouts=MappingProxyType(observation_layouts),
             max_episode_length=None if time_limit is None else math.ceil(time_limit / self.schema.step_dt),
             streams=tuple(streams),
             subsets=MappingProxyType(subsets),
@@ -436,7 +490,7 @@ class MDPBuilder:
 
         # An offset may be a field of the MDP, such as a quantity, which exists once its use is compiled.
         for op in context.ops[Phase.ACTIONS]:
-            if not isinstance(op.offset, FieldSelector):
+            if not isinstance(op, ActionOp) or not isinstance(op.offset, FieldSelector):
                 continue
             offset = self._resolve(op.name, "offset", op.offset, context)
             if offset is not None and offset.shape != self._resolve(op.name, "target", op.target, context).shape:
@@ -479,7 +533,10 @@ class MDPBuilder:
             if self._resolve(entry, "subset", cfg.subset, context) is None:
                 return
             elements = set(context.subsets[cfg.subset])
+        # Action terms may write other elements of the same field, such as other joints, after or before it.
         for op in context.ops[Phase.ACTIONS]:
+            if isinstance(op, TermOp):
+                continue
             written = set(context.subsets[op.subset]) if op.subset is not None else elements
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
@@ -500,10 +557,13 @@ class MDPBuilder:
 
         # Check the use, and resolve the shapes of its output and state.
         implementation = _implementation(entry, context.backend, errors)
-        outputs = cfg.outputs if isinstance(cfg, Event) else {}
+        outputs = cfg.outputs if isinstance(cfg, (Event, Action)) else {}
         # A command writes its own field, which every hook gets as ``command``.
         command = {"command": entry.writes[0]} if isinstance(cfg, Command) else {}
-        names = [*cfg.inputs, *outputs, *command, *term.state, *cfg.params, *(["rng"] if term.random else [])]
+        # An action gets its columns of the action as ``action``.
+        action = ["action"] if isinstance(cfg, Action) else []
+        names = [*cfg.inputs, *outputs, *command, *action, *term.state, *cfg.params]
+        names += ["rng"] if term.random else []
         if len(set(names)) != len(names):
             errors.append(f"{entry}: inputs, outputs, state, params, and rng must have distinct names, got {names}.")
 
@@ -530,6 +590,10 @@ class MDPBuilder:
         output_shape = _resolve_shape(entry, "output", term.shape, sizes, errors)
         if output_shape and isinstance(cfg, (Reward, Termination)):
             errors.append(f"{entry}: {type(cfg).__name__} outputs must have shape ('worlds',), got {output_shape}.")
+        if isinstance(cfg, Action):
+            _check_action(entry, output_shape, errors)
+        dtype = wp.bool if isinstance(cfg, Termination) else term.dtype or wp.float32
+        _check_output_type(entry, dtype, errors)
         # State without the world dimension is one buffer for every world.
         shared = {name for name, spec in term.state.items() if "worlds" not in spec.shape}
         state_shapes = {}
@@ -540,8 +604,8 @@ class MDPBuilder:
                 state_shapes[name] = dims if name in shared else (self.schema.num_worlds, *dims)
         if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
             errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
-        if isinstance(cfg, Quantity) and cfg.log and output_shape:
-            errors.append(f"{entry}: a logged quantity must have shape ('worlds',), got {output_shape}.")
+        if isinstance(cfg, Quantity) and (cfg.log or cfg.record) and output_shape:
+            errors.append(f"{entry}: a logged or recorded quantity must have shape ('worlds',), got {output_shape}.")
         if isinstance(cfg, Event) and cfg.commit is True and cfg.mode is not EventMode.RESET:
             errors.append(f"{entry}: only reset events can ask for a commit.")
         if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
@@ -555,12 +619,12 @@ class MDPBuilder:
             return
 
         # Check the hooks' signatures. Params and rng are not arrays.
-        dtype = wp.bool if isinstance(cfg, Termination) else wp.float32
         arguments = {
             **dict.fromkeys(names),
             **fields,
             **{name: ArrayLayout(wp.float32, len(shape), {}) for name, shape in state_shapes.items()},
             **{name: ArrayLayout(wp.float32, 1 + len(output_shape), {}) for name in command},
+            **{name: ArrayLayout(wp.float32, 2, {}) for name in action},
         }
         if term.init is not None:
             try:
@@ -573,6 +637,9 @@ class MDPBuilder:
         # Events and commands take the mask of the worlds to write; other Warp functions take the output to write.
         if isinstance(cfg, (Command, Event)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
+        elif isinstance(cfg, Action):
+            # A Python hook may take the worlds where the action is active, as ``mask``.
+            _check_hook(entry, implementation.compute, {**arguments, "mask": None}, errors)
         else:
             extra = "out" if implementation is term.warp else None
             _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)
@@ -590,13 +657,7 @@ class MDPBuilder:
         elif isinstance(cfg, Event):
             timer = cfg.interval_range_s
 
-        observation = None
-        if isinstance(cfg, Observation):
-            group = entry.path[1]
-            start = context.observation_dims.get(group, 0)
-            columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
-            context.observation_dims[group] = columns.stop
-            observation = ObservationOutput(group, columns, cfg.noise, cfg.clip, cfg.scale, cfg.history_length)
+        observation, columns = _allocate_columns(entry, output_shape, dtype, context)
         if isinstance(cfg, (Command, Quantity)):
             named = {dim: size for dim, size in zip(term.shape[1:], output_shape) if isinstance(dim, str)}
             context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named, output_shape)
@@ -638,6 +699,8 @@ class MDPBuilder:
                 init=term.init,
                 commit=cfg.commit if isinstance(cfg, Event) else False,
                 log=isinstance(cfg, Quantity) and cfg.log,
+                record=isinstance(cfg, Quantity) and cfg.record,
+                columns=columns,
             )
         )
 
@@ -703,6 +766,54 @@ def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -
     elif not term.capturable and any(isinstance(hook, wp.Function) for hook in vars(implementation).values()):
         errors.append(f"{entry}: wp.func hooks always run inside generated kernels and cannot be non-capturable.")
     return implementation
+
+
+def _allocate_columns(
+    entry: ScheduleEntry, output_shape: tuple[int, ...], dtype: type, context: CompileContext
+) -> tuple[ObservationOutput | None, slice | None]:
+    """Give an observation its columns of its buffer, and an action term its columns of the action, after those of
+    the uses compiled before it. Returns the observation's output and the action term's columns."""
+    cfg = entry.cfg
+    if isinstance(cfg, Observation):
+        start = context.observation_dims.get(entry.buffer, 0)
+        columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
+        context.observation_dims[entry.buffer] = columns.stop
+        if entry.separate:
+            context.observation_layouts[entry.buffer] = (output_shape, dtype)
+        return ObservationOutput(entry.buffer, columns, cfg.noise, cfg.clip, cfg.scale, cfg.history_length), None
+    if isinstance(cfg, Action):
+        columns = slice(context.action_dim, context.action_dim + output_shape[0])
+        context.action_dim = columns.stop
+        context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": columns.stop}, (columns.stop,))
+        return None, columns
+    return None, None
+
+
+def _check_action(entry: ScheduleEntry, output_shape: tuple[int, ...] | None, errors: list[str]) -> None:
+    """Record why an action term cannot be compiled: its shape or its hooks.
+
+    Actions write their fields in schedule order, so an action term may write elements of a field that other actions
+    also write, such as other joints of a joint target.
+    """
+    term = entry.cfg.term
+    if term.random or term.init is not None:
+        errors.append(f"{entry}: action terms cannot be random or have an init hook.")
+    if output_shape is not None and len(output_shape) != 1:
+        errors.append(f"{entry}: an action's shape is ('worlds', columns), got {term.shape}.")
+
+
+def _check_output_type(entry: ScheduleEntry, dtype: type, errors: list[str]) -> None:
+    """Record why a term's output type does not fit its use: only observations in separate groups may set one."""
+    cfg = entry.cfg
+    if cfg.term.dtype is not None and not isinstance(cfg, Observation):
+        errors.append(f"{entry}: only observations can set an output type.")
+    if isinstance(cfg, Observation) and dtype is not wp.float32:
+        processed = cfg.noise is not None or cfg.clip is not None or cfg.scale is not None or cfg.history_length
+        if processed or not entry.separate:
+            errors.append(
+                f"{entry}: an observation of type {dtype.__name__} must be in a group of separate terms, without"
+                " noise, clip, scale, or history."
+            )
 
 
 def _dimension_sizes(fields: Mapping[str, ArrayLayout | None]) -> dict[str, int]:

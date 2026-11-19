@@ -1550,3 +1550,155 @@ def test_entity_outputs_write_every_writable_field_of_the_entity():
     builder.add_event("fused", mdp2.Event(push_by_adding_velocity, inputs={"robot": robot}))
     with pytest.raises(ValueError, match="wp.func hooks cannot take scene entities"):
         builder.validate(backend="warp")
+
+
+def test_action_terms_take_their_columns_after_direct_actions():
+    """An action term takes the next columns of the action and writes its outputs, here a binary command."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_action("x", mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("x"), scale=2.0))
+        gripper = mdp2.Action(
+            mdp2.mdp.binary_joint_position,
+            inputs={"joint_ids": robot.joints("y")},
+            outputs={"joint_pos_target": robot.joint_effort_target},
+            params={"open_position": -1.0, "close_position": 1.0},
+        )
+        builder.add_action("y", gripper)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state = mdp.state(scene)
+
+        actions = torch.tensor([[0.5, 0.9], [-1.0, 0.2]], device=DEVICE)
+        mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
+        assert mdp.action_dim == 2
+        assert scene.data("robot", "joint_effort_target").torch.tolist() == [[1.0, 1.0], [-2.0, -1.0]]
+        torch.testing.assert_close(state.actions.torch, actions)
+
+
+def image_scene(num_worlds: int) -> PointMassScene:
+    """A point-mass scene with a ``camera`` entity whose ``rgb`` field is a 2x3 image with 3 channels."""
+    scene = PointMassScene(num_worlds=num_worlds, device=DEVICE)
+    names = {"height": ("0", "1"), "width": ("0", "1", "2"), "rgb_channels": ("0", "1", "2")}
+    rgb = mdp2.FieldSchema(("height", "width", "rgb_channels"), wp.uint8)
+    camera = mdp2.EntitySchema(names=names, fields={"rgb": rgb})
+    scene.schema = dataclasses.replace(scene.schema, entities={**scene.schema.entities, "camera": camera})
+    images = torch.arange(num_worlds * 18, device=DEVICE).reshape(num_worlds, 2, 3, 3).to(torch.uint8)
+    scene._data["camera"] = {"rgb": ProxyArray(wp.from_torch(images, dtype=wp.uint8))}
+    return scene
+
+
+def test_separate_observation_groups_keep_each_term_shape_and_type():
+    """A group of separate terms gives each term its own buffer, of the term's shape and element type."""
+    camera = mdp2.Entity("camera")
+    for backend in ("torch", "warp"):
+        scene = image_scene(num_worlds=2)
+        task = mdp2.TaskCfg(
+            observations={
+                "policy": {"joint_pos": mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})},
+                "cameras": mdp2.ObservationGroup(
+                    terms={
+                        "rgb": mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}),
+                        "joint_pos": mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}),
+                    }
+                ),
+            }
+        )
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        scene.data("robot", "joint_pos").torch.copy_(torch.tensor([[1.0], [2.0]]))
+        mdp2.evaluate(mdp, state, transition)
+
+        assert dict(mdp.observation_layouts) == {
+            "policy": ((1,), wp.float32),
+            "cameras/rgb": ((2, 3, 3), wp.uint8),
+            "cameras/joint_pos": ((1,), wp.float32),
+        }
+        rgb = transition.observations["cameras/rgb"].torch
+        assert rgb.dtype == torch.uint8
+        assert torch.equal(rgb.view(2, 2, 3, 3), scene.data("camera", "rgb").torch)
+        assert transition.observations["cameras/joint_pos"].torch.tolist() == [[1.0], [2.0]]
+
+    # Other types need their own buffer, without processing.
+    builder = mdp2.MDPBuilder(image_scene(num_worlds=1).schema)
+    builder.add_observation("policy", "rgb", mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}))
+    scaled = mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}, scale=2.0)
+    builder.add_observation("cameras", "scaled", scaled, separate=True)
+    with pytest.raises(ValueError) as error:
+        builder.validate()
+    for name in ("policy.rgb", "cameras.scaled"):
+        assert f"observations.{name}: an observation of type uint8 must be in a group of separate terms" in str(
+            error.value
+        )
+
+
+def test_compose_merges_tasks_and_orders_events():
+    """Composed tasks merge term by term, and events run after the events they name."""
+
+    def event(*after: str) -> mdp2.Event:
+        return mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, after=after)
+
+    observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})
+    scene_part = mdp2.TaskCfg(events={"place": event("reset_arm")}, observations={"policy": {"a": observation}})
+    embodiment = mdp2.TaskCfg(
+        events={"reset_arm": event(), "hold": event()}, observations={"policy": {"b": observation}}
+    )
+    task_part = mdp2.TaskCfg(events={"hold": None, "settle": event("place")})
+    task = mdp2.compose(scene_part, embodiment, task_part)
+    assert list(task.observations["policy"]) == ["a", "b"] and task.events["hold"] is None
+
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
+    builder.add_task(task)
+    events = [entry.path[1] for entry in builder.schedule() if entry.path[0] == "events"]
+    assert events == ["reset_arm", "place", "settle"]
+
+    with pytest.raises(ValueError, match="Tasks 0 and 1 both define 'observations.policy.a'"):
+        mdp2.compose(scene_part, scene_part)
+    with pytest.raises(ValueError, match="run after each other in a cycle"):
+        mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema).add_task(
+            mdp2.TaskCfg(events={"a": event("b"), "b": event("a")})
+        )
+
+
+@wp.func
+def joint_above_warp(world: int, joint_pos: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32)) -> float:
+    return wp.where(joint_pos[world, joint_ids[0]] > 0.5, 1.0, 0.0)
+
+
+joint_above = mdp2.Term(
+    torch=lambda joint_pos, joint_ids: (joint_pos[:, joint_ids[0]] > 0.5).float(), warp=joint_above_warp
+)
+
+
+def test_sequence_succeeds_once_its_conditions_held_in_order():
+    """A sequence advances a stage per step while its current condition holds, and restarts with the episode."""
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=1, joint_names=("first", "second"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_quantity(
+            "first",
+            mdp2.Quantity(joint_above, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints("first")}),
+        )
+        builder.add_quantity(
+            "second",
+            mdp2.Quantity(joint_above, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints("second")}),
+        )
+        conditions = {"lift": mdp2.quantities.first, "place": mdp2.quantities.second}
+        builder.add_quantity("success", mdp2.Quantity(mdp2.mdp.sequence, inputs=conditions))
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        joints = scene.data("robot", "joint_pos").torch
+        success = state.arrays[mdp2.quantities.success].torch
+        stage = state.arrays[mdp2.term_state("quantities.success", "stage")].torch
+
+        results = []
+        for values in ([0.0, 1.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0]):
+            joints.copy_(torch.tensor([values], device=DEVICE))
+            mdp2.evaluate(mdp, state, transition)
+            results.append((stage.item(), success.item()))
+        # The second condition does not count before the first; once both held in order, success stays.
+        assert results == [(0.0, 0.0), (1.0, 0.0), (2.0, 1.0), (2.0, 1.0)]
+
+        mdp2.reset(mdp, state, ProxyArray(wp.ones(1, dtype=wp.bool, device=DEVICE)))
+        assert stage.item() == 0.0

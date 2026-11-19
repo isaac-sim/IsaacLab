@@ -167,6 +167,8 @@ class Quantity(TermCfg):
     phase: ClassVar[Phase] = Phase.QUANTITIES
 
     log: bool = False  # Log its average over the worlds' last finished episodes, taken at their end, as a metric
+    # Record its value at the end of every episode, in the episode records of an environment with an episode budget
+    record: bool = False
 
 
 @dataclass
@@ -183,6 +185,18 @@ class Observation(TermCfg):
     clip: tuple[float, float] | None = None  # Bounds of the noisy value
     scale: float | None = None
     history_length: int = 0  # Steps of history to observe, 0 for the latest value only
+
+
+@dataclass
+class ObservationGroup:
+    """An observation group whose terms are not concatenated: each term keeps its own buffer, shape, and type.
+
+    A plain dict of uses in :attr:`TaskCfg.observations` is a group concatenated into one ``float32`` buffer. The
+    terms of this group may output other types, such as ``uint8`` images, when they have no noise, clip, scale, or
+    history.
+    """
+
+    terms: dict[str, Observation | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -223,6 +237,8 @@ class Event(TermCfg):
     # what they changed. None infers it: before an event that reads a field derived from written ones, such as the
     # body poses after joint writes. True always commits first, and False never does.
     commit: bool | None = None
+    # Events of the same mode, by name, that must run before this one. The builder moves it after them.
+    after: tuple[str, ...] = ()
 
     @property
     def phase(self) -> Phase:
@@ -256,14 +272,65 @@ class DirectAction:
 
 
 @dataclass
+class Action(TermCfg):
+    """Configuration for an action term, whose hooks turn the columns of the action into writes to ``outputs``.
+
+    The term's shape is ``("worlds", n)``, with the number of columns ``n`` it takes, and its hooks get them as
+    ``action``: a Python hook ``compute(action, **args)`` writes its outputs in place, and a func
+    ``compute(world, action, **args)`` writes its world. Actions apply before every physics step, as in MDP1.
+    """
+
+    phase: ClassVar[Phase] = Phase.ACTIONS
+
+    outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the action writes them
+
+
+@dataclass
 class TaskCfg:
     """Configuration of the MDP of a task. Setting a term use to ``None`` disables it."""
 
-    actions: dict[str, DirectAction | None] = field(default_factory=dict)
+    actions: dict[str, DirectAction | Action | None] = field(default_factory=dict)
     commands: dict[str, Command | None] = field(default_factory=dict)
     quantities: dict[str, Quantity | None] = field(default_factory=dict)
-    # Groups, such as "policy", of observation uses that are concatenated in declaration order into one buffer.
-    observations: dict[str, dict[str, Observation | None]] = field(default_factory=dict)
+    # Groups, such as "policy", of observation uses that are concatenated in declaration order into one buffer, or
+    # whose terms each keep their own buffer.
+    observations: dict[str, dict[str, Observation | None] | ObservationGroup] = field(default_factory=dict)
     rewards: dict[str, Reward | None] = field(default_factory=dict)
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)
     events: dict[str, Event | None] = field(default_factory=dict)
+
+
+def compose(*tasks: TaskCfg) -> TaskCfg:
+    """Merge partial task configs, such as those of a scene, an embodiment, and a task, into one task config.
+
+    Uses keep the order of the tasks, then their order within each task, and observation groups merge term by term.
+    Two tasks may not both define a use, unless the later one sets it to ``None``, which removes it. Raises a single
+    ``ValueError`` that lists every conflict.
+    """
+    composed, errors = TaskCfg(), []
+    owners: dict[tuple[str, ...], int] = {}  # Task that defines each use
+
+    def merge(path: tuple[str, ...], target: dict, name: str, use: Any, index: int) -> None:
+        if use is not None and target.get(name) is not None:
+            errors.append(f"Tasks {owners[path]} and {index} both define '{'.'.join(path)}'.")
+            return
+        owners[path] = index
+        target[name] = use
+
+    for index, task in enumerate(tasks):
+        for kind in ("actions", "commands", "quantities", "rewards", "terminations", "events"):
+            for name, use in getattr(task, kind).items():
+                merge((kind, name), getattr(composed, kind), name, use, index)
+        for group, observations in task.observations.items():
+            separate = isinstance(observations, ObservationGroup)
+            existing = composed.observations.setdefault(group, ObservationGroup() if separate else {})
+            if separate != isinstance(existing, ObservationGroup):
+                errors.append(f"Task {index} and an earlier task disagree on whether group '{group}' is concatenated.")
+                continue
+            terms = observations.terms if separate else observations
+            for name, use in terms.items():
+                merge(("observations", group, name), existing.terms if separate else existing, name, use, index)
+
+    if errors:
+        raise ValueError("Cannot compose the tasks:\n  " + "\n  ".join(errors))
+    return composed

@@ -158,6 +158,43 @@ solver's model: about 250 µs per step for 4096 Cartpole worlds on MJWarp. Rando
 can.
 
 
+Cameras, composition, and evaluation
+------------------------------------
+
+These features let an evaluation framework, such as Isaac Lab Arena, build its environments on MDP2: a policy such as
+a vision-language-action model reads camera images and named observation terms, and the environment reports how each
+episode ended.
+
+- **Cameras** are scene entities whose data types are fields, such as ``external_camera.rgb``. ``MDP2Env`` renders
+  them once per control step at ``Step.RENDER``, after the physics, inside the step's CUDA graph. Insert
+  ``ResetStep.RENDER`` before ``ResetStep.OBSERVE`` in ``reset_step`` to render them again after the resets, so that
+  new episodes start with their own images.
+- **Groups of separate terms.** A group in :attr:`~isaaclab_experimental.mdp2.TaskCfg.observations` is either a dict
+  of uses, concatenated into one ``float32`` tensor, or an :class:`~isaaclab_experimental.mdp2.ObservationGroup`,
+  observed as a dict of tensors with each term's own shape and type, such as ``uint8`` images from
+  :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
+- **Action terms.** A :class:`~isaaclab_experimental.mdp2.DirectAction` scales its columns of the action into a
+  field. An :class:`~isaaclab_experimental.mdp2.Action` runs a term's hook on its columns instead, such as
+  :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position` for a gripper.
+- **Composition.** :func:`~isaaclab_experimental.mdp2.compose` merges partial task configs term by term, such as
+  those of a scene, an embodiment, and a task, and reports uses that two of them define. ``Event(after=...)`` names
+  the events that must run first, so that each part states its own order.
+- **Success.** :data:`~isaaclab_experimental.mdp2.mdp.sequence` turns conditions into progress through ordered
+  subtasks, which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on.
+- **Episode budget.** With ``episode_budget``, ``MDP2RLEnv`` runs that many episodes over its worlds, then stops them,
+  and records each episode on the device: its world, length, how it ended, and its ``Quantity(record=True)`` values,
+  such as success. :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records` returns them.
+
+.. code-block:: python
+
+   cfg.episode_budget = 50
+   env = MDP2RLEnv(cfg)
+   obs, _ = env.reset()
+   while env.episodes_completed < cfg.episode_budget:
+       obs, *_ = env.step(policy(obs["policy"], obs["camera_obs"]))
+   success_rate = env.episode_records()["success"].mean()
+
+
 Limitations
 -----------
 

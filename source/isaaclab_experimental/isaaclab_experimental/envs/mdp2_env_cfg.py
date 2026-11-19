@@ -23,6 +23,7 @@ class Step(enum.Enum):
     """Built-in work of a control step, in :attr:`MDP2EnvCfg.step`."""
 
     PHYSICS = enum.auto()  # Apply the actions and step the physics ``decimation`` times
+    RENDER = enum.auto()  # Render the cameras, once per control step; nothing without cameras
     EVALUATE = enum.auto()  # Evaluate the MDP: commands, quantities, terminations, rewards, observations
     RESET = enum.auto()  # Reset the worlds whose episodes ended, by :attr:`MDP2EnvCfg.reset_step`
 
@@ -32,6 +33,7 @@ class ResetStep(enum.Enum):
 
     EVENTS = enum.auto()  # Reset the assets and sensors, and run the reset events, which write scene fields in place
     COMMIT = enum.auto()  # Pass the writes of the reset events to the simulation
+    RENDER = enum.auto()  # Render the cameras again, so that the observations see the new episodes; optional
     OBSERVE = enum.auto()  # Observe the reset worlds
 
 
@@ -64,9 +66,12 @@ class MDP2EnvCfg:
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None
     capture: bool = True  # Replay each step, physics included, as one CUDA graph when the MDP allows it
-    # The work of a control step, in order: the built-in steps, each once and in this order, and stages anywhere
-    step: list[Step | Stage] = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
-    # The work of resetting worlds, in a step's Step.RESET and in reset(): as for step
+    # The work of a control step, in order: the built-in steps, each once and in this order (Step.RENDER may be left
+    # out), and stages anywhere
+    step: list[Step | Stage] = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
+    # The work of resetting worlds, in a step's Step.RESET and in reset(): as for step. Insert ResetStep.RENDER before
+    # ResetStep.OBSERVE to render the cameras again, so that the first observations of new episodes see them, at the
+    # cost of a second render per step; reset() always does.
     reset_step: list[ResetStep | Stage] = [ResetStep.EVENTS, ResetStep.COMMIT, ResetStep.OBSERVE]
     # Debug: before building, step the task this many times uncaptured and captured, and raise where they differ,
     # naming the value; see verify_capture. 0 to skip.
@@ -80,6 +85,9 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
     is_finite_horizon: bool = False  # Whether time-outs are terminal states rather than truncations
     # Whether step returns, in extras["final_obs"], the observations of the worlds that ended before their reset
     compute_final_obs: bool = False
+    # Episodes to run from each reset, for evaluation: worlds stop starting episodes once the budget is spent, and
+    # each finished episode is recorded, see MDP2RLEnv.episode_records. None for no budget.
+    episode_budget: int | None = None
     log_dir: str | None = None  # Set by the training scripts
     video_recorders: list = []  # Not supported yet; kept for the training scripts
 

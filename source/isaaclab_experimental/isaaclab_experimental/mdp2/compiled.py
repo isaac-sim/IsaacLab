@@ -111,7 +111,10 @@ class MDP:
     ops: Mapping[Phase, tuple[ActionOp | TermOp, ...]]  # In schedule order
     plan: ExecutionPlan
     action_dim: int
-    observation_dims: Mapping[str, int]
+    observation_dims: Mapping[str, int]  # Elements per world of each observation buffer
+    # Per buffer: the shape after the world dimension and the element type. A concatenated group is (dim,) float32;
+    # a term of a group of separate terms is the buffer "group/term", with the term's own shape and type.
+    observation_layouts: Mapping[str, tuple[tuple[int, ...], type]]
     max_episode_length: int | None  # Control steps until truncation, None without a time limit
     streams: tuple[str, ...]  # Use names of the rows of MDPState.rng, with "/noise" for observation noise
     subsets: Mapping[SubsetSelector, tuple[int, ...]]  # Indices of every selected subset
@@ -135,8 +138,8 @@ class MDP:
 
     @property
     def term_ops(self) -> tuple[TermOp, ...]:
-        """Ops of every phase except actions, in schedule order."""
-        return tuple(op for phase, ops in self.ops.items() if phase is not Phase.ACTIONS for op in ops)
+        """Ops of term uses, of every phase, in schedule order: all but the direct actions."""
+        return tuple(op for ops in self.ops.values() for op in ops if isinstance(op, TermOp))
 
     @property
     def schedule(self) -> tuple[str, ...]:
@@ -188,7 +191,7 @@ class MDP:
             if ops:
                 lines.append(phase.name.lower().replace("_", " "))
             for op in ops:
-                if phase is Phase.ACTIONS:
+                if isinstance(op, ActionOp):
                     details = [f"columns {op.columns.start}:{op.columns.stop} -> {op.target}"]
                     details += [f"scale {op.scale}", f"offset {op.offset}"]
                 else:
@@ -250,8 +253,9 @@ class MDP:
                     # Each world config starts the shared state of its worlds at its own initial value.
                     arrays[key].torch[list(op.worlds)] = spec.initial
 
-        selectors = [op.target for op in self.ops[Phase.ACTIONS]]
-        selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
+        direct = [op for op in self.ops[Phase.ACTIONS] if isinstance(op, ActionOp)]
+        selectors = [op.target for op in direct]
+        selectors += [op.offset for op in direct if isinstance(op.offset, FieldSelector)]
         selectors += [
             selector for op in self.term_ops for selector in op.inputs.values() if not isinstance(selector, Entity)
         ]
@@ -279,7 +283,7 @@ class MDP:
                 history_shape = (op.observation.history_length, math.prod(op.shape))
                 arrays["history", op.name] = self._zeros(self.num_worlds, *history_shape)
             launches = self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
-            if launches and op.phase not in events:
+            if launches and op.phase not in (*events, Phase.ACTIONS):
                 arrays["scratch", op.name] = self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
             # Hooks of ops active in only some worlds get the reset worlds among those.
             if op.timer is not None or op.worlds is not None:
@@ -312,8 +316,14 @@ class MDP:
         return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data, caches=caches)
 
     def observations(self) -> dict[str, ProxyArray]:
-        """Allocate one zeroed observation buffer per group, of shape ``(num_worlds, group_dim)``."""
-        return {group: self._zeros(self.num_worlds, dim) for group, dim in self.observation_dims.items()}
+        """Allocate one zeroed buffer per observation buffer, of shape ``(num_worlds, dim)`` and its element type.
+
+        The buffer of a separate term is flat per world: view it with the shape in :attr:`observation_layouts`.
+        """
+        return {
+            buffer: self._zeros(self.num_worlds, dim, dtype=self.observation_layouts[buffer][1])
+            for buffer, dim in self.observation_dims.items()
+        }
 
     def transition(self) -> Transition:
         """Allocate the zeroed buffers of a transition, with the optional buffers that the MDP writes."""
