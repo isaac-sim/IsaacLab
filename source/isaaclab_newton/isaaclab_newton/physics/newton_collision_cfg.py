@@ -137,12 +137,15 @@ class NewtonCollisionPipelineCfg:
         """Circumferential tessellation segments for curved analytic colliders."""
 
         plane_thickness: float = 0.1
-        """Full thickness [m] of the downward slab replacing each finite collision plane."""
+        """Full thickness [m] of the slab below a finite plane's local XY surface."""
 
         def __post_init__(self) -> None:
+            self.validate_config()
+
+        def validate_config(self) -> None:
             if self.sdf_max_resolution is None and self.sdf_target_voxel_size is None:
                 raise ValueError("Set sdf_max_resolution or sdf_target_voxel_size for strict SDF provisioning.")
-            if self.sdf_max_resolution is not None:
+            if self.sdf_target_voxel_size is None and self.sdf_max_resolution is not None:
                 if self.sdf_max_resolution <= 0 or self.sdf_max_resolution >= (1 << 16):
                     raise ValueError(
                         f"sdf_max_resolution must be positive and less than {1 << 16} (got {self.sdf_max_resolution})."
@@ -216,15 +219,6 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
-    speculative_contact_gap_max: float | None = None
-    """Maximum velocity-derived rigid-contact detection gap [m].
-
-    ``None`` disables speculative contacts, matching Newton's default.
-    """
-
-    sdf_all_shapes: SDFAllShapesCfg | None = None
-    """Optional strict SDF provisioning for every finite colliding shape."""
-
     soft_contact_max: int | None = None
     """Maximum number of soft contacts to allocate.
 
@@ -266,6 +260,15 @@ class NewtonCollisionPipelineCfg:
 
     Defaults to ``None`` (hydroelastic disabled, same as Newton's default).
     """
+
+    speculative_contact_gap_max: float | None = None
+    """Maximum velocity-derived rigid-contact detection gap [m].
+
+    ``None`` disables speculative contacts, matching Newton's default.
+    """
+
+    sdf_all_shapes: SDFAllShapesCfg | None = None
+    """Optional strict SDF provisioning for every finite colliding shape."""
 
     def to_pipeline_args(self) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.

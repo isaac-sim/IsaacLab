@@ -465,8 +465,17 @@ class NewtonManager(PhysicsManager):
         device = self._device
         logger.info(f"Finalizing model on device: {device}")
         builder.up_axis = Axis.Z
+        clone = self._clone
+        cable_bindings = {} if clone is None else clone.cable_bindings
         if (solver_cfg := self._cfg.solver_cfg) is not None:
             solver_cfg.class_type.prepare_builder(solver_cfg, builder)
+        # SDF tessellation replaces capsule scales. Keep the authored half-lengths
+        # for the cable endpoint display before the builder is finalized.
+        cable_scales = (
+            {index: builder.shape_scale[index] for shapes in cable_bindings.values() for index in shapes}
+            if self._cfg.collision_cfg is not None and self._cfg.collision_cfg.sdf_all_shapes is not None
+            else None
+        )
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -479,11 +488,10 @@ class NewtonManager(PhysicsManager):
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation
-        clone = self._clone
         if clone is not None:
             self.backend.particle_ranges = clone.particle_ranges
         self._scene_data_backend.initialize_geometry(
-            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
+            [] if clone is None else clone.geometry_batches, cable_bindings, cable_scales
         )
         logger.info("Dispatching PHYSICS_READY callbacks")
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
