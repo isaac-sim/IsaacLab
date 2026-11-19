@@ -152,6 +152,21 @@ the policy can solve early so that the scores can begin to distinguish entries.
    Example probabilities for five states with different success rates. The sampler
    adds ``0.0501`` to each score, then normalizes the weights within each asset group.
 
+.. image:: ../_static/how-to/reset_states/sgs-method-light.gif
+   :class: only-light
+   :width: 100%
+   :alt: An animation shows the policy training loop and the Beta score peaking at 50 percent success.
+
+.. image:: ../_static/how-to/reset_states/sgs-method-dark.gif
+   :class: only-dark
+   :width: 100%
+   :alt: An animation shows the policy training loop and the Beta score peaking at 50 percent success.
+
+The animation illustrates how rollouts and training change which starts are most useful.
+As the policy revisits starts, their estimated success rates shift along the Beta
+score curve. The curve shows the score before adding uniform weight.
+Animation courtesy of Octi Zhang.
+
 Custom configurations derive from :class:`~isaaclab.envs.reset.SamplingScoreCfg`.
 Their scorer implements ``score(metrics, out)`` with Warp operations on preallocated
 storage. Borrow additional per-entry metric arrays through ``metrics=`` at sampler
