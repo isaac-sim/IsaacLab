@@ -189,6 +189,10 @@ class WarpFrontend:
            unsafe under the warp managers' kernel-only signature.
         """
         label = type(cfg).__name__
+        from .mdp2_env_cfg import MDP2EnvCfg
+
+        if isinstance(cfg, MDP2EnvCfg):
+            raise FrontendIncompatibleError(f"{label} is an MDP2 task: it runs on MDP2Env, not the warp managers.")
         cls._require_newton_physics(cfg, label)
         cls._promote_scene_entity_cfgs(cfg)
         cls._swap_mdp(cfg, label)

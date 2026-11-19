@@ -772,6 +772,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
+        self._borrowing_view = False
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
         self._overlay_publisher = None
@@ -894,11 +895,13 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @staticmethod
     def _is_tracking_view(view) -> bool:
-        """Whether *view* is a perspective view tied to an environment or an asset."""
+        """Whether *view* is a tracking camera."""
         return isinstance(view.cfg.source, TrackingCameraCfg)
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
+        if self._borrowing_view:  # an off-screen capture swapped the view; the window controls must not act on it
+            return
         rtx_index = getattr(self, "rtx_view_index", None)
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
@@ -1431,7 +1434,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         }
 
     def _apply_view_pose(self, view) -> bool:
-        """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
+        """Point the viewer camera where a tracking camera looks, leaving the configured poses untouched.
 
         Returns:
             Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
@@ -1530,6 +1533,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
+            self._borrowing_view = True
             self.current_image_view = view
             if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
                 source = view.cfg.source
@@ -1540,6 +1544,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:
+            self._borrowing_view = False
             self.current_image_view = current
             camera.fov = saved[3]
             self._viewer.set_camera(*saved[:3])
@@ -1680,18 +1685,22 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @property
     def has_tracking_view(self) -> bool:
-        """Whether a perspective view is tied to an environment or an asset."""
+        """Whether a tracking camera is declared."""
         return any(self._is_tracking_view(view) for view in self._image_views)
 
     def render_tracking_rgb_array(self) -> np.ndarray:
-        """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
+        """Download the first tracking camera view, whatever the window shows."""
         view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
         if view is None:
-            raise RuntimeError(
-                "No perspective view is tied to an environment or an asset. Declare "
-                "TrackingCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
-            )
-        return view.read_rgb(self._sim.get_physics_step_count())
+            raise RuntimeError("The visualizer declares no tracking camera. Add a TrackingCameraCfg to its cameras.")
+        frame = view.frame
+        # while rendering is paused the tracking view keeps its last frame, instead of picking up the window's view
+        frame_id = (
+            frame.timestamp
+            if self._viewer is not None and self._viewer.is_paused() and frame.data is not None
+            else self._sim.get_physics_step_count()
+        )
+        return view.read_rgb(frame_id)
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -1792,6 +1801,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -1870,6 +1880,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             elif not viewer.is_paused():
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
+                    if self._geometry_change_version != self.backend.geometry_change_version:
+                        viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                        self._geometry_change_version = self.backend.geometry_change_version
                     viewer.log_state(state)
                     contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
@@ -2125,7 +2138,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer._view_controls = self._draw_streaming_view_controls
         if self._picking_enabled:

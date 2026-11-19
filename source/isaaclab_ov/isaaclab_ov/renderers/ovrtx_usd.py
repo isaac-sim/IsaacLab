@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # Maps camera data types to (prim name, source name). Shared sources use one config.
-# OVRTX 0.4 keys ``frame.render_vars`` by source name; 0.5+ keys them by the RenderVar prim path.
+# OVRTX keys ``frame.render_vars`` by the RenderVar prim path.
 _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "rgb": ("LdrColor", "LdrColor"),
     "rgba": ("LdrColor", "LdrColor"),
@@ -192,13 +192,10 @@ def build_render_product_as_string(
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
     else:
         render_mode_lines = [
-            'token omni:rtx:rendermode = "Minimal"',
+            'token omni:rtx:rendermode = "MinimalRendering"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
-
-    # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
-    render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
 
     # An ISP needs Gaussian splats tonemapped with the rest of the frame.
     # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
