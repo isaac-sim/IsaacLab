@@ -276,7 +276,7 @@ class ActuatorField:
     source: Callable[[ActuatorBaseCfg, list[str]], dict[str, Any]] | None = None
     """Values the config sets, keyed by joint name; joints left out keep the USD value. Defaults to :attr:`name`."""
 
-    new_prim_default: float | Callable[[ActuatorBaseCfg, Usd.Prim, bool], float | None] | None = None
+    default: float | Callable[[ActuatorBaseCfg, Usd.Prim, bool], float | None] | None = None
     """Value for a component the config adds and leaves unset, or a callable ``(cfg, joint_prim, new_prim)``."""
 
     required: bool = False
@@ -314,7 +314,7 @@ def _author_group(
     """Author the actuators of one group, raising before a joint's edits if a required value is missing.
 
     A value the config sets is authored. An unset value keeps the prim's opinion when the prim keeps
-    that value's schema; otherwise it takes the field's new-prim default.
+    that value's schema; otherwise it takes the field's default.
     """
     layout = _actuator_layout(cfg)
     configured = {field.attr: field.configured(cfg, list(joints)) for field in layout.fields}
@@ -331,10 +331,9 @@ def _author_group(
         for field in layout.fields:
             value = configured[field.attr].get(joint_name)
             if field.schema in disabled or (value is None and field.schema in present):
-                # A component the prim keeps keeps its USD values.
                 continue
             if value is None:
-                default = field.new_prim_default
+                default = field.default
                 value = default(cfg, joint_prim, prim is None) if callable(default) else default
             if value is None:
                 if field.required:
@@ -439,13 +438,9 @@ def _collect_joint_prims(art_prim: Usd.Prim) -> dict[str, str]:
 
 
 def _collect_actuator_prims(art_prim: Usd.Prim) -> dict[str, list[Usd.Prim]]:
-    """Map joint paths to the active ``NewtonActuator`` prims that drive them.
-
-    Newton drives only the first ``newton:targets`` target of an actuator prim, so later
-    targets are ignored. Inactive prims and prims inside instances are skipped, as
-    ``ModelBuilder.add_usd`` skips them. Only prims under the *art_prim* subtree are considered.
-    """
+    """Map joint paths to the active ``NewtonActuator`` prims under *art_prim* that drive them."""
     actuator_prims: dict[str, list[Usd.Prim]] = {}
+    # Like ModelBuilder.add_usd: skip inactive and instanced prims, and use only the first target.
     for prim in Usd.PrimRange(art_prim):
         rel = prim.GetRelationship("newton:targets") if prim.GetTypeName() == "NewtonActuator" else None
         targets = rel.GetTargets() if rel else []
@@ -455,11 +450,7 @@ def _collect_actuator_prims(art_prim: Usd.Prim) -> dict[str, list[Usd.Prim]]:
 
 
 def _configured_values(value: Any, joint_names: list[str], cast: type = float) -> dict[str, Any]:
-    """Return the values a scalar or regex-keyed mapping sets, keyed by the joints it matches.
-
-    Raises:
-        ValueError: If a mapping pattern matches no joint, or a joint matches several patterns.
-    """
+    """Return the values a scalar or regex-keyed mapping sets, keyed by the joints it matches."""
     if value is None:
         return {}
     if isinstance(value, dict):
@@ -468,7 +459,7 @@ def _configured_values(value: Any, joint_names: list[str], cast: type = float) -
     return dict.fromkeys(joint_names, cast(value))
 
 
-def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim, new_prim: bool) -> float | None:
+def _default_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim, new_prim: bool) -> float | None:
     """Return the limit of an effort clamp the config adds for a joint it does not set.
 
     On a new prim, a configured mapping resolves unmatched joints to zero, like the Isaac Lab actuator models.
@@ -501,7 +492,7 @@ def _bam_value(
 ) -> ActuatorField:
     """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field, named after its DriveBam argument."""
     attr = f"newton:{to_camel_case(name.removeprefix('motor.'))}"
-    return ActuatorField(name, BAM_DRIVE_API, attr, type_name, new_prim_default=default, required=required)
+    return ActuatorField(name, BAM_DRIVE_API, attr, type_name, default=default, required=required)
 
 
 def _bam_model_flag(flag: str) -> ActuatorField:
@@ -531,18 +522,14 @@ def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str,
 
 
 _PD_GAINS = (
-    ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=0.0),
-    ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=0.0),
+    ActuatorField("stiffness", _PD_API, "newton:kp", default=0.0),
+    ActuatorField("damping", _PD_API, "newton:kd", default=0.0),
 )
-_MAX_EFFORT = ActuatorField(
-    "actuator_effort_limit", _MAX_EFFORT_API, "newton:maxEffort", new_prim_default=_new_prim_effort_limit
-)
+_MAX_EFFORT = ActuatorField("actuator_effort_limit", _MAX_EFFORT_API, "newton:maxEffort", default=_default_effort_limit)
 _DC_MOTOR = (
     ActuatorField("saturation_effort", _DC_MOTOR_API, "newton:saturationEffort", required=True),
     ActuatorField("actuator_velocity_limit", _DC_MOTOR_API, "newton:velocityLimit"),
-    ActuatorField(
-        "actuator_effort_limit", _DC_MOTOR_API, "newton:maxMotorEffort", new_prim_default=_new_prim_effort_limit
-    ),
+    ActuatorField("actuator_effort_limit", _DC_MOTOR_API, "newton:maxMotorEffort", default=_default_effort_limit),
 )
 _DELAY = ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT)
 _POSITION_BASED = tuple(
@@ -564,7 +551,6 @@ _NEURAL_MODEL = ActuatorField(
     "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path, required=True
 )
 
-# BAM attributes are float-typed even when integral: an int-typed attribute would truncate a float override.
 # A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
 _BAM_FIELDS = (
     *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
@@ -596,7 +582,7 @@ _BAM_FIELDS = (
     ),
     # A new prim requires kt, resistance and vin, so the default only fills joints a configured mapping skips.
     ActuatorField(
-        "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _new_prim_effort_limit
+        "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _default_effort_limit
     ),
 )
 
