@@ -7,6 +7,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -25,7 +26,6 @@ from isaaclab_tasks.contrib.nist.factory_presets import (
 )
 from isaaclab_tasks.contrib.nist.factory_scenes_cfg import FactorySceneCfg
 from isaaclab_tasks.contrib.nist.reset_env_cfg import ACCUMULATOR_RESET
-from isaaclab_tasks.contrib.nist.utils import SamplerCfg, UniformSamplingStrategyCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 _FRANKA_END_EFFECTOR = "panda_fingertip_centered"
@@ -342,7 +342,7 @@ class FactoryEnvCfg(ManagerBasedRLEnvCfg):
         # default is sized for throughput, not for watching a policy.
         self.scene.num_envs = 128
 
-        uniform = SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=0.0)
+        uniform = ResetStateSamplerCfg(scores=[])
 
         reset = self.events.reset_strategies.params
 

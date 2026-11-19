@@ -22,6 +22,7 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -420,10 +421,12 @@ class EventCfg:
                     min_clearance=0.02,
                 ),
             },
-            # restart from the banked states the policy solves about half the time rather than
-            # drawing uniformly, which keeps the already-mastered and still-hopeless states from
-            # taking up most of the episodes
-            "success_monitor": mdp.SuccessMonitorCfg(target_success_rate=0.5),
+            # Keep Lift's short outcome history and strong preference for starts solved half the time.
+            "reset_sampler": ResetStateSamplerCfg(
+                history_length=10,
+                scores=[BetaSamplingScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
+                uniform_weight=1e-2,
+            ),
         },
     )
 
