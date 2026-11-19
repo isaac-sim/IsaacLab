@@ -95,7 +95,7 @@ def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, 
     script = source_checkout_root.joinpath(*script_parts)
     monkeypatch.setattr(sys, "argv", [
         str(script), "--task", "Isaac-Cartpole-Direct", "--external_callback", "_teleop_callback.register",
-        "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
+        "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_warp",
         "env.sim.dt=0.01",
     ])  # fmt: skip
     args_cli = importlib.import_module(TELEOP_ENTRYPOINTS[command][0])._parse_args()
@@ -103,7 +103,7 @@ def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, 
     assert set(sys.argv[1:]) == {
         "visualizer=newton_gl",
         "physics=newton_mjwarp",
-        "renderer=newton_renderer",
+        "renderer=newton_warp",
         "env.sim.dt=0.01",
     }
 
