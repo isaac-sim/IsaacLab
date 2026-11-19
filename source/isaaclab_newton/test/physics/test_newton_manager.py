@@ -66,6 +66,7 @@ def test_native_body_variants_have_one_geometry_owner():
     assert "add_body_variants(" in cloner.read_text()
     assert "select_body_variants(" in asset.read_text()
     assert "resolve_matching_prims_from_source" not in asset.read_text()
+    assert all(symbol not in asset.read_text() for symbol in ("torch.cuda", "record_stream", "ScopedStream"))
     assert "spawn.func(" not in cloner.read_text()
     assert all(
         symbol not in cloner.read_text()

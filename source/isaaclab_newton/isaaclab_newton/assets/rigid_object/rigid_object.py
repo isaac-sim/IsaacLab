@@ -170,7 +170,8 @@ class RigidObject(BaseRigidObject):
         """Select native geometry and inertial properties for the requested environments.
 
         Variant indices follow the order of the configured multi-asset spawner. Selectors must be
-        signed int32/int64 Torch or Warp arrays on the asset device.
+        signed int32/int64 Torch or Warp arrays on the asset device. Selection uses the active Warp
+        stream; the caller coordinates Torch/Warp streams and keeps input storage alive until completion.
         """
         if not self.is_initialized:
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
@@ -179,40 +180,26 @@ class RigidObject(BaseRigidObject):
                 "Reset-time mesh variant selection is unavailable for this spawner and Newton backend configuration."
             )
         env_ids = self._resolve_env_ids(env_ids)
-        if not isinstance(env_ids, (torch.Tensor, wp.array)):
-            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         selection_count = env_ids.shape[0]
         if variant_ids.shape != (selection_count,) or env_ids.shape != (selection_count,):
             raise ValueError("Mesh variants require one selection per environment index.")
         if not selection_count:
             return
-        stream = None
-        if wp.get_device(self.device).is_cuda and (
-            isinstance(variant_ids, torch.Tensor) or isinstance(env_ids, torch.Tensor)
-        ):
-            torch_stream = torch.cuda.current_stream(self.device)
-            stream = wp.stream_from_torch(torch_stream)
-            for indices in (variant_ids, env_ids):
-                if isinstance(indices, torch.Tensor):
-                    indices.record_stream(torch_stream)
-        with wp.ScopedStream(stream, sync_exit=True):
-            model = self._backend_manager.backend.model
-            bodies = self._variant_selection_bodies[:selection_count]
-            variants = self._variant_selection_ids[:selection_count]
-            wp.launch(
-                _BODY_VARIANT_SELECTION.select(variant_ids, env_ids),
-                dim=selection_count,
-                inputs=[variant_ids, env_ids, self._variant_body_indices],
-                outputs=[bodies, variants],
-                device=self.device,
-            )
-            flags = model.select_body_variants(variants, bodies=bodies)
-            self._backend_manager.add_model_change(flags)
-            env_mask = shared_kernels.mask_from_ids(
-                env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask
-            )
-            self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
-            self.data._reset_body_com_pose_b_dependents()
+        model = self._backend_manager.backend.model
+        bodies = self._variant_selection_bodies[:selection_count]
+        variants = self._variant_selection_ids[:selection_count]
+        wp.launch(
+            _BODY_VARIANT_SELECTION.select(variant_ids, env_ids),
+            dim=selection_count,
+            inputs=[variant_ids, env_ids, self._variant_body_indices],
+            outputs=[bodies, variants],
+            device=self.device,
+        )
+        flags = model.select_body_variants(variants, bodies=bodies)
+        self._backend_manager.add_model_change(flags)
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
+        self.data._reset_body_com_pose_b_dependents()
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.

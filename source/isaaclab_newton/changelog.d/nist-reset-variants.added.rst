@@ -4,3 +4,4 @@
   namespace before cloning.
   Apply contact-material randomization after selecting a variant.
   Initial selections are applied after solver compilation, allowing alternatives with different collider types and counts.
+  Selection uses the caller's active Warp stream; callers coordinate Torch/Warp streams and input lifetimes.

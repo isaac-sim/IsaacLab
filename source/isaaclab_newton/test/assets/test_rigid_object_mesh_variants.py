@@ -129,9 +129,9 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
         asset.write_mesh_variant_to_sim(torch.tensor([1], dtype=torch.int64, device=device), (0,))
         assert asset.data.body_mass.torch[0, 0].item() == pytest.approx(8.0)
 
-        # The caller can reuse its Torch buffers after the current CUDA stream completes.
+        # The caller coordinates Torch and Warp on the same stream before reusing its input buffers.
         caller_stream = torch.cuda.Stream(device=device)
-        with torch.cuda.stream(caller_stream):
+        with torch.cuda.stream(caller_stream), wp.ScopedStream(wp.stream_from_torch(caller_stream), sync_exit=True):
             variants = torch.zeros(2, dtype=torch.int64, device=device)
             worlds = torch.arange(2, dtype=torch.int64, device=device)
             variants.copy_(torch.tensor([2, 0], dtype=torch.int64, device=device))
