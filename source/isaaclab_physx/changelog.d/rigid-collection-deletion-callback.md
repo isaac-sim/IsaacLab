@@ -1,0 +1,1 @@
+Fixed rigid object collection deletion handling to preserve legacy string-path callbacks and normalize event payloads before invalidation.
