@@ -45,3 +45,17 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     viewer.end_frame()
 
     assert events == (["frame", "keyboard", "context", "close"] if requested else ["frame", "keyboard"])
+
+
+def test_close_lifts_the_visible_environment_limit_of_the_shared_renderer():
+    """Closing while RTX limits the environments restores them for the scene cameras and still finishes."""
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    visualizer._viewer = Mock()
+    visualizer._rtx_visibility_limited = True
+    visualizer._env_ids = [0]
+    seen = []
+    visualizer._apply_rtx_visible_envs = lambda: seen.append(visualizer._env_ids)
+
+    visualizer.close()
+
+    assert seen == [None] and visualizer._is_closed
