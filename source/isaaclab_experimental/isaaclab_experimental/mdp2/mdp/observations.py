@@ -280,4 +280,4 @@ image_rgb = Term(
     dtype=wp.uint8,
 )
 """A camera's ``rgb`` image, ``uint8`` of shape ``(height, width, 3)``, bound as ``image=camera.rgb``. It goes in a
-group of separate terms, :class:`~isaaclab_experimental.mdp2.ObservationGroup`."""
+group that is not concatenated: ``ObservationGroup(..., concatenate=False)``."""

@@ -2,11 +2,12 @@
   such as ``camera.rgb``, and the environment renders them once per control step at
   :attr:`~isaaclab_experimental.envs.Step.RENDER`, inside the step's CUDA graph.
   :attr:`~isaaclab_experimental.envs.ResetStep.RENDER` renders them again after resets.
-* Added :class:`~isaaclab_experimental.mdp2.ObservationGroup`, a group whose terms each keep their own buffer, shape,
-  and element type, such as ``uint8`` images, observed as a dict of tensors, and
+* Added :class:`~isaaclab_experimental.mdp2.ObservationGroup`, whose ``concatenate=False`` keeps a buffer per term,
+  with the term's own shape and element type, such as ``uint8`` images, observed as a dict of tensors, and
   :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
 * Added :class:`~isaaclab_experimental.mdp2.Action`, action terms whose hooks turn their columns of the action into
-  writes, and :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position`, a binary gripper command.
+  writes, and :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position`, a binary gripper command with a
+  threshold.
 * Added :func:`~isaaclab_experimental.mdp2.compose`, which merges partial task configs, such as those of a scene, an
   embodiment, and a task, and ``Event(after=...)``, which runs an event after the events it names.
 * Added the progress quantities :data:`~isaaclab_experimental.mdp2.mdp.all_of`,

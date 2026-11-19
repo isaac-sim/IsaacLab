@@ -25,9 +25,11 @@ def _binary_joint_position(
     joint_ids: wp.array(dtype=wp.int32),
     open_position: float,
     close_position: float,
+    threshold: float,
+    close_above: bool,
 ):
     target = open_position
-    if action[world, 0] > 0.5:
+    if (action[world, 0] > threshold) == close_above:
         target = close_position
     for joint in range(joint_ids.shape[0]):
         joint_pos_target[world, joint_ids[joint]] = target
@@ -39,15 +41,22 @@ def _binary_joint_position_torch(
     joint_ids: torch.Tensor,
     open_position: float,
     close_position: float,
+    threshold: float,
+    close_above: bool,
     mask: torch.Tensor | None,
 ) -> None:
-    target = torch.where(action[:, :1] > 0.5, close_position, open_position).expand(-1, len(joint_ids))
+    close = (action[:, :1] > threshold) == close_above
+    target = torch.where(close, close_position, open_position).expand(-1, len(joint_ids))
     if mask is not None:
         target = torch.where(mask[:, None], target, joint_pos_target[:, joint_ids])
     joint_pos_target[:, joint_ids] = target
 
 
 binary_joint_position = Term(torch=_binary_joint_position_torch, warp=_binary_joint_position, shape=("worlds", 1))
-"""Binary gripper command, like MDP1's ``BinaryJointPositionAction`` with a 0 to 1 action: a value above 0.5 sets the
-target of the joints of ``joint_ids`` to ``close_position``, and any other value to ``open_position``. Bind
-``joint_pos_target`` as an output."""
+"""Binary gripper command, like MDP1's binary joint position actions: the target of the joints of ``joint_ids`` is
+``close_position`` where the action is above ``threshold`` if ``close_above``, or at most ``threshold`` otherwise,
+and ``open_position`` elsewhere. Bind ``joint_pos_target`` as an output.
+
+MDP1's ``BinaryJointPositionAction`` closes below zero: ``threshold=0.0, close_above=False``, which also closes at
+zero. Its
+``AbsBinaryJointPositionAction`` opens above 0.5 by default: ``threshold=0.5, close_above=False``."""

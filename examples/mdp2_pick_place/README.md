@@ -3,7 +3,7 @@
 A Franka with an external and a wrist camera puts a cube onto a plate. It shows the MDP2 features that Isaac Lab
 Arena needs, on the shape of Arena's openpi DROID evaluation:
 
-- cameras rendered inside the step's CUDA graph, observed as `uint8` images in a group of separate terms;
+- cameras rendered inside the step's CUDA graph, observed as `uint8` images in an `ObservationGroup` with `concatenate=False`;
 - the DROID contract of openpi's adapter: `policy/joint_pos` (7), `policy/gripper_pos` (0 open, 1 closed),
   `camera_obs/external_camera_rgb`, `camera_obs/wrist_camera_rgb`, and 8 actions (7 absolute arm joint positions and
   a gripper command, closed above 0.5);

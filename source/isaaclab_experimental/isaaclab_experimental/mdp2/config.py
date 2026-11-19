@@ -189,14 +189,23 @@ class Observation(TermCfg):
 
 @dataclass
 class ObservationGroup:
-    """An observation group whose terms are not concatenated: each term keeps its own buffer, shape, and type.
+    """A group of observation uses, like MDP1's ``ObservationGroupCfg``. A plain dict of uses is short for a
+    concatenated group.
 
-    A plain dict of uses in :attr:`TaskCfg.observations` is a group concatenated into one ``float32`` buffer. The
-    terms of this group may output other types, such as ``uint8`` images, when they have no noise, clip, scale, or
-    history.
+    A concatenated group is one ``float32`` buffer of its terms in declaration order. Otherwise each term keeps its
+    own buffer, shape, and type, and may output another type, such as a ``uint8`` image, when it has no noise, clip,
+    scale, or history.
     """
 
     terms: dict[str, Observation | None] = field(default_factory=dict)
+    concatenate: bool = True  # Concatenate the terms into one buffer, or keep a buffer per term
+
+
+def group_terms(group: dict[str, Observation | None] | ObservationGroup) -> tuple[dict[str, Observation | None], bool]:
+    """Return the uses of an observation group of :attr:`TaskCfg.observations`, and whether they are concatenated."""
+    if isinstance(group, ObservationGroup):
+        return group.terms, group.concatenate
+    return group, True
 
 
 @dataclass
@@ -292,8 +301,7 @@ class TaskCfg:
     actions: dict[str, DirectAction | Action | None] = field(default_factory=dict)
     commands: dict[str, Command | None] = field(default_factory=dict)
     quantities: dict[str, Quantity | None] = field(default_factory=dict)
-    # Groups, such as "policy", of observation uses that are concatenated in declaration order into one buffer, or
-    # whose terms each keep their own buffer.
+    # Groups, such as "policy", of observation uses: a dict of uses is a concatenated group, see ObservationGroup.
     observations: dict[str, dict[str, Observation | None] | ObservationGroup] = field(default_factory=dict)
     rewards: dict[str, Reward | None] = field(default_factory=dict)
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)
@@ -309,27 +317,30 @@ def compose(*tasks: TaskCfg) -> TaskCfg:
     """
     composed, errors = TaskCfg(), []
     owners: dict[tuple[str, ...], int] = {}  # Task that defines each use
+    concatenated: dict[str, bool] = {}  # Whether each observation group is concatenated
 
-    def merge(path: tuple[str, ...], target: dict, name: str, use: Any, index: int) -> None:
-        if use is not None and target.get(name) is not None:
-            errors.append(f"Tasks {owners[path]} and {index} both define '{'.'.join(path)}'.")
-            return
-        owners[path] = index
-        target[name] = use
+    def merge(path: tuple[str, ...], target: dict, uses: dict, index: int) -> None:
+        for name, use in uses.items():
+            if use is not None and target.get(name) is not None:
+                errors.append(f"Tasks {owners[(*path, name)]} and {index} both define '{'.'.join((*path, name))}'.")
+                continue
+            owners[(*path, name)] = index
+            target[name] = use
 
     for index, task in enumerate(tasks):
-        for kind in ("actions", "commands", "quantities", "rewards", "terminations", "events"):
-            for name, use in getattr(task, kind).items():
-                merge((kind, name), getattr(composed, kind), name, use, index)
+        merge(("actions",), composed.actions, task.actions, index)
+        merge(("commands",), composed.commands, task.commands, index)
+        merge(("quantities",), composed.quantities, task.quantities, index)
+        merge(("rewards",), composed.rewards, task.rewards, index)
+        merge(("terminations",), composed.terminations, task.terminations, index)
+        merge(("events",), composed.events, task.events, index)
         for group, observations in task.observations.items():
-            separate = isinstance(observations, ObservationGroup)
-            existing = composed.observations.setdefault(group, ObservationGroup() if separate else {})
-            if separate != isinstance(existing, ObservationGroup):
+            terms, concatenate = group_terms(observations)
+            if concatenated.setdefault(group, concatenate) != concatenate:
                 errors.append(f"Task {index} and an earlier task disagree on whether group '{group}' is concatenated.")
                 continue
-            terms = observations.terms if separate else observations
-            for name, use in terms.items():
-                merge(("observations", group, name), existing.terms if separate else existing, name, use, index)
+            target = composed.observations.setdefault(group, ObservationGroup(concatenate=concatenate)).terms
+            merge(("observations", group), target, terms, index)
 
     if errors:
         raise ValueError("Cannot compose the tasks:\n  " + "\n  ".join(errors))

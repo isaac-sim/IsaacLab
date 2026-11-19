@@ -638,8 +638,8 @@ def test_stages_that_write_the_scene_are_seen_by_later_work():
 
 
 def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
-    """Camera images are observed as uint8 terms and rendered by every replayed step, and an episode budget records
-    each episode, then stops the worlds."""
+    """Camera images are observed as uint8 terms and rendered by every replayed step, also with two cameras, and an
+    episode budget records each episode, then stops the worlds."""
     cfg = cartpole_cfg()
     # The Cartpole has no geometry to render, so the camera watches a cube fall in front of it.
     cfg.scene.cube = RigidObjectCfg(
@@ -658,13 +658,28 @@ def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
         spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
         renderer_cfg=NewtonWarpRendererCfg(),
     )
-    image = mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity("camera").rgb})
-    cfg.task.observations["cameras"] = mdp2.ObservationGroup(terms={"rgb": image})
+    # A second camera, watching from the other side; cameras share their renderer.
+    cfg.scene.camera_back = cfg.scene.camera.replace(
+        prim_path="{ENV_REGEX_NS}/CameraBack",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 1.0, 1.0), rot=(0.0, 0.0, -0.7071, 0.7071), convention="world"),
+    )
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(
+        terms={
+            name: mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity(camera).rgb})
+            for name, camera in (("rgb", "camera"), ("rgb_back", "camera_back"))
+        },
+        concatenate=False,
+    )
     # Indexing with a 1-dimensional tensor, as a 0-dimensional one would be read on the host in the graph.
     cart_x = mdp2.Term(torch=lambda joint_pos, joint_ids: joint_pos[:, joint_ids][:, 0])
     cfg.task.quantities["cart_x"] = mdp2.Quantity(
         cart_x, inputs={"joint_pos": robot.joint_pos, "joint_ids": cart}, record=True
     )
+    # Cameras that never render would observe stale images.
+    cfg.step = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+    with pytest.raises(ValueError, match="must hold Step.RENDER"):
+        MDP2RLEnv(cfg)
+    cfg.step = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
     budget = NUM_ENVS + 4
     cfg.episode_budget = budget
     env = MDP2RLEnv(cfg)
@@ -677,10 +692,13 @@ def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
         for step in range(13):
             observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
             if step >= 9:
-                images.append(observations["cameras"]["rgb"].clone())
-        # The cube falls by pixels per step by then, so every replayed step renders a new image.
+                images.append({name: image.clone() for name, image in observations["cameras"].items()})
         assert env.is_captured and env.num_graphs == 1
-        assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
+        for name in ("rgb", "rgb_back"):
+            # The cube falls by pixels per step by then, so every replayed step renders a new image.
+            assert all(not torch.equal(before[name], after[name]) for before, after in zip(images, images[1:]))
+            # Lit: a stale render graph draws the geometry black.
+            assert images[-1][name].amax(dim=-1).min() > 0
 
         # Push every cart out of its bounds until the budget is spent.
         ended = []

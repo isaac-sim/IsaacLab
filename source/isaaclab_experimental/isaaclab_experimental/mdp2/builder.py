@@ -31,7 +31,6 @@ from .config import (
     EventMode,
     FieldSelector,
     Observation,
-    ObservationGroup,
     Phase,
     Quantity,
     Reward,
@@ -42,6 +41,7 @@ from .config import (
     TimeLimit,
     commands,
     episode_length,
+    group_terms,
     last_action,
     quantities,
     step_dt,
@@ -59,12 +59,12 @@ class ScheduleEntry:
 
     path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
     cfg: DirectAction | Action | Command | Quantity | Observation | Reward | Termination | TimeLimit | Event
-    separate: bool = False  # Observations: whether the use keeps its own buffer rather than its group's
+    concatenate: bool = True  # Observations: whether the use writes its group's buffer rather than its own
 
     @property
     def buffer(self) -> str:
-        """Observations: the buffer the use writes, its group or, in a group of separate terms, "group/name"."""
-        return "/".join(self.path[1:]) if self.separate else self.path[1]
+        """Observations: the buffer the use writes, its group or, in a group that is not concatenated, "group/name"."""
+        return self.path[1] if self.concatenate else "/".join(self.path[1:])
 
     def __str__(self) -> str:
         return ".".join(self.path)
@@ -173,10 +173,10 @@ class MDPBuilder:
             if quantity is not None:
                 self.add_quantity(name, quantity)
         for group, observations in task.observations.items():
-            separate = isinstance(observations, ObservationGroup)
-            for name, observation in (observations.terms if separate else observations).items():
+            terms, concatenate = group_terms(observations)
+            for name, observation in terms.items():
                 if observation is not None:
-                    self.add_observation(group, name, observation, separate)
+                    self.add_observation(group, name, observation, concatenate)
         for name, reward in task.rewards.items():
             if reward is not None:
                 self.add_reward(name, reward)
@@ -186,7 +186,6 @@ class MDPBuilder:
         for name, event in task.events.items():
             if event is not None:
                 self.add_event(name, event)
-        self._order_after(task)
 
     def add_action(self, name: str, action: DirectAction | Action) -> ScheduleEntry:
         return self._add(ScheduleEntry(("actions", name), action))
@@ -200,14 +199,16 @@ class MDPBuilder:
     def add_event(self, name: str, event: Event) -> ScheduleEntry:
         return self._add(ScheduleEntry(("events", name), event))
 
-    def add_observation(self, group: str, name: str, observation: Observation, separate: bool = False) -> ScheduleEntry:
-        """Add an observation to a group, concatenated with the group's other terms unless ``separate``."""
+    def add_observation(
+        self, group: str, name: str, observation: Observation, concatenate: bool = True
+    ) -> ScheduleEntry:
+        """Add an observation to a group, concatenated with the group's other terms or in a buffer of its own."""
         if "/" in group or "/" in name:
             raise ValueError(f"Observation group and term names cannot contain '/': '{group}', '{name}'.")
         uses = [entry for entry in self._entries.values() if entry.path[:2] == ("observations", group)]
-        if uses and uses[0].separate != separate:
-            raise ValueError(f"The observations of group '{group}' must all be separate or all be concatenated.")
-        return self._add(ScheduleEntry(("observations", group, name), observation, separate))
+        if uses and uses[0].concatenate != concatenate:
+            raise ValueError(f"The observations of group '{group}' must all be concatenated or all be in own buffers.")
+        return self._add(ScheduleEntry(("observations", group, name), observation, concatenate))
 
     def add_reward(self, name: str, reward: Reward) -> ScheduleEntry:
         return self._add(ScheduleEntry(("rewards", name), reward))
@@ -220,8 +221,9 @@ class MDPBuilder:
         return self._entries[path]
 
     def schedule(self) -> tuple[ScheduleEntry, ...]:
-        """Return all entries in execution order: by phase, then by their order within the phase."""
-        return tuple(sorted(self._entries.values(), key=lambda entry: entry.phase))
+        """Return all entries in execution order: by phase, then by their order within the phase, with each event
+        moved after the events it names in :attr:`~.config.Event.after`."""
+        return _order_after(tuple(sorted(self._entries.values(), key=lambda entry: entry.phase)))
 
     def move_before(self, entry: ScheduleEntry, anchor: ScheduleEntry) -> None:
         """Run ``entry`` just before ``anchor``, which must be in the same phase."""
@@ -291,29 +293,6 @@ class MDPBuilder:
         mdp = self._compile(device, Backend(backend), diagnostics, final_observations)
         backend_module = warp_backend if mdp.backend is Backend.WARP else torch_backend
         return replace(mdp, launches=backend_module.compile_launches(mdp))
-
-    def _order_after(self, task: TaskCfg) -> None:
-        """Move each event of a task after the events it names in ``after``, keeping the order otherwise."""
-        constrained = {name: event.after for name, event in task.events.items() if event is not None and event.after}
-        for name, after in constrained.items():
-            entry = self.entry("events", name)
-            for other in after:
-                anchor = self._entries.get(("events", other))
-                if anchor is None or anchor.phase is not entry.phase:
-                    raise ValueError(f"Event '{name}' runs after '{other}', which is not an event of the same mode.")
-        # Each pass moves events after their latest anchor; more passes than events mean a cycle.
-        for _ in range(len(constrained) + 1):
-            moved = False
-            for name, after in constrained.items():
-                order = [entry.path for entry in self.schedule()]
-                entry = self.entry("events", name)
-                anchor = max((self.entry("events", other) for other in after), key=lambda e: order.index(e.path))
-                if order.index(entry.path) < order.index(anchor.path):
-                    self.move_after(entry, anchor)
-                    moved = True
-            if not moved:
-                return
-        raise ValueError(f"The events {sorted(constrained)} run after each other in a cycle.")
 
     def _add(self, entry: ScheduleEntry) -> ScheduleEntry:
         if entry.path in self._entries:
@@ -415,7 +394,7 @@ class MDPBuilder:
         observation_dims = {
             group: max(context.observation_dims.get(group, 0) for context in contexts) for group in groups
         }
-        # Concatenated groups are padded to the widest world config; separate buffers must agree.
+        # Concatenated groups are padded to the widest world config; the buffers of single terms must agree.
         observation_layouts = {}
         for context in contexts:
             for buffer, layout in context.observation_layouts.items():
@@ -454,7 +433,7 @@ class MDPBuilder:
         self, schedule: tuple[ScheduleEntry, ...], backend: Backend
     ) -> tuple[CompileContext, float | None]:
         """Compile the ops of one world config, and return them with its episode length in seconds."""
-        context = CompileContext(backend, _dependency_errors(schedule))
+        context = CompileContext(backend, _dependency_errors(schedule) + _after_errors(schedule))
         # The time limit compiles to no op, so it is known even when the other uses cannot be ordered.
         time_limits = [entry for entry in schedule if isinstance(entry.cfg, TimeLimit)]
         if len(time_limits) > 1:
@@ -768,6 +747,49 @@ def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -
     return implementation
 
 
+def _after_anchors(entry: ScheduleEntry, entries: Mapping[tuple[str, ...], ScheduleEntry]) -> list[ScheduleEntry]:
+    """Return the events of the same mode that an event runs after, among the entries."""
+    if not isinstance(entry.cfg, Event):
+        return []
+    anchors = (entries.get(("events", name)) for name in entry.cfg.after)
+    return [anchor for anchor in anchors if anchor is not None and anchor.phase is entry.phase]
+
+
+def _order_after(schedule: tuple[ScheduleEntry, ...]) -> tuple[ScheduleEntry, ...]:
+    """Move each event just after the latest of the events it runs after, keeping the order otherwise. Leaves a cycle
+    unresolved, for :func:`_after_errors` to report."""
+    entries = {entry.path: entry for entry in schedule}
+    order = list(schedule)
+    # Each pass moves events after their latest anchor; a cycle keeps moving them, so passes are bounded.
+    for _ in range(len(order)):
+        moved = False
+        for entry in [entry for entry in order if _after_anchors(entry, entries)]:
+            anchor = max(_after_anchors(entry, entries), key=order.index)
+            if order.index(entry) < order.index(anchor):
+                order.remove(entry)
+                order.insert(order.index(anchor) + 1, entry)
+                moved = True
+        if not moved:
+            break
+    return tuple(order)
+
+
+def _after_errors(schedule: tuple[ScheduleEntry, ...]) -> list[str]:
+    """Return why the events cannot run after the events they name: unknown, of another mode, or a cycle."""
+    entries = {entry.path: entry for entry in schedule}
+    errors = []
+    for entry in schedule:
+        if not isinstance(entry.cfg, Event):
+            continue
+        for name in entry.cfg.after:
+            anchor = entries.get(("events", name))
+            if anchor is None or anchor.phase is not entry.phase:
+                errors.append(f"{entry}: runs after '{name}', which is not an event of the same mode.")
+            elif schedule.index(anchor) > schedule.index(entry):
+                errors.append(f"{entry}: runs after '{name}', which runs after it in a cycle.")
+    return errors
+
+
 def _allocate_columns(
     entry: ScheduleEntry, output_shape: tuple[int, ...], dtype: type, context: CompileContext
 ) -> tuple[ObservationOutput | None, slice | None]:
@@ -778,7 +800,7 @@ def _allocate_columns(
         start = context.observation_dims.get(entry.buffer, 0)
         columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
         context.observation_dims[entry.buffer] = columns.stop
-        if entry.separate:
+        if not entry.concatenate:
             context.observation_layouts[entry.buffer] = (output_shape, dtype)
         return ObservationOutput(entry.buffer, columns, cfg.noise, cfg.clip, cfg.scale, cfg.history_length), None
     if isinstance(cfg, Action):
@@ -803,15 +825,16 @@ def _check_action(entry: ScheduleEntry, output_shape: tuple[int, ...] | None, er
 
 
 def _check_output_type(entry: ScheduleEntry, dtype: type, errors: list[str]) -> None:
-    """Record why a term's output type does not fit its use: only observations in separate groups may set one."""
+    """Record why a term's output type does not fit its use: only observations of groups that are not concatenated may
+    set one."""
     cfg = entry.cfg
     if cfg.term.dtype is not None and not isinstance(cfg, Observation):
         errors.append(f"{entry}: only observations can set an output type.")
     if isinstance(cfg, Observation) and dtype is not wp.float32:
         processed = cfg.noise is not None or cfg.clip is not None or cfg.scale is not None or cfg.history_length
-        if processed or not entry.separate:
+        if processed or entry.concatenate:
             errors.append(
-                f"{entry}: an observation of type {dtype.__name__} must be in a group of separate terms, without"
+                f"{entry}: an observation of type {dtype.__name__} must be in a group with concatenate=False, without"
                 " noise, clip, scale, or history."
             )
 

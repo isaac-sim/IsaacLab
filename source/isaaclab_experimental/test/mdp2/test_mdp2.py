@@ -1552,8 +1552,10 @@ def test_entity_outputs_write_every_writable_field_of_the_entity():
         builder.validate(backend="warp")
 
 
-def test_action_terms_take_their_columns_after_direct_actions():
-    """An action term takes the next columns of the action and writes its outputs, here a binary command."""
+@pytest.mark.parametrize("close_above", [True, False])
+def test_action_terms_take_their_columns_after_direct_actions(close_above: bool):
+    """An action term takes the next columns of the action and writes its outputs, here a binary command that closes
+    on either side of its threshold."""
     for backend in ("torch", "warp"):
         scene = PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
@@ -1562,7 +1564,7 @@ def test_action_terms_take_their_columns_after_direct_actions():
             mdp2.mdp.binary_joint_position,
             inputs={"joint_ids": robot.joints("y")},
             outputs={"joint_pos_target": robot.joint_effort_target},
-            params={"open_position": -1.0, "close_position": 1.0},
+            params={"open_position": -1.0, "close_position": 1.0, "threshold": 0.5, "close_above": close_above},
         )
         builder.add_action("y", gripper)
         mdp = builder.finalize(device=DEVICE, backend=backend)
@@ -1571,7 +1573,11 @@ def test_action_terms_take_their_columns_after_direct_actions():
         actions = torch.tensor([[0.5, 0.9], [-1.0, 0.2]], device=DEVICE)
         mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
         assert mdp.action_dim == 2
-        assert scene.data("robot", "joint_effort_target").torch.tolist() == [[1.0, 1.0], [-2.0, -1.0]]
+        gripper_targets = [1.0, -1.0] if close_above else [-1.0, 1.0]
+        assert scene.data("robot", "joint_effort_target").torch.tolist() == [
+            [1.0, gripper_targets[0]],
+            [-2.0, gripper_targets[1]],
+        ]
         torch.testing.assert_close(state.actions.torch, actions)
 
 
@@ -1587,8 +1593,8 @@ def image_scene(num_worlds: int) -> PointMassScene:
     return scene
 
 
-def test_separate_observation_groups_keep_each_term_shape_and_type():
-    """A group of separate terms gives each term its own buffer, of the term's shape and element type."""
+def test_groups_that_are_not_concatenated_keep_each_term_shape_and_type():
+    """A group that is not concatenated gives each term its own buffer, of the term's shape and element type."""
     camera = mdp2.Entity("camera")
     for backend in ("torch", "warp"):
         scene = image_scene(num_worlds=2)
@@ -1599,7 +1605,8 @@ def test_separate_observation_groups_keep_each_term_shape_and_type():
                     terms={
                         "rgb": mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}),
                         "joint_pos": mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}),
-                    }
+                    },
+                    concatenate=False,
                 ),
             }
         )
@@ -1624,11 +1631,11 @@ def test_separate_observation_groups_keep_each_term_shape_and_type():
     builder = mdp2.MDPBuilder(image_scene(num_worlds=1).schema)
     builder.add_observation("policy", "rgb", mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}))
     scaled = mdp2.Observation(mdp2.mdp.image_rgb, inputs={"image": camera.rgb}, scale=2.0)
-    builder.add_observation("cameras", "scaled", scaled, separate=True)
+    builder.add_observation("cameras", "scaled", scaled, concatenate=False)
     with pytest.raises(ValueError) as error:
         builder.validate()
     for name in ("policy.rgb", "cameras.scaled"):
-        assert f"observations.{name}: an observation of type uint8 must be in a group of separate terms" in str(
+        assert f"observations.{name}: an observation of type uint8 must be in a group with concatenate=False" in str(
             error.value
         )
 
@@ -1646,7 +1653,7 @@ def test_compose_merges_tasks_and_orders_events():
     )
     task_part = mdp2.TaskCfg(events={"hold": None, "settle": event("place")})
     task = mdp2.compose(scene_part, embodiment, task_part)
-    assert list(task.observations["policy"]) == ["a", "b"] and task.events["hold"] is None
+    assert list(task.observations["policy"].terms) == ["a", "b"] and task.events["hold"] is None
 
     builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
     builder.add_task(task)
@@ -1655,10 +1662,17 @@ def test_compose_merges_tasks_and_orders_events():
 
     with pytest.raises(ValueError, match="Tasks 0 and 1 both define 'observations.policy.a'"):
         mdp2.compose(scene_part, scene_part)
-    with pytest.raises(ValueError, match="run after each other in a cycle"):
-        mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema).add_task(
-            mdp2.TaskCfg(events={"a": event("b"), "b": event("a")})
-        )
+    # Events added one by one follow their anchors too, also ones added later.
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
+    builder.add_event("late", event("early"))
+    builder.add_event("early", event())
+    assert [entry.path[1] for entry in builder.schedule()] == ["early", "late"]
+
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
+    builder.add_task(mdp2.TaskCfg(events={"a": event("b"), "b": event("a"), "c": event("missing")}))
+    with pytest.raises(ValueError) as error:
+        builder.validate()
+    assert "in a cycle" in str(error.value) and "'missing', which is not an event of the same mode" in str(error.value)
 
 
 @wp.func

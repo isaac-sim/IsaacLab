@@ -56,9 +56,7 @@ CAMERA_CFG = CameraCfg(
     width=320,
     height=180,
     spawn=sim_utils.PinholeCameraCfg(focal_length=2.1, horizontal_aperture=5.376, clipping_range=(0.01, 10.0)),
-    # The step's CUDA graph already holds the renders. With two cameras, the renderer's own graph per camera goes
-    # stale once the other camera renders, and the second camera's image turns black.
-    renderer_cfg=NewtonWarpRendererCfg(use_cuda_graph=False),
+    renderer_cfg=NewtonWarpRendererCfg(),
 )
 
 
@@ -165,7 +163,12 @@ EMBODIMENT = mdp2.TaskCfg(
             mdp2_mdp.binary_joint_position,
             inputs={"joint_ids": GRIPPER_JOINT},
             outputs={"joint_pos_target": robot.joint_pos_target},
-            params={"open_position": GRIPPER_OPEN, "close_position": GRIPPER_CLOSED},
+            params={
+                "open_position": GRIPPER_OPEN,
+                "close_position": GRIPPER_CLOSED,
+                "threshold": 0.5,
+                "close_above": True,
+            },
         ),
     },
     observations={
@@ -183,13 +186,15 @@ EMBODIMENT = mdp2.TaskCfg(
                     inputs={"joint_pos": robot.joint_pos, "joint_ids": GRIPPER_JOINT},
                     params={"zero": GRIPPER_OPEN, "one": GRIPPER_CLOSED},
                 ),
-            }
+            },
+            concatenate=False,
         ),
         "camera_obs": mdp2.ObservationGroup(
             terms={
                 "external_camera_rgb": mdp2.Observation(mdp2_mdp.image_rgb, inputs={"image": external_camera.rgb}),
                 "wrist_camera_rgb": mdp2.Observation(mdp2_mdp.image_rgb, inputs={"image": wrist_camera.rgb}),
-            }
+            },
+            concatenate=False,
         ),
     },
     events={

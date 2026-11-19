@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import functools
 import itertools
 import math
@@ -19,10 +20,11 @@ import numpy as np
 import torch
 import warp as wp
 from isaaclab_newton.physics.newton_backend import capture_graph
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import Camera, SensorBase
+from isaaclab.sensors import Camera, CameraCfg, SensorBase
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.seed import configure_seed
@@ -48,7 +50,7 @@ class MDP2Env:
     otherwise one per run of capturable work, with the work that cannot be captured run between them. Newton only.
 
     :attr:`observations` holds a tensor per concatenated group, and a dict of tensors, one per term with the term's
-    shape and type, per group of separate terms.
+    shape and type, per group that is not concatenated.
     """
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
@@ -81,6 +83,7 @@ class MDP2Env:
         # shallow copy keeps the entities that were added to the config as attributes, and the caller's config.
         scene_cfg = copy.copy(cfg.scene)
         scene_cfg.lazy_sensor_update = False
+        scene_cfg.__dict__.update(_without_renderer_graphs(scene_cfg))
         with use_stage(sim.stage):
             self.scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(self.scene)
@@ -89,6 +92,8 @@ class MDP2Env:
         # The cameras render once per control step, the other sensors refresh with every physics step.
         scene = self.scene
         self._cameras = [sensor for sensor in scene.sensors.values() if isinstance(sensor, Camera)]
+        if self._cameras and Step.RENDER not in cfg.step:
+            raise ValueError("The scene has cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
         sensors = [sensor for sensor in scene.sensors.values() if not isinstance(sensor, Camera)]
         # Sensors that support it refresh together, as in the scene's update.
         self._batched_sensors = [sensor for sensor in sensors if sensor.supports_batch_update]
@@ -373,6 +378,22 @@ class MDP2Env:
             sensor.reset(env_mask=mask.warp)
 
 
+def _without_renderer_graphs(scene_cfg: Any) -> dict[str, CameraCfg]:
+    """Return the scene's Newton cameras with renderers that do not capture graphs of their own.
+
+    The step's CUDA graph already holds the renders. With several cameras, the graph that the renderer captures per
+    camera goes stale once the scene allocates more memory, and renders black images.
+    """
+    return {
+        name: dataclasses.replace(camera, renderer_cfg=dataclasses.replace(camera.renderer_cfg, use_cuda_graph=False))
+        for name, camera in scene_cfg.__dict__.items()
+        if isinstance(camera, CameraCfg) and isinstance(camera.renderer_cfg, NewtonWarpRendererCfg)
+    }
+
+
+_OPTIONAL_STEPS = (Step.RENDER, ResetStep.RENDER)  # Built-in work that a step may leave out
+
+
 def _check_step(cfg: MDP2EnvCfg) -> None:
     """Raise if the config's step or reset step leaves out, repeats, or reorders its built-in work. Rendering may be
     left out."""
@@ -393,11 +414,13 @@ def _check_step(cfg: MDP2EnvCfg) -> None:
     )
     for name, items, order, reason in orders:
         builtin = [item for item in items if not isinstance(item, Stage)]
-        required = [item for item in order if item.name != "RENDER"]
+        required = [item for item in order if item not in _OPTIONAL_STEPS]
         if builtin != [item for item in order if item in builtin] or not set(required) <= set(builtin):
+            optional = [str(item) for item in order if item in _OPTIONAL_STEPS]
             raise ValueError(
                 f"MDP2EnvCfg.{name} must hold {', '.join(map(str, order))} once each, in this order, with stages"
-                f" anywhere between them and RENDER optional, got {[str(item) for item in builtin]}: {reason}."
+                f" anywhere between them and {', '.join(optional)} optional, got {[str(item) for item in builtin]}:"
+                f" {reason}."
             )
 
 
@@ -640,7 +663,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
 
 
 def _clone(observations: VecEnvObs) -> VecEnvObs:
-    """Copy observations, also the term tensors of groups of separate terms."""
+    """Copy observations, also the term tensors of groups that are not concatenated."""
     return {
         group: {term: values.clone() for term, values in value.items()} if isinstance(value, dict) else value.clone()
         for group, value in observations.items()

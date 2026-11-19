@@ -166,21 +166,25 @@ a vision-language-action model reads camera images and named observation terms, 
 episode ended.
 
 - **Cameras** are scene entities whose data types are fields, such as ``external_camera.rgb``. ``MDP2Env`` renders
-  them once per control step at ``Step.RENDER``, after the physics, inside the step's CUDA graph. Insert
-  ``ResetStep.RENDER`` before ``ResetStep.OBSERVE`` in ``reset_step`` to render them again after the resets, so that
-  new episodes start with their own images.
-- **Groups of separate terms.** A group in :attr:`~isaaclab_experimental.mdp2.TaskCfg.observations` is either a dict
-  of uses, concatenated into one ``float32`` tensor, or an :class:`~isaaclab_experimental.mdp2.ObservationGroup`,
-  observed as a dict of tensors with each term's own shape and type, such as ``uint8`` images from
-  :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
+  them once per control step at ``Step.RENDER``, after the physics, inside the step's CUDA graph; a step without
+  ``Step.RENDER`` is an error when the scene has cameras. Insert ``ResetStep.RENDER`` before ``ResetStep.OBSERVE`` in
+  ``reset_step`` to render them again after the resets, so that new episodes start with their own images.
+- **Observation groups.** A group in :attr:`~isaaclab_experimental.mdp2.TaskCfg.observations` is a dict of uses,
+  concatenated into one ``float32`` tensor, or an :class:`~isaaclab_experimental.mdp2.ObservationGroup`. With
+  ``concatenate=False``, the group is observed as a dict of tensors with each term's own shape and type, such as
+  ``uint8`` images from :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
 - **Action terms.** A :class:`~isaaclab_experimental.mdp2.DirectAction` scales its columns of the action into a
   field. An :class:`~isaaclab_experimental.mdp2.Action` runs a term's hook on its columns instead, such as
-  :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position` for a gripper.
+  :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position` for a gripper, which closes on either side of a
+  threshold, as MDP1's binary joint actions do.
 - **Composition.** :func:`~isaaclab_experimental.mdp2.compose` merges partial task configs term by term, such as
-  those of a scene, an embodiment, and a task, and reports uses that two of them define. ``Event(after=...)`` names
-  the events that must run first, so that each part states its own order.
+  those of a scene, an embodiment, and a task, and reports uses that two of them define; a later part removes a use
+  by setting it to ``None``. ``Event(after=...)`` names the events that must run first, so that each part states its
+  own order.
 - **Success.** :data:`~isaaclab_experimental.mdp2.mdp.sequence` turns conditions into progress through ordered
-  subtasks, which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on.
+  subtasks, which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on, and
+  :data:`~isaaclab_experimental.mdp2.mdp.all_of` and :data:`~isaaclab_experimental.mdp2.mdp.any_of` combine
+  conditions.
 - **Episode budget.** With ``episode_budget``, ``MDP2RLEnv`` runs that many episodes over its worlds, then stops them,
   and records each episode on the device: its world, length, how it ended, and its ``Quantity(record=True)`` values,
   such as success. :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records` returns them.
