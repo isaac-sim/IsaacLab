@@ -195,8 +195,8 @@ def test_a_session_generates_its_whole_requested_budget_then_stops(batch):
         stream.close()
 
 
-def test_views_advance_together_and_a_restarting_view_sends_one_frame(batch):
-    """View 1 restarts with one frame while view 0 continues with four; each keeps its own images."""
+def test_views_advance_together_and_a_restarting_view_sends_one_frame_with_a_new_vae_cache(batch):
+    """View 1 restarts with one frame while view 0 continues with four; each keeps its own images and VAE cache."""
     stream, model = batch()
 
     first = stream.step(_controls((1, 40), (1, 200)), (), ())
@@ -210,16 +210,9 @@ def test_views_advance_together_and_a_restarting_view_sends_one_frame(batch):
     assert all(int(images[0].mean()) == 40 and int(images[1].mean()) == 200 for images in (first, update, restart))
     assert model.steps == [((), None), ((), None), ((1,), (21,))]
     assert stream._frames == [9, 1]
-
-
-def test_each_view_keeps_its_own_causal_vae_cache_and_a_restart_starts_a_new_one(batch):
-    stream, model = batch()
-    stream.step(_controls((1, 1), (1, 2)), (), ())
-    stream.step(_controls((4, 1), (4, 2)), (), ())
-    view0, view1 = model.encoded_caches[0], model.encoded_caches[1]
+    # Each view encodes with its own causal cache across chunks; the restarting view starts a new one.
+    view0, view1 = model.encoded_caches[:2]
     assert view0 != view1 and model.encoded_caches[2:4] == [view0, view1]
-
-    stream.step(_controls((4, 1), (1, 2)), (1,), (5,))
     assert model.encoded_caches[4] == view0 and model.encoded_caches[5] not in (view0, view1)
 
 

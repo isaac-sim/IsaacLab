@@ -109,38 +109,31 @@ def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
 
 
 @pytest.mark.parametrize(
-    "selection",
+    "selection,seed,opened,restart",
     [
-        {"env_ids": torch.tensor([1])},
-        {"env_ids": [1]},
+        ({"env_ids": torch.tensor([1])}, 7, (7, 8), 10),
+        # A seed list gives each view its own seed.
+        ({"env_ids": [1]}, [101, 202], (101, 202), 204),
         # A boolean list is a mask, as for the other tensor processors, not the indices 0 and 1.
-        {"env_ids": [False, True]},
-        {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")},
+        ({"env_ids": [False, True]}, 7, (7, 8), 10),
+        ({"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")}, 7, (7, 8), 10),
     ],
 )
-def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection):
-    processor, model = _processor(initial_frames=1, update_frames=1)
-    _rgb(processor, 10)
+def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection, seed, opened, restart):
+    processor, model = _processor(seed=seed, initial_frames=1, update_frames=1)
+    output = _rgb(processor, 10)
 
     processor.reset(**selection)
-    assert torch.equal(processor._output[1], torch.zeros(2, 3, 3, dtype=torch.uint8))
-    assert torch.equal(processor._output[0], torch.full((2, 3, 3), 245, dtype=torch.uint8))
+    assert torch.equal(output[1], torch.zeros(2, 3, 3, dtype=torch.uint8))
+    assert torch.equal(output[0], torch.full((2, 3, 3), 245, dtype=torch.uint8))
     _rgb(processor, 10)
 
-    # View 1 starts again from its seed 8, advanced by the number of views for its second episode.
-    assert model.opened[-1] == (2, (7, 8))
-    assert model.steps[-1][1:] == ((1,), (10,))
+    # View 1 starts again from its own seed, advanced by the number of views for its second episode.
+    assert model.opened[-1] == (2, opened)
+    assert model.steps[-1][1:] == ((1,), (restart,))
 
 
-def test_a_seed_list_gives_each_view_its_own_seed(no_sim):
-    processor, model = _processor(seed=[101, 202], initial_frames=1, update_frames=1)
-    _rgb(processor, 10)
-    processor.reset(env_ids=torch.tensor([1]))
-    _rgb(processor, 10)
-
-    # View 1 starts from its listed seed, advanced by the number of views for its second episode.
-    assert model.opened[-1] == (2, (101, 202))
-    assert model.steps[-1][1:] == ((1,), (204,))
+def test_a_seed_list_needs_one_seed_per_view(no_sim):
     with pytest.raises(ValueError, match="one seed per view"):
         _processor(seed=[101])
 
@@ -220,7 +213,7 @@ def test_a_simulation_model_is_shared_and_left_open(monkeypatch):
     first.close()
 
     assert requested == [cfg.backend, cfg.backend]
-    assert second._stream is not first._stream
+    assert second is not first and len(model.streams) == 2
     assert model.streams[0].closed == 1 and model.streams[1].closed == 0
     assert model.closed == 0
 

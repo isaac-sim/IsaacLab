@@ -8,6 +8,7 @@
 import subprocess
 import sys
 import textwrap
+from types import SimpleNamespace
 
 import pytest
 from isaaclab_experimental.cosmos import (
@@ -19,18 +20,13 @@ from isaaclab_experimental.cosmos import (
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
+pytestmark = pytest.mark.unit
+
 KUKA_TASK = "Isaac-Reorient-KukaAllegro-Camera"
-KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_renderer,rgb64"
+KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_warp,rgb64"
 SHADOW_HAND_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct"
 SHADOW_HAND_MANAGER_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Cosmos"
-KUKA_DUO_PRESETS = "presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64"
-
-
-def _kuka(**overrides):
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_PRESETS, "env.scene.num_envs=1"))
-    for name, value in overrides.items():
-        setattr(env_cfg, name, value)
-    return env_cfg
+KUKA_DUO_PRESETS = "presets=cube,duo_camera,newton_mjwarp,newton_warp,rgb64"
 
 
 def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code():
@@ -63,7 +59,7 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
 
 def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
     """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept, as the guide shows."""
-    env_cfg = _kuka()
+    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_PRESETS, "env.scene.num_envs=1"))
     camera = env_cfg.scene.base_camera
     model = CosmosModelCfg(
         prompt=["A lab.", "A kitchen."],
@@ -80,13 +76,22 @@ def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
     assert len(chain) == 2 and chain[1].image_size == (64, 64)
 
 
-def test_the_capture_count_uses_the_sensor_update_tolerance():
-    """A sensor updates 1e-6 s early, so a 0.0200001 s period at 0.01 s steps captures every 2 steps, not 3."""
-    env_cfg = _kuka(episode_length_s=3.0, decimation=2)
-    env_cfg.sim.dt = 0.005
+@pytest.mark.parametrize(
+    "dt,decimation,episode_length_s,update_period,expected",
+    [
+        # A capture every step: 5 steps and the initial frame, rounded up to 1 + 4*k.
+        (0.01, 1, 0.05, 0.0, (1, 6, 9)),
+        # A capture every 10 steps of a 100-step episode.
+        (0.01, 1, 1.0, 0.1, (10, 11, 13)),
+        # A sensor updates 1e-6 s early, so a 0.0200001 s period at 0.01 s steps captures every 2 steps, not 3.
+        (0.005, 2, 3.0, 0.0200001, (2, 151, 153)),
+    ],
+)
+def test_the_frame_budget_holds_the_captures_of_an_episode(dt, decimation, episode_length_s, update_period, expected):
+    """Steps per capture, captures per episode including the initial one, and the budget ``1 + 4*k`` holding them."""
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(dt=dt), decimation=decimation, episode_length_s=episode_length_s)
 
-    # 300 steps: 150 captures and the initial one, rounded up to 1 + 4*k
-    assert episode_frame_budget(env_cfg, 0.0200001) == (2, 151, 153)
+    assert episode_frame_budget(env_cfg, update_period) == expected
 
 
 def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
@@ -111,11 +116,12 @@ def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
         assert chain[-1] is chain[1] and chain[1].image_size == size
 
 
-def test_the_shadow_hand_task_options_are_set_with_overrides():
-    """``env.cosmos`` overrides set the camera's own Cosmos settings."""
+@pytest.mark.parametrize("task", [SHADOW_HAND_TASK, SHADOW_HAND_MANAGER_TASK])
+def test_the_shadow_hand_task_options_are_set_with_overrides(task):
+    """``env.cosmos`` overrides set the camera's own Cosmos settings, with several environments."""
     prompts = "['A kitchen.', 'A lab.']"
     env_cfg = parse_env_cfg(
-        SHADOW_HAND_TASK,
+        task,
         overrides=(
             "env.scene.num_envs=2",
             f"env.cosmos.prompt={prompts}",
@@ -126,7 +132,7 @@ def test_the_shadow_hand_task_options_are_set_with_overrides():
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
     chain = camera.tensor_processors
-    assert len(chain) == 2
+    assert env_cfg.scene.num_envs == 2 and len(chain) == 2
     assert chain[1].backend.prompt == ["A kitchen.", "A lab."]
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
     assert chain[1].backend.transport == "socket"
@@ -176,51 +182,33 @@ def test_a_subclass_of_the_shadow_hand_task_keeps_env_cosmos_on_its_camera():
     assert env_cfg.cosmos is env_cfg.scene.tiled_camera.tensor_processors[1].backend
 
 
-def test_registered_cosmos_task_composes_rgb_observations_and_local_checkpoint_playback():
-    """The training task composes depth-guided RGB, and playback retains its own trained CNN."""
-    task_name = SHADOW_HAND_TASK
-    env_cfg = parse_env_cfg(task_name, overrides=("env.episode_length_s=30.0",))
+@pytest.mark.parametrize("task", [SHADOW_HAND_TASK, SHADOW_HAND_MANAGER_TASK])
+def test_cosmos_tasks_train_the_feature_extractor_on_generated_rgb_and_play_their_own_checkpoint(task):
+    """Both tasks run the same Cosmos camera, train the CNN on its rgb, and play back that run's CNN."""
+    env_cfg = parse_env_cfg(task, overrides=("env.episode_length_s=30.0",))
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
-    transfer = camera.tensor_processors[-1]
+    processors = camera.tensor_processors
 
-    assert env_cfg.scene.num_envs == 1
-    assert camera.data_types == ["rgb"] and transfer.outputs == ["rgb"]
-    assert transfer.backend.max_episode_frames == 1801
-    assert camera.update_period == 0.0
+    assert env_cfg.scene.num_envs == 1 and (camera.width, camera.height) == (640, 640)
+    assert camera.data_types == ["rgb"] and camera.update_period == 0.0
+    assert processors[0].inputs == ["distance_to_image_plane"] and processors[-1].outputs == ["rgb"]
+    assert processors[-1].backend.max_episode_frames == 1801
     assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train
+    assert env_cfg.feature_extractor.hold_image_targets is True
     assert env_cfg.feature_extractor.pretrained_checkpoint is None
+    if task == SHADOW_HAND_MANAGER_TASK:
+        # The Manager task's observation term reads the generated rgb with the task's feature extractor.
+        term = env_cfg.observations.policy.camera_features
+        assert term.params["feature_extractor_cfg"] == env_cfg.feature_extractor
 
-    play_cfg, _ = resolve_task_config(task_name, None, play_mode=True, overrides=())
+    play_cfg, _ = resolve_task_config(task, None, play_mode=True, overrides=())
     play_cfg.validate()
 
     assert play_cfg.scene.num_envs == 1
     assert not play_cfg.feature_extractor.train
     assert play_cfg.feature_extractor.load_checkpoint
     assert play_cfg.feature_extractor.pretrained_checkpoint is None
-
-
-def test_manager_cosmos_task_feeds_generated_rgb_to_the_camera_observation_term():
-    """The Manager task uses the Direct task's Cosmos camera; its observation term reads the generated rgb."""
-    env_cfg = parse_env_cfg(SHADOW_HAND_MANAGER_TASK)
-    env_cfg.validate()
-    camera = env_cfg.scene.tiled_camera
-
-    assert env_cfg.scene.num_envs == 1 and (camera.width, camera.height) == (640, 640)
-    processors = camera.tensor_processors
-    assert processors[0].inputs == ["distance_to_image_plane"] and processors[-1].outputs == ["rgb"]
-    assert env_cfg.observations.policy.camera_features.params["feature_extractor_cfg"] == env_cfg.feature_extractor
-    assert env_cfg.feature_extractor.hold_image_targets is True
-    assert env_cfg.feature_extractor.pretrained_checkpoint is None
-
-
-@pytest.mark.parametrize("task", [SHADOW_HAND_TASK, SHADOW_HAND_MANAGER_TASK])
-def test_cosmos_tasks_accept_several_environments(task):
-    """Both Shadow Hand Cosmos tasks run several environments, one Cosmos view each."""
-    env_cfg = parse_env_cfg(task, overrides=("env.scene.num_envs=2",))
-    env_cfg.validate()
-
-    assert env_cfg.scene.num_envs == 2
 
 
 @pytest.mark.parametrize(

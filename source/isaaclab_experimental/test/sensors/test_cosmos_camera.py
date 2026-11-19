@@ -90,6 +90,9 @@ def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output
     unrelated = FunctionProcessorCfg(function=_first_three_channels, inputs=["rgb"], outputs=["mask"])
     with pytest.raises(ValueError, match="'control' buffer"):
         cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[unrelated])
+    # The depth range belongs to the default depth control only.
+    with pytest.raises(ValueError, match="near and far set the default depth control"):
+        cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control], near=0.2)
 
 
 def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
