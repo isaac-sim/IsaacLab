@@ -29,16 +29,10 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
+from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, HAND_JOINT_LIMITS_RAD, HAND_JOINT_NAMES, PALM_BODY_NAME
+
 from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_HEIGHT, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
-from .robot import (
-    ARM_JOINT_NAMES,
-    DEFAULT_SPOON_OFFSET_POS,
-    DEFAULT_SPOON_OFFSET_ROT,
-    HAND_JOINT_LIMITS,
-    HAND_JOINT_NAMES,
-    PALM_BODY_NAME,
-    get_robot_cfg,
-)
+from .robot import COFFEE_ROBOT_CFG, DEFAULT_SPOON_OFFSET_POS, DEFAULT_SPOON_OFFSET_ROT
 
 
 @configclass
@@ -114,7 +108,7 @@ class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
 class CoffeeKitBackendCfg(KitBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeKitVisualizer"
     backdrop: Literal["kitchen", "studio"] = "kitchen"
     """Presentation backdrop: ``kitchen`` or the original ``studio``."""
     render_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
@@ -131,28 +125,24 @@ class CoffeePresentationCfg(sim_utils.SpawnerCfg):
 
 @configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
-    """Reusable robot, hosted props and optional MPM fill volumes.
+    """Robot, upright vessels, mounted spoon and optional MPM fill volumes."""
 
-    Scene preparation restores the default robot or rigid prop when its config
-    is ``None``. The scripted demo expects upright vessels.
-    """
-
-    robot: ArticulationCfg | None = get_robot_cfg()
-    table: AssetBaseCfg | None = AssetBaseCfg(
+    robot: ArticulationCfg = COFFEE_ROBOT_CFG
+    table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
     )
-    bowl: AssetBaseCfg | None = AssetBaseCfg(
+    bowl: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bowl",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda", scale=(0.65, 0.65, 1.0)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
     )
-    cup: AssetBaseCfg | None = AssetBaseCfg(
+    cup: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Cup",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup_shallow.usda"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
     )
-    spoon: RigidObjectCfg | None = RigidObjectCfg(
+    spoon: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Spoon",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
@@ -195,7 +185,7 @@ class CoffeeActionsCfg:
         joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
         use_default_offset=False,
-        clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)),
+        clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS_RAD, strict=True)),
     )
 
 
@@ -280,11 +270,6 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         cfg.scene.presentation = AssetBaseCfg(
             prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
         )
-    missing_assets = [name for name in ("robot", "table", "bowl", "cup", "spoon") if getattr(cfg.scene, name) is None]
-    if missing_assets:
-        defaults = CoffeeSceneCfg()
-        for name in missing_assets:
-            setattr(cfg.scene, name, getattr(defaults, name))
     cfg.scene.bowl.spawn.scale = (cfg.bowl_scale, cfg.bowl_scale, 1.0)
     spacing = cfg.voxel_size / 2.0
     cfg.scene.coffee = _particle_cfg(

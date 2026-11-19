@@ -15,7 +15,7 @@ from newton.selection import ArticulationView
 
 from isaaclab.sim import SimulationContext
 
-from .robot import PALM_BODY_NAME
+from isaaclab_assets.robots.rizon_sharpa import PALM_BODY_NAME
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject

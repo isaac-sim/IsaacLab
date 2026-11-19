@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Physical grasp and pouring for the Rizon–Sharpa teapot example."""
+"""Scene and motion support for the Newton teapot examples."""

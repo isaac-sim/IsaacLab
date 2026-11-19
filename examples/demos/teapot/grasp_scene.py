@@ -21,86 +21,32 @@ import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonArticulationCfg, NewtonCollisionCfg
 from scipy.spatial.transform import Rotation
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.rizon_sharpa import (
-    ARM_JOINT_NAMES,
-    HAND_JOINT_NAMES,
-    ROBOT_BUNDLE_SHA256,
-    arm_actuators,
-    local_robot_usd,
-)
+from isaaclab_assets.robots._rizon_sharpa_bundle import ROBOT_BUNDLE_SHA256, local_robot_usd
+from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, HAND_JOINT_NAMES, RIZON4S_SHARPA_CFG
 
-from .motion import ARM_HOME_POSITIONS, HAND_OPEN_POSITIONS, ROBOT_BASE_POS
+from .motion import ARM_HOME_POSITIONS, BOWL_BASE_POS, HAND_OPEN_POSITIONS, ROBOT_BASE_POS, pose_at_time
+from .scene import DEFAULT_VOXEL_SIZE, TeapotFillSceneCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.assets import ArticulationCfg
 
-
-def robot_cfg() -> ArticulationCfg:
-    """Return the 29-joint robot ready for the calibrated index-finger grasp."""
-    from isaaclab_newton.sim.schemas import (
-        MujocoCollisionCfg,
-        MujocoJointCfg,
-        NewtonArticulationCfg,
-        NewtonCollisionCfg,
-    )
-
-    from isaaclab.actuators import ImplicitActuatorCfg
-    from isaaclab.assets import ArticulationCfg
-
-    return ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=str(_prepared_robot_path(local_robot_usd())),
-            articulation_props=NewtonArticulationCfg(self_collision_enabled=True),
-            joint_drive_props={"/Physics/.*": [MujocoJointCfg(actuatorgravcomp=True)]},
-            collision_props={
-                "(/.*)?": [
-                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-                    MujocoCollisionCfg(condim=4, solref=(0.004, 1.0)),
-                    NewtonCollisionCfg(contact_gap=0.001),
-                ]
-            },
-            activate_contact_sensors=False,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=ROBOT_BASE_POS,
-            # Leave shoulder travel available throughout the elevated pour and recovery.
-            rot=(0.0, 0.0, math.sin(math.pi / 8.0), math.cos(math.pi / 8.0)),
-            joint_pos={
-                **dict(zip(ARM_JOINT_NAMES, ARM_HOME_POSITIONS, strict=True)),
-                **dict(zip(HAND_JOINT_NAMES, HAND_OPEN_POSITIONS, strict=True)),
-            },
-        ),
-        actuators={
-            **arm_actuators(),
-            "hand": ImplicitActuatorCfg(
-                joint_names_expr=["right_.*"],
-                joint_effort_limit=3.3,
-                joint_velocity_limit=6.0,
-                stiffness=24.0,
-                damping=1.2,
-                # Passive damping remains active when the closing drive reaches its torque limit.
-                viscous_friction={joint: 1.0 if joint == "right_index_MCP_AA" else 0.5 for joint in HAND_JOINT_NAMES},
-                # The measured contact response stays stable at 800 Hz without changing link inertias.
-                armature=2.0e-4,
-            ),
-        },
-        soft_joint_pos_limit_factor=0.95,
-    )
+_CONTAINER_POS, _CONTAINER_ROT, _ = pose_at_time(0.0)
+_PLAIN_SCENE_CFG = TeapotFillSceneCfg()
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
     """Resolve rigid hand--pot contacts and synchronize the measured fluid boundary."""
     return CouplerProxyCfg(
-        class_type="isaaclab_tasks.contrib.rizon_sharpa_teapot.coupling:TeapotSolver",
+        class_type="isaaclab.examples.demos.teapot.coupling:TeapotSolver",
         entries=[
             CouplerEntryCfg(
                 name="robot",
@@ -136,12 +82,92 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
 class GraspedTeapotCfg(sim_utils.MeshFileCfg):
     """Spawn the exact fluid shell and rigid grasp contacts on the same body."""
 
-    func = "{DIR}.scene:_spawn_grasped_teapot"
+    func = "{DIR}.grasp_scene:_spawn_grasped_teapot"
     contact_source: str = MISSING
     """Teapot USD containing the contact geometry and authored inertia."""
 
     rigid_props = sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False)
     mass_props = sim_utils.MassCfg(mass=0.45)
+
+
+@configclass
+class GraspedTeapotSceneCfg(TeapotFillSceneCfg):
+    """Use the same fluid scene with a dynamic pot, a robot, and its pedestal."""
+
+    tabletop_collider: AssetBaseCfg = _PLAIN_SCENE_CFG.tabletop_collider.replace(
+        spawn=_PLAIN_SCENE_CFG.tabletop_collider.spawn.replace(
+            collision_props=[
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=0.5 * DEFAULT_VOXEL_SIZE, contact_gap=0.001),
+                MujocoCollisionCfg(condim=4, solref=(0.0025, 1.0)),
+            ]
+        )
+    )
+    catch_bowl: AssetBaseCfg = _PLAIN_SCENE_CFG.catch_bowl.replace(
+        init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS)
+    )
+    container: RigidObjectCfg = _PLAIN_SCENE_CFG.container.replace(
+        spawn=GraspedTeapotCfg(
+            mesh=MISSING,
+            collision_props=[
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=0.0005),
+            ],
+            mesh_collision_props=_PLAIN_SCENE_CFG.container.spawn.mesh_collision_props,
+            physics_material=_PLAIN_SCENE_CFG.container.spawn.physics_material,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=_CONTAINER_POS, rot=_CONTAINER_ROT),
+    )
+    fluid = _PLAIN_SCENE_CFG.fluid.replace(init_state=_PLAIN_SCENE_CFG.fluid.init_state.replace(pos=_CONTAINER_POS))
+    robot: ArticulationCfg = RIZON4S_SHARPA_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=RIZON4S_SHARPA_CFG.spawn.replace(
+            articulation_props=NewtonArticulationCfg(self_collision_enabled=True),
+            collision_props={
+                "(/.*)?": [
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    MujocoCollisionCfg(condim=4, solref=(0.004, 1.0)),
+                    NewtonCollisionCfg(contact_gap=0.001),
+                ]
+            },
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=ROBOT_BASE_POS,
+            # Leave shoulder travel available throughout the elevated pour and recovery.
+            rot=(0.0, 0.0, math.sin(math.pi / 8.0), math.cos(math.pi / 8.0)),
+            joint_pos={
+                **dict(zip(ARM_JOINT_NAMES, ARM_HOME_POSITIONS, strict=True)),
+                **dict(zip(HAND_JOINT_NAMES, HAND_OPEN_POSITIONS, strict=True)),
+            },
+        ),
+        actuators={
+            **RIZON4S_SHARPA_CFG.actuators,
+            "hand": RIZON4S_SHARPA_CFG.actuators["hand"].replace(
+                # Passive damping stays active when the closing drive reaches its torque limit.
+                viscous_friction={joint: 1.0 if joint == "right_index_MCP_AA" else 0.5 for joint in HAND_JOINT_NAMES},
+                armature=2.0e-4,
+            ),
+        },
+    )
+    robot_pedestal: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/RobotPedestal",
+        spawn=sim_utils.CylinderCfg(
+            radius=0.10,
+            height=ROBOT_BASE_POS[2],
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.10, 0.12, 0.15),
+                metallic=0.65,
+                roughness=0.3,
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POS[:2], 0.5 * ROBOT_BASE_POS[2])),
+    )
+
+
+def prepare_robot_usd() -> str:
+    """Resolve the locally prepared Sharpa USD used for the physical grasp."""
+    return str(_prepared_robot_path(local_robot_usd()))
 
 
 @sim_utils.clone

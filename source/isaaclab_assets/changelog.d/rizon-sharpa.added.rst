@@ -1,1 +1,1 @@
-* Added shared joint names and verified robot asset resolution for the Rizon4s arm with the Sharpa hand.
+* Added the shared Rizon4s and Sharpa hand articulation configuration and joint limits used by the manipulation demos.

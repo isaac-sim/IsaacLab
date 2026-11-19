@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers
+from isaaclab_visualizers.kit import KitVisualizer
 from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
 from newton.geometry import ParticleSurface
 
@@ -125,6 +126,96 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                         )
 
 
+class CoffeeKitVisualizer(KitVisualizer):
+    """Publish Newton grains and liquid as USD geometry before Kit rendering."""
+
+    rendering: CoffeeRendering | None = None
+    _update_subscription = None
+
+    def initialize(self, sim, *, cameras) -> None:
+        if self._is_initialized:
+            return
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
+        import omni.kit.app
+        from pxr import UsdGeom
+
+        apply_isaac_rtx_global_settings(self.cfg.backend.render_settings)
+        super().initialize(sim, cameras=cameras)
+        self._stage = sim.stage
+        self._root_path = "/World/CoffeePresentation/Kit"
+        UsdGeom.Xform.Define(self._stage, self._root_path)
+        self._coffee = create_coffee_points(self._stage, f"{self._root_path}/Coffee")
+        self._water, self._water_shader = create_water_mesh(self._stage, f"{self._root_path}/Water")
+        self._coffee_attributes_ready = False
+        self._update_subscription = (
+            omni.kit.app.get_app()
+            .get_pre_update_event_stream()
+            .create_subscription_to_pop(self._update_rendering, name="Coffee presentation")
+        )
+
+    def _update_rendering(self, event) -> None:
+        if self.rendering is None:
+            return
+        self.rendering.update()
+        self._update_coffee(self.rendering._points, self.rendering._radii, self.rendering._colors)
+        if self.rendering._surface is not None:
+            points, indices, normals, colors, fraction = self.rendering._water_surface_arrays()
+            self._update_water(points, indices, normals, colors, 0.42 + 0.40 * fraction)
+
+    def _update_coffee(self, points: wp.array, radii: wp.array, colors: wp.array) -> None:
+        from pxr import Vt
+
+        positions = points.numpy()
+        dynamic_radii = self.rendering._dissolution is not None
+        if dynamic_radii or not self._coffee_attributes_ready:
+            widths = 2.0 * radii.numpy()
+            display_colors = colors.numpy()
+            if dynamic_radii:
+                visible = widths > 0.0
+                positions, widths, display_colors = positions[visible], widths[visible], display_colors[visible]
+            self._coffee.GetWidthsAttr().Set(Vt.FloatArray.FromNumpy(widths))
+            self._coffee.GetDisplayColorPrimvar().Set(Vt.Vec3fArray.FromNumpy(display_colors))
+            self._coffee_attributes_ready = True
+        self._coffee.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(positions))
+
+    def _update_water(self, points, indices, normals, colors, opacity: float) -> None:
+        from pxr import Vt
+
+        if points is None or colors is None:
+            self._water.MakeInvisible()
+            return
+        self._water.MakeVisible()
+        self._water.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.numpy()))
+        triangles = indices.numpy().reshape(-1)
+        self._water.CreateFaceVertexCountsAttr(Vt.IntArray.FromNumpy(np.full(len(triangles) // 3, 3, dtype=np.int32)))
+        self._water.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(triangles))
+        self._water.GetNormalsAttr().Set(Vt.Vec3fArray.FromNumpy(normals.numpy()))
+        self._water.GetDisplayColorPrimvar().Set(Vt.Vec3fArray.FromNumpy(colors.numpy()))
+        self._water_shader.GetInput("opacity").Set(opacity)
+
+    def close(self) -> None:
+        if self._is_closed:
+            return
+        if self._update_subscription is not None:
+            self._update_subscription.unsubscribe()
+            self._update_subscription = None
+        self.rendering = None
+        initialized = self._is_initialized
+        try:
+            super().close()
+        finally:
+            if initialized:
+                self._stage.RemovePrim(self._root_path)
+
+    def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
+        """Publish this demo's camera above Kit's session-layer defaults."""
+        from pxr import Usd
+
+        with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+            return super()._set_usd_camera_pose(camera_path, position, target)
+
+
 class _GLWaterSurface:
     """Publish the reconstructed water as a textured Newton mesh instance."""
 
@@ -216,15 +307,8 @@ class CoffeeRendering:
         self._visualizers = [
             visualizer
             for visualizer in env.sim.visualizers
-            if isinstance(visualizer, (CoffeeGLVisualizer, CoffeeRTXVisualizer))
+            if isinstance(visualizer, (CoffeeGLVisualizer, CoffeeRTXVisualizer, CoffeeKitVisualizer))
         ]
-        if any(visualizer.cfg.backend.visualizer_type == "kit" for visualizer in env.sim.visualizers):
-            # Defer the optional runtime implementation until Kit has launched.
-            from .kit_rendering import CoffeeKitVisualizer
-
-            self._visualizers.extend(
-                visualizer for visualizer in env.sim.visualizers if isinstance(visualizer, CoffeeKitVisualizer)
-            )
         solvers = [
             solver
             for solver in implicit_mpm_solvers(self._backend_manager.backend.solver)
@@ -378,16 +462,6 @@ class CoffeeRendering:
             if surface is None:
                 surface = self._gl_surfaces[viewer] = _GLWaterSurface(self._model.device)
             surface.draw(viewer, *self._water_surface_arrays())
-
-    def draw_kit(self, visualizer) -> None:
-        """Publish the same grains and local liquid colours to Kit's USD stage."""
-        self.update()
-        visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._dissolution is not None)
-        if self._surface is not None:
-            points, indices, normals, colors, fraction = self._water_surface_arrays()
-            visualizer.update_water(
-                points, indices, normals, None if colors is None else colors.numpy(), 0.42 + 0.40 * fraction
-            )
 
     def _water_surface_arrays(self):
         """Reconstruct once per physics state and interpolate tint on shared vertices."""

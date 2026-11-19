@@ -3,13 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Generated projects consume this dependency-only root as an editable path package.
+# Generated projects consume this root as an editable path package.
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = []
+# Use the same import paths for demo support in a checkout and the aggregate wheel.
+packages = ["isaaclab.examples", "isaaclab.examples.demos.rj45", "isaaclab.examples.demos.teapot"]
+package-dir = {"isaaclab.examples" = "examples"}
 py-modules = []
 
 [project]

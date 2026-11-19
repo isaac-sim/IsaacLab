@@ -10,56 +10,12 @@ from __future__ import annotations
 import hashlib
 import math
 import os
-import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from isaaclab_assets.robots import rizon_sharpa
-
-# Preserve the original task imports while callers move to the shared asset definition.
-RIZON_SHARPA_ARM_JOINT_NAMES = rizon_sharpa.ARM_JOINT_NAMES
-RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES = rizon_sharpa.HAND_JOINT_NAMES
-RIZON_SHARPA_END_EFFECTOR_BODY_NAME = rizon_sharpa.PALM_BODY_NAME
-RIZON_SHARPA_ASSET_ROOT_ENV = rizon_sharpa.ROBOT_ASSET_ROOT_ENV
-RIZON_SHARPA_REVISION = rizon_sharpa.ROBOT_REVISION
-RIZON_SHARPA_USD_NAME = rizon_sharpa.ROBOT_USD_NAME
-RIZON_SHARPA_USD_PATH = rizon_sharpa.ROBOT_USD_PATH
-RIZON_SHARPA_BUNDLE_SHA256 = rizon_sharpa.ROBOT_BUNDLE_SHA256
-RIZON_SHARPA_BUNDLE_SIZE_BYTES = rizon_sharpa.ROBOT_BUNDLE_SIZE_BYTES
-RIZON_SHARPA_REPOSITORY = "https://gitlab-master.nvidia.com/dex/fabrics-sim.git"
-RIZON_SHARPA_RELATIVE_PATH = (
-    f"src/fabrics_sim/models/robots/urdf/rizon4s_sharpa/rizon4s_sharpa_no_spheres/{RIZON_SHARPA_USD_NAME}"
-)
-
-
 # The measured socket geometry uses this CAD revision as its SDF cache key.
 GB300_SIMREADY_EXTERNAL_USD_SHA256 = "5e0b7b3b58d005b24909b8d2e735c49997f8dbea72352b51911326343ef1e7bb"
-
-RIZON_SHARPA_RIGHT_HAND_LIMITS_RAD = (
-    (-0.1745, 1.9199),
-    (-0.3491, 0.3491),
-    (-0.5236, 1.3963),
-    (-0.3491, 0.3491),
-    (0.0, 1.7453),
-    (-0.17453293, 1.5708),
-    (-0.3491, 0.3491),
-    (0.0, 1.7453),
-    (0.0, 1.3963),
-    (-0.17453293, 1.5708),
-    (-0.3491, 0.3491),
-    (0.0, 1.7453),
-    (0.0, 1.3963),
-    (-0.17453293, 1.5708),
-    (-0.3491, 0.3491),
-    (0.0, 1.7453),
-    (0.0, 1.3963),
-    (0.0, 0.2618),
-    (-0.17453293, 1.5708),
-    (-0.3491, 0.3491),
-    (0.0, 1.7453),
-    (0.0, 1.3963),
-)
 
 RJ45_PLUG_SHA256 = "50c95bcfb63544777f9148d548aac6f16b62f65cacbaaa9316453d579de4b4fa"
 RJ45_PLUG_ASSET_ENV = "ISAACLAB_RJ45_PLUG_USD"
@@ -71,26 +27,6 @@ RJ45_PLUG_DOWNLOAD_URL = (
 LATCH_LIMIT_LOWER = -0.225
 LATCH_LIMIT_UPPER = 0.3
 LATCH_SPRING_KE = 0.15
-
-
-def configured_rizon_sharpa_usd() -> str:
-    """Return the hosted robot USD or verify the configured local asset."""
-    warnings.warn(
-        "configured_rizon_sharpa_usd is deprecated. Use isaaclab_assets.robots.rizon_sharpa.resolve_robot_usd.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return rizon_sharpa.resolve_robot_usd()
-
-
-def verify_rizon_sharpa_bundle(root: str | Path) -> Path:
-    """Verify the pinned robot bundle and return its USD path."""
-    warnings.warn(
-        "verify_rizon_sharpa_bundle is deprecated. Use isaaclab_assets.robots.rizon_sharpa.verify_robot_bundle.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return rizon_sharpa.verify_robot_bundle(root)
 
 
 def configured_rj45_plug_usd() -> Path:

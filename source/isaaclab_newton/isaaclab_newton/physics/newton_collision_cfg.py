@@ -182,16 +182,6 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (hydroelastic disabled, same as Newton's default).
     """
 
-    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
-    """Frame-to-frame rigid contact matching.
-
-    * ``"disabled"`` (default) leaves contacts unmatched.
-    * ``"latest"`` records each match and uses the newly detected contact geometry.
-    * ``"sticky"`` reuses the saved contact geometry for matched contacts.
-
-    Matching enables deterministic contact sorting in Newton.
-    """
-
     def to_pipeline_args(self) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.
 

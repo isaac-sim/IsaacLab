@@ -63,14 +63,10 @@ def _run_script(path: Path) -> None:
     module.__package__ = None
     module.__spec__ = None
     original_main = sys.modules.get("__main__")
-    original_search_path = sys.path
     try:
-        # Match normal Python script execution so examples can import their siblings.
-        sys.path = [str(path.parent), *original_search_path]
         sys.modules["__main__"] = module
         exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     finally:
-        sys.path = original_search_path
         if original_main is None:
             sys.modules.pop("__main__", None)
         else:
@@ -145,7 +141,7 @@ EXAMPLES = (
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
         "sharpa-rj45",
-        "examples/sharpa_rj45.py",
+        "examples/demos/sharpa_rj45.py",
         "Insert and extract an RJ45 connector with a SHARPA hand and hydroelastic contact.",
     ),
     ProgramSpec(
@@ -172,9 +168,9 @@ EXAMPLES = (
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
         "rizon-sharpa-teapot",
-        "examples/rizon_sharpa_teapot.py",
+        "examples/demos/rizon_sharpa_teapot.py",
         "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
-        required_modules=("isaaclab_assets", "isaaclab_tasks"),
+        required_modules=("isaaclab_assets",),
     ),
     ProgramSpec(
         "procedural-terrain",

@@ -192,21 +192,18 @@ def check_launch(cfg, args):
 
 isaaclab.app.launch_simulation = check_launch
 script = sys.argv[1]
-sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
-namespace = runpy.run_path(script)
-parser = namespace['parser']
 for option, value in (
     ('--visualizer', 'newton_rtx'), ('--viz', 'kit'), ('--viz', 'newton_gl,rerun'), ('--viz', 'none')
 ):
+    sys.argv = [script, option, value]
     try:
-        parser.parse_args([option, value])
+        runpy.run_path(script, run_name='__main__')
     except SystemExit as error:
         assert error.code == 2
     else:
         raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
-assert parser.parse_args([]).visualizer == 'newton_gl'
-assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
-namespace['main']()
+sys.argv = [script, '--fluid_render_mode', 'both']
+runpy.run_path(script, run_name='__main__')
 raise AssertionError('The demo did not reach launch_simulation')
 """
     result = subprocess.run(
@@ -505,6 +502,9 @@ def test_script_scope_selects_matching_scripts_and_rejects_empty_selection():
     assert {spec.path for spec in select_script_scope(SPECS, "demos")} == set(script_cases.PROGRAMS_BY_PATH)
     assert {spec.path for spec in select_script_scope(SPECS, "examples/demos")} == {
         spec.path for spec in SPECS if spec.program is not None and spec.program[0] == "demo"
+    } | {
+        script_cases.ROOT / "examples/demos/rizon_sharpa_teapot.py",
+        script_cases.ROOT / "examples/demos/sharpa_rj45.py",
     }
     assert all(spec.relative_path.startswith("examples/mpm/") for spec in select_script_scope(SPECS, "examples/mpm"))
     with pytest.raises(ValueError, match="selected no scripts"):

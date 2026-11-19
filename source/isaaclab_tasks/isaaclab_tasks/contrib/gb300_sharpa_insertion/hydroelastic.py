@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,35 +14,9 @@ import warp as wp
 
 if TYPE_CHECKING:
     import newton
-    from isaaclab_newton.physics import NewtonCfg
 
 # Newton exposes this builder attribute but does not publish its mode enum.
 _MJWARP_SOLREF_MODE_FORCE_SPACE = 0
-
-
-def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
-    """Apply the task's cable and grasp coupling to an existing Newton configuration."""
-    from .env_cfg import _CONNECTOR_BODIES, GB300SharpaInsertionEnvCfg
-
-    warnings.warn(
-        "configure_hydroelastic_physics is deprecated. "
-        "Configure the coupled solvers and collision pipeline as in GB300SharpaInsertionEnvCfg.sim.physics.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    defaults = GB300SharpaInsertionEnvCfg().sim.physics
-    rigid, cable = physics.solver_cfg.entries
-    cable_defaults = defaults.solver_cfg.entries[1]
-    rigid.bodies.extend(_CONNECTOR_BODIES)
-    cable.bodies = cable_defaults.bodies
-    cable.include_static_shapes = cable_defaults.include_static_shapes
-    cable.shape_label_patterns = cable_defaults.shape_label_patterns
-    cable.solver_cfg = cable.solver_cfg.replace(class_type=cable_defaults.solver_cfg.class_type)
-    defaults.solver_cfg.entries = [rigid, cable]
-    defaults.solver_cfg.proxies[0].bodies = rigid.bodies.copy()
-    physics.solver_cfg = defaults.solver_cfg
-    physics.collision_cfg = defaults.collision_cfg.replace(contact_matching="disabled")
-    physics.collision_decimation = defaults.collision_decimation
 
 
 def configure_hydroelastic_shapes(
@@ -196,7 +169,3 @@ def cable_collision_pipeline(model: newton.Model) -> newton.CollisionPipeline:
         contact_matching="sticky",
         include_static_kinematic_pairs=False,
     )
-
-
-# Saved configurations from the earlier demo refer to this factory by its original name.
-_one_way_cable_collision_pipeline = cable_collision_pipeline

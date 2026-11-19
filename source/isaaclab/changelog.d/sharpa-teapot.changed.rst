@@ -1,1 +1,1 @@
-* Updated the program launcher to support sibling imports in packaged examples, allowing the Sharpa teapot example to share the plain teapot scene.
+* Split the teapot fill and Sharpa water-pouring demos into standalone entry points with shared scene configuration.

@@ -20,11 +20,12 @@ from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import math as math_utils
 
+from isaaclab_assets.robots.rizon_sharpa import PALM_BODY_NAME
+
 from .assets import CUP_BOTTOM_THICKNESS, CUP_HEIGHT, CUP_INNER_RADIUS
 from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
 from .physics import SolverCoffeeMPM, configure_spoon_rim_margin
-from .robot import PALM_BODY_NAME
 
 
 class PalmPoseIKAction(DifferentialInverseKinematicsAction):
