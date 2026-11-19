@@ -102,27 +102,33 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
 
 
 def test_step_without_auto_reset_keeps_ended_episodes_pending(env: ManagerBasedRLEnv, monkeypatch):
-    """Without auto-reset, environments whose episodes ended stay pending, even once their termination no longer
-    holds, until a step with auto-reset, the caller or a visualizer resets them."""
+    """Without auto-reset, environments whose episodes ended stay pending and keep reporting their termination,
+    even once it no longer holds, until a step with auto-reset, the caller or a visualizer resets them."""
     env.reset()
     actions = torch.zeros(env.num_envs, 0, device=env.device)
-    _, _, terminated, _, _ = env.step(actions, auto_reset=False)
+    _, _, terminated, truncated, _ = env.step(actions, auto_reset=False)
     assert terminated.tolist() == [True, True, False, True]
-    _, _, terminated, _, _ = env.step(actions, auto_reset=False)
-    assert terminated.tolist() == [False, True, False, True]
-    assert env.pending_reset_buf.tolist() == [True, True, False, True]
+    _, _, terminated, truncated, _ = env.step(actions, auto_reset=False)
+    assert terminated.tolist() == [True, True, False, True]
+    assert not truncated.any()
+    assert env.pending_terminated_buf.tolist() == [True, True, False, True]
+    assert not env.pending_time_outs_buf.any()
     assert env.episode_length_buf.tolist() == [2, 2, 2, 2]
 
-    env.step(actions)
+    # The step that resets the pending environments reports the episode boundary, including for environment 0
+    # whose termination no longer holds.
+    _, _, terminated, _, _ = env.step(actions)
+    assert terminated.tolist() == [True, True, False, True]
     assert env.episode_length_buf.tolist() == [0, 0, 3, 0]
-    assert not env.pending_reset_buf.any()
+    assert not env.pending_terminated_buf.any()
 
     env.step(actions, auto_reset=False)
     env.reset(env_ids=torch.tensor([1], device=env.device))
-    assert env.pending_reset_buf.tolist() == [True, False, False, True]
+    assert env.pending_terminated_buf.tolist() == [True, False, False, True]
 
     # A reset requested from a visualizer resets every environment, the pending ones included.
     monkeypatch.setattr(env.sim, "consume_reset_request", lambda: True)
-    env.step(actions, auto_reset=False)
+    _, _, terminated, _, _ = env.step(actions, auto_reset=False)
+    assert terminated.tolist() == [True, True, True, True]
     assert env.episode_length_buf.tolist() == [0, 0, 0, 0]
-    assert not env.pending_reset_buf.any()
+    assert not env.pending_terminated_buf.any()
