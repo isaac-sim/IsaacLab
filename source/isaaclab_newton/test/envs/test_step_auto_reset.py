@@ -6,7 +6,7 @@
 """Stepping without auto-reset, on Newton.
 
 Each environment holds a cube resting on the ground. The odd environments terminate at once, and environment 0
-terminates at the first step of its episodes only.
+succeeds at the first step of its episodes only. A recorder counts the successful and failed episodes.
 """
 
 from collections.abc import Iterator
@@ -18,7 +18,16 @@ from isaaclab_newton.physics import NewtonCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, mdp
-from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import (
+    DatasetExportMode,
+    EventTermCfg,
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RecorderManagerBaseCfg,
+    RecorderTerm,
+    RecorderTermCfg,
+    SceneEntityCfg,
+)
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -71,10 +80,21 @@ class _EventsCfg:
     reset = EventTermCfg(func=mdp.reset_scene_to_default, mode="reset")
 
 
+class _EpisodeLengthRecorder(RecorderTerm):
+    def record_post_step(self) -> tuple[str, torch.Tensor]:
+        return "episode_length", self._env.episode_length_buf.clone()
+
+
+@configclass
+class _RecordersCfg(RecorderManagerBaseCfg):
+    episode_length = RecorderTermCfg(class_type=_EpisodeLengthRecorder)
+    dataset_export_mode = DatasetExportMode.EXPORT_NONE
+
+
 @configclass
 class _TerminationsCfg:
     odd = DoneTerm(func=_odd_environments)
-    first_step = DoneTerm(func=_first_step_of_environment_0)
+    success = DoneTerm(func=_first_step_of_environment_0)
 
 
 @configclass
@@ -88,6 +108,7 @@ class _EnvCfg(ManagerBasedRLEnvCfg):
     events = _EventsCfg()
     rewards = {}
     terminations = _TerminationsCfg()
+    recorders = _RecordersCfg()
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
@@ -116,11 +137,13 @@ def test_step_without_auto_reset_keeps_ended_episodes_pending(env: ManagerBasedR
     assert env.episode_length_buf.tolist() == [2, 2, 2, 2]
 
     # The step that resets the pending environments reports the episode boundary, including for environment 0
-    # whose termination no longer holds.
+    # whose termination no longer holds, and the recorder still marks its episode as successful.
     _, _, terminated, _, _ = env.step(actions)
     assert terminated.tolist() == [True, True, False, True]
     assert env.episode_length_buf.tolist() == [0, 0, 3, 0]
     assert not env.pending_terminated_buf.any()
+    assert env.recorder_manager.exported_successful_episode_count == 1
+    assert env.recorder_manager.exported_failed_episode_count == 2
 
     env.step(actions, auto_reset=False)
     env.reset(env_ids=torch.tensor([1], device=env.device))
