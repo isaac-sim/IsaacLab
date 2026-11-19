@@ -151,9 +151,9 @@ def build_render_product_as_string(
 
     The layer sets the camera scope as its default prim for referencing into OVRTX. It has one
     ``RenderProduct`` prim for each render product, and all of them use the RenderVar prims under ``Vars``.
-    The initial camera relationship targets only environment zero, whose camera is guaranteed to
-    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
-    resolved camera path after runtime cloning.
+
+    The camera relationship of each product is a placeholder at the first camera of its range, which can exist
+    only in Fabric. Right after the reference is applied, the renderer writes the real cameras of each product.
 
     Args:
         spec: Camera configuration, environment count, and camera paths. ISP configurations

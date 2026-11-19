@@ -105,6 +105,21 @@ class CameraCfg(SensorBaseCfg):
     for an interactive camera. These settings do not change the shared renderer configuration.
     """
 
+    max_envs_per_render_product: int | Literal["all"] = "all"
+    """Maximum number of environments in one render product. Defaults to ``"all"``.
+
+    One render product describes one tiled atlas with the images of its environments side by side. Smaller
+    atlases need smaller renderer buffers, so a smaller value can keep each buffer below the 4 GiB limit. The
+    output shapes and the environment order do not change. Path tracing and DLSS depend on the pixel position in
+    the atlas, so the color outputs can differ a little.
+
+    - ``"all"``: The sensor has one render product for all environments.
+    - An integer ``M`` of at least 1: The sensor has ``ceil(num_envs / M)`` render products.
+
+    Only renderers that set :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept an
+    integer. See :ref:`camera-render-products-per-sensor`.
+    """
+
     update_latest_camera_pose: bool = False
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
@@ -270,7 +285,12 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate the processors and the requested data types against the selected renderer contract."""
+        """Validate the render product split, the processors and the requested data types against the renderer."""
+        max_envs = self.max_envs_per_render_product
+        if not (type(max_envs) is int and max_envs >= 1) and max_envs != "all":
+            raise ValueError(
+                f'CameraCfg.max_envs_per_render_product must be "all" or an integer >= 1, got {max_envs!r}.'
+            )
         for processor_cfg in self.tensor_processors:
             # Import strings become callable lazily; any other string fails only at the first capture.
             if not callable(processor_cfg.func):

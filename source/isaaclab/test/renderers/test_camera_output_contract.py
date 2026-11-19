@@ -19,7 +19,7 @@ pytest.importorskip("isaaclab_physx")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, RendererCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
@@ -352,6 +352,67 @@ def test_camera_processors_allow_async_rendering():
         renderer_cfg=OVRTXRendererCfg(async_rendering=True),
     )
     cfg.tensor_processors = [TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb"], outputs=["half"])]
+    validate(cfg)
+
+
+@pytest.mark.parametrize(
+    "max_envs, valid",
+    [("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
+)
+def test_camera_cfg_validates_render_product_split(max_envs, valid):
+    """The split is "all" or an integer >= 1. Other values are rejected before any renderer runs."""
+    cfg = replace(_make_camera_cfg(["rgb"]), max_envs_per_render_product=max_envs)
+    if valid:
+        validate(cfg)
+    else:
+        with pytest.raises(ValueError, match='max_envs_per_render_product must be "all" or an integer >= 1'):
+            validate(cfg)
+
+
+@pytest.mark.parametrize(
+    "module_name, cfg_name, supports_split",
+    [
+        ("isaaclab_physx.renderers", "IsaacRtxRendererCfg", False),
+        ("isaaclab_newton.renderers", "NewtonWarpRendererCfg", False),
+        ("isaaclab_ov.renderers", "OVRTXRendererCfg", True),
+    ],
+)
+def test_render_product_split_check_follows_renderer_support(module_name, cfg_name, supports_split):
+    """Every renderer accepts "all". Only a renderer with split support accepts an integer."""
+    from isaaclab.sensors.camera.camera import _check_render_product_split
+
+    renderer_cfg = getattr(pytest.importorskip(module_name), cfg_name)()
+    cfg = _make_camera_cfg(["rgb"])
+    _check_render_product_split(replace(cfg, max_envs_per_render_product="all"), renderer_cfg)
+    split = replace(cfg, max_envs_per_render_product=3)
+    if supports_split:
+        _check_render_product_split(split, renderer_cfg)
+    else:
+        with pytest.raises(ValueError, match=f'{cfg_name} .* must be "all", got 3'):
+            _check_render_product_split(split, renderer_cfg)
+
+
+def test_camera_construction_rejects_render_product_split_without_renderer_support():
+    """The camera checks the split against its renderer when it is created, so a renderer never ignores an integer."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg):
+        cfg = replace(_make_camera_cfg(["rgb"]), renderer_cfg=NewtonWarpRendererCfg(), max_envs_per_render_product=2)
+        with pytest.raises(ValueError, match="NewtonWarpRendererCfg renders every environment through one render"):
+            instantiate(cfg)
+
+
+def test_camera_cfg_accepts_render_product_split_for_a_placeholder_renderer():
+    """The configuration check accepts a split for the "auto_rtx" placeholder, which a launcher replaces later."""
+    cfg = replace(
+        _make_camera_cfg(["rgb"]),
+        renderer_cfg=RendererCfg(renderer_type="auto_rtx"),
+        max_envs_per_render_product=3,
+    )
     validate(cfg)
 
 
