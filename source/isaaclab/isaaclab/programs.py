@@ -199,6 +199,13 @@ EXAMPLES = (
         "Couple MPM sand with rigid bodies.",
     ),
     ProgramSpec(
+        "mpm-ovphysx-one-way-coupling",
+        "examples/mpm/ovphysx_mpm_oneway_coupling.py",
+        "Roll OvPhysX rigid balls through Newton MPM sand.",
+        extras=("ovphysx",),
+        required_modules=("ovphysx",),
+    ),
+    ProgramSpec(
         "mpm-g1-coupling",
         "examples/mpm/g1_coupling.py",
         "Compare one-way and two-way G1 coupling across particle materials.",
