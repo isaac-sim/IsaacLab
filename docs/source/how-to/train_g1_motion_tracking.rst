@@ -33,8 +33,11 @@ Select **Train** or **Play** and **rsl_rl** to generate the base command.
 Reference motions
 -----------------
 
-Six 50 Hz clips are available under the asset-server prefix
-``https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/``:
+Six 50 Hz clips are available under the asset-server prefix:
+
+.. code-block:: bash
+
+   MOTION_DATA_PATH="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1"
 
 .. list-table::
    :header-rows: 1
@@ -75,10 +78,10 @@ Use a separate experiment name to keep its checkpoints together:
 
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Motion-Tracking-G1 \
        --experiment_name g1_motion_tracking_walk \
-       env.commands.motion.motion_file=https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/g1_walk.npz
+       env.commands.motion.motion_file="${MOTION_DATA_PATH}/g1_walk.npz"
 
-The actor uses reference joint positions/velocities, relative torso orientation, angular velocity,
-joint feedback, and previous actions. The critic additionally receives privileged position and
+The actor uses reference **joint positions/velocities, relative torso orientation, angular velocity,
+joint feedback, and previous actions**. The critic additionally receives privileged position and
 linear-velocity observations. Adaptive sampling increases the probability of starting near failed
 parts of the reference. Clip completion truncates the episode through the normal reset path.
 
