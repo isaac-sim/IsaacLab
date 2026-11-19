@@ -272,11 +272,26 @@ def test_wire_rejects_oversized_headers_before_receiving_the_body(metadata_size,
     [
         ({"shape": [1, 1, 1, 3], "dtype": "object", "nbytes": 3}, 3, "uint8"),
         ({"shape": [1, 1, 1, 3], "dtype": "uint8", "nbytes": 3}, 6, "payload size"),
+        # A float32 element is four bytes, so its byte count must say so.
+        ({"shape": [2, 3], "dtype": "float32", "nbytes": 6}, 6, "float32"),
     ],
 )
 def test_wire_rejects_unsafe_or_inconsistent_descriptors(descriptor, body_size, error):
     with pytest.raises(_protocol.ProtocolError, match=error):
         _receive_packet({"version": _protocol.PROTOCOL_VERSION, "arrays": [descriptor]}, claimed_body_size=body_size)
+
+
+def test_wire_carries_float32_controls_next_to_uint8_images():
+    sender, receiver = socket.socketpair()
+    controls = np.linspace(-1, 1, 2 * 16 * 59, dtype=np.float32).reshape(2, 16, 59)
+    images = np.arange(2 * 3 * 3, dtype=np.uint8).reshape(1, 2, 3, 3)
+    with sender, receiver:
+        _protocol.send_message(sender, {"op": "step"}, [controls, images])
+        _, (received_controls, received_images) = _protocol.receive_message(receiver)
+    assert received_controls.dtype == np.float32 and np.array_equal(received_controls, controls)
+    assert received_images.dtype == np.uint8 and np.array_equal(received_images, images)
+    with pytest.raises(_protocol.ProtocolError, match="uint8 or float32"):
+        _protocol.send_message(sender, {"op": "step"}, [controls.astype(np.float64)])
 
 
 def test_wire_requires_a_complete_binary_image():
@@ -1394,13 +1409,24 @@ def test_a_failing_service_closes_every_session_of_the_camera(cosmos_services, f
     client.close()
 
 
-def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):
+@pytest.mark.parametrize(
+    "resets,dtype,error",
+    [
+        ([2], np.uint8, "distinct opened views"),
+        # The wire also carries float32 arrays; camera sessions take uint8 images only.
+        ([], np.float32, "uint8 chunk per view"),
+    ],
+)
+def test_the_service_accepts_only_distinct_ordered_resets_and_uint8_controls(cosmos_service, resets, dtype, error):
+    controls = _controls().numpy().astype(dtype)
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         _protocol.send_message(connection, _open_request(num_views=2, seeds=[1, 2]))
         _protocol.check_reply(_protocol.receive_message(connection)[0])
-        _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
+        _protocol.send_message(
+            connection, {"op": "step", "reset_rows": resets, "seeds": [5] * len(resets)}, [controls] * 2
+        )
         reply, _ = _protocol.receive_message(connection)
-    assert not reply["ok"] and "distinct opened views" in reply["error"]
+    assert not reply["ok"] and error in reply["error"]
 
 
 def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosmos_service):

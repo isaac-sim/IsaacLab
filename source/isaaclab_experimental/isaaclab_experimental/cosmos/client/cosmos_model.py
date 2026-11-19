@@ -478,7 +478,8 @@ class _CosmosStream:
                 ]
             else:
                 if len(generated) != len(sent.frames) or any(
-                    images.shape != (count, *self._shape) for images, count in zip(generated, sent.frames)
+                    images.dtype.name != "uint8" or images.shape != (count, *self._shape)
+                    for images, count in zip(generated, sent.frames)
                 ):
                     raise ProtocolError("Cosmos returned images that do not match the control chunks.")
                 images = [torch.from_numpy(view).to(device=sent.device) for view in generated]

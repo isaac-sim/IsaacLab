@@ -5,9 +5,10 @@
 
 """Bounded messages for the optional Cosmos service.
 
-Messages consist of a fixed network-order header, UTF-8 JSON metadata, and contiguous uint8
-THWC arrays. Array descriptors carry their shape and byte count; no executable serialization
-or compressed payloads are accepted. This protocol is intended for trusted local connections.
+Messages consist of a fixed network-order header, UTF-8 JSON metadata, and contiguous uint8 or
+float32 arrays, such as THWC images or action chunks. Array descriptors carry their shape, type and
+byte count; no executable serialization or compressed payloads are accepted. This protocol is
+intended for trusted local connections.
 """
 
 from __future__ import annotations
@@ -56,6 +57,10 @@ this many views; larger batches need CUDA IPC, which sends no arrays."""
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 """Largest image payload of one message [bytes], checked before any buffer is allocated. :data:`MAX_ARRAYS` views
 of :data:`MAX_CHUNK_FRAMES` frames at the largest canvas need 79 MB."""
+_DTYPES = {"uint8": np.dtype(np.uint8), "float32": np.dtype(np.float32)}
+"""Array types the protocol carries: images and generated frames are uint8, model controls float32."""
+_MAX_DIMS = 5
+"""Most dimensions of one array, enough for a batch of THWC chunks."""
 _HEADER = struct.Struct("!4sIQ")
 _MAGIC = b"ILCS"
 
@@ -132,7 +137,7 @@ def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str
 
 
 def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> None:
-    """Send validated metadata and uint8 THWC arrays, bounded to one message's size limit."""
+    """Send validated metadata and uint8 or float32 arrays, bounded to one message's size limit."""
     if not isinstance(metadata, dict) or "arrays" in metadata:
         raise ProtocolError("Message metadata must be a dictionary without an 'arrays' field.")
     if metadata.get("version", PROTOCOL_VERSION) != PROTOCOL_VERSION:
@@ -144,16 +149,17 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
     for array in arrays:
         if (
             not isinstance(array, np.ndarray)
-            or array.dtype != np.uint8
-            or array.ndim != 4
-            or array.shape[-1] != 3
+            or array.dtype.name not in _DTYPES
+            or not 1 <= array.ndim <= _MAX_DIMS
             or any(size <= 0 for size in array.shape)
         ):
-            raise ProtocolError("Cosmos arrays must be nonempty uint8 THWC images with three channels.")
+            raise ProtocolError(
+                f"Cosmos arrays must be nonempty uint8 or float32 arrays of 1 to {_MAX_DIMS} dimensions."
+            )
         body_size += array.nbytes
         if body_size > MAX_ARRAY_BYTES:
             raise ProtocolError("Cosmos array payload exceeds the message size limit.")
-        descriptors.append({"shape": list(array.shape), "dtype": "uint8", "nbytes": array.nbytes})
+        descriptors.append({"shape": list(array.shape), "dtype": array.dtype.name, "nbytes": array.nbytes})
     envelope = {**metadata, "version": PROTOCOL_VERSION, "arrays": descriptors}
     try:
         encoded = json.dumps(envelope, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -168,7 +174,7 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
 
 
 def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
-    """Receive a bounded message, validating all descriptors before allocating image buffers."""
+    """Receive a bounded message, validating all descriptors before allocating array buffers."""
     magic, metadata_size, body_size = _HEADER.unpack(_receive_exact(sock, _HEADER.size))
     if magic != _MAGIC:
         raise ProtocolError("Invalid Cosmos protocol header.")
@@ -187,28 +193,33 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
         raise ProtocolError("Invalid Cosmos array descriptor list.")
     sizes = []
     shapes = []
+    dtypes = []
     for descriptor in descriptors:
         if not isinstance(descriptor, dict) or set(descriptor) != {"shape", "dtype", "nbytes"}:
             raise ProtocolError("Invalid Cosmos array descriptor.")
         shape = descriptor["shape"]
         size = descriptor["nbytes"]
+        dtype = _DTYPES.get(descriptor["dtype"]) if isinstance(descriptor["dtype"], str) else None
         if (
-            descriptor["dtype"] != "uint8"
+            dtype is None
             or not isinstance(shape, list)
-            or len(shape) != 4
+            or not 1 <= len(shape) <= _MAX_DIMS
             or any(type(dimension) is not int or dimension <= 0 for dimension in shape)
-            or shape[-1] != 3
             or type(size) is not int
-            or size != math.prod(shape)
+            or size != math.prod(shape) * dtype.itemsize
             or size > MAX_ARRAY_BYTES
         ):
-            raise ProtocolError("Cosmos arrays must be bounded nonempty uint8 THWC images.")
+            raise ProtocolError(
+                f"Cosmos arrays must be bounded nonempty uint8 or float32 arrays of 1 to {_MAX_DIMS} dimensions."
+            )
         sizes.append(size)
         shapes.append(tuple(shape))
+        dtypes.append(dtype)
     if sum(sizes) != body_size:
         raise ProtocolError("Cosmos array descriptors do not match the payload size.")
     arrays = [
-        np.frombuffer(_receive_exact(sock, size), dtype=np.uint8).reshape(shape) for size, shape in zip(sizes, shapes)
+        np.frombuffer(_receive_exact(sock, size), dtype=dtype).reshape(shape)
+        for size, shape, dtype in zip(sizes, shapes, dtypes)
     ]
     return metadata, arrays
 

@@ -42,7 +42,13 @@ connection does not hold the model. The connection that owns a session whose wei
 limit, since a learner can use the GPU for longer between rollouts."""
 
 
-def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT, *, warmup: bool = False) -> None:
+def serve(
+    model: _Model | Callable[[], _Model],
+    endpoint: str = DEFAULT_ENDPOINT,
+    *,
+    warmup: bool = False,
+    handler: Callable[[socket.socket, _ServiceState, set[socket.socket], threading.Lock], None] | None = None,
+) -> None:
     """Reserve the endpoint, then serve a resident model until shutdown or interruption.
 
     A connection owns at most one generation session. Only one session may use the resident model
@@ -57,6 +63,9 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
         endpoint: ``unix:///path`` for a Unix socket only this user can open, or ``tcp://host:port``. Use a
             loopback host for local TCP operation.
         warmup: Warm the model on its inference thread before exposing the ready endpoint.
+        handler: Serves one connection's requests, in a thread per connection. Defaults to the camera sessions of
+            Cosmos Transfer; another kind of model passes its own and reuses the endpoint, the inference thread and
+            the shutdown handling.
 
     The service owns ``model`` and closes it on exit, including failed startup. The protocol has no
     authentication: remote connections should use a trusted tunnel rather than a public interface.
@@ -105,7 +114,7 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
                 with connections_lock:
                     connections.add(connection)
                 thread = threading.Thread(
-                    target=_handle_connection,
+                    target=handler or _handle_connection,
                     args=(connection, state, connections, connections_lock),
                     name="cosmos-client",
                     daemon=True,
@@ -341,8 +350,10 @@ def _handle_connection(
                     _run_inference(state, _step_channel, stream, channel, frames, resets, seeds, episode)
                     send_message(connection, {"ok": True})
                     continue
-                if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
-                    raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
+                if len(arrays) != num_views or any(
+                    array.dtype != np.uint8 or array.shape[1:] != image_shape for array in arrays
+                ):
+                    raise ValueError("Cosmos controls must hold one uint8 chunk per view at the configured image size.")
                 generated = _run_inference(state, stream.step, arrays, resets, seeds, **episode)
                 _check_generated(generated, arrays)
                 send_message(connection, {"ok": True}, generated)
