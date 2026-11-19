@@ -191,6 +191,17 @@ def test_a_steady_turn_with_heavy_smoothing_is_not_mistaken_for_an_environment_r
         previous = yaw
 
 
+def test_a_camera_lagging_more_than_half_a_turn_keeps_turning_the_same_way():
+    cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=50.0)
+    follower = CameraFollower(cfg, _NamedScene())
+    yaws = []
+    for step in range(100):  # a robot spinning at 2 rad/s, far faster than the filter follows
+        raw = 0.2 * step
+        yaws.append(follower._filtered_yaw([0.0, 0.0, math.sin(raw / 2), math.cos(raw / 2)], [0.0, 0.0, 0.5], 0.1))
+    assert all(later >= earlier for earlier, later in zip(yaws, yaws[1:]))
+    assert yaws[-1] > yaws[0]
+
+
 def test_the_heading_filter_starts_afresh_after_a_reset():
     cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=1.0)
     follower = CameraFollower(cfg, _NamedScene())
