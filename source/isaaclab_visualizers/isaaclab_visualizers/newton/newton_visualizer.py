@@ -1457,6 +1457,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
         return True
 
+    def _release_rtx_scene(self) -> None:
+        """Give the scene cameras that share the OVRTX renderer back the overlays and lights the viewer added."""
+        if self._overlay_publisher is not None:
+            self._overlay_publisher.hide_all(self._rtx_renderers)
+        if self._rtx_appearance is not None and self._rtx_appearance.available:
+            self._rtx_appearance.suspend()
+
     def _select_camera(self, index: int, *, keep_pose: bool = False) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle.
 
@@ -1466,9 +1473,12 @@ class NewtonVisualizerBase(BaseVisualizer):
         """
         if getattr(self, "_pose_started", True):  # the viewer camera holds no pose of its own before the first source
             self._remember_perspective_pose()
-        if self._overlay_publisher is not None and self.rtx_rendering and index != self.rtx_view_index:
-            self._overlay_publisher.hide_all(self._rtx_renderers)  # sensors sharing the renderer must not keep them
+        leaving_rtx = self.rtx_rendering and index != self.rtx_view_index
+        if leaving_rtx:
+            self._release_rtx_scene()
         self.current_image_view = self._image_views[index]
+        if leaving_rtx:
+            self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
         if index != getattr(self, "rtx_view_index", None):
             self._rtx_pose_view = None
         camera = self.current_image_view.cfg.source
@@ -2066,13 +2076,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._rtx_appearance is not None and self._rtx_appearance.available:
                 self._rtx_appearance.apply_lights()
         else:
-            if self._overlay_publisher is not None:
-                self._overlay_publisher.hide_all(self._rtx_renderers)
-            if self._rtx_appearance is not None and self._rtx_appearance.available:
-                self._rtx_appearance.suspend()  # scene cameras share the stage, so they get its own lights back
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
-            self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
 
     @property
     def visible_env_limit(self) -> int:
@@ -2175,8 +2180,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._close_key_event_source()
         try:
             if self._rtx_visibility_limited:  # the shared renderer must not keep hiding environments from sensors
-                self.rtx_rendering = False
-                self._apply_rtx_visible_envs()
+                try:
+                    self._env_ids = None
+                    self._apply_rtx_visible_envs()
+                except Exception:
+                    logger.debug("[NewtonVisualizer] The environment visibility could not be restored.", exc_info=True)
             if self._overlay_publisher is not None:
                 try:
                     self._overlay_publisher.hide_all(self._rtx_renderers)

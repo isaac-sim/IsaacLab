@@ -186,7 +186,16 @@ def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
 
     viz.set_rtx_rendering(False)
     assert viz.current_image_view is free and not viz.rtx_rendering
-    assert viz.hidden == [("ovrtx",)]  # The overlay meshes are hidden when OVRTX stops drawing.
+
+
+def test_leaving_rtx_hides_the_overlays_and_suspends_the_viewer_lights():
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    suspended = []
+    viz._rtx_appearance = SimpleNamespace(available=True, suspend=lambda: suspended.append(True))
+
+    NewtonGLVisualizer._release_rtx_scene(viz)
+
+    assert viz.hidden == [("ovrtx",)] and suspended == [True]
 
 
 def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():

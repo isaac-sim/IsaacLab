@@ -446,7 +446,7 @@ class SimulationContext:
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
                 # tracking cameras only add to the scene cameras the visualizer would find on its own
-                discovered = visualizer.cfg.cameras is None or visualizer.cfg.tracking_cameras_only
+                discovered = visualizer.cfg.cameras is None or visualizer.cfg.tracking_cameras_only()
                 if discovered:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
