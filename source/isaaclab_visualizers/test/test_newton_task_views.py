@@ -266,6 +266,7 @@ def test_capturing_a_view_the_window_does_not_show_stays_out_of_the_hud_recordin
     viz._viewer.camera.pos = Vec3(0.0, 0.0, 0.0)
     viz._viewer.camera.pitch = viz._viewer.camera.yaw = 0.0
     viz._viewer.set_camera = lambda *args: None
+    viz._viewer.world_offsets = None
     seen = []
     viz._capture_frame = lambda output: seen.append(viz._capturing_another_view)
 
