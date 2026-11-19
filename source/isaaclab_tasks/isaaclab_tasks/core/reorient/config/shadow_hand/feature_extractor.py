@@ -305,9 +305,7 @@ class FeatureExtractor:
             save_images_to_file(img, f"shadow_hand_{dt}.png")
 
     def step(
-        self,
-        camera_output: dict[str, torch.Tensor],
-        gt_pose: torch.Tensor,
+        self, camera_output: dict[str, torch.Tensor], gt_pose: torch.Tensor
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Extracts features and optionally trains the CNN.
 
@@ -359,11 +357,10 @@ class FeatureExtractor:
                     if trained is None:
                         pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
                     elif not trained.any():
-                        # Nothing to learn from. An optimizer step on a zero loss would still move the weights
-                        # with Adam's momentum, so the step is skipped; this reads one flag from the GPU.
+                        # An optimizer step on a zero loss would still move the weights with Adam's momentum.
                         return None, predicted_pose
                     else:
-                        # The mean over the views with an image, weighted on the GPU instead of selected by index.
+                        # Mean over the views with an image.
                         weights = trained.to(predicted_pose.dtype)[:, None]
                         squared = (predicted_pose - gt_pose).square() * weights
                         pose_loss = squared.sum() / (weights.sum() * predicted_pose.shape[1]) * 100
