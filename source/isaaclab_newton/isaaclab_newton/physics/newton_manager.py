@@ -364,6 +364,8 @@ class NewtonManager(PhysicsManager):
                 backend.model_changes = queued
         else:
             backend.model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
@@ -510,6 +512,7 @@ class NewtonManager(PhysicsManager):
                 None if plan is None else plan.env_template,
                 relaxed_capture=self._relaxed_capture,
                 observable_kinds=set().union(*self._requested_solver_observables.values()),
+                initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
             )
         if self._handled_actions is not None:
             self._handle_actions()

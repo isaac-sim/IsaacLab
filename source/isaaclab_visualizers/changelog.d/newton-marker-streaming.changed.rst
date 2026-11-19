@@ -1,0 +1,1 @@
+* Batch Newton marker prototypes with shared primitive geometry and pass instance tensors directly to Warp, avoiding repeated host transfers and transform construction. Keep separate draw batches for Rerun prototype colors and skip unsupported prototypes safely.
