@@ -228,17 +228,13 @@ class FoveatedCamera(Camera):
 
     def ungazed_quat_w_ros(self) -> torch.Tensor:
         """World orientation (x, y, z, w) of the physical camera now, before the gaze turns it, ROS convention, shape
-        (num_envs, 4).
-
-        Raises:
-            RuntimeError: A gaze is set on a camera that writes it into its prims (Isaac RTX), so the current pose
-                includes it.
-        """
+        (num_envs, 4)."""
         if self._gaze_pose_reads_angles and self._gaze_angles is not None:
             # The record starts at the pose before any gaze and follows each pose update.
             return self._mount_quat_ros.torch.clone()
-        if self._gaze_written and not self._gaze_pose_reads_angles:
-            raise RuntimeError("The camera's prims already hold a gaze; read its mount before setting one.")
+        if self._gaze_written:
+            # The prims hold the gaze (Isaac RTX); get_world_poses reports the mount without it.
+            return self.get_world_poses(convention="ros")[1]
         return self._data.quat_w_ros.torch.clone()
 
     def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
