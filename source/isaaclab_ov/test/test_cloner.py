@@ -432,7 +432,7 @@ def test_native_clone_export_rejects_source_overlap():
     assert stage.GetRootLayer().ExportToString() == before
 
 
-def test_export_translates_legacy_joint_properties_without_editing_instances(monkeypatch):
+def test_export_translates_legacy_joint_properties_without_editing_instances():
     """Private exports preserve authored legacy values and modern precedence through instance prototypes."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/Robot")
@@ -502,7 +502,7 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
     ],
 )
 def test_export_rejects_unrepresentable_legacy_joint_properties(
-    monkeypatch, property_name, value, joint_type, message, static_effort
+    property_name, value, joint_type, message, static_effort
 ):
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/Robot/Joint", joint_type)

@@ -412,7 +412,7 @@ def _convert_legacy_joint_properties(
             axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.typeName)
             if not matches or axis is None or layer.ListTimeSamplesForPath(friction.path):
                 raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve legacy joint friction on {path}. "
+                    f"OVPhysX cannot preserve legacy joint friction on {path}. "
                     "Remove physxJoint:jointFriction and retune NewtonJointAPI newton:friction/newton:damping "
                     "or configure legacy_joint_friction_replacements with calibrated efforts; "
                     "the old coefficient has no exact conversion."
@@ -458,9 +458,7 @@ def _convert_legacy_joint_properties(
             if modern is not None and (modern.HasDefaultValue() or layer.ListTimeSamplesForPath(modern.path)):
                 continue
             if layer.ListTimeSamplesForPath(old.path):
-                raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}."
-                )
+                raise ValueError(f"OVPhysX cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}.")
             if not old.HasDefaultValue() or old.default == Sdf.ValueBlock():
                 continue
             if prim.typeName not in (
@@ -470,7 +468,7 @@ def _convert_legacy_joint_properties(
                 "PhysicsJoint",
             ):
                 if old.default != default:
-                    raise ValueError(f"OVPhysX 0.7 cannot preserve {old_name} on {prim.typeName} at {path}.")
+                    raise ValueError(f"OVPhysX cannot preserve {old_name} on {prim.typeName} at {path}.")
                 continue
             schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
             if "NewtonJointAPI" not in schemas:

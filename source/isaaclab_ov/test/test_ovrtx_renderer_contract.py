@@ -1159,9 +1159,6 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
         def __int__(self):
             raise TypeError("use .raw_id for explicit numeric conversion")
 
-    def handle(raw_id):
-        return Handle(raw_id)
-
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -1182,9 +1179,9 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     paths[0][0] = "/Lab/Cell1/Robot/CameraA"
     paths.append(["/World/PerspectiveCamera"])
     paths.append(paths[0][:1])
-    renderer.scene.paths.intern_token.side_effect = {"env_0": handle(10), "env_1": handle(11)}.__getitem__
+    renderer.scene.paths.intern_token.side_effect = {"env_0": Handle(10), "env_1": Handle(11)}.__getitem__
     path_ids = {path: 2**63 + i for i, path in enumerate(dict.fromkeys(path for group in paths for path in group))}
-    renderer.scene.paths.intern_path.side_effect = lambda path: handle(path_ids[path])
+    renderer.scene.paths.intern_path.side_effect = lambda path: Handle(path_ids[path])
     if use_ovstage:
         renderer.scene.render_copies_pending = False
         monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)

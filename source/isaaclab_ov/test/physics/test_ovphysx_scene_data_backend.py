@@ -571,7 +571,7 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def test_scene_data_binding_is_deferred_until_requested(manager, monkeypatch):
+def test_scene_data_binding_is_deferred_until_requested(manager):
     """Resolve nonempty rigid/link sessions in native order, once, before their dictionaries expire."""
     from contextlib import contextmanager
 
@@ -602,7 +602,7 @@ def test_scene_data_binding_is_deferred_until_requested(manager, monkeypatch):
         assert prim_paths == expected_paths
         return SimpleNamespace(count=2, prim_paths=prim_paths)
 
-    runtime = SimpleNamespace(create_tensor_binding=bind, **{"read_sync": read})
+    runtime = SimpleNamespace(create_tensor_binding=bind, read_sync=read)
     native = SimpleNamespace(physx=runtime, rigid_body_view=None)
     backend = OvPhysxSceneDataBackend(manager)
     backend._defer_setup(native, "cpu", ())

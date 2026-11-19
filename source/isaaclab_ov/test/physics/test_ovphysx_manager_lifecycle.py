@@ -270,7 +270,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
 
 
 @pytest.mark.parametrize("failure", [None, "query", "write", "update"])
-def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, manager, failure):
+def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
     from isaaclab_ov.stage import OvstageBackend
 

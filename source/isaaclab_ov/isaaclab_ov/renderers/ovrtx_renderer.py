@@ -1397,7 +1397,6 @@ class OVRTXMesh:
             if self._texture is not None:
                 sampler = UsdShade.Shader.Get(self.stage, "/Mesh/Material/Texture")
                 sampler.CreateInput("scale", Sdf.ValueTypeNames.Float4).Set((*appearance[1], 1.0))
-            # OVRTX 0.7 reloads removed meshes at the same path (streaming fix NVBug 6441596).
             self._native_resources.close()
             usd = self.stage.GetRootLayer().ExportToString()
             if self.renderer._use_ovstage:

@@ -197,8 +197,6 @@ def build_render_product_as_string(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
-    # Keep eco mode's enabled default: OVRTX 0.7 wakes on GPU transform changes (NVBug 6887809).
-
     # An ISP needs Gaussian splats tonemapped with the rest of the frame.
     # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
     if spec.cfg.isp_cfg is not None:

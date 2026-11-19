@@ -10,7 +10,15 @@ from pathlib import Path
 
 
 def physx_schema_paths() -> list[Path]:
-    """Locate the external PhysX schemas without importing the external USD plugin provider."""
+    """Locate the external PhysX schemas without importing the external USD plugin provider.
+
+    Returns:
+        Resource directories for ``PhysxSchema`` and ``OmniUsdPhysicsDeformableSchema``, in that order.
+
+    Raises:
+        importlib.metadata.PackageNotFoundError: If ``physx-usd-schemas`` is not installed.
+        FileNotFoundError: If a resource directory lacks ``plugInfo.json`` or ``generatedSchema.usda``.
+    """
     package = importlib.metadata.distribution("physx-usd-schemas")
     paths = [
         Path(package.locate_file(f"physx_usd_schemas/{module}/resources"))

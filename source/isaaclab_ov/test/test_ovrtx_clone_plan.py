@@ -220,7 +220,7 @@ def test_native_replication_applies_compositions_then_positions(
 
 
 @pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
-def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
+def test_ovstage_replication_skips_hierarchy_without_clones(copies):
     """OVStage 0.4 does no hierarchy work when there are no clone destinations."""
     native, paths = Mock(), Mock()
     ovstage_replicate(native, paths, copies, [], ordinal=3)

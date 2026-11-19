@@ -63,13 +63,6 @@ def populate_stage(
     ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
 
 
-@cache
-def _physics_population_desc() -> ovstage.population.Desc:
-    from ovphysx.population import physics_population_desc
-
-    return physics_population_desc()
-
-
 def create_ovstage(name: str) -> ovstage.Stage:
     """Create an ovstage stage using Isaac Lab's process-wide stage configuration.
 
@@ -461,6 +454,13 @@ def export_stage_to_string(
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
     return layer.ExportToString()
+
+
+@cache
+def _physics_population_desc() -> ovstage.population.Desc:
+    from ovphysx.population import physics_population_desc
+
+    return physics_population_desc()
 
 
 def _apply_ovstage_copies(

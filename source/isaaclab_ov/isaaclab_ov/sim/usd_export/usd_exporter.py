@@ -35,7 +35,7 @@ LEGACY_JOINT_ATTRIBUTES = {
     "joint_dynamic_friction_coeff": ("physxJoint:jointFriction", "newton:friction"),
     "joint_viscous_friction_coeff": ("physxJoint:jointFriction", "newton:damping"),
 }
-"""Joint property -> the ``PhysxJointAPI`` attribute Isaac Lab migrates before OVPhysX 0.7 loads the stage, and the
+"""Joint property -> the ``PhysxJointAPI`` attribute Isaac Lab migrates before OVPhysX loads the stage, and the
 Newton attribute the migration keeps instead."""
 
 NEWTON_JOINT_ATTRIBUTES = {
@@ -44,7 +44,7 @@ NEWTON_JOINT_ATTRIBUTES = {
     "joint_friction_coeff": "newton:friction",
     "joint_viscous_friction_coeff": "newton:damping",
 }
-"""Joint property -> the Newton attribute OVPhysX 0.7 keeps when the per-axis value is not positive."""
+"""Joint property -> the Newton attribute OVPhysX keeps when the per-axis value is not positive."""
 
 
 class UsdExporter(PhysxUsdExporter):
@@ -54,9 +54,9 @@ class UsdExporter(PhysxUsdExporter):
     exports_deformables = True
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
-        """The PhysX edits, plus the authored Newton joint values OVPhysX 0.7 would keep over the written ones."""
+        """The PhysX edits, plus the authored Newton joint values OVPhysX would keep over the written ones."""
         edits = super().compute_diff(stage)
-        # OVPhysX 0.7 applies a per-axis joint value only when it is positive and otherwise keeps an authored Newton
+        # OVPhysX applies a per-axis joint value only when it is positive and otherwise keeps an authored Newton
         # value, so a Newton value the live engine no longer holds is restated.
         readings, _ = self._read_assets(stage)
         for (path, axis), values in readings.items():
@@ -71,7 +71,7 @@ class UsdExporter(PhysxUsdExporter):
         return edits
 
     def _get_properties_to_restate(self, prim, axis):
-        # OVPhysX 0.7 ignores PhysxJointAPI; Isaac Lab migrated its values into the stage the engine loaded.
+        # OVPhysX ignores PhysxJointAPI; Isaac Lab migrated its values into the stage the engine loaded.
         table = self._get_joint_attribute_table(axis)
         return {
             name
