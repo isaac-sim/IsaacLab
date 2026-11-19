@@ -109,6 +109,12 @@ _MARKER_TIPS = {
 """What each marker group shows, by the last component of its prim path."""
 
 
+RTX_SHARED_SCENE_NOTE = (
+    "In RTX, hidden environments also disappear for other cameras that share the scene. Soft objects stay visible."
+)
+"""Shown beside the controls that hide environments while the RTX view is selected."""
+
+
 def hud_note(imgui: Any, text: str) -> None:
     """Draw a short muted-blue note that the user should know about the control above or below it."""
     imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.55, 0.7, 0.95, 0.85))
@@ -546,11 +552,7 @@ class NewtonViewerGL(ViewerGL):
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
         if getattr(owner, "rtx_rendering", False):
-            hud_note(
-                imgui,
-                "In RTX mode, hidden environments are also hidden for other cameras that share the scene."
-                " Soft objects stay visible.",
-            )
+            hud_note(imgui, RTX_SHARED_SCENE_NOTE)
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
@@ -1500,6 +1502,8 @@ class NewtonVisualizerBase(BaseVisualizer):
                 edited |= self._set_tracking_path(follower, f"{asset_name}/{bodies[index]}" if index else asset_name)
         changed, only = imgui.checkbox("Show Only This Env", self._track_env_only)
         tip("Draw only the camera's environment, following it when the environment changes")
+        if self.rtx_rendering:
+            hud_note(imgui, RTX_SHARED_SCENE_NOTE)
         if changed:
             self._track_env_only = only
             self._apply_visible_worlds()
