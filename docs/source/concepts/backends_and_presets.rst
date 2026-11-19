@@ -157,6 +157,9 @@ conventions:
    * - ``newton_warp``
      - Newton Warp renderer. This is the default for tasks that use the
        multi-backend renderer preset.
+   * - ``newton_optix``
+     - Newton renderer ray traced in hardware with OptiX. Requires an RTX GPU and the
+       ``optix`` extra.
    * - ``ovrtx``
      - OVRTX renderer for runs without Kit.
 

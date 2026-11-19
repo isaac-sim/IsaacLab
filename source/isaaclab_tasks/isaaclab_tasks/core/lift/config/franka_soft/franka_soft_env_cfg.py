@@ -634,6 +634,12 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         # visualizer settings
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
+    def validate_config(self):
+        """Reject the Newton OptiX renderer, which does not trace deformable objects."""
+        camera = getattr(self.scene, "base_camera", None)
+        if camera is not None and camera.renderer_cfg.renderer_type == "newton_optix":
+            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")
+
     def play_mode(self):
         super().play_mode()
         for command_cfg in vars(self.commands).values():

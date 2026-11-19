@@ -96,6 +96,16 @@ use case.
    - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`
    - **Best for:** Training workflows where throughput matters more than full RTX fidelity.
 
+.. dropdown:: Newton OptiX renderer
+
+   - **Runtime and physics:** The Newton renderer ray traced in hardware with OptiX on RTX GPUs.
+     Install it with ``uv sync --extra optix`` (Linux x86-64 and Windows x64) and select it with
+     ``renderer=newton_optix``. Pairs with the same physics backends as Newton Warp.
+   - **Output coverage:** Same outputs and settings as Newton Warp. It does not render particles,
+     deformable surfaces, or Gaussian splats, and it ignores ``use_cuda_graph``.
+   - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`
+   - **Best for:** Newton Warp workloads on RTX GPUs.
+
 .. dropdown:: OVRTX renderer
 
    - **Runtime and physics:** Provides kit-less RTX rendering through the ``isaaclab_ov`` extension
