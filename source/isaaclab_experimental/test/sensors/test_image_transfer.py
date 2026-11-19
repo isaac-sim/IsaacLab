@@ -110,7 +110,13 @@ def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
 
 @pytest.mark.parametrize(
     "selection",
-    [{"env_ids": torch.tensor([1])}, {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")}],
+    [
+        {"env_ids": torch.tensor([1])},
+        {"env_ids": [1]},
+        # A boolean list is a mask, as for the other tensor processors, not the indices 0 and 1.
+        {"env_ids": [False, True]},
+        {"env_mask": wp.array([False, True], dtype=wp.bool, device="cpu")},
+    ],
 )
 def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection):
     processor, model = _processor(initial_frames=1, update_frames=1)

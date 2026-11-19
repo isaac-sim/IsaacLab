@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import instantiate, string_to_callable
+from isaaclab.utils import index_fill_, instantiate, string_to_callable
 from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
@@ -82,6 +82,8 @@ class ImageTransferProcessor(TensorProcessor):
         # needs no host check.
         self._queue: torch.Tensor | None = None
         self._rows = torch.arange(num_views, device=device)
+        self._all_views = torch.ones(num_views, dtype=torch.bool, device=device)
+        self._selected = torch.zeros(num_views, dtype=torch.bool, device=device)
         self._counts = torch.zeros(num_views, dtype=torch.int64, device=device)
         self._fresh = torch.ones(num_views, dtype=torch.bool, device=device)
         self._overflow = torch.zeros(num_views, dtype=torch.bool, device=device)
@@ -190,7 +192,7 @@ class ImageTransferProcessor(TensorProcessor):
         """Discard the queued controls and episode state of the selected views.
 
         Args:
-            env_ids: Views to reset. Defaults to None, which resets all views.
+            env_ids: Views to reset, as indices or a boolean mask. Defaults to None, which resets all views.
             env_mask: Boolean mask of the views to reset. Takes precedence over ``env_ids``. Defaults to None.
         """
         if self._closed:
@@ -220,16 +222,18 @@ class ImageTransferProcessor(TensorProcessor):
                 self._owned_model.close()
 
     def _select(self, env_ids: Sequence[int] | torch.Tensor | None, env_mask: wp.array | None) -> torch.Tensor:
-        """Return the selected views as a boolean mask on the output's device, without reading it on the host."""
-        device = self._output.device
+        """Return the selected views as a boolean mask on the output's device, without reading it on the host.
+
+        The result may be reused storage, so callers do not modify it.
+        """
         if env_mask is not None:
-            return wp.to_torch(env_mask).to(device=device, dtype=torch.bool)
-        selected = torch.ones(self._data_dim[0], dtype=torch.bool, device=device)
-        if env_ids is not None:
-            ids = env_ids if isinstance(env_ids, torch.Tensor) else torch.as_tensor(list(env_ids), dtype=torch.long)
-            selected.zero_()
-            selected[ids.to(device, non_blocking=True)] = True
-        return selected
+            return wp.to_torch(env_mask).to(device=self._output.device, dtype=torch.bool)
+        if env_ids is None:
+            return self._all_views
+        # Indices or a boolean mask, as the other tensor processors take them.
+        self._selected.zero_()
+        index_fill_(self._selected, env_ids, True)
+        return self._selected
 
     def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
         """Return the views that started an episode since the last generation, with their seeds and episode
