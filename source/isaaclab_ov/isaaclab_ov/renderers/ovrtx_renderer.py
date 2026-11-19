@@ -93,7 +93,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     normalize_mesh_normals,
 )
-from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
+from isaaclab_ov.renderers.ovrtx_shader_cache import _acquire_settings_applier, redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
@@ -148,6 +148,9 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
     "DistanceToCameraSD": ("distance_to_camera",),
 }
 
+
+# Runtime environment variable that renders with OVRTX's Hercules scene backend instead of Hydra.
+_USE_HERCULES_ENV = "ISAAC_LAB_OVRTX_USE_HERCULES"
 
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
@@ -257,6 +260,9 @@ class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
+        use_hercules = os.environ.get(_USE_HERCULES_ENV, "0").strip()
+        if use_hercules not in {"0", "1"}:
+            raise ValueError(f"Invalid {_USE_HERCULES_ENV}: {use_hercules!r}. Expected 0 or 1.")
         self.cfg = cfg
         self.attached = False
         self.render_products: set[str] = set()
@@ -278,6 +284,12 @@ class OVRTXBackend:
         )
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
+        # OVRTX reads this process-wide setting when each renderer is created, so it must precede Renderer and
+        # stays on for later renderers in the process.
+        if use_hercules == "1":
+            apply_setting = _acquire_settings_applier(native_cfg)
+            if apply_setting is None or not apply_setting("--/app/useHercules=true"):
+                raise RuntimeError(f"{_USE_HERCULES_ENV}=1, but this ovrtx runtime cannot apply /app/useHercules.")
         self.next_camera_id = 0
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
