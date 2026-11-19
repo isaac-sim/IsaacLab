@@ -21,7 +21,7 @@ generate the head camera image with Cosmos:
 
     uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \\
         python scripts/imitation_learning/gr00t/play_apple_pick_place.py \\
-        physics=newton_mjwarp renderer=newton_renderer
+        physics=newton_mjwarp renderer=newton_warp
 """
 
 from __future__ import annotations

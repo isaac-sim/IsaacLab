@@ -42,8 +42,8 @@ Start in a parent directory that will contain `IsaacLab`, `cosmos-framework`,
 `gr00t-leapp-export`, and the two model directories. Set these variables before cloning:
 
 ```bash
-export ISAAC_LAB="${PWD}/IsaacLab"
-export COSMOS_FRAMEWORK="${PWD}/cosmos-framework"
+export ISAAC_LAB_ROOT="${PWD}/IsaacLab"
+export COSMOS_FRAMEWORK_ROOT="${PWD}/cosmos-framework"
 export COSMOS_CHECKPOINT="${PWD}/cosmos-model"
 export GR00T_ROOT="${PWD}/gr00t-leapp-export"
 export GR00T_CHECKPOINT="${PWD}/apple-policy"
@@ -58,9 +58,9 @@ Clone Isaac Lab, then Cosmos Framework and the GR00T runtime at the commits this
 tested with. GR00T uses git submodules:
 
 ```bash
-git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
-git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
-git -C "$COSMOS_FRAMEWORK" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
+git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB_ROOT"
+git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK_ROOT"
+git -C "$COSMOS_FRAMEWORK_ROOT" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
 git clone --recurse-submodules https://github.com/nvidia-isaac/gr00t-leapp-export "$GR00T_ROOT"
 git -C "$GR00T_ROOT" checkout 072c98dcdc5acf471aabb0e4df1b256da8608831
 git -C "$GR00T_ROOT" submodule update --init --recursive
@@ -72,10 +72,10 @@ From the Cosmos Framework checkout, create its environment, install Isaac Lab's 
 into it and download the Cosmos checkpoint:
 
 ```bash
-cd "$COSMOS_FRAMEWORK"
+cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
 uv run --no-sync uv pip install -e \
-  "$ISAAC_LAB/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
 uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer \
   --local-dir "$COSMOS_CHECKPOINT"
 ```
@@ -121,15 +121,15 @@ Wait until the server reports that it is ready. Leave this terminal running.
 ## 5. Run the task in terminal 2
 
 Run the task with the rendered camera image first. It needs only the GR00T server.
-`physics=newton_mjwarp` and `renderer=newton_renderer` select Newton physics and the Newton
+`physics=newton_mjwarp` and `renderer=newton_warp` select Newton physics and the Newton
 Warp renderer, which the default Isaac Lab install includes. The two `--with` options add the
 messaging libraries the client uses. No window opens unless you select a visualizer with `--viz`:
 
 ```bash
-cd "$ISAAC_LAB"
+cd "$ISAAC_LAB_ROOT"
 uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
-  physics=newton_mjwarp renderer=newton_renderer
+  physics=newton_mjwarp renderer=newton_warp
 ```
 
 The run stops after 4 episodes; `--num_episodes` changes that. Each finished episode prints
@@ -170,22 +170,21 @@ and its self-collisions push the legs apart at the hips.
 Start the Cosmos service in terminal 3, with the path variables set:
 
 ```bash
-cd "$COSMOS_FRAMEWORK"
+cd "$COSMOS_FRAMEWORK_ROOT"
 export LD_LIBRARY_PATH=
-export PYTHONFAULTHANDLER=1
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" 2>&1 | tee server.log
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT"
 ```
 
 Wait for `Cosmos ready at ...` and leave this terminal running. Then, in terminal 2, select the
 Cosmos task:
 
 ```bash
-cd "$ISAAC_LAB"
+cd "$ISAAC_LAB_ROOT"
 uv run python -m isaaclab_experimental.cosmos.client.cli status
 uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \
-  physics=newton_mjwarp renderer=newton_renderer
+  physics=newton_mjwarp renderer=newton_warp
 ```
 
 Cosmos generates the image from depth alone, so the renderer's shading does not change it.
@@ -209,12 +208,12 @@ red plate on a white cloth. Cosmos images of the same moment, 5 s into an episod
 environment:
 
 ```bash
-cd "$ISAAC_LAB"
+cd "$ISAAC_LAB_ROOT"
 P=source/isaaclab_experimental/isaaclab_experimental/cosmos/tasks/prompts
 uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \
-  physics=newton_mjwarp renderer=newton_renderer env.scene.num_envs=4 \
+  physics=newton_mjwarp renderer=newton_warp env.scene.num_envs=4 \
   env.cosmos.prompt_files="['$P/apple_pick_place.json','$P/apple_pick_place_green_apple.json','$P/apple_pick_place_red_plate.json','$P/apple_pick_place_green_apple_red_plate_whitecloth.json']" \
   env.cosmos_seed="[101,202,303,404]"
 ```
@@ -237,7 +236,7 @@ uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \
   --num_episodes 1 --save_frames outputs/apple_cosmos \
-  physics=newton_mjwarp renderer=newton_renderer
+  physics=newton_mjwarp renderer=newton_warp
 ```
 
 Press Ctrl+C in the Cosmos terminal and the GR00T terminal when finished.

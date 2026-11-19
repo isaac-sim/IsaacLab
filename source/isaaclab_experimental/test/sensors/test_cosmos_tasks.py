@@ -290,7 +290,7 @@ def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
     "overrides, physics, renderer",
     (
         (("physics=ovphysx", "renderer=ovrtx"), "OvPhysxCfg", "OVRTXRendererCfg"),
-        (("physics=newton_mjwarp", "renderer=newton_renderer"), "NewtonCfg", "NewtonWarpRendererCfg"),
+        (("physics=newton_mjwarp", "renderer=newton_warp"), "NewtonCfg", "NewtonWarpRendererCfg"),
     ),
 )
 def test_apple_cosmos_task_keeps_the_backend_presets(overrides, physics, renderer):

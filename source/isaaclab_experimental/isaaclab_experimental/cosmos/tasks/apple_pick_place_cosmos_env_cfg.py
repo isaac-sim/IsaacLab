@@ -44,7 +44,7 @@ class G1ApplePickPlaceCosmosEnvCfg(G1ApplePickPlaceEnvCfg):
 
     @cosmos.setter
     def cosmos(self, settings: CosmosModelCfg):
-        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
+        # configclass copies properties like fields when it copies a configuration, which needs a setter.
         self._cosmos_transfer().backend = settings
 
     @property
