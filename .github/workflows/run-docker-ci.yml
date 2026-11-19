@@ -25,7 +25,7 @@ jobs:
     name: Request Docker CI
     if: >-
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, 'run-ci')
+      contains(fromJSON('["run-ci", "run-ci\n", "run-ci\r\n", "run-ci ovstage", "run-ci ovstage\n", "run-ci ovstage\r\n"]'), github.event.comment.body)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,10 +40,10 @@ jobs:
         run: |
           set -efuo pipefail
 
-          # Normalize CRLF and trim trailing whitespace/newlines so comments ending
-          # in a line break still match ``run-ci`` or ``run-ci ovstage``.
-          command="${COMMENT_BODY//$'\r'/}"
-          command="${command%"${command##*[![:space:]]}"}"
+          # Normalize trailing CRLF/LF so comments ending in a line break still
+          # match ``run-ci`` or ``run-ci ovstage``.
+          command="${COMMENT_BODY%$'\n'}"
+          command="${command%$'\r'}"
           case "${command,,}" in
             "run-ci")
               label="ci:run-docker"

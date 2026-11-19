@@ -106,11 +106,15 @@ def test_run_docker_ci_command_options(tmp_path: Path) -> None:
             [
                 "node",
                 "-e",
-                """
-const [expr, isPr, body] = process.argv.slice(1);
-const startsWith = (s, p) => String(s ?? '').toLowerCase().startsWith(String(p ?? '').toLowerCase());
-const ok = new Function('github', 'startsWith', `return Boolean(${expr})`)(
-  {event: {issue: isPr === '1' ? {pull_request: {}} : {}, comment: {body}}}, startsWith
+                r"""
+const [rawExpr, isPr, body] = process.argv.slice(1);
+// GitHub Actions single-quoted literals have no backslash escapes; only '' escapes '.
+const jsExpr = rawExpr.replace(/'((?:[^']|'')*)'/g, (_, s) => JSON.stringify(s.replace(/''/g, "'")));
+const contains = (search, item) => Array.isArray(search)
+  ? search.some(v => String(v).toLowerCase() === String(item ?? '').toLowerCase())
+  : String(search ?? '').toLowerCase().includes(String(item ?? '').toLowerCase());
+const ok = new Function('github', 'fromJSON', 'contains', `return Boolean(${jsExpr})`)(
+  {event: {issue: isPr === '1' ? {pull_request: {}} : {}, comment: {body}}}, JSON.parse, contains
 );
 process.stdout.write(ok ? '1' : '0');
 """,
@@ -188,16 +192,23 @@ process.stdout.write(ok ? '1' : '0');
         return auth.returncode, auth.stdout + auth.stderr, outputs, calls
 
     assert not gate_allows(False, "run-ci")
-    for skipped_comment in ("LGTM", "`run-ci`", "  run-ci"):
+    for skipped_comment in (
+        "LGTM",
+        "`run-ci`",
+        "  run-ci",
+        "run-ci is already green",
+        "run-ci\nplease",
+        "run-ci-ovstage",
+    ):
         assert not gate_allows(True, skipped_comment), skipped_comment
-    code, _, _, calls = run_authorize("  run-ci")
+    code, _, _, calls = run_authorize("run-ci is already green")
     assert code != 0 and calls == []
 
     for body, expected_label, expected_cmd, run_trigger in [
         ("run-ci", "ci:run-docker", "run-ci", True),
-        ("run-ci \r\n", "ci:run-docker", "run-ci", False),
+        ("run-ci\r\n", "ci:run-docker", "run-ci", False),
         ("run-ci ovstage\r\n", "ci:run-ovstage", "run-ci ovstage", True),
-        ("run-ci OVSTAGE", "ci:run-ovstage", "run-ci ovstage", False),
+        ("run-ci OVSTAGE\n", "ci:run-ovstage", "run-ci ovstage", False),
     ]:
         assert gate_allows(True, body), body
         code, output, outputs, calls = run_authorize(body, run_trigger=run_trigger)
@@ -209,13 +220,6 @@ process.stdout.write(ok ? '1' : '0');
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[0]
             assert f"labels[]={expected_label}" in label_calls[1]
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[2]
-
-    for invalid_body in ("run-ci unknown", "run-ci-ovstage", "run-ci\nextra"):
-        if gate_allows(True, invalid_body):
-            code, output, _, calls = run_authorize(invalid_body)
-            assert code != 0, invalid_body
-            assert "::error::" in output, invalid_body
-            assert calls == [], (invalid_body, calls)
 
 
 def test_benchmark_cancellation(tmp_path: Path) -> None:
