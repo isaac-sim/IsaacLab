@@ -535,13 +535,16 @@ The same report found zero successes with ``performance`` rendering and did not 
 published robustness gains with ``balanced``. The report does not establish compatibility with
 other Isaac Lab 2.x releases.
 
-To try that setup, use the v2.2.0 checkout and its Isaac Sim 5.0.0 environment, then run:
+To try that setup, use the v2.2.0 checkout and its Isaac Sim 5.0.0 environment.
+
+Point ``--input_dir`` to a single run's ``models/`` directory containing the checkpoint files;
+the script does not search subdirectories. For example, using the released Mimic 1k run:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
      --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 \
-     --input_dir /path/to/released/models \
+     --input_dir /path/to/robomimic_bc_rnn_visuomotor_models/franka_stack_mimic_1k_table_only/20250416141542/models \
      --log_dir robust_results/released_checkpoints \
      --log_file result \
      --seeds 0 \
