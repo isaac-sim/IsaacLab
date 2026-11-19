@@ -32,7 +32,7 @@ from ..sensors.gaze_kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv
 
     from ..sensors import FoveatedCamera
     from .gaze_cfg import GazeActionCfg
@@ -180,21 +180,6 @@ def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
     """Gaze and its velocity, in field radii and field radii per second, shape (num_envs, 4)."""
     term: GazeAction = env.action_manager.get_term(action_name)
     return term.state
-
-
-def motor_action_l2(env: ManagerBasedRLEnv, gaze_action_name: str = "gaze") -> torch.Tensor:
-    """Squared L2 norm of the actions other than the gaze, shape (num_envs,).
-
-    Matches :func:`isaaclab.envs.mdp.action_l2` on the task's own actions, so moving the gaze costs nothing.
-
-    Raises:
-        ValueError: The gaze is not the last action term.
-    """
-    manager = env.action_manager
-    if manager.active_terms[-1] != gaze_action_name:
-        raise ValueError(f"The gaze action term {gaze_action_name!r} must be the last action term.")
-    # One reduction over the actions before the gaze.
-    return manager.action[:, : manager.total_action_dim - manager.action_term_dim[-1]].square().sum(-1)
 
 
 class GazeAction(ActionTerm):

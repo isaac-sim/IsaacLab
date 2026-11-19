@@ -134,6 +134,15 @@ No source checkout is required.
               alt="Rizon and Sharpa hand scooping coffee beside a filled cup" loading="lazy">
          <span>Rizon–Sharpa Coffee</span>
        </button>
+       <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="Foveated Camera" data-demo-id="foveated-camera"
+               data-demo-physics="newton_xpbd" data-demo-fixed-physics="true"
+               data-demo-visualizers="newton_gl" data-demo-extras="fovi"
+               data-demo-description="Watch a foveated camera move its gaze between objects; the viewer shows its retina.">
+         <img src="../../_static/demos/foveated_camera.jpg"
+              alt="Foveated camera images, each fixating a different coloured object" loading="lazy">
+         <span>Foveated Camera</span>
+       </button>
      </div>
        <aside class="admonition hint demo-command-note" data-demo-note="h1-locomotion" hidden>
          <p class="admonition-title">H1 locomotion</p>
@@ -192,6 +201,20 @@ View the static MicroDuck Warehouse through selectable renderers and saved camer
 
 Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
 For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
+
+Foveated camera
+---------------
+
+Watch a :doc:`foveated camera </source/concepts/sensors/foveated_camera>` move its gaze from object to object. The
+viewer shows the camera's retina, dense where it looks.
+
+.. code-block:: bash
+
+   uv run --extra fovi isaaclab demo foveated-camera
+   uv run --extra fovi --extra isaacsim isaaclab demo foveated-camera renderer=isaacsim_rtx
+   uv run --extra fovi isaaclab demo foveated-camera env.scene.eye.cmf_a_deg=1000
+
+The last command samples nearly uniformly, a matched non-foveated retina for comparison.
 
 
 .. _demo-sonic:

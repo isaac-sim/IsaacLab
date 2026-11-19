@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration of :class:`~isaaclab_fovi.rsl_rl.gaze_supervised_ppo.GazeSupervisedPPO`."""
+"""Configuration of :class:`~isaaclab_tasks.contrib.active_gaze.gaze_supervised_ppo.GazeSupervisedPPO`."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ from isaaclab_rl.rsl_rl import RslRlPpoAlgorithmCfg
 class GazeSupervisedPPOCfg(RslRlPpoAlgorithmCfg):
     """PPO whose loss also pulls the policy's gaze toward a teacher's.
 
-    See :class:`~isaaclab_fovi.rsl_rl.gaze_supervised_ppo.GazeSupervisedPPO`.
+    See :class:`~isaaclab_tasks.contrib.active_gaze.gaze_supervised_ppo.GazeSupervisedPPO`.
     """
 
-    class_name: str = "isaaclab_fovi.rsl_rl.gaze_supervised_ppo:GazeSupervisedPPO"
+    class_name: str = "isaaclab_tasks.contrib.active_gaze.gaze_supervised_ppo:GazeSupervisedPPO"
     oracle_loss_coef: float = 1.0
     """Weight of the gaze loss. Zero trains plain PPO."""
     oracle_group: str = "oracle"

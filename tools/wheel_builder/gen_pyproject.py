@@ -8,14 +8,11 @@
 The published wheel bundles every ``isaaclab*`` sub-package as a top-level
 module, so the workspace self-references in the root ``[project.dependencies]``
 and ``[project.optional-dependencies]`` are dropped here; only third-party
-requirements end up in the wheel metadata. The bundled sub-packages' entry points,
-such as the ``isaaclab.tasks`` entry points that register their tasks, are carried
-into the wheel's metadata.
+requirements end up in the wheel metadata.
 """
 
 import re
 import sys
-from pathlib import Path
 
 import tomllib
 
@@ -119,28 +116,6 @@ for name, dep_list in project.get("optional-dependencies", {}).items():
         ]
     )
 
-
-def _bundled_entry_points(source_dir: Path) -> dict[str, dict[str, str]]:
-    """Collect the ``[project.entry-points]`` of the ``isaaclab*`` packages that the wheel bundles.
-
-    Raises:
-        SystemExit: Two packages declare the same entry point name in a group with different targets.
-    """
-    groups: dict[str, dict[str, str]] = {}
-    for package_pyproject in sorted(source_dir.glob("isaaclab*/pyproject.toml")):
-        with package_pyproject.open("rb") as f:
-            package_project = tomllib.load(f).get("project", {})
-        for group, entries in package_project.get("entry-points", {}).items():
-            merged = groups.setdefault(group, {})
-            for name, target in entries.items():
-                if merged.get(name, target) != target:
-                    sys.exit(f"Entry point {name!r} in group {group!r} has conflicting targets in {package_pyproject}.")
-                merged[name] = target
-    return groups
-
-
-entry_points = _bundled_entry_points(Path(root_pyproject_path).resolve().parent / "source")
-
 # Write pyproject.toml
 lines = []
 lines.append("[build-system]")
@@ -172,11 +147,6 @@ lines.append("")
 lines.append("[project.scripts]")
 lines.append('isaaclab = "isaaclab.__main__:main"')
 lines.append("")
-for group, entries in entry_points.items():
-    lines.append(f'[project.entry-points."{group}"]')
-    for name, target in entries.items():
-        lines.append(f'"{name}" = "{target}"')
-    lines.append("")
 lines.append("[project.optional-dependencies]")
 for name, dep_list in opt_deps.items():
     formatted = ", ".join(f'"{d}"' for d in dep_list)

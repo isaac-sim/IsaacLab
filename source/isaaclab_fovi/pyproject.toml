@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "isaaclab_fovi"
 version = "0.1.0"
-description = "Foveated camera sensors for the Newton and RTX renderers, and active-gaze camera tasks."
+description = "Foveated camera sensors for the Newton and RTX renderers, and active-gaze manager terms."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
@@ -19,17 +19,10 @@ requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
     "isaaclab",
-    "isaaclab_rl",
-    "isaaclab_tasks",
 ]
-
-[project.entry-points."isaaclab.tasks"]
-isaaclab_fovi = "isaaclab_fovi.tasks"
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
-isaaclab_rl = { path = "../isaaclab_rl", editable = true }
-isaaclab_tasks = { path = "../isaaclab_tasks", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

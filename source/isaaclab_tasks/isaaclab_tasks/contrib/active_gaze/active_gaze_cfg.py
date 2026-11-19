@@ -3,20 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared pieces of the active-gaze camera tasks."""
+"""Building blocks of active-gaze camera tasks: a foveated version of a stock camera, and the gaze observations."""
 
 from __future__ import annotations
 
 from dataclasses import MISSING, fields
+
+from isaaclab_fovi import mdp
+from isaaclab_fovi.sensors import FoveatedCameraCfg
 
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg, preset
-
-from .. import mdp
-from ..sensors.foveated_camera_cfg import FoveatedCameraCfg
 
 
 def foveated_camera(camera: CameraCfg, foveated_res: int | None = None) -> FoveatedCameraCfg:

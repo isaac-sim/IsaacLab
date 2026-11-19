@@ -13,6 +13,8 @@ configuration can work across supported physics and rendering backends.
 Isaac Lab batches camera views from cloned environments into tiled render passes.
 Each requested output is returned as one GPU buffer with a separate image per view.
 
+For a retina-like image that is dense where a movable gaze points, see :doc:`foveated_camera`.
+
 For silent black or corrupted RTX camera images when scaling the workload, see
 :ref:`known-issues-rtx-buffer-limit`.
 

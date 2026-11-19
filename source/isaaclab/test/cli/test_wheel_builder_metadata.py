@@ -95,43 +95,6 @@ def test_wheel_console_delegates_to_the_full_isaaclab_cli(source_checkout_root: 
     cli.assert_called_once_with()
 
 
-def test_wheel_keeps_the_entry_points_of_bundled_packages(generated_wheel_project: dict):
-    """Bundled sub-packages keep their entry points, e.g. the ``isaaclab.tasks`` ones that register their tasks."""
-    task_entry_points = generated_wheel_project.get("entry-points", {}).get("isaaclab.tasks", {})
-
-    assert task_entry_points.items() >= {"isaaclab_fovi": "isaaclab_fovi.tasks"}.items()
-
-
-def test_wheel_builder_rejects_conflicting_entry_points(source_checkout_root: Path, tmp_path: Path):
-    """Two bundled packages that map one entry point name to different targets must stop the generator."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "isaaclab-dev"\nrequires-python = ">=3.12"\ndependencies = []\n', encoding="utf-8"
-    )
-    for package in ("isaaclab_a", "isaaclab_b"):
-        package_dir = tmp_path / "source" / package
-        package_dir.mkdir(parents=True)
-        (package_dir / "pyproject.toml").write_text(
-            f'[project.entry-points."isaaclab.tasks"]\nshared = "{package}.tasks"\n', encoding="utf-8"
-        )
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(source_checkout_root / "tools/wheel_builder/gen_pyproject.py"),
-            str(tmp_path / "pyproject.toml"),
-            str(tmp_path / "generated.toml"),
-            "3.0.0",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode != 0
-    assert "Entry point 'shared' in group 'isaaclab.tasks' has conflicting targets" in result.stderr
-    assert not (tmp_path / "generated.toml").exists()
-
-
 def test_wheel_console_uses_compatibility_dispatcher(generated_wheel_project: dict):
     """The generated console script must preserve legacy installed-wheel options."""
     assert generated_wheel_project["scripts"]["isaaclab"] == "isaaclab.__main__:main"

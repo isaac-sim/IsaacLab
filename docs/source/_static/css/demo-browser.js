@@ -54,7 +54,7 @@
             if (["rerun", "viser"].includes(fields.visualizer.value)) {
                 requiredExtras.add(fields.visualizer.value);
             }
-            const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
+            const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "fovi", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
             const parts = ["uvx"];

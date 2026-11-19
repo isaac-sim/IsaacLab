@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared agent configuration of the active-gaze camera tasks."""
+"""RSL-RL agents of the active-gaze tasks: the stock PPO with gaze supervision and a fixed gaze noise."""
 
 from dataclasses import fields
 
-from isaaclab.utils import replace
+from isaaclab.utils import configclass, replace
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlPpoAlgorithmCfg
 
-from ..rsl_rl import GazeGaussianDistributionCfg, GazeSupervisedPPOCfg
+from isaaclab_tasks.core.cartpole.agents.rsl_rl_ppo_cfg import CartpoleCameraPPORunnerCfg
+
+from .gaze_distribution_cfg import GazeGaussianDistributionCfg
+from .gaze_supervised_ppo_cfg import GazeSupervisedPPOCfg
 
 
 def gaze_supervised(algorithm: RslRlPpoAlgorithmCfg, **kwargs) -> GazeSupervisedPPOCfg:
@@ -25,3 +28,13 @@ def gaze_actor(actor: RslRlMLPModelCfg) -> RslRlMLPModelCfg:
     stock = actor.distribution_cfg
     head = GazeGaussianDistributionCfg(init_std=stock.init_std, std_type=stock.std_type, std_range=stock.std_range)
     return replace(actor, distribution_cfg=head)
+
+
+@configclass
+class CartpoleCameraFoviPPORunnerCfg(CartpoleCameraPPORunnerCfg):
+    """The stock Cartpole camera PPO with gaze supervision; the actor and critic also see the gaze."""
+
+    experiment_name = "cartpole_camera_fovi"
+    obs_groups = {"actor": ["policy", "gaze"], "critic": ["critic", "gaze"]}
+    actor = gaze_actor(CartpoleCameraPPORunnerCfg().actor)
+    algorithm = gaze_supervised(CartpoleCameraPPORunnerCfg().algorithm)
