@@ -295,6 +295,8 @@ class CosmosInferenceModel:
         more than the history window holds. Its prompt, seed, VAE caches, and generation history are discarded
         before real cameras can connect. Other canvases or prompts can still require compilation on their first use.
         """
+        import torch
+
         frames = 1 + MAX_CHUNK_FRAMES * self.capabilities["kv_window"]
         stream = self.open_stream(
             num_views=1,
@@ -305,8 +307,9 @@ class CosmosInferenceModel:
             max_episode_frames=frames,
         )
         try:
-            stream.step([np.zeros((1, height, width, 3), dtype=np.uint8)], (), ())
-            controls = np.zeros((MAX_CHUNK_FRAMES, height, width, 3), dtype=np.uint8)
+            # Tensor controls keep the discarded images on the GPU.
+            stream.step([torch.zeros((1, height, width, 3), dtype=torch.uint8, device=self._device)], (), ())
+            controls = torch.zeros((MAX_CHUNK_FRAMES, height, width, 3), dtype=torch.uint8, device=self._device)
             for _ in range((frames - 1) // MAX_CHUNK_FRAMES):
                 stream.step([controls], (), ())
         finally:

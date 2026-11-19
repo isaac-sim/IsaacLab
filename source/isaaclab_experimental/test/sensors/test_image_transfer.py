@@ -83,8 +83,13 @@ def _processor(seed=7, **kwargs):
     return processor, processor._owned_model
 
 
+def _all(num_views=2):
+    """A capture mask selecting every view."""
+    return wp.ones(num_views, dtype=wp.bool, device="cpu")
+
+
 def _rgb(processor, value, mask=None):
-    env_mask = None if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
+    env_mask = _all() if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
     return processor(_buffers(_controls(value)), env_mask=env_mask)["rgb"].torch
 
 
@@ -94,18 +99,29 @@ def test_chunks_follow_the_configured_cadence_and_hold_between_chunks(no_sim):
     controls = _controls(10)
     buffers = _buffers(controls)
 
-    output = processor(buffers)["rgb"]
+    output = processor(buffers, env_mask=_all())["rgb"]
     controls.fill_(20)
-    assert processor(buffers)["rgb"] is output
+    assert processor(buffers, env_mask=_all())["rgb"] is output
     assert len(model.steps) == 1
     assert torch.equal(output.torch, _controls(245))
     controls.fill_(30)
-    processor(buffers)
+    processor(buffers, env_mask=_all())
 
     assert model.opened == [(2, (7, 8))]
     assert [tuple(chunk.shape) for chunk in model.steps[1][0]] == [(2, 2, 3, 3)] * 2
     torch.testing.assert_close(model.steps[1][0][0][:, 0, 0, 0], torch.tensor([20, 30], dtype=torch.uint8))
     assert torch.equal(output.torch, _controls(225))
+
+
+def test_a_capture_without_env_mask_is_rejected_and_queues_nothing(no_sim):
+    """A camera that does not say which views it captured, as an asynchronous one, adds no control."""
+    processor, model = _processor(initial_frames=2, update_frames=2)
+    with pytest.raises(ValueError, match="synchronous rendering"):
+        processor(_buffers(_controls(10)), env_mask=None)
+    _rgb(processor, 20)
+    assert not model.steps
+    _rgb(processor, 30)
+    assert model.steps[0][0][0][:, 0, 0, 0].tolist() == [20, 30]
 
 
 @pytest.mark.parametrize(
@@ -245,7 +261,7 @@ def test_depth_controls_feed_image_transfer(no_sim):
 
     # Construct and run in order, as a camera does: each processor reads the outputs of the earlier ones.
     for cfg in cfgs:
-        buffers.update(cfg.func(cfg, buffers)(buffers))
+        buffers.update(cfg.func(cfg, buffers)(buffers, env_mask=_all()))
 
     control, output = buffers["control"].torch, buffers["rgb"].torch
     assert control.shape == (2, 2, 4, 3) and control.dtype == torch.uint8

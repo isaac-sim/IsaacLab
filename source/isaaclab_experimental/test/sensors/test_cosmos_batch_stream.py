@@ -370,25 +370,35 @@ def test_closing_a_batch_releases_every_views_caches(batch):
 
 @pytest.mark.parametrize("window,frames", [(30, 121), (8, 33)])
 def test_warmup_fills_the_history_window(window, frames, monkeypatch):
-    """Warmup runs one latent past the history window, so the first real episode needs no new shapes."""
+    """Warmup runs one latent past the history window, so the first real episode needs no new shapes.
+
+    Its controls are uint8 tensors on the model's GPU.
+    """
+    if not torch.cuda.is_available():
+        pytest.skip("The Cosmos server selects a CUDA device")
     model = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
     model.capabilities = {"kv_window": window}
+    model._device = torch.device("cuda", torch.cuda.current_device())
     opened = {}
 
     class Stream:
         def step(self, controls, reset_rows, seeds):
-            opened["frames"] += controls[0].shape[0]
+            (control,) = controls
+            opened["frames"] += control.shape[0]
+            opened["on_gpu"] &= (
+                isinstance(control, torch.Tensor) and control.device == model._device and control.dtype == torch.uint8
+            )
 
         def close(self):
             opened["closed"] = True
 
     def open_stream(**settings):
-        opened.update(budget=settings["max_episode_frames"], frames=0)
+        opened.update(budget=settings["max_episode_frames"], frames=0, on_gpu=True)
         return Stream()
 
     monkeypatch.setattr(model, "open_stream", open_stream)
     model.warmup(height=4, width=4)
-    assert opened == {"budget": frames, "frames": frames, "closed": True}
+    assert opened == {"budget": frames, "frames": frames, "on_gpu": True, "closed": True}
 
 
 def test_text_conditioning_marks_a_transfer_request_at_the_requested_frame_rate(monkeypatch):

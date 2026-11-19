@@ -335,8 +335,8 @@ captions reach the model unchanged. In code, `read_prompt_files([...])` returns 
 
 Cosmos requires synchronous camera rendering. Its processor rejects `env_mask=None` before queuing controls
 or generating images; asynchronous cameras supply `None`. Use `renderer_cfg.async_rendering=False` for OVRTX.
-Direct processor callers
-must supply a boolean Warp mask identifying the captured views, including an all-true mask when all views are fresh.
+Direct processor callers must supply a boolean Warp mask identifying the captured views, including an all-true
+mask when all views are fresh.
 
 `CosmosTransferProcessor` uses the shared image transfer processor (see [Image transfer](#image-transfer)) for
 queuing, resets, and publication, and `CosmosModelCfg` creates the client of the service.
@@ -370,7 +370,7 @@ on a Cosmos task):
 
 | Setting | Effect |
 |---|---|
-| `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's control alone, with no history, so images neither repeat between updates nor turn black after resets |
+| `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's control alone, with no history, so images do not repeat between updates, and a reset environment is black only until its next capture |
 | `decision_interval=N` | Generate at the first of every `N` captures of the camera, for example once per 16-step action chunk; the other captures publish the rendered `rgb`. Resets do not restart the count |
 | `augmentation_probability=p` | Generate at a decision point with probability `p`, one draw for all environments; otherwise publish the rendered `rgb` |
 
@@ -635,15 +635,15 @@ wrist_camera = CameraCfg(
   views. `ImageTransferStream.step(controls, reset_rows, seeds)` receives one uint8 THWC three-channel control
   sequence per view and returns uint8 sRGB images with the same sequence lengths and image size, with no implicit
   crop or resize. The controls are valid until `step` returns, since the processor reuses their storage, so a stream
-  that keeps a chunk copies it. A stream may return None instead and deliver the images later through a callback, as
-  cameras sharing a Cosmos session do. Calls run on the current Torch stream, and returned tensors must be ready on
+  that keeps a chunk copies it. Calls run on the current Torch stream, and returned tensors must be ready on
   it. `close()` must be
   idempotent; the camera closes its processors, and with them their streams, when it is released.
 - **Scheduling:** `initial_frames` and `update_frames` set the first and later chunk sizes, both one by default. The
   output holds the last generated image until the next chunk, so larger chunks add observation age as well as
   latency. Every view needs a complete chunk before a chunk is generated, and `max_pending_frames` bounds each
   view's queue. The camera passes `env_mask` to the processor, which queues controls only for the views captured in
-  each call.
+  each call. A call without a mask, as an asynchronous camera makes, raises an error, so the camera must render
+  synchronously.
 - **Resets:** resetting a view clears its queued controls and its visible image. Its next chunk uses the initial
   size, and `step` receives the view index and a new deterministic seed: view `i` starts from `seed + i`, or from
   `seed[i]` when `seed` lists one seed per view, and each reset advances it by the number of views, modulo `2**31`.

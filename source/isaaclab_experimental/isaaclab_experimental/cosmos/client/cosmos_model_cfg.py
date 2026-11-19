@@ -95,10 +95,10 @@ class CosmosModelCfg(BackendCfg):
     """``"autoregressive"`` (default) generates an initial frame, then four-frame chunks that continue the episode's
     generated history, and holds each chunk's last image over the captures of the next chunk. ``"single_frame"``
     generates each image independently from the current capture's control alone, with no history, for workloads
-    that need no temporal consistency, such as a policy that observes once per action chunk. Its images neither
-    repeat between updates nor turn black after resets, and the service can offload its weights while the session
-    stays open (see :meth:`CosmosModel.offload`). Cameras sharing a session (:attr:`cameras`) need
-    ``"autoregressive"``."""
+    that need no temporal consistency, such as a policy that observes once per action chunk. Its images do not
+    repeat between updates, a reset view is black only until its next capture, and the service can offload its
+    weights while the session stays open (see :meth:`CosmosModel.offload`). Cameras sharing a session
+    (:attr:`cameras`) need ``"autoregressive"``."""
 
     decision_interval: int = 1
     """Captures per generation in single-frame mode, counted from the camera's first capture: 1 generates every

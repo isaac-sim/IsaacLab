@@ -855,20 +855,23 @@ def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_serv
     model, cameras = _camera_group(cosmos_service, monkeypatch, image_size)
     front, wrist = cameras["front"], cameras["wrist"]
 
-    def eager_update():
+    def eager_update() -> list[int]:
+        """Run one update and return what the front camera published at its own processor call."""
         front.due = wrist.due = True
         for camera in (front, wrist):
             camera.render()
-        for camera in (front, wrist):
-            camera.process()
+        front.process()
+        published = front.output[:, 0, 0, 0].tolist()
+        wrist.process()
         front.value, wrist.value = front.value + 1, wrist.value + 1
+        return published
 
     try:
-        eager_update()
+        # The front camera's step waits for the wrist camera, so its own call publishes nothing new.
+        assert eager_update() == [0, 0]
         # The wrist camera completes each capture and publishes the front camera's images too.
         assert front.output[:, 0, 0, 0].tolist() == [10, 10] and wrist.output[:, 0, 0, 0].tolist() == [20, 20]
-        for _ in range(4):
-            eager_update()
+        assert [eager_update() for _ in range(4)][-1] == [10, 10]
         assert front.renders == wrist.renders == 5
         assert front.output[:, 0, 0, 0].tolist() == [14, 14] and wrist.output[:, 0, 0, 0].tolist() == [24, 24]
         assert front.output.shape[1:3] == wrist.output.shape[1:3] == (image_size or (2, 3))
@@ -1112,6 +1115,52 @@ def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(
         stream.close()
     # The camera releases the service's output first; it frees its controls only after the confirmed close.
     assert released == ["output", ("control", failure is None)]
+
+
+@pytest.mark.parametrize(
+    "dropped,error,message,released",
+    [
+        # The test service offers the socket transport only, so it answers the open with a rejection.
+        (False, RuntimeError, "does not offer the cuda_ipc transport", True),
+        (True, ConnectionError, "Cosmos connection closed", False),
+    ],
+)
+def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
+    cosmos_service, monkeypatch, dropped, error, message, released
+):
+    """A service that rejects the session holds no buffer; one that stops answering may still read the controls."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    closed = []
+
+    class Channel:
+        handles = {"control": "control", "control_ready": "control_ready"}
+
+        def __init__(self, device, shape, writes):
+            pass
+
+        def close_opened(self):
+            pass
+
+        def close(self, *, peer_released):
+            closed.append(peer_released)
+
+    def drop(self, metadata, arrays=()):
+        raise ConnectionError("Cosmos connection closed")
+
+    stream_type = cosmos_model_module._CosmosStream
+    monkeypatch.setattr(_cuda_ipc, "SharedChannel", Channel)
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: _CAMERA_GPU)
+    monkeypatch.setattr(stream_type, "_select_transport", lambda self, device: "cuda_ipc")
+    if dropped:
+        monkeypatch.setattr(stream_type, "_exchange", drop)
+    client = _client(cosmos_service.endpoint)
+    stream = client.open_stream(num_views=1, seeds=(1,))
+    with pytest.raises(error, match=message):
+        stream.step([_controls()], (), ())
+    client.close()
+
+    assert closed == [released]
 
 
 @pytest.mark.parametrize("end,freed", [("disconnect", True), ("idle", False), ("shutdown", False)])

@@ -442,7 +442,14 @@ class _CosmosStream:
             # The service opens the controls on this GPU, which it finds by its PCI bus ID.
             ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(device.index or 0)}
             message.update(transport="cuda_ipc", ipc=ipc)
-        reply, arrays = self._exchange(message)
+        try:
+            reply, arrays = self._exchange(message)
+        except RuntimeError:
+            # The service answered and rejected the session, so it holds none of this camera's buffers.
+            if self._channel is not None:
+                self._channel.close(peer_released=True)
+                self._channel = None
+            raise
         if arrays:
             raise ProtocolError("Cosmos open reply must not contain image arrays.")
         if self._channel is not None:

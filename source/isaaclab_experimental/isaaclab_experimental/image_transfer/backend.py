@@ -26,11 +26,8 @@ class ImageTransferStream(Protocol):
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
-    ) -> list[torch.Tensor] | None:
-        """Consume one chunk per view and return the corresponding images.
-
-        A stream may instead return None and deliver the images later through a callback it was given.
-        """
+    ) -> list[torch.Tensor]:
+        """Consume one chunk per view and return the corresponding images."""
         ...
 
     def close(self) -> None:
