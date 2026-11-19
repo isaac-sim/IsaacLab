@@ -842,12 +842,7 @@ Like other explicit actuators, BAM is authored onto the joints' existing BAM act
     "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
 
 A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
-``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``;
-if one is missing, authoring raises before it changes that joint's actuators. On an asset that
-models gearbox backlash, also set ``backlash_joint_template``. A configuration that changes only
-part of ``vin``, ``vin_range``, ``kt`` and ``resistance`` warns: the limit stays the asset's authored
-one or, without it, the drive's ``vin * kt / resistance`` default, which ignores ``vin_range``. Set
-``actuator_effort_limit`` to choose the limit.
+``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -881,7 +876,8 @@ one or, without it, the drive's ``vin * kt / resistance`` default, which ignores
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
 ``max(vin_range) * motor.kt / motor.resistance``; if the config does not set the fit and voltage, the
-asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none.
+asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none, which
+ignores ``vin_range``.
 ``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
 
 .. _actuators-bam-paths:
