@@ -434,7 +434,7 @@ class SimulationContext:
                     )
                 ])  # fmt: skip
             if visualizer.cfg.backend.visualizer_type == "newton_rtx":
-                # An RTX window shows scene cameras, so tracking cameras have nothing to follow there.
+                # The Newton RTX visualizer does not support tracking cameras.
                 cameras = [camera for camera in cameras if not (isinstance(camera, TrackingCameraCfg))]
             else:
                 cameras = with_free_view(
@@ -446,10 +446,8 @@ class SimulationContext:
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
                 # tracking cameras only add to the scene cameras the visualizer would find on its own
-                tracking_only = bool(visualizer.cfg.cameras) and all(
-                    isinstance(camera, TrackingCameraCfg) for camera in visualizer.cfg.cameras
-                )
-                if visualizer.cfg.cameras is None or tracking_only:
+                discovered = visualizer.cfg.cameras is None or visualizer.cfg.tracking_cameras_only
+                if discovered:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
@@ -458,8 +456,7 @@ class SimulationContext:
                             if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 rtx_path = getattr(visualizer.cfg.backend, "rtx_camera_prim_path", None)
-                rgb_only = set(visualizer.cfg.streaming_gt_types) == {"rgb"}  # the viewer camera provides only RGBA
-                if rgb_only and rtx_path is not None and not (visualizer.cfg.cameras is None or tracking_only):
+                if rtx_path is not None and (not discovered or visualizer.cfg.streaming_sensor_prim_path is not None):
                     # Explicit cameras skip discovery; the Renderer switch still needs this window's RTX camera.
                     cameras.append(SceneCameraCfg(prim_path=rtx_path))
                 for index, source in enumerate(cameras):

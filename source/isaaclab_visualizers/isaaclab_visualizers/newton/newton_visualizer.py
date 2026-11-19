@@ -759,6 +759,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_arrows_pending = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
+    _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -1528,7 +1529,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        if view is current:
+        # the RTX view that follows this tracking camera already shows it, so it is recorded as displayed
+        if view is current or (self.rtx_rendering and view is self._rtx_pose_view):
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
@@ -1600,6 +1602,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._perspective_poses.clear()
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
+            if self._rtx_appearance.available:
+                self._rtx_appearance.suspend()
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
@@ -2004,11 +2008,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def rtx_view_index(self) -> int | None:
         """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
         declared = getattr(getattr(getattr(self, "cfg", None), "backend", None), "rtx_camera_prim_path", None)
+        if (
+            declared is None
+        ):  # another visualizer's cameras share the viewer_camera_ prefix, so only a declared one counts
+            return None
         for index, view in enumerate(self._image_views):
-            if view.camera is None:
-                continue
-            prim_path = getattr(view.camera.cfg, "prim_path", "")
-            if prim_path == declared if declared is not None else prim_path.startswith("/World/viewer_camera_"):
+            if view.camera is not None and getattr(view.camera.cfg, "prim_path", "") == declared:
                 return index
         return None
 
@@ -2050,9 +2055,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._rtx_pose_view = current if self._is_tracking_view(current) else None
             self._select_camera(rtx_index, keep_pose=True)
             self._apply_rtx_visible_envs()
+            if self._rtx_appearance is not None and self._rtx_appearance.available:
+                self._rtx_appearance.apply_lights()
         else:
             if self._overlay_publisher is not None:
                 self._overlay_publisher.hide_all(self._rtx_renderers)
+            if self._rtx_appearance is not None and self._rtx_appearance.available:
+                self._rtx_appearance.suspend()  # scene cameras share the stage, so they get its own lights back
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
             self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
@@ -2157,6 +2166,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._close_key_event_source()
         try:
+            if self._rtx_visibility_limited:  # the shared renderer must not keep hiding environments from sensors
+                self.rtx_rendering = False
+                self._apply_rtx_visible_envs()
             if self._overlay_publisher is not None:
                 try:
                     self._overlay_publisher.hide_all(self._rtx_renderers)

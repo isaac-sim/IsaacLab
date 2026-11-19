@@ -1460,6 +1460,7 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     )
     visualizer = object.__new__(NewtonGLVisualizer)
     visualizer._image_views = [free, rtx, tracking]
+    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_0"))
     visualizer.current_image_view = tracking
     visualizer._rtx_pose_view = None
 
@@ -1503,6 +1504,7 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
     )
     rtx = SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx")))
     visualizer._image_views = [free, sensor, rtx]
+    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_0_rtx"))
     for view, selected in ((free, False), (sensor, True), (rtx, False)):
         visualizer.current_image_view = view
         assert visualizer.sensor_view_selected is selected

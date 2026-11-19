@@ -172,7 +172,11 @@ def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[Simula
         return False
     if backend.rtx_camera is not None:
         return backend.rtx_camera
-    on_kit_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg)) for sim in simulations)  # OVPhysX is kitless
+    # an automatic PhysX selection with OVPhysX available resolves to kitless OVPhysX, like the Kit check below
+    on_kit_physx = any(
+        isinstance(sim.physics, PhysxCfg) or (isinstance(sim.physics, PhysxAutoCfg) and sim.physics.ovphysx is None)
+        for sim in simulations
+    )
     return importlib.util.find_spec("ovrtx") is not None and not on_kit_physx
 
 
@@ -374,7 +378,7 @@ def validate_launch(  # noqa: C901
                 raise ValueError("A tracking camera cannot be the image source of an RTX viewer.")
             sources = [visualizer.view.source]
         else:
-            # Tracking cameras follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out.
+            # The Newton RTX visualizer does not support tracking cameras.
             sources = [camera for camera in visualizer.cameras or [] if not (isinstance(camera, TrackingCameraCfg))]
             if not sources:
                 sources = [

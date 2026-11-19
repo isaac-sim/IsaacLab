@@ -15,6 +15,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
+from isaaclab.physics.physics_manager_cfg import PhysxAutoCfg
 from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 
@@ -59,10 +60,22 @@ def test_window_size_is_unchanged_without_a_display_to_query(monkeypatch: pytest
         (None, True, None, True, False),
         (None, False, PhysxCfg(), True, False),
         (None, False, OvPhysxCfg(), True, True),
+        (None, False, PhysxAutoCfg(isaacsim_physx=PhysxCfg(), ovphysx=OvPhysxCfg()), True, True),
+        (None, False, PhysxAutoCfg(isaacsim_physx=PhysxCfg()), True, False),
         (None, False, None, False, False),
         (None, False, None, True, True),
     ],
-    ids=["explicit-on", "explicit-off", "recording-only-window", "physx", "ovphysx", "no-ovrtx-package", "auto"],
+    ids=[
+        "explicit-on",
+        "explicit-off",
+        "recording-only-window",
+        "physx",
+        "ovphysx",
+        "physx-auto-with-ovphysx",
+        "physx-auto-kit-only",
+        "no-ovrtx-package",
+        "auto",
+    ],
 )
 def test_viewer_camera_is_declared_only_where_it_can_be_used(
     monkeypatch: pytest.MonkeyPatch, rtx_camera, headless, physics, ovrtx_installed, expected

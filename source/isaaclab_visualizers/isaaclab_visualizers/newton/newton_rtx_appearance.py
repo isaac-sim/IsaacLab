@@ -189,19 +189,31 @@ class RtxAppearance:
             not self.sun_enabled or self._sun_reference is not None
         )
 
-    def apply_lights(self) -> bool:
-        """Show the enabled lights with their own intensity and color, hide the rest, and aim the distant light."""
-        if not self._ensure_lights():
+    def suspend(self) -> bool:
+        """Give the scene its own lights back and hide the viewer's, since scene cameras share this stage."""
+        return self.apply_lights(active=False)
+
+    def apply_lights(self, active: bool = True) -> bool:
+        """Show the enabled lights with their own intensity and color, hide the rest, and aim the distant light.
+
+        Args:
+            active: ``False`` writes the scene's authored lights and hides the viewer's, so the stage is as the
+                scene left it.
+        """
+        if active and not self._ensure_lights():
             return False
         from ovrtx import Semantic
 
+        scene_enabled, scale, tint = (self.scene_enabled, self.scene_scale, self.scene_tint) if active else (
+            True, 1.0, (1.0, 1.0, 1.0)
+        )  # fmt: skip
         paths = [light.path for light in self.lights]
-        intensities = [light.intensity * self.scene_scale for light in self.lights]
-        colors = [np.multiply(light.color, self.scene_tint) for light in self.lights]
-        visible = [self.scene_enabled] * len(paths)
+        intensities = [light.intensity * scale for light in self.lights]
+        colors = [np.multiply(light.color, tint) for light in self.lights]
+        visible = [scene_enabled] * len(paths)
         for reference, path, enabled, intensity, color in (
-            (self._dome_reference, _DOME_PATH, self.dome_enabled, self.dome_intensity, self.dome_color),
-            (self._sun_reference, _SUN_PATH, self.sun_enabled, self.sun_intensity, self.sun_color),
+            (self._dome_reference, _DOME_PATH, self.dome_enabled and active, self.dome_intensity, self.dome_color),
+            (self._sun_reference, _SUN_PATH, self.sun_enabled and active, self.sun_intensity, self.sun_color),
         ):
             if reference is not None:
                 paths.append(path)
@@ -216,7 +228,7 @@ class RtxAppearance:
             and self._write(paths, "inputs:intensity", np.array(intensities, np.float32))
             and self._write(paths, "inputs:color", np.array(colors, np.float32))
         )
-        if wrote and self._sun_reference is not None:
+        if wrote and active and self._sun_reference is not None:
             wrote = self._write([_SUN_PATH], "inputs:angle", np.array([self.sun_angle], np.float32)) and self._write(
                 [_SUN_PATH],
                 "omni:xform",
