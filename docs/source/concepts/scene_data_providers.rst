@@ -133,11 +133,19 @@ writable Fabric arrays. Renderers use this same path regardless of physics backe
 
 ``update_geometries(provider, frame)`` handles geometry. PhysX publishes native
 ``FabricPoints`` directly; other backends interpolate mesh points into GPU Fabric
-storage. Kit Hydra requires CPU destinations for ``Points`` and ``BasisCurves``,
-so SDP transfers them when their update interval elapses, without writing USD.
-World-space points reset their transform stack to avoid applying the body or
-environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays only,
-not bindings or engine handles.
+storage. SDP updates ``Points`` and ``BasisCurves`` when their update interval
+elapses, without writing USD. Kit Hydra requires CPU destinations for ``BasisCurves``
+(NVBug 6502662). World-space points reset their transform stack to avoid applying the
+body or environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays
+only, not bindings or engine handles.
+
+``Points`` destinations, such as MPM particle clouds, stay on the simulation device. On a
+CUDA device, SDP writes the particle positions into GPU Fabric, and Kit RTX reads them from
+there. No setting selects a CPU destination for ``Points``.
+
+Kit builds without the GPU ``Points`` fix (OMPE-106051) render these points incorrectly. A cloud
+with one point can stay frozen, and a cloud can lose its ``displayColor``. Use an Isaac Sim
+version whose Kit contains the fix, because no CPU fallback exists for such a build.
 
 Newton backend
 --------------

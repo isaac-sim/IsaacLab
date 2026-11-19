@@ -116,6 +116,12 @@ callback or particle override is required:
    uv run --extra isaacsim isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
      --checkpoint /path/to/model.pt --num_envs 1 --visualizer kit
 
+.. note::
+
+   On a CUDA simulation device, Kit RTX reads the MPM particle positions from GPU Fabric. This
+   path needs a Kit build with the GPU ``Points`` fix. An older build can render a particle cloud
+   frozen or without its color. See :doc:`scene_data_providers`.
+
 
 Coupling with rigid bodies
 --------------------------

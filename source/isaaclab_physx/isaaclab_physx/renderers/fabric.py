@@ -164,8 +164,9 @@ class FabricBackend:
             if prim_type == "Mesh":
                 device, frequency = self.device, 1
             elif prim_type in {"BasisCurves", "Points"}:
-                # RTX Hydra reads these points from CPU Fabric (BasisCurves: NVBug 6502662).
-                device = "cpu"
+                # Points stay on the simulation device, so a CUDA particle cloud never stages
+                # through the host. RTX Hydra reads curve points from CPU Fabric (NVBug 6502662).
+                device = self.device if prim_type == "Points" else "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
             else:
                 raise TypeError(f"Unsupported Fabric point destination {path}: {prim_type}.")
