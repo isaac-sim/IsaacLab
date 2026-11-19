@@ -146,7 +146,7 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 
-# Runtime environment variable that renders with OVRTX's Hercules scene backend instead of Hydra.
+# Runtime environment variable selecting OVRTX's scene backend: ``1`` for Hercules, ``0`` for Hydra.
 _USE_HERCULES_ENV = "ISAAC_LAB_OVRTX_USE_HERCULES"
 
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
@@ -246,9 +246,11 @@ class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
-        use_hercules = os.environ.get(_USE_HERCULES_ENV, "0").strip()
-        if use_hercules not in {"0", "1"}:
-            raise ValueError(f"Invalid {_USE_HERCULES_ENV}: {use_hercules!r}. Expected 0 or 1.")
+        use_hercules = os.environ.get(_USE_HERCULES_ENV)
+        if use_hercules is not None:
+            use_hercules = use_hercules.strip()
+            if use_hercules not in {"0", "1"}:
+                raise ValueError(f"Invalid {_USE_HERCULES_ENV}: {use_hercules!r}. Expected 0 or 1.")
         self.cfg = cfg
         self.attached = False
         self.render_products: set[str] = set()
@@ -270,12 +272,15 @@ class OVRTXBackend:
         )
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
-        # OVRTX reads this process-wide setting when each renderer is created, so it must precede Renderer and
-        # stays on for later renderers in the process.
-        if use_hercules == "1":
+        # OVRTX reads this process-wide setting when each renderer is created, so an explicit choice must precede
+        # every Renderer; unset keeps the process's current selection.
+        if use_hercules is not None:
+            setting = f"--/app/useHercules={'true' if use_hercules == '1' else 'false'}"
             apply_setting = _acquire_settings_applier(native_cfg)
-            if apply_setting is None or not apply_setting("--/app/useHercules=true"):
-                raise RuntimeError(f"{_USE_HERCULES_ENV}=1, but this ovrtx runtime cannot apply /app/useHercules.")
+            if apply_setting is None or not apply_setting(setting):
+                raise RuntimeError(
+                    f"{_USE_HERCULES_ENV}={use_hercules}, but this ovrtx runtime cannot apply {setting}."
+                )
         self.next_camera_id = 0
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.

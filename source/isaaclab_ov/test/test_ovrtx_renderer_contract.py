@@ -1055,6 +1055,7 @@ def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
     ("value", "accepted", "error", "expected"),
     [
         pytest.param(None, True, None, ["renderer"], id="unset"),
+        pytest.param("0", True, None, ["acquire", "--/app/useHercules=false", "renderer"], id="hydra"),
         pytest.param("1", True, None, ["acquire", "--/app/useHercules=true", "renderer"], id="hercules"),
         pytest.param("1", False, (RuntimeError, "cannot apply"), ["acquire", "--/app/useHercules=true"], id="rejected"),
         pytest.param("1", None, (RuntimeError, "cannot apply"), ["acquire"], id="no-settings-extension"),
@@ -1062,7 +1063,7 @@ def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
     ],
 )
 def test_ovrtx_backend_applies_hercules_before_creating_the_renderer(monkeypatch, value, accepted, error, expected):
-    """The switch must precede renderer creation, where OVRTX picks its scene backend, and never fall back silently."""
+    """Explicit choices must precede renderer creation, where OVRTX picks its scene backend, and never fail silently."""
     events = []
 
     def acquire_settings_applier(config):
