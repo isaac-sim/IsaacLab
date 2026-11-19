@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "isaaclab-cosmos"
 version = "0.1.0"
-description = "Standalone Cosmos streaming service and Isaac Lab camera integration."
+description = "Standalone Cosmos services, for camera image transfer and for world models, and their Isaac Lab clients."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
@@ -24,6 +24,7 @@ dependencies = [
 
 [project.scripts]
 isaaclab-cosmos-server = "isaaclab_experimental.cosmos.server.worker:main"
+isaaclab-cosmos-world-model-server = "isaaclab_experimental.cosmos.server.world_model:main"
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

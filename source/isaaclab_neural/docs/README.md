@@ -20,6 +20,7 @@ state at reset, then the last joint target), so joint observations and actions b
 | `WorldModelRendererCfg` | Selected as a camera's `renderer_cfg`. Copies the generated frames into the camera, including its frame history. |
 | `Articulation` | Virtual articulation. Shares the manager's joint state and targets, so the task's joint observation and action terms work unchanged. Its reset starts an episode from a reset record. Everything that needs a body raises. |
 | `at_chunk_boundary` | Makes a termination function fire only where environments can reset. |
+| `Cosmos3Cfg`, `Cosmos3Model` | Client of the Cosmos3 world-model service (`isaaclab_neural.models.cosmos3`). |
 
 ## Using a task's configuration
 
@@ -81,6 +82,34 @@ Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`. 
 
 Frames are `uint8` torch tensors on the device, and joint targets arrive there. The targets buffer is reused for the
 next chunk, so a model that keeps it copies it. Construction is cheap; load the weights on the first call.
+
+## Cosmos3
+
+Cosmos3 runs in its own process, in the Cosmos Framework's environment, so Isaac Lab does not install the Framework.
+`Cosmos3Model` is the client: it reads the chunk length, frame rate and image size from the service, sends start
+images and controls, and receives frames. The service is the world-model counterpart of the Cosmos Transfer service
+in [`cosmos_transfer.md`](../../isaaclab_experimental/docs/cosmos_transfer.md) and uses the same transport.
+
+In a server terminal, create the Framework environment at commit `3a84cd3b67f60520f523e184fa7b82011bc75cb4` of
+[cosmos-framework](https://github.com/NVIDIA/cosmos-framework), install the Cosmos service package into it, and start
+the service with a `unified_v1` checkpoint:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+uv sync --locked --all-extras --group=cu130-train
+uv run --no-sync uv pip install --editable "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+export LD_LIBRARY_PATH=
+uv run --no-sync isaaclab-cosmos-world-model-server --checkpoint "$COSMOS3_CHECKPOINT"
+```
+
+Wait for `Cosmos ready at ...`, then run the task in the Isaac Lab environment. A task selects the model with
+`WorldModelCfg(model=Cosmos3Cfg(joint_mapping=...))`. `Cosmos3Model.step` converts joint targets to 59 normalized
+controls with the task's `JointMappingCfg`, so the robot description and the normalization stay with the task.
+
+The service's `--mode window` (default) serves any number of environments, one after the other; `--mode session`
+serves one. With the service on the same machine and a GPU this process can access directly, chunks stay on the GPU
+(CUDA IPC, Linux); otherwise they go through the socket, which carries about 16 environments of 16 frames at
+480 x 640 per message. `Cosmos3Cfg.transport` forces either one.
 
 ## Tests
 
