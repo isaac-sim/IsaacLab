@@ -106,6 +106,13 @@ _MARKER_TIPS = {
 """What each marker group shows, by the last component of its prim path."""
 
 
+def hud_note(imgui: Any, text: str) -> None:
+    """Draw a short muted-blue note that the user should know about the control above or below it."""
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.55, 0.7, 0.95, 0.85))
+    imgui.text_wrapped(text)
+    imgui.pop_style_color()
+
+
 def hover_tooltip(imgui: Any, text: str) -> None:
     """Show ``text`` while the last item is hovered, including when it is disabled."""
     if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
@@ -520,6 +527,12 @@ class NewtonViewerGL(ViewerGL):
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+        if getattr(owner, "rtx_rendering", False):
+            hud_note(
+                imgui,
+                "In RTX mode, hidden environments are also hidden for other cameras that share the scene."
+                " Soft objects stay visible.",
+            )
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
@@ -1671,6 +1684,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         """
         if getattr(self, "_pose_started", True):  # the viewer camera holds no pose of its own before the first source
             self._remember_perspective_pose()
+        if self._overlay_publisher is not None and self.rtx_rendering and index != self.rtx_view_index:
+            self._overlay_publisher.hide_all(self._rtx_renderers)  # sensors sharing the renderer must not keep them
         self.current_image_view = self._image_views[index]
         if index != getattr(self, "rtx_view_index", None):
             self._rtx_pose_view = None
@@ -2077,6 +2092,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
+        appearance = self._rtx_appearance
+        if appearance is not None and self.rtx_rendering and appearance.available and appearance.poll():
+            self.current_image_view.invalidate()  # a sky finished downloading, whether or not its panel is open
         viewer.begin_frame(self._sim_time)
         try:
             viewer.image_matches_camera = self.rtx_rendering
@@ -2365,6 +2383,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._close_key_event_source()
         try:
+            if self._overlay_publisher is not None:
+                try:
+                    self._overlay_publisher.hide_all(self._rtx_renderers)
+                except Exception:
+                    logger.debug("[NewtonVisualizer] The overlay meshes could not be hidden.", exc_info=True)
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
