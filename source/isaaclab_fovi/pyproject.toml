@@ -36,4 +36,4 @@ where = ["."]
 include = ["isaaclab_fovi", "isaaclab_fovi.*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.pyi"]
+"*" = ["*.pyi", "*.usda"]

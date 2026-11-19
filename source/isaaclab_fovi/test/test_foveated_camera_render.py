@@ -46,6 +46,12 @@ def backend_cfg(name: str):
     return BACKENDS[name]
 
 
+def test_hybrid_gaze_turns_the_head_onto_the_fixation():
+    # Gaze that turns a rig needs a tracked mount, so a renderer that turns the camera's pose by the gaze. The case
+    # builds its own environment around the rig, so it runs before the shared ground scenes below.
+    cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg("newton_warp"))
+
+
 @pytest.fixture(scope="module", params=list(BACKENDS))
 def ground(request):
     """One ground scene per backend, which every case below renders in turn."""

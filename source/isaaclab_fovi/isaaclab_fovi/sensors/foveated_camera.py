@@ -192,6 +192,15 @@ class FoveatedCamera(Camera):
             self._allocate_gaze()
         return self._mount_quat_ros
 
+    def update_mount(self) -> ProxyArray:
+        """Read the camera's pose now and return :attr:`mount_quat_w_ros`.
+
+        A lazily updated camera reads its pose only when its data is read, so its recorded mount may be a step old.
+        """
+        mount = self.mount_quat_w_ros
+        self._update_poses()
+        return mount
+
     def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
         """Turn the retina to (tilt, pan) [deg] from the physical camera's optical axis.
 

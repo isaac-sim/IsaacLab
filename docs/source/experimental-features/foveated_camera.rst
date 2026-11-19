@@ -131,3 +131,41 @@ Select ``presets=depth`` for depth images.
 
 For other manager-based tasks, use :class:`~mdp.GazeActionCfg` to move gaze, :func:`~mdp.gaze_state` to
 observe it, and :class:`~mdp.gaze_teacher_labels` for optional supervision.
+
+Gaze modes
+----------
+
+:attr:`~mdp.GazeActionCfg.mode` sets what the gaze actions turn:
+
+* ``"software"`` (the default): the retina, inside a camera that does not turn.
+* ``"physical"``: the joints of a rig that carries the camera. Each action steps the joint targets.
+* ``"hybrid"``: the retina at once, while the rig turns the camera after it by at most
+  :attr:`~mdp.GazeRigCfg.max_step_deg` per step. The fixation holds in the world as the head takes over, so the
+  camera ends up pointing where it looks.
+* ``"dual"`` (experimental): four actions that move the rig's joints and then the retina independently.
+
+The rig modes need a :class:`~mdp.GazeRigCfg`, which names the articulation and its pan and tilt joints, and
+``mount="tracked"`` (Newton or OVRTX). :data:`~assets.PAN_TILT_CFG` is a two-joint pan-tilt mount:
+
+.. code-block:: python
+
+   from isaaclab.sim import PinholeCameraCfg
+   from isaaclab_fovi.assets import PAN_TILT_CAMERA_OFFSET, PAN_TILT_CFG
+   from isaaclab_fovi.mdp import GazeActionCfg, GazeRigCfg
+   from isaaclab_fovi.sensors import FoveatedCameraCfg
+
+   rig = PAN_TILT_CFG
+   eye = FoveatedCameraCfg(
+       prim_path="{ENV_REGEX_NS}/PanTilt/Geometry/world/pan_link/tilt_link/Eye",
+       offset=PAN_TILT_CAMERA_OFFSET,
+       spawn=PinholeCameraCfg(),
+   )
+   gaze = GazeActionCfg(asset_name="eye", mode="hybrid", mount="tracked", rig=GazeRigCfg(asset_name="rig"))
+
+With a rig, :func:`~mdp.gaze_state` reports the head's angles plus the software gaze.
+
+.. figure:: ../_static/overview/sensors/foveated_camera_gaze_modes.jpg
+   :alt: Pan angles over time for the four gaze modes, with the camera's images before, during and after.
+
+   Each mode on the pan-tilt mount with Newton's MJWarp solver: the policy pans 4.5° left three times. In hybrid gaze
+   the fixation jumps at once and holds while the head takes over from the retina.
