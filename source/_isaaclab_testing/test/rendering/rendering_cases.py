@@ -104,7 +104,8 @@ _KITLESS_CASES = [
     RenderCase("newton", "ovrtx", OVRTX_AOVS),
     RenderCase("ovphysx", "newton_warp", NEWTON_WARP_AOVS),
     RenderCase("newton", "newton_warp", NEWTON_WARP_AOVS),
-    *(RenderCase("ovphysx", "ovrtx", (aov,)) for aov in SIMPLE_SHADING_AOVS),
+    # Keep the pre-0.7 black background. None selects the default dome-light background in OVRTX 0.7+.
+    *(RenderCase("ovphysx", "ovrtx", (aov,), background_color=(0.0, 0.0, 0.0)) for aov in SIMPLE_SHADING_AOVS),
     RenderCase(
         "ovphysx",
         "ovrtx",

@@ -156,6 +156,8 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
         "dynamic_friction_range": (0.2, 0.2),
         "restitution_range": (0.1, 0.1),
         "num_buckets": 1,
+        "contact_stiffness_range": (3500.0, 3500.0),
+        "contact_damping_range": (150.0, 150.0),
     }
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
@@ -163,6 +165,12 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_restitution = restitution.clone()
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
+    stiffness = wp.to_torch(model.shape_material_ke)
+    damping = wp.to_torch(model.shape_material_kd)
+    expected_stiffness = stiffness.clone()
+    expected_damping = damping.clone()
+    expected_stiffness[selected] = 3500.0
+    expected_damping[selected] = 150.0
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
     # Preserve another writer's updates made after this term was constructed.
     friction[0] = expected_friction[0] = 0.7
@@ -170,6 +178,9 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
+
+    torch.testing.assert_close(stiffness, expected_stiffness)
+    torch.testing.assert_close(damping, expected_damping)
 
 
 @pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2))], indirect=True)

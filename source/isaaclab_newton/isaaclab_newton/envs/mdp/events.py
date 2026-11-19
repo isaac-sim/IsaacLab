@@ -61,6 +61,15 @@ class randomize_rigid_body_material(ManagerTermBase):
         model = self._newton_manager.backend.model
         friction_binding = asset._root_view.get_attribute("shape_material_mu", model)  # type: ignore
 
+        self._contact_ranges = []
+        for parameter, attribute in (
+            ("contact_stiffness_range", "shape_material_ke"),
+            ("contact_damping_range", "shape_material_kd"),
+        ):
+            value_range = cfg.params.get(parameter)
+            if value_range is not None:
+                self._contact_ranges.append((attribute, value_range))
+
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # The view's shape axis follows the model's shape order, which is not grouped by body,
             # so select each backend body's own shape indices.
@@ -141,6 +150,13 @@ class randomize_rigid_body_material(ManagerTermBase):
         # Non-affine shape layouts return gathered copies that need an explicit scatter.
         self.asset._root_view.set_attribute("shape_material_mu", model, friction_binding)
         self.asset._root_view.set_attribute("shape_material_restitution", model, restitution_binding)
+
+        for attribute, value_range in self._contact_ranges:
+            binding = self.asset._root_view.get_attribute(attribute, model)
+            values = wp.to_torch(binding)[:, 0]
+            values[env_rows, shape_idx] = math_utils.sample_uniform(*value_range, (num_envs, num_shapes), device=device)
+            self.asset._root_view.set_attribute(attribute, model, binding)
+
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 

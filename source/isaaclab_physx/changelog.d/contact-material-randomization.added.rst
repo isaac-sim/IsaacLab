@@ -1,0 +1,1 @@
+* Added bucketed contact stiffness and damping randomization to the material event, preserving unspecified gains and selected environments/bodies. Explicit gain updates used force-based contacts; damping updates required a uniform authored friction combine mode.

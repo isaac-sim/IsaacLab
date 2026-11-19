@@ -2653,6 +2653,10 @@ plus the corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBac
 and translated once, preserving explicit per-view overrides. Both forms use the same runtime implementation.
 Deprecated declarations emit ``DeprecationWarning``; update the configuration at its declaration site.
 
+The Rerun visualizer (``--viz rerun``, ``RerunBackendCfg``) is deprecated in Isaac Lab 3.2 and will be removed in
+Isaac Lab 3.3. Creating it emits a ``FutureWarning``. Switch to the Viser visualizer, which is also web-based and
+supports recording and replay: use ``--viz viser`` or ``VisualizerCfg(backend=ViserBackendCfg())``.
+
 Old Kit declarations retain their 1280-by-720 default. New shared declarations use
 ``WindowCfg(size=(1920, 1080))`` by default, independent of backend; specify ``window.size`` to
 choose a resolution. Old Newton declarations retain automatic scene-camera discovery. With the new
@@ -3354,8 +3358,8 @@ RL libraries.
 **Running Benchmarks**
 
 Physics and rendering use task presets, as in training: ``physics=newton_mjwarp`` and
-``renderer=newton_renderer``. The equivalent flags are ``--physics newton_mjwarp`` and
-``--renderer newton_renderer``; there is no ``--render`` flag.
+``renderer=newton_warp``. The equivalent flags are ``--physics newton_mjwarp`` and
+``--renderer newton_warp``; there is no ``--render`` flag.
 
 **Before (Isaac Lab 2.x):**
 

@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+5.4.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--export_deployment_usd`` to the training entry points, exporting environment 0 to
+  ``deployment.usda`` in the run's log directory before startup events.
+
+
 5.3.3 (2026-11-17)
 ~~~~~~~~~~~~~~~~~~
 
