@@ -13,7 +13,7 @@
     uv run isaaclab demo microduck-warehouse \\
         renderer=isaacsim_rtx presets=path_traced
     uv run isaaclab demo microduck-warehouse \\
-        renderer=newton_renderer presets=depth
+        renderer=newton_warp presets=depth
 
 Use ``presets=aisle`` for the other saved camera. Resolution and renderer settings
 use normal overrides, e.g. ``env.scene.camera.width=1920 env.scene.camera.height=1080``.
@@ -89,7 +89,7 @@ class WarehouseSceneCfg(InteractiveSceneCfg):
         ),
         renderer_cfg=MultiBackendRendererCfg(
             ovrtx=OVRTXRendererCfg(enable_shadows=True),
-            newton_renderer=NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True),
+            newton_warp=NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True),
             isaacsim_rtx=IsaacRtxRendererCfg(
                 global_settings=preset(
                     default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
@@ -124,7 +124,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
         ),
         visualizer_cfgs=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
-    camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_renderer=None)
+    camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_warp=None)
     camera_path = preset(
         default="/RoofReview/Cameras/duck_showcase_animation",
         poster="/RoofReview/Cameras/duck_showcase_animation",

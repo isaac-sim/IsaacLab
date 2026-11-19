@@ -30,6 +30,12 @@ def test_viser_missing_dependency_propagates_import_error(monkeypatch):
     assert error.value.name == "viser"
 
 
+def test_rerun_visualizer_is_deprecated():
+    cfg = VisualizerCfg(backend=RerunBackendCfg())
+    with pytest.warns(FutureWarning, match="Rerun visualizer is deprecated.*--viz viser"):
+        cfg.backend.class_type(cfg)
+
+
 def test_rerun_visualizer_set_camera_view():
     # No viewer: must not raise.
     cfg = VisualizerCfg(backend=RerunBackendCfg())

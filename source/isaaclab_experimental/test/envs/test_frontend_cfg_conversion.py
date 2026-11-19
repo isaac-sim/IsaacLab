@@ -273,3 +273,9 @@ def test_noise_cfg_without_warp_twin_is_a_hard_error():
     term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
     with pytest.raises(FrontendIncompatibleError, match="noise"):
         WarpFrontend.adapt_cfg(cfg)
+
+
+def test_mdp2_tasks_do_not_adapt_for_warp():
+    """MDP2 tasks run on MDP2Env: the warp frontend refuses them instead of building warp managers from them."""
+    cfg, _ = resolve_task_config("Isaac-Cartpole-MDP2", "", overrides=("physics=newton_mjwarp",))
+    assert "MDP2" in WarpFrontend.check_compatibility(cfg)

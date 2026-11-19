@@ -166,7 +166,7 @@ Newton MJWarp and the Newton GL visualizer are the defaults; the camera uses OVR
 
    uv run --extra ovrtx isaaclab demo microduck-warehouse
    uv run --extra isaacsim isaaclab demo microduck-warehouse renderer=isaacsim_rtx presets=path_traced
-   uv run isaaclab demo microduck-warehouse renderer=newton_renderer presets=aisle,depth
+   uv run isaaclab demo microduck-warehouse renderer=newton_warp presets=aisle,depth
 
 Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
 For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
