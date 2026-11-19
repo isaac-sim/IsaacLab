@@ -100,6 +100,7 @@ The following modules are available in the ``isaaclab_fovi`` extension:
 .. autosummary::
    :toctree: lab_fovi
 
+   assets
    mdp
    sensors
 

@@ -59,3 +59,8 @@ def test_gaze_stays_relative_to_moved_mounts(backend):
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_foveated_camera_samples_densest_at_the_fixation(backend):
     cases.foveated_camera_samples_densest_at_the_fixation(backend_cfg(backend))
+
+
+def test_hybrid_gaze_turns_the_head_onto_the_fixation():
+    # Gaze that turns a rig needs a tracked mount, so a renderer that turns the camera's pose by the gaze.
+    cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg("newton_warp"))

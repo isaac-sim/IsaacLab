@@ -303,6 +303,60 @@ The task is registered when the ``fovi`` extra is installed.
    retina's lattice and edge; the gaze follows the pole's tip. Bottom: the 32 × 32 image the policy receives, with
    the pole large at the fixation. Black samples lie outside the camera's image.
 
+Gaze modes
+~~~~~~~~~~
+
+:attr:`~mdp.GazeActionCfg.mode` sets what the gaze actions turn:
+
+* ``"software"`` (the default): the retina, at once, inside a camera that does not turn.
+* ``"physical"``: the joints of a rig that carries the camera. Each action steps the joints' targets from their
+  last targets; the retina stays on the optical axis, and the fixation follows as the joints reach their targets.
+* ``"hybrid"``: the retina at once, while the rig turns the camera after it. Each step the head steps toward the
+  fixation by at most :attr:`~mdp.GazeRigCfg.max_step_deg` per joint, and the software gaze is aimed back at the
+  fixation it holds in the world, so as the head catches up the retina returns to the optical axis. The policy sees
+  a fast gaze, and the camera ends up pointing where it looks.
+* ``"dual"`` (experimental): four actions that move the rig's joints, as in physical gaze, and then the retina, as
+  in software gaze, independently of each other.
+
+Every mode but software gaze needs a :class:`~mdp.GazeRigCfg`, which names the articulation and the two joints that
+turn the camera left and up, and a tracked mount, so it needs the Newton or OVRTX renderer.
+:data:`~assets.PAN_TILT_CFG` is a two-joint pan-tilt mount for a camera:
+
+.. code-block:: python
+
+   from isaaclab_fovi.assets import PAN_TILT_CAMERA_OFFSET, PAN_TILT_CFG
+   from isaaclab_fovi.mdp import GazeActionCfg, GazeRigCfg
+   from isaaclab_fovi.sensors import FoveatedCameraCfg
+
+   # In the scene: the mount, and a foveated camera on its tilting link.
+   rig = PAN_TILT_CFG.replace(init_state=PAN_TILT_CFG.init_state.replace(pos=(0.0, 0.0, 0.5)))
+   eye = FoveatedCameraCfg(
+       prim_path="{ENV_REGEX_NS}/PanTilt/Geometry/world/pan_link/tilt_link/Eye",
+       offset=PAN_TILT_CAMERA_OFFSET,
+       ...,
+   )
+
+   # In the actions:
+   gaze = GazeActionCfg(asset_name="eye", mode="hybrid", mount="tracked", rig=GazeRigCfg(asset_name="rig"))
+
+With a rig, :func:`~mdp.gaze_state` reports the fixation's offset from the rig's zero pose, the joints' angles plus
+the software gaze, so the observation means the same in every mode. In dual gaze the rig's actions come first and
+the retina's last, so the teacher and the gaze loss of the Cartpole task's PPO steer the retina. Software gaze
+alone can start an episode at a random gaze (``random_reset``); the other modes start from the rig's default joint
+positions with the retina on the optical axis.
+
+.. figure:: ../../_static/overview/sensors/foveated_camera_gaze_modes.jpg
+   :target: ../../_static/overview/sensors/foveated_camera_gaze_modes.jpg
+   :align: center
+   :figwidth: 100%
+   :alt: Pan angles over time for the four gaze modes, with the camera's 64 x 64 images before, during and after.
+
+   Each mode on the pan-tilt mount, simulated with Newton's MJWarp solver at Isaac Lab's 30 Hz policy step. In the
+   shaded steps the policy pans 4.5° left, three times. Below: the 64 × 64 image before, just after, and at the end.
+   In hybrid gaze the fixation jumps at once and stays while the head takes over from the retina. It leads the
+   command by about 1° while the head moves, since the software gaze is aimed back only once per step. In dual gaze
+   the retina turns first and the head later, and their turns add.
+
 Further reading
 ---------------
 

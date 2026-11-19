@@ -13,14 +13,18 @@ import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp.gaze import (
+    DUAL,
+    HYBRID,
+    PHYSICAL,
     GazeAction,
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
+    rig_gaze_step_kernel,
     teacher_block_dim,
     teacher_labels_kernel,
 )
-from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
+from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg, GazeRigCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -210,6 +214,18 @@ def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():
             cfg.validate_config()
     # The config names its term lazily, so Isaac Lab's action manager resolves it to the gaze action.
     assert GazeActionCfg(asset_name="camera").class_type._resolve() is GazeAction
+    # The modes that turn a rig need one, and a tracked mount since the rig moves the camera.
+    rig = GazeRigCfg(asset_name="rig")
+    GazeActionCfg(asset_name="camera", mode="hybrid", rig=rig, mount="tracked").validate_config()
+    for changes, message in (
+        (dict(mode="saccade"), "mode"),
+        (dict(mode="physical", mount="tracked"), "rig"),
+        (dict(mode="hybrid", rig=rig), "tracked"),
+        (dict(mode="dual", rig=rig, mount="tracked", random_reset=True), "random_reset"),
+        (dict(mode="hybrid", rig=GazeRigCfg(asset_name="rig", joint_signs=(1.0, 0.5)), mount="tracked"), "signs"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            GazeActionCfg(asset_name="camera", **changes).validate_config()
 
 
 def test_process_actions_moves_the_gaze_by_the_supplied_actions():
@@ -225,7 +241,7 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     term.field_radius_deg = 20.0
     term._state = ProxyArray(wp.zeros(num_envs, dtype=wp.vec4f, device="cpu"))
     term._velocity = term._state.torch[:, 2:]
-    term._step_launch = term._raw = None
+    term._step_launch = term._raw = term.rig = None
 
     manager_actions = torch.zeros(num_envs, 5)
     manager_actions[:, 2:4] = torch.tensor([[1.0, 0.0], [0.0, -1.0], [0.5, 0.5], [3.0, 0.0]])
@@ -292,3 +308,107 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
     term._asset.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction.teacher_mounts(term)
+
+
+# -- Gaze modes that turn a rig ----------------------------------------------------------------------------------------
+
+FIELD_RADIUS = 45.0
+STEP, LIMIT, HEAD_STEP = 0.1, 1.0, 0.05
+
+
+def yaw_left(degrees: float) -> torch.Tensor:
+    """A camera mount (x, y, z, w), ROS convention, turned left by ``degrees``: about the camera's up axis, -y."""
+    half = math.radians(degrees) / 2
+    return torch.tensor([[0.0, -math.sin(half), 0.0, math.cos(half)]])
+
+
+class RigStep:
+    """One camera's rig, with pan joint 1 and tilt joint 0 of three, stepped by :func:`rig_gaze_step_kernel`."""
+
+    def __init__(self, mode: int, joint_pos=(0.1, 0.0, 0.0)):
+        self.mode = mode
+        self.joint_pos = torch.tensor([joint_pos])
+        self.limits = torch.tensor([[[-0.5, 0.5], [-0.2, 0.2], [-1.0, 1.0]]])
+        self.mount = yaw_left(0.0)
+        self.held = torch.zeros(1, 3)
+        self.held_valid = torch.zeros(1, dtype=torch.int32)
+        self.angles = torch.zeros(1, 2)
+        self.state = torch.zeros(1, 4)
+        self.targets = torch.zeros(1, 2)
+
+    def __call__(self, actions) -> None:
+        identity = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        with torch_stream("cpu"):
+            wp.launch(
+                rig_gaze_step_kernel,
+                dim=1,
+                inputs=[
+                    wp.from_torch(torch.tensor([actions], dtype=torch.float32)),
+                    wp.from_torch(self.joint_pos),
+                    wp.from_torch(self.limits, dtype=wp.vec2f),
+                    wp.vec2i(1, 0),
+                    wp.vec2f(1.0, -1.0),
+                    wp.from_torch(self.mount, dtype=wp.quatf),
+                    identity,
+                    self.mode,
+                    STEP,
+                    LIMIT,
+                    HEAD_STEP,
+                    0.5,
+                    FIELD_RADIUS,
+                ],
+                outputs=[
+                    wp.from_torch(self.held, dtype=wp.vec3f),
+                    wp.from_torch(self.held_valid),
+                    wp.from_torch(self.angles, dtype=wp.vec2f),
+                    wp.from_torch(self.state, dtype=wp.vec4f),
+                    wp.from_torch(self.targets),
+                ],
+            )
+
+
+RADIUS_RAD = math.radians(FIELD_RADIUS)
+
+
+def test_physical_gaze_steps_the_joint_targets_and_leaves_the_retina_alone():
+    rig = RigStep(PHYSICAL, joint_pos=(0.0, 0.0, 0.0))
+    # The head lags its last targets (pan, tilt) = (0.05, 0.1): each step adds to the targets, not the measured joints.
+    rig.targets[0] = torch.tensor([0.05, 0.1])
+    # Tilt up a full step, pan left half a step (pan joint 1, tilt joint 0 with sign -1).
+    rig([1.0, 0.5])
+    torch.testing.assert_close(rig.targets[0], torch.tensor([0.05 + 0.5 * STEP * RADIUS_RAD, 0.1 - STEP * RADIUS_RAD]))
+    assert not rig.angles.any()
+    # The state is the measured head's gaze: (tilt, pan) = (-tilt joint, pan joint) in field radii.
+    rig.joint_pos[0, :2] = torch.tensor([0.1, 0.05])
+    rig([0.0, 0.0])
+    torch.testing.assert_close(rig.state[0, :2], torch.tensor([-0.1, 0.05]) / RADIUS_RAD)
+    # A large step stops at the joint limits: tilt joint 0 within [-0.5, 0.5], pan joint 1 within [-0.2, 0.2].
+    rig.targets[0] = torch.tensor([0.18, -0.45])
+    rig([3.0, 3.0])
+    torch.testing.assert_close(rig.targets[0], torch.tensor([0.2, -0.5]))
+
+
+def test_hybrid_gaze_moves_the_retina_at_once_and_holds_the_fixation_while_the_head_follows():
+    rig = RigStep(HYBRID, joint_pos=(0.0, 0.0, 0.0))
+    rig([0.0, 1.0])  # pan left a full step
+    # The retina turns at once; the head steps toward it by at most HEAD_STEP.
+    torch.testing.assert_close(rig.angles[0], torch.tensor([0.0, STEP * FIELD_RADIUS]))
+    torch.testing.assert_close(rig.targets[0], torch.tensor([HEAD_STEP * RADIUS_RAD, 0.0]))
+    assert rig.held_valid[0] == 1
+    # The head turns left by 3 degrees before the next step: the retina comes back by as much, so the fixation holds.
+    rig.mount = yaw_left(3.0)
+    rig.joint_pos[0, 1] = math.radians(3.0)
+    rig([0.0, 0.0])
+    torch.testing.assert_close(rig.angles[0], torch.tensor([0.0, STEP * FIELD_RADIUS - 3.0]), atol=1e-4, rtol=0)
+    torch.testing.assert_close(rig.state[0, :2], torch.tensor([0.0, STEP]), atol=1e-5, rtol=0)
+    # From where it is, the head steps the remaining 1.5 degrees (under HEAD_STEP) onto the fixation.
+    pan_target = math.radians(STEP * FIELD_RADIUS)
+    torch.testing.assert_close(rig.targets[0, 0], torch.tensor(pan_target), atol=1e-5, rtol=0)
+
+
+def test_dual_gaze_moves_the_head_and_the_retina_independently():
+    rig = RigStep(DUAL, joint_pos=(0.0, 0.0, 0.0))
+    rig([0.0, 1.0, 1.0, 0.0])  # the head pans left, the retina tilts up
+    torch.testing.assert_close(rig.targets[0], torch.tensor([STEP * RADIUS_RAD, 0.0]))
+    torch.testing.assert_close(rig.angles[0], torch.tensor([STEP * FIELD_RADIUS, 0.0]))
+    assert rig.held_valid[0] == 0

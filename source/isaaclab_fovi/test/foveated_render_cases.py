@@ -256,3 +256,93 @@ def foveated_camera_samples_densest_at_the_fixation(backend: tuple):
     even_angles = _cell_angles(even.as_grid(even.cartesian, sample_dim=0).float(), fov)
     errors, _ = _relative_errors(distance[0], even_angles)
     assert float((errors < 0.03).float().mean()) < 0.5
+
+
+def hybrid_gaze_turns_the_head_onto_the_fixation(backend: tuple):
+    """Hybrid gaze on the pan-tilt mount: the retina turns at once, then the joints carry the camera onto the fixation.
+
+    The policy pans left three full steps, then holds. The retina leads while the head turns; the head then ends on
+    the commanded fixation, the retina back on the optical axis, and the camera's world axis turned with the head.
+    A reset brings the joint targets and the gaze back to the rig's default pose.
+    """
+    from isaaclab_fovi.assets import PAN_TILT_CAMERA_OFFSET, PAN_TILT_CFG
+    from isaaclab_fovi.mdp import GazeActionCfg, GazeRigCfg, gaze_state
+
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+    from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
+    from isaaclab.utils.math import quat_apply
+
+    physics_cfg, renderer_cfg, _ = backend
+
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        rig = PAN_TILT_CFG.replace(init_state=PAN_TILT_CFG.init_state.replace(pos=(0.0, 0.0, 0.5)))
+        eye = FoveatedCameraCfg(
+            prim_path="{ENV_REGEX_NS}/PanTilt/Geometry/world/pan_link/tilt_link/Eye",
+            data_types=["distance_to_camera"],
+            renderer_cfg=renderer_cfg(),
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=CLIPPING_RANGE),
+            foveated_res=16,
+            offset=PAN_TILT_CAMERA_OFFSET,
+        )
+
+    @configclass
+    class ActionsCfg:
+        gaze = GazeActionCfg(asset_name="eye", mode="hybrid", mount="tracked", rig=GazeRigCfg(asset_name="rig"))
+
+    @configclass
+    class ObservationsCfg:
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            gaze = ObservationTermCfg(func=gaze_state)
+
+        policy = PolicyCfg()
+
+    @configclass
+    class EnvCfg(ManagerBasedEnvCfg):
+        decimation = 4
+        scene = SceneCfg(num_envs=1, env_spacing=5.0)
+        actions = ActionsCfg()
+        observations = ObservationsCfg()
+        ui_window_class_type = None
+        sim = SimulationCfg(dt=1 / 120, physics=physics_cfg, device=DEVICE)
+
+    sim_utils.create_new_stage()
+    env = ManagerBasedEnv(EnvCfg())
+    try:
+        env.reset()
+        term = env.action_manager.get_term("gaze")
+        camera, rig = env.scene["eye"], env.scene["rig"]
+        joints = rig.find_joints(["pan_joint", "tilt_joint"], preserve_order=True)[0]
+
+        def pan_deg():
+            """The head's pan, the retina's pan and the camera's world yaw, left of the start [deg]."""
+            axis = quat_apply(camera.data.quat_w_ros.torch[:1], torch.tensor([[0.0, 0.0, 1.0]], device=env.device))
+            yaw = math.degrees(math.atan2(-float(axis[0, 0]), float(axis[0, 1])))
+            head = math.degrees(float(rig.data.joint_pos.torch[0, joints[0]]))
+            return head, float(camera.gaze_angles.torch[0, 1]), yaw
+
+        commanded = 3 * term.cfg.step_size * term.field_radius_deg
+        pan_left = torch.tensor([[0.0, 1.0]], device=env.device)
+        # Nothing reads the camera between steps, so it updates lazily: the gaze must read the head's pose itself.
+        for _ in range(3):
+            env.step(pan_left)
+        head, retina, fixation = pan_deg()
+        # The retina leads the head, and the fixation is already near the command.
+        assert retina > head
+        assert fixation == pytest.approx(commanded, abs=1.5)
+        for _ in range(30):
+            env.step(torch.zeros_like(pan_left))
+        head, retina, fixation = pan_deg()
+        assert head == pytest.approx(commanded, abs=0.2)
+        assert retina == pytest.approx(0.0, abs=0.2)
+        assert fixation == pytest.approx(commanded, abs=0.2)
+        assert float(term.state[0, 1]) == pytest.approx(3 * term.cfg.step_size, abs=0.005)
+
+        env.reset()
+        assert not term.joint_targets.any()
+        assert not camera.gaze_angles.torch.any()
+        assert not term.state.any()
+    finally:
+        env.close()

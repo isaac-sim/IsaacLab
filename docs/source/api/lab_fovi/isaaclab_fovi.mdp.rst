@@ -9,6 +9,7 @@ isaaclab_fovi.mdp
 
     GazeAction
     GazeActionCfg
+    GazeRigCfg
     gaze_teacher_labels
 
   .. rubric:: Functions
@@ -29,6 +30,11 @@ Actions
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+.. autoclass:: GazeRigCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
 
 Observations
 ------------
