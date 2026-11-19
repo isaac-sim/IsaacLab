@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonOptixRendererCfg",
     "NewtonWarpRenderer",
     "NewtonWarpRendererCfg",
 ]
 
 from .newton_warp_renderer import NewtonWarpRenderer
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+from .newton_warp_renderer_cfg import NewtonOptixRendererCfg, NewtonWarpRendererCfg

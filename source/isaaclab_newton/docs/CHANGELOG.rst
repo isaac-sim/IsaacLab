@@ -3,6 +3,36 @@ Changelog
 
 .. towncrier release notes start
 
+18.0.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including cable objects.
+
+Changed
+^^^^^^^
+
+* Updated the Newton dependency to the current ``main`` revision, which adds the optional OptiX camera backend.
+  Newton renamed Kamino's DVI forward-dynamics solver to SCC, so
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` now configures Newton's SCC solver with unchanged fields.
+  Its :meth:`~isaaclab_newton.physics.KaminoDVISolverCfg.to_solver_config` returns ``dynamics_solver="scc"``;
+  Newton keeps ``config.dvi`` as a deprecated alias of ``config.scc``, so read ``config.scc`` instead.
+* Changed :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` ``"gpu_to_gpu"`` to raise during solver
+  initialization with MJWarp or Steel, which Newton now limits to ``RUN_TO_RUN``. Use ``"run_to_run"``, or XPBD
+  or Featherstone for the cross-GPU guarantee.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``VBDSolverCfg.rigid_compliant_alm``. Newton 1.9 always solves VBD rigid joints and
+  contacts with compliant ALM, rejects ``False``, and ignores ``True``; omit the field.
+* **Breaking:** Replaced the boolean ``NewtonSolver.deterministic`` class attribute with
+  :attr:`~isaaclab_newton.physics.NewtonSolver.max_deterministic_mode`, the strongest Warp determinism mode the
+  solver honors. Custom solvers that set ``deterministic = True`` must set ``max_deterministic_mode`` instead.
+
+
 17.2.3 (2026-11-16)
 ~~~~~~~~~~~~~~~~~~~
 

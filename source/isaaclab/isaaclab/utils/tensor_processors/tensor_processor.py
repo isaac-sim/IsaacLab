@@ -74,11 +74,14 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
+            env_mask: For camera processors, a boolean mask of environments due for this capture, or None when
+                the renderer does not identify fresh rows. Camera implementations must accept this keyword.
+                Observation-only implementations may omit it; the observation manager passes only ``data``.
 
         Returns:
             Processed data with the structure defined by the implementation.

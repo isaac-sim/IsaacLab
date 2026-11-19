@@ -113,6 +113,8 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
+optix = ["newton[optix]"]
+
 importers = [
     "isaacsim-asset-isolated==6.2.0.1",
     "tinyobjloader==2.0.0rc13",
@@ -179,13 +181,13 @@ isaacsim = [
 ]
 
 ov = [
-    "ovphysx==0.7.0.74035321",
-    "ovrtx==0.6.0.1791947691",
-    "ovstage==0.3.0.1791986420",
+    "ovphysx==0.8.0.43443703471",
+    "ovrtx==0.7.0.1794596436",
+    "ovstage==0.4.0.1794520352",
     "physx-usd-schemas==25.11.2.72696984",
 ]
-ovphysx = ["ovphysx==0.7.0.74035321", "ovstage==0.3.0.1791986420", "physx-usd-schemas==25.11.2.72696984"]
-ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
+ovphysx = ["ovphysx==0.8.0.43443703471", "ovstage==0.4.0.1794520352", "physx-usd-schemas==25.11.2.72696984"]
+ovrtx = ["ovrtx==0.7.0.1794596436", "ovstage==0.4.0.1794520352"]
 
 mimic = [
     "isaaclab-mimic",
@@ -232,9 +234,9 @@ isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
-ovphysx = "0.7.0.74035321"
-ovrtx = "0.6.0.1791947691"
-ovstage = "0.3.0.1791986420"
+ovphysx = "0.8.0.43443703471"
+ovrtx = "0.7.0.1794596436"
+ovstage = "0.4.0.1794520352"
 newton = "1.9.0.dev0"
 warp = "1.17.0"
 
@@ -418,7 +420,8 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra != 'optix'",
+    "newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra == 'optix'",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.
