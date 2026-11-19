@@ -42,8 +42,7 @@ def fake_camera(data, provides_frame_history=False):
     """The parts of a camera that the history push reads."""
     camera = SimpleNamespace(
         _data=data,
-        _renderer=SimpleNamespace(provides_frame_history=provides_frame_history),
-        cfg=SimpleNamespace(renderer_cfg=None),
+        cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(provides_frame_history=provides_frame_history)),
     )
     Camera._create_frame_history_state(camera)
     return camera
