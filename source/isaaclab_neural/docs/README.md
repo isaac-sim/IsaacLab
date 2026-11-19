@@ -133,7 +133,8 @@ Prepare its checkpoints and start the service from the Isaac Lab checkout, with 
 cd "$ISAAC_LAB_ROOT"
 uv run --project "$COSMOS_FRAMEWORK_ROOT" --no-sync python scripts/tools/cosmos/prepare_medical_pad.py --download
 export LD_LIBRARY_PATH=
-uv run --project "$COSMOS_FRAMEWORK_ROOT" --no-sync isaaclab-cosmos-world-model-server     --checkpoint .pretrained_checkpoints/medical_pad_unfold/world_model
+uv run --project "$COSMOS_FRAMEWORK_ROOT" --no-sync isaaclab-cosmos-world-model-server \
+    --checkpoint .pretrained_checkpoints/medical_pad_unfold/world_model
 ```
 
 `prepare_medical_pad.py` checks the model files listed in the task's
