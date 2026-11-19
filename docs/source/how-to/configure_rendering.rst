@@ -26,7 +26,7 @@ is task-specific.
      - You need the lowest VRAM use and high camera throughput for Newton training.
      - Lightweight ray tracing; it has a smaller output set and does not provide motion vectors
        or full RTX material transport.
-     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
+     - ``physics=newton_mjwarp renderer=newton_warp presets=rgb``
    * - OVRTX
      - You need scalable kit-less RTX rendering and higher visual fidelity.
      - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more
@@ -43,7 +43,7 @@ For example, start a camera task with the low-VRAM Newton renderer:
 
    uv run isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Camera \
-      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+      physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Switch the same supported task to the higher-fidelity kit-less RTX renderer:
 
@@ -71,7 +71,7 @@ For a task with a camera renderer configuration, enable directional-light shadow
 
    uv run isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Camera \
-      physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+      physics=newton_mjwarp renderer=newton_warp presets=rgb \
       env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
 When defining a camera in Python, configure the renderer directly:

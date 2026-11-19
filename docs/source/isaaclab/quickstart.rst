@@ -181,7 +181,7 @@ example:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
+   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,
 and :doc:`/source/features/hydra` for arbitrary configuration overrides.
@@ -192,7 +192,7 @@ Visualize a task
 
 Use ``--viz`` (or ``--visualizer``) to choose one or more visualizers during
 training or playback. To use multiple visualizers, pass a comma-separated list
-without spaces, such as ``--viz newton_gl,rerun``.
+without spaces, such as ``--viz newton_gl,viser``.
 
 .. list-table::
    :widths: 18 58 24
@@ -204,12 +204,12 @@ without spaces, such as ``--viz newton_gl,rerun``.
    * - ``--viz newton_gl``
      - Open the Newton visualizer.
      - None
-   * - ``--viz rerun``
-     - Stream the task to the Rerun visualizer.
-     - ``rerun``
    * - ``--viz viser``
      - Open the web-based Viser visualizer, useful for remote connections.
      - ``viser``
+   * - ``--viz rerun``
+     - Stream the task to the Rerun visualizer. Deprecated in Isaac Lab 3.2 and removed in 3.3; use ``--viz viser``.
+     - ``rerun``
    * - ``--viz kit``
      - Open the Kit visualizer when it is available in your environment.
      - ``isaacsim``
@@ -217,12 +217,12 @@ without spaces, such as ``--viz newton_gl,rerun``.
      - Run without a visualizer.
      - None
 
-For example, open the same task in both Newton and Rerun:
+For example, open the same task in both Newton and Viser:
 
 .. code-block:: bash
 
-   uv run --extra rerun isaaclab random_agent --task Isaac-Cartpole \
-      physics=newton_mjwarp --viz newton_gl,rerun
+   uv run --extra viser isaaclab random_agent --task Isaac-Cartpole \
+      physics=newton_mjwarp --viz newton_gl,viser
 
 See :doc:`/source/concepts/visualization` for visualizer setup and
 configuration.
