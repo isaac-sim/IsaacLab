@@ -30,7 +30,6 @@ in its configuration; no ``physics=`` or ``presets=`` selection is needed.
 
 The :ref:`Command Builder <environment-browser>` also lists ``Isaac-Motion-Tracking-G1``.
 Select **Train** or **Play** and **rsl_rl** to generate the base command.
-Selecting **Pretrained checkpoint** also selects the CR7 reference clip for that checkpoint.
 
 Reference motions
 -----------------
@@ -44,7 +43,7 @@ Six 50 Hz clips are available under the asset-server prefix
 
    * - Motion
      - File
-   * - Spin kick (default)
+   * - Spin kick
      - ``g1_spinkick.npz``
    * - Walk
      - ``g1_walk.npz``
@@ -54,7 +53,7 @@ Six 50 Hz clips are available under the asset-server prefix
      - ``g1_cartwheel.npz``
    * - Speed vault
      - ``g1_speed_vault.npz``
-   * - CR7 celebration
+   * - CR7 celebration (default)
      - ``g1_cr7_grounded.npz``
 
 Each NPZ includes joint and body names; no separate metadata file is needed for these clips.
@@ -66,7 +65,7 @@ the :class:`~isaaclab.utils.datasets.MotionLoader` documents the required arrays
 Train
 -----
 
-Train the default spin-kick clip:
+Train the default CR7 clip:
 
 .. code-block:: bash
 
@@ -99,16 +98,15 @@ The G1 asset, motor gains, and tracked links are configured in ``config/g1/env_c
 Play and record
 ---------------
 
-The pretrained example tracks CR7. Once the checkpoint is published, play it with the Newton GL
-viewer and explicitly select its reference clip:
+The pretrained example tracks the default CR7 clip. Once the checkpoint is published, play it
+with the Newton GL viewer:
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Motion-Tracking-G1 \
-       --num_envs 1 --checkpoint pretrained --viz newton_gl \
-       env.commands.motion.motion_file=https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/g1_cr7_grounded.npz
+       --num_envs 1 --checkpoint pretrained --viz newton_gl
 
-For a local checkpoint, replace ``pretrained`` with its path and set
+For a local checkpoint, replace ``pretrained`` with its path. For a clip other than CR7, set
 ``env.commands.motion.motion_file`` to the same clip used during training.
 The checkpoint path alone does not select its reference motion.
 Playback disables observation noise, but retains reference-phase sampling, reset perturbations,
@@ -119,8 +117,7 @@ Record 500 control steps (10 seconds) without opening a viewer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Motion-Tracking-G1 \
-       --num_envs 1 --checkpoint pretrained --video --video_length 500 \
-       env.commands.motion.motion_file=https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/g1_cr7_grounded.npz
+       --num_envs 1 --checkpoint pretrained --video --video_length 500
 
 The recording is saved under the checkpoint's run directory in ``videos/play/`` and may contain
 multiple episodes. See :doc:`Recording Videos </source/how-to/record_video>` for camera and output options.

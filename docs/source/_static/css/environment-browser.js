@@ -536,10 +536,6 @@
         }
         if (supportsRl && fields.checkpoint.checked) {
             parts.push("--checkpoint", "pretrained");
-            if (state.task === "Isaac-Motion-Tracking-G1") {
-                parts.push("env.commands.motion.motion_file="
-                    + "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/g1_cr7_grounded.npz");
-            }
         }
         return parts.join(" ");
     };
