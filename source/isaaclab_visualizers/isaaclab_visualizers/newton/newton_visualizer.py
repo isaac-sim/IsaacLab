@@ -443,7 +443,7 @@ class NewtonViewerGL(ViewerGL):
                         "Camera",
                         [
                             "WASD - Move",
-                            "Shift + WASD - Move 2x faster",
+                            "Shift + WASD - Move faster (Shift Boost)",
                             "QE - Up / down",
                             "Left Click - Look around",
                             "Middle Click - Orbit",
