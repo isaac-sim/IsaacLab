@@ -28,26 +28,14 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     BACKEND = (NewtonCfg(solver_cfg=MJWarpSolverCfg()), OVRTXRendererCfg, FoveatedRTXCamera)
-    SOURCES = list(cases.CAMERA_SOURCES)
-else:
-    SOURCES = []
 
 
-@pytest.mark.parametrize("source", SOURCES)
-def test_foveated_camera_follows_gaze(source):
-    cases.foveated_camera_follows_gaze(BACKEND, source)
+def test_foveated_camera_follows_gaze():
+    cases.foveated_camera_follows_gaze(BACKEND)
 
 
-def test_gaze_change_reaches_the_next_frame():
-    cases.gaze_change_reaches_the_next_frame(BACKEND)
-
-
-def test_gaze_stays_relative_to_a_moved_mount():
-    cases.gaze_stays_relative_to_a_moved_mount(BACKEND)
-
-
-def test_gaze_survives_a_position_only_move():
-    cases.gaze_survives_a_position_only_move(BACKEND)
+def test_gaze_stays_relative_to_moved_mounts():
+    cases.gaze_stays_relative_to_moved_mounts(BACKEND)
 
 
 def test_foveated_camera_samples_densest_at_the_fixation():

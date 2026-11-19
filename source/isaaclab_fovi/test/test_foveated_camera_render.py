@@ -46,25 +46,14 @@ def backend_cfg(name: str):
     return BACKENDS[name]
 
 
-@pytest.mark.parametrize("source", cases.CAMERA_SOURCES)
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_foveated_camera_follows_gaze(backend, source):
-    cases.foveated_camera_follows_gaze(backend_cfg(backend), source)
-
-
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_gaze_change_reaches_the_next_frame(backend):
-    cases.gaze_change_reaches_the_next_frame(backend_cfg(backend))
+def test_foveated_camera_follows_gaze(backend):
+    cases.foveated_camera_follows_gaze(backend_cfg(backend))
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_gaze_stays_relative_to_a_moved_mount(backend):
-    cases.gaze_stays_relative_to_a_moved_mount(backend_cfg(backend))
-
-
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_gaze_survives_a_position_only_move(backend):
-    cases.gaze_survives_a_position_only_move(backend_cfg(backend))
+def test_gaze_stays_relative_to_moved_mounts(backend):
+    cases.gaze_stays_relative_to_moved_mounts(backend_cfg(backend))
 
 
 @pytest.mark.parametrize("backend", BACKENDS)

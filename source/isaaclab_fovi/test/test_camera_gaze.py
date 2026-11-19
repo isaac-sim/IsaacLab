@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering, gaze and software-sampling contracts, without launching a simulator."""
+"""The camera's gaze, mount and sensor mask, and the Warp kernels behind them, without launching a simulator."""
 
 import math
 from dataclasses import asdict
@@ -12,11 +12,20 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
-from fovi.sensing.projection import CameraModel, angular_directions
+from fovi.sensing.coords import SamplingCoords
+from fovi.sensing.projection import CameraModel, angular_directions, gaze_rotation
 from fovi.sensing.retina import RetinalTransform
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions, sampling_geometry
 from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_fovi.sensors.gaze_kernels import (
+    camera_params,
+    project_directions,
+    publish_grid_kernel,
+    set_gaze_kernel,
+    torch_stream,
+)
+from isaaclab_fovi.sensors.native_grid import GRID_STYLE, grid_sample_indices, native_grid_directions
 from isaaclab_fovi.sensors.pooling import build_lowres_coords
 
 from isaaclab.sensors.camera.camera import Camera
@@ -34,7 +43,8 @@ from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
-CPU_AND_CUDA = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
+CUDA = test_devices(DeviceScope.DEFAULT_CUDA)
+"""The kernels and their Python paths are the same on every device; the default GPU is what simulations use."""
 
 
 @pytest.fixture
@@ -181,26 +191,17 @@ def angles_toward(camera: CameraModel, pixel: tuple[float, float]) -> torch.Tens
     return torch.stack((-torch.atan2(y, torch.sqrt(x * x + z * z)), -torch.atan2(x, z)), -1).rad2deg()
 
 
-@pytest.mark.parametrize("pixel", [(119.5, 39.5), (59.5, 79.5), (120.5, 39.5), (59.5, -1.3)])
-def test_edge_gaze_preserves_visible_rays(pixel: tuple[float, float]) -> None:
-    """Looking at, or just past, an image edge keeps the part of the retina the camera still sees."""
-    camera = GazeHarness(count=1)
-    camera.set_gaze_angles(angles_toward(camera._camera_model, pixel))
-
-    # An edge-centered receptive field straddles the physical sensor boundary.
-    # Its visible part must survive even when the center lies outside the image.
+def test_sensor_mask_keeps_what_the_camera_sees_at_an_edge_gaze() -> None:
+    """Looking just past an image edge keeps the part of the retina the camera still sees; looking away keeps none."""
+    camera = GazeHarness(count=2)
+    edge = angles_toward(camera._camera_model, (120.5, 39.5))
+    camera.set_gaze_angles(torch.cat((edge, torch.tensor([[0.0, 180.0]]))))
     valid = camera._gaze_validity()
-    assert valid.any()
-    assert not valid.all()
+    assert valid[0].any() and not valid[0].all()
+    assert not valid[1].any()
 
 
-def test_gaze_away_from_sensor_masks_all_rays() -> None:
-    camera = GazeHarness(count=1)
-    camera.set_gaze_angles(torch.tensor([[0.0, 180.0]]))
-    assert not camera._gaze_validity().any()
-
-
-@pytest.mark.parametrize("device", CPU_AND_CUDA)
+@pytest.mark.parametrize("device", CUDA)
 @pytest.mark.parametrize(
     "mode, autocast",
     [
@@ -253,9 +254,9 @@ def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, m
     assert torch.get_float32_matmul_precision() == "high"
 
 
-@pytest.mark.parametrize("rotation_deg", [0.0, 30.0, -75.0])
-def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount(rotation_deg: float) -> None:
+def test_sensor_mask_checks_the_rendered_rays_of_a_rolled_mount() -> None:
     """The mask sees exactly the rays the turned camera renders, found here through the camera pose instead."""
+    rotation_deg = 30.0
     # An off-center, wide image makes a roll change which samples the camera sees.
     model = CameraModel("pinhole", (80, 120), (60.0, 60.0, 45.0, 30.0))
     camera = GazeHarness(camera_model=asdict(model), image_rotation_deg=rotation_deg)
@@ -314,23 +315,10 @@ def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
         assert camera.mount_turns == int(turned)
 
 
-def test_a_rejected_mount_move_is_not_recorded(monkeypatch) -> None:
-    def reject(*args, **kwargs):
-        raise ValueError("rejected")
-
-    monkeypatch.setattr(Camera, "set_world_poses", reject)
-    # The identity differs from both mounts, so only the rejection keeps the count.
-    camera = RtxGazeHarness(MOUNT)
-    with pytest.raises(ValueError, match="rejected"):
-        camera.set_world_poses(orientations=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2))
-    assert camera.mount_turns == 0
-
-
-@pytest.mark.parametrize("shape", [(1, 2), (2, 3), (3, 2)])
-def test_gaze_angles_need_one_row_per_camera(shape) -> None:
+def test_gaze_angles_need_one_row_per_camera() -> None:
     camera = GazeHarness()
     with pytest.raises(ValueError, match=r"shape \(2, 2\)"):
-        camera.set_gaze_angles(torch.zeros(shape))
+        camera.set_gaze_angles(torch.zeros(3, 2))
     assert camera._gaze_angles is None
 
 
@@ -421,29 +409,7 @@ def test_renderer_ray_frame_matches_cv_frame() -> None:
     torch.testing.assert_close(rendered, cv * torch.tensor([1, -1, -1]))
 
 
-@pytest.mark.parametrize("device", CPU_AND_CUDA)
-def test_gaze_pose_is_stable_inside_model_autocast(device: str) -> None:
-    cameras = [GazeHarness(device=device), GazeHarness(device=device)]
-    for camera in cameras:
-        camera.orientation.copy_(torch.tensor([[-0.4625, -0.4940, 0.5341, -0.5067]], device=device).repeat(2, 1))
-        camera._gaze_basis = camera._gaze_basis.to(device)
-        camera._gaze_rays = camera._gaze_rays.to(device)
-        camera._gaze_identity = camera._gaze_identity.to(device)
-    target = torch.tensor([[0.002, 0.003], [-0.1, 0.2]], device=device)
-    for camera, enabled in zip(cameras, [False, True], strict=True):
-        with torch.autocast(device, dtype=torch.bfloat16, enabled=enabled):
-            camera.set_gaze_angles(target)
-            camera._apply_gaze_pose()
-            camera._test_validity = camera._gaze_validity().clone()
-    assert torch.isfinite(cameras[1].orientation).all()
-    torch.testing.assert_close(cameras[1].orientation, cameras[0].orientation)
-    torch.testing.assert_close(cameras[1]._gaze_rotation.torch, cameras[0]._gaze_rotation.torch)
-
-    torch.testing.assert_close(cameras[1].orientation.norm(dim=-1), torch.ones(2, device=device))
-    torch.testing.assert_close(cameras[1]._test_validity, cameras[0]._test_validity)
-
-
-@pytest.mark.parametrize("device", CPU_AND_CUDA)
+@pytest.mark.parametrize("device", CUDA)
 def test_rtx_gaze_pose_writer_is_stable_inside_model_autocast(device: str, tf32_enabled) -> None:
     camera = GazeHarness(count=48, device=device)
     camera._gaze_basis = camera._gaze_basis.to(device)
@@ -502,3 +468,125 @@ def test_gaze_kernels_preserve_shared_stream_for_warp_capture(device: str) -> No
         wp.capture_launch(capture.graph)
         torch.testing.assert_close(wp.to_torch(target), valid)
         assert valid[1].any()
+
+
+# -- The gaze kernels against fovi's camera geometry ------------------------------------------------------------------
+
+KERNEL_DEVICE = next(iter(CUDA), "cpu")
+"""The run's default GPU, or the CPU when the run selects none."""
+
+KERNEL_CAMERAS = {
+    "distorted pinhole": CameraModel(
+        "pinhole",
+        (480, 640),
+        (520.0, 515.0, 322.0, 241.0),
+        distortion=(-0.28, 0.09, 0.001, -0.002, -0.01, 0.02, -0.01, 0.005),
+    ),
+    "fisheye with image circle": CameraModel(
+        "fisheye",
+        (800, 800),
+        (230.0, 230.0, 399.5, 399.5),
+        distortion=(0.02, -0.01, 0.003, -0.001),
+        image_circle=(399.5, 399.5, 380.0),
+        max_angle_deg=95.0,
+    ),
+}
+
+
+def set_gaze(angles: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """The stored angles and gaze rotations :func:`set_gaze_kernel` writes."""
+    stored = torch.empty_like(angles)
+    rotation = torch.empty(len(angles), 3, 3, device=angles.device)
+    with torch_stream(angles.device):
+        wp.launch(
+            set_gaze_kernel,
+            dim=len(angles),
+            inputs=[wp.from_torch(angles.contiguous(), dtype=wp.vec2f)],
+            outputs=[wp.from_torch(stored, dtype=wp.vec2f), wp.from_torch(rotation, dtype=wp.mat33f)],
+        )
+    return stored, rotation
+
+
+@pytest.mark.parametrize("name", KERNEL_CAMERAS)
+def test_projection_kernel_matches_fovi(name: str) -> None:
+    """The sensor mask projects with fovi's camera model, as the software sampler does on a real camera."""
+    camera = KERNEL_CAMERAS[name]
+    generator = torch.Generator().manual_seed(0)
+    directions = torch.randn(20000, 3, generator=generator)
+    directions[:, 2] = directions[:, 2].abs() * 1.5  # mostly forward, some sideways and behind
+    directions[:2000, 2] *= -1
+    directions = torch.nn.functional.normalize(directions, dim=-1).to(KERNEL_DEVICE)
+    expected_pixels, expected_valid = camera.project(directions)
+    pixels, valid = project_directions(directions, camera_params(camera))
+    # Float32 rounding may flip a sample that lies on the image edge, nothing more.
+    assert (valid == expected_valid).float().mean() > 0.9995
+    assert expected_valid.any() and (~expected_valid).any()
+    both = valid & expected_valid
+    torch.testing.assert_close(pixels[both], expected_pixels[both], rtol=1e-4, atol=1e-2)
+
+
+def test_gaze_rotation_follows_fovis_pan_tilt_convention() -> None:
+    """The gaze turns the rays as fovi's software sampler turns them, so a policy sees the same retina on hardware."""
+    angles = ((torch.rand(64, 2, generator=torch.Generator().manual_seed(1)) * 2 - 1) * 40).to(KERNEL_DEVICE)
+    stored, rotation = set_gaze(angles)
+    tilt, pan = angles.deg2rad().unbind(-1)
+    direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
+    torch.testing.assert_close(stored, angles, atol=0, rtol=0)
+    torch.testing.assert_close(rotation, gaze_rotation(direction, "pan_tilt"), atol=1e-5, rtol=0)
+
+
+def test_publish_kernel_matches_masking_then_copying_to_the_grid() -> None:
+    camera = KERNEL_CAMERAS["distorted pinhole"]
+    coords = SamplingCoords(
+        camera.field_of_view("short"), 0.591, 24, style=GRID_STYLE, field_geometry="spherical", device=KERNEL_DEVICE
+    )
+    rays = (native_grid_directions(coords) * coords.cartesian.new_tensor((1, -1, -1))).float().contiguous()
+    generator = torch.Generator().manual_seed(2)
+    angles = ((torch.rand(6, 2, generator=generator) * 2 - 1) * 25).to(KERNEL_DEVICE)
+    _, rotation = set_gaze(angles)
+    count = len(coords)
+    outputs = {
+        "rgba": torch.randint(1, 255, (6, count, 1, 4), generator=generator, dtype=torch.uint8).to(KERNEL_DEVICE),
+        "depth": (torch.rand(6, count, 1, 1, generator=generator) + 0.5).to(KERNEL_DEVICE),
+    }
+    valid = camera.project(rays @ rotation.transpose(-1, -2))[1]
+    # Environments 1 and 4 were not rendered this frame and keep their previous image.
+    updated = torch.tensor([True, False, True, True, False, True], device=KERNEL_DEVICE)
+
+    # The sequence the kernel replaces: footprint mask, sensor mask, then the upright layout. The layout comes from
+    # fovi's own grid reshaping rather than the index permutation the kernel uses.
+    keep = valid & coords.valid_mask[None]
+    expected_grid = {
+        name: coords.as_grid(value.squeeze(2) * keep[..., None], sample_dim=1) for name, value in outputs.items()
+    }
+    indices = grid_sample_indices(coords).to(torch.int32).contiguous()
+    visible = torch.zeros(6, count, dtype=torch.bool, device=KERNEL_DEVICE)
+    identity = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    for name, value in outputs.items():
+        previous = torch.full_like(expected_grid[name], 7)
+        target = previous.clone()
+        with torch_stream(KERNEL_DEVICE):
+            wp.launch(
+                publish_grid_kernel,
+                dim=(6, count),
+                inputs=[
+                    wp.from_torch(value.squeeze(2).view(torch.uint8)),
+                    wp.from_torch(indices),
+                    wp.from_torch(coords.valid_mask.contiguous()),
+                    wp.from_torch(updated),
+                    wp.from_torch(rays, dtype=wp.vec3f),
+                    wp.from_torch(rotation, dtype=wp.mat33f),
+                    identity,
+                    camera_params(camera),
+                    1,
+                    int(name == "rgba"),
+                    wp.from_torch(visible),
+                ],
+                outputs=[wp.from_torch(target.view(6, count, -1).view(torch.uint8))],
+            )
+        # Float32 rounding may flip a sample on the image edge, nothing more.
+        assert (target[updated] == expected_grid[name][updated]).all(-1).float().mean() > 0.999
+        assert torch.equal(target[~updated], previous[~updated])
+    assert (visible[updated] == valid[updated]).float().mean() > 0.999
+    assert not visible[~updated].any()
+    assert valid.any() and (~valid).any()

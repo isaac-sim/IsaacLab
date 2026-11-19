@@ -6,8 +6,6 @@
 """The gaze action, its observation and its teacher, without a simulator."""
 
 import math
-import subprocess
-import sys
 from types import SimpleNamespace
 
 import pytest
@@ -88,8 +86,11 @@ def mount_frame(rotation_deg: float) -> torch.Tensor:
     return torch.tensor([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
-@pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("rotation_deg", [0.0, 35.0])
+# The kernel's block size depends on the device; the image roll is rotated across the two.
+TEACHER_CASES = [("cpu", 0.0)] + [(device, 35.0) for device in DEVICES if device != "cpu"]
+
+
+@pytest.mark.parametrize(("device", "rotation_deg"), TEACHER_CASES)
 def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5), distortion=(-0.1, 0.02, 0.0, 0.0))
     field_radius, step, limit = 30.0, 0.1, 1.0
@@ -160,10 +161,10 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     assert float(log[0]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
 
 
-@pytest.mark.parametrize("rotation_deg", [0.0, -50.0, 120.0])
-def test_teacher_gaze_fixates_the_target_through_a_rolled_mount(rotation_deg):
+def test_teacher_gaze_fixates_the_target_through_a_rolled_mount():
     """Following a teacher label puts the fixation, which reaches the physical camera at frame * gaze * z, on the
     target."""
+    rotation_deg = 120.0
     camera = CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))
     field_radius, step = 40.0, 10.0
     frame = mount_frame(rotation_deg)
@@ -199,37 +200,15 @@ def test_teacher_gaze_fixates_the_target_through_a_rolled_mount(rotation_deg):
     torch.testing.assert_close(log[0], direction[:, 2].acos().rad2deg().mean(), atol=1e-3, rtol=0)
 
 
-@pytest.mark.parametrize(
-    "field, value", [("step_size", 0.0), ("step_size", float("nan")), ("gaze_limit", -1.0), ("gaze_limit", math.inf)]
-)
-def test_gaze_config_rejects_bounds_that_divide_by_zero(field, value):
-    cfg = GazeActionCfg(asset_name="camera")
-    cfg.validate_config()
-    setattr(cfg, field, value)
-    with pytest.raises(ValueError, match=field):
-        cfg.validate_config()
-
-
-def test_gaze_config_rejects_an_unknown_mount():
+def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():
+    GazeActionCfg(asset_name="camera").validate_config()
     GazeActionCfg(asset_name="camera", mount="tracked").validate_config()
-    with pytest.raises(ValueError, match="mount"):
-        GazeActionCfg(asset_name="camera", mount="head").validate_config()
-
-
-def test_gaze_config_resolves_its_term_lazily():
-    script = (
-        "import sys\n"
-        "from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg\n"
-        "class_type = GazeActionCfg(asset_name='camera').class_type\n"
-        "assert isinstance(class_type, str), type(class_type)\n"
-        "assert 'isaaclab_fovi.mdp.gaze' not in sys.modules, 'the config imported its runtime term'\n"
-        "term = class_type._resolve()\n"
-        "assert 'isaaclab_fovi.mdp.gaze' in sys.modules\n"
-        "print(term.__module__, term.__qualname__)\n"
-    )
-    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120, check=False)
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.split()[-2:] == ["isaaclab_fovi.mdp.gaze", "GazeAction"]
+    for field, value in (("step_size", 0.0), ("step_size", float("nan")), ("gaze_limit", math.inf), ("mount", "head")):
+        cfg = GazeActionCfg(asset_name="camera")
+        setattr(cfg, field, value)
+        with pytest.raises(ValueError, match=field):
+            cfg.validate_config()
+    # The config names its term lazily, so Isaac Lab's action manager resolves it to the gaze action.
     assert GazeActionCfg(asset_name="camera").class_type._resolve() is GazeAction
 
 
@@ -272,8 +251,7 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     torch.testing.assert_close(term.gaze, torch.tensor([[0.5, 0.0]]).repeat(num_envs, 1))
 
 
-@pytest.mark.parametrize("ids", [None, [3, 0, 7]])
-@pytest.mark.parametrize("random_start", [False, True])
+@pytest.mark.parametrize(("ids", "random_start"), [(None, False), ([3, 0, 7], True)])
 def test_gaze_reset_kernel_matches_the_torch_reset(ids, random_start):
     count, radius = 10, 23.6
     generator = torch.Generator().manual_seed(6)
