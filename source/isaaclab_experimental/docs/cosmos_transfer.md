@@ -24,12 +24,6 @@ camera sessions. It uses Cosmos Framework for inference and the standalone `isaa
 directory of the Isaac Lab checkout, for the camera-session protocol. It does not need the `isaaclab` or
 `isaaclab_experimental` distributions, Isaac Sim, or a running simulation.
 
-Cosmos Framework also provides a native
-[Ray serving interface](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/faq.md#q-how-do-i-run-online-inference-with-ray).
-That service accepts HTTP generation requests and returns output files, so it cannot be a camera endpoint. The
-server below supplies the incremental camera interface, over a Unix socket on the same machine or TCP from another
-machine.
-
 ### Install the server
 
 Prepare a Cosmos Framework checkout and a supported CUDA environment using its
@@ -137,7 +131,7 @@ The implementation has three boundaries:
 The server imports the shared protocol and its inference adapter without the full `isaaclab` or
 `isaaclab_experimental` distributions, and starting it does not import the camera client. The client uses Isaac
 Lab's Torch and NumPy dependencies without importing Cosmos Framework or loading model weights. The top-level
-`isaaclab_experimental.cosmos` package also exports the camera client API for existing task configurations.
+`isaaclab_experimental.cosmos` package exports the camera client API.
 
 ## Put Cosmos on a camera task
 
@@ -155,7 +149,13 @@ the service before the task.
 ```python
 from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
-env_cfg.scene.num_envs = 1
+from isaaclab_tasks.utils import parse_env_cfg
+
+# The Kuka Allegro camera task with one rgb camera and one environment.
+env_cfg = parse_env_cfg(
+    "Isaac-Reorient-KukaAllegro-Camera",
+    overrides=("presets=cube,single_camera,newton_mjwarp,newton_warp,rgb64", "env.scene.num_envs=1"),
+)
 camera = env_cfg.scene.base_camera
 model = CosmosModelCfg(
     prompt="A KUKA arm with an Allegro hand turning a cube in a bright lab.",
@@ -182,8 +182,7 @@ Requirements:
   fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
   configured.
 - The camera must publish only `rgb`, use a pinhole lens, and have no existing tensor processors. Rendering must be
-  synchronous and the scene must use lazy sensor updates (`scene.lazy_sensor_update=True`), so each image matches
-  its simulation state.
+  synchronous, so each image matches its simulation state.
 - The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
   such as `Isaac-Cartpole-Camera-Direct`, are not supported.
@@ -195,8 +194,8 @@ Cosmos tasks do (see [the task](cosmos_transfer_shadow_hand.md#the-task)), becau
 ## Depth control and prompts
 
 The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
-guidance 1.0, and a 30-latent history window with three attention sinks. Isaac Lab sends the camera's depth as the
-control, mapped to white (near) through black (far).
+guidance 1.0, and a 30-latent history window with three attention sinks. By default, Isaac Lab sends the camera's
+depth as the control, mapped to white (near) through black (far).
 
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
@@ -212,16 +211,12 @@ conditioning:
 import math
 
 from isaaclab.sensors import CameraCfg
-from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
+from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, depth_control
 
-processors = depth_processor(
-    CosmosModelCfg(
-        prompt="A robot arm manipulating an object on a workbench.",
-        # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
-        max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
-    ),
-    near=0.2,
-    far=12.0,
+model = CosmosModelCfg(
+    prompt="A robot arm manipulating an object on a workbench.",
+    # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
+    max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
 )
 
 camera_cfg = CameraCfg(
@@ -230,12 +225,12 @@ camera_cfg = CameraCfg(
     height=480,
     width=832,
     data_types=["rgb"],
-    tensor_processors=processors,
+    tensor_processors=[depth_control(near=0.2, far=12.0), CosmosTransferProcessorCfg(backend=model)],
 )
 ```
 
 The camera requests `distance_to_image_plane` from the renderer because the depth
-processor reads it. The depth processor converts metric depth to three-channel uint8
+control reads it. `depth_control` converts metric depth to three-channel uint8
 controls: near hits are white and far hits are black. Choose `near` and `far` for
 the scene. The Cosmos processor sends these controls to the service and publishes
 the generated images as `camera.data.output["rgb"]`. Observation terms can read
@@ -243,8 +238,7 @@ the generated images as `camera.data.output["rgb"]`. Observation terms can read
 
 Run the task with its normal Isaac Lab training command after applying this camera
 configuration. Starting the service alone does not enable Cosmos for a task, and
-the task must already use camera observations. The training entry point does not
-need a Cosmos demo runner or model initialization code.
+the task must already use camera observations.
 
 ### Other controls
 
@@ -264,11 +258,12 @@ def segmentation_to_control(data: torch.Tensor) -> torch.Tensor:
     return data[..., :3].contiguous()
 
 
-camera_cfg = cosmos_camera(
-    task_camera_cfg,
+# env_cfg and camera are the task configuration and its camera, as in "Put Cosmos on a camera task".
+env_cfg.scene.base_camera = cosmos_camera(
+    camera,
     CosmosModelCfg(
         prompt="A robot arm manipulating an object on a workbench.",
-        max_episode_frames=episode_frame_budget(env_cfg, task_camera_cfg.update_period)[2],
+        max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
     ),
     control=[
         FunctionProcessorCfg(
@@ -281,7 +276,8 @@ camera_cfg = cosmos_camera(
 The camera then requests `semantic_segmentation` from the renderer instead of depth, colorized as
 `colorize_semantic_segmentation` does by default. A control computed from the rendered image, such as an edge or blur
 control, reads `rgb` in the same way: the renderer then produces `rgb` for the control, and the `rgb` the camera
-publishes is the generated one. Without `control`, the camera uses the depth control above.
+publishes is the generated one. Without `control`, the camera uses the depth control above; `near` and `far` belong
+to that default, so they cannot be combined with `control`.
 
 Isaac Lab provides the depth control, and depth is the control the demos were run with. Check the generated images
 of another control on your scene before training on them.
@@ -294,24 +290,17 @@ episode reset sends the next one to the service, which rebuilds the text conditi
 The model stays loaded; only the episode's conditioning and generation state change. A reset before the
 episode's first update keeps the prompt, so the environment's initial reset right after its first capture does
 not skip the first prompt. Rebuilding the conditioning adds time to that reset, and with compiled inference a
-prompt's first use can trigger compilation, so prefer a short list of prompts. A compiled server keeps what it
-compiled for earlier sessions, and Torch limits how often it recompiles: after several sessions with new prompts or
-view counts, a session can fail with `recompile_limit reached`. Restart the server then.
+prompt's first use can trigger compilation, so prefer a short list of prompts (see the recompile limit under
+[Several environments](#several-environments)).
 
-```python
-CosmosModelCfg(
-    prompt=[
-        "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
-        "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
-        "A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.",
-    ],
-)
+```bash
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl \
+  env.cosmos.prompt="['A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.', 'A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.', 'A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.']"
 ```
 
 A prompt can change only at an episode reset.
 
-Prompts can also come from files. `prompt` is always text; file paths go in `prompt_files`, so a prompt is never
-mistaken for a path:
+Prompts can also come from files. `prompt` is always text; file paths go in `prompt_files`:
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
@@ -327,16 +316,12 @@ captions reach the model unchanged. In code, `read_prompt_files([...])` returns 
 ## Runtime and resets
 
 Cosmos requires synchronous camera rendering. Its processor rejects `env_mask=None` before queuing controls
-or generating images; asynchronous cameras supply `None`. This also protects cameras configured directly
-or changed by later overrides. Use `renderer_cfg.async_rendering=False` for OVRTX. Direct processor callers
+or generating images; asynchronous cameras supply `None`. Use `renderer_cfg.async_rendering=False` for OVRTX.
+Direct processor callers
 must supply a boolean Warp mask identifying the captured views, including an all-true mask when all views are fresh.
 
-The camera's tensor processors are the integration boundary.
-`CosmosTransferProcessor` is implemented in `client/cosmos_processor.py`, with its
-`CosmosTransferProcessorCfg` in `client/cosmos_processor_cfg.py`. It uses the shared image
-transfer processor for queuing, resets, and publication, and validates Cosmos's
-required frame cadence before opening a stream. `CosmosModelCfg` creates an
-endpoint client implementing the generic image transfer model contract.
+`CosmosTransferProcessor` uses the shared image transfer processor (see [Image transfer](#image-transfer)) for
+queuing, resets, and publication, and `CosmosModelCfg` creates the client of the service.
 The client opens a generation session on its first control chunk. Requests carry
 JSON metadata over the endpoint and, with the `socket` transport, binary uint8 image arrays; generated arrays return to
 the control tensor's original device.
@@ -367,7 +352,7 @@ on a Cosmos task):
 
 | Setting | Effect |
 |---|---|
-| `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's depth alone, with no history, so images neither repeat between updates nor turn black after resets |
+| `generation_mode="single_frame"` | Each generation makes one image per environment from the current capture's control alone, with no history, so images neither repeat between updates nor turn black after resets |
 | `decision_interval=N` | Generate at the first of every `N` captures of the camera, for example once per 16-step action chunk; the other captures publish the rendered `rgb`. Resets do not restart the count |
 | `augmentation_probability=p` | Generate at a decision point with probability `p`, one draw for all environments; otherwise publish the rendered `rgb` |
 
@@ -391,7 +376,7 @@ one frame while the others continue with four. More environments share each tran
 environment rises with GPU size, while each environment needs GPU memory for its own history.
 
 Start the service in compiled mode (resetting one environment while the others continue needs the compiled
-runtime). Omit `--warmup`: it compiles one `832 x 480` view and keeps that memory, while a batch of another size
+runtime). Omit `--warmup`: it compiles one `(480, 832)` view and keeps that memory, while a batch of another size
 or canvas compiles again on its first step.
 
 ```bash
@@ -402,9 +387,9 @@ Keep the default history of 30 latent frames for quality. If the environments do
 service on a GPU of its own with `--device cuda:1`.
 
 A camera with Cosmos processors requests one view per environment when its session opens. The server uses that
-count without a separate view setting. A compiled server compiles again for each new count, and Torch limits how
-often it recompiles: a server that has served one count can fail on another with `recompile_limit reached`. Restart
-the server when the number of views changes. Available GPU memory
+count without a separate view setting. A compiled server compiles again for each new count or prompt and keeps
+what it compiled for earlier sessions, and Torch limits how often it recompiles: a session can then fail with
+`recompile_limit reached`. Restart the server when the number of views changes or after that error. Available GPU memory
 limits the batch: allocation can fail during generation as history grows, so a successful connection alone does
 not establish that a full episode fits.
 
@@ -428,8 +413,9 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `
 - A camera slower than the environment step captures each environment on its own schedule after independent
   resets; Cosmos receives a frame only for the environments a capture covers, so each environment's frames and
   budget follow its own captures.
-- Independent resets of several environments need compiled inference and per-view VAE caches in the Framework
-  runtime. A service without them stops the run with an error at the first independent reset.
+- Several environments need per-view VAE caches in the Framework runtime, and their independent resets need
+  compiled inference. A service without the caches rejects the session when it opens; a service started with
+  `--no-compile` stops the run with an error at the first independent reset.
 - With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history (30 latent frames) takes GPU memory. On a 48 GB GPU that Isaac Sim shares, one
   environment fits; for more, give the service its own GPU (`--device cuda:1`) or a larger one, or let
@@ -482,8 +468,9 @@ for name in names:
     setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), model, canvas=(640, 640), name=name))
 ```
 
-- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given. A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
-  the wrist camera.
+- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given. A prompt list
+  assigns `prompt[view % len(prompt)]`: with one environment, the example's prompts go to the base and the wrist
+  camera; with more, give one prompt per view.
 - Each camera keeps its own output size. One session has one canvas, so pass the same `canvas` for every camera;
   each camera's view is the canvas's center crop, scaled back to its size.
 - The cameras need the same update period, so they capture together. Each camera must be read at every capture,
@@ -584,8 +571,8 @@ service tells the model the episode's duration from this budget. The Shadow Hand
 and rounding up to `1 + 4*k`. Hand-written camera processors must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the environment
 before that budget is exhausted; the service rejects further generation rather than silently resetting the episode.
 
-Startup logs show the budget and the captures and generated updates per second of simulation time. The model uses
-a sliding history window; longer episodes still need quality and memory validation on the intended workload.
+The model uses a sliding history window; longer episodes still need quality and memory validation on the
+intended workload.
 
 The service also tells the model the images' frame rate, `CosmosModelCfg.fps`, 30 by default as in the Sim-Transfer
 recipe. A task whose prompt and settings were calibrated at another rate sets it; it need not equal the capture rate.
@@ -598,7 +585,16 @@ transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `Fu
 `depth_to_control` prepares the control:
 
 ```python
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
 from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTransferProcessorCfg, depth_to_control
+
+
+@configclass
+class MyModelCfg(BackendCfg):
+    class_type: type | str = "my_package.my_model:MyModel"  # builds your ImageTransferModel
+
 
 wrist_camera = CameraCfg(
     ...,

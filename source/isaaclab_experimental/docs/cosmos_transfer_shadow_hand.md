@@ -31,8 +31,8 @@ Start in a parent directory that will contain `IsaacLab`, `cosmos-framework`, an
 `model`. Set these variables before cloning:
 
 ```bash
-export ISAAC_LAB="${PWD}/IsaacLab"
-export COSMOS_FRAMEWORK="${PWD}/cosmos-framework"
+export ISAAC_LAB_ROOT="${PWD}/IsaacLab"
+export COSMOS_FRAMEWORK_ROOT="${PWD}/cosmos-framework"
 export COSMOS_CHECKPOINT="${PWD}/model"
 ```
 
@@ -45,14 +45,14 @@ different paths.
 Clone Isaac Lab:
 
 ```bash
-git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
+git clone https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB_ROOT"
 ```
 
 Clone Cosmos Framework at the commit this demo was tested with:
 
 ```bash
-git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
-git -C "$COSMOS_FRAMEWORK" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
+git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK_ROOT"
+git -C "$COSMOS_FRAMEWORK_ROOT" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b454066
 ```
 
 ## 3. Install dependencies and download the checkpoint
@@ -61,10 +61,10 @@ From the Framework checkout, create its environment and install Isaac Lab's Cosm
 worker into it:
 
 ```bash
-cd "$COSMOS_FRAMEWORK"
+cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
 uv run --no-sync uv pip install -e \
-  "$ISAAC_LAB/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
 ```
 
 Download the complete checkpoint with the Framework environment's Hugging Face CLI:
@@ -82,21 +82,19 @@ installed worker. If you run `uv sync` again, repeat the worker installation.
 With the path variables set:
 
 ```bash
-cd "$COSMOS_FRAMEWORK"
+cd "$COSMOS_FRAMEWORK_ROOT"
 export LD_LIBRARY_PATH=
-export PYTHONFAULTHANDLER=1
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" 2>&1 | tee server.log
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT"
 ```
 
-Wait for `Cosmos ready at ...` before starting training. Leave this terminal
-running; its output is also saved in `server.log` in the Framework checkout.
+Wait for `Cosmos ready at ...` before starting training. Leave this terminal running.
 
 ## 5. Train in terminal 2
 
 Set the path variables to the same absolute paths as in terminal 1, then run:
 
 ```bash
-cd "$ISAAC_LAB"
+cd "$ISAAC_LAB_ROOT"
 uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
@@ -136,7 +134,7 @@ After the previous process exits, run this command in the Isaac Lab terminal to 
 recording 300 steps of the Newton GL streaming view:
 
 ```bash
-cd "$ISAAC_LAB"
+cd "$ISAAC_LAB_ROOT"
 uv run --extra video isaaclab train \
   --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
