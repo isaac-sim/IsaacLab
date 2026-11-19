@@ -44,6 +44,15 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
+    drop_non_finite_values: bool = True
+    """Whether reward terms and the final observation count a value that is not finite as zero.
+
+    An environment whose simulation diverged produces NaN or infinite states, and rewards computed on that step
+    reach the learner before the environment resets. When this flag is True, such a reward term value counts as
+    zero for that step, and the same applies to ``extras["final_obs"]`` when :attr:`compute_final_obs` is set.
+    Disable it to let non-finite values surface, for instance while debugging a task.
+    """
+
     compute_final_obs: bool = False
     """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
 

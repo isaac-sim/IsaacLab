@@ -149,6 +149,11 @@ def test_compute():
         "Episode_Reward/speed": 0.5,
     }
 
+    # Without the option, non-finite values pass through.
+    env.root_speed = torch.tensor([4.0, nan, inf])
+    reward = RewardManager(cfg, env, drop_non_finite=False).compute(dt=dt)
+    assert reward[0].item() == 2.0 and torch.isnan(reward[1]) and torch.isinf(reward[2])
+
 
 def test_config_empty(env):
     """Test the creation of reward manager with empty config."""

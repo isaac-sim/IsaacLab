@@ -42,13 +42,15 @@ class RewardManager(ManagerBase):
     _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv, *, drop_non_finite: bool = True):
         """Initialize the reward manager.
 
         Args:
             cfg: The configuration object or dictionary (``dict[str, RewardTermCfg]``).
             env: The environment instance.
+            drop_non_finite: Whether a term value that is not finite counts as zero for that step.
         """
+        self._drop_non_finite = drop_non_finite
         # create buffers to parse and store terms
         self._term_names: list[str] = []
         self._term_cfgs: list[RewardTermCfg] = []
@@ -128,8 +130,9 @@ class RewardManager(ManagerBase):
         This function calls each reward term managed by the class and adds them to compute the net
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
-        A term value that is not finite, for instance after the simulation of an environment diverged, counts as
-        zero for that step so that it reaches neither the learner nor the episodic sums.
+        With ``drop_non_finite``, a term value that is not finite, for instance after the simulation of an
+        environment diverged, counts as zero for that step so that it reaches neither the learner nor the episodic
+        sums.
 
         Args:
             dt: The time-step interval of the environment.
@@ -150,8 +153,8 @@ class RewardManager(ManagerBase):
             else:
                 # broadcast scalar values
                 step_reward[:] = value * term_cfg.weight
-        # drop non-finite term values
-        self._step_reward.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
+        if self._drop_non_finite:
+            self._step_reward.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
         # update total reward and episodic sums with the time-step scaling
         torch.sum(self._step_reward, dim=1, out=self._reward_buf).mul_(dt)
         self._episode_sum_buf.add_(self._step_reward, alpha=dt)
