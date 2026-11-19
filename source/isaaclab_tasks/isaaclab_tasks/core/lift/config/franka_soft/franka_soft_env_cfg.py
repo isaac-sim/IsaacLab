@@ -634,14 +634,6 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         # visualizer settings
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
-    def validate_config(self):
-        """Reject the Newton OptiX renderer for deformable objects, which it cannot trace."""
-        camera = getattr(self.scene, "base_camera", None)
-        if getattr(getattr(camera, "renderer_cfg", None), "renderer_type", None) == "newton_optix" and any(
-            isinstance(asset, DeformableObjectCfg) for asset in vars(self.scene).values()
-        ):
-            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")
-
     def play_mode(self):
         super().play_mode()
         for command_cfg in vars(self.commands).values():
@@ -662,3 +654,8 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
+
+    def validate_config(self):
+        """Reject the Newton OptiX renderer, which does not trace deformable objects."""
+        if self.scene.base_camera.renderer_cfg.renderer_type == "newton_optix":
+            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")
