@@ -123,7 +123,7 @@ Choose and control displayed views
 the Viewport tabs; it can also be placed side by side with the default interactive viewport
 for dual monitoring.
 
-**Newton GL and Newton RTX** have a **Camera View** selector in the sidebar. Selecting a scene camera displays
+**Newton GL and Newton RTX** have a **Camera Source** selector in the sidebar. Selecting a scene camera displays
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
 A tracking camera is listed as **Tracking Camera**; see :ref:`how-to-visualizer-tracking-cameras`.
@@ -255,8 +255,9 @@ Tracking cameras that follow a robot
 
 A ``TrackingCameraCfg`` frames an environment or follows an asset in it. Its ``eye`` and ``lookat`` are
 offsets [m] from the environment origin, or from the tracked asset, so it frames the robot wherever the scene puts
-it. The visualizer renders it from its own camera: nothing is added to the scene, and the view keeps the
-viewport's markers and shadows.
+it. In the OpenGL renderer the visualizer renders it from its own camera, so nothing is added to the scene and the view
+keeps the viewport's markers and shadows. In RTX the window follows it by moving the OVRTX viewer camera, which is a
+camera in the scene, and OpenGL shadows do not apply.
 
 .. code-block:: python
 
@@ -283,10 +284,11 @@ viewport's markers and shadows.
 A free view at the visualizer's own ``eye`` and ``lookat`` is added before the first tracking camera, so the
 interactive camera stays free.
 
-* **Newton GL:** **Camera View** lists the tracking camera as **Tracking Camera** beside **Perspective**. A
-  **Tracking Camera** group edits its environment, asset, body, eye, look-at, focal length and heading settings
-  while it runs; **Reset to Task Default** restores the declaration. Record it with
-  ``--video viz:newton_gl:tracking``, whichever view the window shows.
+* **Newton GL:** **Camera Source** lists the tracking camera as **Tracking Camera** beside **Perspective**, and the
+  window follows it in both the OpenGL and RTX renderers. A **Tracking Camera** group edits its environment, asset,
+  body, eye, look-at, focal length and heading settings while it runs; **Reset to Task Default** restores the
+  declaration. Record it with ``--video viz:newton_gl:tracking``, whichever view the window shows. Plain
+  ``--video viz:newton_gl`` records whichever renderer the window shows.
 * **Kit**, **Newton RTX**, **Viser** and **Rerun** ignore tracking cameras.
 
 
@@ -389,7 +391,7 @@ Then choose what to display in ``VisualizerCfg``:
 * For other viewers, ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
   prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
   If omitted, Newton GL starts in perspective mode and offers compatible scene cameras
-  in the Camera View dropdown. Kit and web viewers select the first compatible scene camera;
+  in the Camera Source dropdown. Kit and web viewers select the first compatible scene camera;
   without one, their panel stays empty.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
   sample that many environments, or a ``list[int]`` to pin specific environment indices.

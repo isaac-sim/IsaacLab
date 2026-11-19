@@ -283,7 +283,7 @@ The ``source`` string selects what to capture:
    * - ``"viz:kit:streaming_view"``
      - Kit streaming camera panel, requires ``streaming_view=True``
    * - ``"viz:newton_gl"``
-     - Newton GL visualizer viewport
+     - Newton GL visualizer viewport, in whichever renderer the window shows (OpenGL or RTX). A headless Newton GL has no RTX view
    * - ``"viz:newton_rtx"``
      - Newton OVRTX path-traced viewport
    * - ``"viz:newton_gl:streaming_view"``

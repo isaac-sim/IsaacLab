@@ -70,8 +70,7 @@ class PerspectiveCameraCfg:
 class TrackingCameraCfg(PerspectiveCameraCfg):
     """A camera that frames an environment or follows an asset in it, however the scene is laid out.
 
-    The visualizer renders it from the viewer camera, so nothing is created in the scene. Only Newton GL
-    supports it; other visualizers ignore it.
+    The Newton GL window shows it in either renderer. Only Newton GL supports it; other visualizers ignore it.
     """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
