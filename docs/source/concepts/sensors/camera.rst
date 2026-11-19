@@ -302,6 +302,61 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
+Camera tensor processors
+------------------------
+
+:attr:`~sensors.CameraCfg.tensor_processors` computes camera outputs from the renderer's outputs. Each entry is a
+:class:`~utils.tensor_processors.TensorProcessorCfg` whose ``func`` is a
+:class:`~utils.tensor_processors.TensorProcessor` class with named ``inputs`` and ``outputs``. The camera asks the
+renderer for the inputs no earlier processor produces, constructs each processor at the first capture with
+its configuration and the camera buffers, and runs the processors in list order on every capture.
+Their outputs are added to :attr:`~sensors.CameraData.output`; a processor can also replace a render output it
+reads. Camera resets call each processor's ``reset`` with the reset environments, and camera teardown calls its
+``close``.
+
+.. code-block:: python
+
+   import torch
+   import warp as wp
+
+   from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+   from isaaclab.utils.warp import ProxyArray
+
+
+   class ShadeDepth(TensorProcessor):
+       """Shade a depth image into a gray rgb image: near is white, 10 m and farther is black."""
+
+       def __init__(self, cfg, data):
+           super().__init__(cfg)
+           depth = data["distance_to_image_plane"].torch  # (N, H, W, 1)
+           self._rgb = ProxyArray(wp.zeros((*depth.shape[:3], 3), dtype=wp.uint8, device=str(depth.device)))
+
+       def __call__(self, data, env_mask=None):
+           depth = data["distance_to_image_plane"].torch
+           shade = (255 * (1 - depth / 10).clamp(0, 1)).to(torch.uint8)
+           self._rgb.torch.copy_(shade.expand(-1, -1, -1, 3))
+           return {"rgb": self._rgb}
+
+
+   front_camera.tensor_processors = [
+       TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
+   ]
+
+Here the renderer also renders ``distance_to_image_plane`` for the processor, and ``camera.data.output["rgb"]``
+holds the processor's result instead of a rendered image. The render outputs that processors read, here ``distance_to_image_plane``, are published as
+well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
+produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
+raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
+:attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
+
+With ``update_period > 0``, environments that reset at different times become due on different steps, but each
+capture renders every environment. The camera calls each processor with ``env_mask``, a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
+filters, video generation) use it to advance only those rows.
+
+With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
+Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
+
 Post-render image signal processing
 -----------------------------------
 
