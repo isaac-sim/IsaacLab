@@ -246,8 +246,6 @@ class Event(TermCfg):
     # what they changed. None infers it: before an event that reads a field derived from written ones, such as the
     # body poses after joint writes. True always commits first, and False never does.
     commit: bool | None = None
-    # Events of the same mode, by name, that must run before this one. The builder moves it after them.
-    after: tuple[str, ...] = ()
 
     @property
     def phase(self) -> Phase:

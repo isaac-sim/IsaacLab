@@ -5,7 +5,7 @@
 
 """Quantities that combine conditions into task progress and success.
 
-Conditions are quantities of one value per world, true where positive. The combinators take any number of them as
+Conditions are quantities of one value per world, true where positive. :data:`sequence` takes any number of them as
 inputs, under any names other than the reserved ``cache``, in declaration order::
 
     quantities = {
@@ -16,7 +16,7 @@ inputs, under any names other than the reserved ``cache``, in declaration order:
         ),
     }
 
-They run as Torch hooks, also in a Warp MDP, between its kernels.
+It runs as a Torch hook, also in a Warp MDP, between its kernels.
 """
 
 from __future__ import annotations
@@ -24,21 +24,6 @@ from __future__ import annotations
 import torch
 
 from ..terms import State, Term
-
-
-def _all_of(cache: dict, **conditions: torch.Tensor) -> torch.Tensor:
-    return torch.stack(list(conditions.values())).gt(0.0).all(dim=0).float()
-
-
-def _any_of(cache: dict, **conditions: torch.Tensor) -> torch.Tensor:
-    return torch.stack(list(conditions.values())).gt(0.0).any(dim=0).float()
-
-
-all_of = Term(torch=_all_of)
-"""One where every condition holds, zero elsewhere."""
-
-any_of = Term(torch=_any_of)
-"""One where any condition holds, zero elsewhere."""
 
 
 def _sequence(stage: torch.Tensor, cache: dict, **conditions: torch.Tensor) -> torch.Tensor:

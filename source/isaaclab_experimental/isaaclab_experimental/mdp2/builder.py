@@ -221,9 +221,8 @@ class MDPBuilder:
         return self._entries[path]
 
     def schedule(self) -> tuple[ScheduleEntry, ...]:
-        """Return all entries in execution order: by phase, then by their order within the phase, with each event
-        moved after the events it names in :attr:`~.config.Event.after`."""
-        return _order_after(tuple(sorted(self._entries.values(), key=lambda entry: entry.phase)))
+        """Return all entries in execution order: by phase, then by their order within the phase."""
+        return tuple(sorted(self._entries.values(), key=lambda entry: entry.phase))
 
     def move_before(self, entry: ScheduleEntry, anchor: ScheduleEntry) -> None:
         """Run ``entry`` just before ``anchor``, which must be in the same phase."""
@@ -433,7 +432,7 @@ class MDPBuilder:
         self, schedule: tuple[ScheduleEntry, ...], backend: Backend
     ) -> tuple[CompileContext, float | None]:
         """Compile the ops of one world config, and return them with its episode length in seconds."""
-        context = CompileContext(backend, _dependency_errors(schedule) + _after_errors(schedule))
+        context = CompileContext(backend, _dependency_errors(schedule))
         # The time limit compiles to no op, so it is known even when the other uses cannot be ordered.
         time_limits = [entry for entry in schedule if isinstance(entry.cfg, TimeLimit)]
         if len(time_limits) > 1:
@@ -745,49 +744,6 @@ def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -
     elif not term.capturable and any(isinstance(hook, wp.Function) for hook in vars(implementation).values()):
         errors.append(f"{entry}: wp.func hooks always run inside generated kernels and cannot be non-capturable.")
     return implementation
-
-
-def _after_anchors(entry: ScheduleEntry, entries: Mapping[tuple[str, ...], ScheduleEntry]) -> list[ScheduleEntry]:
-    """Return the events of the same mode that an event runs after, among the entries."""
-    if not isinstance(entry.cfg, Event):
-        return []
-    anchors = (entries.get(("events", name)) for name in entry.cfg.after)
-    return [anchor for anchor in anchors if anchor is not None and anchor.phase is entry.phase]
-
-
-def _order_after(schedule: tuple[ScheduleEntry, ...]) -> tuple[ScheduleEntry, ...]:
-    """Move each event just after the latest of the events it runs after, keeping the order otherwise. Leaves a cycle
-    unresolved, for :func:`_after_errors` to report."""
-    entries = {entry.path: entry for entry in schedule}
-    order = list(schedule)
-    # Each pass moves events after their latest anchor; a cycle keeps moving them, so passes are bounded.
-    for _ in range(len(order)):
-        moved = False
-        for entry in [entry for entry in order if _after_anchors(entry, entries)]:
-            anchor = max(_after_anchors(entry, entries), key=order.index)
-            if order.index(entry) < order.index(anchor):
-                order.remove(entry)
-                order.insert(order.index(anchor) + 1, entry)
-                moved = True
-        if not moved:
-            break
-    return tuple(order)
-
-
-def _after_errors(schedule: tuple[ScheduleEntry, ...]) -> list[str]:
-    """Return why the events cannot run after the events they name: unknown, of another mode, or a cycle."""
-    entries = {entry.path: entry for entry in schedule}
-    errors = []
-    for entry in schedule:
-        if not isinstance(entry.cfg, Event):
-            continue
-        for name in entry.cfg.after:
-            anchor = entries.get(("events", name))
-            if anchor is None or anchor.phase is not entry.phase:
-                errors.append(f"{entry}: runs after '{name}', which is not an event of the same mode.")
-            elif schedule.index(anchor) > schedule.index(entry):
-                errors.append(f"{entry}: runs after '{name}', which runs after it in a cycle.")
-    return errors
 
 
 def _allocate_columns(

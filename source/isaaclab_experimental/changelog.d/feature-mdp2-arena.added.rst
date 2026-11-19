@@ -9,9 +9,8 @@
   writes, and :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position`, a binary gripper command with a
   threshold.
 * Added :func:`~isaaclab_experimental.mdp2.compose`, which merges partial task configs, such as those of a scene, an
-  embodiment, and a task, and ``Event(after=...)``, which runs an event after the events it names.
-* Added the progress quantities :data:`~isaaclab_experimental.mdp2.mdp.all_of`,
-  :data:`~isaaclab_experimental.mdp2.mdp.any_of`, and :data:`~isaaclab_experimental.mdp2.mdp.sequence`, and
+  embodiment, and a task, in order.
+* Added the progress quantity :data:`~isaaclab_experimental.mdp2.mdp.sequence`, and
   :data:`~isaaclab_experimental.mdp2.mdp.joint_pos_normalized`.
 * Added an episode budget to :class:`~isaaclab_experimental.envs.MDP2RLEnv` for evaluation, ``episode_budget``: worlds
   stop starting episodes once the budget is spent, and every episode is recorded on the device, with the quantities

@@ -1640,39 +1640,24 @@ def test_groups_that_are_not_concatenated_keep_each_term_shape_and_type():
         )
 
 
-def test_compose_merges_tasks_and_orders_events():
-    """Composed tasks merge term by term, and events run after the events they name."""
-
-    def event(*after: str) -> mdp2.Event:
-        return mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, after=after)
-
+def test_compose_merges_tasks_in_order():
+    """Composed tasks merge term by term in the order of the parts, a later part removes a use by setting it to None,
+    and two parts that define the same use conflict."""
+    event = mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel})
     observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})
-    scene_part = mdp2.TaskCfg(events={"place": event("reset_arm")}, observations={"policy": {"a": observation}})
-    embodiment = mdp2.TaskCfg(
-        events={"reset_arm": event(), "hold": event()}, observations={"policy": {"b": observation}}
-    )
-    task_part = mdp2.TaskCfg(events={"hold": None, "settle": event("place")})
+    scene_part = mdp2.TaskCfg(events={"place": event}, observations={"policy": {"a": observation}})
+    embodiment = mdp2.TaskCfg(events={"reset_arm": event, "hold": event}, observations={"policy": {"b": observation}})
+    task_part = mdp2.TaskCfg(events={"hold": None, "settle": event})
     task = mdp2.compose(scene_part, embodiment, task_part)
     assert list(task.observations["policy"].terms) == ["a", "b"] and task.events["hold"] is None
 
     builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
     builder.add_task(task)
     events = [entry.path[1] for entry in builder.schedule() if entry.path[0] == "events"]
-    assert events == ["reset_arm", "place", "settle"]
+    assert events == ["place", "reset_arm", "settle"]
 
     with pytest.raises(ValueError, match="Tasks 0 and 1 both define 'observations.policy.a'"):
         mdp2.compose(scene_part, scene_part)
-    # Events added one by one follow their anchors too, also ones added later.
-    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
-    builder.add_event("late", event("early"))
-    builder.add_event("early", event())
-    assert [entry.path[1] for entry in builder.schedule()] == ["early", "late"]
-
-    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1).schema)
-    builder.add_task(mdp2.TaskCfg(events={"a": event("b"), "b": event("a"), "c": event("missing")}))
-    with pytest.raises(ValueError) as error:
-        builder.validate()
-    assert "in a cycle" in str(error.value) and "'missing', which is not an event of the same mode" in str(error.value)
 
 
 @wp.func
