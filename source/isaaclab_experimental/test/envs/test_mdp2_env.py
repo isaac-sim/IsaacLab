@@ -5,6 +5,7 @@
 
 """Tests for MDP2RLEnv on a headless Newton Cartpole, built from a local USD file."""
 
+import importlib.util
 import math
 import weakref
 from dataclasses import replace
@@ -19,7 +20,7 @@ from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage
 from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_experimental.mdp2.config import group_terms
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
@@ -733,3 +734,40 @@ def test_play_mode_removes_observation_noise_and_keeps_each_group():
         terms, concatenated = group_terms(cfg.task.observations[group])
         assert concatenated is concatenate
         assert all(use.noise is None for use in terms.values() if use is not None)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("optix") is None, reason="needs the optix extra")
+def test_optix_cameras_render_between_the_graphs_of_a_step():
+    """OptiX refits its acceleration structures on the host, so its cameras render between two graphs, and every
+    replayed step still renders a new image."""
+    cfg = cartpole_cfg()
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonOptixRendererCfg(),
+    )
+    image = mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity("camera").rgb})
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(terms={"rgb": image}, concatenate=False)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        images = []
+        for step in range(10):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 6:
+                images.append(observations["cameras"]["rgb"].clone())
+        assert env.is_captured and env.num_graphs == 2
+        assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
+    finally:
+        env.close()

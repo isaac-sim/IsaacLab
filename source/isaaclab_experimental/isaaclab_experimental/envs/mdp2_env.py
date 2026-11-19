@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import warp as wp
 from isaaclab_newton.physics.newton_backend import capture_graph
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.scene import InteractiveScene
@@ -92,6 +92,11 @@ class MDP2Env:
         # The cameras render once per control step, the other sensors refresh with every physics step.
         scene = self.scene
         self._cameras = [sensor for sensor in scene.sensors.values() if isinstance(sensor, Camera)]
+        # OptiX refits its acceleration structures on the host, which a CUDA graph cannot record: such cameras render
+        # between the graphs of a step.
+        self._render_capturable = not any(
+            isinstance(camera.cfg.renderer_cfg, NewtonOptixRendererCfg) for camera in self._cameras
+        )
         if self._cameras and Step.RENDER not in cfg.step:
             raise ValueError("The scene has cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
         sensors = [sensor for sensor in scene.sensors.values() if not isinstance(sensor, Camera)]
@@ -244,7 +249,7 @@ class MDP2Env:
             if item is Step.PHYSICS:
                 work.append((True, self._simulate))
             elif item is Step.RENDER:
-                work += [(True, self._render)] if self._cameras else []
+                work += [(self._render_capturable, self._render)] if self._cameras else []
             elif item is Step.EVALUATE:
                 work += [
                     (launch.capturable, functools.partial(launch, evaluate)) for launch in self.mdp.launches.evaluate
@@ -263,7 +268,7 @@ class MDP2Env:
         commit = functools.partial(self.scene_data.commit, mask.warp, self.mdp.reset_writes)
         reset = Call(self.state, mask=mask, commit=commit)
         observe = Call(self.state, mask=mask, observations=self.transition.observations)
-        rendering = [(True, self._render)] if self._cameras else []
+        rendering = [(self._render_capturable, self._render)] if self._cameras else []
         render = render and ResetStep.RENDER not in self.cfg.reset_step
         work = []
         for item in self.cfg.reset_step:
