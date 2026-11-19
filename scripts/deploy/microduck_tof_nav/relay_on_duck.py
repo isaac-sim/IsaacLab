@@ -17,7 +17,6 @@ import time
 
 ROBOTD = "/run/robotd.sock"
 TOFD = "/run/tofd/tof.sock"
-HZ = 50
 
 out_lock = threading.Lock()
 
@@ -76,7 +75,8 @@ def on_state(p):
 
 def main():
     threading.Thread(target=stream, args=(TOFD, "tof.stream", {}, "tof.frame", on_tof), daemon=True).start()
-    stream(ROBOTD, "robot.subscribe", {"hz": HZ}, "robot.state", on_state)
+    # No "hz": robotd then sends every 50 Hz tick. Asking for 50 drops about a third of them.
+    stream(ROBOTD, "robot.subscribe", {}, "robot.state", on_state)
 
 
 if __name__ == "__main__":
