@@ -287,6 +287,8 @@ class Camera(SensorBase):
         self._render_data = None
         self._render_outputs: dict[str, ProxyArray] = {}
         self._tensor_processors: list[TensorProcessor] = []
+        # Masks of the default frame-history push — assigned in _create_buffers.
+        self._history_restart = self._history_fill = self._history_all = None
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
@@ -648,6 +650,8 @@ class Camera(SensorBase):
             processor.reset(env_ids=env_ids, env_mask=env_mask)
         # reset the timestamps
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        if self._history_restart is not None:
+            self._history_restart |= wp.to_torch(reset_mask).bool()
         super().reset(env_mask=reset_mask)
         self._invalidate_buffers(reset_mask)
         # reset the data
@@ -750,6 +754,7 @@ class Camera(SensorBase):
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
         self._apply_tensor_processors(env_mask)
+        self._push_frame_history(env_mask)
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -771,6 +776,7 @@ class Camera(SensorBase):
         )
         for camera in ready:
             camera._apply_tensor_processors(camera._is_outdated)
+            camera._push_frame_history(camera._is_outdated)
 
     def _close_tensor_processors(self) -> None:
         """Close every processor, then raise their failures, so one failure does not leave the others open."""
@@ -822,6 +828,47 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _push_frame_history(self, env_mask: wp.array) -> None:
+        """Append the latest RGB capture of the updated environments to the frame history.
+
+        Renderers that produce the whole history themselves (:attr:`BaseRenderer.provides_frame_history`) are
+        skipped.
+        """
+        if self._history_restart is None:
+            return
+        # An asynchronous renderer's image belongs to an earlier request, which the current mask cannot describe, so
+        # every environment takes it, as the tensor processors do.
+        if getattr(self.cfg.renderer_cfg, "async_rendering", False):
+            updated = self._history_all
+        else:
+            updated = wp.to_torch(env_mask).bool()
+        selected = updated[:, None, None, None]
+        frames = self._data.frame_history.torch
+        capture = wp.to_torch(self._data.output["rgb"].warp)
+        # Shift the updated environments one frame towards the oldest, in place and without reading the mask on the
+        # host: each slot takes the next one's frame, then the newest slot takes the capture.
+        for t in range(frames.shape[1] - 1):
+            torch.where(selected, frames[:, t + 1], frames[:, t], out=frames[:, t])
+        torch.where(selected, capture, frames[:, -1], out=frames[:, -1])
+        # The first capture of an environment, and its first after a reset, fills every slot, so the history never
+        # holds frames of an ended episode.
+        torch.logical_and(self._history_restart, updated, out=self._history_fill)
+        torch.where(self._history_fill[:, None, None, None, None], capture[:, None], frames, out=frames)
+        self._history_restart.masked_fill_(updated, False)
+        wp.to_torch(self._data.frame_history_mask.warp).copy_(updated)
+
+    def _create_frame_history_state(self) -> None:
+        """Allocate the masks of the default history push; they stay ``None`` when the history is off or the renderer
+        fills it."""
+        self._history_restart = self._history_fill = self._history_all = None
+        history = self._data.frame_history
+        if history is None or self._renderer.provides_frame_history:
+            return
+        num_views = history.torch.shape[0]
+        self._history_restart = torch.ones(num_views, dtype=torch.bool, device=history.torch.device)
+        self._history_fill = torch.zeros_like(self._history_restart)
+        self._history_all = torch.ones_like(self._history_restart)
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -882,7 +929,9 @@ class Camera(SensorBase):
             num_views=self._view.count,
             device=self._device,
             supported_specs=specs,
+            history_length=self.cfg.frame_history_length,
         )
+        self._create_frame_history_state()
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
         self._data.create_buffers(self._view.count, str(self._device))

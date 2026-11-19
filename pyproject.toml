@@ -25,6 +25,7 @@ dependencies = [
     "isaaclab-assets",
     "isaaclab-contrib",
     "isaaclab-experimental",
+    "isaaclab-neural",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-physx",
@@ -298,6 +299,7 @@ section-order = [
     "omniverse-extensions",
     "isaaclab",
     "isaaclab-contrib",
+    "isaaclab-neural",
     "isaaclab-rl",
     "isaaclab-mimic",
     "isaaclab-tasks",
@@ -321,6 +323,7 @@ section-order = [
 "isaaclab" = ["isaaclab"]
 "isaaclab-assets" = ["isaaclab_assets"]
 "isaaclab-contrib" = ["isaaclab_contrib"]
+"isaaclab-neural" = ["isaaclab_neural"]
 "isaaclab-rl" = ["isaaclab_rl"]
 "isaaclab-mimic" = ["isaaclab_mimic"]
 "isaaclab-tasks" = ["isaaclab_tasks"]
@@ -460,6 +463,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-neural" = { path = "source/isaaclab_neural", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-physx" = { path = "source/isaaclab_physx", editable = true }
