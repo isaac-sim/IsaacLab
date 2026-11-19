@@ -11,11 +11,11 @@ import torch
 import warp as wp
 
 from isaaclab.envs.reset import (
+    BetaSamplingScore,
+    BetaSamplingScoreCfg,
     ResetStateSampler,
     ResetStateSamplerCfg,
     SamplingScoreCfg,
-    TargetSuccessScore,
-    TargetSuccessScoreCfg,
     sample_cdf,
 )
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -105,11 +105,11 @@ def test_requested_ids_respect_groups_and_credit_only_completed_previous_episode
         (0.66, 1.0e6, [0.0, 0.65, 0.66, 0.67, 1.0], [0.0, 0.0, 1.0, 0.0, 0.0]),
     ],
 )
-def test_target_score_keeps_analytic_unit_peak_without_mutating_metrics(target, kappa, rates, expected):
+def test_beta_score_keeps_analytic_unit_peak_without_mutating_metrics(target, kappa, rates, expected):
     rates = wp.array(rates, dtype=float, device="cpu")
     original = rates.numpy().copy()
     out = wp.empty_like(rates)
-    TargetSuccessScore(TargetSuccessScoreCfg(metric="completion", target=target, kappa=kappa)).score(
+    BetaSamplingScore(BetaSamplingScoreCfg(metric="completion", target=target, kappa=kappa)).score(
         {"completion": rates}, out
     )
     np.testing.assert_allclose(out.numpy(), expected, atol=1e-6)
@@ -118,7 +118,7 @@ def test_target_score_keeps_analytic_unit_peak_without_mutating_metrics(target, 
 
 def test_named_metrics_and_concentration_control_the_current_distribution():
     readiness = wp.array([0.0, 0.25, 0.5, 0.75, 1.0], dtype=float, device="cpu")
-    cfg = ResetStateSamplerCfg(scores=[TargetSuccessScoreCfg(metric="readiness", weight=0.25)])
+    cfg = ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(metric="readiness", weight=0.25)])
     sampler = ResetStateSampler(cfg, 1, 5, "cpu", metrics={"readiness": readiness})
     broad = sampler.probabilities.warp.numpy()
     np.testing.assert_allclose(broad, [0.05722444, 0.27138778, 0.34277556, 0.27138778, 0.05722444], rtol=1e-6)

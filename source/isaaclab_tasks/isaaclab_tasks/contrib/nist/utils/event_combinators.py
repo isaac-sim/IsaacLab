@@ -32,9 +32,11 @@ from tqdm import tqdm
 
 from isaaclab.envs.reset import ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -67,29 +69,24 @@ class reset_accumulator(ManagerTermBase):
         self._tag_indices_bind: str | None = cfg.params["state_tag_indices_bind"]
 
         oversample_capacity = int(self._state_target_size * float(cfg.params["state_table_oversample_ratio"]))
-        self.sampled_slots = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.sampled_slots = torch.full((env.num_envs,), -1, device=env.device, dtype=torch.long)
         self.precollecting_phase = True
         sampling_cfg: ResetStateSamplerCfg = cfg.params["sampling"]
         self._sampling_cfg = sampling_cfg.replace(seed=(sampling_cfg.seed + (env.cfg.seed or 0)) % 2**32)
+        self._success_monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
 
         self.state_tag_names: list[str] | None = None
         self.state_data = torch.zeros((oversample_capacity, state_dim), device=env.device)
         self.state_tag_indices = torch.full((oversample_capacity,), -1, device=env.device, dtype=torch.int64)
 
         self.monitor_success_rate: torch.Tensor | None = None
+        self.success_monitor: SuccessMonitor | None = None
         self._sampler: ResetStateSampler | None = None
         self._wandb_3d_log_state: dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
-
-    def reseed(self, seed: int) -> None:
-        """Reseed this bank's native sampler before a seeded reset."""
-        cfg = self.cfg.params["sampling"]
-        self._sampling_cfg = cfg.replace(seed=(cfg.seed + seed) % 2**32)
-        if self._sampler is not None:
-            self._sampler.reseed(self._sampling_cfg.seed)
 
     def __call__(
         self,
@@ -100,6 +97,7 @@ class reset_accumulator(ManagerTermBase):
         acceptance_conditions: dict,
         state_table_size: int,
         sampling: ResetStateSamplerCfg,
+        success_monitor_cfg: SuccessMonitorCfg,
         state_table_oversample_ratio: float = 1.0,
         state_table_fps_features: Callable | None = None,
         state_tag_names_bind: str | None = None,
@@ -174,20 +172,22 @@ class reset_accumulator(ManagerTermBase):
                     + f" (total={int(counts.sum())})"
                 )
 
-        if self._sampler is None:
-            self._sampler = ResetStateSampler(self._sampling_cfg, env.num_envs, self.state_data.shape[0], env.device)
-            self.monitor_success_rate = self._sampler.success_rate.torch
+        if self.success_monitor is None:
+            self.success_monitor = instantiate(self._success_monitor_cfg, 1, self.state_data.shape[0], env.device)
+            self.monitor_success_rate = self.success_monitor.success_rate
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         progress = env.termination_manager.get_term_cfg("progress_context").func
-        valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
+        valid = (env.episode_length_buf > 0) & env.reset_buf.bool() & (self.sampled_slots >= 0)
         if num_envs > 0 and monitor_exclude_terms:
             for term_name in monitor_exclude_terms:
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
                     valid &= ~env.termination_manager._last_episode_dones[:, term_idx]
-        assignments = self._sampler.reset(env_ids=env_ids, success=progress.is_success, valid=valid)
-        self.sampled_slots.copy_(assignments.torch)
+        monitor_ids = env.scene._ALL_INDICES[env_ids].unique(sorted=True)
+        self.success_monitor.success_update(
+            self.sampled_slots[monitor_ids], progress.is_success[monitor_ids], valid[monitor_ids]
+        )
 
         log: dict[str, float] = {}
         if report:
@@ -202,6 +202,8 @@ class reset_accumulator(ManagerTermBase):
                     log[f"Metrics/MonitorSuccessRate/{name}"] = monitor_rates[mask].mean().item() if mask.any() else 0.0
 
         if num_envs > 0:
+            assignments = self._get_sampler().reset(env_ids=env_ids)
+            self.sampled_slots.copy_(assignments.torch)
             slot_idx = self.sampled_slots[env_ids]
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             if report and self.state_tag_names:
@@ -231,13 +233,25 @@ class reset_accumulator(ManagerTermBase):
         ``env_ids`` and then calls this so the chosen stored state is written
         back to the assets.
         """
-        assignments = self._sampler.reset(env_ids=env_ids, state_ids=self.sampled_slots)
+        sampler = self._get_sampler()
+        assignments = sampler.reset(env_ids=env_ids, state_ids=self.sampled_slots)
         self.sampled_slots.copy_(assignments.torch)
         env_ids = self._env.scene._ALL_INDICES[env_ids]
-        env_ids = env_ids[~self._sampler.invalid_requests.torch[env_ids]]
+        env_ids = env_ids[~sampler.invalid_requests.torch[env_ids]]
         reset_state.set_reset_state(
             self._env, self.state_data[self.sampled_slots[env_ids]], env_ids, self.reset_assets, is_relative=True
         )
+
+    def _get_sampler(self) -> ResetStateSampler:
+        if self._sampler is None:
+            self._sampler = ResetStateSampler(
+                self._sampling_cfg,
+                self._env.num_envs,
+                self.state_data.shape[0],
+                self._env.device,
+                metrics={"monitor_success_rate": self.monitor_success_rate},
+            )
+        return self._sampler
 
 
 class TermChoice(ManagerTermBase):
@@ -245,19 +259,25 @@ class TermChoice(ManagerTermBase):
         super().__init__(cfg, env)
         self.term_partitions: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
         self.num_partitions = len(self.term_partitions)
-        sampling = cfg.params["sampling"]
+        sampling: ResetStateSamplerCfg = cfg.params["sampling"]
+        self.success_monitor = (
+            instantiate(cfg.params["success_monitor_cfg"], 1, self.num_partitions, env.device)
+            if self.num_partitions
+            else None
+        )
+        self.term_success_rate = (
+            self.success_monitor.success_rate if self.success_monitor is not None else torch.empty(0, device=env.device)
+        )
         self._sampler = (
             ResetStateSampler(
                 sampling.replace(seed=(sampling.seed + (env.cfg.seed or 0)) % 2**32),
                 env.num_envs,
                 self.num_partitions,
                 env.device,
+                metrics={"monitor_success_rate": self.term_success_rate},
             )
             if self.num_partitions
             else None
-        )
-        self.term_success_rate = (
-            self._sampler.success_rate.torch if self._sampler is not None else torch.empty(0, device=env.device)
         )
         self.term_samples = (
             self._sampler.state_ids.torch
@@ -265,21 +285,18 @@ class TermChoice(ManagerTermBase):
             else torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         )
 
-    def reseed(self, seed: int) -> None:
-        """Reseed the existing native choice streams."""
-        if self._sampler is not None:
-            self._sampler.reseed((seed + self.cfg.params["sampling"].seed) % 2**32)
-
     def __call__(
         self,
         env: ManagerBasedRLEnv,
         env_ids: torch.Tensor,
         terms: dict[str, ManagerTermBase],
         sampling: ResetStateSamplerCfg,
+        success_monitor_cfg: SuccessMonitorCfg,
         report: bool = False,
     ) -> None:
         if self.num_partitions == 0:
             return
+        env_ids = env.scene._ALL_INDICES[env_ids]
         if report:
             log = {
                 f"Metrics/SuccessRate/{name}": self.term_success_rate[i].item()
@@ -288,11 +305,12 @@ class TermChoice(ManagerTermBase):
             log["Metrics/SuccessRate"] = self.term_success_rate.mean().item()
         if report or sampling.scores:
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
-            valid = (env.episode_length_buf > 0) & env.reset_buf.bool()
-            self._sampler.reset(env_ids=env_ids, success=success, valid=valid)
-        else:
-            self._sampler.reset(env_ids=env_ids)
-        env_ids = env.scene._ALL_INDICES[env_ids]
+            valid = (env.episode_length_buf > 0) & env.reset_buf.bool() & (self.term_samples >= 0)
+            monitor_ids = env_ids.unique(sorted=True)
+            self.success_monitor.success_update(
+                self.term_samples[monitor_ids], success[monitor_ids], valid[monitor_ids]
+            )
+        self._sampler.reset(env_ids=env_ids)
         if report:
             log.update(
                 {

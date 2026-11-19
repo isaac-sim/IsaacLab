@@ -464,10 +464,9 @@ class ResetParcels(ManagerTermBase):
         self._lane_offsets = counts.cumsum(dim=0) - counts
         self.row_count = env.cfg.parcel_count * (_FULL_START_PHASE + 1) * (2 * samples) * self._lane_count
         # Outcome buckets share progress independently of fixture, parcel, and destination.
-        self.reset_sampler = ResetStateSampler(
-            cfg.params["sampling"], self.num_envs, _FULL_START_PHASE * samples + 1, self.device
-        )
-        self.reseed(env.cfg.seed or 0)
+        sampling = cfg.params["sampling"]
+        sampling = sampling.replace(seed=((env.cfg.seed or 0) + sampling.seed) % 2**32)
+        self.reset_sampler = ResetStateSampler(sampling, self.num_envs, _FULL_START_PHASE * samples + 1, self.device)
         self.row_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.held_rows = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._arm_ids = env.scene["robot"].find_joints([f"panda_joint{i}" for i in range(1, 8)], preserve_order=True)[0]
@@ -492,10 +491,6 @@ class ResetParcels(ManagerTermBase):
         self._zero_joint_velocity = torch.zeros_like(self._joint_positions)
         self._parcel_pose = env.scene["parcel_0"].data.default_root_pose.torch.clone()
         self._parcel_velocity = torch.zeros_like(self._zero_root_velocity)
-
-    def reseed(self, seed: int) -> None:
-        """Reseed native draws in place while retaining recipes, assignments and history."""
-        self.reset_sampler.reseed((seed + self.cfg.params["sampling"].seed) % 2**32)
 
     def _generate_recipes(self, rows: torch.Tensor) -> dict[str, torch.Tensor]:
         """Construct the complete procedural catalog without stepping or writing the scene."""

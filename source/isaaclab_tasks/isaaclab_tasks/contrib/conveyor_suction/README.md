@@ -59,14 +59,16 @@ These are procedural starts, rather than captured scripted grasp rollouts.
 The core `ResetStateSampler` tracks 64 progress levels each for controlled descent,
 held transport, approach and empty-tool return, plus a full-home bucket. These 257 histories
 are shared across the buffer's parcel, fixture and destination combinations.
-Target-success scoring favors intermediate success while retaining uniform coverage. Only the parcel
+Beta scoring favors intermediate success while retaining uniform coverage. Only the parcel
 selected by the original reset credits that bucket, once at reset; every later receipt still earns reward.
 An unfinished manual reset adds no failure. A first-assignment receipt remains a success even if a
 later transfer fails or is interrupted.
 Held resets restore native suction seals, and no reset seeds delivery credit. Playback uses full
 starts with an empty tool through the event's explicit `state_id` selector (`4 * samples_per_path`).
-Leave `state_id=None` for adaptive training. Sampling histories are local to each worker and restart
-on recreation; an explicit `reset(seed=...)` reseeds draws without clearing that history.
+Leave `state_id=None` for adaptive training. Each worker initializes its sampler from the environment
+and sampler configuration seeds. Use the same construction seeds to reproduce the initial streams.
+Runtime `env.reset(seed=...)` seeds the environment RNG. Restart native draws separately with
+`ResetStateSampler.reseed()`, which retains the sampler history.
 
 A release must be upright, near its goal, low above the receiving deck and moving slowly.
 Only a qualified release followed by a settled receipt in the commanded bin counts; throwing a

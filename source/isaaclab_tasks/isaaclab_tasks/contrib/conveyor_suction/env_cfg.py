@@ -10,7 +10,7 @@ from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 from isaaclab.controllers import ConveyorCfg, DifferentialIKControllerCfg
 from isaaclab.envs import mdp as common_mdp
-from isaaclab.envs.reset import ResetStateSamplerCfg, TargetSuccessScoreCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
@@ -79,7 +79,7 @@ class EventsCfg:
         mode="reset",
         params={
             "sampling": ResetStateSamplerCfg(
-                scores=[TargetSuccessScoreCfg(weight=0.25)],
+                scores=[BetaSamplingScoreCfg(weight=0.25)],
                 uniform_weight=0.001,
             ),
             "state_id": None,
