@@ -131,13 +131,58 @@ change, the resource refreshes array views without repeating path matching or sc
 capture. Otherwise, it reuses the hierarchy. Unchanged requests do not acquire
 writable Fabric arrays. Renderers use this same path regardless of physics backend.
 
-``update_geometries(provider, frame)`` handles geometry. PhysX publishes native
-``FabricPoints`` directly; other backends interpolate mesh points into GPU Fabric
-storage. Kit Hydra requires CPU destinations for ``Points`` and ``BasisCurves``,
-so SDP transfers them when their update interval elapses, without writing USD.
-World-space points reset their transform stack to avoid applying the body or
-environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays only,
-not bindings or engine handles.
+The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
+PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
+are interpolated directly into GPU Fabric storage. World-space point destinations reset their
+transform stack to avoid applying the environment or body pose twice. Only destinations whose
+update interval has elapsed are updated, and the authored USD point arrays remain unchanged.
+
+Points transport is controlled by
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg.points_update_mode`:
+
+* ``"auto"`` uses GPU Fabric for procedural Points on Kit 110.4 and newer. Streamed Points,
+  older Kit versions and ``BasisCurves`` retain CPU destinations.
+* ``"gpu"`` keeps Points positions on the GPU, including when Points streaming is enabled.
+  Use this mode with a verified compatible Kit build: older Kit 110.4 builds can freeze a
+  single point with constant color or lose colors after GPU-first initialization. This mode
+  requires a CUDA simulation device and Kit 110.4 or newer; it does not enable GPU curves.
+* ``"cpu"`` explicitly selects the compatibility path for Points.
+
+For example, select GPU particle transport for a compatible runtime before creating the scene:
+
+.. code-block:: python
+
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+
+   renderer_cfg = IsaacRtxRendererCfg(
+       global_settings=IsaacRtxRendererGlobalSettingsCfg(points_update_mode="gpu")
+   )
+
+The setting is shared by Kit and Isaac RTX consumers of the same Fabric resource. For a
+Kit-only visualizer, the equivalent launch argument is
+``--kit_args "--/isaaclab/render/points_update_mode=gpu"``. The default ``None`` on the
+configuration preserves the launch-time setting; absent that setting, transport is ``"auto"``.
+Configure it before geometry bindings are initialized, rather than changing it per frame.
+
+Older Kit 110.4 builds can use procedural GPU Points by excluding Points from geometry streaming:
+
+.. code-block:: text
+
+   --kit_args "--/UJITSO/geometry=false --/UJITSO/geometryTypes=Mesh"
+
+This selects analytic particle spheres while keeping the visual prim as ``UsdGeom.Points``;
+no particle mesh is generated. Geometry streaming controls preprocessing, loading and caching,
+and is not required for GPU position updates. Gaussian rendering requires Points streaming,
+so it needs either a compatible runtime with explicit GPU mode or the CPU fallback.
+Points streaming is enabled by default, including when ``/UJITSO/geometry`` is false or
+``/UJITSO/geometryTypes`` is empty.
+
+GPU transport removes the SDP particle-position download. Particle-only scenes also skip
+GPU hierarchy propagation and its host waits when the producer publishes no rigid transforms.
+Scenes with rigid bodies retain hierarchy synchronization, and native rendering or solver
+metadata can still require host transfers or waits. GPU particle storage does not imply a
+completely asynchronous simulation/render frame.
+``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend
 --------------
