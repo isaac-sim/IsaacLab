@@ -166,6 +166,7 @@ class ResetStateSampler:
         success: wp.array | ProxyArray | torch.Tensor | None = None,
         valid: wp.array | ProxyArray | torch.Tensor | None = None,
         state_ids: wp.array | ProxyArray | torch.Tensor | None = None,
+        rng: wp.array | ProxyArray | torch.Tensor | None = None,
     ) -> ProxyArray:
         """Record previous outcomes and assign starts for selected environments.
 
@@ -183,6 +184,9 @@ class ResetStateSampler:
             success: Previous episode success flags, shape [num_envs]. Omit at startup.
             valid: Completed-episode mask, shape [num_envs]. Exclude unfinished manual resets.
             state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores.
+            rng: Caller-owned int32 seeds, shape [num_envs]. Each draw is then
+                ``wp.randf(wp.rand_init(rng[env], 0))`` and the internal streams are untouched;
+                the caller advances its seeds between resets. Omit to use the internal streams.
 
         Returns:
             Borrowed persistent full-environment ID assignments. Initially unassigned environments contain -1.
@@ -196,6 +200,11 @@ class ResetStateSampler:
         else:
             self._resolve_requested_indices(selection, state_ids)
         # Credit the old assignments, then score and select their replacements.
+        seeds = None
+        if rng is not None:
+            seeds = self._input(rng, self.num_envs)
+            if seeds.dtype != wp.int32:
+                raise TypeError("rng must use the int32 dtype.")
         if success is not None:
             self._record_completed_outcomes(selection, success, valid)
         if self._scores:
@@ -213,6 +222,7 @@ class ResetStateSampler:
                 self._cdf,
                 self._catalog_ids,
                 self._rng,
+                seeds,
                 self._assigned_indices,
                 self.state_ids.warp,
             ],
@@ -528,6 +538,7 @@ def _assign_reset_states(
     cumulative: wp.array(dtype=wp.float64),
     catalog_ids: wp.array(dtype=wp.int64),
     rng: wp.array(dtype=wp.uint32),
+    seeds: wp.array(dtype=wp.int32),
     assigned_indices: wp.array(dtype=wp.int32),
     state_ids: wp.array(dtype=wp.int64),
 ):
@@ -538,9 +549,13 @@ def _assign_reset_states(
             index = requested[env]
         else:
             start = env_group_ids[env] * group_size
-            rng_state = rng[env]
-            uniform = wp.randf(rng_state)
-            rng[env] = rng_state
+            uniform = float(0.0)
+            if seeds:
+                uniform = wp.randf(wp.rand_init(seeds[env], 0))
+            else:
+                rng_state = rng[env]
+                uniform = wp.randf(rng_state)
+                rng[env] = rng_state
             index = sample_cdf(cumulative, start, group_size, uniform)
         assigned_indices[env] = index
         state_ids[env] = catalog_ids[index]

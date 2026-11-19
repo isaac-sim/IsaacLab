@@ -228,3 +228,22 @@ def test_cuda_graph_replays_changed_masks_ids_outcomes_and_random_streams(device
     np.testing.assert_array_equal(sampler.episode_counts.warp.numpy(), counts)
     np.testing.assert_array_equal(sampler.probabilities.warp.numpy(), probabilities)
     assert sampler.cfg.seed == 27
+
+
+def test_caller_seeds_decide_draws_and_leave_internal_streams_untouched():
+    device = "cpu"
+    num_envs, num_states = 64, 8
+    sampler = ResetStateSampler(ResetStateSamplerCfg(scores=[]), num_envs, num_states, device)
+    reference = ResetStateSampler(ResetStateSamplerCfg(scores=[]), num_envs, num_states, device)
+    seeds = wp.array(np.arange(num_envs, dtype=np.int32) * 7919, dtype=wp.int32, device=device)
+
+    first = sampler.reset(rng=seeds).warp.numpy().copy()
+    assert not np.array_equal(sampler.reset().warp.numpy(), first)  # internal stream still advances alone
+    np.testing.assert_array_equal(sampler.reset(rng=seeds).warp.numpy(), first)  # same seeds, same draws
+    assert len(set(first.tolist())) > 1
+
+    # The internal streams were consumed once, as by one unseeded reset of the reference.
+    reference.reset()
+    np.testing.assert_array_equal(sampler.reset().warp.numpy(), reference.reset().warp.numpy())
+    with pytest.raises(TypeError):
+        sampler.reset(rng=wp.zeros(num_envs, dtype=wp.int64, device=device))
