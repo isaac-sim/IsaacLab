@@ -1503,6 +1503,8 @@ def _run_test_file(
     file_name = os.path.basename(test_file)
     env = os.environ.copy()
     env["PYTHONFAULTHANDLER"] = "1"
+    # TEMPORARY: run every CI test file on the OVRTX Hercules scene backend. Revert before merging.
+    env["ISAAC_LAB_OVRTX_USE_HERCULES"] = "1"
 
     # Multi-GPU lane only: make the device-selection plugin importable in this
     # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
