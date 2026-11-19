@@ -2198,7 +2198,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
-            if not viewer.is_paused() and not self._borrowing_view:  # a capture must not add plot samples
+            if not viewer.is_paused() and not self._capturing_another_view:  # a capture must not add plot samples
                 self._render_live_plots()
         finally:
             viewer.end_frame()
