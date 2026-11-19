@@ -55,3 +55,12 @@ def test_a_restart_uses_the_arguments_saved_before_parsing(monkeypatch):
         == original
     )
     assert "--task" in " ".join(_launch_argv((original, original[1:])))
+
+
+def test_the_viewer_s_own_rtx_camera_is_not_a_task_camera():
+    renderer_cfg = SimpleNamespace(renderer_type="ovrtx")
+    scene = SimpleNamespace(viewer_camera_0_rtx=SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=True))
+
+    assert not play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))
+    scene.task_camera = SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=False)
+    assert play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))

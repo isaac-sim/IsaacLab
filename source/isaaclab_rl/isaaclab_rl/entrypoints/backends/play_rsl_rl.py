@@ -278,6 +278,8 @@ def _scene_cameras_use_ovrtx(env_cfg: object) -> bool:
     """Whether a scene sensor renders with OVRTX, whose scene the Rollout Ghosts overlay would shift."""
     scene = getattr(env_cfg, "scene", None)
     for value in vars(scene).values() if scene is not None else ():
+        if getattr(value, "render_on_demand", False) is True:
+            continue  # the Newton viewer's own RTX camera, which launch adds and which no policy observes
         renderer_cfg = getattr(value, "renderer_cfg", None)
         if getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
             return True
