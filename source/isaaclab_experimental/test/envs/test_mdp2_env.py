@@ -17,6 +17,7 @@ import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
+from isaaclab_experimental.mdp2.config import group_terms
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
@@ -720,3 +721,15 @@ def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
         assert env.episodes_completed == budget
     finally:
         env.close()
+
+
+def test_play_mode_removes_observation_noise_and_keeps_each_group():
+    """Play mode drops observation noise, in concatenated groups and in groups of a tensor per term alike."""
+    cfg = cartpole_cfg()
+    noisy = mdp2.Observation(mdp.joint_pos, inputs={"joint_pos": robot.joint_pos}, noise=mdp2.UniformNoise(-0.1, 0.1))
+    cfg.task.observations["separate"] = mdp2.ObservationGroup(terms={"joint_pos": noisy}, concatenate=False)
+    cfg.play_mode()
+    for group, concatenate in (("policy", True), ("separate", False)):
+        terms, concatenated = group_terms(cfg.task.observations[group])
+        assert concatenated is concatenate
+        assert all(use.noise is None for use in terms.values() if use is not None)

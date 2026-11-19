@@ -16,7 +16,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_experimental.mdp2 import Backend, TaskCfg
+from isaaclab_experimental.mdp2 import Backend, ObservationGroup, TaskCfg
+from isaaclab_experimental.mdp2.config import group_terms
 
 
 class Step(enum.Enum):
@@ -103,8 +104,9 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
 
 def _without_observation_noise(task: TaskCfg) -> TaskCfg:
     """Return a copy of a task whose observations have no noise; the uses it shares with others are not changed."""
-    observations = {
-        group: {name: use if use is None else replace(use, noise=None) for name, use in uses.items()}
-        for group, uses in task.observations.items()
-    }
+    observations = {}
+    for group, uses in task.observations.items():
+        terms, concatenate = group_terms(uses)
+        terms = {name: use if use is None else replace(use, noise=None) for name, use in terms.items()}
+        observations[group] = ObservationGroup(terms=terms, concatenate=concatenate)
     return replace(task, observations=observations)
