@@ -188,7 +188,7 @@ class NewtonCfg(PhysicsCfg):
     The pipeline is active when the solver delegates collision detection to Newton:
 
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
-    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
+    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoSCCSolverCfg` with
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`VBDSolverCfg` (always),
