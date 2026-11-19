@@ -124,7 +124,7 @@ class BaseVisualizer(ABC):
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
         automatic_sources = (
-            self.cfg.cameras is None or self.cfg.tracking_cameras_only
+            self.cfg.cameras is None or self.cfg.tracking_cameras_only()
         ) and self.cfg.streaming_sensor_prim_path is None
         rtx_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         for camera in cameras:
