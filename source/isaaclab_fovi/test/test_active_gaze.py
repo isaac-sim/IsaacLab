@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Gaze geometry and gaze-supervised PPO, without a simulator."""
+"""The gaze action, its observation and its teacher, without a simulator."""
 
 import math
 import subprocess
@@ -19,29 +19,18 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
-    motor_action_l2,
     teacher_block_dim,
     teacher_labels_kernel,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
-from isaaclab_fovi.rsl_rl.gaze_distribution import GazeGaussianDistribution
-from isaaclab_fovi.rsl_rl.gaze_distribution_cfg import GazeGaussianDistributionCfg
-from isaaclab_fovi.rsl_rl.gaze_supervised_ppo import GazeSupervisedPPO, gaze_loss
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
-from rsl_rl.algorithms import PPO
-from rsl_rl.models import MLPModel
-from rsl_rl.storage import RolloutStorage
-from tensordict import TensorDict
 
-from isaaclab.envs.mdp.rewards import action_l2
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
-NUM_ENVS = 64
-STEPS = 8
 DEVICES = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
 
 
@@ -325,129 +314,3 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
     term._asset.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction.teacher_mounts(term)
-
-
-def test_motor_penalty_is_the_action_l2_of_the_actions_before_the_gaze():
-    actions = torch.tensor([[1.0, -2.0, 0.5, 0.9, -0.7], [0.0, 3.0, -1.0, 0.1, 0.2]])
-
-    def env(terms: list[str], dims: list[int]) -> SimpleNamespace:
-        manager = SimpleNamespace(active_terms=terms, action_term_dim=dims, total_action_dim=sum(dims), action=actions)
-        return SimpleNamespace(action_manager=manager)
-
-    expected = action_l2(SimpleNamespace(action_manager=SimpleNamespace(action=actions[:, :3])))
-    torch.testing.assert_close(motor_action_l2(env(["joints", "gaze"], [3, 2])), expected)
-    with pytest.raises(ValueError, match="last action term"):
-        motor_action_l2(env(["gaze", "joints"], [2, 3]))
-
-
-def test_gaze_loss_ignores_invalid_labels():
-    mean = torch.tensor([[0.0, 0.0], [1.0, 1.0]], requires_grad=True)
-    labels = torch.tensor([[0.3, 0.4, 1.0], [float("nan"), float("nan"), 0.0]])
-    loss = gaze_loss(mean, labels)
-    loss.backward()
-    assert float(loss.detach()) == pytest.approx(0.5)
-    assert torch.isfinite(mean.grad).all() and not mean.grad[1].any()
-
-
-def _algorithm(
-    oracle_loss_coef: float = 1.0, with_labels: bool = True, stock: bool = False, gaze_head: bool = False
-) -> tuple[PPO | GazeSupervisedPPO, TensorDict]:
-    torch.manual_seed(0)
-    labels = torch.rand(NUM_ENVS, 3) * 2 - 1
-    labels[:, 2] = (torch.arange(NUM_ENVS) % 4 != 0).float()
-    labels[labels[:, 2] == 0, :2] = float("nan")
-    groups = {"policy": torch.randn(NUM_ENVS, 6)} | ({"oracle": labels} if with_labels else {})
-    obs = TensorDict(groups, batch_size=[NUM_ENVS])
-    model_groups = {"actor": ["policy"], "critic": ["policy"]}
-    distribution = {"class_name": "GaussianDistribution", "init_std": 1.0}
-    if gaze_head:
-        head = GazeGaussianDistributionCfg(init_std=1.0, gaze_std=0.1)
-        distribution = {"class_name": head.class_name, "init_std": 1.0, "gaze_std": head.gaze_std}
-    actor = MLPModel(obs, model_groups, "actor", 3, hidden_dims=[32], distribution_cfg=distribution)
-    critic = MLPModel(obs, model_groups, "critic", 1, hidden_dims=[32])
-    storage = RolloutStorage("rl", NUM_ENVS, STEPS, obs, [3], "cpu")
-    settings = dict(num_learning_epochs=4, num_mini_batches=4, learning_rate=3e-3, schedule="fixed", device="cpu")
-    if stock:
-        return PPO(actor, critic, storage, **settings), obs
-    return GazeSupervisedPPO(actor, critic, storage, oracle_loss_coef=oracle_loss_coef, **settings), obs
-
-
-def _train(algorithm: PPO, obs: TensorDict, iterations: int) -> dict[str, float]:
-    for _ in range(iterations):
-        for _ in range(STEPS):
-            with torch.inference_mode():
-                algorithm.act(obs)
-                algorithm.process_env_step(obs, torch.zeros(NUM_ENVS), torch.zeros(NUM_ENVS), {})
-        algorithm.compute_returns(obs)
-        losses = algorithm.update()
-    return losses
-
-
-def test_update_pulls_the_gaze_toward_the_teacher():
-    algorithm, obs = _algorithm()
-    valid = obs["oracle"][:, 2] > 0.5
-
-    def distance() -> float:
-        with torch.no_grad():
-            mean = algorithm.actor(obs)[:, -2:]
-        return float((mean - obs["oracle"][:, :2])[valid].norm(dim=-1).mean())
-
-    before = distance()
-    losses = _train(algorithm, obs, 40)
-    assert losses["oracle_valid"] == pytest.approx(0.75)
-    assert all(torch.isfinite(p).all() for p in algorithm.actor.parameters())
-    assert distance() < 0.7 * before
-
-
-def test_zero_coefficient_update_matches_stock_ppo_without_labels():
-    def updated(stock: bool) -> tuple[list[torch.Tensor], list[torch.Tensor], dict[str, float]]:
-        algorithm, obs = _algorithm(oracle_loss_coef=0.0, with_labels=False, stock=stock)
-        modules = (algorithm.actor, algorithm.critic)
-        initial = [p.detach().clone() for module in modules for p in module.parameters()]
-        torch.manual_seed(1)
-        losses = _train(algorithm, obs, 1)
-        return initial, [p.detach().clone() for module in modules for p in module.parameters()], losses
-
-    initial, gaze_params, losses = updated(stock=False)
-    stock_initial, stock_params, stock_losses = updated(stock=True)
-    assert losses["oracle"] == 0.0 and losses["oracle_valid"] == 0.0
-    for name in ("value", "surrogate", "entropy"):
-        assert losses[name] == pytest.approx(stock_losses[name], rel=1e-6, abs=1e-7)
-    for start, stock_start in zip(initial, stock_initial, strict=True):
-        torch.testing.assert_close(start, stock_start, atol=0, rtol=0)
-    for param, stock_param in zip(gaze_params, stock_params, strict=True):
-        torch.testing.assert_close(param, stock_param, atol=0, rtol=0)
-    assert all(not torch.equal(param, start) for param, start in zip(gaze_params, initial, strict=True))
-
-
-def test_gaze_head_keeps_the_gaze_noise_fixed_while_ppo_learns_the_rest():
-    """The entropy bonus and the surrogate move the other actions' noise, never the gaze's."""
-    algorithm, obs = _algorithm(gaze_head=True)
-    algorithm.entropy_coef = 0.5
-    head = algorithm.actor.distribution
-    assert isinstance(head, GazeGaussianDistribution)
-    assert head.std_param.shape == (1,)
-    _train(algorithm, obs, iterations=3)
-    with torch.no_grad():
-        head.update(torch.zeros(1, 3))
-    std = head.std[0]
-    torch.testing.assert_close(std[1:], torch.full((2,), 0.1))
-    assert abs(float(std[0]) - 1.0) > 1e-3
-    # The gaze noise is part of the saved policy, so a checkpoint restores it.
-    assert torch.equal(head.state_dict()["gaze_std"], torch.full((2,), 0.1))
-
-
-@pytest.mark.parametrize("std_type", ["scalar", "log"])
-def test_gaze_head_fixes_the_last_two_actions_noise(std_type):
-    head = GazeGaussianDistribution(5, init_std=2.0, std_type=std_type, gaze_std=0.05)
-    assert head.input_dim == 5
-    head.update(torch.zeros(3, 5))
-    torch.testing.assert_close(head.std, torch.tensor([[2.0, 2.0, 2.0, 0.05, 0.05]]).expand(3, -1))
-
-
-@pytest.mark.parametrize(
-    "output_dim, gaze_std", [(5, 0.0), (5, float("inf")), (2, 0.1)], ids=["zero", "infinite", "gaze_only"]
-)
-def test_gaze_head_rejects_invalid_settings(output_dim, gaze_std):
-    with pytest.raises(ValueError, match="gaze"):
-        GazeGaussianDistribution(output_dim, gaze_std=gaze_std)

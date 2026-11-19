@@ -2228,16 +2228,10 @@ version = "0.1.0"
 source = { editable = "source/isaaclab_fovi" }
 dependencies = [
     { name = "isaaclab" },
-    { name = "isaaclab-rl" },
-    { name = "isaaclab-tasks" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
-    { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
-]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"

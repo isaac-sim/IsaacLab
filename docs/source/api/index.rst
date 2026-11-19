@@ -101,7 +101,6 @@ The following modules are available in the ``isaaclab_fovi`` extension:
    :toctree: lab_fovi
 
    mdp
-   rsl_rl
    sensors
 
 isaaclab_tasks extension

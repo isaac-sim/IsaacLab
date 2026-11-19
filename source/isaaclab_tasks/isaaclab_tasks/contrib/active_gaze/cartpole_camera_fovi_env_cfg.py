@@ -6,8 +6,11 @@
 """Cartpole with a foveated camera, in RGB or depth.
 
 The stock camera task with the camera foveated and two gaze actions. The teacher looks at the pole's tip. The retina
-is :data:`RETINA_RES` samples across, enough for a task that only needs to see a bar.
+is :data:`RETINA_RES` samples across, enough for a task that only needs to see a bar. The policy gets two gaze actions,
+whose noise is fixed, and the teacher's gaze labels supervise them during training.
 """
+
+from isaaclab_fovi import mdp
 
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass
@@ -19,8 +22,7 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ActionsCfg as 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ObservationsCfg as CartpoleObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
 
-from ... import mdp
-from ..active_gaze import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
+from .active_gaze_cfg import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
 
 POLE_TIP = (0.0, 0.0, 1.0)
 """The pole's tip in the pole's frame [m]."""
@@ -70,7 +72,7 @@ class ActionsCfg(CartpoleActionsCfg):
 
 
 @configclass
-class CartpoleFoviEnvCfg(PresetCfg):
+class CartpoleCameraFoviEnvCfg(PresetCfg):
     """Cartpole with a foveated camera; ``presets=depth`` selects depth images."""
 
     @configclass

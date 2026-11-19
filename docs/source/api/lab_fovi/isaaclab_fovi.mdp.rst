@@ -16,7 +16,6 @@ isaaclab_fovi.mdp
   .. autosummary::
 
     gaze_state
-    motor_action_l2
 
 Actions
 -------
@@ -38,8 +37,3 @@ Observations
 
 .. autoclass:: gaze_teacher_labels
     :show-inheritance:
-
-Rewards
--------
-
-.. autofunction:: motor_action_l2

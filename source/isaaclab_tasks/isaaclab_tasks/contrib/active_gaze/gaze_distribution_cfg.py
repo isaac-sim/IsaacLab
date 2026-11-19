@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration of :class:`~isaaclab_fovi.rsl_rl.gaze_distribution.GazeGaussianDistribution`."""
+"""Configuration of :class:`~isaaclab_tasks.contrib.active_gaze.gaze_distribution.GazeGaussianDistribution`."""
 
 from __future__ import annotations
 
@@ -19,6 +19,6 @@ class GazeGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionCfg):
     ``init_std``, ``std_type`` and ``std_range`` apply to the other actions.
     """
 
-    class_name: str = "isaaclab_fovi.rsl_rl.gaze_distribution:GazeGaussianDistribution"
+    class_name: str = "isaaclab_tasks.contrib.active_gaze.gaze_distribution:GazeGaussianDistribution"
     gaze_std: float = 0.1
     """Fixed standard deviation of the gaze actions. One action moves the gaze by the gaze action's ``step_size``."""
