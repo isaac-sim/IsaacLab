@@ -95,7 +95,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
 
     If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
     limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
-    :attr:`vin` when :attr:`vin_range` is unset.
+    :attr:`vin` when :attr:`vin_range` is unset, or the USD actuator's limit if any of them is unset.
     """
 
     class_type: type | None = None

@@ -50,8 +50,7 @@ class DCMotorCfg(IdealPDActuatorCfg):
 
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
     Joints in the same group that sit behind different gear reductions need different values,
-    so this accepts a joint-name-pattern dictionary as well as a scalar. None keeps the USD actuator's value
-    (see :ref:`USD actuator overrides <actuators-usd-override>`).
+    so this accepts a joint-name-pattern dictionary as well as a scalar. On the Newton path, None keeps the USD value.
     """
 
 
@@ -85,5 +84,5 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
-    None keeps the USD actuator's table.
+    On the Newton path, None keeps the USD actuator's table.
     """

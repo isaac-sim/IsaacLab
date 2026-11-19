@@ -23,7 +23,7 @@ class ActuatorNetLSTMCfg(DCMotorCfg):
     damping = None
 
     network_file: str | None = None
-    """Path to the TorchScript checkpoint. None keeps the USD actuator's checkpoint."""
+    """Path to the TorchScript checkpoint. On the Newton path, None keeps the USD actuator's checkpoint."""
 
 
 @configclass
@@ -37,7 +37,7 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     damping = None
 
     network_file: str | None = None
-    """Path to the TorchScript checkpoint. None keeps the USD actuator's checkpoint."""
+    """Path to the TorchScript checkpoint. On the Newton path, None keeps the USD actuator's checkpoint."""
 
     pos_scale: float | None = None
     """Scaling of the joint position errors input to the network."""
