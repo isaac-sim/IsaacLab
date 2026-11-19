@@ -153,13 +153,13 @@ def run(env, steps):
 def test_the_task_runs_with_stock_managers(make_env):
     env = make_env(streak_frames=10**6)
     obs, _ = env.reset()
-    assert obs["policy"]["rgb"].shape == (N, H, W, 3) and obs["policy"]["joint_pos"].shape == (N, JOINTS)
+    assert obs["image"].shape == (N, 3, H, W) and obs["policy"].shape == (N, JOINTS)
     action = torch.full((N, JOINTS), 0.25)
     rewards = [env.step(action)[1].clone() for _ in range(CHUNK)]
     # The model ran once, on the last step of the chunk, and the reward is paid then.
     assert BrightnessModel.chunks == 1
     assert all(torch.count_nonzero(reward) == 0 for reward in rewards[:-1]) and rewards[-1].all()
-    assert torch.allclose(env.step(action)[0]["policy"]["joint_pos"], action)
+    assert torch.allclose(env.step(action)[0]["policy"], action)
 
 
 def test_frames_after_the_success_frame_are_not_rewarded(make_env):

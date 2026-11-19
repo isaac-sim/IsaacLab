@@ -149,6 +149,14 @@ uv run python scripts/tools/cosmos/cosmos3_replay.py --output outputs/cosmos3/re
 uv run python scripts/environments/random_agent.py --task Isaac-Cosmos3-Medical-Pad-Unfold-v0 --num_envs 2
 ```
 
+Train a PPO policy from the head camera's image and the joint positions with `rsl_rl`. Window mode generates the
+environments one after the other, about 3 s per environment per chunk of 16 steps, so start with a few environments
+and iterations:
+
+```bash
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Cosmos3-Medical-Pad-Unfold-v0 --num_envs 2 --max_iterations 3
+```
+
 ## Tests
 
 ```bash

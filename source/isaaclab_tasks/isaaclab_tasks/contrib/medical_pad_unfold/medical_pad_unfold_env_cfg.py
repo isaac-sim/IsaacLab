@@ -17,7 +17,7 @@ from pathlib import Path
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp import JointPositionActionCfg, joint_pos, time_out
+from isaaclab.envs.mdp import JointPositionActionCfg, image_rgb, joint_pos, time_out
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -113,16 +113,27 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
+    """Joint positions and the head camera's image, in separate groups so an RL library can encode the image."""
+
     @configclass
     class PolicyCfg(ObsGroup):
-        rgb = ObsTerm(func=mdp.camera_rgb)
         joint_pos = ObsTerm(func=joint_pos)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
-            self.concatenate_terms = False
+
+    @configclass
+    class ImageCfg(ObsGroup):
+        rgb = ObsTerm(
+            func=image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb", "channel_first": True},
+        )
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
 
     policy: PolicyCfg = PolicyCfg()
+    image: ImageCfg = ImageCfg()
 
 
 @configclass
