@@ -74,7 +74,8 @@ See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
 
 With OVRTX, separate camera sensors share the scene and renderer when their renderer
-configurations match, while each sensor owns a separate tiled render product. For example,
+configurations match, while each sensor has its own tiled render products. By default, each sensor
+has one render product (see :ref:`camera-render-products-per-sensor`). For example,
 ``env_0/head_camera`` and ``env_1/head_camera`` form one product, while
 ``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
 resolutions and output types, and their poses update independently. Define all camera prims
@@ -359,6 +360,45 @@ filters, video generation) use it to advance only those rows.
 
 With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
 Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
+
+.. _camera-render-products-per-sensor:
+
+Render products per sensor
+--------------------------
+
+A camera sensor has one camera in every environment. By default, the renderer draws the images of
+all these cameras side by side into one large image, the tiled atlas. One render product describes
+this atlas.
+
+To render the atlas, the renderer uses GPU buffers that hold data for every pixel of the atlas. In
+the RTX path tracer, some of them also grow with the samples per pixel. One such buffer can hold at
+most 4 GiB. If a buffer needs more, the OVRTX renderer fails the frame with an error.
+
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits a camera sensor over several render
+products. Each render product has its own, smaller atlas, so a smaller value can keep each buffer
+below the limit. The output shapes and the environment order do not change: each data type still has
+one ``(num_envs, height, width, channels)`` buffer. The field accepts these values:
+
+* ``"all"`` (the default): The sensor has one render product.
+* An integer ``M`` of at least 1: The sensor has ``ceil(num_envs / M)`` render products. For example,
+  5 environments with ``M = 2`` give render products of 2, 2 and 1 environments. Only the OVRTX
+  renderer accepts an integer. The other renderers reject it when the camera is created.
+
+A sensor with 2560 environments of 128 x 128 pixels at 16 samples per pixel can fail with one render
+product. Two render products of 1280 environments each can render it. The ``omni:rtx:rtpt:spp``
+render setting sets the samples per pixel:
+
+.. code-block:: python
+
+   from isaaclab.utils import replace
+
+   large_batch_camera = replace(
+       camera_cfg, render_settings={"omni:rtx:rtpt:spp": ("Int", 16)}, max_envs_per_render_product=1280
+   )
+
+Each extra render product adds a fixed cost to every frame, so use the largest integer that renders.
+Path tracing and DLSS depend on the pixel position in the atlas, so another split can change the color
+outputs a little.
 
 Post-render image signal processing
 -----------------------------------
