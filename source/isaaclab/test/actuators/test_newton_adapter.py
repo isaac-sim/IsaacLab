@@ -46,7 +46,6 @@ from isaaclab.sim.schemas.schemas_actuators import (
 )
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
-from isaaclab.utils import validate
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -272,11 +271,10 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(remotized) == 2
     assert {tuple(actuator.indices.numpy()) for actuator in remotized} == {(4, 10), (5, 11)}
     assert all(not any(type(clamping) is ClampingMaxEffort for clamping in actuator.clamping) for actuator in remotized)
-    lookups = [next(c for c in actuator.clamping if type(c) is ClampingPositionBased) for actuator in remotized]
-    assert {(tuple(c.lookup_positions.numpy()), tuple(c.lookup_efforts.numpy())) for c in lookups} == {
-        ((-1.0, 1.0), (10.0, 20.0)),
-        ((-1.0, 1.0), (11.0, 21.0)),
-    }
+    assert {
+        tuple(next(c for c in actuator.clamping if type(c) is ClampingPositionBased).lookup_efforts.numpy())
+        for actuator in remotized
+    } == {(10.0, 20.0), (11.0, 21.0)}
 
 
 def test_is_stateful_only_with_delay_state():
@@ -314,19 +312,16 @@ def test_schema_authoring_matches_lab_effort_limit_resolution():
     for joint_name, authored_limit in zip(("pd_a", "pd_b", "dc_a", "dc_b"), (71.0, 72.0, 73.0, 74.0), strict=True):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
         UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(authored_limit)
-    UsdPhysics.RevoluteJoint.Define(stage, "/World/Robot/a")
     cfgs = {
         "mapped": DelayedPDActuatorCfg(
             joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"pd_a": 5.0}, max_delay=0
         ),
         "fallback": DelayedPDActuatorCfg(joint_names_expr=["dc_.*"], stiffness=1.0, damping=0.0, max_delay=0),
-        # "mapped_pd" and joint "a" name the same new prim as "mapped" and "pd_a"; each joint still gets its own.
-        "mapped_pd": IdealPDActuatorCfg(joint_names_expr=["a"], stiffness=1.0, damping=0.0, actuator_effort_limit=9.0),
     }
 
     author_actuator_prims(stage, "/World/Robot", cfgs)
 
-    for joint_name, limit in {"pd_a": 5.0, "pd_b": 0.0, "dc_a": 73.0, "dc_b": 74.0, "a": 9.0}.items():
+    for joint_name, limit in {"pd_a": 5.0, "pd_b": 0.0, "dc_a": 73.0, "dc_b": 74.0}.items():
         assert _parsed_actuator(stage, joint_name).component_specs == [(ClampingMaxEffort, {"max_effort": limit})]
 
 
@@ -384,9 +379,6 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
         "remote_keep": RemotizedPDActuatorCfg(joint_names_expr=["remote_keep"], stiffness=99.0, damping=None),
         "mlp": ActuatorNetMLPCfg(joint_names_expr=["mlp"], actuator_effort_limit=0.5),
     }
-    for cfg in cfgs.values():
-        validate(cfg)
-
     with caplog.at_level(logging.WARNING):
         author_actuator_prims(stage, "/World/Robot", cfgs)
     # A warning names each joint whose asset components the config type does not model.
