@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.utils import launch_test_simulation
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation(enable_cameras=True)
 
@@ -136,7 +136,7 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     _assert_first_frame_textured(first_frame, stable_frame)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.isaacsim_ci
 def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
     """The first and subsequent resets must publish the reset pose to Fabric and return it in the camera observation.
@@ -214,7 +214,14 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         moved_pose = initial_pose.clone()
         moved_pose[:, 0] += 0.7
         moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
+        step_before_write = env.sim.get_physics_step_count()
         cube.write_root_pose_to_sim_index(root_pose=moved_pose)
+        # Capture again at the same RTX dedup key: a pose write must invalidate the rendered frame too.
+        camera = env.scene["camera"]
+        camera.update(cfg.sim.dt, force_recompute=True)
+        same_step_depth = camera.data.output["distance_to_image_plane"].clone()
+        assert env.sim.get_physics_step_count() == step_before_write
+        _assert_fabric_world_poses(cube.root_view.prim_paths, moved_pose)
         for _ in range(STABILISATION_STEPS):
             moved_obs, _ = env.step(action)
         moved_depth = moved_obs["camera"]["depth"].clone()
@@ -235,6 +242,9 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
         assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
         assert not (initial_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
+        same_step_mask = torch.isfinite(same_step_depth) & (same_step_depth > 0.0) & (same_step_depth < 10.0)
+        overlap = (moved_mask & same_step_mask).sum() / (moved_mask | same_step_mask).sum()
+        assert overlap > 0.9, f"Same-step camera missed the written pose: IoU={overlap.item():.3f}"
         for phase, depth in (("First", first_reset_depth), ("Later", reset_depth)):
             reset_mask = torch.isfinite(depth) & (depth > 0.0) & (depth < 10.0)
             overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()

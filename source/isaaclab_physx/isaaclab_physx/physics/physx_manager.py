@@ -505,6 +505,45 @@ class PhysxManager(PhysicsManager):
         if self._fabric is not None:
             self._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
 
+    def write_rigid_body_transforms(
+        self, view: omni.physics.tensors.RigidBodyView, transforms: wp.array, indices: wp.array | None
+    ) -> None:
+        """Write native body poses and invalidate their published representations on success.
+
+        Args:
+            view: Native rigid-body view receiving the poses.
+            transforms: Poses of shape (N, 7), with positions in meters followed by xyzw quaternions.
+            indices: Native view indices to update, or None for all bodies.
+        """
+        view.set_transforms(transforms, indices=indices)
+        self.invalidate_transforms()
+
+    def write_articulation_root_transforms(
+        self, view: omni.physics.tensors.ArticulationView, transforms: wp.array, indices: wp.array | None
+    ) -> None:
+        """Write native root poses and defer link kinematics until publication.
+
+        Args:
+            view: Native articulation view receiving the poses.
+            transforms: Poses of shape (N, 7), with positions in meters followed by xyzw quaternions.
+            indices: Native view indices to update, or None for all articulations.
+        """
+        view.set_root_transforms(transforms, indices=indices)
+        self.invalidate_transforms(kinematics=True)
+
+    def write_articulation_joint_positions(
+        self, view: omni.physics.tensors.ArticulationView, positions: wp.array, indices: wp.array | None
+    ) -> None:
+        """Write native joint positions and defer link kinematics until publication.
+
+        Args:
+            view: Native articulation view receiving the positions.
+            positions: Joint positions of shape (N, num_dofs), in radians or meters.
+            indices: Native view indices to update, or None for all articulations.
+        """
+        view.set_dof_positions(positions, indices=indices)
+        self.invalidate_transforms(kinematics=True)
+
     def invalidate_transforms(self, *, kinematics: bool = False) -> None:
         """Invalidate both native pose representations after writes; defer FK when needed."""
         self.kinematics_dirty |= kinematics

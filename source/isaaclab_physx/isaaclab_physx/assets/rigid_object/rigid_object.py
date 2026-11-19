@@ -370,8 +370,9 @@ class RigidObject(BaseRigidObject):
         if not skip_forward:
             self.data._reset_pose()
         # set into simulation
-        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        self._backend_manager.invalidate_transforms()
+        self._backend_manager.write_rigid_body_transforms(
+            self.root_view, self._get_root_link_pose_w_f32(), indices=sim_env_ids
+        )
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -460,8 +461,9 @@ class RigidObject(BaseRigidObject):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         # set into simulation
-        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        self._backend_manager.invalidate_transforms()
+        self._backend_manager.write_rigid_body_transforms(
+            self.root_view, self._get_root_link_pose_w_f32(), indices=sim_env_ids
+        )
 
     def write_root_com_pose_to_sim_mask(
         self,

@@ -32,6 +32,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     fabric = Mock(force_update=Mock(side_effect=record_refresh))
     monkeypatch.setattr(manager, "_fabric", fabric)
     backend = physx_manager.PhysxSceneDataBackend(manager)
+    backend._fabric_hierarchy = Mock()
     transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
     view = Mock(count=1, get_transforms=Mock(return_value=transforms))
     backend._rigid_body_view = view
@@ -103,8 +104,10 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert fabric.force_update.call_count == 2
 
-    transforms.fill_(wp.transformf(wp.vec3f(4, 5, 6), wp.quat_identity()))
-    manager.invalidate_transforms(kinematics=True)
+    root_transforms = wp.full(1, wp.transformf(wp.vec3f(4, 5, 6), wp.quat_identity()), device="cpu")
+    articulation_view = Mock()
+    articulation_view.set_root_transforms.side_effect = lambda poses, indices: wp.copy(transforms, poses)
+    manager.write_articulation_root_transforms(articulation_view, root_transforms, indices=None)
     assert backend.transforms_timestamp > version
     version = backend.transforms_timestamp
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
@@ -147,6 +150,46 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     assert view.get_transforms.call_count == 3
     backend.clear()
     assert backend.transforms_timestamp > version
+
+
+@pytest.mark.parametrize(
+    ("write_method", "native_method", "kinematics"),
+    [
+        ("write_rigid_body_transforms", "set_transforms", False),
+        ("write_articulation_root_transforms", "set_root_transforms", True),
+        ("write_articulation_joint_positions", "set_dof_positions", True),
+    ],
+)
+def test_pose_mutation_invalidates_publication_only_after_native_success(write_method, native_method, kinematics):
+    """A rejected native write leaves existing pose publications and pending FK unchanged."""
+    from isaaclab_physx.physics import PhysxCfg, physx_manager
+
+    manager = physx_manager.PhysxManager(PhysxCfg())
+    backend = manager._scene_data_backend = physx_manager.PhysxSceneDataBackend(manager)
+    view = Mock(spec=[native_method])
+    native_write = getattr(view, native_method)
+    states_at_write = []
+    native_write.side_effect = lambda poses, indices: states_at_write.append(
+        (backend.transforms_timestamp, manager.kinematics_dirty)
+    )
+    poses = wp.zeros((1, 7), dtype=wp.float32, device="cpu")
+    indices = wp.array([0], dtype=wp.int32, device="cpu")
+    version = backend.transforms_timestamp
+
+    getattr(manager, write_method)(view, poses, indices=indices)
+
+    assert states_at_write == [(version, False)]
+    assert backend.transforms_timestamp == version + 1
+    assert manager.kinematics_dirty is kinematics
+    native_write.assert_called_once_with(poses, indices=indices)
+    version = backend.transforms_timestamp
+    native_write.side_effect = RuntimeError("native write rejected")
+
+    with pytest.raises(RuntimeError, match="native write rejected"):
+        getattr(manager, write_method)(view, poses, indices=indices)
+
+    assert backend.transforms_timestamp == version
+    assert manager.kinematics_dirty is kinematics
 
 
 @pytest.mark.parametrize("declared", [False, True])

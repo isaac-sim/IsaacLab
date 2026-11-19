@@ -71,6 +71,7 @@ class KitVisualizer(BaseVisualizer):
         # Lazy Replicator render product + annotator for render_rgb_array().
         self._rgb_render_product = None
         self._rgb_annotator = None
+        self._rgb_frame_pending = False
         self._viewport_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
         self._viewport_camera_pose_cache: dict[str, tuple[float, ...]] = {}
         self._camera_image_provider = None
@@ -183,11 +184,13 @@ class KitVisualizer(BaseVisualizer):
         if self._runtime_headless:
             return
         provider = self._sim.get_scene_data_provider()
-        self._fabric.update_transforms(provider)
+        revision = self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
         self._app_pumped_this_step = self._pump_kit_app_update()
+        if self._app_pumped_this_step:
+            self._fabric.rendered_transforms_timestamp = revision
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
             if image is not None:
@@ -232,6 +235,7 @@ class KitVisualizer(BaseVisualizer):
                     self._rgb_render_product.destroy()
             self._rgb_annotator = None
             self._rgb_render_product = None
+            self._rgb_frame_pending = False
             self._controls_kit_timeline = False
             self._is_initialized = False
             super().close()
@@ -301,7 +305,7 @@ class KitVisualizer(BaseVisualizer):
             if self.supports_markers():
                 self._sim.vis_marker_registry.dispatch_callbacks()
         provider = self._sim.get_scene_data_provider()
-        self._fabric.update_transforms(provider)
+        revision = self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self._runtime_headless and self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
@@ -310,6 +314,7 @@ class KitVisualizer(BaseVisualizer):
         # Create the render product and annotator before the app update so the first
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
+            self._rgb_frame_pending = True
             self._rgb_render_product = rep.create.render_product(self._controlled_camera_path, (w, h))
             self._apply_render_product_background(self._sim.stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
@@ -321,9 +326,16 @@ class KitVisualizer(BaseVisualizer):
 
             with contextlib.suppress(Exception):
                 self._rgb_render_product.resume()
+            self._rgb_frame_pending = True
 
-        if not self._app_pumped_this_step:
-            self._pump_kit_app_update()
+        if (
+            self._rgb_frame_pending
+            or not self._app_pumped_this_step
+            or self._fabric.rendered_transforms_timestamp != revision
+        ):
+            if self._pump_kit_app_update():
+                self._fabric.rendered_transforms_timestamp = revision
+                self._rgb_frame_pending = False
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):

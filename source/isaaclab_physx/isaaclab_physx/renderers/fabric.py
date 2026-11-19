@@ -54,6 +54,8 @@ class FabricBackend:
         self._selection = self._write_selection = None
         self._mapping = self._scales = None
         self._transforms_timestamp = -1
+        self.rendered_transforms_timestamp = -1
+        """Transform publication used by the last successful Kit frame, shared across consumers."""
         self._geometry_bindings = None
 
     def bind_transforms(self, provider: SceneDataProvider) -> None:
@@ -92,8 +94,12 @@ class FabricBackend:
         self._scales = wp.empty(provider.transform_count, dtype=wp.vec3f, device=self.device)
         self.transforms = SceneDataFormat.FabricMatrix44()
 
-    def update_transforms(self, provider: SceneDataProvider) -> None:
-        """Request SDP transforms and propagate converted body matrices to visual descendants."""
+    def update_transforms(self, provider: SceneDataProvider) -> int:
+        """Publish transforms and return their revision for frame-cache freshness.
+
+        Snapshot before publication so a write during native work remains due for the next frame.
+        """
+        timestamp = provider.backend.transforms_timestamp
         self.bind_transforms(provider)
         changed = self._selection is not None and self._selection.PrepareForReuse()
         if self._selection is not None and (changed or self.transforms.matrices is None):
@@ -110,7 +116,6 @@ class FabricBackend:
             self.transforms = SceneDataFormat.FabricMatrix44()
             self.transforms.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
         provider.get_transforms(self.transforms, self._mapping, scales=self._scales)
-        timestamp = provider.backend.transforms_timestamp
         if self._selection is not None and (changed or self._transforms_timestamp != timestamp):
             self._write_selection.PrepareForReuse()
             device = self._scales.device
@@ -119,6 +124,7 @@ class FabricBackend:
                 raise RuntimeError("Fabric GPU transform hierarchy update failed.")
             wp.synchronize_device(device)
         self._transforms_timestamp = timestamp
+        return timestamp
 
     def update_geometries(self, provider: SceneDataProvider, frame: int) -> None:
         """Request world-space visual vertices [m] directly into due Fabric destinations."""
@@ -197,6 +203,7 @@ class FabricBackend:
         self.transforms = self._selection = self._write_selection = None
         self._mapping = self._scales = self.hierarchy = self.stage = None
         self._geometry_bindings = None
+        self.rendered_transforms_timestamp = -1
 
 
 @configclass
