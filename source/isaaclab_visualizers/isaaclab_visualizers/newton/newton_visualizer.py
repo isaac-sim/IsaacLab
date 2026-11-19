@@ -1738,7 +1738,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        if view is current:
+        if view is current or (self.rtx_rendering and not self._is_tracking_view(view)):
+            # While the window shows RTX, a free view records what the window shows instead of an OpenGL render.
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)

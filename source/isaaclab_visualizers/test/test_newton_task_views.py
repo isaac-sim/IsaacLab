@@ -247,3 +247,13 @@ def test_the_standalone_rtx_window_has_no_opengl_view_state():
     viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
 
     assert viz.rtx_view_index is None and not viz.rtx_rendering and not viz.sensor_view_selected
+
+
+def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
+    free, rtx = _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([free, rtx])
+    viz.current_image_view = rtx
+    viz._capture_frame = lambda output: "window frame"
+
+    assert viz._capture_view(free, None) == "window frame"
+    assert viz.current_image_view is rtx
