@@ -353,6 +353,9 @@ class RecorderManager(ManagerBase):
 
     def record_post_step(self) -> None:
         """Trigger recorder terms for post-step functions."""
+        # Do nothing if no active recorder terms are provided
+        if len(self.active_terms) == 0:
+            return
         for term in self._terms.values():
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
