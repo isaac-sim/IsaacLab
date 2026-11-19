@@ -21,10 +21,11 @@ The sensor requires :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`. Set
 Cameras that use the same renderer configuration are submitted in that step.
 Camera-only scenes leave ``motion_bvh`` unset and do not build a lidar product.
 
-The cartpole camera tasks demonstrate the sensor. ``presets=lidar`` keeps the
-side RGB camera, adds the lidar, and gives the policy two stacked range images
-of the scan. Misses are 0 and a hit at the far range is 1. The other camera
-presets are unchanged:
+The cartpole camera tasks demonstrate the sensor. ``presets=lidar`` adds the
+lidar and gives the policy two stacked range images of the scan. Misses are 0
+and a hit at the far range is 1. The scene defaults to 64 environments; pass
+``--num_envs 512`` for the larger camera-preset count. The other camera presets
+are unchanged:
 
 .. code-block:: bash
 

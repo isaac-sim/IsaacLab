@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from isaaclab.sensors import CameraCfg, LidarCfg
+from isaaclab.sensors import LidarCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
@@ -19,7 +19,6 @@ from .cartpole_common import (
     CARTPOLE_LIDAR_AZIMUTH_COUNT,
     CARTPOLE_LIDAR_ELEVATION_COUNT,
     CartpoleTiledCameraCfg,
-    cartpole_lidar_camera_cfg,
     cartpole_lidar_cfg,
 )
 from .cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
@@ -35,9 +34,9 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 
 @configclass
 class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
-    """Side camera plus one solid-state lidar, both captured by the same OVRTX renderer."""
+    """One solid-state lidar captured by OVRTX. The policy reads that scan and no camera."""
 
-    tiled_camera: CameraCfg = cartpole_lidar_camera_cfg()
+    tiled_camera = None
     lidar: LidarCfg = cartpole_lidar_cfg()
 
 
@@ -46,9 +45,9 @@ class CartpoleCameraEnvCfg(PresetCfg):
     """Cartpole camera environment with a selectable camera data type.
 
     The selector also picks the matching tiled camera preset and its rendering backend through
-    :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant keeps the side RGB camera and
-    adds a tiled OVRTX lidar; both are pinned to OVRTX with motion BVH enabled. Its policy observation
-    is a stacked range image of that scan. The critic reads the joint state.
+    :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant replaces that camera with a
+    tiled OVRTX lidar pinned to motion BVH. Its policy observation is a stacked range image of that
+    scan, and the scene defaults to 64 environments. The critic reads the joint state.
     """
 
     @configclass
@@ -84,7 +83,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
     class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
         """Lidar variant viewed close enough to check hits against one cart and pole."""
 
-        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0)
+        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=64, env_spacing=20.0)
         # One range channel. Env init stacks ``frame_stack`` scans on the channel axis.
         observation_space = [1, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT]
 

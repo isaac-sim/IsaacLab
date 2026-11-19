@@ -9,7 +9,7 @@ seed: 42
 # Models are instantiated using skrl's model instantiator utility
 # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
-  separate: False
+  separate: True
   policy:  # see gaussian_model parameters
     class: GaussianMixin
     clip_actions: False
@@ -35,17 +35,9 @@ models:
     class: DeterministicMixin
     clip_actions: False
     network:
-      - name: features_extractor
-        input: OBSERVATIONS  # env already emits channel-first NCHW
-        layers:
-          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
-          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
-          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
-          - flatten
-        activations: relu
       - name: net
-        input: features_extractor
-        layers: [512]
+        input: STATES  # privileged joint state, not the range image
+        layers: [32, 32]
         activations: elu
     output: ONE
 
@@ -70,7 +62,7 @@ agent:
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
-  state_preprocessor: null
+  state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
   value_preprocessor_kwargs: null

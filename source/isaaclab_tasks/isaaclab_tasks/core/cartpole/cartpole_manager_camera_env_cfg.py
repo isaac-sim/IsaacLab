@@ -12,7 +12,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg, LidarCfg
+from isaaclab.sensors import LidarCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.images import is_depth_like
 from isaaclab.visualizers import VisualizerCfg
@@ -20,7 +20,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
-from .cartpole_common import CartpoleTiledCameraCfg, cartpole_lidar_camera_cfg, cartpole_lidar_cfg
+from .cartpole_common import CartpoleTiledCameraCfg, cartpole_lidar_cfg
 from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 
 ##
@@ -51,9 +51,9 @@ def export_lidar_stage_before_sim(env, env_ids) -> None:
 
 @configclass
 class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
-    """Side camera plus one solid-state lidar, both captured by the same OVRTX renderer."""
+    """One solid-state lidar captured by OVRTX. The policy reads that scan and no camera."""
 
-    tiled_camera: CameraCfg = cartpole_lidar_camera_cfg()
+    tiled_camera = None
     lidar: LidarCfg = cartpole_lidar_cfg()
 
 
@@ -121,7 +121,7 @@ def lidar_observations_cfg():
         @configclass
         class PolicyCfg(ObsGroup):
             lidar_range = ObsTerm(
-                func=mdp.lidar_range_image,
+                func=mdp.LidarRangeImage,
                 params={"sensor_cfg": SceneEntityCfg("lidar"), "channel_first": True, "frame_stack": 2},
             )
 
@@ -184,8 +184,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
     A single ``presets=`` selector cascades through this preset: it picks the observation pipeline
     here and, via :attr:`CartpoleCameraSceneCfg.tiled_camera`, the matching camera data type and
     rendering backend. The feature-extractor variants (``resnet18``, ``theia_tiny``) operate on RGB
-    images, so they fall back to the default camera. The ``lidar`` variant keeps the side RGB camera
-    and adds a tiled OVRTX lidar; both are pinned to OVRTX with motion BVH enabled.
+    images, so they fall back to the default camera. The ``lidar`` variant replaces that camera with a
+    tiled OVRTX lidar pinned to motion BVH, and its scene defaults to 64 environments.
     """
 
     @configclass
@@ -222,7 +222,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
     class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
         """Lidar variant viewed close enough to check hits against one cart and pole."""
 
-        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0)
+        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=64, env_spacing=20.0)
 
         def __post_init__(self):
             super().__post_init__()

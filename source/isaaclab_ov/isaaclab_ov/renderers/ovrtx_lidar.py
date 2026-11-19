@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import warp as wp
+
+from isaaclab_ov.renderers.ovrtx_renderer_kernels import copy_dense_lidar_points_kernel
 
 # Bit 6 of the PointCloud Flags channel. See omni::sensors::ElementFlags::VALID.
 _VALID_FLAG = 0x40
@@ -16,13 +19,19 @@ _VALID_FLAG = 0x40
 _COMPACTED = 2
 
 
-def _as_torch(value) -> torch.Tensor:
-    """Copy a DLPack tensor into a Torch tensor that outlives the mapped render variable."""
+def _as_torch(value, *, clone: bool = True) -> torch.Tensor:
+    """Return a Torch view of a DLPack tensor.
+
+    A cloned tensor outlives the mapped render variable. A CUDA view is only valid until the caller
+    finishes reading it and releases the map.
+    """
     try:
         tensor = torch.from_dlpack(value)
     except (TypeError, BufferError, RuntimeError):
         tensor = torch.as_tensor(np.from_dlpack(value))
-    return tensor.detach().clone()
+    if clone:
+        return tensor.detach().clone()
+    return tensor
 
 
 def _scalar(mapped, name: str) -> int | None:
@@ -36,11 +45,11 @@ def _scalar(mapped, name: str) -> int | None:
     return int(values[0])
 
 
-def _channel(mapped, name: str) -> torch.Tensor | None:
-    """Return a cloned channel tensor, or None when the point cloud did not publish it."""
+def _channel(mapped, name: str, *, clone: bool = True) -> torch.Tensor | None:
+    """Return one channel tensor, or None when the point cloud did not publish it."""
     if name not in mapped:
         return None
-    return _as_torch(mapped[name])
+    return _as_torch(mapped[name], clone=clone)
 
 
 def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor, valid: torch.Tensor) -> None:
@@ -66,9 +75,16 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
     if tile_count != num_envs:
         raise RuntimeError(f"OVRTX lidar returned {tile_count} tiles for {num_envs} environments.")
 
-    coordinates = _channel(mapped, "Coordinates")
-    flags = _channel(mapped, "Flags")
-    signal = _channel(mapped, "Intensity")
+    coordinates = _channel(mapped, "Coordinates", clone=False)
+    flags = _channel(mapped, "Flags", clone=False)
+    signal = _channel(mapped, "Intensity", clone=False)
+    on_device = (
+        coordinates is not None and flags is not None and signal is not None and coordinates.device.type == "cuda"
+    )
+    if not on_device:
+        coordinates = None if coordinates is None else coordinates.detach().clone()
+        flags = None if flags is None else flags.detach().clone()
+        signal = None if signal is None else signal.detach().clone()
     if coordinates is None or flags is None or signal is None:
         available = list(mapped.keys())
         raise RuntimeError(
@@ -89,11 +105,14 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
         )
 
     device = points.device
+    stride = _scalar(mapped, "tileStridePoints") or 0
+    compacted = _scalar(mapped, "compactionType") == _COMPACTED
+    if on_device and not compacted and stride == num_rays:
+        _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
+        return
     coordinates = coordinates.to(device=device, dtype=points.dtype)
     signal = signal.to(device=device, dtype=intensity.dtype)
     hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
-    stride = _scalar(mapped, "tileStridePoints") or 0
-    compacted = _scalar(mapped, "compactionType") == _COMPACTED
     if not compacted and stride == num_rays:
         _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
         return
@@ -118,6 +137,34 @@ def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count:
     points.copy_(filled)
     intensity.copy_(signal)
     valid.copy_(hits)
+
+
+def _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count: int, stride: int) -> None:
+    """Copy a dense CUDA ``(tile, ray)`` cloud into the destination buffers.
+
+    The mapped channel views must stay alive through the launch. This waits for that launch before
+    returning so the caller can release the map.
+    """
+    count = tile_count * stride
+    coordinates = coordinates.reshape(count, 3).contiguous()
+    signal = signal.reshape(count).contiguous().to(dtype=torch.float32)
+    flags = flags.reshape(count).contiguous().to(dtype=torch.int32)
+    # Warp resolves string device names. A torch.device object is not one of those names.
+    launch_device = str(points.device)
+    wp.launch(
+        copy_dense_lidar_points_kernel,
+        dim=count,
+        inputs=[
+            wp.from_torch(coordinates, dtype=wp.float32),
+            wp.from_torch(signal, dtype=wp.float32),
+            wp.from_torch(flags, dtype=wp.int32),
+            wp.from_torch(points.reshape(count, 3), dtype=wp.vec3f),
+            wp.from_torch(intensity.reshape(count), dtype=wp.float32),
+            wp.from_torch(valid.reshape(count), dtype=wp.bool),
+        ],
+        device=launch_device,
+    )
+    wp.synchronize_device(launch_device)
 
 
 def _copy_compacted(coordinates, signal, hits, offsets, points, intensity, valid, num_rays: int) -> None:

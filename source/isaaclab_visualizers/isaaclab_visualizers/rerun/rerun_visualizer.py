@@ -51,6 +51,8 @@ _BACKEND_DISPLAY_NAMES = {
 # Same radius and color as the ray-caster hit marker.
 _LIDAR_POINT_RADIUS = 0.02
 _LIDAR_POINT_COLOR = (1.0, 0.0, 0.0)
+# One environment, every tenth step. Logging every hit of every environment copies the cloud to the host each frame.
+_LIDAR_LOG_INTERVAL = 10
 
 
 class NewtonViewerRerun(ViewerRerun):
@@ -569,8 +571,12 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer._live_plot_manager_names = names
 
     def _log_lidar_points(self) -> None:
-        """Log each lidar's finite world hits into the current Rerun frame."""
-        if self._viewer is None:
+        """Log one lidar environment's finite world hits into the current Rerun frame.
+
+        The full cloud is copied to the host, so this runs for a single environment and only every
+        :data:`_LIDAR_LOG_INTERVAL` steps.
+        """
+        if self._viewer is None or self._step_counter % _LIDAR_LOG_INTERVAL != 0:
             return
 
         scene = self._sim.get_scene_data_provider().get_interactive_scene()
@@ -579,11 +585,12 @@ class RerunVisualizer(BaseVisualizer):
 
         from isaaclab.sensors.lidar.lidar import Lidar
 
+        env_ids = [self._env_ids[0]] if self._env_ids else [0]
         for name, sensor in scene.sensors.items():
             if not isinstance(sensor, Lidar):
                 continue
 
-            points = lidar_world_points(sensor, self._env_ids)
+            points = lidar_world_points(sensor, env_ids)
 
             self._viewer.log_points(
                 f"lidar/{name}",

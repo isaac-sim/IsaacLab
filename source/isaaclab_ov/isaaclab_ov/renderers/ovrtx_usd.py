@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,31 @@ if TYPE_CHECKING:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
 logger = logging.getLogger(__name__)
+
+_schemas_registered = False
+
+
+def register_omni_sensor_schemas() -> None:
+    """Ask the host USD registry to load ovrtx's sensor schemas.
+
+    The schema directory ships plugInfo metadata without a host-loadable library, and ovrtx's USD
+    must not be loaded into Isaac Lab's ``pxr``. Registration is attempted once. A failure is logged
+    and ignored so lidar authoring can continue with explicit attributes.
+    """
+    global _schemas_registered
+    if _schemas_registered:
+        return
+    _schemas_registered = True
+    try:
+        import ovrtx
+
+        from pxr import Plug
+
+        schema_dir = Path(ovrtx.__file__).resolve().parent / "bin" / "usd_plugins" / "omni_sensors"
+        if schema_dir.is_dir():
+            Plug.Registry().RegisterPlugins([str(schema_dir)])
+    except Exception:
+        logger.debug("OVRTX omniSensor schemas were not registered with the host USD runtime.", exc_info=True)
 
 
 # Maps camera data types to (prim name, source name). Shared sources use one config.
