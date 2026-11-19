@@ -377,8 +377,8 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
         "steps": observation,
     }
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
-    cfg.task = [cfg.task, without_alive]
-    cfg.task_worlds = task_worlds
+    worlds = None if task_worlds is None else dict(zip(("alive", "still"), task_worlds))
+    cfg.task = mdp2.split(alive=cfg.task, still=without_alive, worlds=worlds)
     env = MDP2RLEnv(cfg)
     try:
         # Even shares, or the given number of worlds per task.
@@ -541,6 +541,38 @@ def test_built_in_steps_must_run_once_in_order():
     cfg.reset_step = [ResetStep.EVENTS, ResetStep.OBSERVE, ResetStep.COMMIT]
     with pytest.raises(ValueError, match="MDP2EnvCfg.reset_step must hold"):
         MDP2RLEnv(cfg)
+
+
+after_steps = mdp2.Term(torch=lambda episode_length, *, steps: (episode_length >= steps).float())
+"""One from the step ``steps`` of the episode on."""
+
+
+def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
+    """A sequence of two tasks, each with its own quantity and reward, steps the same captured and uncaptured, and
+    the environment logs how often each task was done in the last episodes."""
+
+    def stage(steps: int) -> mdp2.TaskCfg:
+        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
+        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})
+        return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
+
+    cfg = cartpole_cfg()
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3), hold=stage(6)))
+    cfg.verify_capture = 10
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(env.max_episode_length):
+            _, _, _, _, extras = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        log = extras["log"]
+        assert log["Progress/warm"] == 1.0 and log["Progress/hold"] == 1.0 and log["Progress/task"] == 1.0
+        # The bonus of each task, per second of the episode: warm ran 3 steps, hold the others.
+        steps = env.max_episode_length
+        assert log["Episode_Reward/warm.bonus"].item() == pytest.approx(3 / steps)
+        assert log["Episode_Reward/hold.bonus"].item() == pytest.approx((steps - 3) / steps)
+    finally:
+        env.close()
 
 
 def test_verify_capture_finds_python_state_that_the_graph_freezes():

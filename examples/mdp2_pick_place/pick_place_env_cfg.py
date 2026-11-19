@@ -214,40 +214,37 @@ EMBODIMENT = mdp2.TaskCfg(
 )
 """What the robot contributes: its actions, its observations with the camera images, and the reset of its arm."""
 
-TASK = mdp2.TaskCfg(
-    quantities={
-        "lifted": mdp2.Quantity(
-            mdp.lifted, inputs={"root_link_pose_w": cube.root_link_pose_w}, params={"minimum_height": 0.1}
-        ),
-        "placed": mdp2.Quantity(
-            mdp.placed,
-            inputs={
-                "object_pose": cube.root_link_pose_w,
-                "object_vel": cube.root_com_vel_w,
-                "target_pose": plate.root_link_pose_w,
-            },
-            params={"radius": 0.06, "maximum_height": CUBE_SIZE, "maximum_speed": 0.01},
-        ),
-        # Lifted, then placed: success, with the subtask reached so far as its state "stage".
-        "success": mdp2.Quantity(
-            mdp2_mdp.sequence,
-            inputs={"lift": mdp2.quantities.lifted, "place": mdp2.quantities.placed},
-            log=True,
-            record=True,
-        ),
-        "object_moved": mdp2.Quantity(
-            mdp.moved, inputs={"root_com_vel_w": cube.root_com_vel_w}, params={"speed": 0.05}, log=True, record=True
-        ),
-    },
-    terminations={
-        "time_out": mdp2.TimeLimit(episode_length_s=30.0),
-        "success": mdp2.Termination(mdp2_mdp.is_positive, inputs={"value": mdp2.quantities.success}),
-        "object_dropped": mdp2.Termination(
-            mdp2_mdp.root_height_below_minimum,
-            inputs={"root_link_pose_w": cube.root_link_pose_w},
-            params={"minimum_height": -0.05},
-        ),
-    },
+TASK = mdp2.compose(
+    mdp2.TaskCfg(
+        quantities={
+            "lifted": mdp2.Quantity(
+                mdp.lifted, inputs={"root_link_pose_w": cube.root_link_pose_w}, params={"minimum_height": 0.1}
+            ),
+            "placed": mdp2.Quantity(
+                mdp.placed,
+                inputs={
+                    "object_pose": cube.root_link_pose_w,
+                    "object_vel": cube.root_com_vel_w,
+                    "target_pose": plate.root_link_pose_w,
+                },
+                params={"radius": 0.06, "maximum_height": CUBE_SIZE, "maximum_speed": 0.01},
+            ),
+            "object_moved": mdp2.Quantity(
+                mdp.moved, inputs={"root_com_vel_w": cube.root_com_vel_w}, params={"speed": 0.05}, log=True, record=True
+            ),
+        },
+        terminations={
+            "time_out": mdp2.TimeLimit(episode_length_s=30.0),
+            "success": mdp2.Termination(mdp2_mdp.is_true, inputs={"value": mdp2.progress.done}),
+            "object_dropped": mdp2.Termination(
+                mdp2_mdp.root_height_below_minimum,
+                inputs={"root_link_pose_w": cube.root_link_pose_w},
+                params={"minimum_height": -0.05},
+            ),
+        },
+    ),
+    # Lifted, then placed: the episode records the step of each, and logs how often each was reached.
+    mdp2.sequence(lift=mdp2.Milestone(mdp2.quantities.lifted), place=mdp2.Milestone(mdp2.quantities.placed)),
 )
 """What the task contributes: the conditions of success, the metrics it records, and when episodes end."""
 

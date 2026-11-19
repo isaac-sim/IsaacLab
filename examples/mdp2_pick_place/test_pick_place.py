@@ -79,7 +79,9 @@ def test_episodes_follow_the_droid_contract_and_the_budget():
 
         records = env.episode_records()
         assert records["world"].tolist() == [0.0] and records["episode"].tolist() == [0.0]
-        assert records["success"].tolist() == [1.0] and records["termination/success"].tolist() == [1.0]
+        assert records["termination/success"].tolist() == [1.0] and records["progress/score"].tolist() == [1.0]
+        # Lifted at the first step after the gripper closed, placed once the cube settled on the plate.
+        assert 0 < records["progress/lift"].item() < records["progress/place"].item() == records["progress/task"].item()
         assert records["terminated"].tolist() == [1.0] and records["truncated"].tolist() == [0.0]
 
         # Drop the cubes to end two more episodes: the budget of three is then spent, and the worlds stop.

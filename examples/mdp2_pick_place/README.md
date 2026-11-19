@@ -8,7 +8,8 @@ Arena needs, on the shape of Arena's openpi DROID evaluation:
   `camera_obs/external_camera_rgb`, `camera_obs/wrist_camera_rgb`, and 8 actions (7 absolute arm joint positions and
   a gripper command, closed above 0.5);
 - a task config composed from a scene, an embodiment, and a task with `mdp2.compose`;
-- success as a `sequence` of lifted, then placed; an episode budget with per-episode records;
+- success as a `sequence` of milestones, lifted then placed; an episode budget with per-episode records,
+  with the step at which each milestone was reached;
 - an object layout drawn from a pool that the term's `init` fills once.
 
 Run its test from the repository root:
@@ -29,5 +30,5 @@ env = MDP2RLEnv(cfg)
 obs, _ = env.reset()
 while env.episodes_completed < cfg.episode_budget:
     obs, *_ = env.step(policy(obs))  # obs["policy"]["joint_pos"], obs["camera_obs"]["wrist_camera_rgb"], ...
-print(env.episode_records()["success"].mean())
+print(env.episode_records()["termination/success"].mean())
 ```

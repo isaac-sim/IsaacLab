@@ -292,9 +292,24 @@ class Action(TermCfg):
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the action writes them
 
 
+class TaskMode(enum.Enum):
+    """How the subtasks of a task run, see :func:`compose`, :func:`sequence`, and :func:`split`."""
+
+    TOGETHER = enum.auto()  # In the same worlds and steps
+    SEQUENCE = enum.auto()  # In the same worlds, one after another
+    SPLIT = enum.auto()  # Each in its own worlds
+
+
 @dataclass
 class TaskCfg:
-    """Configuration of the MDP of a task. Setting a term use to ``None`` disables it."""
+    """Configuration of the MDP of a task. Setting a term use to ``None`` disables it.
+
+    A task may also say when it is done, and hold named subtasks, which are tasks too. Its uses run whenever it runs;
+    those of a subtask run when the subtask does, and their names get the subtask's name as a prefix, as in
+    ``rewards.grasp.lift``, except in a :func:`split`. A subtask reads its own commands and quantities by their names,
+    as a task that runs alone does; :func:`term_state` and :data:`progress` name uses and tasks by their full paths.
+    The progress of every task is a set of fields that terms read, see :data:`progress`.
+    """
 
     actions: dict[str, DirectAction | Action | None] = field(default_factory=dict)
     commands: dict[str, Command | None] = field(default_factory=dict)
@@ -305,13 +320,67 @@ class TaskCfg:
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)
     events: dict[str, Event | None] = field(default_factory=dict)
 
+    # Completion of a task without subtasks: a field of one value per world, true where it is positive.
+    done: FieldSelector | None = None
+    hold: int = 1  # Consecutive steps that ``done`` must hold, counted from the step after the task starts
+    score: float = 1.0  # Weight of the task in its parent's score
+    # Whether the parent is done only while this task's completion holds (True) or does not (False); None to not check
+    final: bool | None = None
 
-def compose(*tasks: TaskCfg) -> TaskCfg:
-    """Merge partial task configs, such as those of a scene, an embodiment, and a task, into one task config.
+    subtasks: dict[str, TaskCfg] = field(default_factory=dict)
+    mode: TaskMode = TaskMode.TOGETHER
+    require: int | None = None  # Together: the subtasks that must be done, None for all of those with a completion
+    worlds: dict[str, int] | None = None  # Split: the worlds of each subtask, None for even shares
 
-    Uses keep the order of the tasks, then their order within each task, and observation groups merge term by term.
-    Two tasks may not both define a use, unless the later one sets it to ``None``, which removes it. Raises a single
-    ``ValueError`` that lists every conflict.
+
+@dataclass(init=False)
+class Milestone(TaskCfg):
+    """A task that only has a completion, such as a step of a :func:`sequence`."""
+
+    def __init__(
+        self, done: FieldSelector, hold: int = 1, score: float = 1.0, final: bool | None = None, **fields: Any
+    ) -> None:
+        # The other fields are those of a task, as ``dataclasses.replace`` passes them.
+        super().__init__(done=done, hold=hold, score=score, final=final, **fields)
+
+
+PROGRESS_FIELDS = ("done", "holding", "active", "score", "done_at", "started_at", "stage")
+"""Fields of the progress of a task: whether it is done (once done, until the episode ends), whether its completion
+holds at this step, whether it runs, its score in ``[0, 1]``, the episode step at which it was done (-1 before) and at
+which it last started, and the subtask that a sequence runs."""
+
+
+@dataclass(frozen=True)
+class TaskSelector:
+    """Selects the progress of a task: ``mdp2.progress.done``, or ``mdp2.progress.grasp.done`` for a subtask."""
+
+    path: tuple[str, ...] = ()
+
+    def __getattr__(self, name: str) -> TaskSelector | FieldSelector:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name in PROGRESS_FIELDS:
+            return progress_field(".".join(self.path), name)
+        return TaskSelector((*self.path, name))
+
+
+def progress_field(task: str, name: str) -> FieldSelector:
+    """Select a field of the progress of the task at the dotted path ``task``, "" for the root task."""
+    return FieldSelector("progress", f"{task}.{name}" if task else name, scene=False)
+
+
+progress = TaskSelector()
+"""The progress of the task and its subtasks, as fields of one value per world, see :data:`PROGRESS_FIELDS`."""
+
+
+def compose(*tasks: TaskCfg, require: int | None = None, **subtasks: TaskCfg) -> TaskCfg:
+    """Run tasks together, in the same worlds and steps.
+
+    Unnamed tasks, such as those of a scene, an embodiment, and a task, merge into one: uses keep the order of the
+    tasks, then their order within each task, and observation groups merge term by term. Two tasks may not both define
+    a use, unless the later one sets it to ``None``, which removes it, and only one may say when it is done or hold
+    subtasks. Named tasks become subtasks that run together, and the task is done once ``require`` of them are done
+    (None for all of them). Raises a single ``ValueError`` that lists every conflict.
     """
     composed, errors = TaskCfg(), []
     owners: dict[tuple[str, ...], int] = {}  # Task that defines each use
@@ -340,6 +409,32 @@ def compose(*tasks: TaskCfg) -> TaskCfg:
             target = composed.observations.setdefault(group, ObservationGroup(concatenate=concatenate)).terms
             merge(("observations", group), target, terms, index)
 
+    # The completion and subtasks come from the one task that has them.
+    cores = [task for task in tasks if task.done is not None or task.subtasks]
+    if len(cores) > 1:
+        errors.append("Only one of the tasks may have a completion or subtasks; name the others to make them subtasks.")
+    elif cores:
+        core = cores[0]
+        composed.done, composed.hold, composed.score, composed.final = core.done, core.hold, core.score, core.final
+        composed.subtasks, composed.mode = dict(core.subtasks), core.mode
+        composed.require, composed.worlds = core.require, core.worlds
+    if subtasks:
+        if cores:
+            errors.append("Tasks with a completion or subtasks cannot also get named subtasks; name them as well.")
+        composed.subtasks, composed.mode, composed.require = dict(subtasks), TaskMode.TOGETHER, require
+
     if errors:
         raise ValueError("Cannot compose the tasks:\n  " + "\n  ".join(errors))
     return composed
+
+
+def sequence(**subtasks: TaskCfg) -> TaskCfg:
+    """Run subtasks one after another, in the same worlds. A subtask starts at the step after the previous one is
+    done, and the task is done once the last one is, which keeps running until the episode ends."""
+    return TaskCfg(subtasks=dict(subtasks), mode=TaskMode.SEQUENCE)
+
+
+def split(worlds: dict[str, int] | None = None, **subtasks: TaskCfg) -> TaskCfg:
+    """Run each subtask in its own worlds, ``worlds[name]`` of them, or an even share if ``worlds`` is None; the first
+    subtasks get one more world when the worlds do not split evenly. A split cannot be part of a sequence."""
+    return TaskCfg(subtasks=dict(subtasks), mode=TaskMode.SPLIT, worlds=worlds)

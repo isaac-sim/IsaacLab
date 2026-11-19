@@ -14,6 +14,7 @@ Torch hooks the same way.
 
 from __future__ import annotations
 
+import functools
 import math
 from collections.abc import Callable, Hashable, Iterable, Sequence
 
@@ -21,9 +22,19 @@ import torch
 import warp as wp
 
 from .compiled import MDP
-from .config import Entity, FieldSelector, Phase, episode_length, last_action, term_state, terminated
+from .config import (
+    Entity,
+    FieldSelector,
+    Phase,
+    TaskMode,
+    episode_length,
+    last_action,
+    progress_field,
+    term_state,
+    terminated,
+)
 from .fusion import Fusion
-from .plan import Call, Launches, Step, StepKind, TermOp
+from .plan import Call, Launches, ObservationSlot, Step, StepKind, TaskNode, TaskTree, TermOp
 from .terms import hook_arguments
 
 _RESULTS = {
@@ -133,7 +144,7 @@ def _apply_action_term(code: Fusion, op: TermOp) -> None:
     def run(call: Call) -> None:
         # Torch hooks get Torch views, and hooks that launch kernels Warp ones.
         views = "torch" if op.torch_hooks else "warp"
-        active = call.state.arrays.get(("active", op.name))
+        active = None if op.active_key is None else call.state.arrays[op.active_key]
         arguments = {
             **call.state.arguments[op.name],
             "action": getattr(call.actions, views)[:, op.columns],
@@ -200,9 +211,38 @@ def _observe(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False) -> None:
     """Add the statements for the steps of a runtime function. ``stepping`` is true for ``evaluate``."""
     for step in steps:
+        match step.kind:
+            case StepKind.UPDATE_PROGRESS:
+                _update_progress(code, step.op)
+                continue
+            case StepKind.START_TASKS:
+                _start_tasks(code, step.op)
+                continue
+            case StepKind.RESET_PROGRESS:
+                _reset_progress(code, step.op)
+                continue
+            case StepKind.CLEAR:
+                _clear(code, mdp, step.op, stepping)
+                continue
         op = step.op
         state = [term_state(op.use, name) for name in op.state]
         active = _active(code, op)
+        if step.entry:
+            # Where the op's task started at this step, instead of the reset worlds.
+            entered = progress_field(op.stage, "entered")
+            started = lambda call, entered=entered: call.state.arrays[entered].warp  # noqa: E731
+            conditions = [f"if {_array(code, entered, wp.array(dtype=wp.bool))}[world]:"]
+            match step.kind:
+                case StepKind.RESET_TIMER:
+                    restart = f"{code.function(_restart)}({_timer(code, op)})"
+                    code.world(*_under(conditions, restart), writes=[("timer", op.name)])
+                case StepKind.COMPUTE:
+                    _run(code, mdp, op, op.compute, [*op.writes, *state], conditions, mask=started)
+                case StepKind.RESET_STATE if op.reset is not None:
+                    _run(code, mdp, op, op.reset, state, conditions, mask=started)
+                case StepKind.RESET_STATE:
+                    _reset_state(code, op, conditions)
+            continue
         match step.kind:
             case StepKind.COMPUTE:
                 _compute(code, mdp, op, active, stepping)
@@ -215,14 +255,14 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                     code.world(*_under(due, f"{ran}[world] = True"), writes=["interval_worlds"])
             case StepKind.UPDATE_STATE:
                 # A function hook gets the worlds where the op runs, None for every world.
-                running = None if op.worlds is None else lambda call, op=op: call.state.arrays["active", op.name].warp
+                running = None if op.active_key is None else lambda call, op=op: call.state.arrays[op.active_key].warp
                 _run(code, mdp, op, op.update, [*state, *op.writes], active, running)
             case StepKind.RESET_TIMER:
                 restart = f"{code.function(_restart)}({_timer(code, op)})"
                 code.world(*_under(active, restart), writes=[("timer", op.name)])
             case StepKind.RESET_STATE if op.reset is not None:
                 # A function hook gets the reset worlds where the op is active.
-                mask = _mask if op.worlds is None else lambda call, op=op: _selected(mdp, op, call)
+                mask = _mask if op.active_key is None else lambda call, op=op: _selected(mdp, op, call)
                 _run(code, mdp, op, op.reset, state, active, mask=mask)
             case StepKind.RESET_STATE:
                 _reset_state(code, op, active)
@@ -246,7 +286,7 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
     """Compute an op into its destination, nested under ``conditions``. Stepping advances observation histories."""
     state = [term_state(op.use, name) for name in op.state]
     reset_like = op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS) or op.phase is Phase.COMMANDS and not stepping
-    if op.worlds is not None and reset_like and not isinstance(op.compute, wp.Function):
+    if op.active_key is not None and reset_like and not isinstance(op.compute, wp.Function):
         # The hook gets the reset worlds where the op is active.
         _run(code, mdp, op, op.compute, [*op.writes, *state], mask=lambda call: _selected(mdp, op, call))
         return
@@ -274,8 +314,12 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             flags.append(f"{done}[world] = True")
             lines = [f"ended = {_value(code, mdp, op)}", *_under(["if ended:"], *flags)]
             if mdp.diagnostics:
-                lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
+                terms = _result(code, "termination_terms")
+                lines.append(f"{terms}[world, {op.index}] = ended")
                 writes.append("termination_terms")
+                if op.stage:
+                    # A task of a sequence that stopped leaves no flag.
+                    code.world(f"{terms}[world, {op.index}] = False", writes=["termination_terms"])
             code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.REWARDS:
             weights = _array(code, "reward_weights", wp.array2d(dtype=wp.float32))
@@ -284,8 +328,12 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             lines = [f"reward = {scale} * {_value(code, mdp, op)}", f"{rewards}[world] = {rewards}[world] + reward"]
             writes = ["rewards"]
             if mdp.diagnostics:
-                lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
+                terms = _result(code, "reward_terms")
+                lines.append(f"{terms}[world, {op.index}] = reward")
                 writes.append("reward_terms")
+                if op.stage:
+                    # A task of a sequence that stopped leaves no reward.
+                    code.world(f"{terms}[world, {op.index}] = 0.0", writes=["reward_terms"])
             code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.COMMANDS | Phase.INTERVAL_EVENTS if stepping:
             writes = [*op.writes, *state]
@@ -324,8 +372,7 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
     if stepping and mdp.final_observations:
         columns = [f"{start} + element"]
         if observation.history_length:
-            size = math.prod(op.shape)
-            columns = [f"{start} + {h * size} + element" for h in range(observation.history_length)]
+            columns = [f"{start} + {h * observation.size} + element" for h in range(observation.history_length)]
         copies = code.argument(
             ("final_observations", group),
             wp.array2d(dtype=dtype),
@@ -339,24 +386,34 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
         code.elements(op.shape, *_under(conditions, f"{out}[world, {start} + element] = {value}", *final))
         return
 
-    # Each thread keeps the history of its element: stepping shifts it and appends the value, observing fills it for
-    # new episodes. The group holds the history oldest first.
+    # Each thread keeps the history of its element: stepping shifts it and appends the value, and observing fills it
+    # for new episodes. An op of a task of a sequence also fills it when stepping, where its task started at this step.
+    # The group holds the history oldest first, each step in ``size`` columns.
     history = _array(code, ("history", op.name), wp.array3d(dtype=wp.float32))
-    size, last = math.prod(op.shape), observation.history_length - 1
-    if stepping:
-        update = [
-            f"for h in range({last}):",
-            f"    {history}[world, h, element] = {history}[world, h + 1, element]",
-            f"{history}[world, {last}, element] = {value}",
-        ]
+    size, last = observation.size, observation.history_length - 1
+    fill = [f"for h in range({observation.history_length}):", f"    {history}[world, h, element] = value"]
+    shift = [
+        f"for h in range({last}):",
+        f"    {history}[world, h, element] = {history}[world, h + 1, element]",
+        f"{history}[world, {last}, element] = value",
+    ]
+    starts = "0"
+    if stepping and op.stage is None:
+        update = [*shift[:-1], f"{history}[world, {last}, element] = {value}"]
     else:
-        length = _array(code, episode_length, wp.array(dtype=wp.int32))
-        update = [
-            f"if {length}[world] == 0:",
-            "    value = " + value,
-            f"    for h in range({observation.history_length}):",
-            f"        {history}[world, h, element] = value",
-        ]
+        length = f"{_array(code, episode_length, wp.array(dtype=wp.int32))}[world]"
+        if op.stage is not None:
+            starts = f"{_array(code, progress_field(op.stage, 'started_at'), wp.array(dtype=wp.int32))}[world]"
+        if stepping:
+            update = [
+                "value = " + value,
+                f"if {length} == {starts}:",
+                *(f"    {line}" for line in fill),
+                "else:",
+                *(f"    {line}" for line in shift),
+            ]
+        else:
+            update = [f"if {length} == {starts}:", "    value = " + value, *(f"    {line}" for line in fill)]
     write = [
         f"for h in range({observation.history_length}):",
         f"    {out}[world, {start} + h * {size} + element] = {history}[world, h, element]",
@@ -433,11 +490,11 @@ def _own_state(op: TermOp, run: Callable[[Call], None]) -> Callable[[Call], None
 
     The ops of different world configs may share the state of their use, as in the Torch backend.
     """
-    if op.worlds is None or not op.state:
+    if op.active_key is None or not op.state:
         return run
 
     def run_in_own_worlds(call: Call) -> None:
-        active = call.state.arrays["active", op.name].torch
+        active = call.state.arrays[op.active_key].torch
         states = [call.state.arrays[term_state(op.use, name)].torch for name in op.state]
         states = [values for values in states if values.shape[:1] == active.shape]
         before = [values.clone() for values in states]
@@ -493,17 +550,19 @@ def _writes_scene(op: TermOp) -> bool:
 
 
 def _active(code: Fusion, op: TermOp) -> list[str]:
-    """Return the condition under which an op's statements run, if it is active in only some worlds."""
-    if op.worlds is None:
-        return []
-    active = _array(code, ("active", op.name), wp.array(dtype=wp.bool))
-    return [f"if {active}[world]:"]
+    """Return the condition under which an op's statements run, if it runs in only some worlds or steps."""
+    return [] if op.active_key is None else [f"if {_runs(code, op)}:"]
+
+
+def _runs(code: Fusion, op: TermOp) -> str:
+    """Return source for whether an op runs at the thread's world, for an op that runs in only some worlds or steps."""
+    return f"{_array(code, op.active_key, wp.array(dtype=wp.bool))}[world]"
 
 
 def _selected(mdp: MDP, op: TermOp, call: Call) -> wp.array:
     """Write the reset worlds where an op is active to its selected buffer, and return the buffer."""
     selected = call.state.arrays["selected", op.name].warp
-    inputs = [call.mask.warp, call.state.arrays["active", op.name].warp]
+    inputs = [call.mask.warp, call.state.arrays[op.active_key].warp]
     wp.launch(_select, dim=mdp.num_worlds, inputs=inputs, outputs=[selected], device=mdp.device)
     return selected
 
@@ -522,6 +581,8 @@ def _accesses(op: TermOp, mdp: MDP) -> tuple[set[Hashable], set[Hashable]]:
     """
     state = {term_state(op.use, name) for name in op.state}
     reads = {*state, ("selected", op.name), *(["rng"] if op.random else [])}
+    # Hooks of a task of a sequence read where it runs and where it started.
+    reads |= {op.active_key, progress_field(op.stage, "entered")} if op.stage else set()
     for arg, selector in op.inputs.items():
         if isinstance(selector, Entity):
             reads.update(FieldSelector(selector.name, field) for field in mdp.schema.entities[selector.name].fields)
@@ -559,3 +620,185 @@ def _under(conditions: Sequence[str], *lines: str) -> list[str]:
     """Indent ``lines`` under ``conditions``, nesting each condition one level deeper than the previous one."""
     nested = [f"{'    ' * depth}{condition}" for depth, condition in enumerate(conditions)]
     return nested + [f"{'    ' * len(conditions)}{line}" for line in lines]
+
+
+_PROGRESS_TYPES = {"done": wp.bool, "holding": wp.bool, "active": wp.bool, "entered": wp.bool, "score": wp.float32}
+"""Element types of the progress fields other than the ``int32`` ones."""
+
+
+def _progress(code: Fusion, path: str, name: str) -> str:
+    """Return source for a field of a task's progress at the thread's world."""
+    key = progress_field(path, name)
+    return f"{_array(code, key, wp.array(dtype=_PROGRESS_TYPES.get(name, wp.int32)))}[world]"
+
+
+def _in_tree(trees: tuple[TaskTree, ...], tree: TaskTree) -> list[str]:
+    """Return the condition for the worlds of a tree's world config, if there are several."""
+    return [] if len(trees) == 1 else [f"if world >= {tree.worlds.start} and world < {tree.worlds.stop}:"]
+
+
+def _tree_writes(tree: TaskTree, names: Iterable[str]) -> list[FieldSelector]:
+    """Return the keys of the progress fields of a tree that a statement may write."""
+    return [progress_field(node.path, name) for node in tree.nodes for name in names]
+
+
+def _update_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
+    """Count the completions of the tasks of every tree, subtasks first, and advance the sequences once."""
+    length = f"{_array(code, episode_length, wp.array(dtype=wp.int32))}[world]"
+    for tree in trees:
+        lines = []
+        for node in reversed(tree.nodes):
+            if node.path in tree.completes:
+                lines += _node_progress(code, tree, node, length)
+        names = ("done", "holding", "score", "done_at", "streak", "stage")
+        if lines:
+            code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
+
+
+def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) -> list[str]:
+    """Return the statements that update the progress of one task, after those of its subtasks."""
+    field = functools.partial(_progress, code, node.path)
+    active, done, holding, score = field("active"), field("done"), field("holding"), field("score")
+
+    if node.done is not None:
+        # Done holds for ``hold`` steps in a row, counted while the task runs and, once done, after it.
+        condition = f"{_array(code, node.done, wp.array(dtype=node.done_dtype))}[world]"
+        positive = {wp.bool: "", wp.float32: " > 0.0", wp.int32: " > 0"}[node.done_dtype]
+        streak = field("streak")
+        lines = [
+            f"if {active} or {done}:",
+            f"    if {condition}{positive}:",
+            f"        {streak} = wp.min({streak} + 1, {node.hold})",
+            "    else:",
+            f"        {streak} = 0",
+            f"{holding} = ({active} or {done}) and {streak} >= {node.hold}",
+            f"complete = {holding}",
+        ]
+    else:
+        counted = tree.counted(node)
+        children = [functools.partial(_progress, code, child.path) for child in counted]
+        finals = [f"{child('holding')} == {child_node.final}" for child, child_node in zip(children, counted)]
+        finals = [final for final, child_node in zip(finals, counted) if child_node.final is not None]
+        finals = " and ".join(finals) or "True"
+        if node.mode is TaskMode.SEQUENCE:
+            # One subtask at most per step: the next one starts at the step after.
+            stage = field("stage")
+            lines = [f"if {active} and not {done}:"]
+            for k, child in enumerate(children):
+                lines += [
+                    f"    {'if' if k == 0 else 'elif'} {stage} == {k} and {child('done')}:",
+                    f"        {stage} = {k + 1}",
+                ]
+            lines += [
+                f"complete = {stage} == {len(counted)} and ({finals})",
+                f"{holding} = {children[-1]('holding')}",
+            ]
+        else:
+            required = node.require or len(counted)
+            lines = [
+                "count = int(0)",
+                "held = int(0)",
+                *(f"count = count + wp.where({child('done')}, 1, 0)" for child in children),
+                *(f"held = held + wp.where({child('holding')}, 1, 0)" for child in children),
+                f"complete = count >= {required} and ({finals})",
+                f"{holding} = held >= {required}",
+            ]
+
+    lines += [
+        f"if {active} and not {done} and complete:",
+        f"    {done} = True",
+        f"    {field('done_at')} = {length}",
+    ]
+    if node.done is not None:
+        return [*lines, f"{score} = wp.where({done}, 1.0, 0.0)"]
+
+    counted = tree.counted(node)
+    scores = [_progress(code, child.path, "score") for child in counted]
+    if node.mode is TaskMode.TOGETHER and node.require is not None:
+        # The mean of the best ``require`` scores, picked one at a time.
+        lines += ["taken = int(0)", "total = float(0.0)"]
+        for _ in range(node.require):
+            lines += ["best = float(-1.0)", "pick = int(0)"]
+            for k, child_score in enumerate(scores):
+                lines += [
+                    f"if (taken & {1 << k}) == 0 and {child_score} > best:",
+                    f"    best = {child_score}",
+                    f"    pick = {1 << k}",
+                ]
+            lines += ["taken = taken | pick", "total = total + best"]
+        return [*lines, f"{score} = total / {float(node.require)}"]
+    weights = [child.score / sum(child.score for child in counted) for child in counted]
+    return [*lines, f"{score} = " + " + ".join(f"{weight!r} * {child}" for weight, child in zip(weights, scores))]
+
+
+def _start_tasks(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
+    """Start the tasks of the sequences that advanced, parents first, and stop the tasks they left."""
+    length = f"{_array(code, episode_length, wp.array(dtype=wp.int32))}[world]"
+    for tree in trees:
+        lines = []
+        for node in tree.nodes:
+            if not node.staged:
+                continue
+            parent = tree.parent(node)
+            runs = _progress(code, parent.path, "active")
+            if parent.mode is TaskMode.SEQUENCE:
+                # The last task keeps running once it is done.
+                stage = f"wp.min({_progress(code, parent.path, 'stage')}, {len(parent.children) - 1})"
+                runs = f"{runs} and {stage} == {parent.children.index(node.path)}"
+            field = functools.partial(_progress, code, node.path)
+            lines += [
+                f"runs = {runs}",
+                f"{field('entered')} = runs and not {field('active')}",
+                f"if {field('entered')}:",
+                f"    {field('started_at')} = {length}",
+                f"{field('active')} = runs",
+            ]
+        if lines:
+            writes = _tree_writes(tree, ("entered", "started_at", "active"))
+            code.world(*_under(_in_tree(trees, tree), *lines), writes=writes)
+
+
+def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
+    """Restart the progress of every task in the masked worlds, as at the start of an episode."""
+    for tree in trees:
+        lines = []
+        for node in tree.nodes:
+            field = functools.partial(_progress, code, node.path)
+            lines += [
+                f"{field('done')} = False",
+                f"{field('holding')} = False",
+                f"{field('done_at')} = -1",
+                f"{field('started_at')} = 0",
+                f"{field('score')} = 0.0",
+                f"{field('active')} = {tree.runs_at_start(node)}",
+                *([f"{field('stage')} = 0"] if node.mode is TaskMode.SEQUENCE else []),
+                *([f"{field('streak')} = 0"] if node.done is not None else []),
+                *([f"{field('entered')} = False"] if node.staged else []),
+            ]
+        names = ("done", "holding", "done_at", "started_at", "score", "active", "stage", "streak", "entered")
+        code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
+
+
+def _clear(code: Fusion, mdp: MDP, slot: ObservationSlot, stepping: bool) -> None:
+    """Zero the columns of a slot that no op writes at this step.
+
+    A column is written by the op that runs and is that wide, so the threads of different ops never write the same
+    column of a world.
+    """
+    dtype = mdp.observation_layouts[slot.buffer][1]
+    group = slot.buffer
+    out = code.argument(("observations", group), wp.array2d(dtype=dtype), lambda call: call.observations[group].warp)
+    covers = []
+    for op in slot.ops:
+        width = f"element % {slot.size} < {math.prod(op.shape)}"
+        covers.append(width if op.active_key is None else f"({_runs(code, op)} and {width})")
+    column, zero = f"{slot.columns.start} + element", f"wp.{dtype.__name__}(0)"
+    lines = [f"if not ({' or '.join(covers)}):", f"    {out}[world, {column}] = {zero}"]
+    if stepping and mdp.final_observations:
+        copies = code.argument(
+            ("final_observations", group),
+            wp.array2d(dtype=dtype),
+            lambda call: call.transition.final_observations[group].warp,
+        )
+        lines += [f"    if {_result(code, 'done')}[world]:", f"        {copies}[world, {column}] = {zero}"]
+    code.elements((slot.columns.stop - slot.columns.start,), *lines)

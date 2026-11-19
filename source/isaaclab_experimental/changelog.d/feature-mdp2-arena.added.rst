@@ -10,8 +10,18 @@
   threshold.
 * Added :func:`~isaaclab_experimental.mdp2.compose`, which merges partial task configs, such as those of a scene, an
   embodiment, and a task, in order.
-* Added the progress quantity :data:`~isaaclab_experimental.mdp2.mdp.sequence`, and
-  :data:`~isaaclab_experimental.mdp2.mdp.joint_pos_normalized`.
+* Added tasks of tasks to MDP2: a :class:`~isaaclab_experimental.mdp2.TaskCfg` may say when it is ``done`` (with
+  ``hold``, ``score``, and ``final``) and hold named subtasks, which run together
+  (:func:`~isaaclab_experimental.mdp2.compose`, with ``require``), one after another
+  (:func:`~isaaclab_experimental.mdp2.sequence`), or in their own worlds (:func:`~isaaclab_experimental.mdp2.split`).
+  :class:`~isaaclab_experimental.mdp2.Milestone` is a task with only a completion. The uses of a task of a sequence run
+  while it does, and restart when it starts. Terms read the progress of every task, such as
+  ``mdp2.progress.grasp.done``, and :class:`~isaaclab_experimental.envs.MDP2RLEnv` logs it as ``Progress/<task>`` and
+  records the step at which each task was done.
+* Added :meth:`~isaaclab_experimental.mdp2.MDP.spec` and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask`,
+  which name the columns of the observation buffers and the columns each world writes.
+* Added :data:`~isaaclab_experimental.mdp2.mdp.joint_pos_normalized`, :data:`~isaaclab_experimental.mdp2.mdp.is_true`,
+  and :data:`~isaaclab_experimental.mdp2.mdp.one_hot`.
 * Added an episode budget to :class:`~isaaclab_experimental.envs.MDP2RLEnv` for evaluation, ``episode_budget``: worlds
   stop starting episodes once the budget is spent, and every episode is recorded on the device, with the quantities
   marked ``Quantity(record=True)``, in :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records`.

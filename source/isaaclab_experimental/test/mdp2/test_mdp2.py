@@ -1010,17 +1010,20 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
             scene.step()
             mdp2.evaluate(mdp, state, transition)
 
+        # Observations of the same name share columns, as wide as the widest, in the order they first appear:
+        # last_action (0-1), action_l2 (2), action_rate_l2 (3), eager_l2 (4), narrow_rate (5).
         policy = transition.observations["policy"].torch
         torch.testing.assert_close(policy[:2, :2], steps[1][:2])
         torch.testing.assert_close(policy[:2, 2], steps[1][:2].square().sum(-1))
         torch.testing.assert_close(policy[:2, 3], (steps[1][:2] - steps[0][:2]).square().sum(-1))
-        # The second column of the actions pads the narrow config: its terms ignore it.
+        # The second column of the actions pads the narrow config: its terms ignore it, and its columns stay zero.
         torch.testing.assert_close(policy[2:, 0], steps[1][2:, 0])
-        torch.testing.assert_close(policy[2:, 1], steps[1][2:, 0].square())
-        torch.testing.assert_close(policy[2:, 2], (steps[1][2:, 0] - steps[0][2:, 0]).square())
+        assert (policy[2:, 1] == 0.0).all() and (policy[2:, 3] == 0.0).all() and (policy[:2, 5] == 0.0).all()
+        torch.testing.assert_close(policy[2:, 2], steps[1][2:, 0].square())
+        torch.testing.assert_close(policy[2:, 5], (steps[1][2:, 0] - steps[0][2:, 0]).square())
         # Eager terms too.
         torch.testing.assert_close(policy[:2, 4], steps[1][:2].square().sum(-1))
-        torch.testing.assert_close(policy[2:, 3], steps[1][2:, 0].square())
+        torch.testing.assert_close(policy[2:, 4], steps[1][2:, 0].square())
 
 
 def test_library_action_and_termination_terms():
@@ -1666,38 +1669,252 @@ def joint_above_warp(world: int, joint_pos: wp.array2d(dtype=float), joint_ids: 
 
 
 joint_above = mdp2.Term(
-    torch=lambda joint_pos, joint_ids: (joint_pos[:, joint_ids[0]] > 0.5).float(), warp=joint_above_warp
+    torch=lambda joint_pos, joint_ids: (joint_pos[:, joint_ids][:, 0] > 0.5).float(), warp=joint_above_warp
 )
 
 
-def test_sequence_succeeds_once_its_conditions_held_in_order():
-    """A sequence advances a stage per step while its current condition holds, and restarts with the episode."""
-    for backend in ("torch", "warp"):
-        scene = PointMassScene(num_worlds=1, joint_names=("first", "second"), device=DEVICE)
-        builder = mdp2.MDPBuilder(scene.schema)
-        builder.add_quantity(
-            "first",
-            mdp2.Quantity(joint_above, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints("first")}),
-        )
-        builder.add_quantity(
-            "second",
-            mdp2.Quantity(joint_above, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints("second")}),
-        )
-        conditions = {"lift": mdp2.quantities.first, "place": mdp2.quantities.second}
-        builder.add_quantity("success", mdp2.Quantity(mdp2.mdp.sequence, inputs=conditions))
-        mdp = builder.finalize(device=DEVICE, backend=backend)
-        state, transition = mdp.state(scene), mdp.transition()
-        joints = scene.data("robot", "joint_pos").torch
-        success = state.arrays[mdp2.quantities.success].torch
-        stage = state.arrays[mdp2.term_state("quantities.success", "stage")].torch
+def above(*joints: str) -> dict[str, mdp2.Quantity]:
+    """Quantities, one per joint, that are one where the joint is above 0.5."""
+    return {
+        joint: mdp2.Quantity(joint_above, inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints(joint)})
+        for joint in joints
+    }
 
-        results = []
-        for values in ([0.0, 1.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0]):
-            joints.copy_(torch.tensor([values], device=DEVICE))
+
+def run_progress(
+    task: mdp2.TaskCfg, joint_values: list, backend: str, capture: bool, num_worlds: int = 1, joints: tuple = ()
+):
+    """Run a task whose joints, named after its quantities unless given, are set at every step, and return per step
+    the fields of every task's progress by name, every other field of the MDP, such as term state, by selector, and
+    the rewards, terminations, per-term rewards, and observations."""
+    joint_names = joints or tuple(task.quantities)
+    scene = PointMassScene(num_worlds=num_worlds, joint_names=joint_names, device=DEVICE)
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_task(task)
+    mdp = builder.finalize(device=DEVICE, backend=backend, diagnostics=True)
+    state, transition = mdp.state(scene), mdp.transition()
+    actions = ProxyArray(wp.zeros((num_worlds, max(mdp.action_dim, 1)), dtype=wp.float32, device=DEVICE))
+    captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
+    env_reset(mdp, state, scene, transition.observations, torch.ones(num_worlds, dtype=torch.bool, device=DEVICE))
+
+    joints = scene.data("robot", "joint_pos").torch
+    fields = [key for key in state.arrays if isinstance(key, mdp2.FieldSelector) and not key.scene]
+    history = []
+    for values in joint_values:
+        joints.copy_(torch.tensor(values, device=DEVICE).expand_as(joints))
+        if captured is None:
             mdp2.evaluate(mdp, state, transition)
-            results.append((stage.item(), success.item()))
-        # The second condition does not count before the first; once both held in order, success stays.
-        assert results == [(0.0, 0.0), (1.0, 0.0), (2.0, 1.0), (2.0, 1.0)]
+        else:
+            captured.evaluate()
+        step = {key.field if key.entity == "progress" else str(key): state.arrays[key].torch.clone() for key in fields}
+        step["rewards"] = transition.rewards.torch.clone()
+        step["reward_terms"] = transition.reward_terms.torch.clone()
+        step["terminated"] = transition.terminated.torch.clone()
+        step |= {group: values.torch.clone() for group, values in transition.observations.items()}
+        history.append(step)
+    return mdp, state, history
 
-        mdp2.reset(mdp, state, ProxyArray(wp.ones(1, dtype=wp.bool, device=DEVICE)))
-        assert stage.item() == 0.0
+
+def check_progress(task: mdp2.TaskCfg, joint_values: list, joints: tuple = ()) -> list[dict[str, torch.Tensor]]:
+    """Run a task on both backends, eagerly and captured, check that the four runs agree bitwise, and return one."""
+    runs = []
+    for backend in ("torch", "warp"):
+        for capture in (False, True) if torch.cuda.is_available() else (False,):
+            runs.append(run_progress(task, joint_values, backend, capture, joints=joints)[2])
+    for run in runs[1:]:
+        for expected, actual in zip(runs[0], run):
+            for name, value in expected.items():
+                assert torch.equal(value, actual[name]), name
+    return runs[0]
+
+
+def test_milestones_count_their_hold_from_the_step_after_the_previous_one():
+    """Lift, then upright for 10 steps: the hold starts the step after the lift, and a break restarts it."""
+    lift_and_hold = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("lifted", "upright")),
+        mdp2.sequence(
+            lifted=mdp2.Milestone(mdp2.quantities.lifted),
+            upright=mdp2.Milestone(mdp2.quantities.upright, hold=10),
+        ),
+    )
+    # Upright from the start; lifted from step 5 (episode steps count from 1).
+    steps = [[0.0, 1.0]] * 4 + [[1.0, 1.0]] * 16
+    history = check_progress(lift_and_hold, steps)
+    done = [int(step["done"].item()) for step in history]
+    assert done.index(1) == 14  # Step 15: 10 upright steps after the lift at step 5
+    assert history[-1]["lifted.done_at"].item() == 5 and history[-1]["done_at"].item() == 15
+    assert history[5]["upright.started_at"].item() == 5 and history[4]["stage"].item() == 1
+
+    # Tipping over at step 10 restarts the count.
+    steps = [[0.0, 1.0]] * 4 + [[1.0, 1.0]] * 5 + [[1.0, 0.0]] + [[1.0, 1.0]] * 12
+    history = check_progress(lift_and_hold, steps)
+    assert [int(step["done"].item()) for step in history].index(1) == 19
+
+
+def test_sequence_rechecks_the_final_completion_of_its_subtasks():
+    """Put in, then close: the second subtask starts the step after the first, even if already satisfied, and the
+    task is done only while both still hold; reopening keeps the recorded completion of the first."""
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("inside", "closed")),
+        mdp2.sequence(
+            put=mdp2.Milestone(mdp2.quantities.inside, hold=2, final=True),
+            close=mdp2.Milestone(mdp2.quantities.closed, final=True),
+        ),
+    )
+    # Closed from the start, inside from step 3: put is done at step 4, close at step 5, and so the task.
+    history = check_progress(task, [[0.0, 1.0]] * 2 + [[1.0, 1.0]] * 4)
+    final = history[-1]
+    assert (final["put.done_at"].item(), final["close.done_at"].item(), final["done_at"].item()) == (4, 5, 5)
+
+    # Taken out again at step 5: close is done, but the task is not, since put no longer holds.
+    history = check_progress(task, [[0.0, 1.0]] * 2 + [[1.0, 1.0]] * 2 + [[0.0, 1.0]] * 3)
+    final = history[-1]
+    assert final["put.done_at"].item() == 4 and final["close.done"].item() and not final["done"].item()
+
+
+def test_together_requires_some_subtasks_and_scores_the_best():
+    """Two of three subtasks: done once two are, scored by the mean of the best two, each a weighted sequence."""
+
+    def sort(joint: str) -> mdp2.TaskCfg:
+        return mdp2.sequence(
+            grasped=mdp2.Milestone(getattr(mdp2.quantities, joint), score=0.25),
+            binned=mdp2.Milestone(getattr(mdp2.quantities, joint), score=0.75),
+        )
+
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("red", "blue", "green")),
+        red=sort("red"),
+        blue=sort("blue"),
+        green=sort("green"),
+        require=2,
+    )
+    history = check_progress(task, [[1.0, 0.0, 0.0]] * 2 + [[1.0, 1.0, 0.0]])
+    assert history[0]["red.score"].item() == 0.25 and history[0]["score"].item() == 0.125
+    assert history[1]["red.done"].item() and not history[1]["done"].item()
+    assert history[2]["score"].item() == 0.625 and not history[2]["done"].item()
+
+
+def test_tasks_of_a_sequence_run_their_uses_in_turn():
+    """Rewards follow the subtask that ran when the step started, and observations of the same name share their
+    columns, written by the subtask that runs, with a history that restarts with it. Terms read the progress."""
+
+    def stage(joint: str, reward: float) -> mdp2.TaskCfg:
+        position = mdp2.Observation(
+            joint_pos_subset,
+            inputs={"joint_pos": robot.joint_pos, "joint_ids": robot.joints(joint)},
+            history_length=2,
+        )
+        return mdp2.TaskCfg(
+            rewards={"alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}, weight=reward)},
+            observations={"policy": {"position": position}},
+            done=getattr(mdp2.quantities, joint),
+        )
+
+    stage_index = mdp2.Observation(mdp2.mdp.one_hot, inputs={"value": mdp2.progress.stage}, params={"size": 2})
+    task = mdp2.compose(
+        mdp2.TaskCfg(
+            quantities=above("reach", "lift"),
+            observations={"policy": {"stage": stage_index}},
+            terminations={"success": mdp2.Termination(mdp2.mdp.is_true, inputs={"value": mdp2.progress.done})},
+        ),
+        mdp2.sequence(reach=stage("reach", 1.0), lift=stage("lift", 2.0)),
+    )
+    history = check_progress(task, [[0.0, 0.25], [1.0, 0.25], [1.0, 0.75]])
+    assert [step["terminated"].item() for step in history] == [False, False, True]
+    step_dt = 0.02
+    rewards = [round(step["rewards"].item() / step_dt, 6) for step in history]
+    assert rewards == [1.0, 1.0, 2.0]  # Reach until its step 2 is done, lift from step 3
+    # The stage (columns 0-1), then the position of the subtask that runs, with its history (columns 2-3).
+    policy = [step["policy"][0].tolist() for step in history]
+    assert policy[0] == [1.0, 0.0, 0.0, 0.0]
+    assert policy[1] == [0.0, 1.0, 0.25, 0.25]  # Lift's position, its history filled at its start
+    assert policy[2] == [0.0, 0.0, 0.25, 0.75]  # The last subtask keeps running once the sequence is done
+
+    mdp, state, _ = run_progress(task, [[0.0, 0.25]], "warp", capture=False)
+    position = mdp.spec()["policy"][1]
+    assert (position.name, position.columns, position.history_length) == ("position", slice(2, 4), 2)
+    assert mdp.observation_mask(state, "policy").tolist() == [[True] * 4]
+    assert "during reach" in mdp.describe()
+
+
+def test_tasks_restart_their_state_timers_and_commands_when_they_start():
+    """A task of a sequence restarts its term state (to its initial value, or with its reset hook), its timers, and
+    its commands when it starts, and its per-term rewards are zero once it stopped."""
+    gain = {"joint_pos": robot.joint_pos}
+
+    def stage(joint: str, hooked: bool) -> mdp2.TaskCfg:
+        rewards = {"fused": mdp2.Reward(accumulate, inputs=gain, params={"gain": 1.0})}
+        commands = {}
+        if hooked:
+            rewards["hooked"] = mdp2.Reward(torch_accumulate(5.0), inputs=gain, params={"gain": 1.0})
+            commands["count"] = mdp2.Command(sample_count, resampling_time_range=(0.04, 0.04))
+        return mdp2.TaskCfg(rewards=rewards, commands=commands, done=getattr(mdp2.quantities, joint))
+
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")), mdp2.sequence(first=stage("a", False), second=stage("b", True))
+    )
+    # The first task is done at step 2, the second runs from step 3.
+    history = check_progress(task, [[0.25, 0.0], [1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [1.0, 0.0]])
+    total = [step[str(mdp2.term_state("rewards.second.fused", "total"))].item() for step in history]
+    hooked = [step[str(mdp2.term_state("rewards.second.hooked", "total"))].item() for step in history]
+    samples = [step[str(mdp2.term_state("commands.second.count", "samples"))].item() for step in history]
+    assert total[2:] == [1.0, 2.0, 3.0]  # Restarted at zero, then the first joint at every step
+    assert hooked[1:] == [15.0, 16.0, 17.0, 18.0]  # Its initial 5, then its reset hook's 10, at its start
+    assert samples == [0.0, 1.0, 1.0, 2.0, 2.0]  # Sampled at its start, then every two steps
+    first = [step[str(mdp2.term_state("rewards.first.fused", "total"))].item() for step in history]
+    assert first == [0.25, 1.25, 1.25, 1.25, 1.25]
+    assert all(step["reward_terms"][0, 0].item() == 0.0 for step in history[2:])
+
+
+def test_subtasks_read_their_own_quantities_by_name():
+    """Subtasks written as tasks of their own read their quantities by their names, which their prefix keeps apart."""
+
+    def reach(joint: str) -> mdp2.TaskCfg:
+        inputs = {"joint_pos": robot.joint_pos, "joint_ids": robot.joints(joint)}
+        return mdp2.TaskCfg(
+            quantities={"reached": mdp2.Quantity(joint_above, inputs=inputs)}, done=mdp2.quantities.reached
+        )
+
+    task = mdp2.sequence(first=reach("a"), second=reach("b"))
+    history = check_progress(task, [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], joints=("a", "b"))
+    assert [step["first.done_at"].item() for step in history] == [-1, 2, 2]
+    assert [step["second.done_at"].item() for step in history] == [-1, -1, 3]
+
+
+def test_split_runs_a_sequence_beside_a_plain_task():
+    """A split gives a sequence and a plain task their own worlds, and the root's progress is each world's own."""
+    sequence = mdp2.sequence(first=mdp2.Milestone(mdp2.quantities.a), second=mdp2.Milestone(mdp2.quantities.b))
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")),
+        mdp2.split(staged=sequence, plain=mdp2.TaskCfg(done=mdp2.quantities.b), worlds={"staged": 3, "plain": 1}),
+    )
+    mdp, _, history = run_progress(task, [[1.0, 1.0], [1.0, 1.0]], "warp", capture=False, num_worlds=4)
+    assert [config.worlds for config in mdp.world_configs] == [range(0, 3), range(3, 4)]
+    assert history[0]["done"].tolist() == [False] * 3 + [True]
+    assert history[1]["done"].tolist() == [True] * 4
+    assert history[1]["staged.done"].tolist() == [True] * 3 + [False]
+
+
+def test_task_trees_report_errors():
+    """A split in a sequence, a sequence task without a completion, a task with subtasks and a done, and two uses of
+    one name that may run together are errors."""
+    schema = PointMassScene(num_worlds=2, joint_names=("a",)).schema
+    quantities = mdp2.TaskCfg(quantities=above("a"))
+    milestone = mdp2.Milestone(mdp2.quantities.a)
+    cases = [
+        (mdp2.sequence(first=mdp2.split(x=milestone, y=milestone)), "a sequence cannot"),
+        (mdp2.sequence(first=milestone, second=mdp2.TaskCfg()), "needs a completion"),
+        (mdp2.TaskCfg(done=mdp2.quantities.a, subtasks={"first": milestone}), "cannot have a done"),
+    ]
+    for task, message in cases:
+        with pytest.raises(ValueError, match=message):
+            builder = mdp2.MDPBuilder(schema)
+            builder.add_task(mdp2.compose(quantities, task))
+            builder.validate()
+
+    observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})
+    sharing = mdp2.TaskCfg(observations={"policy": {"position": observation}}, done=mdp2.quantities.a)
+    builder = mdp2.MDPBuilder(schema)
+    builder.add_task(mdp2.compose(quantities, first=sharing, second=sharing))
+    with pytest.raises(ValueError, match="share the columns of 'position'"):
+        builder.validate()

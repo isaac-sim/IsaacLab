@@ -95,7 +95,62 @@ each runtime function's steps.
    print(mdp.describe())
 
 :class:`~isaaclab_experimental.mdp2.MDPBuilder.replicate` runs different task configs, with their own rewards and
-weights, in different worlds of one scene.
+weights, in different worlds of one scene; :func:`~isaaclab_experimental.mdp2.split` does it from a task config.
+
+
+Subtasks and progress
+---------------------
+
+A task may say when it is ``done``, and hold named subtasks, which are tasks too. Three functions combine tasks into
+one:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Function
+     - Subtasks run
+     - The task is done
+   * - :func:`~isaaclab_experimental.mdp2.compose`
+     - in the same worlds, at the same steps
+     - once ``require`` of them are (all by default)
+   * - :func:`~isaaclab_experimental.mdp2.sequence`
+     - in the same worlds, one after another
+     - once the last one is
+   * - :func:`~isaaclab_experimental.mdp2.split`
+     - each in its own worlds
+     - once the one of the world is
+
+.. code-block:: python
+
+   q = mdp2.quantities
+   TASK = mdp2.compose(
+       BASE,  # Uses of every step: observations, the action rate, the time limit
+       mdp2.sequence(
+           reach=mdp2.TaskCfg(rewards={"reach": ...}, done=q.near_object),
+           grasp=mdp2.TaskCfg(rewards={"grasp": ...}, done=q.grasped, hold=3),
+           lift=mdp2.Milestone(q.lifted),
+       ),
+   )
+   terminations = {"success": mdp2.Termination(mdp.is_true, inputs={"value": mdp2.progress.done})}
+
+- **Completion.** ``done`` is a field of one value per world, true where positive, that must hold for ``hold`` steps
+  in a row, counted from the step after the task starts. A :class:`~isaaclab_experimental.mdp2.Milestone` is a task
+  with only a completion. ``final=True`` (or ``False``) makes the parent done only while the subtask's completion
+  still holds (or does not), and ``score`` weighs the subtask in the parent's score.
+- **Stages.** A subtask of a sequence starts at the step after the previous one is done, and the last one keeps
+  running. Its uses run only while it does: its rewards, terminations, commands, and events follow the subtask that
+  ran when the step started, and its observations the one that runs after it. Starting restarts their state, timers,
+  commands, and observation histories. Quantities are measurements: they run in every step, and only restart. Reset
+  and startup events set up whole episodes, so they run at every reset.
+- **Names.** The uses of a subtask get its name as a prefix, as in ``rewards.grasp.grasp``, except in a split, whose
+  subtasks run apart. A subtask reads its own commands and quantities by their names, as a task alone does, so
+  each stage of a sequence can have its own ``reached``; ``term_state`` and ``mdp2.progress`` take full paths. Observations of the same name share their columns, as wide as the widest, so a ``goal`` of each
+  stage, or the ``joint_pos`` of two robots, is one input of the policy; :meth:`~isaaclab_experimental.mdp2.MDP.spec`
+  names the columns, and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask` gives those each world writes.
+- **Progress.** Every task's progress is a set of fields that terms read: ``mdp2.progress.done``,
+  ``mdp2.progress.grasp.done``, and also ``holding``, ``active``, ``score``, ``done_at``, ``started_at``, and a
+  sequence's ``stage`` (observed with :data:`~isaaclab_experimental.mdp2.mdp.one_hot`). ``MDP2RLEnv`` logs whether each
+  task was done as ``Progress/<task>``.
 
 
 Backends and capture
@@ -181,11 +236,11 @@ episode ended.
 - **Composition.** :func:`~isaaclab_experimental.mdp2.compose` merges partial task configs term by term, such as
   those of a scene, an embodiment, and a task, and reports uses that two of them define; a later part removes a use
   by setting it to ``None``. Uses keep the order of the parts.
-- **Success.** :data:`~isaaclab_experimental.mdp2.mdp.sequence` turns conditions into progress through ordered
-  subtasks, which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on.
+- **Success** is the completion of the task, built from milestones and subtasks (see `Subtasks and progress`_),
+  which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on.
 - **Episode budget.** With ``episode_budget``, ``MDP2RLEnv`` runs that many episodes over its worlds, then stops them,
-  and records each episode on the device: its world, length, how it ended, and its ``Quantity(record=True)`` values,
-  such as success. :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records` returns them.
+  and records each episode on the device: its world, length, how it ended, its ``Quantity(record=True)`` values, and
+  the step at which each task was done. :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records` returns them.
 
 .. code-block:: python
 
@@ -194,7 +249,7 @@ episode ended.
    obs, _ = env.reset()
    while env.episodes_completed < cfg.episode_budget:
        obs, *_ = env.step(policy(obs["policy"], obs["camera_obs"]))
-   success_rate = env.episode_records()["success"].mean()
+   success_rate = env.episode_records()["termination/success"].mean()
 
 
 Limitations

@@ -18,7 +18,7 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .config import Entity, FieldSelector, Phase, SubsetSelector, UniformNoise, last_action
+from .config import Entity, FieldSelector, Phase, SubsetSelector, TaskMode, UniformNoise, last_action, progress_field
 from .terms import State
 
 if TYPE_CHECKING:
@@ -40,6 +40,11 @@ class ActionOp:
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
 
+    @property
+    def active_key(self) -> Hashable | None:
+        """Key in :attr:`MDPState.arrays` of the worlds where the op is active, None for every world."""
+        return None if self.worlds is None else ("active", self.name)
+
 
 @dataclass(frozen=True)
 class ObservationOutput:
@@ -52,6 +57,8 @@ class ObservationOutput:
     scale: float | None = None
     history_length: int = 0  # Steps of history in the group, 0 for the latest value only
     noise_stream: int | None = None  # Row of MDPState.rng for the noise
+    slot: str = ""  # Name of its slot of the buffer, which the ops of the same name share
+    size: int = 0  # Columns of one step of history: those of its slot, which may be wider than the op's output
 
 
 @dataclass(frozen=True)
@@ -88,6 +95,16 @@ class TermOp:
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     # Actions of its world config, if it reads the last actions and other world configs have more
     action_dim: int | None = None
+    # The task of a sequence that the op belongs to: it runs only while that task runs, and its state, timer, and
+    # command restart when the task starts. Quantities run in every step: they only restart.
+    stage: str | None = None
+
+    @property
+    def active_key(self) -> Hashable | None:
+        """Key in :attr:`MDPState.arrays` of the worlds where the op runs at this step, None for every world."""
+        if self.stage is not None and self.phase is not Phase.QUANTITIES:
+            return progress_field(self.stage, "active")
+        return None if self.worlds is None else ("active", self.name)
 
     def array_key(self, arg: str) -> Hashable:
         """Return the key in :attr:`MDPState.arrays` of the array that the input ``arg`` reads."""
@@ -106,19 +123,79 @@ class StepKind(enum.Enum):
     RESET_TIMER = enum.auto()  # Draw a new time until the command resamples or the interval event runs
     RESET_STATE = enum.auto()  # Run the reset hook, or set the state to its initial value
     COMMIT = enum.auto()  # Have the scene commit the writes of the reset events so far, before the op's event
+    UPDATE_PROGRESS = enum.auto()  # Count the tasks' completions, bottom up, and advance the sequences
+    START_TASKS = enum.auto()  # Start the tasks that a sequence advanced to, top down, and stop those it left
+    RESET_PROGRESS = enum.auto()  # Restart the progress of every task for a new episode
+    CLEAR = enum.auto()  # Zero the columns of an observation slot that no op writes at this step
+
+
+@dataclass(frozen=True)
+class TaskNode:
+    """A task of the task tree of a world config, with what its progress depends on."""
+
+    path: str  # Dotted path of names from the root task, "" for the root
+    mode: TaskMode
+    children: tuple[str, ...]  # Paths of its subtasks, in order
+    done: FieldSelector | None  # Completion of a task without subtasks
+    done_dtype: type | None  # Element type of ``done``
+    hold: int
+    score: float  # Weight in its parent's score
+    final: bool | None
+    require: int | None
+    staged: bool  # Whether it runs only in some steps of an episode: a sequence is one of its ancestors
+
+
+@dataclass(frozen=True)
+class TaskTree:
+    """The tasks of one world config, parents before children, and the tasks among them that have a completion."""
+
+    worlds: range
+    nodes: tuple[TaskNode, ...]
+    completes: frozenset[str]  # Paths of the tasks that have a completion
+
+    def node(self, path: str) -> TaskNode:
+        return next(node for node in self.nodes if node.path == path)
+
+    def parent(self, node: TaskNode) -> TaskNode | None:
+        return None if not node.path else self.node(node.path.rpartition(".")[0])
+
+    def runs_at_start(self, node: TaskNode) -> bool:
+        """Return whether a task runs at the start of an episode: all but the later tasks of a sequence do."""
+        parent = self.parent(node)
+        if parent is None:
+            return True
+        first = parent.mode is not TaskMode.SEQUENCE or parent.children[0] == node.path
+        return first and self.runs_at_start(parent)
+
+    def counted(self, node: TaskNode) -> tuple[TaskNode, ...]:
+        """Return the subtasks of a task that count towards its completion: those that have one."""
+        return tuple(self.node(child) for child in node.children if child in self.completes)
+
+
+@dataclass(frozen=True)
+class ObservationSlot:
+    """Columns of an observation buffer that several ops write, or that an op writes only in some steps."""
+
+    buffer: str
+    columns: slice  # For every step of the history
+    size: int  # Columns of one step of history
+    ops: tuple[TermOp, ...]  # Ops that write it, each in its own worlds and steps
 
 
 @dataclass(frozen=True)
 class Step:
-    """One unit of work on an op in a runtime function."""
+    """One unit of work on an op, the task trees, or an observation slot, in a runtime function."""
 
     kind: StepKind
-    op: ActionOp | TermOp
+    op: ActionOp | TermOp | tuple[TaskTree, ...] | ObservationSlot
+    entry: bool = False  # Whether it runs for the worlds whose task of the op just started, rather than for the mask
 
     @property
     def capturable(self) -> bool:
         """Whether the step may run inside a CUDA graph. Only steps that call a non-capturable hook may not."""
-        if isinstance(self.op, ActionOp) or self.op.capturable or self.kind in (StepKind.RESET_TIMER, StepKind.COMMIT):
+        if not isinstance(self.op, TermOp) or self.op.capturable:
+            return True
+        if self.kind in (StepKind.RESET_TIMER, StepKind.COMMIT):
             return True
         return self.kind is StepKind.RESET_STATE and self.op.reset is None
 
@@ -148,10 +225,22 @@ class ExecutionPlan:
     observe: tuple[Step, ...]
 
 
-def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan:
-    """Order the steps of every runtime function from the ops of each phase. This defines the step contract."""
+def build_plan(
+    ops: Mapping[Phase, tuple],
+    schema: SceneSchema,
+    trees: tuple[TaskTree, ...] = (),
+    slots: tuple[ObservationSlot, ...] = (),
+) -> ExecutionPlan:
+    """Order the steps of every runtime function from the ops of each phase. This defines the step contract.
+
+    With task trees, ``evaluate`` counts the tasks' completions after the quantities, so that terminations and
+    rewards see this step's progress, and starts the tasks that sequences advanced to after the events, so that the
+    successor observations see them. The terminations, rewards, commands, and events of the step run in the tasks that
+    ran when it started.
+    """
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
+    clears = tuple(Step(StepKind.CLEAR, slot) for slot in slots)
     # Commands write their state when they resample, and persistent state outlives episodes.
     stateful = [
         op
@@ -173,11 +262,25 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
             observed.insert(0, Step(StepKind.COMPUTE, op))
             read |= set(op.inputs.values())
 
-    terminations_and_rewards = []
-    for op in ops[Phase.QUANTITIES] + ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
-        terminations_and_rewards.append(Step(StepKind.COMPUTE, op))
-        if op.update is not None:
-            terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
+    def computed(phase_ops: tuple) -> list[Step]:
+        steps = []
+        for op in phase_ops:
+            steps.append(Step(StepKind.COMPUTE, op))
+            if op.update is not None:
+                steps.append(Step(StepKind.UPDATE_STATE, op))
+        return steps
+
+    progress = [Step(StepKind.UPDATE_PROGRESS, trees)] if trees else []
+    # A task that starts restarts the timers, commands, and state of its ops, as a new episode does.
+    starts = []
+    if any(node.staged for tree in trees for node in tree.nodes):
+        staged = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.stage]
+        starts = [
+            Step(StepKind.START_TASKS, trees),
+            *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.stage),
+            *(Step(StepKind.COMPUTE, op, entry=True) for op in staged if op.phase is Phase.COMMANDS),
+            *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.stage),
+        ]
 
     reset_events = []
     pending: set[FieldSelector] = set()  # Scene fields written since the last commit
@@ -192,24 +295,30 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
         apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
         evaluate=(
-            # Quantities, terminations, and rewards see the commands that governed the action.
-            *terminations_and_rewards,
+            # Quantities, progress, terminations, and rewards see the commands that governed the action.
+            *computed(ops[Phase.QUANTITIES]),
+            *progress,
+            *computed(ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]),
             *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed if op.phase is Phase.COMMANDS),
             # Commands with an update hook track something every step, like a heading.
             *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.COMMANDS] if op.update is not None),
             *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed if op.phase is Phase.INTERVAL_EVENTS),
-            # Successor observations see the new commands and the events. Their state advances after all of them.
+            *starts,
+            # Successor observations see the new commands, the events, and the tasks that started. Their state
+            # advances after all of them.
             *observations,
+            *clears,
             *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.OBSERVATIONS] if op.update is not None),
         ),
         reset=(
+            *([Step(StepKind.RESET_PROGRESS, trees)] if trees else []),
             *(Step(StepKind.RESET_TIMER, op) for op in timed),
             *reset_events,
             *(Step(StepKind.COMPUTE, op) for op in ops[Phase.COMMANDS]),
             # State restarts last, from the fields and commands of the new episode.
             *(Step(StepKind.RESET_STATE, op) for op in stateful),
         ),
-        observe=(*observed, *observations),
+        observe=(*observed, *observations, *clears),
     )
 
 

@@ -124,15 +124,7 @@ class MDP2Env:
         self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
         schema = self.scene_data.schema
         builder = mdp2.MDPBuilder(schema)
-        if isinstance(cfg.task, mdp2.TaskCfg):
-            builder.add_task(cfg.task)
-        else:
-            # The first tasks get one more world when the worlds do not split evenly.
-            for index, task in enumerate(cfg.task):
-                task_builder = mdp2.MDPBuilder(schema)
-                task_builder.add_task(task)
-                num_worlds = schema.num_worlds // len(cfg.task) + (index < schema.num_worlds % len(cfg.task))
-                builder.replicate(task_builder, num_worlds if cfg.task_worlds is None else cfg.task_worlds[index])
+        builder.add_task(cfg.task)
         self.mdp = builder.finalize(
             device=self.device,
             backend=cfg.backend,
@@ -497,11 +489,19 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             if op.log
         }
         # The time limit is not an op: whether it ended the last episode of each world is kept apart, under its name.
-        tasks = [cfg.task] if isinstance(cfg.task, mdp2.TaskCfg) else cfg.task
-        time_limits = [
-            name for task in tasks for name, term in task.terminations.items() if isinstance(term, mdp2.TimeLimit)
-        ]
+        time_limits = [name for name, term in _terminations(cfg.task) if isinstance(term, mdp2.TimeLimit)]
         self._time_limit = time_limits[0] if time_limits else None
+        # Progress: whether each task with a completion was done in each world's last finished episode, logged over
+        # the worlds of the world configs that have it.
+        paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
+        self._tasks = {
+            f"Progress/{path or 'task'}": self.state.arrays[mdp2.progress_field(path, "done")].torch for path in paths
+        }
+        self._task_worlds = []
+        for path in paths:
+            worlds = [world for tree in self.mdp.tasks if path in tree.completes for world in tree.worlds]
+            self._task_worlds.append(slice(None) if len(worlds) == self.num_envs else worlds)
+        self._last_done = torch.zeros(self.num_envs, len(self._tasks), device=self.device)
         self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.obs_buf: VecEnvObs = {}
         if cfg.episode_budget is not None:
@@ -565,9 +565,10 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         """Return a row per completed episode, with an episode budget, as columns by name, in the order they ended.
 
         The columns are ``world``, ``episode`` (its index among the world's episodes), ``length`` (control steps),
-        ``terminated`` and ``truncated``, the value at the end of each recorded quantity, and whether each termination
-        ended it, as ``termination/<name>``. Rows of episodes that ended in the same step are ordered by world.
-        Waits for the device.
+        ``terminated`` and ``truncated``, the value at the end of each recorded quantity, whether each termination
+        ended it, as ``termination/<name>``, and, for each task with a completion, the episode step at which it was
+        done (-1 if it was not) as ``progress/<path>`` and the task's score as ``progress/score``. Rows of episodes that
+        ended in the same step are ordered by world. Waits for the device.
         """
         rows = self._records[: self.episodes_completed]
         return {name: rows[:, k] for k, name in enumerate(self._record_columns)}
@@ -584,9 +585,16 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._episode_index = torch.zeros(self.num_envs, device=device)
         recorded = [op for op in self.mdp.ops[mdp2.Phase.QUANTITIES] if op.record]
         self._recorded = [self.state.arrays[op.writes[0]].torch for op in recorded]
+        self._num_quantities = len(recorded)
         self._record_columns = ["world", "episode", "length", "terminated", "truncated"]
         self._record_columns += [op.name.split(".", 1)[1] for op in recorded]
         self._record_columns += [f"termination/{name}" for name in self._termination_names]
+        completes = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
+        self._recorded += [self.state.arrays[mdp2.progress_field(path, "done_at")].torch for path in completes]
+        self._record_columns += [f"progress/{path or 'task'}" for path in completes]
+        if completes:
+            self._recorded.append(self.state.arrays[mdp2.progress_field("", "score")].torch)
+            self._record_columns.append("progress/score")
         self._records = torch.zeros(budget + 1, len(self._record_columns), device=device)
         self._worlds = torch.arange(self.num_envs, device=device)
 
@@ -615,8 +623,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             self.state.episode_length.torch.float(),
             transition.terminated.torch.float(),
             transition.truncated.torch.float(),
-            *self._recorded,
+            *self._recorded[: self._num_quantities],
             *transition.termination_terms.torch.float().unbind(1),
+            *(values.float() for values in self._recorded[self._num_quantities :]),
         ]
         self._records.index_copy_(0, rows, torch.stack(values, dim=1))
         self._completed.add_(rank[-1])
@@ -639,6 +648,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         done = self._ended if self.cfg.episode_budget is not None else self.transition.done.torch
         for value, last, _ in self._metrics.values():
             torch.where(done, value, last, out=last)
+        if self._tasks:
+            done_tasks = torch.stack(list(self._tasks.values()), 1).float()
+            torch.where(done[:, None], done_tasks, self._last_done, out=self._last_done)
         if self._time_limit is not None:
             timed_out = self.state.episode_length.torch >= self.max_episode_length
             torch.where(done, timed_out, self._last_time_outs, out=self._last_time_outs)
@@ -664,7 +676,16 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         # A quantity that only some worlds compute is averaged over them.
         for name, (_, last, worlds) in self._metrics.items():
             log[f"Metrics/{name}"] = last[worlds].mean()
+        # A task is averaged over the worlds of its world config.
+        for k, (name, worlds) in enumerate(zip(self._tasks, self._task_worlds)):
+            log[name] = self._last_done[worlds, k].mean()
         self.extras["log"] = log
+
+
+def _terminations(task: mdp2.TaskCfg) -> list[tuple[str, Any]]:
+    """Return the terminations of a task and of its subtasks, by name."""
+    subtasks = [_terminations(subtask) for subtask in task.subtasks.values()]
+    return [*task.terminations.items(), *(item for terminations in subtasks for item in terminations)]
 
 
 def _clone(observations: VecEnvObs) -> VecEnvObs:

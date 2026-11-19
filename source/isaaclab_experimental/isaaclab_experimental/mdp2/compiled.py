@@ -11,16 +11,29 @@ import enum
 import math
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
+import torch
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
 from . import rng
-from .config import Entity, FieldSelector, Phase, SubsetSelector, episode_length, last_action, term_state, terminated
-from .plan import ActionOp, ExecutionPlan, Launches, Segment, TermOp, segments
+from .config import (
+    Entity,
+    FieldSelector,
+    Phase,
+    SubsetSelector,
+    TaskMode,
+    episode_length,
+    last_action,
+    progress_field,
+    term_state,
+    terminated,
+)
+from .plan import ActionOp, ExecutionPlan, Launches, ObservationSlot, Segment, Step, TaskTree, TermOp, segments
 from .scene import SceneData, SceneSchema
 
 
@@ -49,7 +62,9 @@ class MDPState:
     - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
     - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
-      ``evaluate``, for an MDP with such events.
+      ``evaluate``, for an MDP with such events;
+    - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
+      task's ``done`` held) and ``entered`` (whether a task of a sequence started at this step).
     """
 
     arrays: dict[Hashable, ProxyArray]
@@ -102,6 +117,17 @@ class WorldConfig:
 
 
 @dataclass(frozen=True)
+class ObservationColumns:
+    """Columns of an observation buffer that the observations of one name write, see :meth:`MDP.spec`."""
+
+    name: str
+    columns: slice  # For every step of the history
+    size: int  # Columns of one step of history
+    history_length: int
+    widths: Mapping[str, int]  # Columns of one step that each op writes, by op name; the others are zero
+
+
+@dataclass(frozen=True)
 class MDP:
     """An immutable, compiled MDP, created with :meth:`MDPBuilder.finalize`."""
 
@@ -121,6 +147,9 @@ class MDP:
     diagnostics: bool  # Whether evaluate also writes the reward and termination of every term
     final_observations: bool  # Whether evaluate also writes the observations of the worlds that ended
     world_configs: tuple[WorldConfig, ...]  # One per replicated builder, or one for every world
+    # The task tree of each world config, if the MDP tracks progress: some task has a completion or a sequence
+    tasks: tuple[TaskTree, ...] = ()
+    slots: tuple[ObservationSlot, ...] = ()  # Observation slots that some op writes only in some steps
     launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
     @property
@@ -178,6 +207,47 @@ class MDP:
     def _scene_writes(self, phase: Phase) -> frozenset[FieldSelector]:
         return frozenset(selector for op in self.ops[phase] for selector in op.writes if selector.scene)
 
+    def spec(self) -> dict[str, tuple[ObservationColumns, ...]]:
+        """Return the columns of every observation buffer, by name, so that learners need not know their offsets.
+
+        Observations of the same name share their columns, also across world configs and tasks of a sequence; see
+        :meth:`observation_mask` for the columns that the worlds write at a step.
+        """
+        named: dict[str, dict[str, list[TermOp]]] = {}
+        for op in self.ops[Phase.OBSERVATIONS]:
+            named.setdefault(op.observation.group, {}).setdefault(op.observation.slot, []).append(op)
+        return {
+            buffer: tuple(
+                ObservationColumns(
+                    name=name,
+                    columns=ops[0].observation.columns,
+                    size=ops[0].observation.size,
+                    history_length=ops[0].observation.history_length,
+                    widths=MappingProxyType({op.name: math.prod(op.shape) for op in ops}),
+                )
+                for name, ops in slots.items()
+            )
+            for buffer, slots in named.items()
+        }
+
+    def observation_mask(self, state: MDPState, buffer: str) -> torch.Tensor:
+        """Return which columns of an observation buffer each world writes at this step, ``(num_worlds, dim)`` bool.
+
+        The others are zero: they pad an observation to the widest of its name, or belong to observations of other
+        world configs or of tasks of a sequence that do not run. Torch operations only, so it can run in a graph.
+        """
+        mask = torch.zeros(self.num_worlds, self.observation_dims[buffer], dtype=torch.bool, device=self.device)
+        for op in self.ops[Phase.OBSERVATIONS]:
+            if op.observation.group != buffer:
+                continue
+            columns = op.observation.columns
+            width = torch.arange(columns.stop - columns.start, device=self.device) % op.observation.size
+            written = (width < math.prod(op.shape))[None, :]
+            if op.active_key is not None:
+                written = written & state.arrays[op.active_key].torch[:, None]
+            mask[:, columns] |= written
+        return mask
+
     def describe(self) -> str:
         """Return the compiled MDP as readable text: ops by phase with their layout, then each function's steps."""
         lines = [
@@ -186,6 +256,18 @@ class MDP:
             f" max_episode_length {self.max_episode_length}"
         ]
         width = max((len(name) for name in self.schedule), default=0)
+
+        for tree in self.tasks:
+            worlds = f" (worlds {tree.worlds.start}-{tree.worlds.stop - 1})" if len(self.tasks) > 1 else ""
+            lines.append(f"tasks{worlds}")
+            for node in tree.nodes:
+                details = [node.mode.name.lower()] if node.children else []
+                details += [f"done {node.done}"] if node.done is not None else []
+                details += [f"hold {node.hold}"] if node.hold > 1 else []
+                details += [f"require {node.require}"] if node.require is not None else []
+                details += [f"final {node.final}"] if node.final is not None else []
+                details += ["staged"] if node.staged else []
+                lines.append(f"  {node.path or '(root)'}  {', '.join(details)}".rstrip())
 
         for phase, ops in self.ops.items():
             if ops:
@@ -209,6 +291,7 @@ class MDP:
                     details += [f"state {', '.join(op.state)}"] if op.state else []
                     details += [f"stream {op.stream}"] if op.stream is not None else []
                     details += ["torch hooks"] if op.torch_hooks else []
+                    details += [f"during {op.stage}"] if op.stage else []
                 if op.worlds is not None:
                     first, last = op.worlds[0], op.worlds[-1]
                     contiguous = op.worlds == tuple(range(first, last + 1))
@@ -221,7 +304,7 @@ class MDP:
             for segment in function_segments:
                 lines.append(f"  {'graph' if segment.capturable else 'eager'}")
                 for step in segment.steps:
-                    lines.append(f"    {step.kind.name.lower().replace('_', ' '):14}  {step.op.name}")
+                    lines.append(f"    {step.kind.name.lower().replace('_', ' '):14}  {_target(step)}")
 
         return "\n".join(lines)
 
@@ -238,6 +321,7 @@ class MDP:
         }
         for action_dim in self.narrow_action_dims:
             arrays[last_action, action_dim] = self._zeros(self.num_worlds, action_dim)
+        arrays |= self._progress_arrays()
         for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
         for subset, indices in self.subsets.items():
@@ -286,7 +370,7 @@ class MDP:
             if launches and op.phase not in (*events, Phase.ACTIONS):
                 arrays["scratch", op.name] = self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
             # Hooks of ops active in only some worlds get the reset worlds among those.
-            if op.timer is not None or op.worlds is not None:
+            if op.timer is not None or op.active_key is not None:
                 arrays["selected", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
         for ops in self.ops.values():
             for op in ops:
@@ -314,6 +398,36 @@ class MDP:
             }
 
         return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data, caches=caches)
+
+    def _progress_arrays(self) -> dict[Hashable, ProxyArray]:
+        """Allocate the progress of every task, as at the start of an episode: only the tasks that run first are
+        active, in the worlds of their world config."""
+        values: dict[FieldSelector, np.ndarray] = {}
+
+        def array(path: str, name: str, dtype: type, initial: float = 0) -> np.ndarray:
+            return values.setdefault(progress_field(path, name), np.full(self.num_worlds, initial, dtype=dtype))
+
+        for tree in self.tasks:
+            worlds = slice(tree.worlds.start, tree.worlds.stop)
+            for node in tree.nodes:
+                for name in ("done", "holding", "active"):
+                    array(node.path, name, np.bool_)
+                array(node.path, "done_at", np.int32, -1)
+                array(node.path, "started_at", np.int32)
+                array(node.path, "score", np.float32)
+                if node.mode is TaskMode.SEQUENCE:
+                    array(node.path, "stage", np.int32)
+                if node.done is not None:
+                    array(node.path, "streak", np.int32)
+                if node.staged:
+                    array(node.path, "entered", np.bool_)
+                values[progress_field(node.path, "active")][worlds] = tree.runs_at_start(node)
+
+        dtypes = {np.bool_: wp.bool, np.int32: wp.int32, np.float32: wp.float32}
+        return {
+            key: ProxyArray(wp.array(value, dtype=dtypes[value.dtype.type], device=self.device))
+            for key, value in values.items()
+        }
 
     def observations(self) -> dict[str, ProxyArray]:
         """Allocate one zeroed buffer per observation buffer, of shape ``(num_worlds, dim)`` and its element type.
@@ -345,3 +459,12 @@ class MDP:
 
     def _zeros(self, *shape: int, dtype: type = wp.float32) -> ProxyArray:
         return ProxyArray(wp.zeros(shape, dtype=dtype, device=self.device))
+
+
+def _target(step: Step) -> str:
+    """Return what a step works on, for :meth:`MDP.describe`."""
+    if isinstance(step.op, ObservationSlot):
+        return f"{step.op.buffer}[{step.op.columns.start}:{step.op.columns.stop}]"
+    if isinstance(step.op, tuple):
+        return "tasks"
+    return f"{step.op.name}{' on start' if step.entry else ''}"

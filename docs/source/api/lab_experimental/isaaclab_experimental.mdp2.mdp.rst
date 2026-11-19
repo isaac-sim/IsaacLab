@@ -44,9 +44,3 @@ Curriculums
 
 .. automodule:: isaaclab_experimental.mdp2.mdp.curriculums
     :members:
-
-Progress
---------
-
-.. automodule:: isaaclab_experimental.mdp2.mdp.progress
-    :members:

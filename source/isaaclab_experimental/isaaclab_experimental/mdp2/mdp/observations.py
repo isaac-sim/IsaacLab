@@ -265,6 +265,23 @@ generated_commands = Term(torch=lambda command: command, warp=_generated_command
 """The value of a command, bound to ``mdp2.commands.<name>``."""
 
 
+# Progress.
+
+
+@wp.func
+def _one_hot(world: int, index: int, value: wp.array(dtype=wp.int32)) -> float:
+    return wp.where(value[world] == index, 1.0, 0.0)
+
+
+def _one_hot_torch(value: torch.Tensor, *, size: int) -> torch.Tensor:
+    return (value[:, None] == torch.arange(size, device=value.device)).float()
+
+
+one_hot = Term(torch=_one_hot_torch, warp=_one_hot, shape=("worlds", "size"))
+"""The ``value`` input, one int per world such as the subtask that a sequence runs (``mdp2.progress.stage``), as
+``size`` columns, one where the column is the value. A value outside ``[0, size)`` gives zeros."""
+
+
 # Cameras.
 
 

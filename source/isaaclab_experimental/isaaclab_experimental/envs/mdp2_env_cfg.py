@@ -60,9 +60,9 @@ class MDP2EnvCfg:
 
     sim: SimulationCfg = SimulationCfg()
     scene: InteractiveSceneCfg = MISSING
-    # Actions, commands, observations, rewards, terminations, and events; a list splits the worlds between tasks
-    task: TaskCfg | list[TaskCfg] = MISSING
-    task_worlds: list[int] | None = None  # Number of worlds of each task of a list, in order; None for even shares
+    # Actions, commands, observations, rewards, terminations, and events, and subtasks; mdp2.split gives subtasks
+    # their own worlds
+    task: TaskCfg = MISSING
     decimation: int = MISSING  # Physics steps per control step
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None
@@ -95,18 +95,24 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
     def play_mode(self) -> None:
         """Adjust the configuration for playing a trained policy, as MDP1 does: at most 50 worlds, and observations
         without noise. The play scripts call it; tasks may extend it."""
-        if self.task_worlds is None:
+        # A split with a number of worlds per subtask needs all of them.
+        if not splits_by_count(self.task):
             self.scene.num_envs = min(self.scene.num_envs, 50)
-        tasks = [self.task] if isinstance(self.task, TaskCfg) else self.task
-        tasks = [_without_observation_noise(task) for task in tasks]
-        self.task = tasks[0] if isinstance(self.task, TaskCfg) else tasks
+        self.task = _without_observation_noise(self.task)
+
+
+def splits_by_count(task: TaskCfg) -> bool:
+    """Return whether a task or one of its subtasks splits the worlds by counts."""
+    return task.worlds is not None or any(splits_by_count(subtask) for subtask in task.subtasks.values())
 
 
 def _without_observation_noise(task: TaskCfg) -> TaskCfg:
-    """Return a copy of a task whose observations have no noise; the uses it shares with others are not changed."""
+    """Return a copy of a task and its subtasks whose observations have no noise; the uses it shares with others are
+    not changed."""
     observations = {}
     for group, uses in task.observations.items():
         terms, concatenate = group_terms(uses)
         terms = {name: use if use is None else replace(use, noise=None) for name, use in terms.items()}
         observations[group] = ObservationGroup(terms=terms, concatenate=concatenate)
-    return replace(task, observations=observations)
+    subtasks = {name: _without_observation_noise(subtask) for name, subtask in task.subtasks.items()}
+    return replace(task, observations=observations, subtasks=subtasks)
