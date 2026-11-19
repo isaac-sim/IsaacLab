@@ -89,6 +89,7 @@ Guidelines for modifications:
 * David Yang
 * Daniel Florea
 * Daniela Hasenbring
+* Danyi Chen
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Diego Ferigo

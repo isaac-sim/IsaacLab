@@ -8,6 +8,8 @@ Follow each project's documentation for its supported versions and setup.
   Allegro hand cylinder rolling with cached grasps and a pretrained policy.
 * `basic-locomotion-isaaclab <https://github.com/iit-DLSLab/basic-locomotion-isaaclab>`_:
   Quadruped locomotion with sim-to-sim and sim-to-real transfer.
+* `IsaacSwim <https://github.com/danyichen/IsaacSwim>`_:
+  Underwater robotics: hydrodynamics, buoyancy, currents, thrusters and marine sensors for any articulation.
 * `robot_lab <https://github.com/fan-ziqi/robot_lab>`_:
   Locomotion tasks for quadrupeds, wheeled-legged robots, and humanoids.
 
