@@ -264,16 +264,18 @@ class Camera(SensorBase):
         if self.cfg.isp_cfg is not None:
             from isaaclab_ppisp import PpispProcessorCfg, resolve_and_normalize
 
-            msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
+            msg = (
+                "CameraCfg.isp_cfg is deprecated and will be removed in a future release. Add"
+                " isaaclab_ppisp.PpispProcessorCfg to tensor_processors instead."
+            )
             warnings.warn(msg, FutureWarning, stacklevel=2)
             if any(isinstance(cfg, PpispProcessorCfg) for cfg in self.cfg.tensor_processors):
                 raise ValueError(
                     "CameraCfg.isp_cfg and a PpispProcessorCfg in tensor_processors both configure PPISP, which"
                     " would run twice. Remove isp_cfg."
                 )
-            # isp_cfg keeps its behavior: a discovery mode that finds no PPISP attributes changes nothing, and
-            # where PPISP applies, the renderers that apply the camera's exposure (Isaac RTX and OVRTX) get neutral
-            # exposure, because PPISP applies its own. The processor receives the resolved coefficients.
+            # PPISP applies its own exposure, so where it applies, the renderers that apply the camera's exposure
+            # (Isaac RTX and OVRTX) get neutral exposure.
             first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
             first_path = str(first_prim.GetPath()) if first_prim else None
             isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path)

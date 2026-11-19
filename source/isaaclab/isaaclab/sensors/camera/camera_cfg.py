@@ -228,7 +228,7 @@ class CameraCfg(SensorBaseCfg):
     isp_cfg: Any | CameraISPMode | None = None
     """PPISP coefficients or discovery mode. Defaults to None (no PPISP).
 
-    .. deprecated::
+    .. deprecated:: 3.2
         Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead. Camera
         construction moves a non-None value there with a :class:`FutureWarning`.
     """
