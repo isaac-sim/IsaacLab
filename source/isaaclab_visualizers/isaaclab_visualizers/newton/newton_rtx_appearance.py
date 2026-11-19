@@ -257,6 +257,8 @@ class RtxAppearance:
         """
         self.dome_texture = source
         self._texture_result = None  # a download that finished for an earlier choice must not be applied
+        if source:
+            self.dome_enabled = True  # choosing a sky turns the dome on; a later off choice must survive the download
         if not source:
             self._dome_texture_file, self.texture_status = "", ""
             self._apply_texture()
@@ -295,7 +297,6 @@ class RtxAppearance:
                 self._renderer.backend.renderer.remove_usd(reference)
             except Exception:
                 logger.debug("[NewtonRtxAppearance] The dome light was already removed.", exc_info=True)
-        self.dome_enabled = True if self._dome_texture_file else self.dome_enabled
         return self.apply_lights()
 
     def use_sky(self, source: str) -> None:

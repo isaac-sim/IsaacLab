@@ -744,7 +744,9 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     _overlay_publisher: OverlayMeshPublisher | None = None
     _rtx_arrows_pending = False
+    _rtx_visibility_limited = False
     _rtx_overlay_flags: tuple | None = None
+    _rtx_visibility_limited = False
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -1792,7 +1794,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
                 # Tile the first environments unless the view chose its own; the HUD changes how many.
                 self._sensor_tiles[view] = camera.num_instances
-                if self.cfg.view is None and view.cfg.envs == (0,):
+                if self.cfg.view is None and not isinstance(self.cfg.streaming_envs, list) and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
@@ -2084,12 +2086,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
         num_envs = len(renderer._env_paths)
         if num_envs:
-            # The renderer is shared with scene cameras, so the limit applies only while the RTX view is shown.
+            # The renderer is shared with scene cameras, so the limit applies only while the RTX view is shown, and
+            # OpenGL leaves the renderer alone unless an earlier limit has to be lifted.
             limited = self._env_ids is not None and self.rtx_rendering
+            if not limited and not self._rtx_visibility_limited:
+                return
             visible = np.zeros(num_envs, dtype=bool) if limited else np.ones(num_envs, dtype=bool)
             if limited:
                 visible[np.asarray(list(self._env_ids), dtype=int)] = True
             renderer.set_environment_visibility(visible)
+            self._rtx_visibility_limited = limited
             self._image_views[index].invalidate()
 
     def reset(self, soft: bool = False) -> None:
