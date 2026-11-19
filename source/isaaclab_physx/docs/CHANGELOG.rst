@@ -3,6 +3,21 @@ Changelog
 
 .. towncrier release notes start
 
+13.2.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added bucketed contact stiffness and damping randomization to the material event, preserving unspecified gains and selected environments/bodies. Explicit gain updates used force-based contacts; damping updates required a uniform authored friction combine mode.
+
+Fixed
+^^^^^
+
+* Fixed material randomization across multiple environments with all shapes selected and resolved physics material bindings using the USD physics material purpose.
+* Kept damping updates on the compliant-material setter so a subsequent rigid-material write did not reset damping.
+
+
 13.1.0 (2026-11-18)
 ~~~~~~~~~~~~~~~~~~~
 
