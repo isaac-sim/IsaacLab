@@ -1136,7 +1136,6 @@ class NewtonVisualizerBase(BaseVisualizer):
                 imgui.end_disabled()
         self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
-        self._draw_camera_speed(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
             (i for i in range(len(self._image_views)) if i != rtx_index),
@@ -1183,6 +1182,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         if camera is None or self.sensor_view_selected:  # A sensor draws its own image, not this camera's view.
             return
         imgui.separator()
+        self._draw_camera_speed(imgui)
         pos = camera.pos
         imgui.text_disabled(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
         hover_tooltip(imgui, "World position of the camera [m]")
