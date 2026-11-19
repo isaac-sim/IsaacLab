@@ -277,14 +277,10 @@ class ActuatorField:
     """Values the config sets, keyed by joint name; joints left out keep the USD value. Defaults to :attr:`name`."""
 
     new_prim_default: float | Callable[[ActuatorBaseCfg, Usd.Prim, bool], float | None] | None = None
-    """Value of a component the config adds when the config leaves it unset, or a callable of the config, the joint
-    prim and whether the actuator prim is new."""
+    """Value for a component the config adds and leaves unset, or a callable ``(cfg, joint_prim, new_prim)``."""
 
     required: bool = False
     """Whether a component the config adds needs the value; Newton validates the components a USD prim keeps."""
-
-    disabled_by: int | None = None
-    """Configured value that removes :attr:`schema` instead of authoring the attribute."""
 
     def configured(self, cfg: ActuatorBaseCfg, joint_names: list[str]) -> dict[str, Any]:
         """Return the values *cfg* sets, keyed by joint name."""
@@ -305,9 +301,6 @@ class ActuatorLayout:
 
     fields: tuple[ActuatorField, ...]
     """Attributes the config type can author; their schemas and the drive are all it keeps."""
-
-    joint_attrs: tuple[tuple[str, Sdf.ValueTypeName, Any], ...] = ()
-    """Attributes authored on each driven joint prim, as ``(name, type, value)``."""
 
 
 def _author_group(
@@ -330,11 +323,8 @@ def _author_group(
         existing = actuator_prims.get(str(joint_prim.GetPath()), [])
         prim, reason = _override_target(existing, layout.drive)
         present = _applied_schemas(prim) if prim is not None else set()
-        disabled = {
-            field.schema
-            for field in layout.fields
-            if field.disabled_by is not None and configured[field.attr].get(joint_name) == field.disabled_by
-        }
+        # A zero max_delay removes the delay component instead of authoring it.
+        disabled = {_DELAY_API} if configured.get(_DELAY.attr, {}).get(joint_name) == 0 else set()
         dropped = sorted((present & _COMPONENT_APIS) - allowed)
         remove = sorted({*dropped, *(present & disabled)})
         values = []
@@ -397,8 +387,9 @@ def _author_group(
             if attr.GetTypeName() != field.type_name:
                 attr.SetTypeName(field.type_name)
             attr.Set(value)
-        for name, type_name, value in layout.joint_attrs:
-            joint_prim.CreateAttribute(name, type_name).Set(value)
+        if layout.drive == BAM_DRIVE_API:
+            # Allocate the joint friction constraint; BAM overwrites this seed before each solve.
+            joint_prim.CreateAttribute("newton:friction", _FLOAT).Set(1.0)
 
 
 def _override_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
@@ -553,7 +544,7 @@ _DC_MOTOR = (
         "actuator_effort_limit", _DC_MOTOR_API, "newton:maxMotorEffort", new_prim_default=_new_prim_effort_limit
     ),
 )
-_DELAY = ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT, disabled_by=0)
+_DELAY = ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT)
 _POSITION_BASED = tuple(
     ActuatorField(
         "joint_parameter_lookup",
@@ -616,8 +607,7 @@ _ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
     DCMotorCfg: ActuatorLayout(DCMotor, _PD_API, (*_PD_GAINS, *_DC_MOTOR)),
     ActuatorNetMLPCfg: ActuatorLayout(ActuatorNetMLP, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
     ActuatorNetLSTMCfg: ActuatorLayout(ActuatorNetLSTM, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
-    # Allocate the joint friction constraint; BAM overwrites this seed before each solve.
-    BamActuatorCfg: ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS, joint_attrs=(("newton:friction", _FLOAT, 1.0),)),
+    BamActuatorCfg: ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS),
 }
 """Newton actuator layout of each supported config type; subclasses use their closest base's layout."""
 
