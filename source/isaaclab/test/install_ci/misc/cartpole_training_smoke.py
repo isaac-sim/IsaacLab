@@ -41,23 +41,23 @@ _CAMERA_TRAIN_CMD = [
     "Isaac-Cartpole-Camera-Direct",
     "--num_envs",
     "16",
-    "presets=newton_mjwarp,newton_renderer",
+    "presets=newton_mjwarp,newton_warp",
     "--max_iterations",
     "2",
 ]
 
 _PHYSICS = ("newton_mjwarp", "newton_kamino", "isaacsim_physx", "ovphysx")
-_RENDERERS = ("newton_renderer", "ovrtx", "isaacsim_rtx")
+_RENDERERS = ("newton_warp", "ovrtx", "isaacsim_rtx")
 _KIT = {"isaacsim_physx", "isaacsim_rtx"}
 _KITLESS_ONLY = {"ovphysx", "ovrtx"}
 
 # Isaac Sim / Kit cannot share a process with OvPhysX or OVRTX (isaaclab.app.sim_launcher.validate_launch),
-# and _CAMERA_TRAIN_CMD already covers newton_mjwarp with newton_renderer.
+# and _CAMERA_TRAIN_CMD already covers newton_mjwarp with newton_warp.
 _OTHER_CAMERA_PAIRINGS = [
     pytest.param(physics, renderer, id=f"{physics}-{renderer}")
     for physics, renderer in itertools.product(_PHYSICS, _RENDERERS)
     if not ({physics, renderer} & _KIT and {physics, renderer} & _KITLESS_ONLY)
-    and (physics, renderer) != ("newton_mjwarp", "newton_renderer")
+    and (physics, renderer) != ("newton_mjwarp", "newton_warp")
 ]
 
 
@@ -104,7 +104,7 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
     from isaaclab_tasks.utils import resolve_task_config
 
     env_cfg, _ = resolve_task_config(
-        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_renderer")
+        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_warp")
     )
     env_cfg.scene.num_envs = 2
     env_cfg.frame_stack = 1

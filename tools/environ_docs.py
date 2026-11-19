@@ -160,7 +160,8 @@ def _supports_warp_frontend(
     domain_preset: str | None = None,
 ) -> bool:
     """Return whether a task configuration can run through ``--frontend warp``."""
-    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+    # MDP2 environments compile their own Warp step; the frontend builds manager-based and direct environments.
+    if workflow == "MDP2" or presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
         return False
 
     try:
@@ -608,10 +609,14 @@ def get_workflow(entry_point: str | Callable[..., object]) -> str:
             env_creator = gym.envs.registration.load_env_creator(entry_point)
 
     if isinstance(env_creator, type):
+        from isaaclab_experimental.envs import MDP2Env
+
         from isaaclab.envs import ManagerBasedRLEnv
 
         if issubclass(env_creator, ManagerBasedRLEnv):
             return "Manager Based"
+        if issubclass(env_creator, MDP2Env):
+            return "MDP2"
     return "Direct"
 
 
