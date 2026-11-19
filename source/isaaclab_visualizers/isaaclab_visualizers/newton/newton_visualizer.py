@@ -1444,9 +1444,15 @@ class NewtonVisualizerBase(BaseVisualizer):
         pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
         if pose is None or follower is None:
             return False
+        eye, target = pose
+        offsets = self._viewer.world_offsets
+        if offsets is not None:  # the viewer draws each environment at its world offset
+            shift = wp.to_torch(offsets)[follower.env].tolist()
+            eye = tuple(a + b for a, b in zip(eye, shift))
+            target = tuple(a + b for a, b in zip(target, shift))
         camera = self._viewer.camera
-        camera.pos = PygletVec3(*pose[0])
-        camera.look_at(pose[1])
+        camera.pos = PygletVec3(*eye)
+        camera.look_at(target)
         self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
         camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
         return True
@@ -1537,7 +1543,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         try:
             self._borrowing_view = True
             self.current_image_view = view
-            if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
+            if self._is_tracking_view(view):  # rendering may be paused, which leaves the camera where it was
+                self._apply_view_pose(view)
+            else:  # a free view renders from its declared pose and optics
                 source = view.cfg.source
                 camera.pos = PygletVec3(*source.eye)
                 camera.look_at(source.lookat)
@@ -1898,7 +1906,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
-            if not viewer.is_paused():
+            if not viewer.is_paused() and not self._borrowing_view:  # a capture must not add plot samples
                 self._render_live_plots()
         finally:
             viewer.end_frame()
