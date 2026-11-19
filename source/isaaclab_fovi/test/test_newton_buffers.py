@@ -337,6 +337,10 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch, style) -> None:
     rgb, rgba = camera._data.output["rgb"].torch, camera._data.output["rgba"].torch
     assert rgb.any()
     torch.testing.assert_close(rgb, rgba[..., :3], rtol=0, atol=0)
+    # rgb is a view of rgba, not a copy: a write to rgba shows through it.
+    assert rgb.data_ptr() == rgba.data_ptr()
+    rgba[..., 0] = 7
+    assert bool((rgb[..., 0] == 7).all())
 
 
 def test_runtime_intrinsics_leave_the_retinas_rays_alone(monkeypatch) -> None:

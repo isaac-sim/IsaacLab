@@ -29,14 +29,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+from fovi.arch.knn import KNNPoolingLayer
+from fovi.arch.pooling import GridPoolingLayer, build_retinal_pooler
+from fovi.sensing.coords import SamplingCoords, auto_match_num_coords
 
 from .calibrated_geometry import sampling_geometry
 
 if TYPE_CHECKING:
-    from fovi.arch.knn import KNNPoolingLayer
-    from fovi.arch.pooling import GridPoolingLayer
-    from fovi.sensing.coords import SamplingCoords
-
     from .foveated_camera_cfg import FoveatedCameraCfg
 
 
@@ -51,8 +50,6 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
     Returns ``(lowres_coords, matched_res)`` where ``matched_res`` is the
     auto-matched radial resolution also needed for the highres grid.
     """
-    from fovi.sensing.coords import SamplingCoords, auto_match_num_coords
-
     fov, cmf_a = sampling_geometry(cfg)
 
     matched_res, _ = auto_match_num_coords(
@@ -81,28 +78,14 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
     return lowres, matched_res
 
 
-def build_highres_coords(cfg: FoveatedCameraCfg, matched_res: int, device: str) -> SamplingCoords | None:
-    """Build the highres (photoreceptor) SamplingCoords when pooling is on."""
+def build_highres_coords(cfg: FoveatedCameraCfg, lowres: SamplingCoords, matched_res: int) -> SamplingCoords | None:
+    """Build the highres (photoreceptor) SamplingCoords when pooling is on: the lowres retina's geometry at
+    ``pool_res_mult`` times its resolution, on the same device."""
     if not cfg.pool_enabled:
         return None
-    from fovi.sensing.coords import SamplingCoords
-
-    fov, cmf_a = sampling_geometry(cfg)
-
     # pool_res_mult is a float to support fractional ratios (e.g. sqrt(2) for
     # a 2× N_hi/N_lo ratio).  SamplingCoords requires an integer radial res.
-    highres_res = int(round(cfg.pool_res_mult * matched_res))
-    return SamplingCoords(
-        fov=fov,
-        cmf_a=cmf_a,
-        res=highres_res,
-        device=device,
-        style=cfg.foveated_style,
-        isotropic_plotting_type=cfg.isotropic_plotting_type,
-        fov_type=cfg.fov_type,
-        radius_norm=cfg.radius_norm,
-        field_geometry="spherical",
-    )
+    return lowres.clone(resolution=int(round(cfg.pool_res_mult * matched_res)))
 
 
 def build_pooler(
@@ -119,9 +102,6 @@ def build_pooler(
     """
     if highres is None:
         return None, None
-
-    from fovi.arch.pooling import build_retinal_pooler
-
     return build_retinal_pooler(
         highres,
         lowres,
@@ -145,9 +125,6 @@ def segmentation_neighbor_indices(pooler: KNNPoolingLayer | GridPoolingLayer) ->
       padding, stride and masks as the pooler), ordered by distance from the
       window centre and then in row-major window order.
     """
-    from fovi.arch.knn import KNNPoolingLayer
-    from fovi.arch.pooling import GridPoolingLayer
-
     if isinstance(pooler, KNNPoolingLayer):
         return pooler.knn_indices_pad_token
     if not isinstance(pooler, GridPoolingLayer):

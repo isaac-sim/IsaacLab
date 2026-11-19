@@ -115,7 +115,11 @@ class FoveatedCameraCfg(CameraCfg):
     upright; the sensor mask and the gaze use the same roll."""
 
     mask_to_sensor_fov: bool = False
-    """Zero the samples that fall outside the physical camera's image at the current gaze."""
+    """Zero the samples that fall outside the physical camera's image at the current gaze.
+
+    With :attr:`pool_enabled`, the mask applies to the photoreceptor samples before pooling, so a pooled sample whose
+    neighbourhood straddles the image edge keeps the pooled value of the photoreceptors the camera sees, and is zero
+    when it sees none of them."""
 
     retinal_window_fraction: float = 1.0
     """Diameter of the retinal window as a fraction of the reference image side."""

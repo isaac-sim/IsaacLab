@@ -16,6 +16,9 @@ import warp as wp
 from fovi.sensing.coords import SamplingCoords
 
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import make_masked_copy
+
+from .gaze_kernels import warp_stream
 
 GRID_STYLE = "warped_cartesian_as_grid"
 
@@ -31,6 +34,28 @@ def proxy_outputs(outputs: Mapping[str, torch.Tensor | ProxyArray]) -> dict[str,
         name: ProxyArray(wp.from_torch(value)) if isinstance(value, torch.Tensor) else value
         for name, value in outputs.items()
     }
+
+
+def copy_updated_rows(source: torch.Tensor, target: torch.Tensor, rows: wp.array) -> None:
+    """Copy the environments that ``rows`` selects from ``source`` into ``target``, shape (num_envs, N, 1, C).
+
+    The other environments keep their values. The masked copy needs no full-batch temporary and no host sync.
+
+    Args:
+        source: The new samples; may be a strided view.
+        target: The published samples, written in place.
+        rows: Which environments to copy, shape (num_envs,) of ``bool``.
+    """
+    source3, target3 = source.squeeze(2), target.squeeze(2)
+    dtype = wp.dtype_from_torch(target.dtype)
+    wp.launch(
+        make_masked_copy(dtype, 3),
+        dim=tuple(target3.shape),
+        inputs=[wp.from_torch(source3, dtype=dtype), rows, None],
+        outputs=[wp.from_torch(target3, dtype=dtype)],
+        device=str(target.device),
+        stream=warp_stream(target.device),
+    )
 
 
 def bounded_angular_radius(radius: torch.Tensor, half_fov_rad: float) -> torch.Tensor:

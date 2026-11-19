@@ -35,6 +35,7 @@ from .native_grid import (
     GRID_STYLE,
     allocate_grid_outputs,
     copy_grid_outputs,
+    copy_updated_rows,
     grid_sample_indices,
     mask_grid_samples,
     native_grid_directions,
@@ -109,25 +110,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         if not self._gaze_pose_reads_angles:
             self._write_gaze_local_pose()
 
-    def set_world_poses(self, positions=None, orientations=None, env_ids=None, convention="ros"):
-        """Move the camera's mount; the gaze stays relative to the new mount.
-
-        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses`.
-        """
-        super().set_world_poses(positions, orientations, env_ids, convention)
-        # A position-only move keeps the prims' gaze-turned orientation, and with it the saved mount.
-        if orientations is not None:
-            self._refresh_mount(env_ids)
-
-    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
-        """Point the camera's mount from ``eyes`` at ``targets``; the gaze stays relative to the new mount.
-
-        Args are those of :meth:`isaaclab.sensors.Camera.set_world_poses_from_view`.
-        """
-        super().set_world_poses_from_view(eyes, targets, env_ids)
-        # Rows whose eye equals their target are skipped by the base method and keep their mount.
-        self._refresh_mount(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
-
     def get_world_poses(self, env_ids=None, convention="ros"):
         """Read the cameras' mount poses, without the gaze, as every foveated camera reports them.
 
@@ -173,7 +155,7 @@ class FoveatedRTXCamera(FoveatedCamera):
     def _prepare_projection(self) -> None:
         # The lens textures and sample extraction use the rendered samples: the high-resolution ones when pooling.
         self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
-        self._sampling_coords_highres = build_highres_coords(self.cfg, matched_res, device="cpu")
+        self._sampling_coords_highres = build_highres_coords(self.cfg, self._sampling_coords, matched_res)
         ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._ray_coords = ray_coords
         self._native_grid = self.cfg.foveated_style == GRID_STYLE
@@ -357,17 +339,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             self._num_valid_samples,
         )
 
-    def _env_indices(self, env_ids) -> torch.Tensor:
-        """The camera indices that ``env_ids`` selects, as a tensor."""
-        if env_ids is None:
-            return torch.arange(self._view.count, device=self._device)
-        if isinstance(env_ids, slice):
-            return torch.arange(self._view.count, device=self._device)[env_ids]
-        if isinstance(env_ids, wp.array):
-            env_ids = wp.to_torch(env_ids)
-        return torch.as_tensor(env_ids, device=self._device, dtype=torch.long).reshape(-1)
-
-    def _refresh_mount(self, env_ids) -> None:
+    def _mount_written(self, env_ids) -> None:
         """Save the moved prims' orientations as their bare mounts and write the gaze on top of them again."""
         if self._gaze_pose_reads_angles:
             return  # The pose update turns the new mount by the gaze.
@@ -397,7 +369,6 @@ class FoveatedRTXCamera(FoveatedCamera):
     def _extract_foveated_samples(self, env_mask: wp.array):
         """Extract the updated environments' per-sample values from the rendered 2D textures into the (B, N, 1, C)
         buffers; the other environments keep their last samples."""
-        updated = wp.to_torch(env_mask)[:, None, None, None]
         for name in self._texture_output:
             if name == "rgb" and "rgba" in self._texture_output:
                 continue  # rgba alias
@@ -411,7 +382,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             if self._offset_distance and name == "distance_to_camera":
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip.to(samples.dtype)
-            fov.copy_(torch.where(updated, samples, fov))
+            copy_updated_rows(samples, fov, env_mask)
 
     @staticmethod
     def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:

@@ -24,6 +24,7 @@ from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
     matrix_from_quat,
     quat_apply,
     quat_from_matrix,
@@ -94,6 +95,7 @@ class GazeHarness(FoveatedCamera):
             setattr(self.cfg, name, value)
         self._view = SimpleNamespace(count=count)
         self._device = device
+        self._ALL_INDICES = wp.array(list(range(count)), dtype=wp.int32, device=device)
         self._sampling_coords, _ = build_lowres_coords(self.cfg, device)
         self._sampling_coords_highres = None
         # The camera's own pose buffers, at the identity orientation, with their world-to-ROS conversion.
@@ -142,13 +144,21 @@ class RtxGazeHarness(GazeHarness, FoveatedRTXCamera):
     def __init__(self, mount_opengl: torch.Tensor) -> None:
         super().__init__(count=len(mount_opengl))
         self._view = PrimView(mount_opengl)
-        self._ALL_INDICES = wp.array(list(range(len(mount_opengl))), dtype=wp.int32, device="cpu")
         self._base_local_orientation = matrix_from_quat(mount_opengl)
         self.mount_turns = 0
 
 
 MOUNT = torch.nn.functional.normalize(torch.tensor([[0.2, -0.4, 0.1, 0.9], [0.0, 0.3, -0.5, 0.6]]), dim=-1)
 """Two cameras' mount orientations (x, y, z, w), OpenGL convention, for the prim-writing harness."""
+
+
+def write_view(camera, eyes, targets, env_ids=None):
+    """Stand-in for the stock look-at write on :class:`RtxGazeHarness`: each row whose eye differs from its target
+    looks at it; the others keep their poses."""
+    rotation = create_rotation_matrix_from_view(eyes, targets, "Z")
+    looks = ~torch.isnan(rotation).any(dim=(-2, -1))
+    ids = camera._env_indices(env_ids)[looks]
+    camera._view.local[ids] = quat_from_matrix(rotation[looks])
 
 
 def write_prims(camera, positions=None, orientations=None, env_ids=None, convention="ros"):
@@ -193,7 +203,14 @@ def test_gaze_away_from_sensor_masks_all_rays() -> None:
 @pytest.mark.parametrize("device", CPU_AND_CUDA)
 @pytest.mark.parametrize(
     "mode, autocast",
-    [("spherical", False), ("spherical", True), ("spherical_ids", False), ("spherical_mask", False)],
+    [
+        ("spherical", False),
+        ("spherical", True),
+        ("spherical_ids", False),
+        ("spherical_warp_ids", False),
+        ("spherical_slice", False),
+        ("spherical_mask", False),
+    ],
 )
 def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, mode: str, tf32_enabled) -> None:
     batch_size = 48
@@ -216,11 +233,16 @@ def test_gaze_preserves_camera_rotation_with_tf32(device: str, autocast: bool, m
     with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
         if mode == "spherical_ids":
             camera._apply_gaze_pose(torch.nonzero(selected).flatten())
+        elif mode == "spherical_warp_ids":
+            # An int64 Warp selector, which the kernel's int32 indices must not reinterpret.
+            camera._apply_gaze_pose(wp.from_torch(torch.nonzero(selected).flatten(), dtype=wp.int64))
+        elif mode == "spherical_slice":
+            camera._apply_gaze_pose(slice(0, None, 2))
         elif mode == "spherical_mask":
             camera._apply_gaze_pose(env_mask=wp.from_torch(selected))
         else:
             camera._apply_gaze_pose()
-    if mode in ("spherical_ids", "spherical_mask"):
+    if mode != "spherical":
         torch.testing.assert_close(source[~selected], original[~selected], atol=0, rtol=0)
         source = source[selected]
         expected = expected[selected]
@@ -258,8 +280,15 @@ def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
     """The fixed-mount teacher reads the live camera position, so only writes that turn a mount count: not a position
     move, and not writing back the reported mount (of either quaternion sign), even with a gaze held in the prims."""
     monkeypatch.setattr(Camera, "set_world_poses", write_prims)
-    monkeypatch.setattr(Camera, "set_world_poses_from_view", lambda *args, **kwargs: None)
+    monkeypatch.setattr(Camera, "set_world_poses_from_view", write_view)
     eyes = torch.zeros(2, 3)
+    targets = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+
+    def view_twice(camera):
+        # Looking again from the same eye at the same target leaves the mount where the first view put it.
+        camera.set_world_poses_from_view(eyes, targets)
+        camera.mount_turns = 0
+        camera.set_world_poses_from_view(eyes, targets)
 
     def reported(camera, env_ids=None):
         return camera.get_world_poses(env_ids, convention="ros")[1]
@@ -276,7 +305,8 @@ def test_only_a_turned_mount_is_recorded(monkeypatch) -> None:
         (lambda camera: camera.set_world_poses(orientations=-reported(camera, [1]), env_ids=[1]), False),
         (turn_second, True),
         (lambda camera: camera.set_world_poses_from_view(eyes, eyes), False),
-        (lambda camera: camera.set_world_poses_from_view(eyes, torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])), True),
+        (lambda camera: camera.set_world_poses_from_view(eyes, targets), True),
+        (view_twice, False),
     ):
         camera = RtxGazeHarness(MOUNT)
         camera.set_gaze_angles(torch.tensor([[6.0, -11.0], [-9.0, 17.0]]))

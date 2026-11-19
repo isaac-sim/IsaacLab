@@ -35,3 +35,16 @@ def test_exit_texture_marks_rays_outside_the_field_invalid():
     # The octahedral centre is the optical axis, which reaches the axis sample.
     centre = exit_texture[exit_texture.shape[0] // 2, exit_texture.shape[1] // 2, :2]
     torch.testing.assert_close(centre, uv[0])
+
+
+def test_direction_texture_places_each_sample_by_its_uv():
+    """A sample set with one sample per texel, in shuffled order, puts each sample's ray at its own texel."""
+    size = 4
+    axis = (torch.arange(size) + 0.5) / size
+    row, col = torch.meshgrid(axis, axis, indexing="ij")
+    centres = torch.stack((col, row), -1).reshape(-1, 2)
+    order = torch.randperm(size * size, generator=torch.Generator().manual_seed(0))
+    directions = torch.nn.functional.normalize(torch.randn(size * size, 3, generator=torch.Generator().manual_seed(1)))
+    direction_texture, _ = build_lut_textures(centres[order], directions, size, size, 16, 16, device="cpu")
+    texels = (centres[order] * size).long()
+    torch.testing.assert_close(direction_texture[texels[:, 1], texels[:, 0]], directions)
