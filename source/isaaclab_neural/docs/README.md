@@ -111,6 +111,43 @@ serves one. With the service on the same machine and a GPU this process can acce
 (CUDA IPC, Linux); otherwise they go through the socket, which carries about 16 environments of 16 frames at
 480 x 640 per message. `Cosmos3Cfg.transport` forces either one.
 
+### The medical-pad task
+
+`Isaac-Cosmos3-Medical-Pad-Unfold-v0` is a manager-based task on this backend. It uses `JointPositionAction` over the
+58 recorded H2 joints, a `joint_pos` observation and the head camera's image, and has no reset event. Its reward and its
+success and failure terminations read one `ClassifierTracker`, which judges each generated chunk frame by frame:
+
+* An episode **succeeds** (**fails**) at the first frame that completes 30 consecutive frames of the classifier's best
+  (worst) class. The streaks continue across chunks and start again with each episode.
+* The **reward** is the sum of the classifier's per-frame progress up to and including that frame; later frames
+  belong to an episode that has already ended. The term's weight is the frame rate, which cancels the reward manager's
+  `step_dt` scaling.
+* The **terminations** report the outcome when the chunk completes. Episodes also time out after 30 chunks.
+
+The URDF import needs the `importers` extra. The task fixes the 17 joints that the reset records do not cover, so the
+articulation's joints are exactly the 58 recorded ones.
+
+Prepare its checkpoints and start the service from the Isaac Lab checkout, with the Framework environment:
+
+```bash
+cd "$ISAAC_LAB_ROOT"
+uv run --project "$COSMOS_FRAMEWORK_ROOT" --no-sync python scripts/tools/cosmos/prepare_medical_pad.py --download
+export LD_LIBRARY_PATH=
+uv run --project "$COSMOS_FRAMEWORK_ROOT" --no-sync isaaclab-cosmos-world-model-server     --checkpoint .pretrained_checkpoints/medical_pad_unfold/world_model
+```
+
+`prepare_medical_pad.py` checks the model files listed in the task's
+[`artifacts.json`](../../isaaclab_tasks/isaaclab_tasks/contrib/medical_pad_unfold/assets/artifacts.json) and
+points the world model's config at them; it also copies the Framework's action statistics, which the task's joint
+mapping reads in the Isaac Lab environment. Then, in the Isaac Lab environment, replay recorded controls into
+`generated.mp4`, or run the task:
+
+```bash
+uv sync --extra importers --extra video
+uv run python scripts/tools/cosmos/cosmos3_replay.py --output outputs/cosmos3/replay
+uv run python scripts/environments/random_agent.py --task Isaac-Cosmos3-Medical-Pad-Unfold-v0 --num_envs 2
+```
+
 ## Tests
 
 ```bash

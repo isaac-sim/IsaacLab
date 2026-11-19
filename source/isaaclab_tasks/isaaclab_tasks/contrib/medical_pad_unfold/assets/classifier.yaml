@@ -1,0 +1,26 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+model_type: resnet
+num_classes: 5
+reward_values:
+- -2
+- -1
+- 0
+- 1
+- 2
+arch: resnet18
+pretrained: false
+hidden_dim: 256
+dropout: 0.1
+image_size:
+- 3
+- 224
+- 224
+normalize: true
+precision: fp32
+reward_threshold: null
+pre_resize: null
+channels_last: true
