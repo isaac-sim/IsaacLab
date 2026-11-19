@@ -68,8 +68,13 @@ class NewtonPolicyGhostPanel:
         """Environment-to-slot layout of the controller."""
         return self.controller.layout
 
-    def draw(self, imgui: Any) -> None:
-        """Draw the Rollout Ghosts section and, when open, the checkpoint discovery window."""
+    def draw(self, imgui: Any, rtx_view: bool = False) -> None:
+        """Draw the Rollout Ghosts section and, when open, the checkpoint discovery window.
+
+        Args:
+            imgui: The ImGui module.
+            rtx_view: Whether the window shows the RTX view, where ghost tint and opacity do not apply.
+        """
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         ghosts_open = imgui.collapsing_header("Rollout Ghosts")
         if imgui.is_item_hovered():
@@ -79,6 +84,12 @@ class NewtonPolicyGhostPanel:
         if ghosts_open:
             imgui.separator()
             layout = self.layout
+            if rtx_view:
+                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.55, 0.7, 0.95, 0.85))
+                imgui.text_wrapped(
+                    "In the RTX view, ghosts are overlaid untinted. Tint and opacity apply to OpenGL only."
+                )
+                imgui.pop_style_color()
             imgui.text(f"Simulating {layout.num_slots} slots x {layout.slice_size} envs")
             if imgui.is_item_hovered():
                 imgui.set_tooltip(
@@ -127,7 +138,7 @@ class NewtonPolicyGhostPanel:
         worlds = model.shape_world.numpy()
         slot_of_shape = np.where(worlds >= 0, worlds // self.layout.slice_size, -1)
         colors = self._base_colors.copy()
-        opacity = np.ones(len(worlds), dtype=np.float32)
+        opacity = np.ones(len(worlds), dtype=np.float32) if self._base_opacity is None else self._base_opacity.copy()
         for slot in self.layout.slots[1:]:
             if slot.shown:
                 mask = slot_of_shape == slot.index

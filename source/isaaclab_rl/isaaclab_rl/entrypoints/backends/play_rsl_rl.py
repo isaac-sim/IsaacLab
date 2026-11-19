@@ -316,6 +316,8 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             logger.info(f"Loading model checkpoint from: {resume_path}")
             if args_cli.policy_ghosts:
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
                 screen.close()
                 run_policy_ghosts(env, args_cli, agent_cfg, resume_path, log_root_path, slice_size, restart)
                 return

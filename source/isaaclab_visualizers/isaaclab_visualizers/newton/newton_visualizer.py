@@ -399,15 +399,10 @@ class NewtonViewerGL(ViewerGL):
                     callback(imgui)
 
             # --- Rollout Ghosts ----------------------------------------------
-            ghosts_offered = (
-                viewer._policy_ghost_panel is not None
-                or viewer._policy_ghost_toggle is not None
-                or viewer._policy_ghost_restart is not None
-            )
-            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
-                viewer._draw_policy_ghosts_unsupported(imgui)
-            elif viewer._policy_ghost_panel is not None:
-                viewer._policy_ghost_panel.draw(imgui)
+            if viewer._policy_ghost_panel is not None:
+                viewer._policy_ghost_panel.draw(
+                    imgui, rtx_view=viewer._owner is not None and viewer._owner.rtx_rendering
+                )
             elif viewer._policy_ghost_toggle is not None:
                 draw_policy_ghost_toggle(imgui, viewer._policy_ghost_toggle)
             elif viewer._policy_ghost_restart is not None:
@@ -556,22 +551,6 @@ class NewtonViewerGL(ViewerGL):
                 "In RTX mode, hidden environments are also hidden for other cameras that share the scene."
                 " Soft objects stay visible.",
             )
-
-    def _draw_policy_ghosts_unsupported(self, imgui) -> None:
-        """Draw the greyed-out Rollout Ghosts section shown while the RTX view is active."""
-        imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
-        expanded = imgui.collapsing_header("Rollout Ghosts")
-        imgui.pop_style_color()
-        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
-        if expanded:
-            imgui.separator()
-            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
-            imgui.text_wrapped(
-                "Rollout Ghosts are not supported in the RTX view. "
-                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
-            )
-            imgui.pop_style_color()
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
@@ -960,6 +939,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     _rtx_visibility_limited = False
+    _policy_ghost_panel = None
     _capturing_another_view = False
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.

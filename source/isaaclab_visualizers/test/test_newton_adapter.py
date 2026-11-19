@@ -1440,23 +1440,6 @@ class _RecordingImgui:
         self.texts.append(text)
 
 
-@pytest.mark.parametrize("expanded", [True, False])
-def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expanded):
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    imgui = _RecordingImgui(expanded)
-
-    viewer._draw_policy_ghosts_unsupported(imgui)
-
-    assert imgui.headers == ["Rollout Ghosts"]
-    assert (
-        any("RTX" in text and "not supported" in text for text in imgui.texts),
-        any("OpenGL" in text for text in imgui.texts),
-    ) == (
-        expanded,
-        expanded,
-    )
-
-
 def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     from isaaclab.visualizers import PerspectiveCameraCfg
 

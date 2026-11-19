@@ -145,3 +145,67 @@ def test_full_tint_removes_texture_and_metallic_shading_only_from_that_ghost() -
     layout.slots[1].tint = 0.5
     panel.apply_materials(viewer)
     assert np.allclose(viewer._shape_instances["batch"].materials.numpy(), [0.5, 0.7, 0.0, 1.0])
+
+
+def test_the_rtx_view_notes_that_tint_and_opacity_apply_to_opengl_only():
+    class _Imgui:
+        Col_ = SimpleNamespace(text=0)
+        HoveredFlags_ = SimpleNamespace(allow_when_disabled=0)
+
+        def __init__(self):
+            self.texts = []
+
+        def set_next_item_open(self, *args):
+            pass
+
+        Cond_ = SimpleNamespace(appearing=0)
+
+        def collapsing_header(self, label):
+            return True
+
+        def is_item_hovered(self, *args):
+            return False
+
+        def separator(self):
+            pass
+
+        def push_style_color(self, *args):
+            pass
+
+        def pop_style_color(self):
+            pass
+
+        def ImVec4(self, *args):
+            return args
+
+        def text_wrapped(self, text):
+            self.texts.append(text)
+
+        def text(self, text):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
+
+    panel = _panel(PolicyGhostLayout(SLICE_SIZE, 3))
+    imgui = _Imgui()
+
+    panel.draw(imgui, rtx_view=True)
+
+    assert any("OpenGL only" in text for text in imgui.texts)
+
+
+def test_tinting_keeps_the_opacity_the_model_already_has() -> None:
+    layout = PolicyGhostLayout(SLICE_SIZE, 3)
+    layout.slots[1].checkpoint = CHECKPOINT
+    model = _model()
+    base = np.full(len(model.shape_world.numpy()), 0.4, dtype=np.float32)
+    model.shape_opacity = wp.array(base, dtype=wp.float32, device="cpu")
+    panel = _panel(layout)
+
+    panel.apply_tint(model)
+
+    opacity = model.shape_opacity.numpy()
+    ghost = model.shape_world.numpy() // SLICE_SIZE == 1
+    assert (opacity[~ghost & (model.shape_world.numpy() >= 0)] == 0.4).all() and opacity[0] == 0.4
+    assert (opacity[ghost] == layout.slots[1].opacity).all()
