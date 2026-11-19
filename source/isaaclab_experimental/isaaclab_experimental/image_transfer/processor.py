@@ -91,8 +91,6 @@ class ImageTransferProcessor(TensorProcessor):
         self._episodes = torch.zeros(num_views, dtype=torch.int64, device=device)
         # Captures each view needs, at least, before its chunk can be complete; exact after each host read.
         self._waits = [cfg.initial_frames] * num_views
-        # Whether reset() ran since the resets were last read, so a generation reads them only after one.
-        self._reset_called = False
         self._started = False
         self._failed = False
         self._closed = False
@@ -112,12 +110,8 @@ class ImageTransferProcessor(TensorProcessor):
             RuntimeError: If the processor is closed or failed, or a captured view's queue was full.
             ValueError: If the controls or the generated images have the wrong shape or type.
         """
-        if self._closed or self._failed:
-            raise RuntimeError("Image transfer processor is closed or failed; recreate it.")
         cfg = self._cfg
-        frames = data[cfg.inputs[0]].torch
-        if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
-            raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
+        frames = self._controls(data)
         with torch.no_grad():
             if self._queue is None:
                 shape = (self._data_dim[0], cfg.max_pending_frames + 1, *self._data_dim[1:])
@@ -145,10 +139,9 @@ class ImageTransferProcessor(TensorProcessor):
                 self._queue[row, count - size : count] if start else self._queue[row, :size]
                 for row, (count, size, start) in enumerate(zip(counts, chunk, fresh))
             ]
-            num_views = len(counts)
             # The first chunk starts every view from the seed the stream opened with.
             rows = tuple(row for row, reset in enumerate(resets) if reset) if self._started else ()
-            seeds = tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
+            seeds = self._episode_seeds(rows, episodes)
             try:
                 generated = self._stream.step(controls, rows, seeds)
                 # A stream shared with other cameras returns None when it generates later, and publishes then.
@@ -209,7 +202,6 @@ class ImageTransferProcessor(TensorProcessor):
         self._overflow &= ~selected
         self._episodes += selected
         self._resets |= selected
-        self._reset_called = True
         self._output.masked_fill_(selected.view(-1, 1, 1, 1), 0)
         # A reset view needs only its initial chunk; the host does not read which views reset.
         self._waits = [min(wait, self._cfg.initial_frames) for wait in self._waits]
@@ -240,21 +232,24 @@ class ImageTransferProcessor(TensorProcessor):
         index_fill_(self._selected, env_ids, True)
         return self._selected
 
-    def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
-        """Return the views that started an episode since the last generation, with their seeds and episode
-        numbers, and clear them. A view that reset several times is listed once, with its latest episode.
+    def _controls(self, data: dict[str, ProxyArray]) -> torch.Tensor:
+        """Return a call's control images, checked against the shape the processor was built for.
 
-        This reads the state on the host after a reset, so call it only where the generation itself waits for the
-        result.
+        Raises:
+            RuntimeError: If the processor is closed or failed.
+            ValueError: If the controls have the wrong shape or type.
         """
-        if not self._reset_called:
-            return (), (), ()
-        self._reset_called = False
-        resets, episodes = torch.stack((self._resets.long(), self._episodes)).tolist()
-        self._resets.zero_()
-        rows = tuple(row for row, reset in enumerate(resets) if reset)
-        seeds = tuple((self._seeds[row] + episodes[row] * len(resets)) % _SEED_MODULUS for row in rows)
-        return rows, seeds, tuple(episodes[row] for row in rows)
+        if self._closed or self._failed:
+            raise RuntimeError("Image transfer processor is closed or failed; recreate it.")
+        frames = data[self._cfg.inputs[0]].torch
+        if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
+            raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
+        return frames
+
+    def _episode_seeds(self, rows: tuple[int, ...], episodes: list[int]) -> tuple[int, ...]:
+        """Return the seeds of the views ``rows`` in their current episodes, given every view's episode number."""
+        num_views = self._data_dim[0]
+        return tuple((self._seeds[row] + episodes[row] * num_views) % _SEED_MODULUS for row in rows)
 
 
 class FunctionProcessor(TensorProcessor):

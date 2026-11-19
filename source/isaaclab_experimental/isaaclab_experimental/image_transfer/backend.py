@@ -28,8 +28,7 @@ class ImageTransferStream(Protocol):
     ) -> list[torch.Tensor] | None:
         """Consume one chunk per view and return the corresponding images.
 
-        A stream may instead return None and deliver the images later through a callback from its owner, as Cosmos
-        cameras sharing a session do with their processor's publication.
+        A stream may instead return None and deliver the images later through a callback it was given.
         """
         ...
 
