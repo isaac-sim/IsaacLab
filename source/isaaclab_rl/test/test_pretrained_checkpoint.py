@@ -138,7 +138,7 @@ def test_get_pretrained_checkpoint_backend_names_names_each_newton_solver(solver
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == (expected, "none")
 
 
-def test_get_pretrained_checkpoint_backend_names_preserves_deprecated_kamino_solver_name():
+def test_get_pretrained_checkpoint_backend_names_preserves_deprecated_kamino_solver_name() -> None:
     """Test that legacy Kamino configurations still identify the same checkpoints."""
     with pytest.warns(DeprecationWarning, match="KaminoSCCSolverCfg"):
         solver_cfg = KaminoDVISolverCfg()

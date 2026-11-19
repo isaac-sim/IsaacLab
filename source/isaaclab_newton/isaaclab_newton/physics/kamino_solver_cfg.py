@@ -415,13 +415,13 @@ class KaminoSCCSolverCfg(_KaminoSolverCfgBase):
     """SCC forward-dynamics solver parameters."""
 
     def _get_dynamics_solver_config(self) -> tuple[Literal["scc"], dict[str, Any]]:
-        """Return SCC and its configuration keyword arguments."""
+        """Return SCC (formerly DVI) and its configuration keyword arguments."""
         return "scc", _cfg_to_dict(self.dynamics_solver_cfg)
 
 
 class KaminoDVISolverCfg(KaminoSCCSolverCfg):
     """Deprecated name for :class:`KaminoSCCSolverCfg`."""
 
-    __init__ = deprecated("KaminoDVISolverCfg is deprecated. Use KaminoSCCSolverCfg instead.")(
-        KaminoSCCSolverCfg.__init__
-    )
+    __init__ = deprecated(
+        "KaminoDVISolverCfg is deprecated and will be removed in a future release. Use KaminoSCCSolverCfg instead."
+    )(KaminoSCCSolverCfg.__init__)

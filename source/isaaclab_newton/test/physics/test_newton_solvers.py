@@ -316,9 +316,12 @@ def test_kamino_scc_cfg_forwards_its_fields():
     _assert_forwarded(newton_cfg.dynamics, _KAMINO_DYNAMICS_FIELD_VALUES[:1])
 
 
-def test_kamino_dvi_cfg_warns_and_builds_scc():
+def test_kamino_dvi_cfg_warns_and_builds_scc() -> None:
     """The legacy solver config warns with its replacement and still accepts DVI settings."""
-    with pytest.warns(DeprecationWarning, match=r"KaminoDVISolverCfg is deprecated\. Use KaminoSCCSolverCfg"):
+    with pytest.warns(
+        DeprecationWarning,
+        match=r"KaminoDVISolverCfg is deprecated and will be removed in a future release\. Use KaminoSCCSolverCfg",
+    ):
         solver_cfg = KaminoDVISolverCfg(dynamics_solver_cfg=KaminoDVICfg(max_alternating_iterations=7))
 
     newton_cfg = solver_cfg.to_solver_config()

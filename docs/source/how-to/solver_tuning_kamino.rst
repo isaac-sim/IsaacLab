@@ -54,7 +54,8 @@ compatible defaults.
 Migrate from the DVI configuration names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Replace the deprecated :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` with
+The deprecated :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` will be removed in a future
+release. Replace it with
 :class:`~isaaclab_newton.physics.KaminoSCCSolverCfg` in imports and constructors,
 using the same field values. For an explicit ``dynamics_solver_cfg``, use
 :class:`~isaaclab_newton.physics.KaminoSCCCfg`.
