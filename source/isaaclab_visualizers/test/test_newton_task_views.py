@@ -218,11 +218,14 @@ def test_the_shared_renderer_hides_environments_only_while_the_rtx_view_is_shown
     viz._sim.get_or_create_backend = lambda cfg: renderer
     viz._env_ids = [0]
 
-    viz._apply_rtx_visible_envs()  # OpenGL is shown, so the sensors keep every environment
+    viz._apply_rtx_visible_envs()  # OpenGL is shown, so the renderer the sensors share is left alone
+    assert calls == []
     viz.current_image_view = rtx
     viz._apply_rtx_visible_envs()
+    viz.current_image_view = viz._image_views[0]
+    viz._apply_rtx_visible_envs()  # leaving RTX lifts the limit once
 
-    assert calls == [[True, True, True], [True, False, False]]
+    assert calls == [[True, False, False], [True, True, True]]
 
 
 def test_the_standalone_rtx_window_has_no_opengl_view_state():

@@ -208,6 +208,22 @@ def test_a_sky_texture_is_loaded_in_the_background_and_adds_the_dome_light_again
     assert appearance.texture_status == ""
 
 
+def test_turning_the_dome_off_while_a_sky_downloads_keeps_it_off(monkeypatch):
+    monkeypatch.setattr(module, "retrieve_file_path", lambda source: "/cache/sky.hdr")
+    appearance, _ = _appearance()
+
+    appearance.use_sky("https://assets/skies/lakeside.hdr")
+    assert appearance.dome_enabled  # choosing a sky turns the dome on
+    appearance.dome_enabled = False  # the user turns it off before the download finishes
+    deadline = time.time() + 5
+    while appearance._texture_thread.is_alive():
+        assert time.time() < deadline
+        time.sleep(0.01)
+    appearance.poll()
+
+    assert not appearance.dome_enabled
+
+
 def test_a_sky_download_superseded_by_another_choice_is_not_applied(monkeypatch):
     import threading
 
