@@ -258,3 +258,23 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
 
     assert viz._capture_view(free, None) == "window frame"
     assert viz.current_image_view is rtx
+
+
+def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
+    free, tracking = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _switchable([free, tracking])
+    viz._viewer = SimpleNamespace(_camera_speed=5.0, camera_speed=5.0, camera_speed_boost=2.0)
+    viz._pose_source_view = lambda: viz.current_image_view
+    imgui = SimpleNamespace(
+        slider_float=lambda *args: (True, 12.0),
+        SliderFlags_=SimpleNamespace(logarithmic=0),
+        is_item_hovered=lambda *args: False,
+        HoveredFlags_=SimpleNamespace(allow_when_disabled=0),
+    )
+    viz.current_image_view = tracking
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 5.0  # a tracking camera does not move with the keys
+
+    viz.current_image_view = free
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0

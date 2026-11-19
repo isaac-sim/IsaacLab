@@ -317,7 +317,10 @@ class NewtonViewerGL(ViewerGL):
         from pyglet.window import key
 
         boosted = self.is_key_down(key.LSHIFT) or self.is_key_down(key.RSHIFT)
-        return self._camera_speed * (self.CAMERA_SPEED_BOOST_MULTIPLIER if boosted else 1.0)
+        return self._camera_speed * (self.camera_speed_boost if boosted else 1.0)
+
+    camera_speed_boost: float = CAMERA_SPEED_BOOST_MULTIPLIER
+    """Factor applied to the camera speed while Shift is held."""
 
     @camera_speed.setter
     def camera_speed(self, value: float) -> None:
@@ -1128,6 +1131,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 imgui.end_disabled()
         self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
+        self._draw_camera_speed(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
             (i for i in range(len(self._image_views)) if i != rtx_index),
@@ -1453,6 +1457,23 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
             view.invalidate()
             self._last_render_step = -1
+
+    def _draw_camera_speed(self, imgui) -> None:
+        """Draw the keyboard speed of the free camera; tracking cameras and sensors do not move with the keys."""
+        view = self._pose_source_view()
+        if view.camera is not None or self._is_tracking_view(view):
+            return
+        speed = float(self._viewer._camera_speed)
+        changed, speed = imgui.slider_float(
+            "Camera Speed", speed, 0.1, 50.0, "%.1f m/s", imgui.SliderFlags_.logarithmic
+        )
+        hover_tooltip(imgui, "How fast the WASD keys move the camera")
+        if changed:
+            self._viewer.camera_speed = speed
+        changed, boost = imgui.slider_float("Shift Boost", float(self._viewer.camera_speed_boost), 1.0, 10.0, "%.1fx")
+        hover_tooltip(imgui, "How much faster the camera moves while Shift is held")
+        if changed:
+            self._viewer.camera_speed_boost = boost
 
     def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
         """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
