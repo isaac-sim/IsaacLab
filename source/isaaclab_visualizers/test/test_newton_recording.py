@@ -54,6 +54,15 @@ def test_output_paths_number_stamp_or_overwrite(tmp_path):
     assert (tmp_path / "scene").is_dir()
 
 
+def test_numbered_files_are_reserved_so_two_savers_never_pick_the_same_name(tmp_path):
+    first = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), filename_prefix="run"))
+    second = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), filename_prefix="run"))
+
+    names = [first._output_path("video", ".mp4").name, second._output_path("video", ".mp4").name]
+
+    assert names == ["run_0001.mp4", "run_0002.mp4"]  # the first name was taken before it was written
+
+
 @pytest.mark.skipif(_ffmpeg_executable() is None, reason="ffmpeg is not installed")
 def test_video_streams_frames_and_ignores_resized_ones(tmp_path):
     frames = [np.full((16, 24, 3), 10 * i, np.uint8) for i in range(3)] + [np.zeros((8, 8, 3), np.uint8)]
@@ -262,8 +271,9 @@ def test_each_panel_encodes_to_its_own_temporary_file_and_a_prefix_cannot_leave_
     second.start_video()
 
     assert first._video_temp != second._video_temp
-    assert first._output_path("video", ".mp4").parent == tmp_path / "video"
-    assert first._output_path("video", ".mp4").name == "outside_0001.mp4"
+    path = first._output_path("video", ".mp4")
+    assert path.parent == tmp_path / "video"
+    assert path.name == "outside_0001.mp4"
 
 
 def test_a_screenshot_is_taken_while_rendering_is_paused_but_a_video_gets_no_frame(tmp_path):

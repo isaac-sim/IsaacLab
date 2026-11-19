@@ -906,6 +906,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     _rtx_visibility_limited = False
+    _capturing_another_view = False
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -1746,6 +1747,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
             self.current_image_view = view
+            self._capturing_another_view = True  # the HUD recording keeps the frames the window itself shows
             if not self._is_tracking_view(view):  # a free view renders from its declared pose and optics
                 source = view.cfg.source
                 camera.pos = PygletVec3(*source.eye)
@@ -1755,6 +1757,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:
+            self._capturing_another_view = False
             self.current_image_view = current
             camera.fov = saved[3]
             self._viewer.set_camera(*saved[:3])
@@ -2113,7 +2116,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
-        if self._recording is not None:
+        if self._recording is not None and not self._capturing_another_view:
             self._recording.capture(paused=viewer.is_paused())
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
