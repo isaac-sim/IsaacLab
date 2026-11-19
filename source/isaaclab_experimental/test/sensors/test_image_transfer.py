@@ -133,6 +133,22 @@ def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim, selection
     assert model.steps[-1][1:] == ((1,), (restart,))
 
 
+def test_a_view_that_resets_while_the_first_chunk_fills_starts_from_its_episode_seed(no_sim):
+    """The first step names the views that reset before it, with their episode seeds, as later steps do."""
+    processor, model = _processor(initial_frames=2, update_frames=2)
+    _rgb(processor, 1)
+    processor.reset([1])
+    for value in (2, 3):
+        _rgb(processor, value)
+
+    assert model.opened == [(2, (7, 8))]
+    assert [step[1:] for step in model.steps] == [((1,), (10,))]
+    processor.reset([1])
+    for value in (4, 5):
+        _rgb(processor, value)
+    assert [step[1:] for step in model.steps[1:]] == [((1,), (12,))]
+
+
 def test_a_seed_list_needs_one_seed_per_view(no_sim):
     with pytest.raises(ValueError, match="one seed per view"):
         _processor(seed=[101])
@@ -241,6 +257,31 @@ def test_depth_controls_feed_image_transfer(no_sim):
     assert output[0, 0, :, 0].tolist() == [0, 255, 255, 255]
     with pytest.raises(ValueError, match="near < far"):
         depth_to_control(depth, near=2.0, far=1.0)
+
+
+def test_a_function_processor_runs_once_per_capture_and_publishes_only_the_captured_views():
+    """Construction does not call the function; views a capture skips keep their result, zero before their first."""
+    calls = []
+
+    def double(data: torch.Tensor) -> torch.Tensor:
+        calls.append(data.clone())
+        return data * 2
+
+    cfg = FunctionProcessorCfg(function=double, inputs=["source"], outputs=["doubled"])
+    source = torch.tensor([[1.0], [2.0]])
+    buffers = {"source": ProxyArray(wp.from_torch(source))}
+    processor = cfg.func(cfg, buffers)
+    assert not calls
+
+    def capture(mask=None) -> list[float]:
+        env_mask = None if mask is None else wp.array(mask, dtype=wp.bool, device="cpu")
+        return processor(buffers, env_mask=env_mask)["doubled"].torch.flatten().tolist()
+
+    assert capture([True, False]) == [2.0, 0.0]
+    source.copy_(torch.tensor([[5.0], [6.0]]))
+    assert capture([False, True]) == [2.0, 12.0]
+    assert capture() == [10.0, 12.0]
+    assert len(calls) == 3
 
 
 def test_a_view_resetting_mid_chunk_joins_the_next_chunk_and_queues_stay_bounded(no_sim):

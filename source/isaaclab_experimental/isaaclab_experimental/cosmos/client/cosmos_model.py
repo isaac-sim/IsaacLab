@@ -373,36 +373,6 @@ class _CosmosStream:
                 raise ValueError("Cosmos views must share one image size and device.")
             if self._shape is not None and image_shape != self._shape:
                 raise ValueError("Cosmos image size cannot change within a camera stream.")
-            if self._socket is None:
-                self._socket = connect(self._endpoint, self._cfg.timeout)
-                message = {
-                    "op": "open",
-                    "num_views": num_views,
-                    "seeds": self._seeds,
-                    "prompt": self._session_prompt(),
-                    "height": image_shape[0],
-                    "width": image_shape[1],
-                    # A single-frame image is a one-frame episode.
-                    "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
-                    "fps": self._cfg.fps,
-                }
-                self.transport = self._select_transport(control.device)
-                if self.transport == "cuda_ipc":
-                    from .. import _cuda_ipc
-
-                    self._channel = _cuda_ipc.SharedChannel(
-                        control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
-                    )
-                    # The service opens the controls on this GPU, which it finds by its PCI bus ID.
-                    ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(control.device.index or 0)}
-                    message.update(transport="cuda_ipc", ipc=ipc)
-                reply, arrays = self._exchange(message)
-                if arrays:
-                    raise ProtocolError("Cosmos open reply must not contain image arrays.")
-                if self._channel is not None:
-                    # The service writes generated images into a buffer on its own GPU.
-                    self._channel.open(self._service_device, reply.get("ipc"))
-                self._shape = image_shape
             frames = [view.shape[0] for view in controls]
             if max(frames) > MAX_CHUNK_FRAMES:
                 raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
@@ -415,6 +385,8 @@ class _CosmosStream:
                 # first frame, such as the capture taken before the environment's initial reset.
                 episode += 1 if self._episode_frames > 1 else 0
                 message["prompt"] = self._episode_prompt(episode)
+            if self._socket is None:
+                self._open(control.device, image_shape, message)
             arrays = []
             if self._channel is not None:
                 # Controls and images stay on the GPU, one buffer row per view; events order the processes.
@@ -430,6 +402,53 @@ class _CosmosStream:
         except Exception:
             self._release(notify=False)
             raise
+
+    def _open(self, device: torch.device, image_shape: tuple[int, int, int], step: dict) -> None:
+        """Connect and open the session for the first step, whose resets become the session's opening state.
+
+        The service starts every view fresh, so the views ``step`` resets open with its seeds and prompts, and the
+        step itself is sent without resets.
+
+        Args:
+            device: Device of the controls.
+            image_shape: Control image shape ``(height, width, 3)``.
+            step: The first step's message; its ``reset_rows``, ``seeds`` and ``prompt`` are consumed.
+        """
+        num_views = len(self._seeds)
+        seeds = list(self._seeds)
+        prompt = step.pop("prompt", self._session_prompt())
+        for row, seed in zip(step["reset_rows"], step["seeds"]):
+            seeds[row] = seed
+        step.update(reset_rows=(), seeds=())
+        self._socket = connect(self._endpoint, self._cfg.timeout)
+        message = {
+            "op": "open",
+            "num_views": num_views,
+            "seeds": tuple(seeds),
+            "prompt": prompt,
+            "height": image_shape[0],
+            "width": image_shape[1],
+            # A single-frame image is a one-frame episode.
+            "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
+            "fps": self._cfg.fps,
+        }
+        self.transport = self._select_transport(device)
+        if self.transport == "cuda_ipc":
+            from .. import _cuda_ipc
+
+            self._channel = _cuda_ipc.SharedChannel(
+                device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
+            )
+            # The service opens the controls on this GPU, which it finds by its PCI bus ID.
+            ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(device.index or 0)}
+            message.update(transport="cuda_ipc", ipc=ipc)
+        reply, arrays = self._exchange(message)
+        if arrays:
+            raise ProtocolError("Cosmos open reply must not contain image arrays.")
+        if self._channel is not None:
+            # The service writes generated images into a buffer on its own GPU.
+            self._channel.open(self._service_device, reply.get("ipc"))
+        self._shape = image_shape
 
     def _receive(self, sent: _SentStep) -> list[torch.Tensor]:
         """Wait for the reply to a step from :meth:`_send` and return its images on the controls' device.
@@ -504,7 +523,8 @@ class _CosmosStream:
                 self._view_episode_numbers[row] = episodes[index]
             self._view_resets[row] += 1
             self._view_seeds[row], self._view_frames[row] = seed, 0
-        # Every step restarts every view, the first too, so episodes that ended before it also select its prompts.
+        # Every step restarts every view. On the first step the restarts open the session, so episodes that ended
+        # before it also select its seeds and prompts.
         fields = {
             "reset_rows": tuple(range(len(frames))),
             "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
@@ -689,8 +709,9 @@ class _CameraGroup:
     it. A camera that steps before the others reads their data, which renders them and runs their processors, unless
     they were already rendered for this capture, as an eager scene update renders every camera before running any
     processor: their processors then add their chunks next, and the last one publishes the earlier cameras' images.
-    All cameras thus publish images of the same capture, so they must capture at the same steps. A failure closes the
-    session for every camera.
+    All cameras thus publish images of the same capture, so they must capture at the same steps. A camera whose
+    images are published later must have its Cosmos processor last, since its own later processors already ran. A
+    failure closes the session for every camera.
     """
 
     def __init__(self, model: CosmosModel, cameras: tuple[str, ...]):
@@ -760,6 +781,13 @@ class _CameraGroup:
                     )
             if self._images is None:
                 if len(self._chunks) < len(self._cameras):
+                    name = self._cameras[stream.index]
+                    if getattr(cameras[name].cfg.tensor_processors[-1], "camera", None) != name:
+                        raise ValueError(
+                            f"Camera {name!r} runs tensor processors after its Cosmos processor, but its images are "
+                            "published when a later camera of the capture generates. Put the Cosmos processor last "
+                            "or use lazy sensor updates (scene.lazy_sensor_update=True)."
+                        )
                     # This camera's processor reuses its control queue before the session generates.
                     self._chunks[stream.index] = ([chunk.clone() for chunk in controls], reset_rows, seeds)
                     self._waiting.add(stream.index)

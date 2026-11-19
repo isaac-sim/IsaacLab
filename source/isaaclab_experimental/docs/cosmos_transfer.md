@@ -476,6 +476,9 @@ for name in names:
   each camera's view is the canvas's center crop, scaled back to its size.
 - The cameras need the same update period, so they capture together. Each camera must be read at every capture,
   as observation terms do; a camera that misses a shared capture stops the session with an error.
+- Keep the Cosmos processor last in each camera's tensor processors, as `cosmos_camera` builds them. With eager
+  sensor updates (`scene.lazy_sensor_update=False`), a camera's images are published when the last camera of the
+  capture generates, after its own processors ran, so a processor after Cosmos stops the session with an error.
 - An environment's cameras share its seed and reset together. Cosmos generates each view on its own, so the images
   of different cameras need not agree, for example on colors and materials.
 - The batch holds `num_cameras * num_envs` views, which need GPU memory like as many environments. With several
@@ -631,11 +634,13 @@ wrist_camera = CameraCfg(
 - **Resets:** resetting a view clears its queued controls and its visible image. Its next chunk uses the initial
   size, and `step` receives the view index and a new deterministic seed: view `i` starts from `seed + i`, or from
   `seed[i]` when `seed` lists one seed per view, and each reset advances it by the number of views, modulo `2**31`.
-  The stream must discard all episode state for those views. An exception or invalid result marks the processor as
+  The first `step` names the views that reset before it. The stream must discard all episode state for those
+  views. An exception or invalid result marks the processor as
   failed; recreate the camera instead of retrying against a stream that may already have advanced.
 - **Controls:** `depth_to_control` maps metric depth to near-white, far-black controls; missing, nonfinite, and
   nonpositive depth becomes black. Any processor that produces uint8 `(N, H, W, 3)` controls under the image
-  transfer processor's first input can take its place.
+  transfer processor's first input can take its place. `FunctionProcessorCfg` calls its function once per capture
+  and publishes the result for the captured views; the others keep theirs.
 
 The image transfer tests run the processors on CPU with small stand-in models and need no model or service:
 

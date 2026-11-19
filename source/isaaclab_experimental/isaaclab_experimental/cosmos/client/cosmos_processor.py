@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -130,7 +129,6 @@ class CosmosTransferProcessor(ImageTransferProcessor):
             images = torch.cat(generated).to(self._output.device)
             torch.where(selected, images, self._output, out=self._output)
             self._resize()
-            self._started = True
         return dict(self._outputs)
 
     def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
@@ -138,12 +136,12 @@ class CosmosTransferProcessor(ImageTransferProcessor):
         super()._publish(generated, chunk)
         self._resize()
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
+    def _reset_views(self, selected: torch.Tensor) -> None:
         """Discard the selected views' queued controls and episode state, and publish them black."""
-        super().reset(env_ids, env_mask)
+        super()._reset_views(selected)
         self._reset_called = True
         if self._resized is not None:
-            self._resized.masked_fill_(self._select(env_ids, env_mask).view(-1, 1, 1, 1), 0)
+            self._resized.masked_fill_(selected.view(-1, 1, 1, 1), 0)
 
     def _take_resets(self) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
         """Return the views that started an episode since the last generation, with their seeds and episode

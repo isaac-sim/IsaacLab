@@ -42,13 +42,17 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     :func:`~isaaclab_experimental.cosmos.cosmos_camera` sets for a camera whose size is not a Cosmos canvas."""
 
     def validate_config(self):
-        """Add ``rgb`` to the inputs when single-frame generation can skip captures.
+        """Make ``rgb`` an input exactly when single-frame generation can skip captures.
 
-        The camera renders a processor's inputs, and skipped captures publish the rendered ``rgb``. The generation
-        settings can be overridden until validation, for example with ``env.cosmos.augmentation_probability=0.5``.
+        The camera renders a processor's inputs, and skipped captures publish the rendered ``rgb``; the processor
+        reads no other input than its control. The generation settings can be overridden until validation, for
+        example with ``env.cosmos.augmentation_probability=0.5``, so the inputs follow the settings at each
+        validation.
         """
-        if publishes_rendered_rgb(self.backend) and "rgb" not in self.inputs:
-            self.inputs = [*self.inputs, "rgb"]
+        inputs = [name for index, name in enumerate(self.inputs) if index == 0 or name != "rgb"]
+        if publishes_rendered_rgb(self.backend) and "rgb" not in inputs:
+            inputs.append("rgb")
+        self.inputs = inputs
 
 
 def publishes_rendered_rgb(backend: CosmosModelCfg) -> bool:

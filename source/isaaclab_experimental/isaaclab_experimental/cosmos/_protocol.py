@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 """Message format version. A client and a service reject each other's messages when their versions differ."""
 CANVAS_ASPECT_RATIOS = {
     (480, 832): "16,9",

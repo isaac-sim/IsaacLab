@@ -12,7 +12,10 @@ generator echoes each view's control so views can be told apart.
 from __future__ import annotations
 
 import gc
+import socket
 import sys
+import threading
+import time
 import types
 import weakref
 from contextlib import contextmanager
@@ -22,7 +25,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_experimental.cosmos.server import _framework
+from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, _protocol
+from isaaclab_experimental.cosmos.server import _framework, serve
 
 pytestmark = pytest.mark.unit
 
@@ -151,6 +155,59 @@ def batch(monkeypatch):
 
 def _controls(*frames_and_values):
     return [np.full((frames, HEIGHT, WIDTH, 3), value, dtype=np.uint8) for frames, value in frames_and_values]
+
+
+@contextmanager
+def _served(owner):
+    """Serve ``owner`` with the production listener on a local TCP endpoint, and shut it down through it."""
+    owner._metadata_dir = SimpleNamespace(cleanup=lambda: None)
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        endpoint = f"tcp://127.0.0.1:{reserved.getsockname()[1]}"
+    thread = threading.Thread(target=serve, args=(owner, endpoint), daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                _protocol.request(endpoint, {"op": "status"}, timeout=0.2)
+                break
+            except OSError:
+                assert thread.is_alive() and time.monotonic() < deadline, "Cosmos service did not start"
+                time.sleep(0.01)
+        yield endpoint
+    finally:
+        if thread.is_alive():
+            _protocol.request(endpoint, {"op": "shutdown"}, timeout=10)
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "Cosmos service did not stop"
+
+
+@pytest.mark.parametrize("views", [1, 2])
+def test_a_single_frame_client_generates_through_the_service_on_the_server_streams(batch, views):
+    """The client's first step starts every view from the opening seeds, and its second restarts them all."""
+    stream, model = batch(views=views)
+    owner = stream._owner
+    stream.close()
+    seeds = tuple(range(5, 5 + views))
+    with _served(owner) as endpoint:
+        cfg = CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", transport="socket", timeout=30)
+        client = CosmosModel(cfg)
+        try:
+            session = client.open_stream(num_views=views, seeds=seeds)
+            for step in range(2):
+                values = [20 + 10 * step + view for view in range(views)]
+                controls = [torch.full((1, HEIGHT, WIDTH, 3), value, dtype=torch.uint8) for value in values]
+                images = session.step(controls, reset_rows=(), seeds=())
+                assert [tuple(image.shape) for image in images] == [(1, HEIGHT, WIDTH, 3)] * views
+                assert [int(image.float().mean()) for image in images] == values
+        finally:
+            client.close()
+
+    # The model starts every view from its opening seed, then restarts every view with a seed of its own.
+    seen = [seed for started in model.iterator_seeds for seed in started]
+    seen += [seed for _, restarted in model.steps for seed in restarted or ()]
+    assert seen[:views] == list(seeds) and len(set(seen)) == len(seen) == 2 * views
 
 
 def test_new_sessions_change_view_count_without_reloading_the_model(batch):

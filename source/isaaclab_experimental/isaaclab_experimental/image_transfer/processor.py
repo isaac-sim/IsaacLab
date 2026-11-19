@@ -91,7 +91,6 @@ class ImageTransferProcessor(TensorProcessor):
         self._episodes = torch.zeros(num_views, dtype=torch.int64, device=device)
         # Captures each view needs, at least, before its chunk can be complete; exact after each host read.
         self._waits = [cfg.initial_frames] * num_views
-        self._started = False
         self._failed = False
         self._closed = False
 
@@ -139,8 +138,8 @@ class ImageTransferProcessor(TensorProcessor):
                 self._queue[row, count - size : count] if start else self._queue[row, :size]
                 for row, (count, size, start) in enumerate(zip(counts, chunk, fresh))
             ]
-            # The first chunk starts every view from the seed the stream opened with.
-            rows = tuple(row for row, reset in enumerate(resets) if reset) if self._started else ()
+            # Views that reset since the last chunk, also before the first one, start from their episode's seed.
+            rows = tuple(row for row, reset in enumerate(resets) if reset)
             seeds = self._episode_seeds(rows, episodes)
             try:
                 generated = self._stream.step(controls, rows, seeds)
@@ -159,7 +158,6 @@ class ImageTransferProcessor(TensorProcessor):
             self._fresh.zero_()
             self._resets.zero_()
             self._waits = [cfg.update_frames - left for left in kept]
-            self._started = True
         return dict(self._outputs)
 
     def _publish(self, generated: list[torch.Tensor], chunk: list[int] | None = None) -> None:
@@ -196,7 +194,10 @@ class ImageTransferProcessor(TensorProcessor):
         """
         if self._closed:
             return
-        selected = self._select(env_ids, env_mask)
+        self._reset_views(self._select(env_ids, env_mask))
+
+    def _reset_views(self, selected: torch.Tensor) -> None:
+        """Discard the queued controls and episode state of the views in the boolean mask ``selected``."""
         self._counts.masked_fill_(selected, 0)
         self._fresh |= selected
         self._overflow &= ~selected
@@ -256,11 +257,12 @@ class FunctionProcessor(TensorProcessor):
     """Apply a Torch function to one camera buffer and publish the result in a persistent buffer.
 
     The function takes the input tensor and :attr:`TensorProcessorCfg.params` as keyword arguments, and returns a
-    tensor whose shape and dtype do not change between calls, for example :func:`depth_to_control`.
+    tensor with one row per view whose shape and dtype do not change between calls, for example
+    :func:`depth_to_control`. It runs once per capture, on the camera's buffer.
     """
 
     def __init__(self, cfg: FunctionProcessorCfg, data: dict[str, ProxyArray]):
-        """Allocate the output from the function's result on a zero input of the input's shape.
+        """Resolve the function; the output is allocated from its first result.
 
         Args:
             cfg: Processor configuration with one input and one output.
@@ -269,17 +271,33 @@ class FunctionProcessor(TensorProcessor):
         super().__init__(cfg)
         function = cfg.function
         self._function = string_to_callable(function) if isinstance(function, str) else function
-        source = data[cfg.inputs[0]].torch
-        with torch.no_grad():
-            sample = self._function(torch.zeros_like(source), **cfg.params)
-        output = wp.zeros(tuple(sample.shape), dtype=wp.dtype_from_torch(sample.dtype), device=str(source.device))
-        self._outputs = {cfg.outputs[0]: ProxyArray(output)}
-        self._output = self._outputs[cfg.outputs[0]].torch
+        self._outputs: dict[str, ProxyArray] = {}
+        self._output: torch.Tensor | None = None
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
-        """Apply the function to the input and copy the result into the output buffer."""
+        """Apply the function to the input and publish the result for the captured views.
+
+        Args:
+            data: Named input buffers.
+            env_mask: Boolean mask of the views captured in this call; the others keep their published result, zero
+                before their first capture. Defaults to None, which means every view.
+
+        Returns:
+            The results under the output name. The buffer is reused by later calls.
+        """
         with torch.no_grad():
-            self._output.copy_(self._function(data[self._cfg.inputs[0]].torch, **self._cfg.params))
+            result = self._function(data[self._cfg.inputs[0]].torch, **self._cfg.params)
+            if self._output is None:
+                output = wp.zeros(
+                    tuple(result.shape), dtype=wp.dtype_from_torch(result.dtype), device=str(result.device)
+                )
+                self._outputs = {self._cfg.outputs[0]: ProxyArray(output)}
+                self._output = self._outputs[self._cfg.outputs[0]].torch
+            if env_mask is None:
+                self._output.copy_(result)
+            else:
+                captured = wp.to_torch(env_mask).to(device=result.device, dtype=torch.bool)
+                torch.where(captured.view(-1, *[1] * (result.ndim - 1)), result, self._output, out=self._output)
         return dict(self._outputs)
 
 

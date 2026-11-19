@@ -36,6 +36,7 @@ from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_mod
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.cosmos.server import service as service_module
+from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -116,6 +117,10 @@ class TransportResource:
 
 
 class TransportStream:
+    """Record a session's steps and return gray images, or each control when :attr:`echo` is set."""
+
+    echo = False
+
     def __init__(self, resource, settings):
         self.resource = resource
         self.settings = settings
@@ -125,6 +130,9 @@ class TransportStream:
 
     def step(self, controls, reset_rows, seeds, **episode):
         self.resource.calls.append(("step", threading.get_ident()))
+        # As the batch stream of the Cosmos server: the session's opening state starts every view.
+        if reset_rows and not self.steps and self.settings["num_views"] > 1:
+            raise ValueError("Cosmos views start their first episode fresh; reset them after the first step.")
         self.steps.append((controls, reset_rows, seeds))
         self.episode_prompts.append(episode.get("prompt", "<kept>"))
         self.resource.step_entered.set()
@@ -132,7 +140,7 @@ class TransportStream:
             raise TimeoutError("Test did not release the blocked generation")
         if self.resource.fail:
             raise self.resource.error("generation rejected this chunk")
-        return [np.full_like(control, 127) for control in controls]
+        return [control.copy() if self.echo else np.full_like(control, 127) for control in controls]
 
     def close(self):
         self.resource.calls.append(("stream.close", threading.get_ident()))
@@ -418,15 +426,16 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     assert session.settings["max_episode_frames"] == 1
     assert session.settings["prompt"] == prompts[:2]
     image_seed = cosmos_model_module._image_seed
-    # The first step also restarts every view, from its opening seed.
+    # The session opens with the first images' seeds, so the first step restarts no view; later steps restart all.
+    assert session.settings["seeds"] == (0, 1)
     assert [(rows, seeds) for _, rows, seeds in session.steps] == [
-        ((0, 1), (0, 1)),
+        ((), ()),
         ((0, 1), (2, image_seed(1, 1))),
         ((0, 1), (image_seed(2, 1), image_seed(1, 2))),
         ((0, 1), (4, image_seed(1, 3))),
     ]
     # No image shares another view's or episode's seed, which would give identical images for identical controls.
-    used = [seed for _, _, seeds in session.steps for seed in seeds]
+    used = [*session.settings["seeds"], *(seed for _, _, seeds in session.steps for seed in seeds)]
     assert len(set(used)) == len(used)
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
 
@@ -465,6 +474,33 @@ def test_single_frame_settings_are_validated():
     CosmosModel(CosmosModelCfg(generation_mode="single_frame")).close()
 
 
+def test_validation_makes_rgb_an_input_exactly_when_single_frame_can_skip_captures():
+    """The inputs follow the generation settings at each validation; autoregressive generation never reads rgb."""
+    cfg = CosmosTransferProcessorCfg(backend=CosmosModelCfg(generation_mode="single_frame", decision_interval=2))
+    cfg.validate_config()
+    assert cfg.inputs == ["control", "rgb"]
+    cfg.backend.decision_interval = 1
+    cfg.validate_config()
+    assert cfg.inputs == ["control"]
+    autoregressive = CosmosTransferProcessorCfg(backend=CosmosModelCfg(max_episode_frames=13))
+    autoregressive.validate_config()
+    assert autoregressive.inputs == ["control"]
+
+
+@pytest.mark.parametrize("mode,budget", [("single_frame", None), ("autoregressive", 13)])
+def test_views_reset_before_the_first_step_open_the_session_with_their_episode_seeds(cosmos_service, mode, budget):
+    """The first step's resets become the session's opening seeds, and the step itself restarts no view."""
+    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, generation_mode=mode, max_episode_frames=budget, timeout=2)
+    client = CosmosModel(cfg)
+    stream = client.open_stream(num_views=2, seeds=(0, 1))
+    stream.step([_controls(), _controls()], reset_rows=(1,), seeds=(7,))
+    session = cosmos_service.resource.streams[0]
+    client.close()
+
+    assert session.settings["seeds"] == (0, 7)
+    assert session.steps[0][1:] == ((), ())
+
+
 def test_single_frame_processor_generates_at_decision_points_and_publishes_rendered_rgb_otherwise(
     cosmos_service, no_sim
 ):
@@ -474,8 +510,6 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
     cfg = CosmosTransferProcessorCfg(backend=backend)
     with pytest.raises(ValueError, match="add 'rgb'"):
         cfg.func(cfg, {"control": _proxy(torch.zeros((1, 1, 2, 3), dtype=torch.uint8))})
-    cfg.validate_config()
-    assert cfg.inputs == ["control", "rgb"]
     processor, buffers = _single_frame_processor(cosmos_service.endpoint, decision_interval=2)
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
     try:
@@ -488,7 +522,9 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
         assert published == [127, 50, 127, 50, 127]
         second = cosmos_model_module._image_seed(0, 1)
         assert second != 1
-        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((0,), (0,)), ((0,), (second,)), ((0,), (1,))]
+        # The session opens with the first image's seed; each later image restarts the view with its own.
+        assert session.settings["seeds"] == (0,)
+        assert [(rows, seeds) for _, rows, seeds in session.steps] == [((), ()), ((0,), (second,)), ((0,), (1,))]
     finally:
         processor.close()
 
@@ -556,20 +592,21 @@ def test_single_frame_processor_publishes_at_the_image_size_and_a_reset_blacks_o
 
 
 @pytest.mark.parametrize(
-    "settings,draws,schedule,generations,prompt",
+    "settings,draws,schedule,generations,opening,last",
     [
         # Captures 0 and 2 generate in the first episode; three more episodes start before the next generation.
-        ({"decision_interval": 2}, None, "ccc rc rrc", 3, "D"),
+        ({"decision_interval": 2}, None, "ccc rc rrc", 3, ("A", 0), ("D", (0,), (3,))),
         # Every episode starts with a reset; the first two draw the rendered rgb, the third a generated image.
-        ({"augmentation_probability": 0.5}, [0.9, 0.9, 0.0], "rc rc rc", 1, "C"),
+        ({"augmentation_probability": 0.5}, [0.9, 0.9, 0.0], "rc rc rc", 1, ("C", 3), ("<kept>", (), ())),
     ],
 )
 def test_single_frame_prompts_and_seeds_follow_episodes_that_generated_no_image(
-    cosmos_service, no_sim, monkeypatch, settings, draws, schedule, generations, prompt
+    cosmos_service, no_sim, monkeypatch, settings, draws, schedule, generations, opening, last
 ):
     """A view moves one prompt and one seed per episode, also for episodes that showed only the rendered rgb.
 
-    ``schedule`` lists the camera's captures (c) and the view's resets (r) in order.
+    ``schedule`` lists the camera's captures (c) and the view's resets (r) in order. The first generation opens
+    the session with its prompt and seed (``opening``); ``last`` is the last step's prompt, resets and seeds.
     """
     processor, buffers = _single_frame_processor(cosmos_service.endpoint, prompt=["A", "B", "C", "D"], **settings)
     if draws:
@@ -583,8 +620,9 @@ def test_single_frame_prompts_and_seeds_follow_episodes_that_generated_no_image(
                 processor(buffers, env_mask=mask)
         session = cosmos_service.resource.streams[0]
         assert len(session.steps) == generations
-        assert session.episode_prompts[-1] == prompt
-        assert session.steps[-1][1:] == ((0,), (3,))
+        assert (session.settings["prompt"], session.settings["seeds"]) == (opening[0], (opening[1],))
+        assert session.steps[0][1:] == ((), ())
+        assert (session.episode_prompts[-1], *session.steps[-1][1:]) == last
     finally:
         processor.close()
 
@@ -717,7 +755,8 @@ class LazyCamera:
     """
 
     def __init__(self, cfg, name, value, image_size=None):
-        self.cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name, image_size=image_size)
+        self.processor_cfg = CosmosTransferProcessorCfg(backend=cfg, camera=name, image_size=image_size)
+        self.cfg = SimpleNamespace(tensor_processors=[self.processor_cfg])
         self.processor = None
         self.value = value
         self.due = False
@@ -742,7 +781,7 @@ class LazyCamera:
         buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
         # A camera constructs its processors at its first capture.
         if self.processor is None:
-            self.processor = self.cfg.func(self.cfg, buffers)
+            self.processor = self.processor_cfg.func(self.processor_cfg, buffers)
         self.output = self.processor(buffers, env_mask=self.capture_mask)["rgb"].torch
 
 
@@ -761,12 +800,8 @@ def _camera_group(cosmos_service, monkeypatch, image_size=None):
     cameras = {name: LazyCamera(cfg, name, value, image_size) for name, value in (("front", 10), ("wrist", 20))}
     monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
 
-    def echo(stream, controls, reset_rows, seeds, **episode):
-        stream.steps.append((controls, reset_rows, seeds))
-        return [control.copy() for control in controls]
-
     # The service echoes each view's control, so every camera can be checked for its own views.
-    monkeypatch.setattr(TransportStream, "step", echo)
+    monkeypatch.setattr(TransportStream, "echo", True)
     return model, cameras
 
 
@@ -839,6 +874,21 @@ def test_cameras_rendered_in_one_eager_update_are_not_rendered_again(cosmos_serv
     finally:
         model.close()
     assert len(cosmos_service.resource.streams[0].steps) == 2
+
+
+def test_an_eager_update_needs_the_cosmos_processor_last_on_a_camera_published_later(cosmos_service, monkeypatch):
+    """A camera whose images arrive when a later camera generates cannot run a processor after Cosmos."""
+    model, cameras = _camera_group(cosmos_service, monkeypatch)
+    front, wrist = cameras["front"], cameras["wrist"]
+    front.cfg.tensor_processors.append(FunctionProcessorCfg(function=torch.clone, inputs=["rgb"], outputs=["rgb"]))
+    try:
+        for camera in (front, wrist):
+            camera.render()
+        with pytest.raises(ValueError, match="'front' runs tensor processors after its Cosmos processor"):
+            front.process()
+    finally:
+        model.close()
+    assert not cosmos_service.resource.streams
 
 
 def test_cameras_sharing_a_closed_session_can_open_a_new_one(cosmos_service, monkeypatch):
