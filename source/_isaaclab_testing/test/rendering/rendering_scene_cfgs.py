@@ -121,8 +121,6 @@ class RenderingSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=5.0, horizontal_aperture=20.955, clipping_range=(0.05, 50.0)
         ),
-        # Pin the material used by constant-diffuse mode, independently of native reader defaults.
-        render_settings={"omni:rtx:minimal:constantColor": ("Color3f", (0.5, 0.5, 0.5))},
     )
     key_light = AssetBaseCfg(
         prim_path="/World/KeyLight",
