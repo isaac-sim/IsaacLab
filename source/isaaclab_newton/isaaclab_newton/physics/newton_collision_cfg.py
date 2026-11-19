@@ -105,7 +105,8 @@ class NewtonCollisionPipelineCfg:
         analytic colliders, keeps the resulting collision geometry, and requests
         a texture SDF for every finite colliding shape before model finalization.
         Infinite planes remain analytic half-spaces; unsupported finite geometry
-        raises instead of silently retaining a non-SDF collision path.
+        raises instead of silently retaining a non-SDF collision path. Provisioning modifies
+        the builder in place. Retry with a fresh builder if backend construction fails.
         """
 
         sdf_max_resolution: int | None = 64
@@ -137,7 +138,7 @@ class NewtonCollisionPipelineCfg:
         """Circumferential tessellation segments for curved analytic colliders."""
 
         plane_thickness: float = 0.1
-        """Full thickness [m] of the slab below a finite plane's local XY surface."""
+        """Full thickness [m] of the slab extending along a finite plane's local negative Z axis."""
 
         def __post_init__(self) -> None:
             self.validate_config()
