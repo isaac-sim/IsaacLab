@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Policy Ghosts slot layout and the tint the Newton GL panel writes to ghost shapes."""
+"""Rollout Ghosts slot layout and the tint the Newton GL panel writes to ghost shapes."""
 
 from __future__ import annotations
 

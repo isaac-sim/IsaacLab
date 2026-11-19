@@ -11,7 +11,6 @@ import argparse
 import contextlib
 import logging
 import os
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -102,7 +101,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--policy_ghost_envs",
         type=int,
         default=DEFAULT_GHOST_ENVS,
-        help="Environments per slot when Policy Ghosts are switched on from the viewer HUD of a running playback.",
+        help="Environments per slot when Rollout Ghosts are switched on from the viewer HUD of a running playback.",
     )
     parser.add_argument(
         "--policy_ghost_root",
@@ -171,7 +170,7 @@ def create_policy_ghost_session(
     slice_size: int,
     num_slots: int,
 ) -> PolicyGhostSession:
-    """Build a Policy Ghost session whose reference slot plays ``reference_path``."""
+    """Build a Rollout Ghost session whose reference slot plays ``reference_path``."""
 
     def policy_factory(path: str):
         runner = build_runner(env, agent_cfg)
@@ -242,7 +241,7 @@ def _stop_on_restart(step: Callable[[], None], restart: PolicyGhostRestart) -> C
 
 
 def _offer_policy_ghosts(mode: PolicyGhostMode, env: RslRlVecEnvWrapper, env_cfg: object) -> None:
-    """Offer Policy Ghosts in the Newton GL HUD of a run that started without the feature."""
+    """Offer Rollout Ghosts in the Newton GL HUD of a run that started without the feature."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return
     for visualizer in env.unwrapped.sim.visualizers:
@@ -251,7 +250,7 @@ def _offer_policy_ghosts(mode: PolicyGhostMode, env: RslRlVecEnvWrapper, env_cfg
 
 
 def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> None:
-    """Reject configurations Policy Ghosts cannot run, before any simulation starts."""
+    """Reject configurations Rollout Ghosts cannot run, before any simulation starts."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise SystemExit("--policy_ghosts only supports manager-based environments.")
     visualizers = env_cfg.sim.visualizer_cfgs or []
@@ -267,7 +266,7 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
 
 
 def run(argv: list[str]) -> None:
-    """Play a checkpoint of an RSL-RL agent, restarting if the viewer HUD asks to toggle Policy Ghosts."""
+    """Play a checkpoint of an RSL-RL agent, restarting if the viewer HUD asks to toggle Rollout Ghosts."""
     restart = PolicyGhostRestart()
     _run(argv, restart)
     if restart.requested:
@@ -341,7 +340,7 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
 
             def resume() -> None:
                 nonlocal obs
-                # the environments were reset when Policy Ghosts were switched off
+                # the environments were reset when Rollout Ghosts were switched off
                 obs = env.get_observations()
                 policy.reset(torch.ones(env.unwrapped.num_envs, dtype=torch.bool, device=env.unwrapped.device))
 

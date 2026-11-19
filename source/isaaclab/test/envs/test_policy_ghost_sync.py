@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Policy Ghosts keep every slice of one environment on the reference slice's spawn state and commands."""
+"""Rollout Ghosts keep every slice of one environment on the reference slice's spawn state and commands."""
 
 from __future__ import annotations
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton GL HUD section, checkpoint discovery window, and ghost tinting for Policy Ghosts."""
+"""Newton GL HUD section, checkpoint discovery window, and ghost tinting for Rollout Ghosts."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ METALLIC = 1
 
 
 class NewtonPolicyGhostPanel:
-    """Draws the Policy Ghosts HUD for a :class:`~isaaclab.visualizers.policy_ghost.PolicyGhostController`.
+    """Draws the Rollout Ghosts HUD for a :class:`~isaaclab.visualizers.policy_ghost.PolicyGhostController`.
 
     The panel owns the checkpoint discovery window and tints each ghost slot's shapes through the Newton model's
     per-shape color and opacity arrays, which the viewer re-reads every frame. A ghost at full tint also drops its
@@ -43,9 +43,9 @@ class NewtonPolicyGhostPanel:
         """Create the panel.
 
         Args:
-            controller: Playback-loop side of Policy Ghosts.
-            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
-            disable: Callback that switches Policy Ghosts off without a restart. When given, the Disable button uses
+            controller: Playback-loop side of Rollout Ghosts.
+            restart: Callback that restarts playback with Rollout Ghosts enabled (``True``) or disabled (``False``).
+            disable: Callback that switches Rollout Ghosts off without a restart. When given, the Disable button uses
                 it. When both are omitted, the panel has no Disable button.
         """
         self.controller = controller
@@ -69,12 +69,12 @@ class NewtonPolicyGhostPanel:
         return self.controller.layout
 
     def draw(self, imgui: Any) -> None:
-        """Draw the Policy Ghosts section and, when open, the checkpoint discovery window."""
+        """Draw the Rollout Ghosts section and, when open, the checkpoint discovery window."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        ghosts_open = imgui.collapsing_header("Policy Ghosts")
+        ghosts_open = imgui.collapsing_header("Rollout Ghosts")
         if imgui.is_item_hovered():
             imgui.set_tooltip(
-                "Overlay policy checkpoints (.pt) of this task on the same environments to compare how they behave"
+                "Overlay rollouts of other policies on the same environments, to debug and visualize how they behave"
             )
         if ghosts_open:
             imgui.separator()
@@ -101,13 +101,13 @@ class NewtonPolicyGhostPanel:
                 imgui.text_wrapped(self._message)
             if self._disable is not None:
                 imgui.separator()
-                if imgui.button("Disable Policy Ghosts"):
+                if imgui.button("Disable Rollout Ghosts"):
                     self._disable()
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("Return to playing every environment with the reference checkpoint")
             elif self._restart is not None:
                 imgui.separator()
-                if imgui.button("Disable Policy Ghosts (restarts)"):
+                if imgui.button("Disable Rollout Ghosts (restarts)"):
                     self._restart(False)
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("Restarts the viewer with only the reference environments")
@@ -247,7 +247,7 @@ class NewtonPolicyGhostPanel:
         """Draw the discovery window: compatible checkpoints of the running task, grouped by run."""
         imgui.set_next_window_pos(imgui.ImVec2(400, 60), imgui.Cond_.first_use_ever)
         imgui.set_next_window_size(imgui.ImVec2(520, 420), imgui.Cond_.first_use_ever)
-        expanded, self._window_open = imgui.begin("Policy Ghost Checkpoints", self._window_open)
+        expanded, self._window_open = imgui.begin("Rollout Ghost Checkpoints", self._window_open)
         if expanded:
             if self._replacing is not None:
                 imgui.text(f"Replacing Ghost {self._replacing}")
@@ -290,17 +290,17 @@ class NewtonPolicyGhostPanel:
 
 
 def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> None:
-    """Draw the collapsed Policy Ghosts section of a run that started without the feature.
+    """Draw the collapsed Rollout Ghosts section of a run that started without the feature.
 
     Args:
         imgui: The ``imgui`` module.
-        restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+        restart: Callback that restarts playback with Rollout Ghosts enabled (``True``) or disabled (``False``).
     """
     imgui.set_next_item_open(False, imgui.Cond_.appearing)
-    ghosts_open = imgui.collapsing_header("Policy Ghosts")
+    ghosts_open = imgui.collapsing_header("Rollout Ghosts")
     if imgui.is_item_hovered():
         imgui.set_tooltip(
-            "Overlay policy checkpoints (.pt) of this task on the same environments to compare how they behave"
+            "Overlay rollouts of other policies on the same environments, to debug and visualize how they behave"
         )
     if ghosts_open:
         imgui.separator()
@@ -308,23 +308,23 @@ def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> N
             "Compare several checkpoints of this task side by side. Enabling restarts the viewer with several"
             " times the environments, which lowers the step rate."
         )
-        if imgui.button("Enable Policy Ghosts (restarts)"):
+        if imgui.button("Enable Rollout Ghosts (restarts)"):
             restart(True)
 
 
 def draw_policy_ghost_toggle(imgui: Any, mode: Any) -> None:
-    """Draw the collapsed Policy Ghosts section of a playback that can switch the feature on from the HUD.
+    """Draw the collapsed Rollout Ghosts section of a playback that can switch the feature on from the HUD.
 
     Args:
         imgui: The ``imgui`` module.
-        mode: The playback's Policy Ghost mode. It provides ``pool_size``, ``slice_size``, ``num_slots``,
+        mode: The playback's Rollout Ghost mode. It provides ``pool_size``, ``slice_size``, ``num_slots``,
             ``set_layout``, ``in_place``, ``message``, ``request_enable`` and ``request_restart``.
     """
     imgui.set_next_item_open(False, imgui.Cond_.appearing)
-    ghosts_open = imgui.collapsing_header("Policy Ghosts")
+    ghosts_open = imgui.collapsing_header("Rollout Ghosts")
     if imgui.is_item_hovered():
         imgui.set_tooltip(
-            "Overlay policy checkpoints (.pt) of this task on the same environments to compare how they behave"
+            "Overlay rollouts of other policies on the same environments, to debug and visualize how they behave"
         )
     if not ghosts_open:
         return
@@ -348,17 +348,17 @@ def draw_policy_ghost_toggle(imgui: Any, mode: Any) -> None:
     imgui.push_style_color(imgui.Col_.text, color)
     imgui.text_wrapped(
         f"Uses {needed} of this run's {pool} environments ({mode.num_slots} slots x {mode.slice_size} envs; at most"
-        f" {pool}). The other environments are hidden and stop acting until you switch Policy Ghosts off."
+        f" {pool}). The other environments are hidden and stop acting until you switch Rollout Ghosts off."
     )
     imgui.pop_style_color()
     if fits:
-        if imgui.button("Enable Policy Ghosts"):
+        if imgui.button("Enable Rollout Ghosts"):
             mode.request_enable()
         if imgui.is_item_hovered():
             imgui.set_tooltip("Resets the environments with the reference checkpoint in the first slot")
     else:
         imgui.text_wrapped("This run has too few environments, so enabling restarts the viewer with enough of them.")
-        if imgui.button("Enable Policy Ghosts (restarts)"):
+        if imgui.button("Enable Rollout Ghosts (restarts)"):
             mode.request_restart()
         if imgui.is_item_hovered():
             imgui.set_tooltip(f"Restarts with --num_envs {mode.slice_size} --policy_ghost_slots {mode.num_slots}")

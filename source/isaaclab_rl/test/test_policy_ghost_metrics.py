@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Episode statistics of each Policy Ghost slot."""
+"""Episode statistics of each Rollout Ghost slot."""
 
 import pytest
 import torch

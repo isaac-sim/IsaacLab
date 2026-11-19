@@ -332,7 +332,7 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, rendering pause, and reset controls, and any ``"side"`` UI callbacks.
-        2. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`; it decides which
+        2. **Rollout Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`; it decides which
            environments the window shows, so it sits next to the playback controls.
         3. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         4. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
@@ -391,7 +391,7 @@ class NewtonViewerGL(ViewerGL):
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
-            # --- Policy Ghosts ----------------------------------------------
+            # --- Rollout Ghosts ----------------------------------------------
             ghosts_offered = (
                 viewer._policy_ghost_panel is not None
                 or viewer._policy_ghost_toggle is not None
@@ -545,17 +545,17 @@ class NewtonViewerGL(ViewerGL):
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
 
     def _draw_policy_ghosts_unsupported(self, imgui) -> None:
-        """Draw the greyed-out Policy Ghosts section shown while the RTX view is active."""
+        """Draw the greyed-out Rollout Ghosts section shown while the RTX view is active."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
-        expanded = imgui.collapsing_header("Policy Ghosts")
+        expanded = imgui.collapsing_header("Rollout Ghosts")
         imgui.pop_style_color()
         hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
         if expanded:
             imgui.separator()
             imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
             imgui.text_wrapped(
-                "Policy Ghosts are not supported in the RTX view. "
+                "Rollout Ghosts are not supported in the RTX view. "
                 "Switch Camera View > Renderer to OpenGL to compare checkpoints."
             )
             imgui.pop_style_color()
@@ -1135,7 +1135,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(False)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "Fast rasterizer with visual overlays, markers, and Policy Ghosts"
+                    "Fast rasterizer with visual overlays, markers, and Rollout Ghosts"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
@@ -1566,7 +1566,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @property
     def tracking_env_only(self) -> bool:
-        """Whether only the selected Tracking Camera's environment is drawn; Policy Ghosts need every slot."""
+        """Whether only the selected Tracking Camera's environment is drawn; Rollout Ghosts need every slot."""
         return (
             self._policy_ghost_panel is None
             and self._track_env_only
@@ -2021,9 +2021,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._num_envs = 0
         self._policy_ghost_panel: NewtonPolicyGhostPanel | None = None
         self._base_world_offsets: np.ndarray | None = None
-        """World offsets without the Policy Ghost overlay, which the overlay is added to every frame it changes."""
+        """World offsets without the Rollout Ghost overlay, which the overlay is added to every frame it changes."""
         self._rtx_ghost_offsets: np.ndarray | None = None
-        """Policy Ghost offsets last given to the OVRTX view, to skip rewriting poses when they are unchanged."""
+        """Rollout Ghost offsets last given to the OVRTX view, to skip rewriting poses when they are unchanged."""
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -2319,26 +2319,26 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._viewer.set_run_info(task, mode, run)
 
     def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
-        """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.
+        """Offer an Enable Rollout Ghosts button in the HUD of a run that started without the feature.
 
         Args:
-            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+            restart: Callback that restarts playback with Rollout Ghosts enabled (``True``) or disabled (``False``).
         """
         if self._viewer is not None:
             self._viewer._policy_ghost_restart = restart
 
     def attach_policy_ghost_toggle(self, mode: Any) -> None:
-        """Offer an Enable Policy Ghosts button in the HUD of a playback that can switch the feature on in place.
+        """Offer an Enable Rollout Ghosts button in the HUD of a playback that can switch the feature on in place.
 
         Args:
-            mode: The playback's Policy Ghost mode, with ``in_place``, ``slice_size``, ``num_slots``, ``message``,
+            mode: The playback's Rollout Ghost mode, with ``in_place``, ``slice_size``, ``num_slots``, ``message``,
                 ``request_enable`` and ``restart``.
         """
         if self._viewer is not None:
             self._viewer._policy_ghost_toggle = mode
 
     def detach_policy_ghosts(self) -> None:
-        """Remove the Policy Ghosts HUD section and show the plain environments again."""
+        """Remove the Rollout Ghosts HUD section and show the plain environments again."""
         panel = self._policy_ghost_panel
         if panel is None:
             return
@@ -2356,16 +2356,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         restart: Callable[[bool], None] | None = None,
         disable: Callable[[], None] | None = None,
     ) -> None:
-        """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
+        """Show the Rollout Ghosts HUD section for a playback loop that drives several checkpoints.
 
         Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
         the reference slot. The visible-environment slider then counts environments per slot.
 
         Args:
-            controller: Playback-loop side of Policy Ghosts.
-            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+            controller: Playback-loop side of Rollout Ghosts.
+            restart: Callback that restarts playback with Rollout Ghosts enabled (``True``) or disabled (``False``).
                 When given, the HUD shows a Disable button that restarts.
-            disable: Callback that switches Policy Ghosts off without a restart; the Disable button uses it.
+            disable: Callback that switches Rollout Ghosts off without a restart; the Disable button uses it.
         """
         self._visible_env_count_before_ghosts = self._visible_env_count
         self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart, disable)
@@ -2375,14 +2375,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     @property
     def visible_env_limit(self) -> int:
-        """Largest value of the visible-environment count: environments per slot with Policy Ghosts, else all."""
+        """Largest value of the visible-environment count: environments per slot with Rollout Ghosts, else all."""
         if self._policy_ghost_panel is not None:
             return self._policy_ghost_panel.layout.slice_size
         return len(self._cfg_visible_env_ids) if self._cfg_visible_env_ids is not None else self._num_envs
 
     @property
     def visible_env_count(self) -> int:
-        """Number of environments currently shown (per slot with Policy Ghosts)."""
+        """Number of environments currently shown (per slot with Rollout Ghosts)."""
         if self.tracking_env_only:
             return 1
         if self._visible_env_count is not None:
@@ -2390,7 +2390,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         return self.visible_env_limit
 
     def set_visible_env_count(self, count: int) -> None:
-        """Show only the first ``count`` environments (per slot with Policy Ghosts).
+        """Show only the first ``count`` environments (per slot with Rollout Ghosts).
 
         Args:
             count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
@@ -2436,7 +2436,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._image_views.append(view)
 
     def _apply_visible_worlds(self) -> None:
-        """Apply the visible environments and, with Policy Ghosts, overlay each ghost on the reference."""
+        """Apply the visible environments and, with Rollout Ghosts, overlay each ghost on the reference."""
         if self._viewer is None:
             return
         self._env_ids = self._select_visible_env_ids()

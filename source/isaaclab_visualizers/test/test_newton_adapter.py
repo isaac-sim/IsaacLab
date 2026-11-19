@@ -1393,7 +1393,7 @@ def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
 
 
 class _RecordingImgui:
-    """Minimal imgui double that records the text of the greyed-out Policy Ghosts section."""
+    """Minimal imgui double that records the text of the greyed-out Rollout Ghosts section."""
 
     class Cond_:
         appearing = 1
@@ -1447,7 +1447,7 @@ def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expand
 
     viewer._draw_policy_ghosts_unsupported(imgui)
 
-    assert imgui.headers == ["Policy Ghosts"]
+    assert imgui.headers == ["Rollout Ghosts"]
     assert (
         any("RTX" in text and "not supported" in text for text in imgui.texts),
         any("OpenGL" in text for text in imgui.texts),

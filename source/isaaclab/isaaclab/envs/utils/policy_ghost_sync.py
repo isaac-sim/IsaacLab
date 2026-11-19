@@ -52,7 +52,7 @@ class PolicyGhostSync:
         """
         for manager in ("command_manager", "event_manager", "scene"):
             if not hasattr(env, manager):
-                raise TypeError("Policy Ghosts only support manager-based environments.")
+                raise TypeError("Rollout Ghosts only support manager-based environments.")
         if slice_size < 1 or num_slices < 2 or env.num_envs < slice_size * num_slices:
             raise ValueError(
                 f"Environment has {env.num_envs} envs, expected at least {num_slices} slices of {slice_size} envs."
@@ -101,7 +101,7 @@ class PolicyGhostSync:
                 group.enable_corruption = False
                 removed.append(f"observations.{group_name}.enable_corruption")
         if removed:
-            logger.warning("Policy Ghosts disabled per-environment randomization: %s", ", ".join(removed))
+            logger.warning("Rollout Ghosts disabled per-environment randomization: %s", ", ".join(removed))
         return removed
 
     def env_origin_offsets(self) -> np.ndarray:

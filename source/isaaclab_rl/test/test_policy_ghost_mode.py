@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Policy Ghosts switch on and off inside a running playback."""
+"""Rollout Ghosts switch on and off inside a running playback."""
 
 from types import SimpleNamespace
 

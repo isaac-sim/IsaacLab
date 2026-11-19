@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Contract between a policy playback loop and a visualizer that shows Policy Ghosts.
+"""Contract between a policy playback loop and a visualizer that shows Rollout Ghosts.
 
-Policy Ghosts overlay several checkpoints of the same task in one viewer. The playback loop owns the
+Rollout Ghosts overlay several checkpoints of the same task in one viewer. The playback loop owns the
 simulation and the policies; a visualizer only reads the controller to draw its HUD and tint the ghosts.
 """
 
@@ -113,7 +113,7 @@ class PolicyGhostLayout:
 
     def __post_init__(self) -> None:
         if self.slice_size < 1 or self.num_slots < 2:
-            raise ValueError("Policy Ghosts need a positive slice size and at least two slots.")
+            raise ValueError("Rollout Ghosts need a positive slice size and at least two slots.")
         if not self.slots:
             self.slots = [PolicyGhostSlot(index=s) for s in range(self.num_slots)]
             for slot in self.slots[1:]:
@@ -135,7 +135,7 @@ class PolicyGhostLayout:
 
 
 class PolicyGhostController(ABC):
-    """Playback-loop side of Policy Ghosts, read and driven by the visualizer HUD."""
+    """Playback-loop side of Rollout Ghosts, read and driven by the visualizer HUD."""
 
     layout: PolicyGhostLayout
     """Environment-to-slot layout and slot state."""

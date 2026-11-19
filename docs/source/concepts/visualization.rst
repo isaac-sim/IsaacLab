@@ -307,7 +307,7 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view, and picking draws the drag arrow there. Policy Ghost tint and the model overlays (joint, contact,
+      the RTX view, and picking draws the drag arrow there. Rollout Ghost tint and the model overlays (joint, contact,
       spring, center-of-mass, inertia, collision, visual, edge, and wireframe) apply to the OpenGL view only.
 
       .. warning::
@@ -817,9 +817,10 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
-**Comparing checkpoints with Policy Ghosts**
+**Debugging and visualizing policies with Rollout Ghosts**
 
-Newton can overlay several checkpoints of one task in a single viewport. The ``--checkpoint``
+Rollout Ghosts overlay rollouts of several policy checkpoints of one task in a single Newton viewport, to debug and
+visualize how they behave. The ``--checkpoint``
 drives the reference robots; ghosts of other checkpoints are tinted, translucent copies that start
 from the same terrain, spawn pose, and commands, so differences in behavior show up as the robots
 drift apart:
@@ -829,17 +830,17 @@ drift apart:
     uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD \
         --num_envs 4 --checkpoint latest --viz newton --policy_ghosts
 
-You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
-**Enable Policy Ghosts**. The section has **Envs per slot** (``--policy_ghost_envs``, default 4) and **Slots**
+You can also start from a normal ``play`` run: open **Rollout Ghosts** in the viewer's left panel and choose
+**Enable Rollout Ghosts**. The section has **Envs per slot** (``--policy_ghost_envs``, default 4) and **Slots**
 (``--policy_ghost_slots``, default 3) fields. When their product does not exceed the environments the run simulates,
 the ghosts take the first environments of the running simulation:
-the other environments are hidden and stop acting, and **Disable Policy Ghosts** resets every environment and returns to
-the plain view. A run with fewer environments shows **Enable Policy Ghosts (restarts)**, which relaunches with
+the other environments are hidden and stop acting, and **Disable Rollout Ghosts** resets every environment and returns to
+the plain view. A run with fewer environments shows **Enable Rollout Ghosts (restarts)**, which relaunches with
 ``--policy_ghosts`` added, because the simulation fixes its environment count at startup. This mode does not remove
 per-environment randomization such as startup events, so ghosts of a task that uses it can differ from the reference
-for reasons other than the checkpoint. Policy Ghosts stay off unless you ask for them.
+for reasons other than the checkpoint. Rollout Ghosts stay off unless you ask for them.
 
-Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
+Open **Rollout Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
 checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
 experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each loaded checkpoint has a checkbox that
 shows or hides it. Under **Settings**, each ghost has opacity and tint sliders; a tint of 1.0 replaces all of
@@ -854,12 +855,12 @@ the default is eight with ``--policy_ghosts`` and three for the in-place switch.
   curriculum terms, and observation noise. Reset events and commands are copied from the reference.
 * Identical checkpoints do not stay exactly on top of each other; physics differences grow
   to centimeters over a few seconds on rough terrain.
-* Policy Ghosts support RSL-RL and manager-based environments only.
+* Rollout Ghosts support RSL-RL and manager-based environments only.
 
 **Choosing how many environments are drawn**
 
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
-environments are drawn. It changes only what is rendered, not the simulation. With Policy Ghosts, it
+environments are drawn. It changes only what is rendered, not the simulation. With Rollout Ghosts, it
 counts environments per slot.
 
 Resolution Rules
@@ -1027,7 +1028,7 @@ Limitations
      - ✗
      - ✓
 
-In Newton's RTX view, only the picking drag arrow is drawn; Policy Ghost tint and the model overlays (joint, contact,
+In Newton's RTX view, only the picking drag arrow is drawn; Rollout Ghost tint and the model overlays (joint, contact,
 spring, center-of-mass, inertia, collision, visual, edge, and wireframe) are not available. Ghosts are still overlaid
 on the reference.
 
