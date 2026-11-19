@@ -393,9 +393,13 @@ class MockScene:
         self.articulations = dict(assets)
         self.rigid_objects = {}
         self.num_envs = NUM_ENVS
+        self.device = DEVICE
 
     def __getitem__(self, name: str):
         return self._assets[name]
+
+    def keys(self):
+        return self._assets.keys()
 
 
 # ---------------------------------------------------------------------------
@@ -484,17 +488,13 @@ class MockActionManagerTorch:
 
 
 class MockSceneEntityCfg:
-    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_ids_wp)."""
+    """Unified cfg that works for both stable (joint_ids) and Warp (joint_ids_wp) terms."""
 
-    def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
+    def __init__(self, name: str, joint_ids: list[int], device: str):
         self.name = name
         self.joint_ids = joint_ids
 
-        # Experimental extras
-        mask = [False] * num_joints
-        for idx in joint_ids:
-            mask[idx] = True
-        self.joint_mask = wp.array(mask, dtype=wp.bool, device=device)
+        # Warp extras
         self.joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
 
 

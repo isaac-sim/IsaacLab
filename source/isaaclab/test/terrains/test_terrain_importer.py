@@ -99,6 +99,10 @@ def test_plane(num_envs, env_spacing):
         assert origins.device == torch.device("cuda:0")
         torch.testing.assert_close(origins[0].cpu(), torch.tensor([half_span, -half_span, 0.0]))
         torch.testing.assert_close(origins[-1].cpu(), torch.tensor([-half_span, half_span, 0.0]))
+        # the Warp array holds the origins and env_origins is its view
+        assert terrain_importer.env_origins_wp.ptr == origins.data_ptr()
+        assert terrain_importer.env_origins_wp.shape == (num_envs,)
+        origins_view = origins
 
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
@@ -127,6 +131,11 @@ def test_plane(num_envs, env_spacing):
         # obtain underling mesh
         mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
         assert mesh is None
+
+        # assigning the origins again writes them into the held array, so the earlier view shows them
+        terrain_importer.env_origins = torch.ones(num_envs, 3, device="cuda:0")
+        assert terrain_importer.env_origins.data_ptr() == origins_view.data_ptr()
+        torch.testing.assert_close(origins_view, torch.ones(num_envs, 3, device="cuda:0"))
 
 
 def test_usd():

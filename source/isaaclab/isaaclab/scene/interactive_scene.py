@@ -344,16 +344,41 @@ class InteractiveScene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        """Per-env world origins, shape ``(num_envs, 3)``."""
+        """Per-env world origins, shape ``(num_envs, 3)``.
+
+        A torch view of :attr:`env_origins_wp`, which holds them, so a write of either shows in the other.
+        """
         if self._terrain is not None:
             return self._terrain.env_origins
+        self._update_env_origins()
+        return self._env_origins_torch
+
+    @property
+    def env_origins_wp(self) -> wp.array:
+        """Per-env world origins as a Warp array of ``wp.vec3f``, shape ``(num_envs,)``, for Warp code.
+
+        It holds the origins; :attr:`env_origins` is its torch view.
+        """
+        if self._terrain is not None:
+            return self._terrain.env_origins_wp
+        self._update_env_origins()
+        return self._env_origins_wp
+
+    def _update_env_origins(self):
+        """Write the origins of a new clone plan, or the first ones, into the held array, which keeps its address."""
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
             self._env_origins = plan.positions
             self._env_origins_plan = plan
-        if not isinstance(self._env_origins, torch.Tensor):
-            self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)
-        return self._env_origins
+        if self._env_origins is getattr(self, "_env_origins_written", None):
+            return
+        origins = torch.as_tensor(self._env_origins, dtype=torch.float32)
+        if getattr(self, "_env_origins_wp", None) is None or self._env_origins_wp.shape[0] != origins.shape[0]:
+            device = wp.device_from_torch(self._ALL_INDICES.device)
+            self._env_origins_wp = wp.zeros(origins.shape[0], dtype=wp.vec3f, device=device)
+            self._env_origins_torch = wp.to_torch(self._env_origins_wp)
+        self._env_origins_torch.copy_(origins)
+        self._env_origins_written = self._env_origins
 
     @property
     def terrain(self) -> TerrainImporter | None:

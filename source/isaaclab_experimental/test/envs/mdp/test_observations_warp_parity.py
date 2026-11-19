@@ -41,6 +41,7 @@ from parity_helpers import (
 )
 
 import isaaclab.envs.mdp.observations as stable_obs
+from isaaclab.managers import SceneEntityCfg
 
 # ============================================================================
 # Fixtures
@@ -195,12 +196,17 @@ def stable_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, c
 
 @pytest.fixture()
 def all_joints_cfg():
-    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), NUM_JOINTS, DEVICE)
+    return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), DEVICE)
 
 
-@pytest.fixture()
-def subset_cfg():
-    return MockSceneEntityCfg("robot", [0, 2, 5, 8], NUM_JOINTS, DEVICE)
+@pytest.fixture(params=[[0, 2, 5, 8], [8, 0, 5, 2]], ids=["sorted", "reordered"])
+def subset_cfg(request, scene):
+    """A joint subset in asset order and reordered, resolved as a task resolves it: by name with
+    ``preserve_order=True``, then :meth:`SceneEntityCfg.resolve_warp_ids` for the Warp terms."""
+    cfg = SceneEntityCfg("robot", joint_names=[f"joint_{i}" for i in request.param], preserve_order=True)
+    cfg.resolve(scene)
+    cfg.resolve_warp_ids(scene)
+    return cfg
 
 
 # ============================================================================

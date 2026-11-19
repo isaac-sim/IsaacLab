@@ -15,6 +15,8 @@ from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field
 from typing import Any, ClassVar, TypeVar
 
+import warp as wp
+
 from .dict import to_dict, update_from_dict
 from .string import ResolvableString
 
@@ -376,6 +378,9 @@ def _validate(
             missing_fields.extend(
                 _validate(item, prefix=current_path, _custom_validators=_custom_validators, _visited=_visited)
             )
+        return missing_fields
+    elif isinstance(obj, wp.array):
+        # an array value, such as the Warp ids of a SceneEntityCfg, has no fields
         return missing_fields
     elif isinstance(obj, dict):
         # Convert any non-string keys to strings to allow validation of dict with non-string keys

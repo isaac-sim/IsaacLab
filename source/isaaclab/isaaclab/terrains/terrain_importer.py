@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import trimesh
+import warp as wp
 
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
@@ -51,9 +52,6 @@ class TerrainImporter:
     If terrain origins is not None, the environment origins are computed based on the terrain origins.
     Otherwise, the environment origins are computed based on the grid spacing.
     """
-
-    env_origins: torch.Tensor
-    """The origins of the environments. Shape is (num_envs, 3)."""
 
     def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
@@ -141,6 +139,34 @@ class TerrainImporter:
         Please refer to the :attr:`TerrainGenerator.flat_patches` for more information.
         """
         return self._terrain_flat_patches
+
+    @property
+    def env_origins(self) -> torch.Tensor | None:
+        """The origins of the environments. Shape is (num_envs, 3).
+
+        A torch view of :attr:`env_origins_wp`, which holds them, so a write of either shows in the other. Assigning
+        origins writes them into the held array, so a view taken earlier stays valid.
+        """
+        return getattr(self, "_env_origins", None)
+
+    @env_origins.setter
+    def env_origins(self, origins: torch.Tensor | np.ndarray | None):
+        if origins is None:
+            self._env_origins_wp = self._env_origins = None
+            return
+        origins = torch.as_tensor(origins, dtype=torch.float32)
+        if self.env_origins_wp is None or self.env_origins_wp.shape[0] != origins.shape[0]:
+            self._env_origins_wp = wp.zeros(origins.shape[0], dtype=wp.vec3f, device=self.device)
+            self._env_origins = wp.to_torch(self._env_origins_wp)
+        self._env_origins.copy_(origins)
+
+    @property
+    def env_origins_wp(self) -> wp.array | None:
+        """The origins of the environments as a Warp array of ``wp.vec3f``, shape (num_envs,), for Warp code.
+
+        It holds the origins; :attr:`env_origins` is its torch view.
+        """
+        return getattr(self, "_env_origins_wp", None)
 
     @property
     def terrain_names(self) -> list[str]:

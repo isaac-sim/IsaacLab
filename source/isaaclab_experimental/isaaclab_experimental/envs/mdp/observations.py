@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
 from isaaclab_experimental.envs.utils.io_descriptors import (
@@ -32,7 +33,6 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
