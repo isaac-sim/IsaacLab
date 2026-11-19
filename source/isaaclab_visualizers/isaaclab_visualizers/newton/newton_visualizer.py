@@ -924,7 +924,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(True)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "OVRTX path-traced rendering of the scene; slower than OpenGL"
+                    "OVRTX path-traced rendering of the scene; slower than OpenGL. The first switch can take a minute"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
