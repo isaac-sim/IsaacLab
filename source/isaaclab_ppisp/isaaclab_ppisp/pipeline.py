@@ -112,7 +112,16 @@ class PpispProcessor(TensorProcessor):
 
         PPISP applies its own exposure to scene-linear HDR. Isaac RTX and OVRTX apply the camera prim's exposure
         to their HDR output, so on them the camera needs ``CameraCfg.exposure = ExposureCfg(mode="neutral")``.
-        Returns None, with a logged warning, when discovery finds no PPISP camera attributes.
+
+        Args:
+            cfg: Processor configuration whose ``isp_cfg`` holds coefficients or a discovery mode.
+            stage: USD stage holding the camera prims.
+            camera_prim_paths: The camera's prim paths, one per environment; discovery reads the first.
+            renderer_cfg: The camera's renderer configuration, which decides whether exposure must be neutral.
+
+        Returns:
+            The configuration with resolved coefficients, or None, with a logged warning, when discovery finds no
+            PPISP camera attributes; the camera then drops the processor.
 
         Raises:
             ValueError: If the renderer is Isaac RTX or OVRTX and a camera prim's exposure is not neutral.
