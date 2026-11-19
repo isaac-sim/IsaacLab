@@ -986,7 +986,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             assert visualizer._image_views[1].cfg.channels == ("depth",)
 
             visualizer._select_camera(2)
-            assert visualizer._image_views[2].cfg.envs == (0, 1)  # Both environments are tiled by default.
+            assert visualizer._image_views[2].cfg.envs == (0,)  # An explicit streaming_envs=[0] is kept as chosen.
             visualizer._image_views[2].cfg.envs = (0,)
             torch.testing.assert_close(color.frame.torch, color_frame)
             image = visualizer.render_tiled_rgb_array()
