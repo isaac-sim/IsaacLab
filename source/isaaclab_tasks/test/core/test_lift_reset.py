@@ -82,13 +82,10 @@ def test_lift_native_reset_replay_and_completed_outcomes(device, monkeypatch):
             assert term._sampler.episode_counts.torch[previous_row] == 1
             assert term._sampler.success_rate.torch[previous_row] == 1.0
             completed.zero_()
-            env.reset(seed=123)
-            seeded_ids = term._sampler.state_ids.torch.clone()
-            seeded_joints = robot.data.joint_pos.torch.clone()
+
+            # Explicit environment resets do not count as completed episodes.
             recorded = term._sampler.episode_counts.torch.clone()
-            env.reset(seed=123)
-            torch.testing.assert_close(term._sampler.state_ids.torch, seeded_ids)
-            torch.testing.assert_close(robot.data.joint_pos.torch, seeded_joints)
+            env.reset()
             torch.testing.assert_close(term._sampler.episode_counts.torch, recorded)
 
             # RSL-RL can replace the counter tensor while initializing randomized episode lengths.

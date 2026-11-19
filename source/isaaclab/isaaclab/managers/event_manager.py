@@ -16,7 +16,7 @@ from prettytable import PrettyTable
 
 from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import EventTermCfg, ManagerTermBaseCfg
+from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
@@ -121,32 +121,6 @@ class EventManager(ManagerBase):
     """
     Operations.
     """
-
-    def reseed(self, seed: int) -> None:
-        """Reseed stateful events, including shared terms nested in their configurations.
-
-        This eager lifecycle operation runs before reset events execute. Each instance is
-        notified once, even when several configurations reference it.
-
-        Args:
-            seed: The seed selected by the environment.
-        """
-        seen: set[int] = set()
-
-        def reseed_terms(value):
-            if isinstance(value, ManagerTermBaseCfg):
-                if isinstance(value.func, ManagerTermBase) and id(value.func) not in seen:
-                    seen.add(id(value.func))
-                    value.func.reseed(seed)
-                reseed_terms(value.params)
-            elif isinstance(value, dict):
-                for item in value.values():
-                    reseed_terms(item)
-            elif isinstance(value, (list, tuple)):
-                for item in value:
-                    reseed_terms(item)
-
-        reseed_terms(self._mode_term_cfgs)
 
     def reset(self, env_ids: torch.Tensor | slice | None = slice(None)) -> dict[str, float]:
         """Reset event state for device indices or a slice, defaulting to all environments.

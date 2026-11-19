@@ -462,7 +462,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.event_manager.reseed(self.seed(seed))
+            self.seed(seed)
 
         # reset state of scene
         self._reset_idx(env_ids)
@@ -522,7 +522,7 @@ class ManagerBasedEnv:
 
         # set the seed
         if seed is not None:
-            self.event_manager.reseed(self.seed(seed))
+            self.seed(seed)
 
         self._reset_idx(env_ids)
         # set the state

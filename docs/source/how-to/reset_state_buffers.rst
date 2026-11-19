@@ -120,27 +120,27 @@ Run prefill, rejection loops, loading, inspection, and logging outside capture. 
 ``get_state(ids)`` to allocate a snapshot for inspection. The example captures only
 the reset operations.
 
-``sampler.reseed(seed)`` updates existing random-stream storage without clearing history
-or assignments. A captured graph observes the new streams. Explicitly seeded manager-based
-resets notify event terms before execution, so ``env.reset(seed=...)`` also reseeds the
-Lift and NIST samplers, including terms nested inside reset combinators.
+Set ``ResetStateSamplerCfg.seed`` to initialize the sampler's per-environment random streams.
+Use ``sampler.reseed(seed)`` between rollouts to restart those streams while retaining
+history and assignments. A captured graph observes the new streams.
 
 Configure useful practice
 --------------------------
 
-The default adds uniform weight to a score that peaks at 50 percent recent success.
-This favors starts of intermediate difficulty while giving every entry a chance to
-be drawn. Concentration narrows the score's peak while keeping its height fixed.
+The default adds uniform weight to a Beta kernel score that peaks at 50 percent recent
+success. This favors starts of intermediate difficulty while giving every entry a
+chance to be drawn. Concentration narrows the score's peak while keeping its height
+fixed at one.
 When all success rates are zero, the default draws uniformly. Include valid starts
 the policy can solve early so that the scores can begin to distinguish entries.
 
 .. code-block:: python
 
-   from isaaclab.envs.reset import TargetSuccessScoreCfg
+   from isaaclab.envs.reset import BetaSamplingScoreCfg
 
    adaptive = ResetStateSamplerCfg(
        history_length=50,
-       scores=[TargetSuccessScoreCfg(target=0.5, kappa=2.0, weight=0.25)],
+       scores=[BetaSamplingScoreCfg(target=0.5, kappa=2.0, weight=0.25)],
        uniform_weight=0.0501,
    )
    uniform = ResetStateSamplerCfg(scores=[])
@@ -193,7 +193,6 @@ Migrating existing reset configurations
 ---------------------------------------
 
 Lift's ``success_monitor`` event parameter is replaced by ``reset_sampler``.
-NIST's ``sampling`` parameter now takes ``ResetStateSamplerCfg`` directly; set
-``history_length`` there instead of passing a separate ``success_monitor_cfg``.
-The previous NIST sampler and strategy imports are removed: use core score
-configurations and the mask-native sampler. No compatibility runtime is retained.
+NIST's ``sampling`` parameter takes ``ResetStateSamplerCfg`` with core score
+configurations. Its separate ``success_monitor_cfg`` still configures outcome
+history. Set ``metric="monitor_success_rate"`` on a score to use those rates.
