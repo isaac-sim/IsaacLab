@@ -293,9 +293,9 @@ Visualizer Overview
 
       **RTX rendering**
 
-      The **Renderer** selector in the Camera View section switches the main view to the OVRTX path tracer for
+      The **Renderer** selector in the Rendering Options section switches the main view to the OVRTX path tracer for
       photorealistic rendering without a Kit process. It appears when the scene has the OVRTX viewer camera, which launch
-      declares when ``ovrtx`` is installed and the physics is not PhysX. Set
+      declares when ``ovrtx`` is installed and the physics is not Kit-based PhysX. Set
       ``NewtonGLBackendCfg(initial_renderer="rtx")`` to start in RTX. RTX rendering is slightly slower than OpenGL.
 
       .. raw:: html
@@ -306,15 +306,16 @@ Visualizer Overview
          <p class="viz-cap">Isaac-Velocity-Rough-H1 in the Newton Visualizer with RTX rendering<br>Each H1 humanoid climbs a
          staircase sub-terrain</p>
 
-      Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view, and picking draws the drag arrow there. The model overlays (joint, contact, spring,
-      center-of-mass, inertia, collision, visual, edge, and wireframe) apply to the OpenGL view only.
+      Picking, visualization markers, camera selection, pause controls, Visible Envs, and recording work in
+      the RTX view of a windowed Newton visualizer, and picking draws the drag arrow there. The model overlays
+      (joint, contact, spring, center-of-mass, inertia, collision, visual, edge, and wireframe) apply to the OpenGL
+      view only.
 
       .. warning::
 
          OVRTX is a kitless renderer and cannot be used in the same process as Kit
          (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
-         RTX rendering. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         RTX rendering. Use ``presets=newton_mjwarp`` or ``presets=ovphysx`` with
          ``--viz newton``, or switch to ``--viz viser``, ``--viz rerun``,
          or ``--viz kit`` with a Kit-compatible physics backend.
 
@@ -544,9 +545,9 @@ Attach a camera to a robot body to follow its motion, or select an existing view
 task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton,
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton**
-provides a **Camera View** selector in the sidebar for switching between perspective and scene-camera
+provides a **Camera Source** selector in the sidebar for switching between perspective and scene-camera
 views. A perspective view can also be a *tracking camera* that follows a robot or frames an environment.
-Selecting a scene sensor in **Camera View** shows its channel: the **Channel** selector lists the
+Selecting a scene sensor in **Camera Source** shows its channel: the **Channel** selector lists the
 sensor's outputs (RGB, depth, normals, or segmentation), and depth, normals, and segmentation are
 converted to colors for display. When the sensor is declared once per environment, **Tiled Envs**
 sets how many of its feeds are tiled into the window.
@@ -782,7 +783,9 @@ Watch training live in Kit while recording from a separate headless Newton angle
 
 **Following a moving robot**
 
-Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`.
+This is Newton GL only. Kit ignores a ``TrackingCameraCfg`` and follows an asset with
+``KitBackendCfg(origin_type="asset", origin_track_path="robot")`` instead. For Newton GL:
 
 .. code-block:: python
 
@@ -820,7 +823,9 @@ share button in the native UI.
 **Choosing how many environments are drawn**
 
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
-environments are drawn. It changes only what is rendered, not the simulation.
+environments are drawn. It changes only what is rendered, not the simulation. In the RTX view the OVRTX renderer is
+shared with scene cameras, so the hidden environments also drop out of their images while the RTX view is shown;
+the HUD notes this next to the slider.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~

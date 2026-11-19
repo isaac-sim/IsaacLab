@@ -164,6 +164,7 @@ def _switchable(views):
     base = _visualizer(views)
     viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
     viz.__dict__.update(base.__dict__)
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_path="/World/viewer_camera_0"))
     viz._overlay_publisher = SimpleNamespace(hide_all=lambda renderers: viz.hidden.append(renderers))
     viz._sim.get_or_create_backend = lambda cfg: cfg
     viz.hidden, viz.current_image_view = [], views[0]

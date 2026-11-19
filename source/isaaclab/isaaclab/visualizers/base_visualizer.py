@@ -27,7 +27,6 @@ from .key_event_source import KeyEventSource
 from .visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,
-    TrackingCameraCfg,
     VisualizerBackendCfg,
     VisualizerCfg,
     migrate_visualizer_cfgs,
@@ -124,12 +123,10 @@ class BaseVisualizer(ABC):
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
-        task_views_only = bool(self.cfg.cameras) and all(
-            isinstance(camera, TrackingCameraCfg) for camera in self.cfg.cameras
-        )
         automatic_sources = (
-            self.cfg.cameras is None or task_views_only
+            self.cfg.cameras is None or self.cfg.tracking_cameras_only
         ) and self.cfg.streaming_sensor_prim_path is None
+        rtx_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
                 if self.cfg.backend.visualizer_type != "newton":
@@ -137,7 +134,8 @@ class BaseVisualizer(ABC):
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
                 channels = tuple(self.cfg.streaming_gt_types)
-                if automatic_sources:  # Explicitly named sensors must provide what was requested.
+                # Explicitly named sensors must provide what was requested; the window's own RTX camera is RGB only.
+                if automatic_sources or camera.cfg.prim_path == rtx_path:
                     channels = resolve_display_channels(channels, camera.cfg.data_types)
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
