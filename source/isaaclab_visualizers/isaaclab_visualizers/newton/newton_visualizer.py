@@ -54,6 +54,13 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.lidar_points import (
+    collect_lidar_env_hits,
+    collect_lidar_hits,
+    frame_visualizer_closeup,
+    log_lidar_hits,
+    paint_lidar_hits,
+)
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -803,6 +810,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._rtx_appearance_failed = False
         self._sky_custom = ""
         self._sky_custom_open = False
+        self._lidar_step_counter = 0
+        self._lidar_hit_cache: list[tuple[int, np.ndarray]] | None = None
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -1550,6 +1559,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
 
+    def _log_lidar_points(self, viewer: Any) -> None:
+        """Log one lidar environment's hits into the Newton GL scene."""
+        self._lidar_step_counter += 1
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            log_lidar_hits(viewer, hits)
+
     def _capture_frame(self, output: wp.array | None) -> wp.array:
         """Read the frame already displayed, or render once when capture is the only consumer."""
         if self._last_render_step != self._sim.get_physics_step_count() or (
@@ -1699,6 +1715,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._sensor_tiles[view] = camera.num_instances
                 if self.cfg.view is None and not isinstance(self.cfg.streaming_envs, list) and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
+        frame_visualizer_closeup(self, cameras)
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
@@ -1786,6 +1803,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                self._log_lidar_points(viewer)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -2272,3 +2290,142 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.backend.light_color)
+
+
+class NewtonRTXVisualizer(NewtonVisualizerBase):
+    """Display simulation-owned RTX images in a Newton GL window.
+
+    Scene cameras and the perspective product share the configured OVRTX renderer. Window resizing
+    only scales presentation; sensor and perspective output storage keeps its initial resolution.
+    """
+
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
+        """Bind existing scene cameras to the window; cameras retain renderer ownership."""
+        if self._is_initialized:
+            return
+        if FactoryBase._get_backend(sim=sim) == "physx":
+            raise RuntimeError(
+                "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
+            )
+        if any(isinstance(camera, PerspectiveCameraCfg) for camera in cameras) or (
+            self.cfg.view is not None and isinstance(self.cfg.view.source, PerspectiveCameraCfg)
+        ):
+            raise ValueError(
+                "RTX perspective cameras must be declared before scene construction. Pass the environment config "
+                "to launch_simulation, or use instantiate(camera_cfg) within ReplicateSession and select it with "
+                "SceneCameraCfg."
+            )
+        super().initialize(sim, cameras=cameras)
+        self._viewer.renderer.set_title("Isaac Lab RTX")
+        self._viewer.picking_enabled = False
+        self._select_camera(0)
+        self._renderers = tuple(dict.fromkeys(
+            sim.get_or_create_backend(view.camera.cfg.renderer_cfg) for view in self._image_views
+            if view.camera.cfg.renderer_cfg.renderer_type == "ovrtx"
+        ))  # fmt: skip
+        if self.cfg.enable_markers:
+            for renderer in self._renderers:
+                renderer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._marker_revision = -1
+        self._is_initialized = True
+
+    def log_mesh(self, name: str, *args, **kwargs) -> None:
+        """Publish geometry to the shared scene, including cameras captured without a window."""
+        if not self._is_initialized:
+            raise RuntimeError("The visualizer must be initialized before logging a mesh.")
+        for renderer in self._renderers:
+            renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
+        for view in self._image_views:
+            view.camera._invalidate_buffers()
+            view.invalidate()
+
+    def _render_frame(self) -> None:
+        """Update navigation and scene overlays, then display the selected camera's GPU image."""
+        self._viewer.begin_frame(self._sim_time)
+        try:
+            if not self._viewer.is_paused():
+                self._navigate_scene_camera()
+                if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
+                    for view in self._image_views:
+                        view.camera._invalidate_buffers()
+                        view.invalidate()
+                    self._marker_revision = self._sim.vis_marker_registry.revision
+            self._log_streaming_image()
+            self._last_render_step = self._sim.get_physics_step_count()
+        finally:
+            self._viewer.end_frame()
+
+    def _log_streaming_image(self) -> None:
+        """Present the camera image with the logged environment's lidar hits painted on it."""
+        view = self.current_image_view
+        paused = self._viewer.is_paused()
+        composite = view.frame.data
+        if composite is None or not paused:
+            composite = view.read(self._sim.get_physics_step_count())
+        if composite is not None and not paused:
+            self._paint_lidar_image(composite)
+        if composite is not None:
+            self._viewer.log_image("Streaming View", composite, fullscreen=True)
+
+    def _paint_lidar_image(self, image: wp.array) -> None:
+        """Paint each environment's lidar hits into its tile of ``image``.
+
+        The OVRTX scene is left unchanged. A fresh camera image is composed every displayed frame,
+        so the last collected clouds are painted again until the next logged step.
+        """
+        self._lidar_step_counter += 1
+        hits = collect_lidar_env_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            self._lidar_hit_cache = hits
+        if not self._lidar_hit_cache:
+            return
+        view = self.current_image_view
+        camera = view.camera if view is not None else None
+        if camera is None:
+            return
+        envs = tuple(view.cfg.envs)
+        height, width = camera.image_shape
+        channels = tuple(view.cfg.channels)
+        num_channels = max(len(channels), 1)
+        if width <= 0 or image.shape[1] < width * num_channels:
+            return
+        columns = int(image.shape[1]) // (width * num_channels)
+        if columns <= 0:
+            return
+        channel = channels.index("rgb") if "rgb" in channels else 0
+        pixels = np.array(image.numpy(), copy=True)
+        painted = False
+        for env_id, cloud in self._lidar_hit_cache:
+            if env_id not in envs or len(cloud) == 0:
+                continue
+            tile = envs.index(env_id)
+            row, column = divmod(tile, columns)
+            pose = camera.data.pos_w.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
+            rotation = camera.data.quat_w_ros.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
+            intrinsics = (
+                camera.data.intrinsic_matrices.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
+            )
+            paint_lidar_hits(
+                pixels,
+                cloud,
+                position=pose,
+                rotation=rotation,
+                intrinsics=intrinsics,
+                tile_origin=(row * height, (column * num_channels + channel) * width),
+                tile_size=(height, width),
+            )
+            painted = True
+        if painted:
+            wp.copy(image, wp.array(pixels, dtype=wp.uint8, device=image.device))
+
+    def close(self) -> None:
+        """Close the window; scene cameras retain their render products and shared renderer."""
+        if self._is_closed:
+            return
+        self._close_key_event_source()
+        try:
+            if self._viewer is not None:
+                self._viewer.close()
+        finally:
+            self._viewer = None
+            super().close()
