@@ -169,21 +169,46 @@ def relaunch_argv(argv: list[str], enable: bool, envs: int | None = None, slots:
     return result
 
 
-def _launch_argv() -> list[str]:
+def launch_arguments() -> tuple[list[str], list[str]]:
+    """Return the original and the forwarded command line of this process.
+
+    Call it before the playback parses its arguments, because parsing replaces ``sys.argv`` with only the Hydra
+    overrides, which no longer describe how the process was started.
+    """
+    return list(sys.orig_argv), list(sys.argv)
+
+
+def _launch_argv(launch: tuple[list[str], list[str]] | None = None) -> list[str]:
     """Return the command line that started this process, including interpreter and entry point.
 
     A launcher script may replace ``sys.argv`` with the arguments it forwards to the CLI. Running that script again
     would ignore any flag added to its command line, so the CLI entry point is run with the forwarded arguments.
+
+    Args:
+        launch: The result of :func:`launch_arguments`, saved before the arguments were parsed. Defaults to the
+            current process arguments.
     """
-    original, current = list(sys.orig_argv), list(sys.argv)
+    original, current = launch if launch is not None else launch_arguments()
     if original[len(original) - len(current) + 1 :] == current[1:]:
         return original
     return [sys.executable, "-c", "from isaaclab.cli import cli; cli()", *current[1:]]
 
 
-def relaunch(enable: bool, envs: int | None = None, slots: int | None = None) -> None:
-    """Replace the running process with the same command line and Rollout Ghosts switched on or off."""
-    argv = relaunch_argv(_launch_argv(), enable, envs, slots)
+def relaunch(
+    enable: bool,
+    envs: int | None = None,
+    slots: int | None = None,
+    launch: tuple[list[str], list[str]] | None = None,
+) -> None:
+    """Replace the running process with the same command line and Rollout Ghosts switched on or off.
+
+    Args:
+        enable: Whether the new process runs with Rollout Ghosts.
+        envs: Environments per slot for the new process, or None to keep the current number.
+        slots: Number of slots for the new process, or None to keep the current number.
+        launch: The result of :func:`launch_arguments` from before the arguments were parsed.
+    """
+    argv = relaunch_argv(_launch_argv(launch), enable, envs, slots)
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(sys.executable, [sys.executable, *argv[1:]])
@@ -469,10 +494,12 @@ class PolicyGhostSession(PolicyGhostController):
                 actions[chunk] = policy(self._obs[chunk])
         self._obs, rewards, dones, _ = self._env.step(actions)
         self._metrics.update(rewards, dones)
+        reference_dones = dones[:size]
         for slot in self.layout.slots:
             policy = self._policies[slot.index]
             if policy is not None:
-                policy.reset(dones[slot.index * size : (slot.index + 1) * size])
+                # A ghost resets with its reference, so a ghost that fell alone keeps its memory until then.
+                policy.reset(dones[:size] if slot.index == 0 else reference_dones)
 
     def close(self) -> None:
         """Detach the synchronization hooks from the environment."""

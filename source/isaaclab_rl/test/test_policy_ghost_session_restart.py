@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
 import torch
 
 from isaaclab.visualizers.policy_ghost import PolicyGhostCheckpoint, PolicyGhostLayout
@@ -90,3 +91,27 @@ def test_the_reference_slot_cannot_be_replaced():
     session = _session_with_ghost(Mock(return_value="policy"))
 
     assert session.replace_ghost(0, _checkpoint("new")) is not None
+
+
+@pytest.mark.parametrize(
+    ("dones", "expected"),
+    [
+        ([False, False, False, True, False, False], [False, False]),  # a ghost fell alone: it keeps its memory
+        ([True, False, False, False, False, False], [True, False]),  # the reference reset, so the ghost did too
+    ],
+    ids=["ghost-falls-alone", "reference-resets"],
+)
+def test_a_ghost_policy_resets_with_its_reference(dones, expected):
+    session, env, reference = _session(pending=False)
+    ghost = Mock()
+    session._policies = [reference, ghost, None]
+    session._obs = torch.zeros(6, 1)
+    env.num_envs, env.num_actions = 6, 1
+    session._metrics = Mock()
+    reference.return_value = torch.zeros(2, 1)
+    ghost.return_value = torch.zeros(2, 1)
+    env.step.return_value = (torch.zeros(6, 1), torch.zeros(6), torch.tensor(dones), {})
+
+    session.step()
+
+    assert ghost.reset.call_args.args[0].tolist() == expected

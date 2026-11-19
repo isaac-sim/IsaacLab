@@ -122,6 +122,24 @@ def test_world_frame_command_positions_are_moved_to_the_ghost_s_own_origin() -> 
     assert term.heading_command_w[ghost] == 1.5  # A heading is the same in every world.
 
 
+def test_relative_targets_are_recomputed_from_each_ghost_s_own_state_not_copied() -> None:
+    env = _make_env()
+    term = env.command_manager.term
+    term.pos_command_b = torch.zeros(NUM_ENVS, 3)
+    own_offsets = torch.arange(NUM_ENVS, dtype=torch.float32)
+
+    def update_command() -> None:  # the real term derives these from the target and the robot's own pose
+        term.pos_command_b[:, 0] = 5.0 - own_offsets
+
+    term._update_command = update_command
+    PolicyGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    env.command_manager.compute(0.02)
+
+    assert term.pos_command_b[SLICE_SIZE, 0] == 5.0 - SLICE_SIZE  # the ghost's own distance, not the reference's
+    assert term.pos_command_b[0, 0] == 5.0
+
+
 def test_close_restores_the_environment_hooks() -> None:
     env = _make_env()
     reset_idx, compute = env._reset_idx, env.command_manager.compute

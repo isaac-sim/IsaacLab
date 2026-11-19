@@ -856,6 +856,8 @@ the default is eight with ``--policy_ghosts`` and three for the in-place switch.
 * Identical checkpoints do not stay exactly on top of each other; physics differences grow
   to centimeters over a few seconds on rough terrain.
 * Rollout Ghosts support RSL-RL and manager-based environments only.
+* Tasks whose cameras render with OVRTX (``renderer=ovrtx``) are not supported, because the overlay would shift the scene
+  those cameras observe. Rollout Ghosts are not offered for them, and ``--policy_ghosts`` exits with a message.
 
 **Choosing how many environments are drawn**
 

@@ -57,6 +57,7 @@ from ..policy_ghosts import (
     PolicyGhostMode,
     PolicyGhostRestart,
     PolicyGhostSession,
+    launch_arguments,
     relaunch,
 )
 from . import cli_args_rsl_rl as cli_args
@@ -244,6 +245,8 @@ def _offer_policy_ghosts(mode: PolicyGhostMode, env: RslRlVecEnvWrapper, env_cfg
     """Offer Rollout Ghosts in the Newton GL HUD of a run that started without the feature."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return
+    if _scene_cameras_use_ovrtx(env_cfg):  # the overlay would shift the scene those cameras observe
+        return
     for visualizer in env.unwrapped.sim.visualizers:
         if hasattr(visualizer, "attach_policy_ghost_toggle"):
             visualizer.attach_policy_ghost_toggle(mode)
@@ -257,20 +260,37 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
     if not isinstance(visualizers, (list, tuple)):
         visualizers = [visualizers]
     # A shared visualizer configuration names its type on its backend; a deprecated combined one names it directly.
-    types = [
-        getattr(getattr(cfg, "backend", None), "visualizer_type", None) or getattr(cfg, "visualizer_type", None)
-        for cfg in visualizers
-    ]
+    types = []
+    for cfg in visualizers:
+        backend = getattr(cfg, "backend", None)
+        for chosen in backend if isinstance(backend, (list, tuple)) else [backend]:  # --viz newton,viser selects both
+            types.append(getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None))
     if "newton" not in types:
-        raise SystemExit("--policy_ghosts requires the Newton GL visualizer; pass --visualizer newton_gl.")
+        raise SystemExit("--policy_ghosts requires the Newton GL visualizer; pass --visualizer newton.")
+    if _scene_cameras_use_ovrtx(env_cfg):
+        raise SystemExit(
+            "--policy_ghosts does not support tasks whose cameras use the OVRTX renderer: the ghosts would shift the"
+            " scene those cameras observe. Use another renderer, such as renderer=newton_warp."
+        )
+
+
+def _scene_cameras_use_ovrtx(env_cfg: object) -> bool:
+    """Whether a scene sensor renders with OVRTX, whose scene the Rollout Ghosts overlay would shift."""
+    scene = getattr(env_cfg, "scene", None)
+    for value in vars(scene).values() if scene is not None else ():
+        renderer_cfg = getattr(value, "renderer_cfg", None)
+        if getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
+            return True
+    return False
 
 
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent, restarting if the viewer HUD asks to toggle Rollout Ghosts."""
     restart = PolicyGhostRestart()
+    launch = launch_arguments()  # saved before the playback parses its arguments and replaces sys.argv
     _run(argv, restart)
     if restart.requested:
-        relaunch(restart.enable, restart.envs, restart.slots)
+        relaunch(restart.enable, restart.envs, restart.slots, launch)
 
 
 def _run(argv: list[str], restart: PolicyGhostRestart) -> None:

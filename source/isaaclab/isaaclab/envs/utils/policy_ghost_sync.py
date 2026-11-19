@@ -174,12 +174,21 @@ class PolicyGhostSync:
         manager = self._env.command_manager
         origins = self._env.scene.env_origins
         for name in manager.active_terms:
-            for key, value in vars(manager.get_term(name)).items():
+            term = manager.get_term(name)
+            for key, value in vars(term).items():
+                if key in _OWN_POSE_KEYS:
+                    continue  # relative to each robot's own pose, so a ghost computes it from its own state
                 if isinstance(value, torch.Tensor) and value.ndim >= 1 and value.shape[0] == self._env.num_envs:
                     value[ghosts] = value[source]
                     if key.endswith("_w") and value.ndim == 2 and value.shape[1] in (3, 7):
                         # A world-frame position names a place in the reference's world, so move it to the ghost's.
                         value[ghosts, :3] += origins[ghosts] - origins[source]
+            if any(hasattr(term, key) for key in _OWN_POSE_KEYS) and hasattr(term, "_update_command"):
+                term._update_command()  # recompute the relative targets from each robot's own pose
+
+
+_OWN_POSE_KEYS = ("pos_command_b", "heading_command_b")
+"""Command tensors that express the target relative to the robot, such as those of ``UniformPose2dCommand``."""
 
 
 def _gather(state: dict[str, Any], ids: torch.Tensor) -> dict[str, Any]:
