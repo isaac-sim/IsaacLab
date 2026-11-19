@@ -13,7 +13,7 @@ The following configurations are available:
 * :obj:`FRANKA_PANDA_LEGACY_CFG`: Legacy asset and actuators
 * :obj:`FRANKA_PANDA_LEGACY_HIGH_PD_CFG`: Legacy high-PD configuration
 * :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Menagerie actuator configuration
-* :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
+* :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with a Robotiq 2F-85 gripper
 
 Use ``FRANKA_PANDA_CFG`` for new code and select its ``Physics`` variant for the chosen backend.
 Use the explicit ``LEGACY`` configurations to retain the original USD path and actuator groups.
@@ -23,14 +23,14 @@ available as an explicit USD-path override.
 Reference: https://github.com/frankaemika/franka_ros
 """
 
-from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import clone
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -185,9 +185,20 @@ FRANKA_PANDA_MENAGERIE_CFG.actuators = {
 
 
 FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+# TODO: Temporary location. Replace the Hugging Face URL with the Isaac Lab Nucleus path once the asset is uploaded
+# there. The asset is the Isaac Sim Franka with the Isaac Lab Franka arm inertias; its Robotiq gripper variant sits on
+# the flange ``panda_link8`` with rubber finger pads.
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = (
+    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/47163169a7decfe1131d3734b51007f74fe0f594"
+    "/franka.usd"
+)
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
+# PhysX switches gravity off per body, while Newton reads gravity switches only on the physics scene, so MuJoCo Warp
+# compensates gravity on the bodies instead.
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props = [
+    PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+    MujocoRigidBodyCfg(gravcomp=1.0),
+]
 FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos = {
     "panda_joint1": 0.0,
     "panda_joint2": -0.569,
@@ -205,14 +216,14 @@ FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.pos = (-0.85, 0, 0.76)
 FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = {
     "panda_shoulder": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-4]"],
-        joint_effort_limit=5200.0,
+        joint_effort_limit=87.0,
         joint_velocity_limit=2.175,
         stiffness=1100.0,
         damping=80.0,
     ),
     "panda_forearm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[5-7]"],
-        joint_effort_limit=720.0,
+        joint_effort_limit=12.0,
         joint_velocity_limit=2.61,
         stiffness=1000.0,
         damping=80.0,
@@ -241,4 +252,4 @@ FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = {
         damping=0.0,
     ),
 }
-"""Configuration of Franka Emika Panda robot with Robotiq_2f_85 gripper."""
+"""Configuration of the Franka Emika Panda robot with a Robotiq 2F-85 gripper."""
