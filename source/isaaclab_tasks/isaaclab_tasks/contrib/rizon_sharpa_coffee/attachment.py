@@ -7,15 +7,15 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import JointType
+from newton import JointType, Model
+from newton.selection import ArticulationView
 
 from isaaclab.sim import SimulationContext
 
-from .robot import PALM_BODY_NAME
+from isaaclab_assets.robots.rizon_sharpa import PALM_BODY_NAME
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -43,39 +43,14 @@ class MountedSpoonAttachment:
     ):
         self._backend_manager = SimulationContext.instance().backend_manager
         self._model = self._backend_manager.backend.model
-        palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
-        spoon_pattern = re.compile(spoon.cfg.prim_path)
-        palm_ids, spoon_ids = [], []
-        body_world = self._model.body_world.numpy()
-        for env_index in range(robot.num_instances):
-            palms = [
-                index
-                for index, label in enumerate(self._model.body_label)
-                if body_world[index] == env_index and palm_pattern.fullmatch(label)
-            ]
-            spoons = [
-                index
-                for index, label in enumerate(self._model.body_label)
-                if body_world[index] == env_index and spoon_pattern.fullmatch(label)
-            ]
-            if len(palms) != 1 or len(spoons) != 1:
-                raise ValueError(f"Expected one native palm and spoon in env_{env_index}; got {palms}, {spoons}.")
-            palm_ids.append(palms[0])
-            spoon_ids.append(spoons[0])
-        self._palm_ids = wp.array(palm_ids, dtype=int, device=self._model.device)
-        self._spoon_ids = wp.array(spoon_ids, dtype=int, device=self._model.device)
-        children = self._model.joint_child.numpy()
-        types = self._model.joint_type.numpy()
-        q_starts = self._model.joint_q_start.numpy()
-        qd_starts = self._model.joint_qd_start.numpy()
-        spoon_joints = []
-        for body in spoon_ids:
-            joints = [index for index, child in enumerate(children) if child == body and types[index] == JointType.FREE]
-            if len(joints) != 1:
-                raise ValueError(f"Expected one free root joint for mounted spoon body {body}; got {joints}.")
-            spoon_joints.append(joints[0])
-        self._q_starts = wp.array(q_starts[spoon_joints], dtype=int, device=self._model.device)
-        self._qd_starts = wp.array(qd_starts[spoon_joints], dtype=int, device=self._model.device)
+        if spoon.root_view.root_joint_type != JointType.FREE:
+            raise ValueError("The mounted spoon must have a free root joint.")
+        palm_id = robot.backend_body_names.index(PALM_BODY_NAME)
+        frequency = Model.AttributeFrequency
+        self._palm_ids = _model_indices(robot.root_view, frequency.BODY, palm_id)
+        self._spoon_ids = _model_indices(spoon.root_view, frequency.BODY)
+        self._q_starts = _model_indices(spoon.root_view, frequency.JOINT_COORD)
+        self._qd_starts = _model_indices(spoon.root_view, frequency.JOINT_DOF)
         self._offset = wp.transform(wp.vec3(offset_pos), wp.quat(offset_rot))
         self._enabled = wp.ones(1, dtype=int, device=self._model.device)
         self._backend_manager.register_post_actuator_callback(self.sync)
@@ -109,6 +84,13 @@ class MountedSpoonAttachment:
     def close(self) -> None:
         """Disable captured writes until the manager clears its callback list."""
         self._enabled.zero_()
+
+
+def _model_indices(view: ArticulationView, frequency: Model.AttributeFrequency, index: int = 0) -> wp.array:
+    """Return one absolute model index per instance in the asset's own ordering."""
+    layout = view.frequency_layouts[frequency]
+    rows = layout.get_absolute_indices(view.world_count, view.count_per_world)
+    return wp.array(rows[..., index].reshape(-1), dtype=int, device=view.device)
 
 
 @wp.kernel

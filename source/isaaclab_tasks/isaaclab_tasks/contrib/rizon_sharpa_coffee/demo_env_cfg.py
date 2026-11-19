@@ -29,15 +29,10 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
+from isaaclab_assets.robots.rizon_sharpa import ARM_JOINT_NAMES, HAND_JOINT_LIMITS_RAD, HAND_JOINT_NAMES, PALM_BODY_NAME
+
 from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_HEIGHT, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
-from .robot import (
-    ARM_JOINT_NAMES,
-    DEFAULT_SPOON_OFFSET_POS,
-    DEFAULT_SPOON_OFFSET_ROT,
-    HAND_JOINT_LIMITS,
-    HAND_JOINT_NAMES,
-    PALM_BODY_NAME,
-)
+from .robot import COFFEE_ROBOT_CFG, DEFAULT_SPOON_OFFSET_POS, DEFAULT_SPOON_OFFSET_ROT
 
 
 @configclass
@@ -113,7 +108,7 @@ class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
 class CoffeeKitBackendCfg(KitBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeKitVisualizer"
     backdrop: Literal["kitchen", "studio"] = "kitchen"
     """Presentation backdrop: ``kitchen`` or the original ``studio``."""
     render_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
@@ -130,13 +125,32 @@ class CoffeePresentationCfg(sim_utils.SpawnerCfg):
 
 @configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
-    """Reusable robot, hosted props and optional MPM fill volumes."""
+    """Robot, upright vessels, mounted spoon and optional MPM fill volumes."""
 
-    robot: ArticulationCfg | None = None
-    table: AssetBaseCfg | None = None
-    bowl: AssetBaseCfg | None = None
-    cup: AssetBaseCfg | None = None
-    spoon: RigidObjectCfg | None = None
+    robot: ArticulationCfg = COFFEE_ROBOT_CFG
+    table: AssetBaseCfg = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
+    )
+    bowl: AssetBaseCfg = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bowl",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda", scale=(0.65, 0.65, 1.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
+    )
+    cup: AssetBaseCfg = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Cup",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup_shallow.usda"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
+    )
+    spoon: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Spoon",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, -0.12, 0.15)),
+    )
+
     coffee: MPMObjectCfg | None = None
     water: MPMObjectCfg | None = None
     dome_light = AssetBaseCfg(
@@ -171,7 +185,7 @@ class CoffeeActionsCfg:
         joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
         use_default_offset=False,
-        clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)),
+        clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS_RAD, strict=True)),
     )
 
 
@@ -225,8 +239,6 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
 
 def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     """Resolve hosted assets and sample collision-free fill volumes."""
-    from .robot import get_robot_cfg
-
     if not math.isfinite(cfg.voxel_size) or not 0.001 <= cfg.voxel_size <= 0.010:
         raise ValueError("voxel_size must be between 1 and 10 mm.")
     if not math.isfinite(cfg.spoon_margin_voxels) or cfg.spoon_margin_voxels < 0.0:
@@ -258,36 +270,11 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         cfg.scene.presentation = AssetBaseCfg(
             prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
         )
-    cfg.scene.robot = get_robot_cfg()
-    cfg.scene.table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
-    cfg.scene.bowl = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Bowl",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda", scale=(cfg.bowl_scale, cfg.bowl_scale, 1.0)
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
-    )
-    cfg.scene.cup = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Cup",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup_shallow.usda"),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
-    )
-    cfg.scene.spoon = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Spoon",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, -0.12, 0.15)),
-    )
+    cfg.scene.bowl.spawn.scale = (cfg.bowl_scale, cfg.bowl_scale, 1.0)
     spacing = cfg.voxel_size / 2.0
     cfg.scene.coffee = _particle_cfg(
         "Coffee",
-        BOWL_POSITION,
+        cfg.scene.bowl.init_state.pos,
         0.060 * cfg.coffee_fill_scale,
         cfg.coffee_fill_height,
         min(spacing, cfg.coffee_particle_spacing),
@@ -295,7 +282,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         cfg.coffee_fill_scale,
     )
     cfg.scene.water = (
-        _particle_cfg("Water", CUP_POSITION, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True)
+        _particle_cfg(
+            "Water", cfg.scene.cup.init_state.pos, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True
+        )
         if cfg.water_enabled
         else None
     )

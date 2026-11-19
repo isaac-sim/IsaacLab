@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.utils import math as math_utils
 
-from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
+from .assets import CUP_HEIGHT, SPOON_BOWL_WIDTH
 from .robot import HAND_HOLD_POSITIONS
 
 if TYPE_CHECKING:
@@ -51,13 +51,13 @@ class CoffeeScoopDemo:
     def reset(self) -> None:
         """Restart from the current physical spoon pose after an environment reset."""
         initial = self._env.spoon_pose()
-        source_x, source_y, source_z = BOWL_POSITION
+        source_x, source_y, source_z = self._env.cfg.scene.bowl.init_state.pos
         # Follow the coffee pile independently of the surrounding bowl size.
         scoop_x = source_x + min(0.015, 0.030 * (1.0 - self._env.cfg.coffee_fill_scale))
         scoop_y = source_y - 0.010 * self._env.cfg.coffee_fill_scale
         entry_x = scoop_x - 0.031
         lift_x = scoop_x - 0.016
-        cup_x, cup_y, cup_z = CUP_POSITION
+        cup_x, cup_y, cup_z = self._env.cfg.scene.cup.init_state.pos
         level = (0.0, 0.0, 0.0, 1.0)
         steep = (0.0, math.sin(math.pi / 6.0), 0.0, math.cos(math.pi / 6.0))
         tipped = (math.sin(math.pi / 4.0), 0.0, 0.0, math.cos(math.pi / 4.0))

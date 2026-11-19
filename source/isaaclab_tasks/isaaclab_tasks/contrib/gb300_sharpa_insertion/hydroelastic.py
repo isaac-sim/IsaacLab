@@ -11,54 +11,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import HydroelasticSDFCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.physics.coupling import CouplerProxyCfg, CouplerProxyMappingCfg
 
 if TYPE_CHECKING:
     import newton
 
 # Newton exposes this builder attribute but does not publish its mode enum.
 _MJWARP_SOLREF_MODE_FORCE_SPACE = 0
-
-
-def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
-    """Keep hydroelastic grasp contacts in MJWarp and the flexible cable in VBD.
-
-    Args:
-        physics: Newton configuration whose entries own the rigid scene and cable.
-    """
-    rigid, cable = physics.solver_cfg.entries
-    rigid.bodies.extend((r"{ENV_REGEX_NS}/Cable/head", r"{ENV_REGEX_NS}/Cable/latch"))
-    cable.bodies = [r"{ENV_REGEX_NS}/Cable/(?!(?:head|latch)(?:/|$)).*"]
-    # The fixture proxy includes the pedestal and rack; only the ground needs static ownership.
-    cable.include_static_shapes = False
-    cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
-    cable.solver_cfg = cable.solver_cfg.replace(
-        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolver"
-    )
-    physics.solver_cfg = CouplerProxyCfg(
-        entries=[rigid, cable],
-        # The cable runs its own post-transfer pipeline; the outer pipeline collides rigid pairs once.
-        outer_contact_entry="rigid",
-        iterations=1,
-        proxies=[
-            CouplerProxyMappingCfg(
-                source="rigid",
-                destination="cable",
-                bodies=rigid.bodies.copy(),
-                mode="staggered",
-                collision_pipeline=_one_way_cable_collision_pipeline,
-            )
-        ],
-    )
-    physics.collision_cfg = NewtonCollisionPipelineCfg(
-        sdf_hydroelastic_config=HydroelasticSDFCfg(
-            output_contact_surface=True,
-            # A 1 mm² speculative patch; penetrating contacts retain their SDF area.
-            margin_contact_area=1.0e-6,
-        )
-    )
-    physics.collision_decimation = 1
 
 
 def configure_hydroelastic_shapes(
@@ -190,7 +148,7 @@ def configure_hydroelastic_shapes(
                 builder.add_shape_collision_filter_pair(shape, other)
 
 
-def _one_way_cable_collision_pipeline(model: newton.Model) -> newton.CollisionPipeline:
+def cable_collision_pipeline(model: newton.Model) -> newton.CollisionPipeline:
     """Allocate only contacts that can affect the cable after proxy transfer."""
     import newton
 

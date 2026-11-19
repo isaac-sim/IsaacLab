@@ -53,7 +53,9 @@ def main() -> None:
             env.sim.render()
         controller = CoffeeScoopDemo(env)
         camera = (
-            _SpoonCamera(env.sim.visualizers, show_cup=cfg.water_enabled)
+            _SpoonCamera(
+                env.sim.visualizers, cfg.scene.bowl.init_state.pos, cfg.scene.cup.init_state.pos, cfg.water_enabled
+            )
             if cfg.sim.visualizer_cfgs and args.camera == "follow"
             else None
         )
@@ -252,29 +254,29 @@ def _make_env_cfg(args, video_stride):
 class _SpoonCamera:
     """Ease framing through the demonstration and clear the arm when stirring."""
 
-    def __init__(self, visualizers, *, show_cup: bool = False):
+    def __init__(self, visualizers, bowl_position, cup_position, show_cup: bool):
         self._visualizers = visualizers
         self._initial_eye = np.array(visualizers[0].cfg.eye, dtype=float)
         self._initial_target = np.array(visualizers[0].cfg.lookat, dtype=float)
         self._offset = self._initial_eye - self._initial_target
         self._azimuth = math.atan2(self._offset[1], self._offset[0])
+        self._bowl_position = np.array(bowl_position)
+        self._cup_position = np.array(cup_position)
         self._show_cup = show_cup
         self.reset()
 
     def reset(self):
-        self._eye = self._initial_eye.copy()
-        self._target = self._initial_target.copy()
         distance = np.linalg.norm(self._offset)
         elevation = math.asin(self._offset[2] / distance)
         # Three cascaded filters keep position, velocity and acceleration
         # continuous even when the scripted phase changes its framing target.
-        self._framing = np.tile((*self._target, math.log(distance), elevation, self._azimuth), (3, 1))
+        self._framing = np.tile((*self._initial_target, math.log(distance), elevation, self._azimuth), (3, 1))
         self._stirring = False
         for visualizer in self._visualizers:
-            visualizer.set_camera_view(self._eye, self._target)
+            visualizer.set_camera_view(self._initial_eye, self._initial_target)
 
     def update(self, spoon_position, phase, dt):
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import CUP_HEIGHT
 
         spoon = np.asarray(spoon_position)
         # Bias toward the handle so the thumb/index pinch stays in the shot.
@@ -284,13 +286,13 @@ class _SpoonCamera:
         elevation = math.radians(48.0)
         azimuth = self._azimuth
         if phase.startswith(("approach", "scoop", "settle")):
-            target = 0.25 * focus + 0.75 * (np.array(BOWL_POSITION) + (-0.025, 0.0, 0.075))
+            target = 0.25 * focus + 0.75 * (self._bowl_position + (-0.025, 0.0, 0.075))
             distance = 0.68
             elevation = math.radians(52.0)
         if phase.startswith("stir"):
             self._stirring = True
         if self._show_cup and (self._stirring or phase.startswith(("transfer", "tip", "empty"))):
-            target = np.array(CUP_POSITION) + (-0.015, 0.0, CUP_HEIGHT * (0.9 if self._stirring else 0.75))
+            target = self._cup_position + (-0.015, 0.0, CUP_HEIGHT * (0.9 if self._stirring else 0.75))
             distance = 0.33 if self._stirring else 0.50
             elevation = math.radians(35.0 if self._stirring else 60.0)
             if self._stirring:
@@ -306,18 +308,18 @@ class _SpoonCamera:
         self._framing[0] = goal + decay * errors[0]
         self._framing[1] = goal + decay * (errors[1] + elapsed * errors[0])
         self._framing[2] = goal + decay * (errors[2] + elapsed * errors[1] + 0.5 * elapsed**2 * errors[0])
-        self._target = self._framing[2, :3].copy()
+        target = self._framing[2, :3].copy()
         distance = math.exp(self._framing[2, 3])
         elevation = self._framing[2, 4]
         azimuth = self._framing[2, 5]
         horizontal = distance * math.cos(elevation)
-        self._eye = self._target + (
+        eye = target + (
             horizontal * math.cos(azimuth),
             horizontal * math.sin(azimuth),
             distance * math.sin(elevation),
         )
         for visualizer in self._visualizers:
-            visualizer.set_camera_view(self._eye, self._target)
+            visualizer.set_camera_view(eye, target)
 
 
 if __name__ == "__main__":

@@ -192,7 +192,7 @@ OVERRIDES = {
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton_gl", "newton_rtx"),
     ),
-    "examples/sharpa_rj45.py": ScriptOverride(
+    "examples/demos/sharpa_rj45.py": ScriptOverride(
         args=("--max_steps", "1800"),
         startup_timeout=600.0,
         fixed_physics_backend="newton_coupler",
@@ -241,14 +241,19 @@ OVERRIDES = {
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
-    "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
-    "examples/rizon_sharpa_teapot.py": ScriptOverride(
+    "examples/demos/teapot_fill.py": ScriptOverride(
+        args=("--max_steps", str(DEFAULT_MAX_STEPS), "--voxel_size", "0.006"),
+        fixed_physics_backend="newton_mpm",
+        visualizers=(None, "newton_gl"),
+    ),
+    "examples/demos/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         fixed_physics_backend="newton_coupler",
         visualizers=(None, "newton_gl"),
-        required_modules=("isaaclab_contrib",),
+        required_modules=("isaaclab_assets",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
+        args=("--water",),
         fixed_physics_backend="newton_coupler",
         visualizers=(None, "newton_gl", "newton_rtx", "kit"),
     ),

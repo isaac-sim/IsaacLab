@@ -52,14 +52,12 @@ anisotropy suppress sampling ridges while preserving the larger stirring waves.
 | `assets.py`, `robot.py` | Asset dimensions, robot joint contract and measured reset pose |
 | `physics.py`, `dissolution.py`, `attachment.py` | Coupled physics, soluble coffee and tool mounting |
 | `scripted.py` | Scoop, pour and stir state machine |
-| `rendering.py` | Shared grain, colour and native liquid-surface state for Newton viewers |
-| `kit_rendering.py` | Optional Kit USD publication, loaded after app startup |
+| `rendering.py` | Grain and liquid presentation for GL, Kit and RTX |
 
 Native Newton reconstructs and smooths the surface using bounded reusable
-storage. The rendering code adds the local coffee colour. Kit stays separate
-because its runtime cannot be imported during configuration. Its camera
-session-layer handling is local to this demo. The RTX visualizer publishes grains and liquid colours into the scene camera's
-shared renderer; Newton GL displays the completed image.
+storage. The rendering code adds the local coffee colour. The Kit visualizer
+publishes USD geometry after app startup. The RTX visualizer publishes grains
+and liquid colours into the scene camera's shared renderer.
 
 The custom MPM solver retains its manager's USD configuration preparation and
 only specializes solver construction. Task-specific RTX material paths and updates
@@ -67,7 +65,7 @@ belong to the camera product and are released with it.
 Kit and RTX use the same backdrop declared in the scene configuration.
 The scene owns its lights, geometry and lifetime. Both use the
 authored refracting water material, with local coffee colour driving optical
-absorption. GL uses its native textured surface.
+absorption. GL interpolates the same local tint over the reconstructed surface.
 
 ## Assets and runtime
 
@@ -164,6 +162,7 @@ the RL base owns that dispatch. Add task-specific observations, rewards,
 terminations, horizon, registration and an agent configuration separately.
 Reuse the scene, physics, reset logic and measured pose/delivery queries.
 Presentation supports one demo world and should be disabled for batched learning.
-The demo uses argparse and builds robot and prop configurations from its dimensions.
-Nested scene asset overrides are rebuilt by `configure_scene`; preserve those
-overrides explicitly when adapting it into a Hydra-configured learning task.
+Set robot and prop defaults in `CoffeeSceneCfg`. At construction, `configure_scene`
+applies the selected bowl scale, seeds the particle fills and sizes the material solver.
+Set each upright vessel's `init_state.pos` before construction to move its fill,
+scripted waypoints and delivery check with it.

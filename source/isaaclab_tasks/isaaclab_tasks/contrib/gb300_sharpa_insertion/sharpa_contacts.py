@@ -10,12 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-import trimesh
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.mesh import create_trimesh_from_geom_mesh
 
 if TYPE_CHECKING:
+    import trimesh
+
     from pxr import Usd
 
 
@@ -34,6 +34,8 @@ def spawn_sharpa_contact_meshes(
     remain native. The thumb's open back receives an interior closing surface.
     """
     from pxr import Gf, Usd, UsdGeom, UsdPhysics, Vt
+
+    from isaaclab.utils.mesh import create_trimesh_from_geom_mesh
 
     root = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
     for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
@@ -89,6 +91,8 @@ def spawn_sharpa_contact_meshes(
 
 def _close_thumb_back(surface: trimesh.Trimesh) -> trimesh.Trimesh:
     """Close the native thumb pad's single back opening without moving its outer surface."""
+    import trimesh
+
     edges = surface.edges
     _, inverse, counts = np.unique(np.sort(edges, axis=1), axis=0, return_inverse=True, return_counts=True)
     boundary = edges[counts[inverse] == 1]
