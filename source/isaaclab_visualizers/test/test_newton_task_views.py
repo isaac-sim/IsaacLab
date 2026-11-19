@@ -273,3 +273,23 @@ def test_capturing_a_view_the_window_does_not_show_stays_out_of_the_hud_recordin
     viz._capture_view(other, None)
 
     assert seen == [True] and not viz._capturing_another_view
+
+
+def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
+    free, tracking = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _switchable([free, tracking])
+    viz._viewer = SimpleNamespace(_camera_speed=5.0, camera_speed=5.0, camera_speed_boost=2.0)
+    viz._pose_source_view = lambda: viz.current_image_view
+    imgui = SimpleNamespace(
+        slider_float=lambda *args: (True, 12.0),
+        SliderFlags_=SimpleNamespace(logarithmic=0),
+        is_item_hovered=lambda *args: False,
+        HoveredFlags_=SimpleNamespace(allow_when_disabled=0),
+    )
+    viz.current_image_view = tracking
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 5.0  # a tracking camera does not move with the keys
+
+    viz.current_image_view = free
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
