@@ -174,7 +174,8 @@ configurations share one renderer and its scene. ``NewtonRTXBackendCfg.renderer_
 the renderer for generated perspective cameras; explicitly selected scene cameras retain their
 own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
 ``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
-independent native stage. Its ``populate(stage, plan)`` method imports and clones a declared scene.
+independent native stage. Its ``populate(usda)`` method imports an exported USD scene and applies
+the prepared clone operations.
 
 The camera owns pose, calibration, image buffers, capture, and cleanup. Window navigation calls
 ``Camera.set_world_poses`` and ``Camera.set_intrinsic_matrices``; image reads use ``Camera.data``.
@@ -192,7 +193,7 @@ spawning assets and cameras, including for a single environment:
    from isaaclab.sensors import CameraCfg
    from isaaclab.sim import CuboidCfg, DomeLightCfg, PinholeCameraCfg, SimulationCfg, SimulationContext
    from isaaclab.utils import instantiate
-   from isaaclab.visualizers import SceneCameraCfg
+   from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
    from isaaclab_ov.renderers import OVRTXRendererCfg
    from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
@@ -203,7 +204,11 @@ spawning assets and cameras, including for a single environment:
        render_settings={"omni:rtx:quality": ("Int", 0)},
    )
    sim_cfg = SimulationCfg(
-       visualizer_cfgs=[NewtonRTXBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+       visualizer_cfgs=[
+           VisualizerCfg(
+               backend=NewtonRTXBackendCfg(), cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)]
+           )
+       ]
    )
    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
@@ -275,7 +280,7 @@ Example 1: Following AnymalD Robots
 
 The script adds a ``CameraCfg`` beneath each robot's base before constructing the environment.
 Its offset defines the view relative to the base, so the camera follows the robot through the
-normal sensor lifecycle. Of the 256 environments, 36 are sampled for display.
+normal sensor lifecycle. Of the 256 environments, 12 are sampled for display.
 
 .. raw:: html
 
@@ -312,10 +317,10 @@ Example 2: Streaming from Robot-Mounted Cameras
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric
-view of the gripper, table, and cubes. The script's ``NewtonGLBackendCfg`` streams from the
-existing sensor at ``/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera``; edit
-``streaming_sensor_prim_path`` to show a different camera. Of the 25 environments, 12 camera
-feeds are shown by default.
+view of the gripper, table, and cubes. The script streams from the scene's first ``CameraCfg``,
+the right wrist camera at ``/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera``;
+edit the script's ``cameras=[SceneCameraCfg(...)]`` selection to show a different camera. Of the
+25 environments, 12 camera feeds are shown by default.
 
 .. raw:: html
 

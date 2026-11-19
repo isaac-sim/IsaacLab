@@ -54,11 +54,15 @@ def test_case_and_golden_inventory() -> None:
     root = _SUITE / "golden_images/renderers"
     assert {path.relative_to(root) for path in root.rglob("*.png")} == expected
     subsets = tomllib.loads((_SOURCE.parent / ".github/test-subsets/postmerge-rendering.toml").read_text())
-    nodes = {
-        f"{_SUITE.relative_to(_SOURCE.parent)}/test_rendering_kit.py::test_rendering[{case}]" for case in kit_ids
-    } | {
-        f"{_SUITE.relative_to(_SOURCE.parent)}/test_rendering_kitless.py::test_rendering[{case}]"
-        for case in kitless_ids
+    suite = _SUITE.relative_to(_SOURCE.parent)
+    nodes = {f"{suite}/test_rendering_kit.py::test_rendering[{case}]" for case in kit_ids} | {
+        f"{suite}/test_rendering_kitless_{case.physics}_{case.renderer}.py::test_rendering[{stage}-{case.id}]"
+        for stage, case in KITLESS_RENDERING_CASES
+    }
+    nodes |= {
+        f"{suite}/test_rendering_kitless_newton_newton_warp.py::test_rendering_optix[{stage}-{case.id}]"
+        for stage, case in KITLESS_RENDERING_CASES
+        if (case.physics, case.renderer, case.scene) == ("newton", "newton_warp", "rendering_scene")
     }
     for subset in subsets.values():
         for node in subset:

@@ -3,6 +3,70 @@ Changelog
 
 .. towncrier release notes start
 
+7.0.3 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for environment config overrides in the RLinf generic Isaac Lab environment, read from
+  ``init_params.env_overrides``.
+
+Fixed
+^^^^^
+
+* Fixed the RLinf extension ignoring ``embodiment_tag_id`` for tags that RLinf already registers. RLinf maps
+  ``new_embodiment`` to projector 10, so GR00T N1.5 checkpoints fine-tuned with ``new_embodiment`` = 31 decoded
+  actions with the wrong projector. A configured ID now overrides the registered one.
+* Fixed multi-GPU RLinf training crashing the renderer at startup. Each env worker now launches Isaac Sim with
+  ``multi_gpu=False``, so its renderer only uses the worker's GPU instead of every GPU on the node.
+
+
+7.0.2 (2026-11-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Lee controller inertia aggregation for bodies with principal axes rotated relative to their link frames.
+
+
+7.0.1 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_contrib.actuators.Thruster` and :class:`~isaaclab_contrib.assets.Multirotor` resets to
+  take ``env_mask`` and reset the masked environments without synchronizing the device.
+
+
+7.0.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the unused manual MJWarp/VBD solver, its configuration, and the opt-in
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task. Use
+  :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` and ``Isaac-Lift-Soft-Franka`` with
+  ``physics=newton_mjwarp_vbd_proxy`` instead.
+* **Breaking:** Removed ``isaaclab_contrib.coupling``. Import the generic coupler and its configurations from
+  :mod:`isaaclab_newton.physics.coupling` instead.
+
+
+6.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_contrib.coupling.CouplerSolver` and
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` into solver drivers. The coupler kept each entry's
+  driver in ``entries`` and ``build_coupled`` became an instance method; the custom coupled solver kept its sub-solver
+  drivers as ``rigid`` and ``soft``.
+
+
 5.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~
 

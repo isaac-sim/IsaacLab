@@ -33,7 +33,7 @@ class MJWarpSolver(NewtonSolver):
 
     solver_class = SolverMuJoCo
     single_state = True
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.RUN_TO_RUN
 
     @classmethod
     def applied_deterministic_mode(cls, cfg: MJWarpSolverCfg, mode: wp.DeterministicMode) -> wp.DeterministicMode:
@@ -72,6 +72,8 @@ class MJWarpSolver(NewtonSolver):
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
+        if model._has_body_variants:
+            kwargs["separate_worlds"] = True
         return self.solver_class(model, **kwargs)
 
     def supports_capture(self) -> bool:
@@ -81,7 +83,7 @@ class MJWarpSolver(NewtonSolver):
         return not self.cfg.use_mujoco_contacts
 
     def create_contacts(self) -> Contacts:
-        """Allocate contacts sized to MuJoCo's contact buffer; ``update_contacts`` fills them for sensors."""
+        """Allocate contacts sized to MuJoCo's contact buffer for sensor contact indexing."""
         solver = self.native
         model = solver.model
         return Contacts(
@@ -104,7 +106,7 @@ class MJWarpSolver(NewtonSolver):
         if solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         solver.reset(state, world_mask=world_mask, flags=0)
-        if solver.update_data_interval != 1:
+        if self.cfg.update_data_interval != 1:
             # Newton has no public masked import. With sleeping disabled,
             # reset(flags=0) skips it, so reuse the pinned solver's conversion.
             data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data

@@ -3,6 +3,188 @@ Changelog
 
 .. towncrier release notes start
 
+31.0.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``newton_optix`` renderer preset for :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`.
+* Added Newton-based G1 whole-body motion tracking with server-hosted named reference data,
+  asymmetric actor/critic observations, adaptive phase sampling and domain randomization.
+  Episodes end at clip boundaries, and relative tracking rewards align to the current robot pose.
+* Added :class:`~isaaclab_tasks.core.lift.config.franka_soft.agents.rsl_rl_ppo_cfg.FrankaClothCameraPPORunnerCfg`
+  so ``Isaac-Lift-Cloth-Franka-Camera`` logs to its own experiment directory.
+* Added ``Isaac-Cartpole-MDP2``, the Cartpole task written with :mod:`isaaclab_experimental.mdp2` and run by
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` on Newton, in :mod:`isaaclab_tasks.mdp2`.
+* Added ``Isaac-Velocity-Flat-UnitreeGo2-MDP2``, the Unitree Go2 flat velocity task written with
+  :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands. Its play mode removes the
+  random pushes.
+* Added ``Isaac-Velocity-Flat-WalkStand-UnitreeGo2-MDP2``, which trains one Go2 policy in a scene where half of the
+  worlds follow velocity commands and the other half stand still, with their own rewards.
+* Added ``Isaac-Lift-KukaAllegro-MDP2``, the Kuka Allegro lift task written with :mod:`isaaclab_experimental.mdp2`,
+  with its adaptive difficulty curriculum, curriculum gravity, and a reset bank of valid start states per world, all
+  inside the step's CUDA graph. Its play mode starts the curriculum at its end, so a trained policy plays with
+  gravity.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the non-camera soft-beam ``rsl_rl`` experiment name from ``franka_soft`` to
+  ``lift_soft``, matching the ``lift_cloth`` and ``lift_cable`` naming of the sibling tasks. This
+  also moves the logs of the contributed ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task,
+  which reuses the same runner config. Existing checkpoints remain loadable: update log and
+  checkpoint paths that refer to ``logs/rsl_rl/franka_soft``, or pass
+  ``--experiment_name franka_soft``.
+* **Breaking:** Split the camera ``rsl_rl`` experiment name ``franka_deformable_camera``, which
+  ``Isaac-Lift-Soft-Franka-Camera`` and ``Isaac-Lift-Cloth-Franka-Camera`` previously shared, into
+  ``lift_soft_camera`` and ``lift_cloth_camera``. Because both tasks have identical observation and
+  action shapes, a run of one task could silently load the other's checkpoint when replaying without
+  an explicit ``--checkpoint``. Move runs out of ``logs/rsl_rl/franka_deformable_camera`` into the
+  new per-task directories, using the ``task`` field of each run's ``run_manifest.json`` to tell them
+  apart.
+* Changed ``isaaclab_tasks`` to depend on ``isaaclab_experimental``, which provides
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` for the :mod:`isaaclab_tasks.mdp2` tasks.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``newton_renderer`` renderer preset in favor of ``newton_warp``, which names the Newton Warp
+  renderer the same way as ``newton_optix``.
+
+Fixed
+^^^^^
+
+* Authored compliant lift-object contacts with stiffness [2500 N/m] and damping [100 N*s/m], retaining the shared bucketed material randomizer.
+* Fixed the task auto-import skipping packages whose names start with a blacklisted name, such as
+  :mod:`isaaclab_tasks.mdp2` for ``.mdp``. Blacklisted names now match whole package names.
+* Fixed :func:`~isaaclab_tasks.utils.hydra.resolve_presets` reassigning unchanged tuples, which failed on frozen
+  dataclasses in the configuration tree.
+
+
+30.5.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled the minimal collision variant for Go2, ANYmal-D, and G1 29-DoF velocity tasks.
+* Removed ``rigid_compliant_alm=True`` from the shoelace and GB300 Sharpa insertion VBD solver configurations;
+  Newton now always uses compliant ALM.
+* Loaded the G1 platform, ramp, and granular courses from server-hosted, self-contained, solid-color USD assets
+  instead of generating terrain and textures at runtime. Included the dynamic PhysX particle initial
+  state and contacts in a dedicated USD, and declared Newton MPM objects, solver coupling, SONIC gains,
+  and control cadence through backend presets. Retained only device/readback initialization and the
+  post-depth-initialization appearance switch at runtime. Demo commands remain unchanged.
+* Selected courses through the existing ``platforms``, ``ramps``, and ``granular`` presets;
+  removed the ``terrain_name`` field. Preserved explicitly supplied simulation and terrain
+  configurations.
+* Reused the core G1 velocity robot and depth-student defaults in the fixed-course demos,
+  preserving their existing effort limits, full collision variant, and SONIC gain overrides.
+
+Fixed
+^^^^^
+
+* Restored the original minimal G1 rough and flat environment and PPO configurations,
+  including the flat task's ``policy`` observation group. Registered the visual
+  locomotion deployment teacher separately as ``Isaac-Velocity-Rough-G1-29DoF``.
+
+
+30.4.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Newton (MuJoCo-Warp) physics preset to the assemble trocar task, selected with
+  ``physics=newton_mjwarp``. PhysX remains the default.
+* Added ``Isaac-Velocity-Flat-H2`` and ``Isaac-Velocity-Rough-H2`` with RSL-RL PPO configurations
+  for training Unitree H2 velocity-tracking policies from scratch. Falls terminate on excessive
+  root tilt, with an additional minimum root height on flat terrain.
+* Added foot-flight, foot-separation, contact-conditioned knee-flexion, and walking yaw-momentum
+  penalties for humanoid locomotion.
+* The biped air-time reward optionally penalizes ongoing swings beyond its duration threshold.
+* Enabled minimal collision geometry for H2 velocity tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced ``G1_29DOF_BODY_JOINT_INDICES`` and ``G1_DEX3_JOINT_INDICES`` in the assemble trocar
+  config with ``G1_29DOF_BODY_JOINT_NAMES`` and ``G1_DEX3_JOINT_NAMES``. The observations now select joints by
+  name, since the joint order differs between physics backends.
+
+Fixed
+^^^^^
+
+* Fixed the assemble trocar task never advancing its stage. The ``update_stage`` reward term had weight 0, which
+  the reward manager skips, so no stage reward or success termination was ever triggered.
+* Added the RLinf patch weight syncer configuration required to start training.
+* Matched the Newton trocar bore friction to PhysX's average-combine result without changing PhysX.
+* Stiffened only the Newton trocar bore contact to prevent the obturator from penetrating the bore wall and wedging,
+  while leaving the hand-facing grip colliders unchanged.
+* Stiffened the Newton hand-trocar contact so the closed fingers no longer sink into and hook the held trocar, which
+  kept the hand from releasing it during placement.
+* Scoped the healthcare G1 and tray USD compatibility adaptations to the assemble trocar task instead of changing
+  Newton's importer globally.
+
+
+30.3.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
+
+
+30.3.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``IsaacContrib-Velocity-Rough-Asimov1`` velocity-tracking task for the Asimov-1 humanoid,
+  using the shared velocity configuration, reward terms, and observation delay. Robot-specific terms
+  include episode-aware swing heights, foot-height rewards relative to the last ground contact,
+  whole-body angular momentum, and joint-zero calibration offsets owned by the action term.
+
+
+30.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tuned ``presets=newton_steel`` configurations to supported rigid-body tasks without changing their substep counts.
+* Selected driven Franka assets for Steel and enabled parallel streams for the SO101 keyboard contact solve.
+
+
+30.1.3 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the coupled tasks to import their couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour curriculum gripper filtering each command against itself once joint actions processed in
+  place.
+
+
+30.1.2 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Rizon coffee MPM solver to build through the instance :class:`~isaaclab_newton.physics.NewtonSolver` API.
+* Migrated the NIST Franka actuator configurations to the canonical actuator and joint limit
+  fields after the deprecated aliases were removed, preserving the distinct rated and solver limits.
+
+
 30.1.1 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

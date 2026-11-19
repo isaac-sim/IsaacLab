@@ -33,7 +33,7 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         # Retrieve end effector pose from the observation buffer
         eef_pos = self.obs_buf["policy"]["eef_pos"][env_ids]
         eef_quat = self.obs_buf["policy"]["eef_quat"][env_ids]
-        # Quaternion format is w,x,y,z
+        # Quaternion format is x,y,z,w
         return PoseUtils.make_pose(eef_pos, PoseUtils.matrix_from_quat(eef_quat))
 
     def target_eef_pose_to_action(
@@ -51,7 +51,7 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         Args:
             target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
             gripper_action_dict: Dictionary of gripper actions for each end-effector.
-            noise: Noise to add to the action. If None, no noise is added.
+            action_noise_dict: Noise to add to the action. If None, no noise is added.
             env_id: Environment index to get the action for.
 
         Returns:
@@ -132,7 +132,7 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).
 
         Args:
-            actions: environment actions. The shape is (num_envs, num steps in a demo, action_dim).
+            actions: Environment actions for one demonstration. Shape is (num_steps, action_dim).
 
         Returns:
             A dictionary of torch.Tensor gripper actions. Key to each dict is an eef_name.

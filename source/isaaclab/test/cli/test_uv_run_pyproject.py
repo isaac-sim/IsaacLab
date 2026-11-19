@@ -121,6 +121,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "teleop",
         "tetrahedralization",
         "video",
+        "optix",
         "leapp",
         "wandb",
         "test",
@@ -192,7 +193,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     commit = newton["source"]["git"].rsplit("#", 1)[1]
     newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
     assert newton_spec in dependencies
-    assert newton_spec in overrides
+    assert f"{newton_spec} ; extra != 'optix'" in overrides
+    assert f"{newton_spec.replace('[sim]', '[sim,optix]')} ; extra == 'optix'" in overrides
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
@@ -212,7 +214,7 @@ def test_public_ov_packages_use_public_pypi_index(source_checkout_root: Path):
         "url": "https://pypi.org/simple",
         "explicit": True,
     }
-    for package in ("omniverseclient", "ovphysx", "ovrtx", "ovstage"):
+    for package in ("ovstorage", "ovphysx", "ovrtx", "ovstage"):
         assert sources[package] == {"index": "pypi-public"}
 
 
@@ -231,6 +233,7 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
     assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]
+    assert "scipy>=1.18.0" in tool_uv["override-dependencies"]
 
 
 def test_rl_games_aiohttp_requirement_uses_security_floor(source_checkout_root: Path):

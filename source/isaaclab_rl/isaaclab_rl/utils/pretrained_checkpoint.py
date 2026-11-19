@@ -320,7 +320,7 @@ def get_published_pretrained_checkpoint(
     Returns:
         The path, or None when the asset server does not report a checkpoint for this task
         and backend combination. That covers both a checkpoint that was never published and
-        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        a server that could not be reached, which the asset helpers do not distinguish, so a
         transient outage is not evidence that a checkpoint does not exist. The reason is
         printed before returning.
 
@@ -484,7 +484,7 @@ def _get_newton_solver_name(solver_cfg) -> str | None:
 
 def _normalize_render_backend_name(renderer_type: str) -> str:
     """Return the normalized render backend name for a renderer type identifier."""
-    if renderer_type == "newton_warp":
+    if renderer_type in {"newton_warp", "newton_optix"}:
         return "newton"
     if renderer_type in {"auto_rtx", "default", "isaac_rtx", "ovrtx", "rtx"}:
         return "rtx"

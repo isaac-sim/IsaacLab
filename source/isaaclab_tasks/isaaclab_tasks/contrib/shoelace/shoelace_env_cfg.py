@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonShapeCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerAdmmCfg, CouplerEntryCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 
 import isaaclab.envs.mdp as env_mdp
@@ -30,8 +31,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg
 
@@ -348,7 +347,6 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
                         name="shoelace",
                         solver_cfg=VBDSolverCfg(
                             iterations=physics.VBD_ITERATIONS,
-                            rigid_compliant_alm=True,
                             rigid_body_contact_buffer_size=physics.VBD_CONTACT_BUFFER,
                         ),
                         bodies=[r"{ENV_REGEX_NS}/ShoelaceScene/Shoelace(Left|Right)"],

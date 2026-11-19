@@ -125,8 +125,8 @@ colliders whose motion comes from elsewhere, such as kinematic pose writes, and
 the material does not push back on them.
 
 Two-way interaction uses the experimental coupler in
-:mod:`isaaclab_contrib.coupling`. A
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions one Newton model
+:mod:`isaaclab_newton.physics.coupling`. A
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` partitions one Newton model
 into named entries:
 
 * a rigid entry, for example MJWarp, that owns the robot or object bodies;

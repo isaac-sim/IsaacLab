@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -29,8 +30,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg
 

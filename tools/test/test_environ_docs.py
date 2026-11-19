@@ -46,6 +46,7 @@ from environ_docs import (  # noqa: E402
     ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
     _physics_names_for_docs,
+    _supports_warp_frontend,
     apply_rl_library_overrides,
     collect_environment_browser_preview_images,
     collect_environment_doc_rows,
@@ -79,6 +80,14 @@ def test_get_workflow_detects_custom_manager_based_subclass():
         pass
 
     assert get_workflow(CustomManagerBasedEnv) == "Manager Based"
+
+
+def test_mdp2_tasks_use_the_mdp2_workflow_without_the_warp_frontend():
+    spec = gym.spec("Isaac-Cartpole-MDP2")
+    workflow = get_workflow(spec.entry_point)
+
+    assert workflow == "MDP2"
+    assert not _supports_warp_frontend(spec.id, workflow, {PresetTarget.PHYSICS: ["newton_mjwarp"]})
 
 
 def test_collect_environment_doc_rows_detects_custom_manager_based_subclasses():
@@ -183,7 +192,7 @@ def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset
     formatted = format_presets_rst(
         {
             PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "physx"],
-            PresetTarget.DOMAIN: ["newton_mjwarp", "ovphysx", "physx"],
+            PresetTarget.DOMAIN: ["newton_mjwarp", "newton_steel", "ovphysx", "physx"],
         }
     )
     assert formatted == "**physics=** ``isaacsim_physx``, ``newton_mjwarp``"

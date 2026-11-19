@@ -44,6 +44,7 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.spawners
    lab/isaaclab.sim.views
    lab/isaaclab.sim.utils
+   lab/isaaclab.sim.usd_export
 
 
 isaaclab_rl extension
@@ -85,8 +86,6 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    actuators
    assets
    controllers
-   coupling
-   custom_coupling
    mdp
    rl
    sensors
@@ -156,6 +155,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    cloner
    controllers
    physics
+   physics.coupling
    renderers
    sensors
    sim.schemas
@@ -164,6 +164,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    :hidden:
 
    lab_newton/isaaclab_newton.sim.spawners
+   lab_newton/isaaclab_newton.sim.usd_export
 
 isaaclab_ov extension
 ---------------------
@@ -222,6 +223,7 @@ The following modules are available in the ``isaaclab_experimental`` extension:
 
    envs
    managers
+   mdp2
    utils
 
 
@@ -248,6 +250,7 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.ui.xr_widgets
    lab/isaaclab.utils.leapp
    lab_experimental/isaaclab_experimental.envs.mdp.actions
+   lab_experimental/isaaclab_experimental.mdp2.mdp
    lab_newton/isaaclab_newton.envs.mdp
    lab_newton/isaaclab_newton.sim.views
    lab_ov/isaaclab_ov.envs.mdp

@@ -1,0 +1,882 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# pyright: reportPrivateUsage=none
+
+"""Pure-Python tests for the named Newton coupler.
+
+The tests use small model fakes and never start Isaac Sim. They exercise the
+selector, ownership, proxy, and ADMM translation performed before Newton
+constructs the coupled solver.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+import warp as wp
+from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    MPMSolver,
+    MPMSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonManager,
+    VBDSolverCfg,
+    XPBDSolverCfg,
+)
+from isaaclab_newton.physics.coupling import (
+    CouplerAdmmCfg,
+    CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
+    CouplerSolver,
+    coupler,
+)
+from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub, solver_driver
+from newton import ModelBuilder, ShapeFlags
+from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
+pytestmark = pytest.mark.kitless
+
+_CELL_TEMPLATE = "/Lab/Cells/Cell{}"
+"""Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
+
+
+@dataclass
+class _FakeArray:
+    """Minimal mutable stand-in for a Warp array."""
+
+    data: np.ndarray
+
+    def numpy(self) -> np.ndarray:
+        return self.data.copy()
+
+    def assign(self, values: np.ndarray) -> None:
+        self.data = np.asarray(values).copy()
+
+
+@dataclass
+class _FakeModel:
+    """Fields consulted by the coupler's pure configuration helpers."""
+
+    body_count: int = 3
+    body_label: list[str] = field(
+        default_factory=lambda: [
+            "/World/envs/env_0/Robot/base",
+            "/World/envs/env_0/Robot/hand",
+            "/World/envs/env_0/Object/body",
+        ]
+    )
+    joint_count: int = 2
+    joint_child: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([1, 2], dtype=np.int32)))
+    joint_parent: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([0, -1], dtype=np.int32)))
+    shape_count: int = 4
+    shape_body: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([0, 1, 2, -1], dtype=np.int32)))
+    shape_flags: _FakeArray = field(
+        default_factory=lambda: _FakeArray(np.full(4, int(ShapeFlags.COLLIDE_SHAPES), dtype=np.int32))
+    )
+    shape_label: list[str] = field(
+        default_factory=lambda: [
+            "/World/envs/env_0/Robot/base_collision",
+            "/World/envs/env_0/Robot/hand_collision",
+            "/World/envs/env_0/Object/object_collision",
+            "/World/ground",
+        ]
+    )
+    particle_count: int = 3
+
+
+def _float_array(size: int, value: float) -> _FakeArray:
+    return _FakeArray(np.full(size, value, dtype=np.float32))
+
+
+_NG = wp.DeterministicMode.NOT_GUARANTEED
+
+
+def _entry(
+    name: str,
+    *,
+    bodies: list[int] | None = None,
+    particles: list[int] | None = None,
+    shapes: list[int] | None = None,
+) -> coupler._ResolvedEntry:
+    """Build an already-resolved entry for validation tests."""
+    return coupler._ResolvedEntry(
+        config=CouplerEntryCfg(name=name, solver_cfg=XPBDSolverCfg()),
+        bodies=list(bodies or []),
+        particles=list(particles or []),
+        joints=[],
+        shapes=list(shapes or []),
+    )
+
+
+def _valid_proxy_setup(
+    *, proxy: CouplerProxyMappingCfg | None = None
+) -> tuple[
+    CouplerProxyCfg,
+    list[coupler._ResolvedEntry],
+    list[CouplerProxyMappingCfg],
+]:
+    """Build a complete two-entry proxy configuration."""
+    entries = [
+        _entry("rigid", bodies=[0, 1], particles=[0]),
+        _entry("soft", bodies=[2], particles=[1, 2]),
+    ]
+    proxy_cfg = proxy or CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1])
+    return (
+        CouplerProxyCfg(
+            entries=[entry.config for entry in entries],
+            proxies=[proxy_cfg],
+        ),
+        entries,
+        [proxy_cfg],
+    )
+
+
+def test_config_validation_requires_entries():
+    with pytest.raises(ValueError, match="at least one solver entry"):
+        coupler._validate_cfg(CouplerProxyCfg())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("contact_max_triangle_pairs", 0),
+        ("contact_max_triangle_pairs", 1.5),
+        ("contact_reduction_hashtable_size_factor", 0.0),
+        ("contact_reduction_hashtable_size_factor", float("nan")),
+        ("contact_reduction_hashtable_size_factor", float("inf")),
+    ],
+)
+def test_config_validation_rejects_invalid_admm_contact_capacity(field, value):
+    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
+    setattr(cfg, field, value)
+    with pytest.raises(ValueError, match=field):
+        coupler._validate_cfg(cfg)
+
+
+@pytest.mark.parametrize("matching", ["latest", "sticky", "disabled"])
+@pytest.mark.parametrize(
+    ("capacity", "valid_with_matching"),
+    [(None, True), (2**20 - 1, True), (2**20, False), (2**20 + 1, False)],
+)
+def test_config_validation_admm_contact_capacity_matching_limit(matching, capacity, valid_with_matching):
+    cfg = CouplerAdmmCfg(
+        entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())],
+        contact_max_triangle_pairs=capacity,
+        rigid_contact_matching=matching,
+    )
+    if valid_with_matching or matching == "disabled":
+        coupler._validate_cfg(cfg)
+    else:
+        with pytest.raises(ValueError, match=r"contact_max_triangle_pairs.*2\*\*20.*rigid_contact_matching"):
+            coupler._validate_cfg(cfg)
+
+
+def test_config_validation_requires_nonempty_entry_names():
+    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="", solver_cfg=XPBDSolverCfg())])
+    with pytest.raises(ValueError, match="non-empty strings"):
+        coupler._validate_cfg(cfg)
+
+
+def test_config_validation_requires_newton_solver_config():
+    cfg = CouplerAdmmCfg(
+        entries=[CouplerEntryCfg(name="entry", solver_cfg=object())]  # type: ignore[arg-type]
+    )
+    with pytest.raises(TypeError, match="solver_cfg must be a NewtonSolverCfg"):
+        coupler._validate_cfg(cfg)
+
+
+@pytest.mark.parametrize(
+    ("solver_cfg", "entry_kwargs", "error_type", "match"),
+    [
+        (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
+        (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
+        (
+            MPMSolverCfg(project_outside_colliders=True),
+            {"in_place": True},
+            NotImplementedError,
+            "projection cannot yet run",
+        ),
+        (MPMSolverCfg(), {}, NotImplementedError, "must set in_place=True"),
+        (MJWarpSolverCfg(use_mujoco_cpu=True), {}, NotImplementedError, "reset-mask lifecycle"),
+    ],
+)
+def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):
+    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=solver_cfg, **entry_kwargs)])
+    with pytest.raises(error_type, match=match):
+        coupler._validate_cfg(cfg)
+
+
+def test_string_selector_resolves_full_body_labels_and_descendants():
+    assert coupler._resolve_entities_to_body_ids(
+        _FakeModel(), ["/World/envs/env_[^/]+/Robot"], "entry 'rigid'", DEFAULT_ENV_TEMPLATE
+    ) == [0, 1]
+
+
+def test_body_selector_rejects_unknown_types():
+    with pytest.raises(TypeError, match="expected a full-label regex string"):
+        coupler._resolve_entities_to_body_ids(_FakeModel(), [object()], "entry 'rigid'", DEFAULT_ENV_TEMPLATE)
+
+
+def test_raw_body_label_selector_reports_no_matches():
+    with pytest.raises(ValueError, match="matched no Newton bodies"):
+        coupler._resolve_entities_to_body_ids(
+            _FakeModel(), ["/World/envs/env_[^/]+/Missing"], "entry 'missing'", DEFAULT_ENV_TEMPLATE
+        )
+
+
+def test_raw_body_id_selectors_pass_through_and_dedupe():
+    """Integer selectors resolve to themselves, preserving order and removing duplicates."""
+    assert coupler._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], "proxy 'a'->'b'", DEFAULT_ENV_TEMPLATE) == [
+        2,
+        0,
+    ]
+
+
+def test_out_of_range_body_id_selector_is_rejected():
+    with pytest.raises(ValueError, match="out of range"):
+        coupler._resolve_entities_to_body_ids(_FakeModel(), [5], "proxy 'a'->'b'", DEFAULT_ENV_TEMPLATE)
+
+
+def test_proxy_resolution_preserves_config():
+    """Resolved body and particle ids leave the reusable declaration unchanged."""
+    model = _FakeModel()
+    proxy = CouplerProxyMappingCfg(
+        source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"], particles=[1, 1]
+    )
+
+    resolved = coupler._resolve_proxy(model, proxy, DEFAULT_ENV_TEMPLATE)
+
+    assert resolved.bodies == [0, 1]
+    assert resolved.particles == [1]
+    assert proxy.bodies == [r"/World/envs/env_[^/]+/Robot"]
+    assert proxy.particles == [1, 1]
+
+
+def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
+    """Derived joint/shape ownership follows each entry's selected bodies."""
+    model = _FakeModel()
+    entries = [
+        CouplerEntryCfg(
+            name="rigid",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
+        ),
+        CouplerEntryCfg(
+            name="object",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=["/World/envs/env_[^/]+/Object"],
+            all_particles=True,
+        ),
+        CouplerEntryCfg(
+            name="world",
+            solver_cfg=XPBDSolverCfg(),
+            include_static_shapes=True,
+        ),
+    ]
+
+    resolved = [coupler._resolve_entry(model, entry, DEFAULT_ENV_TEMPLATE) for entry in entries]
+
+    assert resolved[0].bodies == [0, 1]
+    assert resolved[0].joints == [0]
+    assert resolved[0].shapes == [0, 1]
+    assert resolved[1].bodies == [2]
+    assert resolved[1].joints == [1]
+    assert resolved[1].shapes == [2]
+    assert resolved[1].particles == [0, 1, 2]
+    assert resolved[2].bodies == []
+    assert resolved[2].joints == []
+    assert resolved[2].shapes == [3]
+    assert entries[0].bodies == [r"/World/envs/env_[^/]+/Robot"]
+    assert entries[1].bodies == ["/World/envs/env_[^/]+/Object"]
+
+
+def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
+    """A joint spanning two entries must remain visible to the ADMM coupler."""
+    model = _FakeModel()
+    model.joint_parent = _FakeArray(np.asarray([0, 1], dtype=np.int32))
+    entries = [
+        CouplerEntryCfg(
+            name="robot",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
+        ),
+        CouplerEntryCfg(
+            name="object",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[r"/World/envs/env_[^/]+/Object"],
+            all_particles=True,
+            include_static_shapes=True,
+        ),
+    ]
+
+    resolved = [coupler._resolve_entry(model, entry, DEFAULT_ENV_TEMPLATE) for entry in entries]
+
+    assert resolved[0].joints == [0]
+    assert resolved[1].joints == []
+
+
+def test_resolved_entry_validation_rejects_inactive_entry():
+    with pytest.raises(ValueError, match="neither owns nor receives any model elements"):
+        coupler._validate_resolved_entries(
+            _FakeModel(),
+            [_entry("empty")],
+            CouplerAdmmCfg(),
+        )
+
+
+def test_resolved_entry_validation_accepts_static_shape_ownership():
+    coupler._validate_resolved_entries(
+        _FakeModel(),
+        [_entry("ground", shapes=[3])],
+        CouplerAdmmCfg(),
+    )
+
+
+def test_proxy_validation_rejects_cross_entry_joint():
+    model = _FakeModel()
+    model.joint_parent = _FakeArray(np.asarray([0, 1], dtype=np.int32))
+    cfg, entries, proxies = _valid_proxy_setup()
+
+    with pytest.raises(ValueError, match="does not support cross-entry joint"):
+        coupler._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
+
+
+def test_shape_label_patterns_and_static_shape_selection_are_additive():
+    entry = coupler._resolve_entry(
+        _FakeModel(),
+        CouplerEntryCfg(
+            name="special",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[r"/World/envs/env_[^/]+/Robot/base"],
+            include_body_shapes=False,
+            include_static_shapes=True,
+            shape_label_patterns=[r".*/Object/object_collision"],
+        ),
+        DEFAULT_ENV_TEMPLATE,
+    )
+    assert entry.bodies == [0]
+    assert entry.shapes == [3, 2]
+
+
+def test_proxy_resolution_keeps_only_collidable_selected_bodies():
+    model = _FakeModel()
+    model.shape_flags = _FakeArray(
+        np.asarray([int(ShapeFlags.COLLIDE_SHAPES), 0, int(ShapeFlags.COLLIDE_SHAPES), 0], dtype=np.int32)
+    )
+    proxy = coupler._resolve_proxy(
+        model,
+        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"]),
+        DEFAULT_ENV_TEMPLATE,
+    )
+    assert proxy.bodies == [0]
+
+
+class _RecordingProxy:
+    """Capture proxy construction while retaining Newton's config dataclasses."""
+
+    Proxy = SolverCoupledProxy.Proxy
+    Config = SolverCoupledProxy.Config
+
+    def __init__(self, *, model, entries, coupling):
+        self.model = model
+        self.entries = entries
+        self.coupling = coupling
+
+
+def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
+    def custom_pipeline(model_view):
+        return model_view
+
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("rigid", bodies=[0, 1]),
+        _entry("soft", bodies=[2], particles=[0, 1, 2]),
+    ]
+    cfg = CouplerProxyCfg(
+        entries=[entry.config for entry in resolved_entries],
+        proxies=[
+            CouplerProxyMappingCfg(
+                source="rigid",
+                destination="soft",
+                bodies=["/World/envs/env_[^/]+/Robot/base"],
+                mode="staggered",
+                mass_scale=0.25,
+                proxy_relaxation=0.4,
+                proxy_relaxation_mode="aitken",
+                proxy_relaxation_min=0.2,
+                proxy_relaxation_max=0.8,
+                collide_interval=4,
+                collision_pipeline=custom_pipeline,
+            ),
+            CouplerProxyMappingCfg(source="soft", destination="rigid", particles=[0]),
+        ],
+        iterations=3,
+    )
+    monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
+    monkeypatch.setattr(
+        coupler,
+        "CollisionPipeline",
+        lambda model_view, **kwargs: (model_view, kwargs["broad_phase"]),
+    )
+
+    proxies = [coupler._resolve_proxy(model, proxy, DEFAULT_ENV_TEMPLATE) for proxy in cfg.proxies]
+    solver = coupler._build_proxy_coupled_solver(model, [], proxies, cfg, _NG)
+
+    assert solver.coupling.iterations == 3
+    assert solver.coupling.proxies[0].mode == "staggered"
+    assert solver.coupling.proxies[0].mass_scale == pytest.approx(0.25)
+    assert solver.coupling.proxies[0].proxy_relaxation == pytest.approx(0.4)
+    assert solver.coupling.proxies[0].proxy_relaxation_mode == "aitken"
+    assert solver.coupling.proxies[0].proxy_relaxation_min == pytest.approx(0.2)
+    assert solver.coupling.proxies[0].proxy_relaxation_max == pytest.approx(0.8)
+    assert solver.coupling.proxies[0].collide_interval == 4
+    assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
+    assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
+    assert isinstance(cfg.proxies[1].collision_pipeline, NewtonCollisionPipelineCfg)
+
+
+def test_mpm_entry_forwards_config_and_execution_policy():
+    """MPM construction preserves grid configuration, substeps, and in-place stepping."""
+
+    class RecordingMPMSolver(MPMSolver):
+        def build(self, model, mode, env_template):
+            return SimpleNamespace(model=model, solver_cfg=self.cfg)
+
+    solver_cfg = MPMSolverCfg(class_type=RecordingMPMSolver, grid_type="fixed", max_active_cell_count=256)
+    entry = coupler._ResolvedEntry(
+        config=CouplerEntryCfg(
+            name="media",
+            solver_cfg=solver_cfg,
+            substeps=2,
+            in_place=True,
+        ),
+        bodies=[],
+        particles=[0],
+        joints=[],
+        shapes=[],
+    )
+
+    drivers = {}
+    solver_entry = coupler._coupled_entry(entry, _NG, None, drivers)
+    solver = solver_entry.solver("media-view")
+
+    assert drivers["media"].native is solver
+
+    assert solver.model == "media-view"
+    assert solver.solver_cfg.grid_type == "fixed"
+    assert solver.solver_cfg.max_active_cell_count == 256
+    assert solver_entry.substeps == 2
+    assert solver_entry.in_place is True
+
+
+@pytest.mark.parametrize(
+    ("grid_type", "max_active_cell_count", "expected"),
+    [
+        pytest.param("fixed", 1024, True, id="bounded_fixed"),
+        pytest.param("fixed", -1, False, id="unbounded_fixed"),
+        pytest.param("sparse", 1024, True, id="bounded_sparse"),
+        pytest.param("sparse", -1, False, id="unbounded_sparse"),
+        pytest.param("dense", -1, False, id="dense"),
+    ],
+)
+def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
+    """A coupled solver must inherit every nested MPM grid's capture capability."""
+    mpm_solver = SimpleNamespace(
+        model=SimpleNamespace(device=SimpleNamespace(is_cuda=True)),
+        grid_type=grid_type,
+        max_active_cell_count=max_active_cell_count,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    mpm_cfg = MPMSolverCfg()
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=mpm_cfg, in_place=True)])
+
+    driver = solver_driver(CouplerSolver, solver_cfg)
+    driver.entries = {"mpm": solver_driver(MPMSolver, mpm_cfg, mpm_solver)}
+
+    assert driver.supports_capture() is expected
+
+
+@pytest.mark.parametrize("vbd_entries", [0, 2])
+def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
+    """Prepare the shared builder once per selected solver, without unconditional VBD coloring."""
+    events: list[tuple[str, object]] = []
+    builder = ModelBuilder()
+    monkeypatch.setattr(builder, "color", lambda *, balance_colors, **_: events.append(("color", balance_colors)))
+
+    class RecordingMPMSolver(MPMSolver):
+        @classmethod
+        def prepare_builder(cls, cfg, value):
+            events.append(("finalize", value))
+
+    class OtherMPMSolver(MPMSolver):
+        @classmethod
+        def prepare_builder(cls, cfg, value):
+            events.append(("other", value))
+
+    entries = [
+        CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg(class_type=RecordingMPMSolver), in_place=True),
+        CouplerEntryCfg(name="sand", solver_cfg=MPMSolverCfg(class_type=OtherMPMSolver), in_place=True),
+    ]
+    entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
+
+    CouplerSolver.prepare_builder(CouplerProxyCfg(entries=entries), builder)
+
+    assert events == [("finalize", builder), ("other", builder)] + ([("color", False)] if vbd_entries else [])
+
+
+def test_nested_solvers_register_their_builder_attributes():
+    """A coupled model declares the schemas consumed by each configured child solver."""
+    builder = ModelBuilder()
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(name="rigid", solver_cfg=MJWarpSolverCfg()),
+            CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg(), in_place=True),
+        ]
+    )
+    register_builder_attributes(builder, solver_cfg)
+
+    assert builder.has_custom_attribute("mujoco:condim")
+    assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+@pytest.mark.parametrize(
+    ("entry_solver_cfg", "expected_friction", "expected_damping"),
+    [
+        pytest.param(MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(XPBDSolverCfg(), 0.0, 0.0, id="xpbd"),
+    ],
+)
+def test_nested_solver_scopes_mujoco_joint_properties(entry_solver_cfg, expected_friction, expected_damping):
+    """A coupler imports MuJoCo properties only when a nested solver consumes them."""
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=entry_solver_cfg)])
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    builder = create_builder(NewtonCfg(solver_cfg=solver_cfg), up_axis="Z")
+    schema_resolvers = usd_schema_resolvers(solver_cfg)
+    builder.add_usd(stage, root_path=root_path, schema_resolvers=schema_resolvers)
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+
+
+@pytest.mark.parametrize(("mask_values", "should_reset"), [([True, False], True), ([False, False], False)])
+def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, should_reset):
+    """The only selected local MPM world uses the full-grid reset path."""
+    state_0 = object()
+    calls: list[tuple[object, object | None, int | None]] = []
+    solver = SimpleNamespace(
+        model=SimpleNamespace(world_count=1),
+        reset=lambda state, world_mask=None, flags=None: calls.append((state, world_mask, flags)),
+    )
+    mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
+
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state_0, mask)
+
+    assert calls == ([(state_0, None, 0)] if should_reset else [])
+
+
+def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
+    """A non-MPM coupled reset must keep the device mask on the device."""
+    state = object()
+    calls: list[tuple[object, object, int]] = []
+    solver = SimpleNamespace(
+        model=SimpleNamespace(world_count=1),
+        reset=lambda reset_state, world_mask=None, flags=0: calls.append((reset_state, world_mask, flags)),
+    )
+
+    class _DeviceMask:
+        def numpy(self):
+            raise AssertionError("non-MPM reset unexpectedly copied its mask to the host")
+
+    mask = _DeviceMask()
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
+
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state, mask)
+
+    assert calls == [(state, mask, 0)]
+
+
+def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
+    """A partial multi-world MPM reset must not clear every world's grid."""
+    state = object()
+    calls: list[tuple[object, object, int]] = []
+    solver = SimpleNamespace(
+        model=SimpleNamespace(world_count=2),
+        reset=lambda reset_state, world_mask=None, flags=0: calls.append((reset_state, world_mask, flags)),
+    )
+    mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
+
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state, mask)
+
+    assert calls == [(state, mask, 0)]
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_outer"),
+    [
+        ("mjwarp_internal", False),
+        ("mjwarp_external", True),
+        ("mpm", False),
+        ("destination_fallback", True),
+        ("destination_factory_fallback", True),
+    ],
+)
+def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expected_outer):
+    """Proxy entries request shared contacts only when one of their solve paths consumes them."""
+    model = _FakeModel()
+    model.body_label = [path.replace("/World/envs/env_0", "/Lab/Cells/Cell0") for path in model.body_label]
+    model.shape_label = [path.replace("/World/envs/env_0", "/Lab/Cells/Cell0") for path in model.shape_label]
+    if case == "destination_fallback":
+        fallback_proxy = CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1], collision_pipeline=None)
+    elif case == "destination_factory_fallback":
+        fallback_proxy = CouplerProxyMappingCfg(
+            source="rigid", destination="soft", bodies=[1], collision_pipeline=lambda model_view: None
+        )
+    else:
+        fallback_proxy = None
+    proxy_cfg, resolved_entries, _ = _valid_proxy_setup(proxy=fallback_proxy)
+    for entry, name in zip(resolved_entries, ("Robot", "Object"), strict=True):
+        entry.config.bodies = [f"{{ENV_REGEX_NS}}/{name}"]
+        entry.config.particles = entry.particles
+    resolved_entries[1].config.shape_label_patterns = ["{ENV_REGEX_NS}/Object/.*"]
+    proxy_cfg.proxies[0].bodies = ["{ENV_REGEX_NS}/Robot/hand"]
+    recorded_entries, recorded_proxies = [], []
+
+    if case == "mjwarp_external":
+        resolved_entries[0].config.solver_cfg = MJWarpSolverCfg(use_mujoco_contacts=False)
+    elif case == "mpm":
+        resolved_entries[0].config.solver_cfg = MPMSolverCfg()
+        resolved_entries[0].config.in_place = True
+    else:
+        resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
+    proxy_cfg.entries = [entry.config for entry in resolved_entries]
+
+    def coupled_entry(entry, mode, env_template, drivers):
+        recorded_entries.append(entry)
+        solver_cfg = entry.config.solver_cfg
+        drivers[entry.config.name] = solver_driver(solver_cfg.class_type, solver_cfg)
+        return entry.config.name
+
+    monkeypatch.setattr(coupler, "_coupled_entry", coupled_entry)
+    monkeypatch.setattr(
+        coupler,
+        "_build_proxy_coupled_solver",
+        lambda model, entries, proxies, cfg, mode: recorded_proxies.extend(proxies)
+        or SimpleNamespace(
+            kind="proxy",
+            solver=lambda name: None,
+            get_proxy_contacts=lambda source, destination: (
+                None if case in {"destination_fallback", "destination_factory_fallback"} else object()
+            ),
+        ),
+    )
+    driver = CouplerSolver(proxy_cfg, model, _NG, _CELL_TEMPLATE)
+
+    assert driver.uses_collision_pipeline() is expected_outer
+    assert CouplerSolver.contact_sensors is False
+    assert driver.applies_body_forces() is True
+    assert [entry.config.name for entry in recorded_entries] == ["rigid", "soft"]
+    assert [entry.bodies for entry in recorded_entries] == [[0, 1], [2]]
+    assert recorded_entries[1].shapes == [2]
+    assert recorded_proxies[0].bodies == [1]
+    assert proxy_cfg.entries[0].bodies == ["{ENV_REGEX_NS}/Robot"]
+    assert proxy_cfg.entries[1].shape_label_patterns == ["{ENV_REGEX_NS}/Object/.*"]
+    assert proxy_cfg.proxies[0].bodies == ["{ENV_REGEX_NS}/Robot/hand"]
+
+
+def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
+    model = _FakeModel()
+    _, resolved_entries, _ = _valid_proxy_setup()
+    for entry in resolved_entries:
+        entry.config.bodies = entry.bodies
+    cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
+    monkeypatch.setattr(coupler, "_coupled_entry", lambda entry, mode, env_template, drivers: entry.config.name)
+    monkeypatch.setattr(
+        coupler,
+        "_build_admm_coupled_solver",
+        lambda model, entries, cfg, mode: SimpleNamespace(kind="admm"),
+    )
+    driver = CouplerSolver(cfg, model, _NG, _CELL_TEMPLATE)
+
+    assert driver.uses_collision_pipeline() is True
+    assert driver.applies_body_forces() is True
+
+
+def test_contact_sensor_guard_rejects_coupler():
+    """Adding a contact sensor to a coupler backend fails before any sensor is created."""
+    solver_cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
+    manager = NewtonManager(NewtonCfg(solver_cfg=solver_cfg))
+    manager.backend = backend = backend_stub(cfg=manager._cfg, contact_sensors={})
+
+    with pytest.raises(NotImplementedError, match="contact sensors"):
+        manager.add_contact_sensor(body_names_expr="body")
+
+    assert backend.contact_sensors == {}
+
+
+class _RecordingAdmm:
+    """Capture ADMM construction while retaining Newton's config dataclasses."""
+
+    ContactPair = SolverCoupledADMM.ContactPair
+    Config = SolverCoupledADMM.Config
+
+    @classmethod
+    def auto_detect_contact_pairs(cls, entries):
+        return SolverCoupledADMM.auto_detect_contact_pairs(entries)
+
+    def __init__(self, *, model, entries, coupling):
+        self.model = model
+        self.entries = entries
+        self.coupling = coupling
+
+
+def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkeypatch):
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("robot", bodies=[0], particles=[0]),
+        _entry("object", bodies=[1], particles=[1]),
+        _entry("world", bodies=[2], particles=[2]),
+    ]
+    cfg = CouplerAdmmCfg(
+        entries=[entry.config for entry in resolved_entries],
+        contact_pairs=[
+            ("robot", "object"),
+            ("object", "world"),
+        ],
+        iterations=7,
+        rho=2.0,
+        gamma=0.2,
+        baumgarte=0.15,
+        joint_stiffness=123.0,
+        joint_damping=4.0,
+        joint_angular_stiffness=456.0,
+        joint_angular_damping=7.0,
+        joint_proximal_bodies=False,
+        joint_proximal_destination_entries=["object", "world"],
+        joint_proximal_mass_scale=0.25,
+        rigid_contact_matching="latest",
+        contact_matching_pos_threshold=0.01,
+        contact_matching_normal_dot_threshold=0.8,
+        contact_matching_force_scale=0.7,
+    )
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+
+    solver = coupler._build_admm_coupled_solver(model, [], cfg, _NG)
+
+    assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
+        ("robot", "object"),
+        ("object", "world"),
+    ]
+    assert solver.coupling.iterations == 7
+    assert solver.coupling.rho == pytest.approx(2.0)
+    assert solver.coupling.gamma == pytest.approx(0.2)
+    assert solver.coupling.baumgarte == pytest.approx(0.15)
+    assert solver.coupling.joint_stiffness == pytest.approx(123.0)
+    assert solver.coupling.joint_damping == pytest.approx(4.0)
+    assert solver.coupling.joint_angular_stiffness == pytest.approx(456.0)
+    assert solver.coupling.joint_angular_damping == pytest.approx(7.0)
+    assert solver.coupling.joint_proximal_bodies is False
+    assert solver.coupling.joint_proximal_destination_entries == ["object", "world"]
+    assert solver.coupling.joint_proximal_mass_scale == pytest.approx(0.25)
+    assert solver.coupling.rigid_contact_matching == "latest"
+    assert solver.coupling.contact_matching_pos_threshold == pytest.approx(0.01)
+    assert solver.coupling.contact_matching_normal_dot_threshold == pytest.approx(0.8)
+    assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
+
+
+def test_admm_build_forwards_native_contact_capacity(monkeypatch):
+    @dataclass(frozen=True)
+    class NativeCapacityConfig(_RecordingAdmm.Config):
+        contact_max_triangle_pairs: int | None = None
+        contact_reduction_hashtable_size_factor: float | None = None
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", NativeCapacityConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    cfg = CouplerAdmmCfg(
+        contact_pairs=[],
+        contact_max_triangle_pairs=8192,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+    solver = coupler._build_admm_coupled_solver(_FakeModel(), [], cfg, _NG)
+
+    assert solver.coupling.contact_max_triangle_pairs == 8192
+    assert solver.coupling.contact_reduction_hashtable_size_factor == 2.0
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("contact_max_triangle_pairs", 8192), ("contact_reduction_hashtable_size_factor", 2.0)],
+)
+def test_admm_build_rejects_contact_capacity_without_native_support(monkeypatch, name, value):
+    @dataclass(frozen=True)
+    class LegacyConfig:
+        contact_pairs: tuple = ()
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", LegacyConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    cfg = CouplerAdmmCfg(contact_pairs=[])
+    setattr(cfg, name, value)
+
+    with pytest.raises(RuntimeError, match=rf"Newton.*does not support {name}"):
+        coupler._build_admm_coupled_solver(_FakeModel(), [], cfg, _NG)
+
+
+def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("a", bodies=[0], particles=[0]),
+        _entry("b", bodies=[1], particles=[1]),
+        _entry("c", bodies=[2], particles=[2]),
+    ]
+    entries = [SimpleNamespace(name=entry.config.name) for entry in resolved_entries]
+    cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+
+    solver = coupler._build_admm_coupled_solver(model, entries, cfg, _NG)
+
+    assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
+        ("a", "b"),
+        ("a", "c"),
+        ("b", "c"),
+    ]
+
+    cfg.contact_pairs = []
+    solver = coupler._build_admm_coupled_solver(model, entries, cfg, _NG)
+    assert list(solver.coupling.contact_pairs) == []

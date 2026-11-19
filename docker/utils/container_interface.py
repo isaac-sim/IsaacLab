@@ -41,7 +41,7 @@ class ContainerInterface:
                 extended in the order they are provided. Defaults to None, in which case no additional environment
                 variable files are added.
             statefile:
-                An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
+                An instance of the :class:`StateFile` class to manage state variables. Defaults to None, in
                 which case a new configuration object is created by reading the configuration file at the path
                 ``context_dir/.container.cfg``.
             suffix:

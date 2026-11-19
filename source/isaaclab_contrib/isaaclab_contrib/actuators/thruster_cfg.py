@@ -32,7 +32,7 @@ class ThrusterCfg:
     """Per-motor thrust clamp range [N]: values are clipped to this interval."""
 
     max_thrust_rate: float = 100000.0
-    """Per-motor thrust slew-rate limit applied inside the first-order model [N/s]."""
+    """Per-motor rotor-speed slew-rate limit applied inside the first-order model [rps/s]."""
 
     thrust_const_range: tuple[float, float] = MISSING
     """Range for thrust coefficient :math:`k_f` [N/(rps²)]."""
@@ -60,4 +60,4 @@ class ThrusterCfg:
     """Numerical integrator for the first-order model. Defaults to 'rk4'."""
 
     thruster_names_expr: list[str] = MISSING
-    """Articulation's joint names that are part of the group."""
+    """Regular expressions matching articulation body names for the thruster group."""

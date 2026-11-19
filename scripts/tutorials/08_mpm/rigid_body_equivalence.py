@@ -212,10 +212,9 @@ def initial_center_height(shape: ShapeSpec) -> float:
 def create_sim_cfg():
     """Create independent MJWarp and implicit-MPM entries in one Newton model."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     solver_cfg = CouplerProxyCfg(
         entries=[

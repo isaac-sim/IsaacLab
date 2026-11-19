@@ -110,6 +110,7 @@ def _simulation_registry(monkeypatch):
     registry = []
     sim = types.SimpleNamespace(
         device="cpu",
+        cfg=types.SimpleNamespace(physics=types.SimpleNamespace(mesh_variant_source_root=None)),
         _backend_registry=registry,
         _render_context=RenderContext(registry),
         backend_manager=types.SimpleNamespace(clone_context_type=None, backend=None, _clone_recipes=[]),
@@ -151,7 +152,6 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     from isaaclab.cloner import make_clone_plan, replicate
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
-
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
@@ -223,6 +223,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     sim.plan = make_clone_plan(assets, (tuple(range(len(assets))),), 2, positions=np.zeros((2, 3), dtype=np.float32))
     replicate(sim.plan)
     sim.render_context.ensure_initialize()
+    # Adding a consumer must retain the route selected before native construction.
+    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", str(int(not shared_physics)))
     other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
     assert other.backend is not None
     assert (other.backend is renderer.backend) is shared_physics
@@ -237,14 +239,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
-    if with_physics and not shared_physics:
+    if with_physics:
         expected_contexts.add(OvPhysxReplicateContext)
     assert set(sim.clone_contexts) == expected_contexts
     assert {source for source, _ in renderer.scene.clone_copies} == {
         "/World/envs/env_0/Visual",
         *(["/World/envs/env_0/Body"] if shared_physics else []),
     }
-    assert bool(sim.backend_manager._clone_recipes) is (with_physics and not shared_physics)
+    assert bool(sim.backend_manager._clone_recipes) is with_physics
     # Repeated preparation retains the selected resource identity.
     resources = tuple(sim._backend_registry)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
@@ -253,13 +255,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     if use_ovstage:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
         assert renderer.scene.cfg.populate_physics is shared_physics
+        assert renderer.scene.cfg.defer_render_copies is shared_physics
     if shared_physics:
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
+            sim.get_or_create_backend(replace(renderer.cfg, log_level="verbose"))
         conflict = next(
             resource
             for cfg, resource in sim._backend_registry
-            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
+            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "verbose"
         )
         sim.close_backend(conflict)
     renderer.close()
@@ -388,7 +391,7 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -648,6 +651,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
         if use_ovstage:
             SimulationContext.instance().close_backend(renderer.scene)
+    # The default log level keeps native cloning quiet; lower levels print a warning per attribute of every cloned
+    # environment, over a million lines at 8192 environments.
+    assert "has no valid data" not in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
@@ -934,44 +940,10 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
         )
 
 
-@pytest.mark.parametrize("colorized, named_tensors", [(False, False), (True, True)])
-def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized, named_tensors):
+@pytest.mark.parametrize("colorized", [False, True])
+def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized):
     """Pixel types, label keys and missing-map handling follow the requested output contract."""
-    from isaaclab_ov.renderers import ovrtx_annotator_utils as annotator_utils
-
     from isaaclab.renderers.segmentation_colors import random_color_from_id
-
-    # Exercise each wire format with its import-selected implementation, independently
-    # of the native wheel installed in this unit-test process.
-    monkeypatch.setattr(
-        annotator_utils,
-        "_decode_identifier_map",
-        (
-            annotator_utils._decode_identifier_map_named
-            if named_tensors
-            else annotator_utils._decode_identifier_map_packed
-        ),
-    )
-    monkeypatch.setattr(
-        annotator_utils,
-        "_decode_stable_id_semantic_id_map",
-        (
-            annotator_utils._decode_stable_id_semantic_id_map_named
-            if named_tensors
-            else annotator_utils._decode_stable_id_semantic_id_map_packed
-        ),
-    )
-    monkeypatch.setattr(
-        ovrtx_renderer_module,
-        "_decode_segmentation_map",
-        (
-            ovrtx_renderer_module._decode_segmentation_map_named
-            if named_tensors
-            else ovrtx_renderer_module._decode_segmentation_map_packed
-        ),
-    )
-
-    from .test_ovrtx_annotator_utils import _encode_identifier_map, _encode_stable_id_semantic_id_map
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
@@ -990,27 +962,21 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     seeded_keys = tuple(camera_data.info)
     stable_id = (42, 0, 0, 0)
     maps = {
-        "SemanticIdMap": _encode_identifier_map([((2, 0, 0, 0), "class: cone;")], named_tensors=False),
-        "StableIdMap": _encode_identifier_map([(stable_id, "/World/Cone")], named_tensors=False),
-        "StableIdSemanticIdMap": _encode_stable_id_semantic_id_map([(stable_id, 2)], named_tensors=False),
+        "SemanticIdMap": {
+            "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+            "label_offsets": np.array([0, 12], dtype=np.uint64),
+            "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
+        },
+        "StableIdMap": {
+            "id": np.array([stable_id], dtype=np.uint32),
+            "label_offsets": np.array([0, 11], dtype=np.uint64),
+            "label_data": np.frombuffer(b"/World/Cone", dtype=np.uint8),
+        },
+        "StableIdSemanticIdMap": {
+            "stable_id": np.array([stable_id], dtype=np.uint32),
+            "semantic_id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+        },
     }
-    if named_tensors:
-        maps = {
-            "SemanticIdMap": {
-                "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
-                "label_offsets": np.array([0, 12], dtype=np.uint64),
-                "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
-            },
-            "StableIdMap": {
-                "id": np.array([stable_id], dtype=np.uint32),
-                "label_offsets": np.array([0, 11], dtype=np.uint64),
-                "label_data": np.frombuffer(b"/World/Cone", dtype=np.uint8),
-            },
-            "StableIdSemanticIdMap": {
-                "stable_id": np.array([stable_id], dtype=np.uint32),
-                "semantic_id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
-            },
-        }
     frame = types.SimpleNamespace(render_vars={})
     for key, value in maps.items():
         render_var = MagicMock()
@@ -1031,7 +997,6 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     assert camera_data.info[kinds[1]]["idToLabels"][pixel] == "/World/Cone"
     assert camera_data.info[kinds[1]]["idToSemantics"][pixel] == {"class": "cone"}
     frame.render_vars[render_data.render_var_keys["SemanticIdMap"]].map.assert_called_once()
-
     frame.render_vars.clear()
     with pytest.raises(RuntimeError, match="SemanticIdMap"):
         renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
@@ -1048,7 +1013,7 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     ],
 )
 def test_ovrtx_clone_preparation_rejects_invalid_selection(monkeypatch, setting, value, error):
-    """Reject malformed flags and unsupported sharing before allocating native resources."""
+    """Reject malformed flags and unsupported sharing before native allocation."""
     from isaaclab_ov.cloner import OvrtxReplicateContext
 
     sim = SimulationContext.instance()
@@ -1182,7 +1147,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert renderer._initialized_scene is True
 
 
-@pytest.mark.parametrize("stage_mode", ["legacy", "integer_ids", "typed_handles"])
+@pytest.mark.parametrize("stage_mode", ["legacy", "typed_handles"])
 def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_mode):
     """Distinct cameras, including a prototype-only wrist camera, bind every environment independently."""
     use_ovstage = stage_mode != "legacy"
@@ -1193,9 +1158,6 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
 
         def __int__(self):
             raise TypeError("use .raw_id for explicit numeric conversion")
-
-    def handle(raw_id):
-        return Handle(raw_id) if stage_mode == "typed_handles" else raw_id
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
@@ -1217,10 +1179,11 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     paths[0][0] = "/Lab/Cell1/Robot/CameraA"
     paths.append(["/World/PerspectiveCamera"])
     paths.append(paths[0][:1])
-    renderer.scene.paths.intern_token.side_effect = {"env_0": handle(10), "env_1": handle(11)}.__getitem__
+    renderer.scene.paths.intern_token.side_effect = {"env_0": Handle(10), "env_1": Handle(11)}.__getitem__
     path_ids = {path: 2**63 + i for i, path in enumerate(dict.fromkeys(path for group in paths for path in group))}
-    renderer.scene.paths.intern_path.side_effect = lambda path: handle(path_ids[path])
+    renderer.scene.paths.intern_path.side_effect = lambda path: Handle(path_ids[path])
     if use_ovstage:
+        renderer.scene.render_copies_pending = False
         monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
         monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
         renderer.scene.resources = contextlib.ExitStack()
@@ -1417,25 +1380,9 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
     assert events == []
 
 
-@pytest.mark.parametrize(
-    "runtime_version, stage_mode",
-    [
-        ("0.6.0", "legacy"),
-        ("0.7.0.dev1", "legacy"),
-        ("0.6.0", "independent"),
-        ("0.7.0", "independent"),
-        ("0.7.0", "independent-physics"),
-        ("0.7.0.dev1", "shared"),
-        ("0.8.0", "shared"),
-        ("0.7.0", "shared-debug"),
-    ],
-)
-def test_scene_preparation_respects_physics_population_and_camera_transform_mode(
-    monkeypatch, tmp_path, runtime_version, stage_mode
-):
-    """Physics population requires composed geometry; only 0.7 disables camera GPU reads before attachment."""
-    from packaging.version import Version
-
+@pytest.mark.parametrize("stage_mode", ["legacy", "independent", "independent-physics", "shared", "shared-debug"])
+def test_scene_preparation_respects_physics_population_and_camera_transform_mode(monkeypatch, tmp_path, stage_mode):
+    """Physics population requires composed geometry; camera GPU reads are disabled before attachment."""
     from pxr import Sdf, Usd, UsdGeom, UsdRender
 
     attribute_name = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
@@ -1450,7 +1397,6 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     UsdGeom.Mesh.Define(asset, "/Asset/Geometry")
     asset.GetRootLayer().Save()
     UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim().GetReferences().AddReference(str(asset_path))
-    needs_fallback = runtime_version in ("0.7.0.dev1", "0.7.0")
     shared = stage_mode.startswith("shared")
     populate_physics = shared or stage_mode == "independent-physics"
     events = []
@@ -1458,13 +1404,10 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     renderer._use_ovstage = stage_mode != "legacy"
     if stage_mode == "shared-debug":
         renderer.cfg.temp_usd_dir = str(tmp_path / "debug")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_VERSION", Version(runtime_version))
-    # New OVStage builds expose rendering domains only; scene policy must not query physics flags.
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PopulationDomain", types.SimpleNamespace(NONE=0, RENDERING=1))
     monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
     monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
-
     export_stage = ovrtx_renderer_module.export_stage_to_string
 
     def export(*args, **kwargs):
@@ -1482,19 +1425,18 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not populate_physics
         assert (layer.GetPrimAtPath("/World/Asset/Geometry") is not None) is populate_physics
         value = layer.GetAttributeAtPath(Sdf.Path(settings_path).AppendProperty(attribute_name)).default
-        # OVStage population preserves authored input; only the legacy path rewrites USD.
-        assert value is not (needs_fallback and stage_mode == "legacy")
+        assert value is (stage_mode != "legacy")
         events.append("load")
 
     def write(query, name, *, ordinal, tensors, is_array):
         assert query == [settings_path]
-        assert name == attribute_name and not is_array
+        assert name == attribute_name and (not is_array)
         np.testing.assert_array_equal(tensors, np.array([False], dtype=np.bool_))
         events.append("disable-camera-reads")
         return types.SimpleNamespace(wait=lambda: None)
 
     def attach(native_stage):
-        assert ("disable-camera-reads" in events) is needs_fallback
+        assert "disable-camera-reads" in events
         events.append("attach")
 
     renderer.backend.renderer = types.SimpleNamespace(open_usd_from_string=load, attach_ovstage=attach)
@@ -1513,9 +1455,11 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         commit=lambda: events.append("commit"),
         resources=contextlib.ExitStack(),
     )
+    if renderer._use_ovstage:
+        renderer.scene.render_copies_pending = False
     renderer.prepare_stage(stage, 0)
     assert renderer.backend.cfg.read_gpu_transforms is True
     assert events.count("export") == (stage_mode != "shared")
-    assert events.count("disable-camera-reads") == (needs_fallback and stage_mode != "legacy")
+    assert events.count("disable-camera-reads") == (stage_mode != "legacy")
     if stage_mode != "legacy":
         assert events[-2:] == ["commit", "attach"]

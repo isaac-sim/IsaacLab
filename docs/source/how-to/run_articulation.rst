@@ -66,9 +66,12 @@ Similar to a rigid object, an articulation also has a root state. This state cor
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.
 
-To reset the articulation, we first set the root state by calling the :meth:`Articulation.write_root_pose_to_sim` and :meth:`Articulation.write_root_velocity_to_sim`
-methods. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_state_to_sim` method.
-Finally, we call the :meth:`Articulation.reset` method to reset any internal buffers and caches.
+To reset the articulation, we first set the root state by calling the
+:meth:`~isaaclab.assets.Articulation.write_root_pose_to_sim_index` and
+:meth:`~isaaclab.assets.Articulation.write_root_velocity_to_sim_index` methods. Similarly, we set the joint states by
+calling the :meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and
+:meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_index` methods.
+Finally, we call the :meth:`~isaaclab.assets.Articulation.reset` method to reset any internal buffers and caches.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
@@ -91,7 +94,7 @@ configuration object.
 
 At every step, we randomly sample joint efforts and set them on the articulation's actuator collection
 by calling ``robot.actuators.target_command.set_effort_index``. After setting the commands,
-we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
+we call the :meth:`~isaaclab.assets.Articulation.write_data_to_sim` method to write the data to the simulation buffers.
 Finally, we step the simulation.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py

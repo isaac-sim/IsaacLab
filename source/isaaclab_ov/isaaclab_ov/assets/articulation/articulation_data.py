@@ -122,8 +122,8 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp: float = 0.0
         self._is_primed: bool = False
         self._read_launch_cache = _WarpLaunchCache(device)
+        # OvPhysX supplies the public joint basis; shared ordering kernels take identity signs.
         self._joint_dof_signs = wp.ones(self.num_joints, dtype=wp.int32, device=device)
-        self._has_reversed_joints = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -587,7 +587,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_STIFFNESS, self._fixed_tendon_stiffness)
         if self._fixed_tendon_stiffness_ta is None:
@@ -600,7 +600,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_DAMPING, self._fixed_tendon_damping)
         if self._fixed_tendon_damping_ta is None:
@@ -613,7 +613,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_LIMIT_STIFFNESS, self._fixed_tendon_limit_stiffness)
         if self._fixed_tendon_limit_stiffness_ta is None:
@@ -626,7 +626,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_REST_LENGTH, self._fixed_tendon_rest_length)
         if self._fixed_tendon_rest_length_ta is None:
@@ -639,7 +639,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_OFFSET, self._fixed_tendon_offset)
         if self._fixed_tendon_offset_ta is None:
@@ -653,10 +653,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = ``wp.vec2f``.
         In torch this resolves to (num_instances, num_fixed_tendons, 2).
 
-        .. deprecated::
-            Use :attr:`fixed_tendon_limit` (shape ``(N, T, 2)``, dtype
-            ``wp.float32``) instead.  This alias is kept for backwards
-            compatibility and reads the same underlying data.
+        :attr:`fixed_tendon_limit` is a shorthand that returns this same array.
         """
         self._read_scalar_binding(TT.FIXED_TENDON_LIMIT, self._fixed_tendon_pos_limits)
         if self._fixed_tendon_pos_limits_ta is None:
@@ -673,7 +670,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_STIFFNESS, self._spatial_tendon_stiffness)
         if self._spatial_tendon_stiffness_ta is None:
@@ -686,7 +683,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_DAMPING, self._spatial_tendon_damping)
         if self._spatial_tendon_damping_ta is None:
@@ -699,7 +696,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._spatial_tendon_limit_stiffness)
         if self._spatial_tendon_limit_stiffness_ta is None:
@@ -712,7 +709,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_spatial_tendons), dtype = ``wp.float32``.
 
-        Routed through pinned-host staging (CPU-only binding).
+        Read directly from the sim-device binding.
         """
         self._read_scalar_binding(TT.SPATIAL_TENDON_OFFSET, self._spatial_tendon_offset)
         if self._spatial_tendon_offset_ta is None:
@@ -913,7 +910,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Body inertia tensors [kg*m^2].
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = ``wp.float32``; the
         trailing 9 is the row-major 3×3 inertia tensor.
@@ -1078,7 +1075,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
-            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
+            if has_body_ordering or has_joint_ordering:
                 if self._body_com_jacobian_w_backend is None:
                     self._body_com_jacobian_w_backend = wp.empty_like(self._body_com_jacobian_w.data.warp)
                 if has_body_ordering and self._jacobian_body_user_to_backend is None:
@@ -1128,7 +1125,7 @@ class ArticulationData(BaseArticulationData):
             shape = self._view.binding_for(TT.MASS_MATRIX).shape
             self._mass_matrix.data = ProxyArray(wp.empty(shape, wp.float32, self.device))
         if self._mass_matrix.timestamp < self._sim_timestamp:
-            if self.has_joint_ordering or self._has_reversed_joints:
+            if self.has_joint_ordering:
                 if self._mass_matrix_backend is None:
                     self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data.warp)
                 self._binding_read(TT.MASS_MATRIX, self._mass_matrix_backend)
@@ -1148,6 +1145,11 @@ class ArticulationData(BaseArticulationData):
                 )
             else:
                 self._binding_read(TT.MASS_MATRIX, self._mass_matrix.data.warp)
+            # PhysX mass-matrix queries omit the joint armature used by the solver (PhysX#575).
+            # TODO: Remove once PhysX#575 is fixed upstream, or armature will be counted twice.
+            self._mass_matrix.data.torch.diagonal(dim1=-2, dim2=-1)[:, self._num_base_dofs :].add_(
+                self.joint_armature.torch
+            )
             self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix.data
 
