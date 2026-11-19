@@ -439,6 +439,8 @@ task-specific modes.
      - Automatic RTX-family selection between configured alternatives
    * - ``newton_warp``
      - Newton Warp renderer
+   * - ``newton_optix``
+     - Newton OptiX renderer for RTX GPUs; requires the ``optix`` extra
    * - ``ovrtx``
      - Concrete OVRTX renderer for supported kit-less tasks
 
