@@ -250,6 +250,38 @@ def test_native_grid_pooling_excludes_invalid_photoreceptors(mode, style, sample
     assert (result[lowres.valid_mask] > 0).all()
 
 
+@pytest.mark.parametrize("mode", ["avg", "gaussian", "max"])
+@pytest.mark.parametrize(("style", "pool_k"), [("warped_cartesian_as_grid", 9), ("isotropic", 6)])
+def test_pooling_leaves_out_photoreceptors_the_camera_does_not_see(mode: str, style: str, pool_k: int) -> None:
+    cfg = pooling_cfg(foveated_style=style, pool_mode=mode, pool_k=pool_k)
+    lowres, matched = build_lowres_coords(cfg, "cpu")
+    highres = build_highres_coords(cfg, lowres, matched)
+    pooler, _ = build_pooler(cfg, lowres, highres, "cpu")
+    # The camera's image edge cuts the retina at x = 0.3 in the first environment; the second sees everything.
+    visible = torch.stack([highres.cartesian[:, 0] < 0.3, torch.ones(len(highres), dtype=torch.bool)])
+    # The camera zeroes unseen photoreceptors before pooling.
+    values = torch.where(visible, 0.7, 0.0)[:, :, None, None]
+    pooled = pool_hwc_buffer(pooler, values, visible)[:, :, 0, 0]
+    unseen = pool_hwc_buffer(pooler, visible.float()[:, :, None, None], visible)[:, :, 0, 0] == 0
+    # Some outputs straddle the edge: plain pooling darkens them, as the mask's zeros enter their averages.
+    straddling = (pool_hwc_buffer(pooler, values)[0, :, 0, 0] < 0.69) & ~unseen[0] & lowres.valid_mask
+    if mode != "max":
+        assert straddling.any()
+    # Each output pools only what the camera sees: the constant where it sees any photoreceptor, zero where it sees
+    # none or lies outside the retina.
+    expected = torch.where(unseen | ~lowres.valid_mask, 0.0, 0.7)
+    torch.testing.assert_close(pooled, expected)
+    assert unseen[0].any() and not unseen[1, lowres.valid_mask].any()
+
+
+def test_modal_pooling_leaves_out_labels_the_camera_does_not_see() -> None:
+    # Output 0 sees labels [1, 1, 2]; hiding the two 1s leaves 2. Output 1 sees [4, 5]; hiding both leaves nothing.
+    labels = torch.tensor([1, 1, 2, 4, 5], dtype=torch.int32)[None, :, None, None].expand(2, -1, -1, -1)
+    visible = torch.tensor([[False, False, True, False, False], [True, True, True, True, True]])
+    pooled = pool_segmentation_buffer(HAND_TABLE, labels, visible)[..., 0, 0]
+    assert torch.equal(pooled, torch.tensor([[2, 0, 0], [1, 4, 0]], dtype=torch.int32))
+
+
 @pytest.mark.parametrize(
     "style,expected",
     [

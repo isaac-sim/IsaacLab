@@ -472,11 +472,13 @@ class FoveatedCamera(Camera):
         """Pool one output's high-resolution samples (B, N_hi, 1, C) to the retina's (B, N_lo, 1, C), in its dtype.
 
         Segmentation takes each sample's modal label in its native dtype; other outputs are pooled in float with
-        ``pool_mode``.
+        ``pool_mode``. With :attr:`~FoveatedCameraCfg.mask_to_sensor_fov`, photoreceptors outside the physical camera's
+        image at the current gaze are left out, so a pooled sample at the image edge is not darkened by them.
         """
+        visible = self._visibility["valid"].torch if self.cfg.mask_to_sensor_fov else None
         if is_segmentation_output(name):
-            return pool_segmentation_buffer(self._segmentation_neighbors, samples)
-        pooled = pool_hwc_buffer(self._pooler, samples.float())
+            return pool_segmentation_buffer(self._segmentation_neighbors, samples, visible)
+        pooled = pool_hwc_buffer(self._pooler, samples.float(), visible)
         if not samples.dtype.is_floating_point:
             # Round to the nearest value the output can hold, e.g. 0-255 for RGB, rather than truncating.
             limits = torch.iinfo(samples.dtype)

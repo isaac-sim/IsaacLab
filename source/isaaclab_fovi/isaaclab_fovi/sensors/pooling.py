@@ -161,19 +161,45 @@ def is_segmentation_output(name: str) -> bool:
     return "segmentation" in name
 
 
-def pool_hwc_buffer(pooler: KNNPoolingLayer | GridPoolingLayer, buf: torch.Tensor) -> torch.Tensor:
+def pool_hwc_buffer(
+    pooler: KNNPoolingLayer | GridPoolingLayer, buf: torch.Tensor, visible: torch.Tensor | None = None
+) -> torch.Tensor:
     """Pool a ``(B, N_hi, 1, C)`` sensor buffer into ``(B, N_lo, 1, C)``.
 
     Both poolers expect ``(B, C, N)`` inputs, so we permute in and out.
+
+    Args:
+        pooler: The retinal pooler.
+        buf: ``(B, N_hi, 1, C)`` floating-point samples.
+        visible: ``(B, N_hi)`` photoreceptors the physical camera sees, or None for all. The others are left out of
+            each pooled sample, as the pooler leaves out photoreceptors outside the retina, and a pooled sample that
+            sees none is zero.
     """
     B, N_hi, one, C = buf.shape
     assert one == 1, f"expected (B, N, 1, C) buffer, got {buf.shape}"
     x = buf[:, :, 0, :].transpose(1, 2).contiguous()  # (B, C, N_hi)
-    y = pooler(x)  # (B, C, N_lo)
+    if visible is None:
+        y = pooler(x)  # (B, C, N_lo)
+    else:
+        seen = visible[:, None, :]
+        weight = seen.to(x.dtype)
+        if pooler.mode == "sum":
+            y = pooler(x * weight)
+        else:
+            # Pool the samples with their visibility in one call: a weighted mean over the visible photoreceptors is
+            # the pooled masked samples over the pooled mask, and a max over them ignores -inf.
+            masked = torch.where(seen, x, -torch.inf) if pooler.mode == "max" else x * weight
+            pooled = pooler(torch.cat((masked, weight), dim=1))
+            values, coverage = pooled[:, :C], pooled[:, C:]
+            if pooler.mode != "max":
+                values = values / coverage.clamp_min(torch.finfo(x.dtype).tiny)
+            y = torch.where(coverage > 0, values, 0)
     return y.transpose(1, 2).unsqueeze(2).contiguous()  # (B, N_lo, 1, C)
 
 
-def pool_segmentation_buffer(neighbors: torch.Tensor, buf: torch.Tensor) -> torch.Tensor:
+def pool_segmentation_buffer(
+    neighbors: torch.Tensor, buf: torch.Tensor, visible: torch.Tensor | None = None
+) -> torch.Tensor:
     """Pool a ``(B, N_hi, 1, C)`` segmentation buffer into ``(B, N_lo, 1, C)`` by majority vote.
 
     Each output sample takes the most common full channel vector among its
@@ -184,12 +210,14 @@ def pool_segmentation_buffer(neighbors: torch.Tensor, buf: torch.Tensor) -> torc
 
     Ties go to the value whose first occurrence comes earliest in the pooler's
     neighbour order (see :func:`segmentation_neighbor_indices`; the nearest
-    neighbour wins for KNN pooling).  Neighbours the pooler excludes do not
-    vote, and outputs without any valid neighbour are zero, as in fovi.
+    neighbour wins for KNN pooling).  Neighbours the pooler excludes, or the
+    physical camera does not see, do not vote, and outputs without any valid
+    neighbour are zero, as in fovi.
 
     Args:
         neighbors: ``(k, N_lo)`` neighbour table from :func:`segmentation_neighbor_indices`, on the buffer's device.
         buf: ``(B, N_hi, 1, C)`` buffer of any dtype.
+        visible: ``(B, N_hi)`` photoreceptors the physical camera sees, or None for all.
 
     Returns:
         ``(B, N_lo, 1, C)`` pooled buffer with the dtype of ``buf``.
@@ -203,9 +231,13 @@ def pool_segmentation_buffer(neighbors: torch.Tensor, buf: torch.Tensor) -> torc
     keys = torch.nn.functional.pad(_equality_keys(values), (0, 1))  # (B, N_hi + 1)
     valid = (indices != N_hi).T  # (N_lo, k)
     table = indices.T  # (N_lo, k)
+    chunk_size = max(1, _MODAL_CHUNK_ELEMENTS // max(1, N_lo * k))
+    # Visibility, padded like the keys; the never-voting sample is unseen.
+    seen = None if visible is None else torch.nn.functional.pad(visible, (0, 1)).split(chunk_size)
     slots = []
-    for chunk in keys.split(max(1, _MODAL_CHUNK_ELEMENTS // max(1, N_lo * k))):
-        slots.append(_modal_slot(chunk[:, table], valid))
+    for index, chunk in enumerate(keys.split(chunk_size)):
+        chunk_valid = valid if seen is None else valid & seen[index][:, table]  # (N_lo, k) or (b, N_lo, k)
+        slots.append(_modal_slot(chunk[:, table], chunk_valid))
     slot = torch.cat(slots)  # (B, N_lo); k where no neighbour is valid
     has_value = slot < k
     # (B, N_lo) input sample index; outputs without a value read sample 0 and are zeroed below.
@@ -230,7 +262,8 @@ def _equality_keys(values: torch.Tensor) -> torch.Tensor:
 
 
 def _modal_slot(keys: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
-    """Pick the modal neighbour slot of ``(B, N_lo, k)`` keys; ``valid`` is the ``(N_lo, k)`` voting mask.
+    """Pick the modal neighbour slot of ``(B, N_lo, k)`` keys; ``valid`` is the ``(N_lo, k)`` or ``(B, N_lo, k)``
+    voting mask.
 
     Returns the ``(B, N_lo)`` earliest slot holding the most common valid key,
     or ``k`` where no slot is valid.

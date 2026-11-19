@@ -117,9 +117,9 @@ class FoveatedCameraCfg(CameraCfg):
     mask_to_sensor_fov: bool = False
     """Zero the samples that fall outside the physical camera's image at the current gaze.
 
-    With :attr:`pool_enabled`, the mask applies to the photoreceptor samples before pooling, so a pooled sample whose
-    neighbourhood straddles the image edge keeps the pooled value of the photoreceptors the camera sees, and is zero
-    when it sees none of them."""
+    With :attr:`pool_enabled`, the mask applies to the photoreceptor samples before pooling, and pooling leaves out the
+    photoreceptors the camera does not see: a pooled sample whose neighbourhood straddles the image edge pools only
+    the ones it sees, and is zero when it sees none of them."""
 
     retinal_window_fraction: float = 1.0
     """Diameter of the retinal window as a fraction of the reference image side."""
@@ -150,8 +150,8 @@ class FoveatedCameraCfg(CameraCfg):
     uses the rounded sample-count ratio."""
 
     pool_mode: str = "avg"
-    """Pooling of every output except segmentation: ``"avg"``, ``"gaussian"``, ``"max"`` or ``"sum"``.
-    Segmentation pools with :attr:`pool_int_mode`."""
+    """Pooling of every output except segmentation: ``"avg"``, ``"gaussian"`` or ``"max"``, and for sample-set styles
+    also ``"sum"``. Segmentation pools with :attr:`pool_int_mode`."""
 
     pool_sample_cortex: bool | str = "geodesic"
     """Space in which KNN neighbours are selected.  ``True`` = Euclidean on
