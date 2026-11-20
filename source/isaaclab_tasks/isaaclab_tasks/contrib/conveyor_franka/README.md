@@ -6,7 +6,10 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 
 ![Racetrack transfer](../../../../../docs/source/_static/tasks/conveyor/racetrack_transfer.jpg)
 
-Traction uses a pinned extraction of Newton's force model and MJWarp contact reporting.
+Traction uses MJWarp contact reporting and imports `ConveyorForceModel` from the conveyor example
+in the locked Newton dependency. The public API proposal tracks the replacement for this temporary
+import. [Newton #5501](https://github.com/newton-physics/newton/issues/5501)
+
 The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
 reset lifecycle; the task owns its geometry, transfer commands, and reset recipes.
 `assets/racetracks.usda` contains the fixed decks and rails, exported from the original
