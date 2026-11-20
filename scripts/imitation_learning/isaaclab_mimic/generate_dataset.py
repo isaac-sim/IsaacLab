@@ -8,6 +8,8 @@ Main data generation script.
 """
 
 import argparse
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -127,7 +129,7 @@ def main():
 def generate(env_name: str, env_cfg):
     """Configure and create the environment, then run the (optionally SkillGen-based) data generation."""
     from isaaclab.envs import ManagerBasedRLMimicEnv
-    from isaaclab.envs.mdp.recorders import get_episode_metadata
+    from isaaclab.envs.mdp.recorders import get_episode_metadata, record_step
     from isaaclab.utils.datasets import EpisodeRecorder
 
     from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
@@ -173,6 +175,7 @@ def generate(env_name: str, env_cfg):
     recorder = EpisodeRecorder(
         recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
     )
+    env.step = MethodType(partial(record_step, recorder=recorder), env)
     # Reset before starting
     env.reset()
 

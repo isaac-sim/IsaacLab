@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import os
 from contextlib import ExitStack
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -58,7 +60,11 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_step,
+)
 from isaaclab.utils.datasets import (
     DatasetExportMode,
     EpisodeData,
@@ -389,21 +395,7 @@ def eval_policy(
 
             action[:, 28:31] = action[:, 28:31] * 1.0
             step_action = action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
-            record_pre_step(recorder, env, step_action)
-            env.simulate(step_action)
-            env.compute_transition()
-            record_post_step(recorder, env)
-            success = (
-                env.termination_manager.get_term("success").clone()
-                if "success" in env.termination_manager.active_terms
-                else torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-            )
-            reset_ids = env.reset_done()
-            if len(reset_ids):
-                recorder.set_success_to_episodes(reset_ids, success[reset_ids])
-                recorder.export_episodes(reset_ids)
-                record_initial_state(recorder, env, reset_ids)
-            _, _, reset_terminated, reset_time_outs, _ = env.finish_step()
+            _, _, reset_terminated, reset_time_outs, _ = env.step(step_action)
             if reset_terminated.any():
                 print("Reset terminated")
                 step = 0
@@ -446,6 +438,7 @@ if __name__ == "__main__":
             recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
         )
         stack.callback(recorder.close)
+        env.step = MethodType(partial(record_step, recorder=recorder), env)
 
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)

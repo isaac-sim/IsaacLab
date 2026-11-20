@@ -40,6 +40,8 @@ import math
 import os
 import sys
 import time
+from functools import partial
+from types import MethodType
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -51,7 +53,11 @@ from isaaclab.cli import load_external_tasks
 from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_step,
+)
 from isaaclab.envs.utils._manual_success import _prepare_success_term
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
@@ -811,16 +817,7 @@ def run_simulation_loop(  # noqa: C901
                 auto_reset = False
                 if action_applied:
                     # Expand to batch dimension and compute actions based on environment
-                    record_pre_step(recorder, env, action.repeat(env.num_envs, 1))
-                    env.simulate(action.repeat(env.num_envs, 1))
-                    env.compute_transition()
-                    record_post_step(recorder, env)
-                    reset_ids = env.reset_done()
-                    if len(reset_ids):
-                        recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
-                        recorder.export_episodes(reset_ids)
-                        record_initial_state(recorder, env, reset_ids)
-                    obv = env.finish_step()
+                    obv = env.step(action.repeat(env.num_envs, 1))
                     auto_reset = notify_teleop_of_auto_reset(obv, teleop_interface)
                     if auto_reset:
                         camera_feed_session.refresh()
@@ -1011,6 +1008,7 @@ def record_demos(
         recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
     )
     cleanup.callback(recorder.close)
+    env.step = MethodType(partial(record_step, recorder=recorder), env)
     # Run simulation loop
     current_recorded_demo_count = run_simulation_loop(
         env, recorder, success_term, rate_limiter, camera_feed_session, teleop_cfg

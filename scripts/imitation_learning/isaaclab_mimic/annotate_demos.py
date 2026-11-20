@@ -9,6 +9,8 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 
 import argparse
 import math
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -61,7 +63,11 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_step,
+)
 from isaaclab.managers import TerminationTermCfg
 from isaaclab.utils.datasets import EpisodeData, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
 
@@ -173,6 +179,8 @@ def annotate_dataset(
     recorder = EpisodeRecorder(
         recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
     )
+
+    env.step = MethodType(partial(record_step, recorder=recorder), env)
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -319,21 +327,12 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         action_tensor = action_tensor.to(env.device)
-        record_pre_step(recorder, env, action_tensor)
         recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action_tensor))
         if args_cli.auto:
             recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
             if args_cli.annotate_subtask_start_signals:
                 recorder.add_to_episodes("obs/datagen_info/subtask_start_signals", env.get_subtask_start_signals())
-        env.simulate(action_tensor)
-        env.compute_transition()
-        record_post_step(recorder, env)
-        reset_ids = env.reset_done()
-        if len(reset_ids):
-            recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
-            recorder.export_episodes(reset_ids)
-            record_initial_state(recorder, env, reset_ids)
-        env.finish_step()
+        env.step(action_tensor)
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
             return False

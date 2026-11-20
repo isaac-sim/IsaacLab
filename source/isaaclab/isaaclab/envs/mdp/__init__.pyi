@@ -5,6 +5,7 @@
 
 __all__ = [
     "get_episode_metadata",
+    "record_step",
     "AbsBinaryJointPositionAction",
     "AbsBinaryJointPositionActionCfg",
     "BinaryJointAction",
@@ -272,7 +273,7 @@ from .observations import (
     root_pos_w,
     root_quat_w,
 )
-from .recorders import get_episode_metadata, record_initial_state, record_pre_step, record_post_step
+from .recorders import get_episode_metadata, record_initial_state, record_pre_step, record_post_step, record_step
 from .rewards import (
     action_l2,
     action_rate_l2,

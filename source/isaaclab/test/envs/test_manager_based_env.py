@@ -12,6 +12,7 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
 
+from functools import partial
 from types import MethodType
 from unittest.mock import Mock
 
@@ -20,12 +21,14 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+from isaaclab.envs.mdp.recorders import recorders as capture_terms
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import TerminationTermCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg, make_empty_manager_based_rl_env_cfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
+from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
 from isaaclab.utils.noise import UniformNoiseCfg
 
 pytestmark = pytest.mark.integration
@@ -69,6 +72,8 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     sim_utils.create_new_stage()
     # create environment with history length of 5
     cfg = cfg_factory(device=device, num_envs=3)
+    # Both paths expose every physics step for custom per-substep capture.
+    cfg.sim.render_interval = 1
     cfg.observations = EmptyObservationWithHistoryCfg()
     if env_type is ManagerBasedRLEnv:
         cfg.observations.empty_observation.enable_corruption = True
@@ -77,6 +82,8 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
         )
         cfg.observations.state = ObsGroup(enable_corruption=False)
         cfg.observations.state.step = ObsTerm(func=episode_step)
+        cfg.observations.policy = ObsGroup(enable_corruption=False)
+        cfg.observations.policy.step = ObsTerm(func=episode_step)
         cfg.terminations.stop = TerminationTermCfg(
             func=lambda env: (env.episode_length_buf == 4) & (torch.arange(env.num_envs, device=env.device) == 0)
         )
@@ -128,20 +135,27 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     if env_type is ManagerBasedRLEnv:
         outputs, rng_states = [], []
         action = torch.empty_like(env.action_manager.action)
+        recorder = EpisodeRecorder(
+            EpisodeRecorderCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE), env.num_envs, env.device
+        )
+        original_capture = capture_terms.record_post_step
         for capture in (False, True):
             captured = {}
 
-            def custom_step(env, action):
-                env.simulate(action)
-                env.compute_transition()
+            def capture_post_step(recorder, env):
                 captured["latest"] = env.episode_length_buf.clone()
                 captured["observation"] = env.observation_manager.compute_group("state", update_history=False)
-                env.reset_done()
-                return env.finish_step()
+                original_capture(recorder, env)
 
+            monkeypatch.setattr(capture_terms, "record_post_step", capture_post_step)
+            custom_step = partial(capture_terms.record_step, recorder=recorder)
             env.step = MethodType(custom_step if capture else ManagerBasedRLEnv.step, env)
+            recorder.reset()
             env.reset(seed=17)
+            start_time = env.sim.backend_manager.get_simulation_time()
             trajectory = [env.step(action)[0]["empty_observation"].clone() for _ in range(4)]
+            elapsed = env.sim.backend_manager.get_simulation_time() - start_time
+            assert elapsed == pytest.approx(4 * env.step_dt, rel=1e-5, abs=1e-8)
             outputs.append(torch.stack(trajectory))
             rng = torch.get_rng_state()
             if device.startswith("cuda"):
