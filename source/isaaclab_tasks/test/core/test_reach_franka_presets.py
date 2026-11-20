@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import pytest
 import torch
 from gymnasium.envs.registration import registry
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg

@@ -12,7 +12,7 @@ import math
 import warnings
 
 import pytest
-from isaaclab_physx.sim.schemas import (
+from isaaclab_isaacsim.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionCfg,
     PhysxCollisionPropertiesCfg,
@@ -20,7 +20,7 @@ from isaaclab_physx.sim.schemas import (
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.spawners.materials import (
+from isaaclab_isaacsim.sim.spawners.materials import (
     PhysxRigidBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
 )
@@ -554,7 +554,7 @@ def test_physx_convex_hull_writes_tuning_attrs(setup_simulation):
     """Setting tuning fields on ``PhysxConvexHullPropertiesCfg`` authors the
     ``physxConvexHullCollision:*`` namespaced attributes AND applies
     ``PhysxConvexHullCollisionAPI``."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     from pxr import UsdGeom
 
@@ -578,7 +578,7 @@ def test_physx_convex_hull_no_physx_schema_when_no_tuning_fields_set(setup_simul
     """Regression: ``PhysxConvexHullPropertiesCfg()`` with all tuning fields None must NOT
     apply ``PhysxConvexHullCollisionAPI``. The approximation token is still authored on the
     standard ``UsdPhysics.MeshCollisionAPI``."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     from pxr import UsdGeom
 
@@ -608,7 +608,7 @@ def test_bounding_cube_default_token(setup_simulation):
 def test_usd_api_physx_api_attrs_deprecated(setup_simulation):
     """Reading ``cfg.usd_api`` and ``cfg.physx_api`` on the new mesh cfgs emits a
     DeprecationWarning and returns the legacy-mapped string value."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     cfg = PhysxConvexHullPropertiesCfg()
 
@@ -1065,9 +1065,9 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
 @pytest.mark.parametrize("kind", ["volume", "surface"])
 def test_physx_deformable_fragments(setup_simulation, kind):
     """Create OmniPhysics rest/bind poses and compose PhysX body and material fragments."""
-    from isaaclab_physx.physics import PhysxManager
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg, PhysxSurfaceDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
+    from isaaclab_isaacsim.physics import PhysxManager
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg, PhysxSurfaceDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
 
     from pxr import Usd, UsdGeom
 

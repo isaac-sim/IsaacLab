@@ -206,6 +206,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Native reset-state buffers </source/how-to/reset_state_buffers>`
+
+         Create native state banks and sample useful starts through the existing Lift reset event.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.
@@ -360,7 +370,7 @@ How-to Guides
 
          :doc:`Select and configure a Renderer </source/how-to/configure_rendering>`
 
-         Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
+         Choose Newton Warp, Newton OptiX, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
          .. container:: guide-metadata
 
@@ -480,7 +490,7 @@ How-to Guides
 
          :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
 
-         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+         Tune Newton Kamino PADMM or SCC convergence, stabilization, timestep, and substeps.
 
          .. container:: guide-metadata
 

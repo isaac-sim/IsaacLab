@@ -5,9 +5,9 @@
 
 """Configurations shared by the direct and manager-based Humanoid environments."""
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg

@@ -96,6 +96,7 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
+* Elle Miller
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
@@ -191,6 +192,7 @@ Guidelines for modifications:
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
+* Rafael Cathomen
 * Rafael Wiltz
 * Rebecca (Rui) Zhang
 * Renaud Poncelet

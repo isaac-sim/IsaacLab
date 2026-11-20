@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import argparse
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 

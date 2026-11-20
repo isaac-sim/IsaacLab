@@ -46,7 +46,7 @@
 <line x1="746.0" y1="360" x2="746.0" y2="382" stroke="#aab4be" stroke-width="1.6" marker-end="url(#arrow)"/>
 <text x="236" y="354" text-anchor="start" class="body" font-size="11" font-style="italic" fill="#aab4be">imports the active backend&#x27;s implementation</text>
 <rect x="16" y="384" width="276" height="128" rx="7" fill="#2d1a33" stroke="#ba68c8" stroke-width="1.5"/>
-<text x="154.0" y="405" text-anchor="middle" class="mono lbl" font-size="13.5" fill="#e1bee7">isaaclab_physx</text>
+<text x="154.0" y="405" text-anchor="middle" class="mono lbl" font-size="13.5" fill="#e1bee7">isaaclab_isaacsim</text>
 <text x="154.0" y="422" text-anchor="middle" class="mono" font-size="11" fill="#e6edf3">PhysxManager</text>
 <text x="154.0" y="439" text-anchor="middle" class="mono" font-size="11" fill="#e6edf3">assets.Articulation, sensors.Imu, ...</text>
 <text x="154.0" y="456" text-anchor="middle" class="mono" font-size="11" fill="#e6edf3">PhysxSceneDataBackend</text>

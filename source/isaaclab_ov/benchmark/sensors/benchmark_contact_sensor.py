@@ -5,7 +5,7 @@
 
 """Benchmark the OVPhysX contact sensor update path.
 
-Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py`` but
+Mirrors ``isaaclab_isaacsim/benchmark/sensors/benchmark_contact_sensor.py`` but
 runs kitless against the OVPhysX backend. Also times the blocking native
 normal and friction force reads in isolation.
 
@@ -30,9 +30,9 @@ add_sensor_benchmark_args(
 args_cli = parser.parse_args()
 
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sensors import ContactSensorCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
