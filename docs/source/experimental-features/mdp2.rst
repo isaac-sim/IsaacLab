@@ -305,8 +305,8 @@ The values and structure of a task can change while it runs, at the cost of what
   of the uses that both have, while other weights and params are the new task's; it truncates the episodes by
   default, and the next step compiles and captures anew.
 
-Measured on Go2 at 4096 worlds (MDP time per step, physics replaced by nothing): the plain task 81 µs, every reward
-weight and tracking width tunable 81 µs, all rewards switched 86 µs, the rewards in two stages of a sequence 103 µs.
+Measured on Go2 at 4096 worlds (MDP time per step, physics replaced by nothing): the plain task 64 µs, every reward
+weight and tracking width tunable 64 µs, all rewards switched 72 µs, the rewards in two stages of a sequence 74 µs.
 
 
 Porting from Arena
