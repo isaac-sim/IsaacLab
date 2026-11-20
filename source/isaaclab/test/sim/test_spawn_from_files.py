@@ -10,7 +10,7 @@ launch_test_simulation()
 import os
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 

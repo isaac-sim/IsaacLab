@@ -26,7 +26,7 @@ from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import math as math_utils
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import DeformableObject
+    from isaaclab_isaacsim.assets import DeformableObject
 
     from omni.replicator.core.scripts.utils.rng import ReplicatorRNG
     from pxr import Usd
@@ -1762,7 +1762,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_texture_material(cfg, env)
 
@@ -1814,7 +1814,7 @@ class randomize_visual_color(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_color(cfg, env)
 
@@ -1972,9 +1972,9 @@ def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
         from isaaclab_ov.physics import OvPhysxCfg
 
         expected_cfg_type = OvPhysxCfg
-    elif "isaaclab_physx" in physics_cfg_modules:
-        from isaaclab_physx.envs.mdp import events
-        from isaaclab_physx.physics import PhysxCfg
+    elif "isaaclab_isaacsim" in physics_cfg_modules:
+        from isaaclab_isaacsim.envs.mdp import events
+        from isaaclab_isaacsim.physics import PhysxCfg
 
         expected_cfg_type = PhysxCfg
     else:

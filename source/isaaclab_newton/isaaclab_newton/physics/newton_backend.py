@@ -107,6 +107,8 @@ class NewtonCloneRecord:
     """Body indices per replicated cable prim path."""
     geometry_batches: list
     """Shape batches the scene data backend publishes as geometry."""
+    initial_body_variants: tuple[tuple[int, int], ...] = ()
+    """Initial ``(body, variant)`` selections resolved by the clone composition root."""
 
 
 class NewtonBackend:
@@ -115,7 +117,13 @@ class NewtonBackend:
     A render-only backend (non-Newton physics) holds only the model and :attr:`state_0`.
     """
 
-    def __init__(self, cfg: NewtonBackendCfg, builder: ModelBuilder | None = None, *, dt: float | None = None):
+    def __init__(
+        self,
+        cfg: NewtonBackendCfg,
+        builder: ModelBuilder | None = None,
+        *,
+        dt: float | None = None,
+    ):
         """Finalize a builder and allocate the buffers bound to its model.
 
         Args:
@@ -128,6 +136,8 @@ class NewtonBackend:
             builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
+        self.geometry_change_version = 0
+        """Incremented when native body selection changes shape type or source after initialization."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
         self.state_version = 0
@@ -252,12 +262,17 @@ class NewtonBackend:
             self.world_mask = self.fk_mask = None
 
     def init_solver(
-        self, env_template: str | None = None, *, relaxed_capture: Callable[[], bool] | None = None
+        self,
+        env_template: str | None = None,
+        *,
+        relaxed_capture: Callable[[], bool] | None = None,
+        initial_body_variants: tuple[tuple[int, int], ...] = (),
     ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
         Args:
             env_template: Environment prim path template that expands ``{ENV_REGEX_NS}`` in solver selectors.
+            initial_body_variants: Clone selections applied after the solver compiles the shared shape layout.
             relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
                 :func:`capture_graph`. Defaults to strict capture.
         """
@@ -275,6 +290,16 @@ class NewtonBackend:
         )
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
+        if initial_body_variants:
+            # MuJoCo compiles one geom layout for all worlds, before their variants diverge.
+            bodies, variants = zip(*initial_body_variants, strict=True)
+            flags = self.model.select_body_variants(
+                wp.array(variants, dtype=wp.int32, device=self.device),
+                bodies=wp.array(bodies, dtype=wp.int32, device=self.device),
+            )
+            solver.notify_model_changed(flags)
+            self.geometry_change_version += 1
+            self.state_version += 1
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()

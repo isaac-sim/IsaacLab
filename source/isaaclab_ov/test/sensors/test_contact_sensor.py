@@ -34,11 +34,11 @@ import warp as wp
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import OvPhysxReplicateContext  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
