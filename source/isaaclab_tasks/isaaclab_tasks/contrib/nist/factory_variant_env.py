@@ -25,7 +25,9 @@ class FactoryVariantEnv(ManagerBasedRLEnv):
     def _recover(self, observations: VecEnvObs, invalid: torch.Tensor) -> None:
         for _ in range(3):
             env_ids = invalid.nonzero(as_tuple=False).squeeze(-1).int()
+            self.recorder_manager.record_pre_reset(env_ids)
             self._reset_idx(env_ids)
+            self.recorder_manager.record_post_reset(env_ids)
             self.scene.write_data_to_sim()
             self.sim.forward()
             refreshed = self.observation_manager.compute(update_history=True)

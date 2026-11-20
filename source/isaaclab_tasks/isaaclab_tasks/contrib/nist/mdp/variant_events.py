@@ -106,10 +106,10 @@ class reset_variant_held_asset_on_fixed_asset(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv) -> None:
         super().__init__(cfg, env)
-        self._variants = assembly_variant_context(env, cfg.params["variant_context"])
+        self._variants = assembly_variant_context(env, cfg.params.get("variant_context", "assembly_variants"))
         self._fixed_asset: RigidObject = env.scene[cfg.params["fixed_asset_cfg"].name]
         self._held_asset: Articulation | RigidObject = env.scene[cfg.params["held_asset_cfg"].name]
-        noise_cfg = cfg.params["pose_noise"]
+        noise_cfg = cfg.params.get("pose_noise")
         self._pose_noise = instantiate(noise_cfg) if noise_cfg is not None else None
 
     def __call__(

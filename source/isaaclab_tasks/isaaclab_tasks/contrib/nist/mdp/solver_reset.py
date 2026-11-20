@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton solver failure terminations."""
+"""Recover the Factory variant task from nonfinite MJWarp solver state."""
 
 from __future__ import annotations
 
@@ -90,3 +90,14 @@ class SolverResetRequired(ManagerTermBase):
             device=self.invalid_worlds.device,
         )
         return self.invalid_worlds_torch
+
+
+def zero_reward_on_solver_reset(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Clear reward terms for worlds terminated by a nonfinite solver state.
+
+    Configure this after every other nonzero reward term. The reward manager sums
+    ``_step_reward`` only after evaluating all terms.
+    """
+    invalid_worlds = env.termination_manager.get_term("solver_reset_required")
+    env.reward_manager._step_reward.masked_fill_(invalid_worlds[:, None], 0.0)
+    return torch.zeros(env.num_envs, device=env.device)

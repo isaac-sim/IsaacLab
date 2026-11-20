@@ -14,8 +14,6 @@ __all__ = [
     "NewtonOperationalSpaceControllerAction",
     "NewtonOperationalSpaceControllerActionCfg",
     "randomize_visual_shape",
-    "SolverResetRequired",
-    "zero_reward_on_solver_reset",
 ]
 
 from .actions import (
@@ -32,5 +30,3 @@ from .events import (
     randomize_rigid_body_material,
     randomize_visual_shape,
 )
-from .rewards import zero_reward_on_solver_reset
-from .terminations import SolverResetRequired

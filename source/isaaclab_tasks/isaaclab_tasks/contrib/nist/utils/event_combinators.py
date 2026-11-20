@@ -59,7 +59,7 @@ class reset_accumulator(ManagerTermBase):
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self.acceptance_conditions = [condition.func for condition in cfg.params["acceptance_conditions"].values()]
+        self.acceptance_conditions = cfg.params["acceptance_conditions"]
 
         # Filter to scene-resident assets: callers may include "optional" assets
         # that only exist for a subset of presets.
@@ -143,8 +143,7 @@ class reset_accumulator(ManagerTermBase):
                 if reported is not None:
                     valid_mask &= reported[all_env_ids]
                 for condition in self.acceptance_conditions.values():
-                    condition_func = condition if callable(condition) else condition.func
-                    valid_mask &= condition_func(env, all_env_ids)
+                    valid_mask &= condition.func(env, all_env_ids, **condition.params)
 
                 valid_env_ids = all_env_ids[valid_mask]
                 if valid_env_ids.numel() > 0:

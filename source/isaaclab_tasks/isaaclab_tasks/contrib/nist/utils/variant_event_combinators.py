@@ -169,8 +169,7 @@ class variant_reset_accumulator(ManagerTermBase):
             if reported is not None:
                 valid_mask &= reported
             for condition in self.acceptance_conditions.values():
-                condition_func = condition if callable(condition) else condition.func
-                valid_mask &= condition_func(env, all_env_ids)
+                valid_mask &= condition.func(env, all_env_ids, **condition.params)
 
             valid_env_ids = all_env_ids[valid_mask]
             if valid_env_ids.numel() == 0:
@@ -194,6 +193,8 @@ class variant_reset_accumulator(ManagerTermBase):
         self.state_data = self.state_data[order].contiguous()
         self.state_cell_indices = self.state_cell_indices[order].contiguous()
         counts = torch.bincount(self.state_cell_indices, minlength=self._num_cells)
+        if (counts == 0).any():
+            raise RuntimeError("Reset-state collection did not populate every reset-label and assembly-variant cell.")
         populated_counts = counts[counts > 0]
         print(
             f"[reset_accumulator] joint cells: {int((counts > 0).sum())}/{self._num_cells}, "

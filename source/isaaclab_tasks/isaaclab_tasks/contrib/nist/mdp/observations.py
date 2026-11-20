@@ -407,7 +407,7 @@ class asset_link_velocity_in_root_asset_frame(ManagerTermBase):
             _asset_link_velocity_in_root_frame,
             dim=self.num_envs,
             inputs=[
-                self._target_asset.data.body_com_vel_w.warp,
+                self._target_asset.data.body_link_vel_w.warp,
                 self._target_asset.data.body_link_pose_w.warp,
                 self._root_asset.data.root_link_pose_w.warp,
                 self._target_body_idx,
