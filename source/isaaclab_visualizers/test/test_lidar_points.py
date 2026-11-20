@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits drawn by every visualizer."""
+"""World-frame lidar hits drawn by the Newton GL, Viser, and Kit visualizers."""
 
 from __future__ import annotations
 
@@ -141,8 +141,8 @@ class _ViewerGL(_RecordingViewer):
     """Name matches the Newton GL viewers, whose point kernel runs on ``viewer.device``."""
 
 
-class _ViewerRerun(_RecordingViewer):
-    """Name matches the Rerun viewer, which copies the batch on the CPU."""
+class _ViewerViser(_RecordingViewer):
+    """Name matches the Viser viewer, which copies the batch on the CPU."""
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -158,9 +158,9 @@ def test_log_lidar_hits_allocates_gl_points_on_the_viewer_device(device: str) ->
     np.testing.assert_allclose(colors.numpy(), [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
 
 
-def test_log_lidar_hits_keeps_rerun_points_on_the_cpu() -> None:
-    """A Rerun viewer receives a CPU cloud and the shared color tuple."""
-    viewer = _ViewerRerun("cuda:0")
+def test_log_lidar_hits_keeps_viser_points_on_the_cpu() -> None:
+    """A Viser viewer receives a CPU cloud and the shared color tuple."""
+    viewer = _ViewerViser("cuda:0")
     points = np.array([[1.0, 2.0, 3.0]], dtype=np.float32)
     log_lidar_hits(viewer, [("range_image", points)])
     _, cloud, _, colors = viewer.batches[0]

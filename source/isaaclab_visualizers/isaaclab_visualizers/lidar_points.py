@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits shared by every visualizer."""
+"""World-frame lidar hits shared by the Newton GL, Viser, and Kit visualizers."""
 
 from __future__ import annotations
 
@@ -229,30 +229,28 @@ def collect_lidar_hits(
 def log_lidar_hits(viewer, hits: list[tuple[str, np.ndarray]], radius: float = LIDAR_POINT_RADIUS) -> None:
     """Log collected hits through a viewer ``log_points`` method.
 
-    An empty cloud is logged as an empty batch for Rerun. ``None`` clears the Rerun entity, which
-    drops the static point cloud. Newton GL and Viser hide the previous batch when ``points`` is None.
-    Newton GL's point kernel runs on the viewer device, so that batch and its per-point colors are
-    allocated there. Rerun and Viser receive a CPU batch and the shared color tuple.
+    An empty cloud is logged as ``None``, which hides the previous batch. Newton GL's point kernel
+    runs on the viewer device, so that batch and its per-point colors are allocated there. Viser
+    receives a CPU batch and the shared color tuple.
 
     Args:
-        viewer: Newton, Viser, or Rerun viewer.
+        viewer: Newton or Viser viewer.
         hits: Sensor names and world-frame clouds from :func:`collect_lidar_hits`.
         radius: Sphere radius in meters.
     """
     import warp as wp
 
-    rerun = "Rerun" in type(viewer).__name__
     # ``NewtonViewerGL`` subclasses ``ViewerGL``. Both launch ``update_vbo_transforms_from_points``
     # on ``viewer.device`` and upload colors with ``colors.numpy()``.
     gl = type(viewer).__name__.endswith("GL")
     device = viewer.device if gl else "cpu"
     for name, points in hits:
-        if len(points) == 0 and not rerun:
+        if len(points) == 0:
             cloud = None
             colors = LIDAR_POINT_COLOR
         else:
             cloud = wp.array(points, dtype=wp.vec3, device=device)
-            if gl and len(points) > 0:
+            if gl:
                 colors = wp.full(len(points), wp.vec3(*LIDAR_POINT_COLOR), dtype=wp.vec3, device=device)
             else:
                 colors = LIDAR_POINT_COLOR
