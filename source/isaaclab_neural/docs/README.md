@@ -31,7 +31,8 @@ model with `WorldModelCfg(model=..., reset_manifest=...)` and `WorldModelRendere
 * **Joints and limits** come from the spawned USD asset (a URDF spawner converts to USD): the movable joints in
   traversal order, or in the order of `ArticulationCfg.joint_ordering`, which must match the reset records. Joint
   limits are read from the USD, and `soft_joint_pos_limit_factor` applies as usual.
-* **Observations and actions**: `joint_pos` terms read the joint state and `JointPositionAction` writes the target.
+* **Observations and actions**: the articulation shares the manager's joint-state and target tensors on the simulation
+  device, so `joint_pos` terms read the state and `JointPositionAction` writes the target without per-step host copies.
   Velocity and effort targets, poses, forces and physical properties raise `NotImplementedError`.
 * **Resets**: `Articulation.reset` only clears the command buffers, as for a physics backend. The reset event
   `reset_from_records` samples a reset record (`image`, `state`, `prompt`, `split` in the JSON manifest), resets the
@@ -72,6 +73,9 @@ Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`:
 | `close()` | Release resources. |
 
 Construction is cheap; load the weights on the first `reset()`.
+
+Joint targets accumulate on the simulation device. At a chunk boundary the manager converts the targets and starting
+joint state to NumPy for `WorldModel.step`; the model's existing NumPy input/output and reset interface are unchanged.
 
 ## Tests
 

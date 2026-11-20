@@ -11,6 +11,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 import warp as wp
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -36,6 +37,9 @@ class WorldModelManager(PhysicsManager):
     never outputs joint state. The model runs once per chunk: every :meth:`step` buffers one joint target per
     environment, and the step that completes a chunk predicts all of the chunk's frames at once. Environments can
     therefore only reset between chunks.
+
+    The articulation shares the joint state and target tensors on the simulation device. Joint targets are buffered
+    there too, and are transferred to the existing NumPy model interface only when a chunk is complete.
     """
 
     backend_name = "neural"
@@ -47,9 +51,9 @@ class WorldModelManager(PhysicsManager):
         self.spec: WorldModelSpec | None = None
         self.num_envs = 0
         self.num_joints = 0
-        self.joint_state: np.ndarray
+        self.joint_state: torch.Tensor
         """Joint positions [m or rad, depending on joint type], shape ``(N, J)``."""
-        self.joint_target: np.ndarray
+        self.joint_target: torch.Tensor
         """Joint position targets applied by the next :meth:`step`, shape ``(N, J)``."""
         self.frame_history: np.ndarray
         """RGB frames of the last completed chunk, shape ``(N, T, H, W, 3)``. After a reset, every frame is the start
@@ -63,8 +67,8 @@ class WorldModelManager(PhysicsManager):
         self._rng = np.random.default_rng(cfg.seed)
         self._cursor = 0
         self._draws = 0
-        self._targets: np.ndarray
-        self._chunk_start: np.ndarray
+        self._targets: torch.Tensor
+        self._chunk_start: torch.Tensor
         self._steps_in_chunk = 0
         self._scene_data: SceneDataBackend
 
@@ -75,12 +79,14 @@ class WorldModelManager(PhysicsManager):
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
             raise ValueError(f"sim.dt must equal 1 / fps = {1.0 / self.spec.fps} s, got {self._sim.cfg.dt}")
         self.num_envs, self.num_joints = num_envs, num_joints
-        self.joint_state = np.zeros((num_envs, num_joints), np.float32)
-        self.joint_target = np.zeros((num_envs, num_joints), np.float32)
+        self.joint_state = torch.zeros((num_envs, num_joints), dtype=torch.float32, device=self._device)
+        self.joint_target = torch.zeros_like(self.joint_state)
         self.frame_history = np.zeros((num_envs, self.spec.chunk_length, *self.spec.image_size, 3), np.uint8)
         self.frame_serial = np.zeros(num_envs, np.int64)
-        self._targets = np.zeros((num_envs, self.spec.chunk_length, num_joints), np.float32)
-        self._chunk_start = self.joint_state.copy()
+        self._targets = torch.zeros(
+            (num_envs, self.spec.chunk_length, num_joints), dtype=torch.float32, device=self._device
+        )
+        self._chunk_start = torch.zeros_like(self.joint_state)
 
     def initialize(self, sim_context) -> None:
         super().initialize(sim_context)
@@ -110,24 +116,29 @@ class WorldModelManager(PhysicsManager):
         frames = self.model.reset(env_ids, [r.image for r in records], [r.prompt for r in records], seeds)
         self.frame_history[env_ids] = frames[:, None]
         self.frame_serial[env_ids] += 1
-        self.joint_state[env_ids] = np.stack([r.joint_state for r in records])
-        self.joint_target[env_ids] = self.joint_state[env_ids]
+        ids = torch.as_tensor(env_ids, dtype=torch.long, device=self._device)
+        state = torch.as_tensor(np.stack([r.joint_state for r in records]), device=self._device)
+        self.joint_state[ids] = state
+        self.joint_target[ids] = state
         self.new_frames = False
 
-    def set_joint_target(self, target: np.ndarray) -> None:
+    def set_joint_target(self, target: np.ndarray | torch.Tensor) -> None:
         """Set the joint position targets, shape ``(N, J)``, that the next :meth:`step` applies."""
-        self.joint_target = target.astype(np.float32)
+        self.joint_target.copy_(torch.as_tensor(target, dtype=self.joint_target.dtype, device=self._device))
 
     def step(self) -> None:
         """Advance one frame; on the last frame of a chunk, predict the chunk with the model."""
         if not self._steps_in_chunk:
-            self._chunk_start = self.joint_state.copy()
+            self._chunk_start.copy_(self.joint_state)
         self._targets[:, self._steps_in_chunk] = self.joint_target
-        self.joint_state = self.joint_target.copy()
+        self.joint_state.copy_(self.joint_target)
         self._steps_in_chunk += 1
         self.new_frames = self._steps_in_chunk == self.spec.chunk_length
         if self.new_frames:
-            self.frame_history = self.model.step(self._targets, self._chunk_start)
+            # Keep the existing NumPy model interface; transfer joint inputs only when a chunk is complete.
+            self.frame_history = self.model.step(
+                self._targets.detach().cpu().numpy(), self._chunk_start.detach().cpu().numpy()
+            )
             self.frame_serial += 1
             self._steps_in_chunk = 0
         self._sim_time += self.get_physics_dt()

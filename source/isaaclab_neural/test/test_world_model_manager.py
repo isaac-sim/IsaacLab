@@ -35,7 +35,7 @@ def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_targ
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)
         manager.reset_envs(np.arange(N))
-        start = manager.joint_state.copy()
+        start = manager.joint_state.clone()
         for k in range(T):
             step(manager, k + 1)
             assert manager.new_frames == (k == T - 1)

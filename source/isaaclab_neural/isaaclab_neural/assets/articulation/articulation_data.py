@@ -19,7 +19,8 @@ from .unsupported import raise_for_unsupported
 class ArticulationData(BaseArticulationData):
     """Joint position and its command, per environment.
 
-    The world model records joint positions only: velocities and accelerations raise.
+    Joint positions and targets wrap the manager's tensors without copying. The configured default pose stays
+    separate. The world model records joint positions only: velocities and accelerations raise.
     """
 
     __backend_name__ = "neural"
@@ -27,17 +28,19 @@ class ArticulationData(BaseArticulationData):
     def __init__(
         self,
         device: str,
-        num_instances: int,
         joint_names: list[str],
+        joint_pos: torch.Tensor,
+        joint_pos_target: torch.Tensor,
         default_joint_pos: torch.Tensor,
         joint_pos_limits: torch.Tensor,
         soft_joint_pos_limit_factor: float,
     ):
         super().__init__(None, device)
         self.joint_names = joint_names
+        num_instances = joint_pos.shape[0]
         shape = (num_instances, len(joint_names))
-        self._joint_pos = ProxyArray(wp.from_torch(default_joint_pos.clone(), dtype=wp.float32))
-        self._joint_pos_command = ProxyArray(wp.from_torch(default_joint_pos.clone(), dtype=wp.float32))
+        self._joint_pos = ProxyArray(wp.from_torch(joint_pos, dtype=wp.float32))
+        self._joint_pos_command = ProxyArray(wp.from_torch(joint_pos_target, dtype=wp.float32))
         self._default_joint_pos = ProxyArray(wp.from_torch(default_joint_pos, dtype=wp.float32))
         self._default_joint_vel = ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device))
         limits = joint_pos_limits.to(device).expand(num_instances, -1, -1).contiguous()
@@ -52,7 +55,7 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_pos_limits = ProxyArray(wp.from_torch(soft.contiguous(), dtype=wp.vec2f))
 
     def update(self, dt: float) -> None:
-        """No-op: :meth:`Articulation.update` copies the world model's joint state into the buffers."""
+        """No-op: the buffers share the manager's joint state and targets."""
 
     @property
     def joint_pos(self) -> ProxyArray:

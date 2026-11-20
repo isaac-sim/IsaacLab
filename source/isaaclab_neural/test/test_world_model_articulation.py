@@ -136,6 +136,16 @@ def test_the_reset_event_sets_the_recorded_joint_state(world):
     assert torch.allclose(joint_pos(env, SceneEntityCfg("robot")), torch.tensor([[0.1, 0.2]] * N))
     # Relative to the default pose of the articulation, as the observation term of a physics task computes it.
     assert torch.allclose(joint_pos_rel(env, SceneEntityCfg("robot")), torch.tensor([[0.1, -0.3]] * N))
+    sim, scene = world
+    robot = scene["robot"]
+    robot.write_joint_position_to_sim_index(position=torch.tensor([[0.7, 0.8]] * N))
+    robot.set_joint_position_target_index(target=torch.tensor([[0.9, 1.0]] * N))
+    reset_env = event_env(sim, scene)
+    reset_from_records(None, reset_env)(reset_env, torch.tensor([0]))
+    # A partial reset restores both shared buffers, keeps the other episode, and leaves the configured default alone.
+    torch.testing.assert_close(robot.data.joint_pos.torch, torch.tensor([[0.1, 0.2], [0.7, 0.8]]))
+    torch.testing.assert_close(robot.data.joint_pos_target.torch, torch.tensor([[0.1, 0.2], [0.9, 1.0]]))
+    torch.testing.assert_close(robot.data.default_joint_pos.torch, torch.tensor([[0.0, 0.5]] * N))
 
 
 def test_a_standard_action_term_drives_the_model(world):
@@ -144,10 +154,19 @@ def test_a_standard_action_term_drives_the_model(world):
     term = JointPositionAction(
         JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=False), env
     )
+    sim.backend_manager.set_joint_target(np.zeros((N, 2), dtype=np.float32))
+    torch.testing.assert_close(scene["robot"].data.joint_pos_target.torch, torch.zeros(N, 2))
     for k in range(T):
-        term.process_actions(torch.full((N, 2), 0.1 * (k + 1)))
+        target = torch.full((N, 2), 0.1 * (k + 1))
+        term.process_actions(target)
         term.apply_actions()
-        env_step(sim, scene)
+        # Actions reach the manager before write_data_to_sim, and observations see a step before scene.update.
+        torch.testing.assert_close(torch.as_tensor(sim.backend_manager.joint_target), target)
+        scene.write_data_to_sim()
+        sim.step(render=False)
+        torch.testing.assert_close(scene["robot"].data.joint_pos.torch, target)
+        scene.update(DT)
+        scene["camera"].data
     ((targets, start),) = FakeModel.steps
     assert np.allclose(targets[0, :, 0], [0.1, 0.2, 0.3, 0.4])
     assert np.allclose(start, [[0.1, 0.2]] * N)

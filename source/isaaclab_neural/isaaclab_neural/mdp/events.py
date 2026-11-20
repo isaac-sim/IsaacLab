@@ -62,8 +62,5 @@ class reset_from_records(ManagerTermBase):
         """
         manager: WorldModelManager = env.sim.backend_manager
         asset = env.scene[asset_cfg.name]
-        ids = torch.arange(env.num_envs, device=env.device)[env_ids]
+        ids = torch.arange(asset.num_instances, device=asset.device)[env_ids]
         manager.reset_envs(ids.cpu().numpy())
-        position = torch.from_numpy(manager.joint_state[ids.cpu().numpy()]).to(asset.device)
-        asset.write_joint_state_to_sim(position, torch.zeros_like(position), env_ids=ids)
-        asset.set_joint_position_target_index(target=position, env_ids=ids)
