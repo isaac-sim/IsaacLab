@@ -142,10 +142,10 @@ The H2 examples use N1.7. Download the checkpoint for either task and the shared
 
 .. code-block:: bash
 
-   uv run --no-sync hf download LiFanxing/pnp_apple --include "gen_data_SFT_l40s-2/checkpoint-30000/*" \
-       --local-dir .pretrained_checkpoints/rlinf/pnp_apple
-   uv run --no-sync hf download LiFanxing/pack_agx --include "pack_agx_mimicgen_sft_l40s-1/checkpoint-40000/*" \
-       --local-dir .pretrained_checkpoints/rlinf/pack_agx
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pick_Place_Apple \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pick_Place_Apple
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pack_AGX \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX
    uv run --no-sync hf download nvidia/Cosmos-Reason2-2B --local-dir .pretrained_checkpoints/rlinf/Cosmos-Reason2-2B
 
 Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the

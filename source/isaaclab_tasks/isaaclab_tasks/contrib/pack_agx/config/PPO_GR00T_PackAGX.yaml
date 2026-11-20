@@ -192,7 +192,7 @@ rollout:
     trust_remote_code: ${actor.model.trust_remote_code}
     is_lora: ${actor.model.is_lora}
     rl_head_config: ${actor.model.rl_head_config}
-    model_path: ".pretrained_checkpoints/rlinf/pack_agx/pack_agx_mimicgen_sft_l40s-1/checkpoint-40000"
+    model_path: ".pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX"
     backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
@@ -223,7 +223,7 @@ actor:
 
   model:
     model_type: "gr00t_n1d7"
-    model_path: ".pretrained_checkpoints/rlinf/pack_agx/pack_agx_mimicgen_sft_l40s-1/checkpoint-40000"
+    model_path: ".pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX"
     backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: "bf16"
     trust_remote_code: True
