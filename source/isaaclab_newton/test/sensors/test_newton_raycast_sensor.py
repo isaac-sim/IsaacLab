@@ -39,7 +39,8 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
+from isaaclab.utils.seed import configure_seed
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -224,6 +225,75 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     expected += translation
     torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
     torch.testing.assert_close(sensor.data.pos_w.torch, pose[:, :3])
+
+
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
+    """A replayed masked reset resamples the drift of the selected environments only."""
+    scene_cfg = RaycastTestSceneCfg(num_envs=3)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene_cfg.raycast.ray_cast_drift_range = {"z": (0.1, 0.2)}
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    sensor.reset()
+
+    # The masked reset records into a CUDA graph without allocating (the disabled memory pool makes an
+    # allocation raise), and every replay draws new drift for the masked environment only.
+    env_mask = wp.array([True, False, False], dtype=wp.bool, device=sensor.device)
+    with wp.ScopedMempool(sensor.device, False), wp.ScopedCapture(sensor.device) as capture:
+        sensor.reset(env_mask=env_mask)
+    for _ in range(2):
+        drift = sensor.drift.torch.clone()
+        ray_cast_drift = sensor.ray_cast_drift.torch.clone()
+        wp.capture_launch(capture.graph)
+        torch.testing.assert_close(sensor.drift.torch[1:], drift[1:])
+        torch.testing.assert_close(sensor.ray_cast_drift.torch[1:], ray_cast_drift[1:])
+        assert not torch.allclose(sensor.drift.torch[0], drift[0])
+        assert not torch.allclose(sensor.ray_cast_drift.torch[0, 2], ray_cast_drift[0, 2])
+    assert ((sensor.drift.torch >= 0.01) & (sensor.drift.torch <= 0.05)).all()
+    assert ((sensor.ray_cast_drift.torch[:, 2] >= 0.1) & (sensor.ray_cast_drift.torch[:, 2] <= 0.2)).all()
+
+
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_drift_follows_the_environment_seed(sim):
+    """An explicit seed, as ``env.reset(seed=...)`` sets, restarts the drift sequence; unseeded resets advance it.
+
+    Resets do not draw from torch's generator, and new storage, as after a simulation stop and play, starts the
+    drift sequence of the current seed again. Two ray casters on the same prim with the same drift ranges draw
+    different drift after every seed, and a ray caster built later with the same configuration, as in a second
+    environment instance, repeats the drift.
+    """
+    scene_cfg = RaycastTestSceneCfg(num_envs=2)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    twin_offset = NewtonRaycastSensorCfg.OffsetCfg(pos=(0.1, 0.0, -RAY_OFFSET))
+    scene_cfg.raycast_twin = replace(scene_cfg.raycast, offset=twin_offset)
+    scene_cfg.raycast_copy = scene_cfg.raycast.copy()
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    twin: NewtonRaycastSensor = scene["raycast_twin"]
+
+    configure_seed(123)
+    sensor.reset()
+    first = sensor.drift.torch.clone()
+    twin.reset()
+    assert not torch.allclose(twin.drift.torch, first)
+    scene["raycast_copy"].reset()
+    torch.testing.assert_close(scene["raycast_copy"].drift.torch, first)
+    sensor.reset()
+    assert not torch.allclose(sensor.drift.torch, first)
+    configure_seed(123)
+    state = torch.cuda.get_rng_state(sensor.device)
+    sensor.reset()
+    torch.testing.assert_close(sensor.drift.torch, first)
+    twin.reset()
+    assert not torch.allclose(twin.drift.torch, first)
+    sensor._initialize_rays_impl()
+    sensor.reset()
+    torch.testing.assert_close(sensor.drift.torch, first)
+    assert ((first >= 0.01) & (first <= 0.05)).all()
+    assert torch.equal(torch.cuda.get_rng_state(sensor.device), state)
 
 
 @configclass
