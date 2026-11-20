@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -53,3 +54,9 @@ def get_stack_reset_runtime_state(env: ManagerBasedRLEnv) -> StackResetRuntimeSt
     if state is None:
         raise AttributeError("Stack reset runtime state is unavailable before the reset-table event is initialized.")
     return state
+
+
+def torch_warp_stream(device: str) -> wp.ScopedStream:
+    """Order the reset terms' Warp kernels with their Torch inputs and consumers."""
+    stream = wp.stream_from_torch(torch.cuda.current_stream(device)) if torch.device(device).type == "cuda" else None
+    return wp.ScopedStream(stream, sync_enter=False)
