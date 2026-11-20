@@ -189,15 +189,30 @@ class NewtonManager(PhysicsManager):
         if self.backend.device.is_capturing:
             self.backend.transforms_may_change_on_graph_replay = True
 
+    def supports_step_capture(self) -> bool:
+        """Whether the step can be captured: :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph` is on and
+        the solver supports capture."""
+        return self.backend is not None and self.backend.capture is not None
+
+    def capture(self, fn: Callable[[], None]) -> Any:
+        """Record ``fn`` as the physics step is captured: relaxed, on a stream of its own, while Kit renders."""
+        if not self.supports_step_capture():
+            return super().capture(fn)
+        return self.backend.capture(fn)
+
     def step(self) -> None:
         """Advance physics by one environment step, or one physics step when the environment runs decimation."""
         sim = self._sim
         if sim is None or not sim.is_playing():
             return
+        self.backend.step()
+        self.after_replay(1)
+
+    def after_replay(self, num_steps: int) -> None:
+        """Advance the simulation time by the steps, and publish that the bodies moved."""
         backend = self.backend
         physics_steps = backend.decimation if backend.handles_decimation() else 1
-        backend.step()
-        self._sim_time += backend.dt * physics_steps
+        self._sim_time += backend.dt * physics_steps * num_steps
         self._mark_transforms_changed()
 
     def close(self) -> None:

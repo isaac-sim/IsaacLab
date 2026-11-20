@@ -23,7 +23,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -261,9 +261,21 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
         env.close()
 
 
-def delayed_cart(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+def delayed_cart(cfg: MDP2RLEnvCfg, tmp_path: Path | None = None) -> None:
     cfg.scene.robot.actuators["cart"] = DelayedPDActuatorCfg(
         joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0, max_delay=2
+    )
+
+
+def remotized_cart(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+    """A remotized actuator, which runs as an Isaac Lab model without Newton's own actuators."""
+    cfg.sim.use_newton_actuators = False
+    cfg.scene.robot.actuators["cart"] = RemotizedPDActuatorCfg(
+        joint_names_expr=["slider_to_cart"],
+        joint_parameter_lookup=[[-2.0, 1.0, 400.0], [2.0, 1.0, 400.0]],
+        joint_effort_limit=400.0,
+        stiffness=0.0,
+        damping=10.0,
     )
 
 
@@ -298,14 +310,14 @@ def ball_joint_tip(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        (delayed_cart, r"'robot' has the actuator groups \['cart'\]"),
+        (remotized_cart, r"'robot' has the actuator groups \['cart'\]"),
         (reordered_bodies, r"'robot' sets a joint or body ordering"),
     ],
     ids=("actuator-with-state", "body-ordering"),
 )
 def test_env_rejects_assets_it_cannot_reset_or_write_in_place(change, message, tmp_path):
-    """Captured steps replay the actuators' resets, so delayed actuators, which draw their delays from Torch on reset,
-    are refused; and so are body orderings, whose poses are copies that the asset refreshes outside the graphs."""
+    """Captured steps replay the actuators, so actuators that are not capturable are refused; and so are body
+    orderings, whose poses are copies that the asset refreshes outside the graphs."""
     cfg = cartpole_cfg()
     change(cfg, tmp_path)
     with pytest.raises(ValueError, match=message):
@@ -551,14 +563,15 @@ def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
     """A sequence of two tasks, each with its own quantity and reward, steps the same captured and uncaptured, and
     the environment logs how often each task was done in the last episodes."""
 
-    def stage(steps: int) -> mdp2.TaskCfg:
+    def stage(steps: int, weight: float) -> mdp2.TaskCfg:
         ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
-        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})
+        # The weights differ, so that the bonus is a use of each task rather than one of both.
+        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}, weight=weight)
         return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
 
     cfg = cartpole_cfg()
     cfg.task.terminations["cart_out_of_bounds"] = None
-    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3), hold=stage(6)))
+    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3, 1.0), hold=stage(6, 2.0)))
     cfg.verify_capture = 10
     env = MDP2RLEnv(cfg)
     try:
@@ -570,7 +583,7 @@ def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
         # The bonus of each task, per second of the episode: warm ran 3 steps, hold the others.
         steps = env.max_episode_length
         assert log["Episode_Reward/warm.bonus"].item() == pytest.approx(3 / steps)
-        assert log["Episode_Reward/hold.bonus"].item() == pytest.approx((steps - 3) / steps)
+        assert log["Episode_Reward/hold.bonus"].item() == pytest.approx(2 * (steps - 3) / steps)
     finally:
         env.close()
 
@@ -845,5 +858,56 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
         env.step(actions)
         assert env.is_captured and env.num_graphs == 1 and "Episode_Reward/upright" in extras["log"]
         assert (lifetime == 5.0).all()
+    finally:
+        env.close()
+
+
+def test_delayed_actuators_run_in_captured_steps():
+    """Delayed actuators, which Newton runs natively, replay in the step's graph."""
+    cfg = cartpole_cfg()
+    delayed_cart(cfg)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(3):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.is_captured and env.num_graphs == 1
+    finally:
+        env.close()
+
+
+def test_physics_that_cannot_capture_its_step_steps_between_the_graphs(monkeypatch):
+    """A physics backend that cannot capture its step steps eagerly, between the graphs of the MDP, which the backend
+    still records with its own capture."""
+    cfg = cartpole_cfg()
+    env = MDP2RLEnv(cfg)
+    try:
+        manager = env.sim.backend_manager
+        captures = []
+        capture = manager.capture
+        monkeypatch.setattr(manager, "supports_step_capture", lambda: False)
+        monkeypatch.setattr(manager, "capture", lambda fn: captures.append(fn) or capture(fn))
+        env._work = env._step_work()
+        env.reset()
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        for _ in range(3):
+            env.step(actions)
+        # The physics steps eagerly, and the rest of the step replays as one graph after it.
+        assert env.is_captured and env.num_graphs == 1 and len(captures) == 1
+    finally:
+        env.close()
+
+
+def test_replayed_steps_do_the_host_work_of_their_physics_steps():
+    """Replayed steps count their physics steps and advance the simulation time, as stepping eagerly does."""
+    env = MDP2RLEnv(cartpole_cfg())
+    try:
+        env.reset()
+        steps, time = env.sim.get_physics_step_count(), env.sim.backend_manager.get_simulation_time()
+        for _ in range(5):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.is_captured
+        assert env.sim.get_physics_step_count() - steps == 5 * env.cfg.decimation
+        assert env.sim.backend_manager.get_simulation_time() - time == pytest.approx(5 * env.step_dt)
     finally:
         env.close()

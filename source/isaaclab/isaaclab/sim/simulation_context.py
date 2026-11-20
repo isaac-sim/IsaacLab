@@ -605,6 +605,29 @@ class SimulationContext:
         if render and self.is_rendering:
             self.render()
 
+    def after_replay(self, num_steps: int) -> None:
+        """Do the host work of :meth:`step` for steps whose device work a CUDA graph replayed.
+
+        A replayed graph runs the physics steps it recorded, but not their host work: this blocks while the timeline
+        or a visualizer is paused, counts the steps, and lets the physics backend account for them, such as its
+        simulation time.
+
+        Args:
+            num_steps: Calls of :meth:`step` that the graph recorded.
+        """
+        self.backend_manager.wait_for_playing()
+        visualizers_to_remove = []
+        for viz in self._visualizers:
+            try:
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0)
+            except Exception as exc:
+                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
+                visualizers_to_remove.append(viz)
+        self._remove_visualizers(visualizers_to_remove)
+        self._physics_step_count += num_steps
+        self.backend_manager.after_replay(num_steps)
+
     def render(self, mode: int | None = None, skip_app_pumping: bool = False) -> None:
         """Update visualizers and render the scene.
 

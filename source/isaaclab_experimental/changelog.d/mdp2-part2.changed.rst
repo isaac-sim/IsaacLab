@@ -17,3 +17,6 @@
 * Changed the actuators that MDP2 environments accept: any capturable Isaac Lab actuator
   (:attr:`~isaaclab.actuators.ActuatorBase.capturable`) or graphable backend-native actuator, such as the delayed
   actuators that Newton runs, instead of a fixed list of actuator types.
+* Changed :class:`~isaaclab_experimental.envs.MDP2Env` to capture its steps through the physics backend
+  (:meth:`~isaaclab.physics.PhysicsManager.capture`) instead of a Newton function: a backend that cannot capture its
+  step steps between the MDP's graphs. Replayed steps now count their physics steps and advance the simulation time.

@@ -19,7 +19,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.physics.newton_backend import capture_graph
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
@@ -250,12 +249,17 @@ class MDP2Env:
             raise ValueError(f"Expected actions of shape {tuple(self.actions.torch.shape)}, got {tuple(action.shape)}.")
         self.actions.torch.copy_(action)
 
+        captured = False
         if self._runs is None and self._capturable and self._stepped:
-            # The first step loaded every kernel module, so the capture records launches only.
-            self._runs = self._capture_step()
+            # The first step loaded every kernel module, so the capture records launches only. Capturing did the host
+            # work of the physics steps of this step.
+            self._runs, captured = self._capture_step(), True
         if self._runs is not None:
             for run in self._runs:
                 run()
+            # The graphs replayed the physics steps, but not their host work, such as counting them.
+            if not captured and self.sim.backend_manager.supports_step_capture():
+                self.sim.after_replay(self.cfg.decimation // self._substeps)
         else:
             for _, work in self._work:
                 work()
@@ -278,7 +282,8 @@ class MDP2Env:
         work = []
         for item in self.cfg.step:
             if item is Step.PHYSICS:
-                work.append((True, self._simulate))
+                # A physics backend that cannot capture its step steps between the graphs of the MDP.
+                work.append((self.sim.backend_manager.supports_step_capture(), self._simulate))
             elif item is Step.RENDER:
                 work += [(self._render_capturable, self._render)] if self._cameras else []
             elif item is Step.EVALUATE:
@@ -340,12 +345,13 @@ class MDP2Env:
                 continue
 
             def run_all(steps: list[Callable[[], None]] = steps) -> None:
-                for step in steps:
-                    step()
+                # Torch launches, of either backend, join the Warp capture, on the stream the physics captures on.
+                with torch_in_warp_capture(self.device, self._pool):
+                    for step in steps:
+                        step()
 
-            # Torch launches, of either backend, join the Warp capture.
-            with torch_in_warp_capture(self.device, self._pool):
-                graph = capture_graph(self.device, run_all)
+            # The physics backend records the graph as it records its own step, such as on a stream of its own.
+            graph = self.sim.backend_manager.capture(run_all)
             runs.append(functools.partial(wp.capture_launch, graph))
             self.num_graphs += 1
 
