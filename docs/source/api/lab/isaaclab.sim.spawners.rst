@@ -380,7 +380,7 @@ Physical Materials
 .. deprecated:: 3.0.0
 
     ``RigidBodyMaterialCfg`` is an alias for
-    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
     Use the PhysX configuration directly.
 
 .. autoclass:: DeformableMaterialFragment
@@ -413,7 +413,7 @@ Physical Materials
 .. note::
 
     Backend-specific deformable material cfgs live in
-    :mod:`isaaclab_physx.sim.spawners.materials` and
+    :mod:`isaaclab_isaacsim.sim.spawners.materials` and
     :mod:`isaaclab_newton.sim.spawners.materials`. The legacy default names below
     are forwarded to the deprecated PhysX aliases for compatibility.
 
@@ -440,6 +440,7 @@ Wrappers
 
     MultiAssetSpawnerCfg
     MultiUsdFileCfg
+    SimReadyUsdFileCfg
 
 .. autofunction:: spawn_multi_asset
 
@@ -450,5 +451,9 @@ Wrappers
 .. autofunction:: spawn_multi_usd_file
 
 .. autoclass:: MultiUsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: SimReadyUsdFileCfg
     :members:
     :exclude-members: __init__, func

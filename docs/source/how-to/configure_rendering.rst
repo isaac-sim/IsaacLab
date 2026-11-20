@@ -138,11 +138,11 @@ Overriding Specific Rendering Settings
 --------------------------------------
 
 RTX rendering settings can be overridden via
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
 There are 2 ways to provide settings that override the defaults.
 
-1. :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+1. :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`
    supports overriding specific settings via user-friendly setting names that
    map to underlying RTX settings.
    For example:
@@ -205,7 +205,7 @@ There are 2 ways to provide settings that override the defaults.
 
 
 2. For more control,
-   :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`
    allows you to override any RTX setting by using the ``carb_settings``
    argument.
 
@@ -233,10 +233,10 @@ For performance reasons, we default to using DLSS for denoising, which generally
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
 For renders at lower resolutions, we advise setting the ``antialiasing_mode`` attribute in
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
 
 If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try

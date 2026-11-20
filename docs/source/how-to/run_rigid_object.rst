@@ -106,8 +106,8 @@ is defined in the **simulation world frame**, and not of their parent Xform prim
 engine only understands the world frame and not the parent Xform prim's frame. Thus, we need to transform
 desired state of the rigid object prim into the world frame before setting it.
 
-We use the :attr:`~isaaclab_physx.assets.RigidObjectData.default_root_pose` and
-:attr:`~isaaclab_physx.assets.RigidObjectData.default_root_vel` attributes of the rigid object's data
+We use the :attr:`~isaaclab_isaacsim.assets.RigidObjectData.default_root_pose` and
+:attr:`~isaaclab_isaacsim.assets.RigidObjectData.default_root_vel` attributes of the rigid object's data
 (``RigidObject.data``) to get the default root state of the spawned rigid object prims. This default state
 can be configured from the :attr:`assets.RigidObjectCfg.init_state` attribute, which we left as identity in this
 tutorial. We then randomize the translation of the root state and

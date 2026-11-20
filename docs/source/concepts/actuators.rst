@@ -52,6 +52,11 @@ simplest model that meets your requirements.
       - Solver runs the PD law from the written gains.
       - ``joint_effort_limit`` clips in the solver.
       - --
+    * - :class:`~isaaclab.actuators.DelayedImplicitActuator`
+        (:class:`~isaaclab.actuators.DelayedImplicitActuatorCfg`)
+      - Solver runs PD on delayed position, velocity, and effort targets.
+      - ``joint_effort_limit`` clips in the solver.
+      - ``min_delay``, ``max_delay``
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
       - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
@@ -86,6 +91,10 @@ simplest model that meets your requirements.
 
 **ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
 estimates effort telemetry from the current state when the backend does not expose it.
+
+**DelayedImplicitActuator.** Delays position, velocity, and feed-forward effort targets before
+passing them to the solver. Gains and joint-state feedback remain current. Delay is sampled per
+environment from ``[min_delay, max_delay]`` at reset, as with ``DelayedPDActuator``.
 
 **IdealPDActuator.** An explicit PD controller with feed-forward effort and a symmetric model-side
 torque limit at :math:`\pm\,\tau_{max}`.
@@ -495,14 +504,50 @@ requests a solver constraint. Enforcement depends on the backend; see
     :alt: Torque-speed envelope for a velocity-limit sweep.
 
 
+.. _actuators-command-delay:
+
 Command delay
 ^^^^^^^^^^^^^
 
-A :class:`~isaaclab.actuators.DelayedPDActuator` delays every command by a fixed number of physics
+On the Isaac Lab execution path, both :class:`~isaaclab.actuators.DelayedImplicitActuator` and
+:class:`~isaaclab.actuators.DelayedPDActuator` delay every command by a fixed number of physics
 steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
 :math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
 position command. Longer delays make the pendulum trail the reference. Randomizing delay between
 resets can model transport delay during sim-to-real training.
+
+For implicit PD control, configure the delay directly on the actuator group:
+
+.. code-block:: python
+
+    from isaaclab.actuators import DelayedImplicitActuatorCfg
+
+    actuator_cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness=40.0,
+        damping=5.0,
+        min_delay=2,
+        max_delay=4,
+    )
+
+The bounds must satisfy ``0 <= min_delay <= max_delay``. Delays count physics steps, including
+steps within policy decimation. Each environment samples one delay shared by all joints and all
+three command channels in the group and holds it until reset. Reset clears history only for the
+selected environments. Until enough history exists,
+the oldest command since reset is used; ``min_delay=max_delay=0`` passes commands through.
+
+Delayed implicit actuators run through Lab command processing on PhysX, OVPhysX, and Newton,
+including when ``SimulationCfg.use_newton_actuators`` is ``True``. Their solver-side PD gains remain
+active; only the position, velocity, and feed-forward effort commands are delayed. Requested commands
+remain available in ``actuators.target_command``; ``actuators.output_command`` contains the delayed
+commands submitted to the backend. Its effort channel is feed-forward effort, separate from the
+approximate PD torque reported in ``computed_effort`` and ``applied_effort``.
+
+When combining delayed implicit and explicit actuator groups in the same articulation, set
+``SimulationCfg(use_newton_actuators=False)``. Native explicit actuator execution bypasses that
+articulation's Lab command processing and this combination raises an error. Separate articulations
+may mix delayed implicit and native explicit actuators; Newton then keeps command updates in the
+environment's physics loop so delays still count physics steps.
 
 .. figure:: ../_static/actuators/delay-clip.webp
     :align: center
@@ -564,7 +609,8 @@ collection. Each group then follows one of three execution paths:
 For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
 velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
 submitted-command telemetry for them. PhysX and OVPhysX process commands during
-``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
+``write_data_to_sim()``, while Newton-native controllers process them inside the physics step,
+before the solver advances. See
 :ref:`actuators-native` for supported native models and limitations.
 
 .. figure:: ../_static/actuators/pipeline-light.png
@@ -587,8 +633,9 @@ Implicit and explicit groups store gains differently:
 
 * For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
-  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
-  approximate torque for telemetry.
+  runs the PD law. Plain :class:`~isaaclab.actuators.ImplicitActuator` passes the desired targets
+  through unchanged, while :class:`~isaaclab.actuators.DelayedImplicitActuator` delays them first.
+  Both record an approximate torque for telemetry.
 * For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
   solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
   ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
@@ -651,7 +698,8 @@ Native actuators
 ----------------
 
 By default, Isaac Lab uses the native path for supported explicit actuator models. Each explicit
-model runs either inside the solver or through a shared host adapter. To restore the deprecated
+model runs either inside the physics step before the solver or through a shared host adapter.
+To restore the deprecated
 Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``False``:
 
 .. code-block:: python
@@ -661,12 +709,14 @@ Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actu
     sim_cfg = SimulationCfg(use_newton_actuators=False)
 
 With the default native path enabled, each supported explicit actuator config becomes a
-``NewtonActuator`` USD prim. Newton executes it in the solver. PhysX and OVPhysX execute the same
+``NewtonActuator`` USD prim. Newton executes it before the solver advances. PhysX and OVPhysX execute the same
 model through the shared host adapter during
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-On Newton, native actuators run in the CUDA-graph-captured region. Implicit actuators are unchanged:
-the solver still applies their PD gains. On CUDA, the host adapter captures actuator staging, model
+When CUDA graph capture is enabled, Newton runs supported native actuators in the captured region.
+Implicit groups keep solver-owned PD gains. :class:`~isaaclab.actuators.DelayedImplicitActuator` remains Lab-managed;
+its command delay is applied before the solver drive, as described in :ref:`actuators-command-delay`.
+On CUDA, the host adapter captures actuator staging, model
 execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
 native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
@@ -729,9 +779,11 @@ joints.
 
 .. note::
 
-    Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
-    is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
-    resets as it does on the Isaac Lab path.
+    Native :class:`~isaaclab.actuators.DelayedPDActuator` and
+    :class:`~isaaclab.actuators.RemotizedPDActuator` use a fixed delay from ``max_delay``;
+    ``min_delay`` is ignored. They do not randomize delay between resets as they do on the Isaac Lab path.
+    :class:`~isaaclab.actuators.DelayedImplicitActuator` always uses Lab command processing and
+    retains its per-environment reset sampling even when native execution is enabled for other groups.
     :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its drive owns its own
     delay, honors both bounds and resamples one lag per environment, shared by the group's joints.
 
@@ -952,17 +1004,23 @@ Submission differs by backend, but the collection interface is the same:
     * - PhysX
       - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
         through the PhysX Tensor API. The shared host adapter processes native commands during
-        ``write_data_to_sim()`` and submits raw position and velocity targets plus raw effort.
+        ``write_data_to_sim()`` and submits raw position and velocity targets plus the adapter's
+        effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. A fused reorder gather runs first when a non-identity
         joint ordering is active.
     * - OVPhysX
-      - The native path uses the shared host adapter during ``write_data_to_sim()``. It writes raw
-        position and velocity targets plus raw effort through ``set_attribute`` tensor bindings.
+      - The Isaac Lab-managed path submits processed position, velocity, and effort buffers,
+        including delayed implicit commands, through ``set_attribute`` tensor bindings. The native
+        path uses the shared host adapter during ``write_data_to_sim()`` and submits raw position
+        and velocity targets plus the adapter's effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. Raw setter writes are mirrored into the binding
-        immediately. A fused reorder gather runs first when joint ordering is non-identity.
+        immediately. On the Lab-managed path, ``write_data_to_sim()`` publishes the processed
+        commands before stepping.
+        A fused reorder gather runs first when joint ordering is non-identity.
     * - Newton / MJWarp
-      - Newton writes targets to solver-bound control arrays. Effort is feed-forward, and native
-        actuators also use ``joint_act``. The built-in drive applies PD to implicit joints.
+      - Lab-managed groups submit processed targets to solver-bound control arrays. Native
+        actuators read raw position and velocity targets, take feed-forward effort from ``joint_act``,
+        and compute effort before the solver advances. The built-in drive applies PD to implicit joints.
 
 For explicit actuators, solver stiffness and damping are zero on every backend because the actuator
 model owns the gains.

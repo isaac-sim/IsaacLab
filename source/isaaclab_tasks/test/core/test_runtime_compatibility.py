@@ -14,13 +14,13 @@ concrete renderer configurations. No Kit/GPU required.
 import argparse
 from collections import namedtuple
 
-import isaaclab_physx.app as physx_app
+import isaaclab_isaacsim.app as physx_app
 import pytest
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from isaaclab.app import SimulationLauncher, launch_simulation, validate_launch

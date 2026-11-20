@@ -8,6 +8,8 @@
 from pathlib import Path
 
 import pytest
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import (
     KaminoDVISolverCfg,
     KaminoPADMMSolverCfg,
@@ -16,8 +18,6 @@ from isaaclab_newton.physics import (
     NewtonCfg,
 )
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.renderers import RendererCfg
