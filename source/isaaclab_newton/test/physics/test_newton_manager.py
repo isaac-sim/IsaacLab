@@ -673,6 +673,31 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
     assert not world_mask.numpy().any() and not fk_mask.numpy().any()
 
 
+def test_scene_data_publishes_body_variants_and_stamps_rebuilds_and_selection_changes():
+    """Published variants follow the live model; the timestamp advances on rebuilds, shape changes and raw replays."""
+    manager = NewtonManager(NewtonCfg())
+    selection = wp.array([-1, 0, 1], dtype=wp.int32, device="cpu")
+    manager.backend = backend_stub(
+        model=SimpleNamespace(_has_body_variants=False, body_variant=selection),
+        geometry_change_version=0,
+        transforms_may_change_on_graph_replay=False,
+    )
+    scene_data = NewtonSceneDataBackend(manager)
+
+    assert scene_data.variants_timestamp == 0
+    assert scene_data.transform_variants is None
+    assert scene_data.transform_variants is None and scene_data.variants_timestamp == 1
+    manager.backend.geometry_change_version += 1
+    assert scene_data.transform_variants is None and scene_data.variants_timestamp == 2
+    manager.backend.model = SimpleNamespace(_has_body_variants=True, body_variant=selection)
+    assert scene_data.transform_variants is selection and scene_data.variants_timestamp == 3
+    assert scene_data.transform_variants is selection and scene_data.variants_timestamp == 3
+    manager.backend.transforms_may_change_on_graph_replay = True
+    assert scene_data.transform_variants is selection and scene_data.variants_timestamp == 4
+    manager.backend = None
+    assert scene_data.transform_variants is None and scene_data.variants_timestamp == 4
+
+
 @pytest.mark.parametrize("articulation_mask", [None, [False, True]], ids=["all_articulations", "masked"])
 def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
     """Masks select worlds and view-local articulations; a consumed mask is cleared and a caller mask is kept."""

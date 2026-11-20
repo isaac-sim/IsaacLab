@@ -119,8 +119,9 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     newton_physics = isinstance(cfg, NewtonCfg)
-    asset_prototypes = mesh_variant_groups(plan)
-    variant_groups = [rows for rows in asset_prototypes.values() if any(row in asset_prototype_ids for row in rows)]
+    variant_groups = [
+        rows for rows in mesh_variant_groups(plan).values() if any(row in asset_prototype_ids for row in rows)
+    ]
     for rows in variant_groups:
         for row in rows:
             sources[row] = plan.asset_cfgs[row].spawn.spawn_path

@@ -544,10 +544,6 @@ class OVRTXRenderer(BaseRenderer):
     def _setup_mesh_variants(self) -> None:
         """Map each mesh-variant body frame to its SDP transform row and its alternative prims."""
         variants = self.scene.mesh_variant_paths
-        self._variant_rows = None
-        self._variant_children = []
-        self._variant_selection = np.full(len(variants), -1, dtype=np.int32)
-        self._variants_timestamp = -1
         if not variants:
             return
         rows = {path: index for index, path in enumerate(self._sdp.backend.transform_paths)}
@@ -555,16 +551,19 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError(f"Mesh-variant body frames are not published as transforms: {missing[:3]}")
         self._variant_rows = np.fromiter((rows[path] for path in variants), dtype=np.int32, count=len(variants))
         self._variant_children = [tuple(children) for children in variants.values()]
+        # The freshly loaded stage shows no alternative yet.
+        self._variant_selection = np.full(len(variants), -1, dtype=np.int32)
+        self._variants_timestamp = -1
 
     def _update_mesh_variants(self) -> None:
         """Show the alternative each body frame selects, hiding the one shown before."""
         if self._variant_rows is None:
             return
         backend = self._sdp.backend
+        variants = backend.transform_variants
         timestamp = backend.variants_timestamp
         if self._variants_timestamp == timestamp:
             return
-        variants = backend.transform_variants
         if variants is None:
             selected = np.full(len(self._variant_children), -1, dtype=np.int32)
         else:
@@ -573,7 +572,7 @@ class OVRTXRenderer(BaseRenderer):
         for row in np.flatnonzero(selected != self._variant_selection):
             children = self._variant_children[row]
             for variant, token in ((self._variant_selection[row], "invisible"), (selected[row], "inherited")):
-                if 0 <= variant < len(children):
+                if variant >= 0:
                     paths.append(children[variant])
                     tokens.append(token)
         if paths:

@@ -464,12 +464,11 @@ def export_stage_to_string(
                 prim = prim.nameParent
         xforms = UsdGeom.XformCache()
         for source, body in (variant_sources or {}).items():
-            # A copy's body lands on its frame when the source undoes the body's pose below the source root;
-            # the body's scale is kept because the frame receives a rigid pose.
+            # The source undoes its body's pose so a copy's body lands on its frame; only the body's scale is
+            # kept, because the frame receives a rigid pose.
             source_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(source))
             body_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(body))
-            relative = body_world * source_world.GetInverse()
-            local = relative.GetInverse() * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
+            local = source_world * body_world.GetInverse() * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
             spec = Sdf.CreatePrimInLayer(layer, source)
             for name, type_name, value in (
                 ("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, local),

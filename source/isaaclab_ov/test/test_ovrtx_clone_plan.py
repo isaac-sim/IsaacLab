@@ -639,7 +639,7 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
         )
 
 
-def _mesh_variant_stage_and_plan(num_envs: int):
+def _mesh_variant_stage_and_plan(num_envs: int, worlds: tuple[tuple[int, ...], ...]):
     """Two alternatives as ReplicateSession plans them: sources under the prototype root, one rigid body each."""
     from pxr import UsdPhysics
 
@@ -668,12 +668,13 @@ def _mesh_variant_stage_and_plan(num_envs: int):
         for index in range(2)
     )
     positions = np.zeros((num_envs, 3), dtype=np.float32)
-    return stage, make_clone_plan(prototypes, ((0,), (1,)), num_envs, positions=positions)
+    return stage, make_clone_plan(prototypes, worlds, num_envs, positions=positions)
 
 
-def test_mesh_variants_clone_every_alternative_under_the_body_frame():
-    """Alternatives become hidden children of the published body frame; the frame itself carries no geometry."""
-    stage, plan = _mesh_variant_stage_and_plan(3)
+@pytest.mark.parametrize("worlds", [((0,), (1,)), ((0,),)], ids=["both-used", "variant-1-unused"])
+def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
+    """Alternatives become hidden children of the published body frame, including one no initial world uses."""
+    stage, plan = _mesh_variant_stage_and_plan(3, worlds)
     root = "/World/IsaacLabPrototypes"
     frames = [f"/World/envs/env_{env}/Object" for env in range(3)]
     renderer = _make_ovrtx_renderer_without_backend()
@@ -708,8 +709,10 @@ def test_mesh_variants_clone_every_alternative_under_the_body_frame():
     np.testing.assert_array_equal(renderer._variant_rows, [0, 1, 2])
 
 
-def test_mesh_variant_selection_toggles_visibility():
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
+def test_mesh_variant_selection_toggles_visibility(use_ovstage):
     """Visibility follows the published selection: show the new alternative and hide the previous one."""
+    import ovstage
     import warp as wp
     from ovrtx import Semantic
 
@@ -722,24 +725,46 @@ def test_mesh_variant_selection_toggles_visibility():
     backend.transform_paths = ["/World/envs/env_0/Robot", *frames]
     backend.variants_timestamp = 1
     backend.transform_variants = wp.array([-1, 0, 1], dtype=wp.int32, device="cpu")
-    writes = renderer.backend.renderer.write_attribute = Mock()
+    if use_ovstage:
+        tokens = {7: "invisible", 8: "inherited"}
+        renderer._use_ovstage = True
+        renderer.scene.ordinal = 3
+        renderer.scene.query = lambda paths: contextlib.nullcontext(list(paths))
+        renderer.scene.paths = SimpleNamespace(
+            intern_token=lambda token: SimpleNamespace(raw_id=next(i for i, t in tokens.items() if t == token))
+        )
+        writes = Mock()
+        renderer.scene.stage = SimpleNamespace(write_attribute=writes)
+
+        def written():
+            """Return every visibility write as (paths, tokens) after checking the ovstage call shape."""
+            assert writes.return_value.wait.call_count == writes.call_count
+            for args, kwargs in writes.call_args_list:
+                assert args[1:] == ("visibility",) and kwargs["ordinal"] == 3 and kwargs["is_array"] is False
+                assert kwargs["semantic"] is ovstage.AttributeSemantic.TOKEN_ID and kwargs["tensors"].dtype == np.uint64
+            return [
+                (args[0], [tokens[i] for i in kwargs["tensors"].tolist()]) for args, kwargs in writes.call_args_list
+            ]
+
+    else:
+        writes = renderer.backend.renderer.write_attribute = Mock()
+
+        def written():
+            """Return every visibility write as (paths, tokens) after checking the native call shape."""
+            for args, kwargs in writes.call_args_list:
+                assert args[1] == "visibility" and kwargs == {"semantic": Semantic.TOKEN_STRING}
+            return [(args[0], args[2]) for args, _ in writes.call_args_list]
+
     renderer._setup_mesh_variants()
     renderer.update_geometries()
     renderer.update_geometries()
-    token = {"semantic": Semantic.TOKEN_STRING}
-    assert writes.call_args_list == [
-        call([f"{frames[0]}/variant_0", f"{frames[1]}/variant_1"], "visibility", ["inherited", "inherited"], **token)
-    ]
+    assert written() == [([f"{frames[0]}/variant_0", f"{frames[1]}/variant_1"], ["inherited", "inherited"])]
     backend.transform_variants = wp.array([-1, 1, 1], dtype=wp.int32, device="cpu")
     backend.variants_timestamp = 2
     renderer.update_geometries()
-    assert writes.call_args == call(
-        [f"{frames[0]}/variant_0", f"{frames[0]}/variant_1"], "visibility", ["invisible", "inherited"], **token
-    )
+    assert written()[-1] == ([f"{frames[0]}/variant_0", f"{frames[0]}/variant_1"], ["invisible", "inherited"])
     backend.transform_variants = None
     backend.variants_timestamp = 3
     renderer.update_geometries()
-    assert writes.call_args == call(
-        [f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], "visibility", ["invisible", "invisible"], **token
-    )
-    assert writes.call_count == 3
+    assert written()[-1] == ([f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], ["invisible", "invisible"])
+    assert len(written()) == 3

@@ -36,8 +36,8 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
-        self._variants_timestamp = 0
-        self._variants_state: tuple[Model, int] | None = None
+        self.variants_timestamp = 0
+        self._variants_state: tuple[wp.array | None, int] | None = None
         self._geometry_batches = []
 
     def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, list[int]]) -> None:
@@ -108,22 +108,26 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def transform_variants(self) -> wp.array | None:
-        """Publish Newton's selected body variants; bodies without variants hold ``-1``."""
-        model = self.model
-        if model is None or not model._has_body_variants:
-            return None
-        return model.body_variant
+        """Publish Newton's selected body variants; bodies without variants hold ``-1``.
 
-    @property
-    def variants_timestamp(self) -> int:
-        """Advance when the model is rebuilt or a native selection changes shape type or source."""
+        Reading it advances :attr:`variants_timestamp` after a model rebuild or a shape type or source change,
+        and on every read while raw graph replays may apply recorded selections.
+        """
         backend = self._manager.backend
-        if backend is not None:
-            state = self._variants_state
-            if state is None or state[0] is not backend.model or state[1] != backend.geometry_change_version:
-                self._variants_state = (backend.model, backend.geometry_change_version)
-                self._variants_timestamp += 1
-        return self._variants_timestamp
+        if backend is None:
+            return None
+        model = backend.model
+        variants = model.body_variant if model is not None and model._has_body_variants else None
+        state = self._variants_state
+        if (
+            state is None
+            or state[0] is not variants
+            or state[1] != backend.geometry_change_version
+            or backend.transforms_may_change_on_graph_replay
+        ):
+            self._variants_state = (variants, backend.geometry_change_version)
+            self.variants_timestamp += 1
+        return variants
 
     @property
     def model(self) -> Model | None:

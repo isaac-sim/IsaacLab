@@ -49,6 +49,10 @@ The system has three layers:
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
      PhysX publishes either packed poses or Fabric matrices and refreshes only the requested representation.
+   - :attr:`SceneDataBackend.transform_variants`: selected mesh-variant index per transform, ``-1``
+     without a selection, or ``None`` when no transform declares variants. Reading it advances
+     ``variants_timestamp`` when the selection may have changed.
+   - :attr:`SceneDataBackend.variants_timestamp`: logical update timestamp of the published selection.
    - :meth:`SceneDataBackend.get_geometry_batches`: native point arrays or interpolation inputs,
      paired with exact visual prim paths and ranges compiled during backend construction. It returns
      the requested native representation when available, otherwise the primary representations for
@@ -88,7 +92,8 @@ The system has three layers:
    - ``OvPhysxSceneDataBackend`` (internal to :mod:`isaaclab_ov.physics`) mirrors the PhysX
      contract for rigid transforms and OVPhysX deformable nodal tensors.
    - ``NewtonSceneDataBackend`` (internal to :mod:`isaaclab_newton.physics`) wraps the Newton
-     model's ``body_q`` and exposes it as :class:`SceneDataFormat.Transform`.
+     model's ``body_q`` and exposes it as :class:`SceneDataFormat.Transform`. It also publishes the
+     model's ``body_variant`` as ``transform_variants``.
 
 PhysX backend
 -------------

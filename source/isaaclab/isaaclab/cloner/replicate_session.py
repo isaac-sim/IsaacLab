@@ -42,7 +42,8 @@ def mesh_variant_groups(plan: ClonePlan) -> dict[str, tuple[int, ...]]:
 
     Rows are keyed by the declared prim path and ordered like the spawner's list, so a row's position
     in its group is the variant ID that :meth:`~isaaclab.assets.RigidObject.write_mesh_variant_to_sim`
-    selects. Only declarations whose alternatives were authored as sources take part.
+    selects. A declaration takes part only when planning routed every alternative to the physics
+    backend's mesh-variant source root and recorded that path as ``spawn_path``.
 
     Args:
         plan: Host declarations and their numeric topology.

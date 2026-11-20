@@ -289,12 +289,13 @@ def _prepare_scene_copies(
     if not backends:
         return
     sources = list(cloner.path.get_asset_prototype_paths(plan))
-    variant_groups = {}
+    group_by_row: dict[int, tuple[int, ...]] = {}
     for rows in cloner.mesh_variant_groups(plan).values():
         for row in rows:
-            # Alternatives unused by every initial composition have no world; the planner authored them anyway.
+            # An alternative outside every initial composition has no world, hence no plan source; it was
+            # still spawned at its recorded path.
             sources[row] = plan.asset_cfgs[row].spawn.spawn_path
-            variant_groups[row] = rows
+            group_by_row[row] = rows
     body_path = cache(partial(_rigid_body_path, stage))
     templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
@@ -314,7 +315,7 @@ def _prepare_scene_copies(
                 suffix = cloner.path.relative_to(template, templates[ancestor])
                 if source == sources[assets[ancestor]] + suffix:
                     continue
-            rows = variant_groups.get(assets[index])
+            rows = group_by_row.get(assets[index])
             if rows is None:
                 copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
                 continue
