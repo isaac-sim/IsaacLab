@@ -32,9 +32,10 @@ from . import lens_lut
 from .calibrated_geometry import compose_rotations, retinal_directions
 from .foveated_camera import FoveatedCamera
 from .native_grid import (
-    allocate_grid_outputs,
+    allocate_outputs,
     copy_grid_outputs,
     copy_updated_rows,
+    grid_output_shape,
     grid_sample_indices,
     mask_grid_samples,
     proxy_outputs,
@@ -82,7 +83,8 @@ class FoveatedRTXCamera(FoveatedCamera):
         cfg = clone(cfg)
         self.cfg = cfg
         self._prepare_projection()
-        super().__init__(cfg)
+        # OVRTX uses the pose the camera hands it. Replicator reads the camera prims.
+        super().__init__(cfg, turns_pose_by_gaze=ovrtx)
         # The lens belongs to the camera prims from construction: OVRTX snapshots the stage when the renderer starts.
         for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage):
             # A locked camera may be treated as static, which skips the motion vectors that DLSS reprojection needs;
@@ -179,7 +181,7 @@ class FoveatedRTXCamera(FoveatedCamera):
             dir_tex, exit_tex = lens_lut.build_lut_textures(
                 self._sample_uv, dirs, size, size, exit_size, exit_size, device="cpu"
             )
-        self._texture_width = self._texture_height = size
+        self._texture_size = size
 
         # The camera owns its textures' directory, which is removed when the camera is released.
         self._lut_dir = tempfile.TemporaryDirectory(prefix="rtx_foveated_luts_")
@@ -203,7 +205,6 @@ class FoveatedRTXCamera(FoveatedCamera):
         self.cfg.height = self.cfg.width = size
 
     def _initialize_impl(self) -> None:
-        tw, th = self._texture_width, self._texture_height
         # OVRTX measures distance_to_camera from each camera's near-clipped ray origin, so it needs the near clips.
         self._offset_distance = (
             self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in self.cfg.data_types
@@ -244,19 +245,33 @@ class FoveatedRTXCamera(FoveatedCamera):
         if fused:
             count = self._num_ray_samples
             samples = {name: tex.reshape(tex.shape[0], count, tex.shape[-1]) for name, tex in textures.items()}
-            self._grid_output = allocate_grid_outputs(samples, self._sampling_coords)
+            self._grid_output = allocate_outputs(samples, *grid_output_shape(self._sampling_coords))
             self._grid_indices = grid_sample_indices(self._sampling_coords)
             self._prepare_grid_publish(samples)
             published = self._grid_output
         else:
             if not self._native_grid:
                 uv_gpu = self._sample_uv.to(self._device)
-                self._extract_px = (uv_gpu[:, 0] * tw).long().clamp(0, tw - 1)
-                self._extract_py = (uv_gpu[:, 1] * th).long().clamp(0, th - 1)
-            self._allocate_foveated_buffers()
-            published = self._pooled_output if self._pooled_output is not None else self._foveated_output
+                size = self._texture_size
+                self._extract_px = (uv_gpu[:, 0] * size).long().clamp(0, size - 1)
+                self._extract_py = (uv_gpu[:, 1] * size).long().clamp(0, size - 1)
+            self._foveated_output = allocate_outputs(textures, self._num_ray_samples, 1)
+            published = self._foveated_output
+            self._pooled_output = None
+            if self._pooler is not None:
+                published = self._pooled_output = allocate_outputs(published, self._num_valid_samples, 1)
+                self._prepare_segmentation_pooling(published)
+                logger.info(
+                    "FoveatedRTXCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
+                    type(self._pooler).__name__,
+                    self.cfg.pool_mode,
+                    self._pool_k,
+                    self.cfg.pool_sample_cortex,
+                    self._num_ray_samples,
+                    self._num_valid_samples,
+                )
             if self._native_grid:
-                self._grid_output = allocate_grid_outputs(published, self._sampling_coords)
+                self._grid_output = allocate_outputs(published, *grid_output_shape(self._sampling_coords))
                 self._grid_indices = grid_sample_indices(self._sampling_coords)
                 published = self._grid_output
         # ``CameraData.output`` is read-only, so its backing field is replaced.
@@ -271,45 +286,6 @@ class FoveatedRTXCamera(FoveatedCamera):
 
         clipping = UsdGeom.Camera(prim).GetClippingRangeAttr().Get()
         return float(clipping[0]) if clipping is not None else 0.0
-
-    def _allocate_foveated_buffers(self):
-        """Allocate (B, N_hi, 1, C) and, when pooling, (B, N_lo, 1, C) buffers from the texture buffers' shapes."""
-        has_rgba_alias = "rgba" in self._texture_output
-        self._foveated_output = {}
-        for name, buf in self._texture_output.items():
-            if name == "rgb" and has_rgba_alias:
-                continue  # an alias of rgba, below
-            # Texture buffers are ProxyArrays; their Torch view carries the dtype and device.
-            buf_t = buf.torch
-            self._foveated_output[name] = torch.zeros(
-                (self._view.count, self._num_ray_samples, 1, buf_t.shape[-1]), device=buf_t.device, dtype=buf_t.dtype
-            )
-        # The renderer publishes rgb as a view of rgba whenever either is requested; so do the foveated outputs.
-        if "rgb" in self._texture_output and "rgba" in self._foveated_output:
-            self._foveated_output["rgb"] = self._foveated_output["rgba"][:, :, :, :3]
-
-        if self._pooler is None:
-            self._pooled_output = None
-            return
-        self._pooled_output = {}
-        for name, buf in self._foveated_output.items():
-            if name == "rgb" and has_rgba_alias:
-                continue
-            self._pooled_output[name] = torch.zeros(
-                (self._view.count, self._num_valid_samples, 1, buf.shape[-1]), device=self._device, dtype=buf.dtype
-            )
-        if "rgb" in self._texture_output and "rgba" in self._pooled_output:
-            self._pooled_output["rgb"] = self._pooled_output["rgba"][:, :, :, :3]
-        self._prepare_segmentation_pooling(self._pooled_output)
-        logger.info(
-            "FoveatedRTXCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
-            type(self._pooler).__name__,
-            self.cfg.pool_mode,
-            self._pool_k,
-            self.cfg.pool_sample_cortex,
-            self._num_ray_samples,
-            self._num_valid_samples,
-        )
 
     def _mount_written(self, env_ids) -> None:
         """Save the moved prims' orientations as their bare mounts and write the gaze on top of them again."""
@@ -355,12 +331,6 @@ class FoveatedRTXCamera(FoveatedCamera):
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip.to(samples.dtype)
             copy_updated_rows(samples, fov, env_mask)
-
-    @staticmethod
-    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
-        # OVRTX renders the poses the camera hands it, so its pose update turns the gaze. Replicator reads camera
-        # prims, so Isaac RTX writes the gaze into them instead.
-        return cfg.renderer_cfg.renderer_type == "ovrtx"
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[FoveatedRTXCamera]) -> None:

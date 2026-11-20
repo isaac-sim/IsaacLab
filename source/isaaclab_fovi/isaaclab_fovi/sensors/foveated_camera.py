@@ -97,14 +97,14 @@ class FoveatedCamera(Camera):
             " 'ovrtx'."
         )
 
-    def __init__(self, cfg: FoveatedCameraCfg):
+    def __init__(self, cfg: FoveatedCameraCfg, *, turns_pose_by_gaze: bool = False):
         """Create the camera.
 
         Raises:
             ValueError: A Newton or OVRTX camera without ``update_latest_camera_pose``, whose renderer would never see
                 the gaze.
         """
-        self._gaze_pose_reads_angles = self._pose_update_turns_gaze(cfg)
+        self._gaze_pose_reads_angles = turns_pose_by_gaze
         """Whether the camera turns its pose by the stored gaze in each pose update, rather than writing prim poses
         when the gaze is set; see :attr:`turns_pose_by_gaze`."""
         if self._gaze_pose_reads_angles and not cfg.update_latest_camera_pose:
@@ -260,7 +260,8 @@ class FoveatedCamera(Camera):
         before = self._mount_orientations(env_ids)
         super().set_world_poses_from_view(eyes, targets, env_ids)
         # Rows whose eye equals their target are skipped by the base method and keep their poses.
-        self._mount_written(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
+        turned = (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
+        self._mount_written(self._env_indices(env_ids)[turned])
         self._count_mount_turn(before, env_ids)
 
     def set_intrinsic_matrices(self, matrices, focal_length=None, env_ids=None):
@@ -425,10 +426,6 @@ class FoveatedCamera(Camera):
             env_ids = wp.to_torch(env_ids)
         return torch.as_tensor(env_ids, device=self._device, dtype=torch.long).reshape(-1)
 
-    def _turned_by_view(self, eyes, targets) -> torch.Tensor:
-        """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""
-        return (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
-
     def _visibility_buffers(self) -> dict:
         """The sensor mask's camera-owned buffers, allocated once: the rendered rays, an unturned rotation per camera,
         each sample's visibility and, for the updated rows, which samples to hide."""
@@ -581,8 +578,3 @@ class FoveatedCamera(Camera):
         tensor = next(iter(outputs.values())).torch
         self._published_shape = (int(tensor.shape[1]), int(tensor.shape[2]))
         self._data.image_shape = self._published_shape
-
-    @staticmethod
-    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
-        """Whether this implementation turns its rendered pose by the stored gaze in each pose update."""
-        return False

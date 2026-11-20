@@ -19,7 +19,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .foveated_camera import OPENGL_TO_ROS_AXES, FoveatedCamera
 from .native_grid import (
-    allocate_grid_outputs,
+    allocate_outputs,
     copy_grid_outputs,
     copy_updated_rows,
     grid_output_shape,
@@ -71,7 +71,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
     def __init__(self, cfg: FoveatedCameraCfg):
         # The parent's initialisation updates poses before the rays exist.
         self._foveated_rays: wp.array | None = None
-        super().__init__(cfg)
+        super().__init__(cfg, turns_pose_by_gaze=True)
 
     def _initialize_impl(self):
         # The pooler's KNN tensors are plain attributes that nn.Module.to() does not move, so the coordinates start on
@@ -124,11 +124,22 @@ class FoveatedNewtonCamera(FoveatedCamera):
             tensor = value.torch
             flat = tensor.view(tensor.shape[0], render_samples, 1, tensor.shape[-1])
             self._flat_render_output[name] = ProxyArray(wp.from_torch(flat[:, : self._num_ray_samples]))
-        self._data.output.clear()
-        self._data.output.update(self._flat_render_output)
-
-        self._allocate_pooled_buffers()
-        source = self._pooled_output if self._pooler is not None else self._flat_render_output
+        source = self._flat_render_output
+        if self._pooler is not None:
+            self._pooled_output = allocate_outputs(source, self._num_valid_samples, 1)
+            self._prepare_segmentation_pooling(source)
+            dtypes = {name: str(buf.dtype).removeprefix("torch.") for name, buf in source.items()}
+            logger.info(
+                "FoveatedNewtonCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) outputs=%s",
+                type(self._pooler).__name__,
+                self.cfg.pool_mode,
+                self._pool_k,
+                self.cfg.pool_sample_cortex,
+                self._num_ray_samples,
+                self._num_valid_samples,
+                dtypes,
+            )
+            source = self._pooled_output
         self._sample_output = None
         if self._pooler is None and not self._native_grid:
             # Newton redraws every environment, so sample sets publish a copy that changes only on update.
@@ -141,7 +152,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 self._sample_output["rgb"] = self._sample_output["rgba"][..., :3]
             source = self._sample_output
         if self._native_grid:
-            self._grid_output = allocate_grid_outputs(source, self._sampling_coords)
+            self._grid_output = allocate_outputs(source, *grid_output_shape(self._sampling_coords))
             self._grid_indices = grid_sample_indices(self._sampling_coords)
             source = self._grid_output
         # The buffers the camera publishes: stable for the camera's lifetime and refilled each frame.
@@ -164,36 +175,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 "Choose foveated_res and pool_res_mult so the rendered grid satisfies "
                 "these dimensions, or select a non-tiled Newton render_order."
             )
-
-    def _allocate_pooled_buffers(self) -> None:
-        """Allocate pooled output tensors; the renderer keeps writing the high-resolution buffers."""
-        if self._pooler is None:
-            return
-        self._highres_output: dict[str, ProxyArray] = dict(self._data.output)
-        self._pooled_output: dict[str, torch.Tensor] = {}
-        for name, tex in self._highres_output.items():
-            if name == "rgb" and "rgba" in self._highres_output:
-                continue  # an alias of rgba, below
-            tensor = tex.torch
-            B, _, _, C = tensor.shape
-            self._pooled_output[name] = torch.zeros(
-                (B, self._num_valid_samples, 1, C), dtype=tensor.dtype, device=tensor.device
-            )
-        # The renderer publishes rgb as a view of rgba whenever either is requested; so does the pooled output.
-        if "rgb" in self._highres_output and "rgba" in self._pooled_output:
-            self._pooled_output["rgb"] = self._pooled_output["rgba"][..., :3]
-        self._prepare_segmentation_pooling(self._highres_output)
-        dtypes_summary = {n: str(t.dtype).removeprefix("torch.") for n, t in self._highres_output.items()}
-        logger.info(
-            "FoveatedNewtonCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) outputs=%s",
-            type(self._pooler).__name__,
-            self.cfg.pool_mode,
-            self._pool_k,
-            self.cfg.pool_sample_cortex,
-            self._num_ray_samples,
-            self._num_valid_samples,
-            dtypes_summary,
-        )
 
     def _update_poses(
         self,
@@ -237,16 +218,12 @@ class FoveatedNewtonCamera(FoveatedCamera):
                         continue  # rgba alias
                     copy_updated_rows(self._flat_render_output[name].torch, samples, env_mask)
             return
-        mask_grid_samples(self._highres_output, self._ray_coords)
-        self._apply_sensor_fov_mask(self._highres_output, env_mask)
-        for name, hi in self._highres_output.items():
-            if name == "rgb" and "rgba" in self._highres_output:
+        mask_grid_samples(self._flat_render_output, self._ray_coords)
+        self._apply_sensor_fov_mask(self._flat_render_output, env_mask)
+        for name, hi in self._flat_render_output.items():
+            if name == "rgb" and "rgba" in self._flat_render_output:
                 continue  # rgba alias
             # Pooling covers every environment; only the updated ones are published.
             copy_updated_rows(self._pool_output(name, hi.torch), self._pooled_output[name], env_mask)
         if self._native_grid:
             copy_grid_outputs(self._pooled_output, self._grid_output, self._grid_indices)
-
-    @staticmethod
-    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
-        return True

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import Protocol
 
 import torch
 import warp as wp
@@ -23,7 +22,7 @@ from .gaze_kernels import warp_stream
 GRID_STYLE = "warped_cartesian_as_grid"
 
 
-def buffer_tensor(value: torch.Tensor | TorchBuffer) -> torch.Tensor:
+def buffer_tensor(value: torch.Tensor | ProxyArray) -> torch.Tensor:
     """Get a renderer or public tensor without copying."""
     return value if isinstance(value, torch.Tensor) else value.torch
 
@@ -134,7 +133,7 @@ def grid_output_shape(coords: SamplingCoords) -> tuple[int, int]:
     return len(coords), 1
 
 
-def mask_grid_samples(outputs: Mapping[str, torch.Tensor | TorchBuffer], coords: SamplingCoords) -> None:
+def mask_grid_samples(outputs: Mapping[str, torch.Tensor | ProxyArray], coords: SamplingCoords) -> None:
     """Zero samples outside the configured footprint before pooling or publication."""
     if coords.style != GRID_STYLE:
         return
@@ -146,16 +145,16 @@ def mask_grid_samples(outputs: Mapping[str, torch.Tensor | TorchBuffer], coords:
         tensor.masked_fill_(invalid, 0)
 
 
-def allocate_grid_outputs(
-    outputs: Mapping[str, torch.Tensor | TorchBuffer], coords: SamplingCoords
+def allocate_outputs(
+    outputs: Mapping[str, torch.Tensor | ProxyArray], height: int, width: int
 ) -> dict[str, torch.Tensor]:
-    """Allocate stable public BHWC buffers from flat renderer outputs."""
+    """Allocate BHWC buffers with the source channels, dtype, device and RGB view of RGBA."""
     result: dict[str, torch.Tensor] = {}
     for name, value in outputs.items():
         if name == "rgb" and "rgba" in outputs:
             continue
         tensor = buffer_tensor(value)
-        result[name] = tensor.new_zeros((tensor.shape[0], coords.resolution, coords.resolution, tensor.shape[-1]))
+        result[name] = tensor.new_zeros((tensor.shape[0], height, width, tensor.shape[-1]))
     if "rgb" in outputs and "rgba" in result:
         result["rgb"] = result["rgba"][..., :3]
     return result
@@ -167,7 +166,7 @@ def grid_sample_indices(coords: SamplingCoords) -> torch.Tensor:
 
 
 def copy_grid_outputs(
-    source: Mapping[str, torch.Tensor | TorchBuffer],
+    source: Mapping[str, torch.Tensor | ProxyArray],
     target: dict[str, torch.Tensor],
     indices: torch.Tensor,
 ) -> None:
@@ -179,13 +178,6 @@ def copy_grid_outputs(
         flat_source = tensor.reshape(tensor.shape[0], -1, tensor.shape[-1])
         flat_target = target[name].view(tensor.shape[0], -1, tensor.shape[-1])
         torch.index_select(flat_source, 1, indices, out=flat_target)
-
-
-class TorchBuffer(Protocol):
-    """Renderer buffer exposing a Torch view."""
-
-    @property
-    def torch(self) -> torch.Tensor: ...
 
 
 def _require_spherical(coords: SamplingCoords) -> None:

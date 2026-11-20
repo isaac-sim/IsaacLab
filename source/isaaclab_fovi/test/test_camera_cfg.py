@@ -20,6 +20,7 @@ from isaaclab_fovi.sensors.calibrated_geometry import camera_model_from_spawn
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
@@ -176,8 +177,9 @@ def test_cameras_that_turn_their_pose_by_the_gaze_need_per_frame_pose_updates(mo
     def cfg(renderer_cfg) -> FoveatedCameraCfg:
         return make_cfg(spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg, update_latest_camera_pose=False)
 
-    with pytest.raises(ValueError, match="update_latest_camera_pose=True"):
-        FoveatedCamera(cfg(NewtonWarpRendererCfg()))
+    for renderer in (NewtonWarpRendererCfg(), OVRTXRendererCfg()):
+        with pytest.raises(ValueError, match="update_latest_camera_pose=True"):
+            FoveatedCamera(cfg(renderer))
     assert not FoveatedCamera(cfg(IsaacRtxRendererCfg())).turns_pose_by_gaze
 
 
