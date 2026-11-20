@@ -25,7 +25,8 @@ robot = mdp2.Entity("robot")
 
 
 class PointMassScene:
-    """Scene for the tests: one ``"robot"`` whose joints are unit point masses driven by their effort targets."""
+    """Scene for the tests: one ``"robot"``, or other entities, whose joints are unit point masses driven by their
+    effort targets."""
 
     def __init__(
         self,
@@ -34,6 +35,7 @@ class PointMassScene:
         dt: float = 0.01,
         decimation: int = 2,
         device: str = "cpu",
+        entities: tuple[str, ...] = ("robot",),
     ):
         fields = dict.fromkeys(
             ("joint_pos", "joint_vel", "joint_effort_target"), mdp2.FieldSchema(("joints",), writable=True)
@@ -46,13 +48,16 @@ class PointMassScene:
         self.schema = mdp2.SceneSchema(
             num_worlds=num_worlds,
             step_dt=dt * decimation,
-            entities={"robot": mdp2.EntitySchema(names={"joints": joint_names}, fields=fields)},
+            entities={entity: mdp2.EntitySchema(names={"joints": joint_names}, fields=fields) for entity in entities},
         )
         self.dt = dt
         self.decimation = decimation
 
         shape = (num_worlds, len(joint_names))
-        self._data = {"robot": {name: ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device)) for name in fields}}
+        self._data = {
+            entity: {name: ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device)) for name in fields}
+            for entity in entities
+        }
 
     def data(self, entity: str, field: str) -> ProxyArray:
         return self._data[entity][field]
@@ -1934,8 +1939,7 @@ def test_splits_divide_the_same_worlds_and_may_be_steps_of_a_sequence():
 
 
 def test_task_trees_report_errors():
-    """A sequence task without a completion, a task with subtasks and a done, and two uses of
-    one name that may run together are errors."""
+    """A sequence task without a completion and a task with subtasks and a done are errors."""
     schema = PointMassScene(num_worlds=2, joint_names=("a",)).schema
     quantities = mdp2.TaskCfg(quantities=above("a"))
     milestone = mdp2.Milestone(mdp2.quantities.a)
@@ -1948,13 +1952,6 @@ def test_task_trees_report_errors():
             builder = mdp2.MDPBuilder(schema)
             builder.add_task(mdp2.compose(quantities, task))
             builder.validate()
-
-    observation = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})
-    sharing = mdp2.TaskCfg(observations={"policy": {"position": observation}}, done=mdp2.quantities.a)
-    builder = mdp2.MDPBuilder(schema)
-    builder.add_task(mdp2.compose(quantities, first=sharing, second=sharing))
-    with pytest.raises(ValueError, match="share the columns of 'position'"):
-        builder.validate()
 
 
 @wp.func
@@ -2321,3 +2318,29 @@ def test_choice_draws_one_subtask_per_episode_and_world():
     assert torch.equal(step["skills.left.active"], left) and torch.equal(step["skills.right.active"], ~left)
     assert torch.equal(step["done"], left)  # Joint "a" is up, "b" is down
     torch.testing.assert_close(step["rewards"] / 0.02, torch.where(left, 1.0, 2.0))
+
+
+def test_parts_renamed_to_other_entities_run_together_in_columns_of_their_own():
+    """One part, renamed to act on two robots, runs twice as subtasks together: each copy's actions and observations
+    get columns of their own, named with the subtask's name."""
+    arm = mdp2.TaskCfg(
+        actions={"effort": mdp2.DirectAction(robot.joint_effort_target)},
+        observations={"policy": {"position": mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos})}},
+    )
+    task = mdp2.compose(left=mdp2.rename(arm, robot="left"), right=mdp2.rename(arm, robot="right"))
+    scene = PointMassScene(num_worlds=2, joint_names=("a", "b"), device=DEVICE, entities=("left", "right"))
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_task(task)
+    mdp = builder.finalize(device=DEVICE, backend="warp")
+    spec = mdp.spec()
+    assert [(columns.name, columns.columns) for columns in spec.actions] == [
+        ("left.effort", slice(0, 2)),
+        ("right.effort", slice(2, 4)),
+    ]
+    assert [columns.name for columns in spec.observations["policy"]] == ["left.position", "right.position"]
+
+    state = mdp.state(scene)
+    actions = torch.tensor([[1.0, 2.0, 3.0, 4.0]] * 2, device=DEVICE)
+    mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
+    assert scene.data("left", "joint_effort_target").torch.tolist() == [[1.0, 2.0]] * 2
+    assert scene.data("right", "joint_effort_target").torch.tolist() == [[3.0, 4.0]] * 2

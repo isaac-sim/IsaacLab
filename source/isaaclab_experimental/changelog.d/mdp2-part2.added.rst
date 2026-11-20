@@ -55,3 +55,6 @@
 * Added :func:`~isaaclab_experimental.mdp2.choice`, which draws one subtask per episode and world at the reset, by
   weights, for multi-task learning: only the drawn subtask's uses run, and ``Progress/<task>`` logs its success over
   the worlds that drew it.
+* Added :func:`~isaaclab_experimental.mdp2.rename`, which binds a part of a task to other scene entities, so that a
+  part can run twice, such as two arms. Uses of subtasks that run together get columns of their own, named with the
+  subtask's name, as in ``left.joint_pos``; uses of subtasks that take turns share the columns of their name.

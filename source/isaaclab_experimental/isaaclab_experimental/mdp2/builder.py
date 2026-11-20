@@ -77,7 +77,9 @@ class ScheduleEntry:
     path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
     cfg: DirectAction | Action | Command | Quantity | Observation | Reward | Termination | TimeLimit | Event
     concatenate: bool = True  # Observations: whether the use writes its group's buffer rather than its own
-    name: str = ""  # Name in its task, without the prefix of a subtask; the last part of the path if empty
+    # Name of its columns, which uses of the same name share: its name in its task, after the names of its subtasks
+    # that run together with others; the last part of the path if empty
+    name: str = ""
     stage: str | None = None  # The task of a sequence that the use belongs to, see TermOp.stage
 
     @property
@@ -217,9 +219,15 @@ class MDPBuilder:
         staged: bool,
         scope: dict[FieldSelector, FieldSelector],
         restarts: bool = False,
+        columns: tuple[str, ...] = (),
     ) -> None:
         """Add a task of one world config, its uses with the prefix ``names``, then its subtasks. ``staged`` is
-        whether it is part of a sequence, and ``restarts`` whether it or a parent repeats.
+        whether it is part of a sequence, ``restarts`` whether it or a parent repeats, and ``columns`` the prefix of
+        the names of its uses' columns.
+
+        Uses of subtasks that run together get columns of their own, named with the subtask's name, as in
+        ``left.joint_pos``; uses of subtasks that take turns, in a sequence, a choice, or a split, share the columns of
+        their name.
 
         The subtask of a split runs in worlds of its own, so its uses keep their names: equal uses of the world configs
         then run once, see :meth:`replicate`. A task reads its own fields by their names, as a task that runs alone
@@ -245,7 +253,8 @@ class MDPBuilder:
             setup = isinstance(cfg, Event) and cfg.mode is not EventMode.INTERVAL
             full = f"{prefix}.{name}" if prefix else name
             entry_path = (kind, full) if group is None else (kind, group, full)
-            self._add(ScheduleEntry(entry_path, _scoped(cfg, scope), concatenate, name, None if setup else stage))
+            slot = ".".join((*columns, name))
+            self._add(ScheduleEntry(entry_path, _scoped(cfg, scope), concatenate, slot, None if setup else stage))
 
         for kind in ("actions", "commands", "quantities"):
             for name, use in getattr(task, kind).items():
@@ -269,7 +278,8 @@ class MDPBuilder:
         for name, subtask in task.subtasks.items():
             subtask_names = names if task.mode is TaskMode.SPLIT else (*names, name)
             in_sequence = staged or task.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE)
-            self._add_task(subtask, (*path, name), subtask_names, in_sequence, scope, restarts)
+            together = (*columns, name) if task.mode is TaskMode.TOGETHER else columns
+            self._add_task(subtask, (*path, name), subtask_names, in_sequence, scope, restarts, together)
 
     def add_action(self, name: str, action: DirectAction | Action) -> ScheduleEntry:
         return self._add(ScheduleEntry(("actions", name), action))

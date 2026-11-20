@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
@@ -477,6 +478,31 @@ def compose(*tasks: TaskCfg, require: int | None = None, **subtasks: TaskCfg) ->
     if errors:
         raise ValueError("Cannot compose the tasks:\n  " + "\n  ".join(errors))
     return composed
+
+
+def rename(task: TaskCfg, **entities: str) -> TaskCfg:
+    """Return a copy of a task whose uses read and write other scene entities, by their old names: with
+    ``rename(ARM, robot="left_arm")``, the uses of a part written for an entity ``robot`` act on ``left_arm``, so that
+    a part can appear twice, as subtasks that run together, such as ``compose(left=..., right=...)``."""
+    return _renamed(task, entities)
+
+
+def _renamed(value: Any, entities: dict[str, str]) -> Any:
+    """Return a copy of a config value with the scene entities of its selectors renamed; params and terms stay."""
+    if isinstance(value, (FieldSelector, SubsetSelector)):
+        return dataclasses.replace(value, entity=entities.get(value.entity, value.entity)) if value.scene else value
+    if isinstance(value, Entity):
+        return Entity(entities.get(value.name, value.name), value.scene) if value.scene else value
+    if isinstance(value, dict):
+        return {key: _renamed(item, entities) for key, item in value.items()}
+    if dataclasses.is_dataclass(value) and not isinstance(value, (type, Term, Tunable)):
+        changes = {
+            spec.name: _renamed(getattr(value, spec.name), entities)
+            for spec in dataclasses.fields(value)
+            if spec.init and spec.name not in ("params", "term")
+        }
+        return dataclasses.replace(value, **changes)
+    return value
 
 
 def sequence(**subtasks: TaskCfg) -> TaskCfg:
