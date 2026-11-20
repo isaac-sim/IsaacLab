@@ -1771,9 +1771,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             except BaseException:
                 self._rtx_switch = None
                 raise
-        if appearance is not None and self.rtx_rendering and appearance.available and appearance.poll():
-            self.current_image_view.invalidate()  # a sky finished downloading, whether or not its panel is open
-        viewer.begin_frame(self._sim_time)
+        try:
+            if appearance is not None and self.rtx_rendering and appearance.available and appearance.poll():
+                self.current_image_view.invalidate()  # a sky finished downloading, whether or not its panel is open
+            viewer.begin_frame(self._sim_time)
+        except BaseException:
+            if self._rtx_switch == "loading":  # the switch failed before the first RTX frame
+                self._rtx_switch = None
+            raise
         try:
             viewer.image_matches_camera = self.rtx_rendering
             if self.current_image_view.camera is not None:
@@ -1941,8 +1946,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
         free = [i for i, view in enumerate(self._image_views) if view.camera is None]
-        if enabled and self.current_image_view is not None and self.current_image_view.camera is None:
-            self._rtx_perspective = self.current_image_view  # the RTX view continues from this Perspective
+        if enabled:  # the RTX view continues from the free Perspective that is shown now, if any
+            current = self.current_image_view
+            self._rtx_perspective = current if current is not None and current.camera is None else None
         # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
         # camera product a second time; otherwise it renders only on demand.
         self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
@@ -1959,6 +1965,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
+            self._rtx_perspective = None
 
     @property
     def visible_env_limit(self) -> int:

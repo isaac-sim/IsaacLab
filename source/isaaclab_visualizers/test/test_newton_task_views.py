@@ -189,6 +189,7 @@ def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
     with pytest.raises(RuntimeError, match="stop"):
         NewtonGLVisualizer._render_frame(viz)
 
+    assert viz._rtx_switch is None  # a failed switch does not leave the message up
     assert switched == [(True, "loading")]  # the HUD already showed the message for the previous frame
 
 

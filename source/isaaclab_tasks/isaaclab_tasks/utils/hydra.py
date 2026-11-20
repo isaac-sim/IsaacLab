@@ -942,10 +942,11 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
                 matched = next(iter(families))
             result[matched].add(name)
     if not result[PresetTarget.VISUALIZER]:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
+        spelling = {field: name for name, field in VISUALIZER_PRESET_FIELDS.items()}
         result[PresetTarget.VISUALIZER].update(
-            name for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+            spelling.get(name, name) for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
         )
     return {target: sorted(names) for target, names in result.items()}
 
