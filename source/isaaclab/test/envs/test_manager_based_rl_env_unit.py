@@ -106,6 +106,7 @@ def test_obs_space_follows_clip_constraint():
             assert np.all(term_space.high == high)
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
 def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: str) -> None:
     """An autoreset step exposes owned terminal observations; the next step and an explicit reset drop them."""

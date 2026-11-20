@@ -12,7 +12,7 @@ import torch
 
 from isaaclab_tasks.contrib.humanoid_amp.humanoid_amp_env import HumanoidAmpEnv, compute_obs
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 NUM_ENVS, NUM_JOINTS, NUM_KEY_BODIES, NUM_AMP_OBSERVATIONS = 2, 3, 2, 2
 
