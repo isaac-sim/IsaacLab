@@ -43,8 +43,8 @@ if args_cli.grid_resolution <= 0.0:
 
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg

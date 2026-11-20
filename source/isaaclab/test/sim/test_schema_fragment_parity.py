@@ -42,7 +42,7 @@ from isaaclab.sim.schemas import (
 )
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg  # isort: skip
-from isaaclab_physx.sim.schemas import (  # isort: skip
+from isaaclab_isaacsim.sim.schemas import (  # isort: skip
     PhysxArticulationCfg,
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionCfg,

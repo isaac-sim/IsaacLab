@@ -28,9 +28,9 @@ import warp as wp
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 from joint_wrench_contract import (  # noqa: E402, F401
     assert_sensors_reject_partial_environment_coverage,
     test_joint_wrench_body_ordering,

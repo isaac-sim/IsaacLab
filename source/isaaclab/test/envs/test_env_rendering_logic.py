@@ -12,7 +12,7 @@ launch_test_simulation(enable_cameras=True)
 
 import pytest
 import torch
-from isaaclab_physx.physics import IsaacEvents
+from isaaclab_isaacsim.physics import IsaacEvents
 from isaaclab_visualizers.kit import KitBackendCfg, KitVisualizer
 
 import isaaclab.sim as sim_utils
