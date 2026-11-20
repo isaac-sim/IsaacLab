@@ -5,11 +5,18 @@
 
 """The world-model backend: chunked prediction, joint state and resets."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
+import torch
 from PIL import Image
 
-from .conftest import FakeModel, H, J, N, T, W, world_model_sim
+from isaaclab.test.utils import DeviceScope, test_devices
+
+from isaaclab_neural.mdp import reset_from_records
+
+from .conftest import DT, FakeModel, H, J, N, T, W, world_model_sim
 
 
 def bound_manager(sim, num_envs=N):
@@ -26,10 +33,10 @@ def step(manager, target):
 def test_reset_publishes_the_record_and_restarts_the_model_before_the_next_chunk(tmp_path):
     with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation") as sim:
         manager = bound_manager(sim)
-        manager.reset_envs(np.array([1]))
+        manager.reset_envs(torch.tensor([False, True], device=sim.device))
         assert manager.joint_state[:, 0].tolist() == [0.0, pytest.approx(0.1)]
         assert (manager.frames().frames[1] == 200).all()
-        manager.reset_envs(np.array([0]))
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
         assert not FakeModel.resets
         assert (manager.frames().frames[0] == 201).all() and not manager.new_frames
         for _ in range(T - 1):
@@ -46,9 +53,9 @@ def test_reset_publishes_the_record_and_restarts_the_model_before_the_next_chunk
             step(manager, 6.0)
         assert FakeModel.calls == ["reset", "step", "step"]
         previous = manager.frames().frames[1].clone()
-        manager.reset_envs(np.array([0]))
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
         assert (manager.frames().frames[0] == 200).all()
-        manager.reset_envs(np.array([0]))
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
         assert (manager.frames().frames[0] == 201).all()
         assert np.array_equal(manager.frames().frames[1], previous)
         assert len(FakeModel.resets) == 1
@@ -69,7 +76,7 @@ def test_record_images_must_match_the_model_size(tmp_path):
 def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_target(tmp_path):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)
-        manager.reset_envs(np.arange(N))
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
         start = manager.joint_state.clone()
         for k in range(T):
             step(manager, k + 1)
@@ -85,20 +92,69 @@ def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_targ
 def test_environments_can_only_reset_between_chunks(tmp_path):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)
-        manager.reset_envs(np.arange(N))
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
         step(manager, 0.0)
         with pytest.raises(RuntimeError, match="chunk boundaries"):
-            manager.reset_envs(np.array([0]))
+            manager.reset_envs(torch.tensor([True, False], device=sim.device))
         for _ in range(T - 1):
             step(manager, 0.0)
-        manager.reset_envs(np.array([0]))
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
 
 
 def test_a_group_shares_a_record_and_other_splits_visit_records_in_order(tmp_path):
     states = [np.full(J, float(i)) for i in range(3)]
     with world_model_sim(tmp_path, num_envs=4, envs_per_reset_record=2, states=states, split="validation") as sim:
         manager = bound_manager(sim, num_envs=4)
-        manager.reset_envs(np.arange(4))
+        manager.reset_envs(torch.ones(4, dtype=torch.bool, device=sim.device))
         assert manager.joint_state[:, 0].tolist() == [0, 0, 1, 1]
-        manager.reset_envs(np.arange(4))
+        manager.reset_envs(torch.ones(4, dtype=torch.bool, device=sim.device))
         assert manager.joint_state[:, 0].tolist() == [2, 2, 0, 0]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("split", ["train", "validation"])
+def test_reset_event_samples_on_device_without_host_sync_and_reproduces_draws(tmp_path, device, split):
+    states = [np.full(J, float(i)) for i in range(8)]
+    runs = []
+    for _ in range(2):
+        with world_model_sim(
+            tmp_path, num_envs=4, envs_per_reset_record=2, states=states, split=split, device=device
+        ) as sim:
+            manager = bound_manager(sim, num_envs=4)
+            env = SimpleNamespace(
+                sim=sim,
+                scene={"robot": SimpleNamespace(num_instances=4, device=device)},
+                step_dt=DT,
+                max_episode_length=3 * T,
+            )
+            event = reset_from_records(None, env)
+            partial = torch.tensor([0], device=device)
+            empty = torch.empty(0, dtype=torch.long, device=device)
+            previous_mode = torch.cuda.get_sync_debug_mode()
+            try:
+                torch.cuda.set_sync_debug_mode("error")
+                event(env, slice(None))
+                initial = manager.joint_state.clone()
+                event(env, partial)
+                updated = manager.joint_state.clone()
+                event(env, empty)
+            finally:
+                torch.cuda.set_sync_debug_mode(previous_mode)
+            torch.testing.assert_close(manager.joint_state, updated)
+            torch.testing.assert_close(manager.joint_target, updated)
+            torch.testing.assert_close(updated[1:], initial[1:])
+            assert initial[:, 0].tolist()[::2] == initial[:, 0].tolist()[1::2]
+            assert ((updated >= 0) & (updated < 8)).all()
+            assert manager.frames().frames[:, 0, 0, 0, 0].tolist() == (updated[:, 0] + 200).tolist()
+            if split == "validation":
+                assert initial[:, 0].tolist() == [0, 0, 1, 1]
+                assert updated[:, 0].tolist() == [2, 0, 1, 1]
+            runs.append((initial.cpu(), updated.cpu()))
+            for _ in range(T):
+                step(manager, 1.0)
+            assert FakeModel.resets[0][0] == [0, 1, 2, 3]
+            assert FakeModel.resets[0][2] == [f"prompt {int(x)}" for x in updated[:, 0].tolist()]
+            # Empty resets do not overwrite the last actual reset's model seeds.
+            assert FakeModel.resets[0][3] == [1994, 998, 999, 1000]
+    for first, second in zip(*runs):
+        torch.testing.assert_close(first, second)

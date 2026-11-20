@@ -42,7 +42,7 @@ def world(tmp_path):
         scene = InteractiveScene(SceneCfg(num_envs=N, env_spacing=1.0))
         sim.backend_manager.bind(N, J)
         sim.reset()
-        sim.backend_manager.reset_envs(np.arange(N))
+        sim.backend_manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
         yield sim, scene
 
 
@@ -96,7 +96,7 @@ def test_three_cameras_read_their_views_and_partial_resets(tmp_path, device):
         manager = sim.backend_manager
         manager.bind(N, J)
         sim.reset()
-        manager.reset_envs(np.arange(N))
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
         scene.update(DT)
         for v, view in enumerate(views):
             assert scene[view].data.output["rgb"].torch[:, 0, 0, 0].tolist() == [200 + 20 * v, 201 + 20 * v]
@@ -109,7 +109,7 @@ def test_three_cameras_read_their_views_and_partial_resets(tmp_path, device):
             assert (data.output["rgb"].torch == value).all()
             assert data.frame_history.torch[0, :, 0, 0, 0].tolist() == list(range(value - T + 1, value + 1))
             assert data.frame_history_mask.torch.all()
-        manager.reset_envs(np.array([0]))
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
         scene.reset(env_ids=torch.tensor([0], device=device))
         scene.update(DT)
         for v, view in enumerate(views):

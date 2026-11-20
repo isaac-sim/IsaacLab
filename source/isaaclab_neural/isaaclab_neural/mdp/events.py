@@ -62,5 +62,9 @@ class reset_from_records(ManagerTermBase):
         """
         manager: WorldModelManager = env.sim.backend_manager
         asset = env.scene[asset_cfg.name]
-        ids = torch.arange(asset.num_instances, device=asset.device)[env_ids]
-        manager.reset_envs(ids.cpu().numpy())
+        selected = torch.zeros(asset.num_instances, dtype=torch.bool, device=asset.device)
+        if isinstance(env_ids, slice):
+            selected[env_ids] = True
+        else:
+            selected.index_fill_(0, env_ids, True)
+        manager.reset_envs(selected)

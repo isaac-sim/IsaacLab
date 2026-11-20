@@ -62,11 +62,13 @@ class WorldModelManager(PhysicsManager):
         self._records = load_reset_records(cfg.reset_manifest)
         self._split_records = [r for r in self._records if r.split == cfg.split]
         self._record_images: dict[str, torch.Tensor] = {}
-        self._env_record: np.ndarray
-        self._env_seed: np.ndarray
-        self._restart: np.ndarray
-        self._rng = np.random.default_rng(cfg.seed)
-        self._cursor = 0
+        self._record_states: torch.Tensor
+        self._env_record: torch.Tensor
+        self._env_draw: torch.Tensor
+        self._restart: torch.Tensor
+        self._generator: torch.Generator
+        self._cursor: torch.Tensor
+        self._reset_called = False
         self._draws = 0
         self._targets: torch.Tensor
         self._chunk_start: torch.Tensor
@@ -75,6 +77,8 @@ class WorldModelManager(PhysicsManager):
 
     def bind(self, num_envs: int, num_joints: int) -> None:
         """Size the manager for a scene. Called by the articulation when it initializes."""
+        if num_envs % self._cfg.envs_per_reset_record:
+            raise ValueError(f"envs_per_reset_record={self._cfg.envs_per_reset_record} must divide num_envs={num_envs}")
         self.model = instantiate(self._cfg.model, num_envs, self._device)
         self.spec = self.model.spec()
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
@@ -95,9 +99,13 @@ class WorldModelManager(PhysicsManager):
         self._record_images = {
             view: _load_images(self._split_records, view, self.spec).to(self._device) for view in self.spec.views
         }
-        self._env_record = np.zeros(num_envs, dtype=np.int64)
-        self._env_seed = np.zeros(num_envs, dtype=np.int64)
-        self._restart = np.zeros(num_envs, dtype=bool)
+        self._record_states = torch.from_numpy(np.stack([r.joint_state for r in self._split_records])).to(self._device)
+        self._env_record = torch.zeros(num_envs, dtype=torch.int64, device=self._device)
+        self._env_draw = torch.zeros_like(self._env_record)
+        self._restart = torch.zeros(num_envs, dtype=torch.bool, device=self._device)
+        self._generator = torch.Generator(self._device).manual_seed(self._cfg.seed)
+        self._cursor = torch.zeros((), dtype=torch.int64, device=self._device)
+        self._reset_called = False
 
     def initialize(self, sim_context) -> None:
         super().initialize(sim_context)
@@ -121,11 +129,14 @@ class WorldModelManager(PhysicsManager):
             self.dispatch_event(PhysicsEvent.MODEL_INIT)
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
-    def reset_envs(self, env_ids: np.ndarray) -> None:
+    def reset_envs(self, env_mask: torch.Tensor) -> None:
         """Start new episodes in the selected environments from sampled reset records.
 
         Publish the record's state and start image immediately. The model restarts from the selected records just
         before generating the next chunk, after its joint targets have been collected.
+
+        Args:
+            env_mask: Environments to reset, shape ``(N,)``, ``bool``, on the simulation device.
 
         Raises:
             RuntimeError: If called in the middle of a chunk.
@@ -135,23 +146,17 @@ class WorldModelManager(PhysicsManager):
                 f"Environments can only reset on chunk boundaries, but {self._steps_in_chunk} of "
                 f"{self.spec.chunk_length} steps of the chunk have been taken."
             )
-        indices = self._sample(env_ids)
-        records = [self._split_records[index] for index in indices]
+        records = self._sample(env_mask)
         self._draws += 1
-        self._env_record[env_ids] = indices
-        self._env_seed[env_ids] = (self._cfg.seed + 997 * self._draws + env_ids) % 2**32
-        self._restart[env_ids] = True
-        ids = torch.as_tensor(env_ids, dtype=torch.long, device=self._device)
-        state = torch.as_tensor(np.stack([r.joint_state for r in records]), device=self._device)
-        self.joint_state[ids] = state
-        self.joint_target[ids] = state
-        rows = torch.as_tensor(self._env_record, dtype=torch.long, device=self._device)
-        selected = torch.zeros(self.num_envs, dtype=torch.bool, device=self._device)
-        selected[ids] = True
+        torch.where(env_mask, records, self._env_record, out=self._env_record)
+        self._env_draw.masked_fill_(env_mask, self._draws)
+        self._restart |= env_mask
+        self._reset_called = True
+        state = self._record_states[records]
+        torch.where(env_mask[:, None], state, self.joint_state, out=self.joint_state)
+        torch.where(env_mask[:, None], state, self.joint_target, out=self.joint_target)
         for view, buffer in self._frames.items():
-            # FrameBuffer publishes full-size batches under a device mask, preserving unselected environments.
-            start_images = self._record_images[view][rows]
-            buffer.publish(start_images[:, None], selected)
+            buffer.publish(self._record_images[view][records][:, None], env_mask)
         self.new_frames = False
 
     def set_joint_target(self, target: np.ndarray | torch.Tensor) -> None:
@@ -167,7 +172,8 @@ class WorldModelManager(PhysicsManager):
         self._steps_in_chunk += 1
         self.new_frames = self._steps_in_chunk == self.spec.chunk_length
         if self.new_frames:
-            self._restart_model()
+            if self._reset_called:
+                self._restart_model()
             frames = self.model.step(self._targets, self._chunk_start)
             if frames.keys() != self._frames.keys():
                 raise RuntimeError(f"The world model returned the views {list(frames)}, not {list(self._frames)}.")
@@ -189,36 +195,33 @@ class WorldModelManager(PhysicsManager):
 
     def _restart_model(self) -> None:
         """Restart only the environments reset since the previous model call, using their latest records."""
-        env_ids = np.flatnonzero(self._restart)
-        if not len(env_ids):
+        # Read metadata only when generating a chunk; prompts are host strings.
+        self._reset_called = False
+        restart, records, draws = torch.stack((self._restart, self._env_record, self._env_draw)).tolist()
+        self._restart.zero_()
+        env_ids = [env for env, flag in enumerate(restart) if flag]
+        if not env_ids:
             return
-        indices = self._env_record[env_ids]
-        records = [self._split_records[index] for index in indices]
-        rows = torch.as_tensor(indices, dtype=torch.long, device=self._device)
+        indices = [records[env] for env in env_ids]
+        rows = torch.tensor(indices, device=self._device)
         self.model.reset(
-            env_ids.tolist(),
+            env_ids,
             {view: images[rows] for view, images in self._record_images.items()},
-            [r.prompt for r in records],
-            self._env_seed[env_ids].tolist(),
+            [self._split_records[i].prompt for i in indices],
+            [(self._cfg.seed + 997 * draws[env] + env) % 2**32 for env in env_ids],
         )
-        self._restart[env_ids] = False
 
-    def _sample(self, env_ids: np.ndarray) -> np.ndarray:
-        """Pick a reset record per environment. Environments of one reset-record group share a draw, so a group-relative
-        algorithm compares rollouts of the same scene. Training draws at random; other splits are visited in order."""
-        if self.num_envs % self._cfg.envs_per_reset_record:
-            raise ValueError(
-                f"envs_per_reset_record={self._cfg.envs_per_reset_record} must divide num_envs={self.num_envs}"
-            )
-        group_draws: dict[int, int] = {}
-        for group in np.unique(env_ids // self._cfg.envs_per_reset_record):
-            if self._cfg.split == "train":
-                index = self._rng.integers(len(self._split_records))
-            else:
-                index = self._cursor % len(self._split_records)
-                self._cursor += 1
-            group_draws[group] = index
-        return np.asarray([group_draws[env // self._cfg.envs_per_reset_record] for env in env_ids], dtype=np.int64)
+    def _sample(self, env_mask: torch.Tensor) -> torch.Tensor:
+        """Pick records on the device. Groups share a draw; non-training splits visit records in order."""
+        group_size = self._cfg.envs_per_reset_record
+        count = len(self._split_records)
+        groups = env_mask.view(-1, group_size).any(dim=1)
+        if self._cfg.split == "train":
+            draws = torch.randint(count, groups.shape, generator=self._generator, device=self._device)
+        else:
+            draws = (self._cursor + torch.cumsum(groups, 0) - 1) % count
+            self._cursor += groups.sum()
+        return draws.repeat_interleave(group_size)
 
 
 def _load_images(records: list[ResetRecord], view: str, spec: WorldModelSpec) -> torch.Tensor:

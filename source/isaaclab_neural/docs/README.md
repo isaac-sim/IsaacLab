@@ -47,6 +47,10 @@ its configuration, so the camera leaves that history to the renderer.
   before generating the next chunk. The configured `default_joint_pos` stays unchanged. Training samples records at random;
   other splits visit them in order. `envs_per_reset_record` consecutive environments share a record (default 1); a group-relative algorithm such as GRPO sets it to its group size so that a group compares rollouts of one scene.
 
+  Record sampling and reset state/image updates run on the simulation device. Only at the next chunk generation
+  does the manager read reset metadata on the host to select prompts and model seeds. The sampler uses a seeded
+  Torch generator; its random sequence differs from the previous NumPy sampler, including with the same seed.
+
 ## Timing
 
 A model predicts `chunk_length` frames from `chunk_length` joint targets. Use `sim.dt = 1 / fps` and `decimation = 1`:
