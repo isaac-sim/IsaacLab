@@ -23,8 +23,11 @@ from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg imp
     ObservationsCfg,
     manip_mdp,
 )
+from isaaclab_tasks.utils.hydra import preset
 
 from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
+
+_D435_CAMERA_PRIM_PATH = "{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera"
 
 ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
     "/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled": True,
@@ -47,7 +50,9 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         ),
     )
 
-    def add_robot_pov_cam(self, height, width, use_nurec_renderer_settings: bool = False):
+    def add_robot_pov_cam(
+        self, height, width, use_nurec_renderer_settings: bool = False, *, prim_path: str = _D435_CAMERA_PRIM_PATH
+    ):
         camera_kwargs = {}
         if use_nurec_renderer_settings:
             camera_kwargs["renderer_cfg"] = IsaacRtxRendererCfg(
@@ -59,7 +64,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             )
 
         self.robot_pov_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera",
+            prim_path=prim_path,
             update_period=0.0,
             height=height,
             width=width,
@@ -133,13 +138,10 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
     background_usd_path: str | None = None
     background_occupancy_yaml_file: str | None = None
     high_res_video: bool = False
+    d435_camera_prim_path: str = preset(default=_D435_CAMERA_PRIM_PATH, oem="{ENV_REGEX_NS}/Robot/d435_link/camera")
 
     def __post_init__(self):
         """Post initialization."""
-        # This class overrides LocomanipulationG1EnvCfg.__post_init__, so preserve the
-        # contact reporting required by the inherited per-hand contact sensors.
-        self.scene.robot.spawn.activate_contact_sensors = True
-
         # general settings
         self.decimation = 4
         self.episode_length_s = 50.0

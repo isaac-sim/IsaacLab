@@ -14,7 +14,10 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_tasks.utils.hydra import preset
+
 from isaaclab_assets import G1_CFG as UNITREE_G1_CFG
+from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_BARE_URI, spawn_g1_oem_usd
 
 from ...motion_tracking_env_cfg import ActionsCfg, CommandsCfg, MotionTrackingEnvCfg, MotionTrackingSceneCfg
 
@@ -202,7 +205,14 @@ for actuator in G1_CFG.actuators.values():
 class G1SceneCfg(MotionTrackingSceneCfg):
     """Flat scene with the official 29-DOF G1 asset without hands."""
 
-    robot = replace(G1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(
+        G1_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=preset(
+            default=G1_CFG.spawn,
+            oem=replace(G1_CFG.spawn, usd_path=G1_OEM_BARE_URI, variants=None, func=spawn_g1_oem_usd),
+        ),
+    )
 
 
 @configclass
