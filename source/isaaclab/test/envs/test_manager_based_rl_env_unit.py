@@ -207,13 +207,6 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         group = ObservationGroupCfg()
         group.value = ObservationTermCfg(func=lambda env: state)
         env.observation_manager = ObservationManager({"policy": group}, env)
-        env.recorder_manager = SimpleNamespace(
-            record_pre_step=lambda: None,
-            record_post_step=lambda: None,
-            record_post_physics_decimation_step=lambda: None,
-            record_pre_reset=lambda ids: None,
-            record_post_reset=lambda ids: None,
-        )
         env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
         env.termination_manager = SimpleNamespace(compute=lambda: done.clone(), terminated=done, time_outs=timeout)
         env.reward_manager = SimpleNamespace(compute=lambda **kwargs: reward)

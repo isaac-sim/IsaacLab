@@ -291,6 +291,8 @@ def annotate_dataset(
 
 def _step_annotation(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
     """Replay one action and capture the fields used for Mimic annotations."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
     recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
     if args_cli.auto:
         recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())

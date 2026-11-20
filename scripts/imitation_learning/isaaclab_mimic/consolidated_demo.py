@@ -241,6 +241,8 @@ async def run_data_generator(
 
 def _step_consolidated_demo(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
     """Advance the live demonstrations and generated trajectories together."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
     recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
     recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
 

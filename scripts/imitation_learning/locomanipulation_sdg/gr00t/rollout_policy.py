@@ -339,6 +339,8 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
 
 def _step_rollout(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
     """Capture a rollout transition and export completed policy episodes."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
     env.action_manager.process_action(action.to(env.device))
     record_pre_step(recorder, env, env.action_manager.action)
 
