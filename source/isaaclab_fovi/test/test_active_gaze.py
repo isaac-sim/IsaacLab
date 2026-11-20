@@ -17,12 +17,12 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
-    teacher_block_dim,
-    teacher_labels_kernel,
+    gaze_teacher_labels,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
@@ -79,22 +79,15 @@ def test_gaze_step_kernel_matches_the_torch_update():
     torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
 
 
-def mount_frame(rotation_deg: float) -> torch.Tensor:
-    """The camera's ``_mask_frame`` for an image rolled by ``rotation_deg``: upright gaze frame to physical frame."""
-    angle = torch.tensor(rotation_deg).deg2rad()
-    c, s = float(angle.cos()), float(angle.sin())
-    return torch.tensor([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
-
-
-# The kernel's block size depends on the device; the image roll is rotated across the two.
-TEACHER_CASES = [("cpu", 0.0)] + [(device, 35.0) for device in DEVICES if device != "cpu"]
-
-
-@pytest.mark.parametrize(("device", "rotation_deg"), TEACHER_CASES)
-def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
+@pytest.mark.parametrize(("device", "body_id"), [("cpu", None), (DEVICES[-1] if DEVICES else "cpu", 1)])
+def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_id):
+    # The root case checks fixation from rest through a roll over 90 degrees. The body case exercises clamping
+    # and a strided pose view, including the CUDA block reduction when a GPU is available.
     camera = CameraModel("pinhole", (480, 640), (400.0, 400.0, 319.5, 239.5), distortion=(-0.1, 0.02, 0.0, 0.0))
-    field_radius, step, limit = 30.0, 0.1, 1.0
-    frame = mount_frame(rotation_deg)
+    field_radius, step, limit = 30.0, (2.0 if body_id is None else 0.1), 1.0
+    roll = math.radians(120.0 if body_id is None else 35.0)
+    c, s = math.cos(roll), math.sin(roll)
+    frame = torch.tensor([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
     generator = torch.Generator().manual_seed(5)
     count = 4099
     # Each camera has its own mount, as on a moving head.
@@ -105,7 +98,7 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     targets = positions + quat_apply(mount, local)
     orientations = torch.nn.functional.normalize(torch.randn(count, 4, generator=generator), dim=-1)
     offset = torch.tensor([0.0, 0.0, 0.3])
-    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
+    gaze = torch.zeros(count, 2) if body_id is None else (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
 
     # The torch path the kernel replaces: the point fixed to each target, the teacher, then the labels and logs.
     points = targets + quat_apply(orientations, offset.expand(count, -1))
@@ -125,85 +118,65 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
     decisive = torch.stack(
         [teachable(torch.nn.functional.normalize(direction + nudge, dim=-1)) == valid for nudge in nudges]
     ).all(0)
-    action = torch.where(valid[:, None], ((desired - gaze) / step).clamp(-1, 1), 0.0)
+    delta = (desired - gaze) / step
+    action = torch.where(valid[:, None], delta.clamp(-1, 1), 0.0)
     looking = angles_to_direction(gaze * field_radius)
     error = torch.atan2(torch.cross(looking, upright, dim=-1).norm(dim=-1), (looking * upright).sum(-1)).rad2deg()
     expected = torch.cat((action, valid[:, None].float()), dim=-1)
 
-    labels = torch.empty(count, 3, device=device)
-    log = torch.full((2,), float("nan"), device=device)
-    block = teacher_block_dim(device)
+    poses = torch.cat((targets, orientations), dim=-1).to(device)
+    target = SceneEntityCfg("target")
     with torch_stream(device):
-        wp.launch(
-            teacher_labels_kernel,
-            dim=(1, block),
-            inputs=[
-                wp.from_torch(targets.to(device), dtype=wp.vec3f),
-                wp.from_torch(orientations.to(device), dtype=wp.quatf),
-                wp.vec3f(*offset.tolist()),
-                wp.from_torch(positions.to(device), dtype=wp.vec3f),
-                wp.from_torch(mount.to(device), dtype=wp.quatf),
-                wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f),
-                wp.mat33f(*frame.flatten().tolist()),
-                field_radius,
-                step,
-                limit,
-                camera_params(camera),
-            ],
-            outputs=[wp.from_torch(labels), wp.from_torch(log)],
-            block_dim=block,
+        if body_id is None:
+            asset_data = SimpleNamespace(root_pose_w=ProxyArray(wp.from_torch(poses, dtype=wp.transformf)))
+        else:
+            target.body_names, target.body_ids = ["pole"], [body_id]
+            bodies = torch.stack((torch.zeros_like(poses), poses), dim=1)
+            asset_data = SimpleNamespace(body_pose_w=ProxyArray(wp.from_torch(bodies, dtype=wp.transformf)))
+        mounts = ProxyArray(wp.from_torch(mount.to(device), dtype=wp.quatf))
+        sensor = SimpleNamespace(
+            data=SimpleNamespace(pos_w=ProxyArray(wp.from_torch(positions.to(device), dtype=wp.vec3f))),
+            gaze_angles=ProxyArray(wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f)),
+            image_frame=wp.mat33f(*frame.flatten().tolist()),
+            projection_params=camera_params(camera),
         )
-    labels, log = labels.cpu(), log.cpu()
+    gaze_term = SimpleNamespace(
+        camera=sensor,
+        teacher_mounts=lambda: mounts,
+        field_radius_deg=field_radius,
+        cfg=GazeActionCfg(asset_name="camera", step_size=step),
+    )
+    env = SimpleNamespace(
+        device=device,
+        num_envs=count,
+        scene={"target": SimpleNamespace(data=asset_data)},
+        action_manager=SimpleNamespace(get_term=lambda name: gaze_term),
+        extras={},
+    )
+    teacher = gaze_teacher_labels(ObservationTermCfg(func=gaze_teacher_labels), env)
+    labels = teacher(env, target, offset=tuple(offset.tolist())).cpu()
     assert valid[decisive].any() and (~valid[decisive]).any() and decisive.float().mean() > 0.99
     torch.testing.assert_close(labels[decisive], expected[decisive], atol=1e-4, rtol=0)
     labelled = labels[:, 2] > 0.5
-    assert float(log[1]) == pytest.approx(float(labelled.float().mean()))
-    assert float(log[0]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
-
-
-def test_teacher_gaze_fixates_the_target_through_a_rolled_mount():
-    """Following a teacher label puts the fixation, which reaches the physical camera at frame * gaze * z, on the
-    target."""
-    rotation_deg = 120.0
-    camera = CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))
-    field_radius, step = 40.0, 10.0
-    frame = mount_frame(rotation_deg)
-    direction = torch.nn.functional.normalize(torch.tensor([[0.25, -0.15, 1.0], [-0.3, 0.2, 1.0]]), dim=-1)
-    count = len(direction)
-    identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(count, 1)
-    labels, log = torch.empty(count, 3), torch.empty(2)
-    with torch_stream("cpu"):
-        wp.launch(
-            teacher_labels_kernel,
-            dim=(1, 1),
-            inputs=[
-                wp.from_torch(direction, dtype=wp.vec3f),
-                wp.from_torch(identity, dtype=wp.quatf),
-                wp.vec3f(0.0, 0.0, 0.0),
-                wp.zeros(count, dtype=wp.vec3f),
-                wp.from_torch(identity, dtype=wp.quatf),
-                wp.zeros(count, dtype=wp.vec2f),
-                wp.mat33f(*frame.flatten().tolist()),
-                field_radius,
-                step,
-                1.0,
-                camera_params(camera),
-            ],
-            outputs=[wp.from_torch(labels), wp.from_torch(log)],
-            block_dim=1,
-        )
-    assert (labels[:, 2] == 1).all()
-    gaze = labels[:, :2] * step
-    fixation = angles_to_direction(gaze * field_radius) @ frame.T
-    torch.testing.assert_close(fixation, direction, atol=1e-5, rtol=0)
-    # The error is the gaze's angle from the target before the step: the gaze starts on the optical axis.
-    torch.testing.assert_close(log[0], direction[:, 2].acos().rad2deg().mean(), atol=1e-3, rtol=0)
+    reachable = labelled & decisive & (delta.abs().amax(dim=-1) < 1.0)
+    assert reachable.any()
+    fixation = angles_to_direction((gaze + labels[:, :2] * step) * field_radius) @ frame.T
+    torch.testing.assert_close(fixation[reachable], direction[reachable], atol=1e-5, rtol=0)
+    log = env.extras["log"]
+    assert float(log["Gaze/valid_target_fraction"]) == pytest.approx(float(labelled.float().mean()))
+    assert float(log["Gaze/target_error_deg"]) == pytest.approx(float(error[labelled].mean()), rel=1e-4)
 
 
 def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():
     GazeActionCfg(asset_name="camera").validate_config()
     GazeActionCfg(asset_name="camera", mount="tracked").validate_config()
-    for field, value in (("step_size", 0.0), ("step_size", float("nan")), ("gaze_limit", math.inf), ("mount", "head")):
+    for field, value in (
+        ("step_size", 0.0),
+        ("step_size", float("nan")),
+        ("gaze_limit", math.inf),
+        ("gaze_limit", "1.0"),
+        ("mount", "head"),
+    ):
         cfg = GazeActionCfg(asset_name="camera")
         setattr(cfg, field, value)
         with pytest.raises(ValueError, match=field):

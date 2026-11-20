@@ -23,19 +23,6 @@ if TYPE_CHECKING:
 POOL_MODES = ("avg", "gaussian", "max", "sum")
 """fovi pooling modes for the outputs other than segmentation."""
 
-SEGMENTATION_POOL_MODES = ("modal",)
-"""Pooling modes for segmentation outputs: the modal label only."""
-
-
-def validate_radius_norm(radius_norm: float, style: str, fov_type: str) -> None:
-    """Reject warped-grid radius norms that fovi cannot sample, before renderer startup."""
-    if radius_norm not in RADIUS_NORMS:
-        raise ValueError(f"radius_norm must be one of {RADIUS_NORMS}, got {radius_norm!r}.")
-    if radius_norm != 2.0 and style not in WARPED_CARTESIAN_STYLES:
-        raise ValueError("Non-default radius_norm requires a warped_cartesian style.")
-    if radius_norm == math.inf and fov_type == "wang":
-        raise ValueError("radius_norm=inf does not support fov_type='wang'.")
-
 
 @configclass
 class FoveatedCameraCfg(CameraCfg):
@@ -109,8 +96,8 @@ class FoveatedCameraCfg(CameraCfg):
     exit_texture_size: int | None = None
     """Side of the RTX inverse lens texture; None uses ``max(128, 4 * grid side)``."""
 
-    # The camera sets height and width on its own copy of the configuration, from the retina's samples, before the
-    # parent allocates buffers. The defaults only satisfy CameraCfg's required fields.
+    # Render dimensions come from the retinal samples. On Newton, these initial dimensions also determine the
+    # aspect ratio used to infer an unspecified vertical aperture when spawning the camera.
     width: int = 1
     height: int = 1
 
@@ -118,15 +105,20 @@ class FoveatedCameraCfg(CameraCfg):
     """Update the camera pose every frame. Newton and OVRTX require it: their pose update applies the gaze."""
 
     def __post_init__(self):
-        # Resolves the default renderer and forwards deprecated renderer fields.
         super().__post_init__()
-        validate_radius_norm(self.radius_norm, self.foveated_style, self.fov_type)
+        # Reject incompatible geometry before the renderer creates the retina.
+        if self.radius_norm not in RADIUS_NORMS:
+            raise ValueError(f"radius_norm must be one of {RADIUS_NORMS}, got {self.radius_norm!r}.")
+        if self.radius_norm != 2.0 and self.foveated_style not in WARPED_CARTESIAN_STYLES:
+            raise ValueError("Non-default radius_norm requires a warped_cartesian style.")
+        if self.radius_norm == math.inf and self.fov_type == "wang":
+            raise ValueError("radius_norm=inf does not support fov_type='wang'.")
         if self.pool_mode not in POOL_MODES:
             raise ValueError(
                 f"pool_mode must be one of {POOL_MODES}, got {self.pool_mode!r}; segmentation pools with pool_int_mode."
             )
-        if self.pool_int_mode not in SEGMENTATION_POOL_MODES:
+        if self.pool_int_mode not in ("modal",):
             raise ValueError(
-                f"pool_int_mode must be one of {SEGMENTATION_POOL_MODES}, got {self.pool_int_mode!r}: segmentation"
+                f"pool_int_mode must be one of ('modal',), got {self.pool_int_mode!r}: segmentation"
                 " pools by modal label, since other modes would mix labels into ones no object has."
             )

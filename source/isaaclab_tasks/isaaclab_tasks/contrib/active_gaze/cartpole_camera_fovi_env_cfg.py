@@ -11,18 +11,21 @@ whose noise is fixed, and the teacher's gaze labels supervise them during traini
 """
 
 from isaaclab_fovi import mdp
+from isaaclab_fovi.sensors import FoveatedCameraCfg
 
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.cartpole import mdp as cartpole_mdp
 from isaaclab_tasks.core.cartpole.cartpole_common import CartpoleTiledCameraCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleCameraSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import (
+    CartpoleCameraEnvCfg,
+    CartpoleCameraSceneCfg,
+    image_observations_cfg,
+)
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ActionsCfg as CartpoleActionsCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ObservationsCfg as CartpoleObservationsCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
-from .active_gaze_cfg import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
+from .active_gaze_cfg import GazeObservationsCfg, OracleObservationsCfg
 
 POLE_TIP = (0.0, 0.0, 1.0)
 """The pole's tip in the pole's frame [m]."""
@@ -30,39 +33,39 @@ POLE_TIP = (0.0, 0.0, 1.0)
 RETINA_RES = 32
 """Retina samples across; the stock camera is 96 pixels across."""
 
+_STOCK_CAMERA = CartpoleTiledCameraCfg().rgb
+_RGB_OBSERVATIONS = image_observations_cfg("rgb")
+_RGB_CAMERA = FoveatedCameraCfg(
+    prim_path=_STOCK_CAMERA.prim_path,
+    offset=_STOCK_CAMERA.offset,
+    spawn=_STOCK_CAMERA.spawn,
+    renderer_cfg=_STOCK_CAMERA.renderer_cfg,
+    data_types=["rgb"],
+    foveated_res=RETINA_RES,
+    mask_to_sensor_fov=True,
+)
 
-def observations(data_type: str, image_term) -> object:
-    """The stock camera observations of ``data_type``, the gaze, and the teacher's labels."""
 
-    @configclass
-    class ObservationsCfg:
-        @configclass
-        class PolicyCfg(ObservationGroupCfg):
-            image = ObservationTermCfg(
-                func=image_term,
-                params={
-                    "sensor_cfg": SceneEntityCfg("tiled_camera"),
-                    "data_type": data_type,
-                    "channel_first": True,
-                    "frame_stack": 2,
-                },
-            )
-
-            def __post_init__(self):
-                self.enable_corruption = False
-                self.concatenate_terms = True
-
-        policy: ObservationGroupCfg = PolicyCfg()
-        critic: ObservationGroupCfg = CartpoleObservationsCfg.PolicyCfg()
-        gaze: ObservationGroupCfg = GazeObservationsCfg()
-        oracle: ObservationGroupCfg = oracle_observations(SceneEntityCfg("robot", body_names="pole"), POLE_TIP)
-
-    return ObservationsCfg()
+@configclass
+class ObservationsCfg:
+    policy: ObservationGroupCfg = _RGB_OBSERVATIONS.policy
+    critic: ObservationGroupCfg = _RGB_OBSERVATIONS.critic
+    gaze: ObservationGroupCfg = GazeObservationsCfg()
+    oracle: ObservationGroupCfg = OracleObservationsCfg(
+        labels=ObservationTermCfg(
+            func=mdp.gaze_teacher_labels,
+            params={"target_cfg": SceneEntityCfg("robot", body_names="pole"), "offset": POLE_TIP},
+        )
+    )
 
 
 @configclass
 class SceneCfg(CartpoleCameraSceneCfg):
-    tiled_camera = select_presets(foveated_presets(CartpoleTiledCameraCfg(), RETINA_RES), ("rgb", "depth"))
+    tiled_camera = preset(
+        default=_RGB_CAMERA,
+        depth=_RGB_CAMERA.replace(data_types=["depth"]),
+        rgb=_RGB_CAMERA,
+    )
 
 
 @configclass
@@ -80,6 +83,6 @@ class CartpoleCameraFoviEnvCfg(PresetCfg):
         scene: SceneCfg = SceneCfg(num_envs=512, env_spacing=20.0)
         actions: ActionsCfg = ActionsCfg()
 
-    rgb = BaseCfg(observations=observations("rgb", cartpole_mdp.image_rgb))
-    depth = BaseCfg(observations=observations("depth", cartpole_mdp.image_depth))
+    rgb = BaseCfg(observations=ObservationsCfg())
+    depth = BaseCfg(observations=ObservationsCfg(policy=image_observations_cfg("depth").policy))
     default = rgb

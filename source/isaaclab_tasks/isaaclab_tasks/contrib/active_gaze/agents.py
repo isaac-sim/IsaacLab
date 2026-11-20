@@ -5,29 +5,15 @@
 
 """RSL-RL agents of the active-gaze tasks: the stock PPO with gaze supervision and a fixed gaze noise."""
 
-from dataclasses import fields
-
-from isaaclab.utils import configclass, replace
-
-from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlPpoAlgorithmCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cartpole.agents.rsl_rl_ppo_cfg import CartpoleCameraPPORunnerCfg
 
 from .gaze_distribution_cfg import GazeGaussianDistributionCfg
 from .gaze_supervised_ppo_cfg import GazeSupervisedPPOCfg
 
-
-def gaze_supervised(algorithm: RslRlPpoAlgorithmCfg, **kwargs) -> GazeSupervisedPPOCfg:
-    """The PPO settings of ``algorithm`` with gaze supervision by the teacher."""
-    values = {field.name: getattr(algorithm, field.name) for field in fields(algorithm) if field.name != "class_name"}
-    return GazeSupervisedPPOCfg(**values, **kwargs)
-
-
-def gaze_actor(actor: RslRlMLPModelCfg) -> RslRlMLPModelCfg:
-    """The stock actor with a fixed, small noise on its gaze actions, the last two."""
-    stock = actor.distribution_cfg
-    head = GazeGaussianDistributionCfg(init_std=stock.init_std, std_type=stock.std_type, std_range=stock.std_range)
-    return replace(actor, distribution_cfg=head)
+_STOCK_RUNNER = CartpoleCameraPPORunnerCfg()
+_STOCK_DISTRIBUTION = _STOCK_RUNNER.actor.distribution_cfg
 
 
 @configclass
@@ -36,5 +22,13 @@ class CartpoleCameraFoviPPORunnerCfg(CartpoleCameraPPORunnerCfg):
 
     experiment_name = "cartpole_camera_fovi"
     obs_groups = {"actor": ["policy", "gaze"], "critic": ["critic", "gaze"]}
-    actor = gaze_actor(CartpoleCameraPPORunnerCfg().actor)
-    algorithm = gaze_supervised(CartpoleCameraPPORunnerCfg().algorithm)
+    actor = _STOCK_RUNNER.actor.replace(
+        distribution_cfg=GazeGaussianDistributionCfg(
+            init_std=_STOCK_DISTRIBUTION.init_std,
+            std_type=_STOCK_DISTRIBUTION.std_type,
+            std_range=_STOCK_DISTRIBUTION.std_range,
+        )
+    )
+    algorithm = GazeSupervisedPPOCfg(
+        **{name: value for name, value in vars(_STOCK_RUNNER.algorithm).items() if name != "class_name"}
+    )

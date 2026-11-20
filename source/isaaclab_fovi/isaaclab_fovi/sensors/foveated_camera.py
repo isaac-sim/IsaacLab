@@ -20,7 +20,7 @@ from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.math import convert_camera_frame_orientation_convention, quat_error_magnitude
 from isaaclab.utils.warp import ProxyArray
 
-from .calibrated_geometry import resolve_camera_model, retinal_directions
+from .calibrated_geometry import camera_model_from_spawn, retinal_directions
 from .gaze_kernels import (
     CameraParams,
     apply_gaze_indexed_kernel,
@@ -34,6 +34,7 @@ from .gaze_kernels import (
 )
 from .native_grid import GRID_STYLE, buffer_tensor, native_grid_directions
 from .pooling import (
+    build_retinal_coords,
     is_segmentation_output,
     pool_hwc_buffer,
     pool_segmentation_buffer,
@@ -96,14 +97,14 @@ class FoveatedCamera(Camera):
             " 'ovrtx'."
         )
 
-    def __init__(self, cfg: FoveatedCameraCfg):
+    def __init__(self, cfg: FoveatedCameraCfg, *, turns_pose_by_gaze: bool = False):
         """Create the camera.
 
         Raises:
             ValueError: A Newton or OVRTX camera without ``update_latest_camera_pose``, whose renderer would never see
                 the gaze.
         """
-        self._gaze_pose_reads_angles = self._pose_update_turns_gaze(cfg)
+        self._gaze_pose_reads_angles = turns_pose_by_gaze
         """Whether the camera turns its pose by the stored gaze in each pose update, rather than writing prim poses
         when the gaze is set; see :attr:`turns_pose_by_gaze`."""
         if self._gaze_pose_reads_angles and not cfg.update_latest_camera_pose:
@@ -259,7 +260,8 @@ class FoveatedCamera(Camera):
         before = self._mount_orientations(env_ids)
         super().set_world_poses_from_view(eyes, targets, env_ids)
         # Rows whose eye equals their target are skipped by the base method and keep their poses.
-        self._mount_written(self._env_indices(env_ids)[self._turned_by_view(eyes, targets)])
+        turned = (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
+        self._mount_written(self._env_indices(env_ids)[turned])
         self._count_mount_turn(before, env_ids)
 
     def set_intrinsic_matrices(self, matrices, focal_length=None, env_ids=None):
@@ -280,11 +282,28 @@ class FoveatedCamera(Camera):
             stacklevel=2,
         )
 
-    def _initialize_gaze(self) -> None:
-        """Prepare the gaze geometry: the rendered rays in the physical camera's frame and the pose conversions."""
-        self._camera_model = resolve_camera_model(self.cfg)
+    def _prepare_sampling(self) -> None:
+        """Resolve physical calibration and retinal coordinates before the renderer sizes its buffers."""
+        calibration = self.cfg.camera_model
+        if calibration is None:
+            if self.cfg.spawn is None:
+                raise ValueError("A foveated camera on an existing prim needs camera_model.")
+            calibration = camera_model_from_spawn(self.cfg.spawn)
+        self._camera_model = CameraModel(**calibration)
+        self._sampling_coords, self._sampling_coords_highres = build_retinal_coords(self.cfg, self._camera_model, "cpu")
+        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
+        self._native_grid = self.cfg.foveated_style == GRID_STYLE
+        self._num_valid_samples = len(self._sampling_coords)
+        self._num_ray_samples = len(self._ray_coords)
+
+    def _initialize_sampling(self) -> None:
+        """Move retinal coordinates to the sensor device and prepare the gaze rays and frame conversions."""
+        self._sampling_coords = self._sampling_coords.to(device=self._device)
+        if self._sampling_coords_highres is not None:
+            self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
+        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._gaze_camera = camera_params(self._camera_model)
-        coords = self._sampling_coords_highres or self._sampling_coords
+        coords = self._ray_coords
         rotation_deg = self.cfg.image_rotation_deg
         # The rays as rendered, mount roll included, in the ROS frame the camera model projects.
         if coords.style == GRID_STYLE:
@@ -407,10 +426,6 @@ class FoveatedCamera(Camera):
             env_ids = wp.to_torch(env_ids)
         return torch.as_tensor(env_ids, device=self._device, dtype=torch.long).reshape(-1)
 
-    def _turned_by_view(self, eyes, targets) -> torch.Tensor:
-        """Which rows :meth:`set_world_poses_from_view` turns: the base method skips an eye equal to its target."""
-        return (self._as_device_tensor(eyes, 3) - self._as_device_tensor(targets, 3)).norm(dim=-1) > 0
-
     def _visibility_buffers(self) -> dict:
         """The sensor mask's camera-owned buffers, allocated once: the rendered rays, an unturned rotation per camera,
         each sample's visibility and, for the updated rows, which samples to hide."""
@@ -464,9 +479,9 @@ class FoveatedCamera(Camera):
 
     def _prepare_segmentation_pooling(self, names) -> None:
         """Take the modal-label neighbourhoods of pooled segmentation outputs among ``names`` from the main pooler."""
-        self._segmentation_neighbors = None
-        if self._pooler is not None and any(is_segmentation_output(name) for name in names):
-            self._segmentation_neighbors = segmentation_neighbor_indices(self._pooler)
+        self._segmentation_neighbors = (
+            segmentation_neighbor_indices(self._pooler) if any(is_segmentation_output(name) for name in names) else None
+        )
 
     def _pool_output(self, name: str, samples: torch.Tensor) -> torch.Tensor:
         """Pool one output's high-resolution samples (B, N_hi, 1, C) to the retina's (B, N_lo, 1, C), in its dtype.
@@ -563,8 +578,3 @@ class FoveatedCamera(Camera):
         tensor = next(iter(outputs.values())).torch
         self._published_shape = (int(tensor.shape[1]), int(tensor.shape[2]))
         self._data.image_shape = self._published_shape
-
-    @staticmethod
-    def _pose_update_turns_gaze(cfg: FoveatedCameraCfg) -> bool:
-        """Whether this implementation turns its rendered pose by the stored gaze in each pose update."""
-        return False

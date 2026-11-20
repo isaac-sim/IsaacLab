@@ -13,6 +13,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
+from fovi.sensing.projection import CameraModel
+from isaaclab_fovi.sensors import foveated_rtx_camera, lens_lut
 from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.lens_lut import apply_lens_lut_to_prim, build_lut_textures
@@ -58,7 +60,6 @@ def test_partial_capture_extracts_only_the_updated_environments(native_grid) -> 
     camera = SimpleNamespace(
         cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx")),
         # An OVRTX camera with distance_to_camera output adds each camera's near clip.
-        _offset_distance=True,
         _native_grid=native_grid,
         _near_clip=torch.tensor([0.25, 0.5, 0.75]).view(-1, 1, 1, 1),
         # The renderer-bound texture buffers are ProxyArrays, as the parent camera allocates them.
@@ -99,19 +100,39 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
     def construct(self, cfg):
         self.cfg = cfg
         self.stage = stage
+        self._device = "cpu"
+        # The stock camera infers the vertical aperture using the allocated texture dimensions.
+        self.cfg.spawn.vertical_aperture = cfg.spawn.horizontal_aperture * cfg.height / cfg.width
 
-    def prepare(self):
-        self.cfg.height = self.cfg.width = 64
-        self._dir_tex_path, self._exit_tex_path = "/textures/enter.exr", "/textures/exit.exr"
+    field_of_view = CameraModel.field_of_view
+    sampling_models = []
 
+    def measure_window(model, *args):
+        sampling_models.append(model)
+        return field_of_view(model, *args)
+
+    build_directions = lens_lut.native_grid_directions
+    ray_builds = []
+
+    def measure_directions(*args, **kwargs):
+        rays = build_directions(*args, **kwargs)
+        ray_builds.append(rays)
+        return rays
+
+    texture_paths = ("/textures/enter.exr", "/textures/exit.exr")
     monkeypatch.setattr(Camera, "__init__", construct)
-    monkeypatch.setattr(FoveatedRTXCamera, "_prepare_projection", prepare)
+    monkeypatch.setattr(CameraModel, "field_of_view", measure_window)
+    # Count at both import locations so evaluating a second ray grid in the camera fails this check.
+    monkeypatch.setattr(lens_lut, "native_grid_directions", measure_directions)
+    monkeypatch.setattr(foveated_rtx_camera, "native_grid_directions", measure_directions, raising=False)
+    monkeypatch.setattr(lens_lut, "save_lut_textures", lambda *args: texture_paths)
     monkeypatch.setattr(FoveatedRTXCamera, "__del__", lambda self, *args, **kwargs: None)
     cfg = FoveatedCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         spawn=PinholeCameraCfg(),
         renderer_cfg=OVRTXRendererCfg(),
         data_types=["rgb"],
+        foveated_res=16,
     )
     assert cfg.spawn.lock_camera
     camera = FoveatedRTXCamera(cfg)
@@ -119,8 +140,12 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
         assert prim.GetAttribute("omni:kit:cameraLock").Get() is False
         assert prim.GetAttribute("omni:lensdistortion:model").Get() == "lut"
         assert prim.GetAttribute("omni:lensdistortion:lut:rayEnterDirectionTexture").Get().path == "/textures/enter.exr"
-    assert camera.cfg is not cfg and camera.cfg.height == 64
-    assert cfg.spawn.lock_camera and (cfg.height, cfg.width) == (1, 1)
+    assert camera.cfg is not cfg and (camera.cfg.height, camera.cfg.width) == (16, 16)
+    assert len(ray_builds) == 1
+    camera._initialize_sampling()
+    assert len(sampling_models) == 1 and camera.camera_model is sampling_models[0]
+    assert camera.camera_model.image_size == (1024, 1024)
+    assert cfg.spawn.lock_camera and cfg.spawn.vertical_aperture is None and (cfg.height, cfg.width) == (1, 1)
 
 
 def test_lens_lut_survives_usd_export_without_schema_registration() -> None:

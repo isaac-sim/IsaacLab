@@ -15,7 +15,7 @@ import warp as wp
 from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import CameraModel, angular_directions, gaze_rotation
 from fovi.sensing.retina import RetinalTransform
-from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions, sampling_geometry
+from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_fovi.sensors.gaze_kernels import (
@@ -26,7 +26,7 @@ from isaaclab_fovi.sensors.gaze_kernels import (
     torch_stream,
 )
 from isaaclab_fovi.sensors.native_grid import GRID_STYLE, grid_sample_indices, native_grid_directions
-from isaaclab_fovi.sensors.pooling import build_lowres_coords
+from isaaclab_fovi.sensors.pooling import build_retinal_coords
 
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.sensors.camera.camera_data import CameraData
@@ -71,19 +71,20 @@ def camera_config() -> SimpleNamespace:
         radius_norm=2.0,
         isotropic_plotting_type="v1like",
         image_rotation_deg=0.0,
+        pool_enabled=False,
     )
 
 
 def test_rendering_and_software_sampling_share_window_and_nodes() -> None:
     cfg = camera_config()
-    fov, a = sampling_geometry(cfg)
     camera = CameraModel(**cfg.camera_model)
-    assert fov == pytest.approx(camera.field_of_view("long", 0.75))
-    assert a == 2.5
-    coords, _ = build_lowres_coords(cfg, "cpu")
+    fov = camera.field_of_view("long", 0.75)
+    coords, _ = build_retinal_coords(cfg, camera, "cpu")
+    assert coords.fov == pytest.approx(fov)
+    assert coords.cmf_a == 2.5
     retina = RetinalTransform(
         fov=fov,
-        cmf_a=a,
+        cmf_a=2.5,
         resolution=12,
         device="cpu",
         field_geometry="spherical",
@@ -106,8 +107,7 @@ class GazeHarness(FoveatedCamera):
         self._view = SimpleNamespace(count=count)
         self._device = device
         self._ALL_INDICES = wp.array(list(range(count)), dtype=wp.int32, device=device)
-        self._sampling_coords, _ = build_lowres_coords(self.cfg, device)
-        self._sampling_coords_highres = None
+        self._prepare_sampling()
         # The camera's own pose buffers, at the identity orientation, with their world-to-ROS conversion.
         self._data = CameraData()
         self._data.create_buffers(count, device)
@@ -115,7 +115,7 @@ class GazeHarness(FoveatedCamera):
         # Isaac RTX's behaviour; Newton and OVRTX turn the pose by the gaze in their pose update.
         self._gaze_pose_reads_angles = False
         self._gaze_written = False
-        self._initialize_gaze()
+        self._initialize_sampling()
 
     @property
     def orientation(self) -> torch.Tensor:
@@ -562,7 +562,10 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid() -> None:
     indices = grid_sample_indices(coords).to(torch.int32).contiguous()
     visible = torch.zeros(6, count, dtype=torch.bool, device=KERNEL_DEVICE)
     identity = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-    for name, value in outputs.items():
+    # Only the first output receives the real gaze. Reprojecting depth instead of reusing the first launch's
+    # visibility would point the depth rays the wrong way and hide visible samples.
+    _, looking_away = set_gaze(torch.tensor([[0.0, 180.0]], device=KERNEL_DEVICE).repeat(6, 1))
+    for index, (name, value) in enumerate(outputs.items()):
         previous = torch.full_like(expected_grid[name], 7)
         target = previous.clone()
         with torch_stream(KERNEL_DEVICE):
@@ -575,11 +578,11 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid() -> None:
                     wp.from_torch(coords.valid_mask.contiguous()),
                     wp.from_torch(updated),
                     wp.from_torch(rays, dtype=wp.vec3f),
-                    wp.from_torch(rotation, dtype=wp.mat33f),
+                    wp.from_torch(rotation if index == 0 else looking_away, dtype=wp.mat33f),
                     identity,
                     camera_params(camera),
                     1,
-                    int(name == "rgba"),
+                    int(index == 0),
                     wp.from_torch(visible),
                 ],
                 outputs=[wp.from_torch(target.view(6, count, -1).view(torch.uint8))],

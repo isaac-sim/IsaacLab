@@ -13,9 +13,10 @@ from fovi.sensing.coords import SamplingCoords
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 from isaaclab_fovi.sensors.lens_lut import build_native_grid_textures
 from isaaclab_fovi.sensors.native_grid import (
-    allocate_grid_outputs,
+    allocate_outputs,
     bounded_angular_radius,
     copy_grid_outputs,
+    grid_output_shape,
     grid_sample_indices,
     mask_grid_samples,
     native_grid_directions,
@@ -155,7 +156,7 @@ def test_upright_grid_masks_and_channel_aliases() -> None:
     source = {"rgba": values.clone()}
     source["rgb"] = source["rgba"][..., :3]
     mask_grid_samples(source, coords)
-    target = allocate_grid_outputs(source, coords)
+    target = allocate_outputs(source, *grid_output_shape(coords))
     copy_grid_outputs(source, target, grid_sample_indices(coords))
     expected = coords.as_grid(source["rgba"][:, :, 0], sample_dim=1)
     torch.testing.assert_close(target["rgba"], expected)
@@ -169,7 +170,7 @@ def test_upright_grid_masks_and_channel_aliases() -> None:
 def test_published_grid_copy_is_graph_capturable(device: str) -> None:
     coords = make_coords(16).to(device=device)
     source = {"value": torch.arange(3 * len(coords) * 4, device=device).to(torch.uint8).reshape(3, len(coords), 1, 4)}
-    target = allocate_grid_outputs(source, coords)
+    target = allocate_outputs(source, *grid_output_shape(coords))
     indices = grid_sample_indices(coords)
     copy_grid_outputs(source, target, indices)
     torch.testing.assert_close(target["value"], coords.as_grid(source["value"][:, :, 0], sample_dim=1), atol=0, rtol=0)

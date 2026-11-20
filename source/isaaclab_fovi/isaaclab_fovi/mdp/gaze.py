@@ -78,8 +78,7 @@ def teach(
 
 @wp.kernel(enable_backward=False)
 def teacher_labels_kernel(
-    targets: wp.array(dtype=wp.vec3f),
-    orientations: wp.array(dtype=wp.quatf),
+    target_poses: wp.array(dtype=wp.transformf),
     offset: wp.vec3f,
     positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
@@ -89,7 +88,7 @@ def teacher_labels_kernel(
     step_size: wp.float32,
     gaze_limit: wp.float32,
     camera: CameraParams,
-    labels: wp.array2d(dtype=wp.float32),
+    labels: wp.array(dtype=wp.vec3f),
     log: wp.array(dtype=wp.float32),
 ):
     """Labels (action x, action y, valid) toward the point ``offset`` fixed to each target's frame; and the mean gaze
@@ -99,17 +98,15 @@ def teacher_labels_kernel(
     One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
     """
     _block, lane = wp.tid()
-    count = targets.shape[0]
+    count = target_poses.shape[0]
     error_sum = wp.float32(0.0)
     valid_count = wp.float32(0.0)
     i = lane
     while i < count:
-        point = targets[i] + wp.quat_rotate(orientations[i], offset)
+        point = wp.transform_point(target_poses[i], offset)
         gaze = angles_deg[i] / field_radius_deg
         result = teach(point, positions[i], mounts[i], gaze, frame, field_radius_deg, step_size, gaze_limit, camera)
-        labels[i, 0] = result[0]
-        labels[i, 1] = result[1]
-        labels[i, 2] = result[2]
+        labels[i] = wp.vec3f(result[0], result[1], result[2])
         if result[2] > 0.5:
             error_sum += result[3]
             valid_count += 1.0
@@ -119,11 +116,6 @@ def teacher_labels_kernel(
     if lane == 0:
         log[0] = errors[0] / wp.max(valid[0], 1.0)
         log[1] = valid[0] / wp.float32(count)
-
-
-def teacher_block_dim(device: torch.device | str) -> int:
-    """Threads of the one block that runs :func:`teacher_labels_kernel`; Warp runs CPU blocks as one thread."""
-    return 1024 if torch.device(device).type == "cuda" else 1
 
 
 @wp.kernel(enable_backward=False)
@@ -330,8 +322,13 @@ class GazeAction(ActionTerm):
             self._reset_ids.torch[:count] = torch.as_tensor(env_ids, device=self.device)
         random_start = self.cfg.random_reset
         if random_start:
-            gaze = _random_gaze(count, self.cfg.gaze_limit, self.device)
-            visible = self.visible(_angles_to_direction(gaze * self.field_radius_deg))
+            # A square root gives uniform area density in the gaze disc.
+            radius = self.cfg.gaze_limit * torch.rand(count, device=self.device).sqrt()
+            angle = 2 * math.pi * torch.rand(count, device=self.device)
+            gaze = torch.stack((radius * angle.sin(), radius * angle.cos()), dim=-1)
+            tilt, pan = (gaze * self.field_radius_deg).deg2rad().unbind(-1)
+            direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
+            visible = self.visible(direction)
             self._reset_start.torch[:count] = torch.where(visible[:, None], gaze, 0.0)
         angles = self.camera.gaze_angles
         launch = self._reset_launches.get((indexed, random_start))
@@ -384,12 +381,9 @@ class gaze_teacher_labels(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self._gaze: GazeAction = env.action_manager.get_term(cfg.params.get("action_name", "gaze"))
-        self._labels = ProxyArray(wp.zeros((env.num_envs, 3), dtype=wp.float32, device=env.device))
+        self._labels = ProxyArray(wp.zeros(env.num_envs, dtype=wp.vec3f, device=env.device))
         self._log = ProxyArray(wp.zeros(2, dtype=wp.float32, device=env.device))
         """Mean gaze error to valid targets [deg] and the fraction of valid targets."""
-        self._offset: tuple[tuple[float, ...], wp.vec3f] | None = None
-        self._sources = None
-        self._targets = self._orientations = None
         self._launch: tuple[tuple, wp.Launch] | None = None
 
     def __call__(
@@ -400,36 +394,24 @@ class gaze_teacher_labels(ManagerTermBase):
         action_name: str = "gaze",
     ) -> torch.Tensor:
         data = env.scene[target_cfg.name].data
-        # Reading the properties refreshes the asset's pose buffers; their Warp views are wrapped once.
-        if target_cfg.body_names is None:
-            positions, orientations = data.root_pos_w, data.root_quat_w
-        else:
-            positions, orientations = data.body_pos_w, data.body_quat_w
-        if self._sources != (id(positions), id(orientations)):
-            self._sources = (id(positions), id(orientations))
-            if target_cfg.body_names is None:
-                self._targets, self._orientations = positions.warp, orientations.warp
-            else:
-                body = target_cfg.body_ids[0]
-                self._targets = wp.from_torch(positions.torch[:, body], dtype=wp.vec3f)
-                self._orientations = wp.from_torch(orientations.torch[:, body], dtype=wp.quatf)
+        # Reading the property refreshes the producer's poses.
+        body_id = None if target_cfg.body_names is None else int(target_cfg.body_ids[0])
+        poses = data.root_pose_w.warp if body_id is None else data.body_pose_w.warp
         point = tuple(float(value) for value in offset)
-        if self._offset is None or self._offset[0] != point:
-            self._offset = (point, wp.vec3f(*point))
         gaze = self._gaze
         mounts = gaze.teacher_mounts()
         camera_positions = gaze.camera.data.pos_w.warp
-        # The launch is recorded once and recorded again only when one of its arrays or the point changes.
-        sources = (self._targets, self._orientations, camera_positions, mounts, self._offset[1])
-        if self._launch is None or any(a is not b for a, b in zip(self._launch[0], sources)):
-            block = teacher_block_dim(env.device)
+        # Warp retains the selected view and its backing array in the recorded launch.
+        key = (id(poses), body_id, id(camera_positions), id(mounts), point)
+        if self._launch is None or self._launch[0] != key:
+            # Warp runs CPU blocks as one thread.
+            block = 1024 if torch.device(env.device).type == "cuda" else 1
             launch = record_launch(
                 teacher_labels_kernel,
                 (1, block),
                 [
-                    self._targets,
-                    self._orientations,
-                    self._offset[1],
+                    poses if body_id is None else poses[:, body_id],
+                    wp.vec3f(*point),
                     camera_positions,
                     mounts,
                     gaze.camera.gaze_angles,
@@ -443,29 +425,11 @@ class gaze_teacher_labels(ManagerTermBase):
                 env.device,
                 block_dim=block,
             )
-            self._launch = (sources, launch)
+            self._launch = (key, launch)
         self._launch[1].launch(warp_stream(env.device))
-        _log_teacher(env, self._log.torch)
+        # Each step's log must survive the next write to this buffer.
+        error, fraction = self._log.torch.clone()
+        log = env.extras.setdefault("log", {})
+        log["Gaze/target_error_deg"] = error
+        log["Gaze/valid_target_fraction"] = fraction
         return self._labels.torch
-
-
-def _log_teacher(env: ManagerBasedEnv, values: torch.Tensor) -> None:
-    """Log the mean gaze error to valid targets and the fraction of valid targets."""
-    # Loggers keep each step's entries, so they get a copy rather than the buffer the next step overwrites.
-    error, fraction = values.clone()
-    log = env.extras.setdefault("log", {})
-    log["Gaze/target_error_deg"] = error
-    log["Gaze/valid_target_fraction"] = fraction
-
-
-def _angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
-    """Camera-frame unit directions of gaze angles [deg], shape (..., 2) to (..., 3)."""
-    tilt, pan = angles_deg.deg2rad().unbind(-1)
-    return torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()), -1)
-
-
-def _random_gaze(count: int, limit: float, device: torch.device | str | None = None) -> torch.Tensor:
-    """Gazes drawn uniformly over the disc of radius ``limit``, shape (count, 2)."""
-    radius = limit * torch.rand(count, device=device).sqrt()
-    angle = 2 * math.pi * torch.rand(count, device=device)
-    return torch.stack((radius * angle.sin(), radius * angle.cos()), dim=-1)

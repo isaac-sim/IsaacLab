@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 import math
-from typing import Protocol
 
 import torch
-from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
+from fovi.sensing.projection import CameraCalibration, angular_directions
 
 from isaaclab.sim import PinholeCameraCfg
 
@@ -79,32 +78,6 @@ def camera_model_from_spawn(spawn: PinholeCameraCfg) -> CameraCalibration:
     )
 
 
-def resolve_camera_model(cfg: SamplingGeometryConfig) -> CameraModel:
-    """Return the physical camera the retina looks through.
-
-    This is ``cfg.camera_model`` when set, otherwise the camera that ``cfg.spawn``
-    creates (see :func:`camera_model_from_spawn`).
-
-    Raises:
-        ValueError: Neither ``cfg.camera_model`` nor ``cfg.spawn`` describes the camera.
-    """
-    if cfg.camera_model is not None:
-        return CameraModel(**cfg.camera_model)
-    if cfg.spawn is None:
-        raise ValueError("A foveated camera on an existing prim needs camera_model.")
-    return CameraModel(**camera_model_from_spawn(cfg.spawn))
-
-
-def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
-    """Return the retinal field of view and the CMF constant, both in degrees.
-
-    The field of view is the angular span of the retinal window in the physical
-    camera. Both values are in the units :class:`fovi.sensing.coords.SamplingCoords` takes.
-    """
-    fov = resolve_camera_model(cfg).field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_fraction)
-    return fov, cfg.cmf_a_deg
-
-
 def retinal_directions(cartesian: torch.Tensor, fov_deg: float, image_rotation_deg: float = 0.0) -> torch.Tensor:
     """Return OpenGL-frame angular rays, including the sensor mount roll."""
     rays = angular_directions(cartesian, fov_deg)
@@ -121,13 +94,3 @@ def compose_rotations(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
     training process enables reduced-precision matrix multiplication.
     """
     return (left[..., :, :, None] * right[..., None, :, :]).sum(dim=-2)
-
-
-class SamplingGeometryConfig(Protocol):
-    """The configuration fields that place the retina in the physical camera."""
-
-    camera_model: CameraCalibration | None
-    cmf_a_deg: float
-    retinal_window_reference_side: str
-    retinal_window_fraction: float
-    spawn: PinholeCameraCfg | None
