@@ -15,8 +15,9 @@ from PIL import Image
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_neural.mdp import reset_from_records
+from isaaclab_neural.physics import WorldModelCfg, WorldModelManager
 
-from .conftest import DT, FakeModel, H, J, N, T, W, world_model_sim
+from .conftest import DT, FakeModel, FakeModelCfg, H, J, N, T, W, world_model_sim, write_manifest
 
 
 def bound_manager(sim, num_envs=N):
@@ -71,6 +72,13 @@ def test_record_images_must_match_the_model_size(tmp_path):
         Image.new("RGB", (W + 1, H)).save(tmp_path / "start_0.png")
         with pytest.raises(ValueError, match="world model expects"):
             bound_manager(sim)
+
+
+def test_a_missing_reset_split_reports_the_split_before_binding(tmp_path):
+    with pytest.raises(ValueError, match="no records in split 'validation'"):
+        WorldModelManager(
+            WorldModelCfg(model=FakeModelCfg(), reset_manifest=write_manifest(tmp_path), split="validation")
+        )
 
 
 @pytest.mark.parametrize("states", [[np.zeros(1)], [np.zeros(J + 1)], [np.zeros(J), np.zeros(J - 1)]])

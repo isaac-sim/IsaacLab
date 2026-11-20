@@ -64,6 +64,8 @@ class WorldModelManager(PhysicsManager):
         read-only for callers."""
         self._records = load_reset_records(cfg.reset_manifest)
         self._split_records = [r for r in self._records if r.split == cfg.split]
+        if not self._split_records:
+            raise ValueError(f"The reset manifest {cfg.reset_manifest} has no records in split '{cfg.split}'.")
         self._bound = False
         self._record_images: dict[str, torch.Tensor] = {}
         self._record_states: torch.Tensor
