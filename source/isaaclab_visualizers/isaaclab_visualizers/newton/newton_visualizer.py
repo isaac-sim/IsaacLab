@@ -927,9 +927,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         imgui.radio_button("RTX", False)
         imgui.end_disabled()
         hover_tooltip(
-            imgui, "RTX is not enabled for this window. Relaunch with --viz newton_rtx to switch the view to RTX"
+            imgui, "RTX adds an OVRTX camera, which costs some startup time and a little speed, so it is opt-in"
         )
-        hud_note(imgui, "RTX is off. Relaunch with --viz newton_rtx to enable it.")
+        hud_note(imgui, "Launch with --viz newton_rtx to enable the RTX toggle.")
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -957,7 +957,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self._rtx_switch = "requested"
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "OVRTX path-traced rendering of the scene; slower than OpenGL. The first switch can take a minute"
+                    "OVRTX path-traced rendering of the scene; slower than OpenGL"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free camera"
                 )
@@ -1030,6 +1030,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         if rtx_rendering:
             self._draw_rtx_appearance(imgui)
+            hud_note(imgui, "RTX: lighting also changes what RTX sensor cameras see.")  # shown with the section closed
             return
         callbacks = self._viewer.gui._ui_callbacks.get("rendering") if self._viewer.gui is not None else None
         if callbacks and imgui.tree_node("Lighting & Appearance###appearance"):
@@ -1039,7 +1040,6 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_rtx_appearance(self, imgui) -> None:
         """Draw the Appearance options the OVRTX view supports: its lights, one group per type."""
-        hud_note(imgui, "RTX: lighting also changes what RTX sensor cameras see.")
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         if not imgui.tree_node("Lighting & Appearance###rtx_appearance"):
             return
