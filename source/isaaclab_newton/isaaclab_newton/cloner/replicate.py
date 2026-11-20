@@ -242,10 +242,8 @@ def _replicate_newton(
 
     def record_geometry(source: str, destination: str, shape_offset: int, particle_offset: int) -> None:
         for path, (shapes, closed) in source_cables[source].items():
-            cable_bindings[cloner_path.rebase(path, source, destination)] = (
-                [shape_offset + shape for shape in shapes],
-                closed,
-            )
+            indices = [shape_offset + shape for shape in shapes]
+            cable_bindings[cloner_path.rebase(path, source, destination)] = (indices, True) if closed else indices
         for path, (start, end) in import_results[source]["path_particle_map"].items():
             native_range = (particle_offset + start, end - start)
             particle_ranges[cloner_path.rebase(path, source, destination)] = native_range

@@ -52,8 +52,26 @@ from isaaclab.test.utils import DeviceScope, test_devices
 # ----- Configuration and lifecycle -------------------------------------------------------
 
 
-def test_cable_geometry_preserves_open_ends_and_closes_periodic_seam():
-    """Periodic curves publish N averaged joints, including last-to-first; open curves retain N+1 points."""
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    "binding, expected",
+    [
+        pytest.param([0, 1], [[1, 2, 2], [3, 4.5, 6.5], [5, 7, 13]], id="legacy_two_segments"),
+        pytest.param(
+            [2, 0, 1],
+            [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]],
+            id="legacy_three_segments",
+        ),
+        pytest.param(
+            ([2, 0, 1], False),
+            [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]],
+            id="explicit_open",
+        ),
+        pytest.param(([2, 0, 1], True), [[9, 12, 14.5], [7, 9.5, 12], [3, 4.5, 6.5]], id="explicit_closed"),
+    ],
+)
+def test_cable_geometry_preserves_open_ends_and_closes_periodic_seam(binding, expected):
+    """Lists retain open N+1 endpoints; explicit topology tuples also support the periodic N-point seam."""
     poses = wp.array(
         [[1, 2, 3, 0, 0, 0, 1], [5, 7, 11, 0, 0, 0, 1], [13, 17, 19, 0, 0, 0, 1]],
         dtype=wp.transformf,
@@ -71,10 +89,9 @@ def test_cable_geometry_preserves_open_ends_and_closes_periodic_seam():
         )
     )
     backend = NewtonSceneDataBackend(manager)
-    backend.initialize_geometry([], {"/Closed": ([2, 0, 1], True), "/Open": ([2, 0, 1], False)})
+    backend.initialize_geometry([], {"/Cable": binding})
     points = SceneDataProvider(backend).get_geometry_points()
-    np.testing.assert_allclose(points["/Closed"].numpy(), [[9, 12, 14.5], [7, 9.5, 12], [3, 4.5, 6.5]])
-    np.testing.assert_allclose(points["/Open"].numpy(), [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]])
+    np.testing.assert_allclose(points["/Cable"].numpy(), expected)
 
 
 @pytest.mark.parametrize(

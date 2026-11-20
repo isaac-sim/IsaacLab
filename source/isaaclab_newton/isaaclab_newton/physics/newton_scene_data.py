@@ -38,17 +38,23 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, tuple[list[int], bool]]) -> None:
+    def initialize_geometry(
+        self, geometry_batches: list, cable_bindings: dict[str, list[int] | tuple[list[int], bool]]
+    ) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints.
 
         Args:
             geometry_batches: Deformable and particle geometry recorded by replication.
-            cable_bindings: Native capsule shape indices and closed flag of each cable.
+            cable_bindings: Native capsule shape indices for open cables, or ``(indices, closed)`` tuples.
         """
         self._geometry_batches = list(geometry_batches)
         endpoints, ranges = [], {}
         offset = 0
-        for path, (shapes, closed) in cable_bindings.items():
+        for path, binding in cable_bindings.items():
+            if isinstance(binding, list):
+                shapes, closed = binding, False
+            else:
+                shapes, closed = binding
             ids = np.asarray(shapes, dtype=np.int32)
             if closed:
                 left, right = np.roll(ids, 1), ids

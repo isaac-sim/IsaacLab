@@ -11,6 +11,7 @@ from unittest import mock
 
 import newton
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
@@ -204,6 +205,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_world, [-1, 0, 0, 1, 1])
         self.assertEqual(len(set(builder.body_label)), 5)
 
+    @pytest.mark.kitless
     def test_cable_import_keeps_physics_bindings_without_destination_prims(self):
         stage = self.sim.stage = Usd.Stage.CreateInMemory()
         source = "/Scene/copy_7/Rope"
@@ -251,7 +253,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(set(record.cable_bindings), set(expected))
         for path, (count, closed) in expected.items():
             shapes = [builder.shape_label.index(f"{path}_edge_capsule_{index}") for index in range(count)]
-            self.assertEqual(record.cable_bindings[path], (shapes, closed))
+            self.assertEqual(record.cable_bindings[path], (shapes, True) if closed else shapes)
 
     def test_visualization_builder_preserves_nested_attachment_and_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
