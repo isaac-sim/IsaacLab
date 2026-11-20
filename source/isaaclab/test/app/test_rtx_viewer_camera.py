@@ -16,7 +16,7 @@ from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.physics.physics_manager_cfg import PhysxAutoCfg
-from isaaclab.visualizers import VisualizerCfg, WindowCfg
+from isaaclab.visualizers import ImageViewCfg, VisualizerCfg, WindowCfg
 
 
 def _fake_display(monkeypatch: pytest.MonkeyPatch, width: int = 1920, height: int = 1080) -> None:
@@ -87,6 +87,27 @@ def test_viewer_camera_is_declared_only_where_it_can_be_used(
     assert sim_launcher._wants_rtx_viewer_camera(visualizer, simulations) is expected
 
 
+@pytest.mark.parametrize(
+    ("headless", "view"),
+    [(True, None), (False, ImageViewCfg(source="/World/envs/env_0/Camera"))],
+    ids=["recording-only-window", "window-with-a-view"],
+)
+def test_starting_in_rtx_declares_the_viewer_camera_even_without_a_window_or_with_a_view(
+    monkeypatch: pytest.MonkeyPatch, headless, view
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"), headless=headless, view=view)
+
+    assert sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)]) is True
+
+
+def test_starting_in_rtx_without_the_viewer_camera_is_rejected() -> None:
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_camera=False))
+
+    with pytest.raises(ValueError, match="requires rtx_camera"):
+        sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)])
+
+
 def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> None:
     from isaaclab.scene import InteractiveSceneCfg
 
@@ -96,4 +117,4 @@ def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> Non
     name, *_ = sim_launcher._declare_viewer_camera(scene_cfg, 0, visualizer)
 
     assert vars(scene_cfg)[name].render_on_demand
-    assert visualizer.backend.rtx_camera_prim_path == f"/World/{name}"
+    assert visualizer.backend.rtx_camera_path == f"/World/{name}"

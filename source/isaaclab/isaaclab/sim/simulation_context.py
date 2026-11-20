@@ -439,11 +439,6 @@ class SimulationContext:
                             # A sensor without the requested channels still shows its own, such as depth only.
                             if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
-                rtx_path = getattr(visualizer.cfg.backend, "rtx_camera_prim_path", None)
-                explicit = visualizer.cfg.cameras is not None or visualizer.cfg.streaming_sensor_prim_path is not None
-                if rtx_path is not None and explicit:
-                    # Explicit cameras skip discovery; the Renderer switch still needs this window's RTX camera.
-                    cameras.append(SceneCameraCfg(prim_path=rtx_path))
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
                         continue
@@ -548,7 +543,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return cfg.backend.visualizer_type == "newton_gl" and cfg.backend.enable_picking and not cfg.headless
+        return cfg.backend.visualizer_type == "newton" and cfg.backend.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.

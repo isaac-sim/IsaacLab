@@ -22,11 +22,37 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
-VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
+VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
+"""Alternative ``--visualizer`` names and the identifiers they select."""
+
+VISUALIZER_ALIAS_OPTIONS = {"newton_rtx": {"initial_renderer": "rtx"}}
+"""Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
+
+DEPRECATED_VISUALIZER_ALIASES = {
+    "newton_rtx": (
+        "The 'newton_rtx' visualizer option is deprecated and will be removed in the next release; launching the"
+        " 'newton' visualizer instead, started with RTX rendering. Use 'newton' and switch the Renderer to RTX in its"
+        " window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
+    )
+}
+"""Names in :data:`VISUALIZER_ALIASES` that are deprecated, each with the warning that says what happens instead."""
+
+
+def warn_deprecated_visualizer(name: str, stacklevel: int = 2) -> None:
+    """Warn that a ``--visualizer`` name is deprecated, saying which visualizer launches instead.
+
+    Names that are not deprecated are ignored.
+
+    Args:
+        name: Visualizer identifier supplied by the user.
+        stacklevel: Stack level of the warning, relative to the caller of this function.
+    """
+    message = DEPRECATED_VISUALIZER_ALIASES.get(name)
+    if message is not None:
+        warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)
 
 
 @configclass
@@ -287,8 +313,8 @@ class VisualizerCfg:
         if self.view is not None:
             backends = self.backend if isinstance(self.backend, list) else [self.backend]
             for backend in backends:
-                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
-                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+                if backend.visualizer_type != "newton":
+                    raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
