@@ -25,7 +25,24 @@ def is_chunk_boundary(env: ManagerBasedRLEnv) -> torch.Tensor:
     Environments can only reset on these steps, and only then do new frames exist.
     """
     manager: WorldModelManager = env.sim.backend_manager
-    return torch.full((env.num_envs,), manager.new_frames, dtype=torch.bool, device=env.device)
+    return manager.chunk_boundary
+
+
+def check_chunk_timing(env: ManagerBasedRLEnv) -> None:
+    """Check that environment steps and time-outs fall on chunk boundaries.
+
+    Raises:
+        ValueError: If the decimation does not divide the chunk length, or an episode is not a whole number of chunks.
+    """
+    chunk = env.sim.backend_manager.spec.chunk_length
+    decimation = env.cfg.decimation
+    if chunk % decimation:
+        raise ValueError(f"decimation={decimation} must divide the world model's chunk of {chunk} frames.")
+    if env.max_episode_length * decimation % chunk:
+        raise ValueError(
+            f"An episode of {env.max_episode_length} steps is not a whole number of {chunk // decimation}-step chunks,"
+            " so its time-out would fall inside a chunk; adjust episode_length_s."
+        )
 
 
 def at_chunk_boundary(term: Callable[..., torch.Tensor]) -> Callable[..., torch.Tensor]:
@@ -38,12 +55,18 @@ def at_chunk_boundary(term: Callable[..., torch.Tensor]) -> Callable[..., torch.
 
         done = DoneTerm(func=at_chunk_boundary(my_condition), params={...})
 
+    The first call checks the environment's timing with :func:`check_chunk_timing`.
+
     Args:
         term: A termination function ``term(env, **params)`` returning a boolean tensor of shape ``(num_envs,)``.
     """
+    checked = set()
 
     @functools.wraps(term)
     def wrapped(env: ManagerBasedRLEnv, *args, **kwargs) -> torch.Tensor:
+        if id(env) not in checked:
+            check_chunk_timing(env)
+            checked.add(id(env))
         return term(env, *args, **kwargs) & is_chunk_boundary(env)
 
     return wrapped

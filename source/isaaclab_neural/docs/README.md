@@ -53,15 +53,18 @@ its configuration, so the camera leaves that history to the renderer.
 
 ## Timing
 
-A model predicts `chunk_length` frames from `chunk_length` joint targets. Use `sim.dt = 1 / fps` and `decimation = 1`:
-one environment step is one frame, and the model runs on the last step of a chunk. The frames of a chunk arrive
-together, so a reward on them is paid in the step that completes the chunk.
+A model predicts `chunk_length` frames from `chunk_length` joint targets. Use `sim.dt = 1 / fps`; `decimation` must
+divide `chunk_length`. One environment step advances `decimation` model frames, and the model runs on the last
+backend step of a chunk. The frames of a chunk arrive together, so a reward on them is paid in the environment step
+that completes the chunk. For a policy that produces a sequence of actions at the model's FPS, keep `decimation = 1`
+and submit one queued action per environment step; the policy network can run once per action sequence.
 
 Isaac Lab resets an environment in any step in which a termination fires, but the model can only restart between
 chunks, so a reset in the middle of a chunk raises.
 
-* `reset_from_records` checks when the environment is created that one step is one frame and that `episode_length_s`
-  is a multiple of the chunk duration, so that the time-out falls on a boundary.
+* `reset_from_records` uses `check_chunk_timing` when the environment is created to check that decimation divides
+  the chunk length and that `max_episode_length * decimation` is a multiple of `chunk_length`, so the time-out falls
+  on a boundary. `at_chunk_boundary` also checks timing on its first call for each environment.
 * A termination you add must fire only on boundaries. Wrap its function with `at_chunk_boundary`:
 
   ```python

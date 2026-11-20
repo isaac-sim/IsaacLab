@@ -123,6 +123,7 @@ def test_reset_event_samples_on_device_without_host_sync_and_reproduces_draws(tm
             manager = bound_manager(sim, num_envs=4)
             env = SimpleNamespace(
                 sim=sim,
+                cfg=SimpleNamespace(decimation=1),
                 scene={"robot": SimpleNamespace(num_instances=4, device=device)},
                 step_dt=DT,
                 max_episode_length=3 * T,

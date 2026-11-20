@@ -52,10 +52,16 @@ def author_robot(path):
     stage.Save()
 
 
-def event_env(sim, scene, step_dt=DT, episode_steps=3 * T):
+def event_env(sim, scene, decimation=1, episode_steps=3 * T):
     """The parts of an environment that the reset event reads."""
     return SimpleNamespace(
-        sim=sim, scene=scene, step_dt=step_dt, max_episode_length=episode_steps, num_envs=N, device="cpu"
+        sim=sim,
+        scene=scene,
+        cfg=SimpleNamespace(decimation=decimation),
+        step_dt=decimation * DT,
+        max_episode_length=episode_steps,
+        num_envs=N,
+        device="cpu",
     )
 
 
@@ -148,7 +154,8 @@ def test_the_reset_event_sets_the_recorded_joint_state(world):
     torch.testing.assert_close(robot.data.default_joint_pos.torch, torch.tensor([[0.0, 0.5]] * N))
 
 
-def test_a_standard_action_term_drives_the_model(world):
+@pytest.mark.parametrize("decimation", [1, 2, T])
+def test_a_standard_action_term_drives_the_model(world, decimation):
     sim, scene = world
     env = SimpleNamespace(scene=scene, num_envs=N, device="cpu")
     term = JointPositionAction(
@@ -156,22 +163,23 @@ def test_a_standard_action_term_drives_the_model(world):
     )
     sim.backend_manager.set_joint_target(np.zeros((N, 2), dtype=np.float32))
     torch.testing.assert_close(scene["robot"].data.joint_pos_target.torch, torch.zeros(N, 2))
-    for k in range(T):
+    for k in range(T // decimation):
         target = torch.full((N, 2), 0.1 * (k + 1))
         term.process_actions(target)
-        term.apply_actions()
-        # Actions reach the manager before write_data_to_sim, and observations see a step before scene.update.
-        torch.testing.assert_close(torch.as_tensor(sim.backend_manager.joint_target), target)
-        scene.write_data_to_sim()
-        sim.step(render=False)
-        torch.testing.assert_close(scene["robot"].data.joint_pos.torch, target)
-        scene.update(DT)
-        scene["camera"].data
+        for _ in range(decimation):
+            term.apply_actions()
+            # Actions reach the manager before write_data_to_sim, and observations see a step before scene.update.
+            torch.testing.assert_close(torch.as_tensor(sim.backend_manager.joint_target), target)
+            scene.write_data_to_sim()
+            sim.step(render=False)
+            torch.testing.assert_close(scene["robot"].data.joint_pos.torch, target)
+            scene.update(DT)
+            scene["camera"].data
     ((targets, start),) = FakeModel.steps
-    assert np.allclose(targets[0, :, 0], [0.1, 0.2, 0.3, 0.4])
+    assert np.allclose(targets[0, :, 0], np.repeat(np.arange(1, T // decimation + 1) * 0.1, decimation))
     assert np.allclose(start, [[0.1, 0.2]] * N)
     # The joint state is the last commanded target, and the camera shows the generated chunk.
-    assert torch.allclose(scene["robot"].data.joint_pos.torch, torch.full((N, 2), 0.4))
+    assert torch.allclose(scene["robot"].data.joint_pos.torch, target)
     assert (scene["camera"].data.output["rgb"].torch == 13).all()
 
 
@@ -185,19 +193,23 @@ def test_what_needs_a_simulated_body_raises(world):
 
 def test_the_reset_event_checks_the_timing_when_the_environment_is_created(world):
     sim, scene = world
-    with pytest.raises(ValueError, match="one model frame"):
-        reset_from_records(None, event_env(sim, scene, step_dt=2 * DT))
-    with pytest.raises(ValueError, match="not a multiple"):
-        reset_from_records(None, event_env(sim, scene, episode_steps=3 * T + 1))
+    for decimation in (1, 2, T):
+        reset_from_records(None, event_env(sim, scene, decimation=decimation))
+    with pytest.raises(ValueError, match="must divide"):
+        reset_from_records(None, event_env(sim, scene, decimation=3))
+    with pytest.raises(ValueError, match="not a whole number"):
+        reset_from_records(None, event_env(sim, scene, decimation=2, episode_steps=3 * T + 1))
 
 
-def test_a_termination_at_chunk_boundary_fires_only_when_a_chunk_completes(world):
+@pytest.mark.parametrize("decimation", [1, 2, T])
+def test_a_termination_at_chunk_boundary_fires_only_when_a_chunk_completes(world, decimation):
     sim, scene = world
-    env = event_env(sim, scene)
+    env = event_env(sim, scene, decimation=decimation)
     always = at_chunk_boundary(lambda env: torch.ones(N, dtype=torch.bool))
     fired = []
-    for _ in range(2 * T):
-        env_step(sim, scene)
+    for _ in range(2 * T // decimation):
+        for _ in range(decimation):
+            env_step(sim, scene)
         fired.append(bool(always(env).all()))
         assert fired[-1] == bool(is_chunk_boundary(env).all())
-    assert [i + 1 for i, f in enumerate(fired) if f] == [T, 2 * T]
+    assert [i + 1 for i, f in enumerate(fired) if f] == [T // decimation, 2 * T // decimation]

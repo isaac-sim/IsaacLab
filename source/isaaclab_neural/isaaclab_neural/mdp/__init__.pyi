@@ -6,8 +6,9 @@
 __all__ = [
     "reset_from_records",
     "at_chunk_boundary",
+    "check_chunk_timing",
     "is_chunk_boundary",
 ]
 
 from .events import reset_from_records
-from .terminations import at_chunk_boundary, is_chunk_boundary
+from .terminations import at_chunk_boundary, check_chunk_timing, is_chunk_boundary

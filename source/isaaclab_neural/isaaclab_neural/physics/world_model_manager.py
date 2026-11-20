@@ -59,6 +59,9 @@ class WorldModelManager(PhysicsManager):
         self._frames: dict[str, FrameBuffer] = {}
         self.new_frames = False
         """Whether the last :meth:`step` completed a chunk."""
+        self.chunk_boundary: torch.Tensor
+        """:attr:`new_frames` for every environment, shape ``(N,)``, ``bool``. Updated in place by :meth:`step`;
+        read-only for callers."""
         self._records = load_reset_records(cfg.reset_manifest)
         self._split_records = [r for r in self._records if r.split == cfg.split]
         self._record_images: dict[str, torch.Tensor] = {}
@@ -88,6 +91,7 @@ class WorldModelManager(PhysicsManager):
         self.num_envs, self.num_joints = num_envs, num_joints
         self.joint_state = torch.zeros((num_envs, num_joints), dtype=torch.float32, device=self._device)
         self.joint_target = torch.zeros_like(self.joint_state)
+        self.chunk_boundary = torch.zeros(num_envs, dtype=torch.bool, device=self._device)
         self._frames = {
             view: FrameBuffer(num_envs, self.spec.chunk_length, self.spec.image_size, self._device)
             for view in self.spec.views
@@ -158,6 +162,7 @@ class WorldModelManager(PhysicsManager):
         for view, buffer in self._frames.items():
             buffer.publish(self._record_images[view][records][:, None], env_mask)
         self.new_frames = False
+        self.chunk_boundary.zero_()
 
     def set_joint_target(self, target: np.ndarray | torch.Tensor) -> None:
         """Set the joint position targets, shape ``(N, J)``, that the next :meth:`step` applies."""
@@ -171,6 +176,7 @@ class WorldModelManager(PhysicsManager):
         self.joint_state.copy_(self.joint_target)
         self._steps_in_chunk += 1
         self.new_frames = self._steps_in_chunk == self.spec.chunk_length
+        self.chunk_boundary.fill_(self.new_frames)
         if self.new_frames:
             if self._reset_called:
                 self._restart_model()
