@@ -61,12 +61,16 @@ class BrightnessModel(WorldModel):
         self.num_envs, self.device = num_envs, device
 
     def spec(self):
-        return WorldModelSpec(chunk_length=CHUNK, fps=FPS, image_size=(H, W))
+        # The brightness ignores the joints, so the model needs no inputs.
+        return WorldModelSpec(chunk_length=CHUNK, fps=FPS, image_size=(H, W), inputs=())
 
     def reset(self, env_ids, images, prompts, seeds):
         pass
 
-    def step(self, joint_targets, start_joint_state):
+    def write(self, name, value):
+        pass
+
+    def step(self):
         BrightnessModel.chunks += 1
         ramp = torch.linspace(0, 1, CHUNK, dtype=torch.float64, device=self.device)[None, :, None, None, None]
         frames = (60 * BrightnessModel.chunks + 10 * ramp).to(torch.uint8)
