@@ -24,8 +24,8 @@ import types
 from pathlib import Path
 
 import pytest
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg

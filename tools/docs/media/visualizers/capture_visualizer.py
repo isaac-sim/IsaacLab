@@ -53,7 +53,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg

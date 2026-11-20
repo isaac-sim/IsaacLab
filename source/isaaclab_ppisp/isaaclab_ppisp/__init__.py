@@ -7,7 +7,7 @@
 
 Provides the renderer-backend-agnostic ISP pipeline that converts the renderer's
 HDR scene-linear AOV to LDR RGBA at the end of a render tick. Renderer backends
-(:class:`~isaaclab_physx.renderers.IsaacRtxRenderer`,
+(:class:`~isaaclab_isaacsim.renderers.IsaacRtxRenderer`,
 :class:`~isaaclab_ov.renderers.OVRTXRenderer`,
 :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`) compose
 :class:`PpispPipeline` internally when the camera's

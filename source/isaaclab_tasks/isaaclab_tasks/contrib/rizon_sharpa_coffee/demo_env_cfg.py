@@ -12,11 +12,11 @@ from types import SimpleNamespace
 from typing import Literal
 
 import numpy as np
+from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 

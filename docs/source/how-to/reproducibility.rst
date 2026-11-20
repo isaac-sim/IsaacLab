@@ -26,9 +26,9 @@ The ``--deterministic`` flag
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :func:`isaaclab.app.add_launcher_args`.
-:class:`~isaaclab_physx.app.KitLauncher` publishes ``/isaaclab/render/deterministic``.
+:class:`~isaaclab_isaacsim.app.KitLauncher` publishes ``/isaaclab/render/deterministic``.
 The Isaac RTX backend reads it on init and applies
-:func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
+:func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
 
 **Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
 ``torch_deterministic=True`` when you pass ``--deterministic``) is wired into the RL training entrypoints

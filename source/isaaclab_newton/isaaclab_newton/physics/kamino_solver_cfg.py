@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Any, Literal
 
+from typing_extensions import deprecated
+
 from isaaclab.utils import configclass, to_dict
 
 from .newton_manager_cfg import NewtonSolverCfg
@@ -97,8 +99,8 @@ class KaminoPADMMCfg:
 
 
 @configclass
-class KaminoDVICfg:
-    """DVI forward-dynamics solver parameters for Kamino."""
+class KaminoSCCCfg:
+    """Split Constraint Coupling (SCC) forward-dynamics solver parameters for Kamino."""
 
     tolerance: float = 1e-5
     """Convergence tolerance on the projected update size."""
@@ -110,13 +112,13 @@ class KaminoDVICfg:
     """Relaxation factor applied to projected Gauss-Seidel updates."""
 
     max_alternating_iterations: int = 20
-    """Maximum outer DVI iterations."""
+    """Maximum outer SCC iterations."""
 
     inequality_sweeps_per_iteration: int = 1
-    """Projected Gauss-Seidel sweeps per DVI iteration."""
+    """Projected Gauss-Seidel sweeps per SCC iteration."""
 
     bilateral_solve_interval: int = 1
-    """DVI iterations between repeated direct bilateral solves."""
+    """SCC iterations between repeated direct bilateral solves."""
 
     bilateral_solver_type: Literal["LLTB", "LLTBRCM"] = "LLTB"
     """Direct linear solver for the bilateral constraint block."""
@@ -135,12 +137,16 @@ class KaminoDVICfg:
     """Contact warm-start method when ``warmstart_mode`` is ``containers``."""
 
 
+KaminoDVICfg = KaminoSCCCfg
+"""Compatibility alias for :class:`KaminoSCCCfg`."""
+
+
 @configclass
 class KaminoDynamicsCfg:
     """Constrained forward-dynamics problem parameters for Kamino."""
 
     preconditioning: bool = True
-    """Whether to precondition the dual problem. Must be ``False`` when using DVI."""
+    """Whether to precondition the dual problem. Must be ``False`` when using SCC."""
 
     linear_solver_type: Literal["LLTB", "LLTBRCM", "CR", "CRF"] = "LLTB"
     """Linear solver for the dynamics problem."""
@@ -402,12 +408,20 @@ class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
 
 
 @configclass
-class KaminoDVISolverCfg(_KaminoSolverCfgBase):
-    """Configuration for Kamino with the DVI forward-dynamics solver."""
+class KaminoSCCSolverCfg(_KaminoSolverCfgBase):
+    """Configuration for Kamino with the Split Constraint Coupling (SCC) forward-dynamics solver."""
 
-    dynamics_solver_cfg: KaminoDVICfg = field(default_factory=KaminoDVICfg)
-    """DVI forward-dynamics solver parameters."""
+    dynamics_solver_cfg: KaminoSCCCfg = field(default_factory=KaminoSCCCfg)
+    """SCC forward-dynamics solver parameters."""
 
     def _get_dynamics_solver_config(self) -> tuple[Literal["scc"], dict[str, Any]]:
-        """Return DVI, which Newton names SCC, and its configuration keyword arguments."""
+        """Return SCC (formerly DVI) and its configuration keyword arguments."""
         return "scc", _cfg_to_dict(self.dynamics_solver_cfg)
+
+
+class KaminoDVISolverCfg(KaminoSCCSolverCfg):
+    """Deprecated name for :class:`KaminoSCCSolverCfg`."""
+
+    __init__ = deprecated(
+        "KaminoDVISolverCfg is deprecated and will be removed in a future release. Use KaminoSCCSolverCfg instead."
+    )(KaminoSCCSolverCfg.__init__)

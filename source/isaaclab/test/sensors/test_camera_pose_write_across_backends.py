@@ -20,9 +20,9 @@ launch_test_simulation(enable_cameras=True)
 import numpy as np
 import pytest
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
