@@ -59,12 +59,12 @@ def test_apply_drive_returns_false_on_non_joint():
 
 
 # -------------------------------------------------------------------------------------
-# PhysxJointCfg (isaaclab_physx) -- physxJoint namespace via apply_namespaced
+# PhysxJointCfg (isaaclab_isaacsim) -- physxJoint namespace via apply_namespaced
 # -------------------------------------------------------------------------------------
 
 
 def test_physx_joint_fragment_max_velocity_alias():
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 
     with pytest.warns(DeprecationWarning, match="max_velocity"):
         cfg = PhysxJointCfg(max_velocity=10.0)
@@ -145,8 +145,8 @@ def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp(gravcomp
 
 
 def test_apply_joint_drive_properties_composes_namespaces():
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
     from isaaclab_newton.sim.schemas import MujocoJointCfg
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
 
     from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
 
@@ -173,7 +173,7 @@ def test_apply_joint_drive_properties_composes_namespaces():
 
 
 def test_apply_joint_drive_properties_without_drive_does_not_apply_drive_api():
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 
     from isaaclab.sim.schemas import apply_joint_drive_properties
 
@@ -192,7 +192,7 @@ def test_apply_joint_drive_properties_skips_tendon_child_joint():
     """A tendon-child joint (``PhysxTendonAxisAPI`` without the root API) must be skipped wholesale
     by the dispatch loop: no fragment -- drive, physxJoint, or mjc -- may author on it, matching the
     legacy :func:`modify_joint_drive_properties` writer (which skipped the whole prim)."""
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 
     from pxr import PhysxSchema
 
@@ -274,7 +274,7 @@ def test_joint_drive_fragments_create_missing_drive_api():
     Uses a fragment list without a drive fragment on purpose: ``apply_drive`` applies the
     DriveAPI itself, so only a non-drive fragment isolates the flag as the API's sole source.
     """
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 
     from isaaclab.sim.schemas import apply_joint_drive_properties
 
@@ -299,7 +299,7 @@ def test_joint_drive_fragments_create_missing_drive_api():
 
 def test_joint_drive_fragments_instanced_joints_warn_once_and_fail(caplog):
     """Instanced joints are reported by the matcher only, and the writer returns False."""
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 
     from isaaclab.sim.schemas import apply_joint_drive_properties
 

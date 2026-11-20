@@ -43,6 +43,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
 from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
@@ -50,7 +51,6 @@ from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorCont
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -597,7 +597,7 @@ def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_
 @pytest.mark.parametrize(
     "module_name",
     [
-        "isaaclab_physx.assets.articulation.actuator_control",
+        "isaaclab_isaacsim.assets.articulation.actuator_control",
         "isaaclab_ov.assets.articulation.actuator_control",
     ],
 )

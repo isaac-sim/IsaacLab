@@ -33,7 +33,7 @@ from isaaclab_rl.entrypoints.common import (
 
 from isaaclab_tasks.utils import setup_preset_cli
 
-_KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
+_KIT_LAUNCHER = "isaaclab_isaacsim.app:KitLauncher"
 
 
 def _args(**kwargs: object) -> argparse.Namespace:

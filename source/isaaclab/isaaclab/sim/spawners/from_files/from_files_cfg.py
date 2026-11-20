@@ -107,7 +107,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.FixedTendonFragment` fragments or the legacy
-    :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
@@ -127,7 +127,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.SpatialTendonFragment` fragments or the legacy
-    :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).

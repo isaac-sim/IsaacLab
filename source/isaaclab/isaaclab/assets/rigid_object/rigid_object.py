@@ -12,8 +12,8 @@ from .base_rigid_object import BaseRigidObject
 from .base_rigid_object_data import BaseRigidObjectData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.rigid_object import RigidObject as PhysXRigidObject
-    from isaaclab_physx.assets.rigid_object import RigidObjectData as PhysXRigidObjectData
+    from isaaclab_isaacsim.assets.rigid_object import RigidObject as PhysXRigidObject
+    from isaaclab_isaacsim.assets.rigid_object import RigidObjectData as PhysXRigidObjectData
 
 
 class RigidObject(FactoryBase, BaseRigidObject):

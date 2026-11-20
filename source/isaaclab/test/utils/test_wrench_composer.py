@@ -712,7 +712,7 @@ def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
         if isinstance(node, ast.ImportFrom):
             modules.append(node.module or "")
         assert not any(
-            m.startswith(("isaaclab_newton", "isaaclab_physx", "isaaclab_ov", "newton", "isaacsim")) for m in modules
+            m.startswith(("isaaclab_newton", "isaaclab_isaacsim", "isaaclab_ov", "newton", "isaacsim")) for m in modules
         )
     generic = ast.parse((core / "utils/warp/kernels.py").read_text())
     assert not any(
