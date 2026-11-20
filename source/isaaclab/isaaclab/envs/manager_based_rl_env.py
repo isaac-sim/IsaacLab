@@ -211,30 +211,17 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
         self.extras.pop("final_obs_every_step", None)
-        self.action_manager.process_action(action.to(self.device))
-        if self._physics_handles_actions is None:
-            self._handle_physics_actions()
+        self.simulate(action)
+        self.compute_transition()
+        self.reset_done()
+        return self.finish_step()
 
-        self.recorder_manager.record_pre_step()
+    def compute_transition(self) -> None:
+        """Advance episode counters and compute rewards and termination flags after simulation.
 
-        # check if we need to do rendering within the physics loop
-        # note: evaluated once per step rather than once per physics substep
-        is_rendering = self.sim.is_rendering
-
-        # physics-owned decimation covers all substeps in one call
-        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        for _ in range(self.cfg.decimation // steps_per_call):
-            self._sim_step_counter += steps_per_call
-            if not self._physics_handles_actions:
-                self.action_manager.apply_action()
-                self.scene.write_data_to_sim()
-            self.sim.step(render=False)
-            self.recorder_manager.record_post_physics_decimation_step()
-            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.physics_dt * steps_per_call)
-
+        Custom step functions call this once before recording the completed transition or
+        finishing the step. Scene state and termination terms remain available until reset.
+        """
         # post-step:
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
@@ -245,7 +232,17 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        self.recorder_manager.record_post_step()
+    def reset_done(self) -> torch.Tensor:
+        """Reset terminated environments and consume any reset request from the visualizer.
+
+        Call after copying terminal data. Simulation and sensor synchronization follow the
+        standard reset behavior. The returned selection lets recording workflows capture the
+        next initial state before commands, interval events, and observations advance.
+
+        Returns:
+            One-dimensional int32 indices of all environments reset during this call.
+        """
+        is_rendering = self.sim.is_rendering
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
@@ -254,7 +251,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self.cfg.final_obs_every_step:
                 self.extras["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
-            self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
 
@@ -262,7 +258,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
         manual_reset_ids = reset_env_ids[:0]
@@ -274,15 +269,22 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if len(manual_reset_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
-                # mirror the recorder lifecycle used for normal resets
-                self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
-                self.recorder_manager.record_post_reset(manual_reset_ids)
-
         if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
             # Reset writes invalidate derived body poses used by observations and rewards.
             self.sim.forward()
 
+        return torch.cat((reset_env_ids, manual_reset_ids)) if len(manual_reset_ids) else reset_env_ids
+
+    def finish_step(self) -> VecEnvStepReturn:
+        """Advance task state after simulation and return the RL transition.
+
+        Updates commands, interval events, video capture, and observations. Call once after
+        simulation, transition computation, terminal-state capture, and resets.
+
+        Returns:
+            Observations, rewards, terminated flags, truncated flags, and extras.
+        """
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
@@ -427,9 +429,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
         # -- termination manager
         info = self.termination_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
         index_fill_(self.episode_length_buf, env_ids, 0)

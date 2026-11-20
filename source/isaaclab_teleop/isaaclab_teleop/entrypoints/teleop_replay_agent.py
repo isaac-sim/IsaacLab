@@ -1233,12 +1233,10 @@ def _prepare_env_cfg(
     return env_cfg, success_term, selected_cameras
 
 
-def _reset_replay_environment(env: gym.Env, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
+def _reset_replay_environment(env: gym.Env, *, hard_sim_reset: bool) -> None:
     """Reset replay-owned environment state in backend-safe order."""
     if hard_sim_reset:
         env.sim.reset()
-    if reset_recorder:
-        env.recorder_manager.reset()
     env.reset()
 
 
@@ -1249,10 +1247,7 @@ def _handle_reset(env: gym.Env, teleop_interface: "IsaacTeleopDevice", *, hard_s
     instruction-display update, which the headless replay agent doesn't
     own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
     IK seeded against fresh articulation views; see the initial-reset note
-    in :func:`main`. ``env.recorder_manager.reset()`` is a no-op when no
-    recorders are configured (the default for this script), but kept for
-    parity with record_demos.py so future recorder additions don't have to
-    re-derive the call sequence.
+    in :func:`main`.
     With ``hard_sim_reset=False`` (Newton or OvPhysX), the hard reinit is skipped
     so the solver and any stage leased to the XR worker stay alive.
     A recorded RESET has already been processed by the control channel, so
@@ -1261,7 +1256,7 @@ def _handle_reset(env: gym.Env, teleop_interface: "IsaacTeleopDevice", *, hard_s
     actions computed before the environment reset, as in the live agent.
     """
     print("Resetting environment...")
-    _reset_replay_environment(env, hard_sim_reset=hard_sim_reset, reset_recorder=True)
+    _reset_replay_environment(env, hard_sim_reset=hard_sim_reset)
     teleop_interface.reset()
     teleop_interface.notify_reset()
 
@@ -1525,7 +1520,6 @@ def _run_single_replay(  # noqa: C901
         _reset_replay_environment(
             env,
             hard_sim_reset=requires_hard_sim_reset(env.scene.physics_backend),
-            reset_recorder=False,
         )
         teleop_interface.reset()
         # Locally started legacy captures have no recorded START message.

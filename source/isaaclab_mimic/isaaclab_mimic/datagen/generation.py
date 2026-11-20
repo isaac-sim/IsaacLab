@@ -12,9 +12,9 @@ from typing import Any
 import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode, TerminationTermCfg
-from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
+from isaaclab.envs.mdp.recorders import record_initial_state, record_post_step, record_pre_step
+from isaaclab.managers import TerminationTermCfg
+from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
@@ -25,6 +25,23 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 num_success = 0
 num_failures = 0
 num_attempts = 0
+
+
+def get_datagen_info(env: ManagerBasedRLMimicEnv, action: torch.Tensor) -> dict:
+    """Read the pre-action poses and targets used to annotate Mimic demonstrations.
+
+    Args:
+        env: Mimic environment before applying the requested action.
+        action: Batched actions with shape (num_envs, action_dim).
+
+    Returns:
+        Object poses, end-effector poses, and requested target poses.
+    """
+    return {
+        "object_pose": env.get_object_poses(),
+        "eef_pose": {name: env.get_robot_eef_pose(eef_name=name) for name in env.cfg.subtask_configs},
+        "target_eef_pose": env.action_to_target_eef_pose(action),
+    }
 
 
 async def run_data_generator(
@@ -79,6 +96,8 @@ def env_loop(
     shared_datagen_info_pool: DataGenInfoPool,
     asyncio_event_loop: asyncio.AbstractEventLoop,
     data_gen_tasks: asyncio.Future | None = None,
+    *,
+    recorder: EpisodeRecorder,
 ):
     """Main asyncio loop for the environment.
 
@@ -108,6 +127,7 @@ def env_loop(
                 while not env_reset_queue.empty():
                     env_id_tensor[0] = env_reset_queue.get_nowait()
                     env.reset(env_ids=env_id_tensor)
+                    record_initial_state(recorder, env, env_id_tensor)
                     env_reset_queue.task_done()
 
             actions = torch.zeros(env.action_space.shape)
@@ -117,7 +137,16 @@ def env_loop(
                 actions[env_id] = action
 
             # perform action on environment
-            env.step(actions)
+            record_pre_step(recorder, env, actions)
+            env.simulate(actions)
+            env.compute_transition()
+            record_post_step(recorder, env)
+            reset_ids = env.reset_done()
+            if len(reset_ids):
+                recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
+                recorder.export_episodes(reset_ids)
+                record_initial_state(recorder, env, reset_ids)
+            env.finish_step()
 
             # mark done so the data generators can continue with the step results
             for i in range(env.num_envs):
@@ -169,10 +198,10 @@ def setup_env_config(
     num_envs: int,
     device: str,
     generation_num_trials: int | None = None,
-    recorder_cfg: RecorderManagerBaseCfg | None = None,
+    recorder_cfg: EpisodeRecorderCfg | None = None,
     dataset_compression: bool = True,
     env_cfg: Any | None = None,
-) -> tuple[Any, Any]:
+) -> tuple[Any, Any, EpisodeRecorderCfg]:
     """Configure the environment for data generation.
 
     Args:
@@ -182,7 +211,7 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
-        recorder_cfg: Recorder manager configuration. Overrides recorder configurations supplied by the environment.
+        recorder_cfg: Dataset output settings. Overrides the environment's Mimic output settings.
         dataset_compression: Whether to enable dataset compression
         env_cfg: Environment configuration to configure in place, e.g. the one passed to
             :func:`~isaaclab.app.launch_simulation`. Parsed from *env_name* when None.
@@ -191,6 +220,7 @@ def setup_env_config(
         tuple containing:
             - env_cfg: The environment configuration
             - success_term: The success termination condition
+            - recorder_cfg: Dataset output settings owned by the generation workflow.
 
     Raises:
         NotImplementedError: If no success termination term found
@@ -218,18 +248,18 @@ def setup_env_config(
     # Setup recorders
     if recorder_cfg is None:
         recorder_cfg = env_cfg.mimic_recorder_config
-    env_cfg.recorders = recorder_cfg if recorder_cfg is not None else ActionStateRecorderManagerCfg()
-    env_cfg.recorders.dataset_export_dir_path = output_dir
-    env_cfg.recorders.dataset_filename = output_file_name
+    recorder_cfg = recorder_cfg if recorder_cfg is not None else EpisodeRecorderCfg()
+    recorder_cfg.dataset_export_dir_path = output_dir
+    recorder_cfg.dataset_filename = output_file_name
 
-    env_cfg.recorders.dataset_compression = dataset_compression
+    recorder_cfg.dataset_compression = dataset_compression
 
     if env_cfg.datagen_config.generation_keep_failed:
-        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
+        recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
     else:
-        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+        recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
-    return env_cfg, success_term
+    return env_cfg, success_term, recorder_cfg
 
 
 def setup_async_generation(
@@ -239,6 +269,8 @@ def setup_async_generation(
     success_term: Any,
     pause_subtask: bool = False,
     motion_planners: Any = None,
+    *,
+    recorder: EpisodeRecorder,
 ) -> dict[str, Any]:
     """Setup async data generation tasks.
 
@@ -263,7 +295,7 @@ def setup_async_generation(
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 
     # Create and schedule data generator tasks
-    data_generator = DataGenerator(env=env, src_demo_datagen_info_pool=shared_datagen_info_pool)
+    data_generator = DataGenerator(env=env, recorder=recorder, src_demo_datagen_info_pool=shared_datagen_info_pool)
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
         env_motion_planner = motion_planners[i] if motion_planners else None

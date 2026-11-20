@@ -6,38 +6,34 @@
 import torch
 
 from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
-from isaaclab.managers.recorder_manager import RecorderTerm
 from isaaclab.utils.datasets import EpisodeData
 
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData, LocomanipulationSDGOutputData
 from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneFixture
 
 
-class LocomanipulationSDGOutputDataRecorder(RecorderTerm):
-    """Recorder for Locomanipulation SDG output data."""
+def locomanipulation_sdg_output_data(output_data: LocomanipulationSDGOutputData) -> tuple[str, dict]:
+    """Build the dataset payload for one locomanipulation control step."""
 
-    def record_pre_step(self):
-        output_data: LocomanipulationSDGOutputData = self._env._locomanipulation_sdg_output_data
+    output_data_dict = {
+        "left_hand_pose_target": output_data.left_hand_pose_target[None, :],
+        "right_hand_pose_target": output_data.right_hand_pose_target[None, :],
+        "left_hand_joint_positions_target": output_data.left_hand_joint_positions_target[None, :],
+        "right_hand_joint_positions_target": output_data.right_hand_joint_positions_target[None, :],
+        "base_velocity_target": output_data.base_velocity_target[None, :],
+        "start_fixture_pose": output_data.start_fixture_pose,
+        "end_fixture_pose": output_data.end_fixture_pose,
+        "object_pose": output_data.object_pose,
+        "base_pose": output_data.base_pose,
+        "task": torch.tensor([[output_data.data_generation_state]]),
+        "base_goal_pose": output_data.base_goal_pose,
+        "base_goal_approach_pose": output_data.base_goal_approach_pose,
+        "base_path": output_data.base_path[None, :],
+        "recording_step": torch.tensor([[output_data.recording_step]]),
+        "obstacle_fixture_poses": output_data.obstacle_fixture_poses,
+    }
 
-        output_data_dict = {
-            "left_hand_pose_target": output_data.left_hand_pose_target[None, :],
-            "right_hand_pose_target": output_data.right_hand_pose_target[None, :],
-            "left_hand_joint_positions_target": output_data.left_hand_joint_positions_target[None, :],
-            "right_hand_joint_positions_target": output_data.right_hand_joint_positions_target[None, :],
-            "base_velocity_target": output_data.base_velocity_target[None, :],
-            "start_fixture_pose": output_data.start_fixture_pose,
-            "end_fixture_pose": output_data.end_fixture_pose,
-            "object_pose": output_data.object_pose,
-            "base_pose": output_data.base_pose,
-            "task": torch.tensor([[output_data.data_generation_state]]),
-            "base_goal_pose": output_data.base_goal_pose,
-            "base_goal_approach_pose": output_data.base_goal_approach_pose,
-            "base_path": output_data.base_path[None, :],
-            "recording_step": torch.tensor([[output_data.recording_step]]),
-            "obstacle_fixture_poses": output_data.obstacle_fixture_poses,
-        }
-
-        return "locomanipulation_sdg_output_data", output_data_dict
+    return "locomanipulation_sdg_output_data", output_data_dict
 
 
 class LocomanipulationSDGEnv(ManagerBasedRLEnv):

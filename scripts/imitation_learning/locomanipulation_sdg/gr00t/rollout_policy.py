@@ -58,8 +58,14 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.utils.datasets import (
+    DatasetExportMode,
+    EpisodeData,
+    EpisodeRecorder,
+    EpisodeRecorderCfg,
+    HDF5DatasetFileHandler,
+)
 from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
@@ -325,6 +331,7 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
 
 def eval_policy(
     env: LocomanipulationSDGEnv,
+    recorder: EpisodeRecorder,
     policy: Policy | PolicyClient,
     input_episode_data: EpisodeData,
     randomize_placement: bool = True,
@@ -355,6 +362,7 @@ def eval_policy(
         env, input_episode_data, approach_distance=0.5, randomize_placement=randomize_placement
     )
 
+    record_initial_state(recorder, env)
     step = 0
 
     action_idx = 0
@@ -380,9 +388,22 @@ def eval_policy(
             action[:, 7:14] = transform_mul(base_pose, action[:, 7:14])
 
             action[:, 28:31] = action[:, 28:31] * 1.0
-            _, _, reset_terminated, reset_time_outs, _ = env.step(
-                action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
+            step_action = action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
+            record_pre_step(recorder, env, step_action)
+            env.simulate(step_action)
+            env.compute_transition()
+            record_post_step(recorder, env)
+            success = (
+                env.termination_manager.get_term("success").clone()
+                if "success" in env.termination_manager.active_terms
+                else torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
             )
+            reset_ids = env.reset_done()
+            if len(reset_ids):
+                recorder.set_success_to_episodes(reset_ids, success[reset_ids])
+                recorder.export_episodes(reset_ids)
+                record_initial_state(recorder, env, reset_ids)
+            _, _, reset_terminated, reset_time_outs, _ = env.finish_step()
             if reset_terminated.any():
                 print("Reset terminated")
                 step = 0
@@ -414,13 +435,17 @@ if __name__ == "__main__":
 
             policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
         env_cfg.sim.device = args_cli.device
-        # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
-        # which is only populated by the data-generation state machine, not during policy rollout.
-        env_cfg.recorders = ActionStateRecorderManagerCfg()
-        env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
-        env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
+        recorder_cfg = EpisodeRecorderCfg(
+            dataset_export_dir_path=os.path.dirname(args_cli.output_file),
+            dataset_filename=os.path.basename(args_cli.output_file),
+            dataset_export_mode=DatasetExportMode.EXPORT_ALL,
+        )
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        recorder = EpisodeRecorder(
+            recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
+        )
+        stack.callback(recorder.close)
 
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
@@ -428,6 +453,7 @@ if __name__ == "__main__":
 
         eval_policy(
             env=env,
+            recorder=recorder,
             policy=policy,
             input_episode_data=input_episode_data,
             randomize_placement=args_cli.randomize_placement,

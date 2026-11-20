@@ -336,15 +336,6 @@ class ExportPatcher:
         if hasattr(unwrapped, "termination_manager"):
             unwrapped.termination_manager.compute = _no_termination_compute
 
-        if hasattr(unwrapped, "recorder_manager"):
-            rm = unwrapped.recorder_manager
-
-            rm.record_pre_step = _noop
-            rm.record_post_step = _noop
-            rm.record_pre_reset = _noop
-            rm.record_post_reset = _noop
-            rm.record_post_physics_decimation_step = _noop
-
     @staticmethod
     def _resolve_scene_entity_key(scene, entity: Any) -> str | None:
         """Return the scene dictionary key for an entity.

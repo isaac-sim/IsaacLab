@@ -1,0 +1,1 @@
+* **Breaking:** Removed RecorderManager, its term/configuration classes, and automatic environment recording hooks. Recording workflows now own EpisodeRecorder storage and call capture functions explicitly; import DatasetExportMode from isaaclab.utils.datasets. Added simulate(), compute_transition(), reset_done(), and finish_step() for custom RL step functions.
