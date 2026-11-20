@@ -24,6 +24,7 @@ from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.assets._views import _validate_asset_view
 
 from .rigid_object_data import RigidObjectData
 
@@ -1056,7 +1057,10 @@ class RigidObject(BaseRigidObject):
 
     def _initialize_impl(self):
         model = self._backend_manager.backend.model
-        self._root_view = ArticulationView(model, re.compile(self.cfg.prim_path + r"(?:/.*)?"), verbose=False)
+        self._root_view = ArticulationView(
+            model, re.compile(self.cfg.prim_path + r"(?:/.*)?"), verbose=False, homogeneous=False
+        )
+        _validate_asset_view(self._root_view, "Rigid-object")
         if self._root_view.link_count != 1 or self._root_view.articulation_ids.shape[1] != 1:
             raise RuntimeError(f"Expected one rigid body per object at '{self.cfg.prim_path}'.")
         self._variant_body_indices = None

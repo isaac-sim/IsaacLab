@@ -18,8 +18,10 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_isaacsim.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_isaacsim.assets import SurfaceGripper
 
+from isaaclab.assets import SurfaceGripper as LabSurfaceGripper
+from isaaclab.assets import SurfaceGripperCfg
 from isaaclab.sim.utils import enable_extension
 
 enable_extension("isaacsim.robot.surface_gripper")
@@ -81,7 +83,7 @@ def _author_surface_gripper() -> SurfaceGripper:
     joint.CreateLocalRot0Attr().Set(Gf.Quatf(0.5, -0.5, 0.5, 0.5))
     gripper_prim.GetRelationship(robot_schema.Relations.ATTACHMENT_POINTS.name).SetTargets([joint_path])
 
-    return SurfaceGripper(
+    return LabSurfaceGripper(
         SurfaceGripperCfg(
             prim_path="/World/Env_[^/]*/SurfaceGripper",
             max_grip_distance=0.1,

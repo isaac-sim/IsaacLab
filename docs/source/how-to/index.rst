@@ -110,6 +110,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Scene-owned surface grippers </source/how-to/surface_grippers>`
+
+         Configure and command suction tools through the Isaac Lab asset API.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton` :guide-tag:`PhysX`
+
+      .. container:: guide-entry
+
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
          Attach and release rigid objects with a surface gripper.
@@ -117,6 +127,16 @@ How-to Guides
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
