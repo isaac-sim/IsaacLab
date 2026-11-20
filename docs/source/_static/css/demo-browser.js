@@ -60,9 +60,12 @@
             const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uvx"];
+            const parts = ["uvx", "--torch-backend", "cu130"];
             if (extras.length) {
                 parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
+            }
+            for (const dependency of splitValues(selectedCard.dataset.demoPackages)) {
+                parts.push("--with", `'${dependency}'`);
             }
             parts.push("isaaclab", "demo", selectedCard.dataset.demoId);
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
@@ -101,6 +104,8 @@
             }
             selectedName.textContent = selectedCard.dataset.demoId;
             selectedDescription.textContent = selectedCard.dataset.demoDescription;
+            fields.physics.value = "";
+            fields.visualizer.value = "";
             populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["newton_mjwarp", "isaacsim_physx"]);
             updateVisualizer();
         };

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -139,7 +140,9 @@ def test_demo_catalog_lists_packaged_demos(capsys):
 
     output = capsys.readouterr().out
     assert "zoo" in output
-    assert "teapot-fill" in output
+    assert "newton-block-and-tackle" not in output
+    assert "snowball-smash" not in output
+    assert "teapot-fill" not in output
     assert "newton-dominoes" not in output
     assert "bin-packing" not in output
 
@@ -159,7 +162,9 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "mpm-two-way-coupling" in output
     assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling" in output
     assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in output
-    assert "teapot-fill" not in output
+    assert "newton-block-and-tackle" in output
+    assert "snowball-smash" in output
+    assert "teapot-fill" in output
 
 
 def _visualizer(visualizer_type: str) -> mock.Mock:
@@ -256,17 +261,42 @@ def test_program_catalog_names_are_unique(catalog):
 
 
 @pytest.mark.parametrize(
-    ("command", "command_name", "program_name"),
-    [(cli.demo, "demo", "zoo"), (cli.example, "example", "cables")],
+    ("command", "command_name", "program_name", "deprecated"),
+    [
+        (cli.demo, "demo", "zoo", False),
+        (cli.example, "example", "cables", False),
+        (cli.demo, "example", "newton-block-and-tackle", True),
+        (cli.demo, "example", "snowball-smash", True),
+        (cli.demo, "example", "teapot-fill", True),
+    ],
 )
-def test_program_command_dispatches_to_packaged_script(command, command_name, program_name):
-    """Program commands must forward all remaining arguments to the selected script."""
-    with mock.patch.object(programs, "run_program") as run_program:
+def test_program_command_dispatches_to_packaged_script(command, command_name, program_name, deprecated):
+    """Program commands preserve argument forwarding and deprecated demo invocations."""
+    warning = pytest.warns(FutureWarning, match=f"isaaclab example {program_name}") if deprecated else nullcontext()
+    with mock.patch.object(programs, "run_program") as run_program, warning:
         command([program_name, "--physics", "newton_mjwarp"])
 
     catalog = programs.DEMOS if command_name == "demo" else programs.EXAMPLES
     selected = next(program for program in catalog if program.name == program_name)
     run_program.assert_called_once_with(command_name, selected, ["--physics", "newton_mjwarp"])
+
+
+@pytest.mark.parametrize("script_name", ["newton_viewer_block_and_tackle.py", "snowball_smash.py", "teapot_fill.py"])
+def test_deprecated_demo_script_forwards_to_example(script_name):
+    """Released direct script paths retain their arguments and point users to the new path."""
+    old_path = paths.ISAACLAB_ROOT / "examples" / "demos" / script_name
+    new_path = paths.ISAACLAB_ROOT / "examples" / script_name
+    original_args = [str(old_path), "--visualizer", "none", "--max_steps", "1"]
+    observed_args = []
+    with (
+        mock.patch.object(sys, "argv", original_args),
+        mock.patch("runpy.run_path", side_effect=lambda *_args, **_kwargs: observed_args.append(sys.argv[:])) as run,
+        pytest.warns(FutureWarning, match=f"examples/{script_name}"),
+    ):
+        programs._run_script(old_path)
+
+    run.assert_called_once_with(str(new_path), run_name="__main__")
+    assert observed_args == [original_args]
 
 
 def test_program_command_forwards_help_to_selected_module():

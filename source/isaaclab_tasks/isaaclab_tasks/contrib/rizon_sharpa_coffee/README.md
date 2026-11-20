@@ -17,8 +17,8 @@ runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
 
-This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
-show an individual API or tuning method. This demo has no learning task or
+This is a demo: a complete visual showcase. Focused examples show an
+individual API or tuning method. This demo has no learning task or
 policy registration.
 
 The source bowl is approximately 110 × 103 mm, with its original 40 mm depth.
