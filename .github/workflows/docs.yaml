@@ -117,9 +117,9 @@ jobs:
         # has a complete version dropdown during the branch-name cutover: main,
         # develop (while it exists), and tags >= v2.0.0 (including pre-release
         # suffixes like -beta, -rc1, or -EA). v1.x tags and release branches are
-        # excluded.
+        # excluded, along with the superseded v3.0.0 pre-releases.
         SMV_BRANCH_WHITELIST: '^(main|develop)$'
-        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
+        SMV_TAG_WHITELIST: '^(?!v3\.0\.0-)v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
