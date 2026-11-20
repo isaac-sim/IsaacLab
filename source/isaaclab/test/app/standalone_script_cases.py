@@ -467,7 +467,7 @@ def backend_is_available(backend: str) -> bool:
     if backend == "isaac_rtx":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if backend in {"physx", "isaacsim_physx"}:
-        package = "isaaclab_physx"
+        package = "isaaclab_isaacsim"
     elif backend == "ovphysx":
         # The Isaac Lab wrapper is installed without its OVPhysX runtime unless the ov extra is requested.
         return importlib.util.find_spec("isaaclab_ov") is not None and importlib.util.find_spec("ovphysx") is not None

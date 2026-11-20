@@ -36,8 +36,8 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 import torch
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab.sim as sim_utils

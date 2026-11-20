@@ -6,7 +6,7 @@
 
 import math
 
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import SceneEntityCfg

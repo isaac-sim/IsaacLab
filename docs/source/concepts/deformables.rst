@@ -100,8 +100,8 @@ A deformable is a mesh spawner with two extra fields:
 Each fragment writes one USD namespace, so a backend's properties are split across fragments:
 :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` carries the ``omniphysics:*`` body
 attributes (``mass``, ``kinematic_enabled``, ``deformable_body_enabled``),
-:class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
-:class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
 An empty slot creates the body with the active backend's defaults; add fragments only for
 properties you want to set. The backend applies its own deformable anchor schemas.
 
@@ -111,7 +111,7 @@ Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a run
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
@@ -194,7 +194,7 @@ the deformable schema to the loaded prim, or modifies it in place if the prim al
 .. code-block:: python
 
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
 
     cfg_usd = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",

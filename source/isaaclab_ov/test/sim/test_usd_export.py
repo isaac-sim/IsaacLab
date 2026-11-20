@@ -172,9 +172,9 @@ def test_importing_the_export_starts_a_volume_deformable_at_its_reset_state(tmp_
     The reset state is moved off the authored points, so that only the stated one reproduces it. The PhysX backends
     share this export, which writes no other deformable value.
     """
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
     from usd_export_read_import import NODAL_POSITION, read_nodal_positions
 
     import isaaclab.sim as sim_utils
@@ -228,13 +228,11 @@ def test_joint_values_ovphysx_reads_from_other_attributes_are_restated(
 ):
     """A joint value OVPhysX 0.7 reads from another attribute than the live engine's source is restated as the
     attribute an import reads."""
-    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+    from isaaclab_ov.physics import OvPhysxCfg
 
     from isaaclab.sim import SimulationCfg
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
-    if not ovphysx_compat.OVPHYSX_USES_TASKS:
-        pytest.skip("OVPhysX before 0.7 reads these attributes as the live engine does.")
     cfg = make_export_scene_cfg(tmp_path)
     robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
     hinge = robot.GetPrimAtPath("/Robot/Hinge")

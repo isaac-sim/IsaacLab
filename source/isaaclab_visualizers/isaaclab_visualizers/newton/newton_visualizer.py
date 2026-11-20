@@ -862,6 +862,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -915,6 +916,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             elif not viewer.is_paused():
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
+                    if self._geometry_change_version != self.backend.geometry_change_version:
+                        viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                        self._geometry_change_version = self.backend.geometry_change_version
                     viewer.log_state(state)
                     contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
@@ -957,7 +961,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
