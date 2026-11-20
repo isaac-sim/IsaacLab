@@ -386,6 +386,7 @@ class NewtonViewerGL(ViewerGL):
                     elif viewer.image_matches_camera:
                         viewer._draw_model_overlays(imgui, rtx=True)
                         imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
+                        hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
                     else:
                         viewer._draw_model_overlays(imgui)
             if viewer.marker_groups:
@@ -478,6 +479,10 @@ class NewtonViewerGL(ViewerGL):
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
         groups = list(self.marker_groups)
+        if (
+            getattr(self._owner, "rtx_view_index", None) is not None
+        ):  # OVRTX draws the markers as prims of the shared scene
+            hud_note(imgui, "RTX: markers also show up in RTX sensor cameras.")
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
             hover_tooltip(
