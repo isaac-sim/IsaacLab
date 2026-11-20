@@ -10,6 +10,7 @@ import math
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import LidarCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.images import is_depth_like
 from isaaclab.visualizers import VisualizerCfg
@@ -17,7 +18,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
-from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_common import CartpoleTiledCameraCfg, cartpole_lidar_cfg
 from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 
 ##
@@ -30,6 +31,14 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
     """Cartpole scene with a selectable tiled camera."""
 
     tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
+
+
+@configclass
+class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
+    """One solid-state lidar captured by OVRTX. The policy reads that scan and no camera."""
+
+    tiled_camera = None
+    lidar: LidarCfg = cartpole_lidar_cfg()
 
 
 ##
@@ -78,6 +87,36 @@ def image_observations_cfg(data_type: str):
         critic: ObsGroup = ObservationsCfg.PolicyCfg()
 
     return ImageObservationsCfg()
+
+
+def lidar_observations_cfg():
+    """Build policy observations from stacked lidar range images.
+
+    The critic keeps the privileged joint state. The policy is a channel-first range image: misses
+    are 0 and a hit at the far range is 1. Joint terms stay off the policy group so they are not
+    flattened into that image.
+
+    Returns:
+        An observations config with the range-image policy and the privileged critic.
+    """
+
+    @configclass
+    class LidarObservationsCfg:
+        @configclass
+        class PolicyCfg(ObsGroup):
+            lidar_range = ObsTerm(
+                func=mdp.LidarRangeImage,
+                params={"sensor_cfg": SceneEntityCfg("lidar"), "channel_first": True, "frame_stack": 2},
+            )
+
+            def __post_init__(self):
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+        critic: ObsGroup = ObservationsCfg.PolicyCfg()
+
+    return LidarObservationsCfg()
 
 
 @configclass
@@ -129,7 +168,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
     A single ``presets=`` selector cascades through this preset: it picks the observation pipeline
     here and, via :attr:`CartpoleCameraSceneCfg.tiled_camera`, the matching camera data type and
     rendering backend. The feature-extractor variants (``resnet18``, ``theia_tiny``) operate on RGB
-    images, so they fall back to the default camera.
+    images, so they fall back to the default camera. The ``lidar`` variant replaces that camera with a
+    tiled OVRTX lidar pinned to motion BVH, and its scene defaults to 64 environments.
     """
 
     @configclass
@@ -161,4 +201,18 @@ class CartpoleCameraEnvCfg(PresetCfg):
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_full_mdl"))
     resnet18 = BaseCartpoleCameraEnvCfg(observations=ResNet18ObservationCfg())
     theia_tiny = BaseCartpoleCameraEnvCfg(observations=TheiaTinyObservationCfg())
+
+    @configclass
+    class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
+        """Lidar variant viewed close enough to check hits against one cart and pole."""
+
+        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=64, env_spacing=20.0)
+
+        def __post_init__(self):
+            super().__post_init__()
+            # Hits are a few centimeters across, so frame environment 0 tightly enough to compare
+            # them with the cart and pole.
+            self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
+
+    lidar = LidarCartpoleCameraEnvCfg(observations=lidar_observations_cfg())
     default = rgb

@@ -9,6 +9,10 @@ __all__ = [
     "Camera",
     "CameraCfg",
     "CameraData",
+    "Lidar",
+    "LidarCfg",
+    "LidarSpawnerCfg",
+    "LidarData",
     "RenderBufferKind",
     "RenderBufferSpec",
     "TiledCamera",
@@ -59,6 +63,7 @@ __all__ = [
 
 from .sensor_base import SensorBase
 from .sensor_base_cfg import SensorBaseCfg
+from .lidar import Lidar, LidarCfg, LidarData, LidarSpawnerCfg
 from .camera import (
     Camera,
     CameraCfg,

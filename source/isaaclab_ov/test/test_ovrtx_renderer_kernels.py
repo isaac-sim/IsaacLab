@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
+    copy_dense_lidar_points_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
 )
@@ -253,3 +254,30 @@ class TestGenerateRandomColorsFromIdsKernel:
             assert int(out_np[i, j, k]) == expected, (
                 f"At ({i},{j},{k}) id={input_id}: expected 0x{expected:08x}, got 0x{int(out_np[i, j, k]):08x}"
             )
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA not available")
+def test_copy_dense_lidar_points_kernel_keeps_hits_and_clears_misses():
+    """A dense cloud writes hit positions and replaces misses with non-finite points."""
+    coordinates = wp.array(
+        np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32), dtype=wp.float32, device=DEVICE
+    )
+    intensity = wp.array(np.array([0.5, 0.25], dtype=np.float32), dtype=wp.float32, device=DEVICE)
+    flags = wp.array(np.array([0x40, 0], dtype=np.int32), dtype=wp.int32, device=DEVICE)
+    points = wp.zeros(2, dtype=wp.vec3f, device=DEVICE)
+    out_intensity = wp.full(2, 7.0, dtype=wp.float32, device=DEVICE)
+    valid = wp.zeros(2, dtype=wp.bool, device=DEVICE)
+
+    wp.launch(
+        copy_dense_lidar_points_kernel,
+        dim=2,
+        inputs=[coordinates, intensity, flags, points, out_intensity, valid],
+        device=DEVICE,
+    )
+    wp.synchronize()
+
+    points_np = points.numpy()
+    np.testing.assert_allclose(points_np[0], [1.0, 2.0, 3.0])
+    assert not np.isfinite(points_np[1]).any()
+    np.testing.assert_allclose(out_intensity.numpy(), [0.5, 0.0])
+    np.testing.assert_array_equal(valid.numpy(), [True, False])

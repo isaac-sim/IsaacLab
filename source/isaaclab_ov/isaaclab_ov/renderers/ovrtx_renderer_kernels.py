@@ -47,6 +47,20 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
+def create_lidar_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),  # type: ignore
+    orientations: wp.array(dtype=wp.quatf),  # type: ignore
+    transforms: wp.array(dtype=wp.mat44d),  # type: ignore
+):
+    """Convert world-frame lidar poses to OVRTX row-vector matrices.
+
+    The orientation is written as authored. A lidar does not use the camera OpenGL rotation.
+    """
+    i = wp.tid()
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientations[i]))))
+
+
+@wp.kernel
 def extract_all_tiles_kernel(
     tiled_buffer: wp.array(dtype=Any, ndim=3),  # type: ignore
     output_buffer: wp.array(dtype=Any, ndim=4),  # type: ignore
@@ -161,3 +175,24 @@ def accumulate_mesh_normals(
 def normalize_mesh_normals(normals: wp.array(dtype=wp.vec3)):
     i = wp.tid()
     normals[i] = wp.normalize(normals[i])
+
+
+@wp.kernel(enable_backward=False)
+def copy_dense_lidar_points_kernel(
+    coordinates: wp.array2d(dtype=wp.float32),
+    intensity: wp.array(dtype=wp.float32),
+    flags: wp.array(dtype=wp.int32),
+    points: wp.array(dtype=wp.vec3f),
+    intensity_out: wp.array(dtype=wp.float32),
+    valid: wp.array(dtype=wp.bool),
+):
+    """Copy one dense lidar cloud. Bit 6 of ``flags`` marks a hit; misses become non-finite."""
+    i = wp.tid()
+    hit = (flags[i] & wp.int32(0x40)) != wp.int32(0)
+    if hit:
+        points[i] = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
+        intensity_out[i] = intensity[i]
+    else:
+        points[i] = wp.vec3f(wp.inf, wp.inf, wp.inf)
+        intensity_out[i] = 0.0
+    valid[i] = hit

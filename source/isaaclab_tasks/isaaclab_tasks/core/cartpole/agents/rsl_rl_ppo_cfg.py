@@ -166,9 +166,35 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class CartpoleLidarPPORunnerCfg(CartpoleCameraPPORunnerCfg):
+    """CNN policy for the lidar range image.
+
+    The actor reads two stacked range images. The critic reads the joint state.
+    """
+
+    experiment_name = "cartpole_lidar"
+
+
+@configclass
+class CartpoleLidarDirectPPORunnerCfg(CartpoleLidarPPORunnerCfg):
+    """Direct-workflow lidar policy. Logs stay separate from the manager-based run."""
+
+    experiment_name = "cartpole_lidar_direct"
+
+
+@configclass
 class CartpoleCameraPPORunnerPresetsCfg(PresetCfg):
     """RSL-RL configuration family keyed by camera pipeline presets."""
 
     default = CartpoleCameraPPORunnerCfg()
     resnet18 = CartpoleCameraFeaturePPORunnerCfg()
     theia_tiny = CartpoleCameraFeaturePPORunnerCfg()
+    lidar = CartpoleLidarPPORunnerCfg()
+
+
+@configclass
+class CartpoleCameraDirectPPORunnerPresetsCfg(PresetCfg):
+    """RSL-RL configuration family for the direct cartpole camera task."""
+
+    default = CartpoleCameraDirectPPORunnerCfg()
+    lidar = CartpoleLidarDirectPPORunnerCfg()
