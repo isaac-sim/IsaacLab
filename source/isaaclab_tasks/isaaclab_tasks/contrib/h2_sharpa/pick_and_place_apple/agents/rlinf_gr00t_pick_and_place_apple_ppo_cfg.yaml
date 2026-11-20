@@ -90,9 +90,6 @@ algorithm:
     max_length: 1024
     min_length: 1
 
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
 env:
   group_name: "EnvGroup"
   channel:
@@ -195,9 +192,6 @@ env:
       <<: *isaaclab_config
       gpu_crop_random: false
 
-# ---------------------------------------------------------------------------
-# Rollout
-# ---------------------------------------------------------------------------
 rollout:
   group_name: "RolloutGroup"
   channel:
@@ -210,9 +204,6 @@ rollout:
   pipeline_stage_num: 1
 
   model:
-    # Fields accessed by validate_embodied_cfg via `model_cfg` when running in
-    # eval-only mode (`only_eval=True`). Alias them off actor.model so training
-    # and eval agree on the same values.
     model_type: ${actor.model.model_type}
     num_action_chunks: ${actor.model.num_action_chunks}
     policy_setup: ${actor.model.policy_setup}
@@ -222,16 +213,12 @@ rollout:
     trust_remote_code: ${actor.model.trust_remote_code}
     is_lora: ${actor.model.is_lora}
     rl_head_config: ${actor.model.rl_head_config}
-    model_path: ".pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pick_Place_Apple"
-    # Qwen3-VL / Cosmos-Reason2-2B backbone; must be a local dir (offline load).
-    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
+    model_path: ${actor.model.model_path}
+    backbone_model_path: ${actor.model.backbone_model_path}
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
 
-# ---------------------------------------------------------------------------
-# Actor
-# ---------------------------------------------------------------------------
 actor:
   group_name: "ActorGroup"
   channel:
@@ -239,33 +226,17 @@ actor:
     queue_name: "replay_buffer"
     queue_size: 0
   training_backend: "fsdp"
-  # micro_batch_size=64 OOMs on H100 80G: N1.7's Qwen3-VL backbone + padding_value
-  # 2048 (3x256 image tokens) is far heavier than N1.5's Eagle (850), and rollout
-  # is colocated on the same GPU. Batch 32 still OOMs after reducing cameras to
-  # 240x320 and envs to 128 (jobs 465720, 466010). Batch 16 passed forward but
-  # OOMed during backward (job 469511), so use batch 8.
-  # Match 384-step / rollout_epoch=1: 384 samples/rank; global_batch_size=1024
-  # → 1024/8/8=16 accumulation steps; 384 % (1024/8) == 0.
+  # Batch size fits colocated PPO training on an 80 GB GPU.
   micro_batch_size: 4
   global_batch_size: 1024
   seed: 1234
   enable_offload: False
 
-  # ---- SFT co-training (PPO + β·SFT) ------------------------------------
-  # The GR00T_N1D7 branch of the fsdp_actor_worker override builds the SFT
-  # loader from ShardedSingleStepDataset + Gr00tN1d7Processor (N1.7 pipeline).
-  # Stock RLinf has no SFT dataloader for gr00t_n1d7, so the demo runs pure PPO. Co-training
-  # needs an N1.7 SFT dataloader registered with RLinf before this can be enabled.
+  # GR00T N1.7 uses PPO without SFT co-training.
   enable_sft_co_train: False
   sft_loss_weight: 0.1
-  # Keep co-training on the real-data component used to train the v8 checkpoint.
-  # The checkpoint processor supplies normalization statistics for real30 +
-  # sim_align_v1; using older real43/real46 data causes a distribution mismatch.
   sft_data_path: "datasets/pnp_apple_real30"
-  # Keep SFT micro-batch aligned with PPO: 8 samples * 16 accumulation steps = 128
-  # SFT samples per rank per optimizer update.
   sft_batch_size: 4
-  # N1.7-specific SFT-loader knobs (consumed by the worker override):
   sft_shard_size: 1024
   sft_episode_sampling_rate: 1.0
   sft_num_shards_per_epoch: 1000
@@ -294,17 +265,7 @@ actor:
       safe_get_logprob: False
       noise_anneal: False
       noise_params: [0.7, 0.3, 400]
-      # Official RLinf N1.7 defaults (noise_level=0.5, action_noise_scale=0.1) were
-      # validated on LIBERO (action_dim=7, single-arm gripper). Our H2 dual-arm +
-      # dexterous-hand task has action_dim=58: the same per-dimension noise in
-      # normalized [-1,1] space compounds across far more independently-noised
-      # joints and looked like erratic flailing in rollout videos. Local ablation
-      # (frame-diff spike counts on 4-env smoke rollouts) confirmed
-      # action_noise_scale was the dominant cause (spikes in ~51% of frames at
-      # 0.1 vs ~0.2% at 0.0), with residual flow_sde noise_level=0.5 spikes
-      # (~1.2% of frames) cleared by dropping noise_level to 0.1 as well —
-      # matching the precedent set by our own N1.5 assemble_trocar config, which
-      # also reduces noise_level to 0.1 for a comparable dual-arm+hand task.
+      # Use low exploration noise for the 58 arm and hand targets.
       noise_level: 0.1
       action_noise_scale: 0.0
       add_value_head: ${actor.model.add_value_head}

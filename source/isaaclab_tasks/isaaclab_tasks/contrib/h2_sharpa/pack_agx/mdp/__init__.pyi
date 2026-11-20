@@ -6,4 +6,3 @@
 __all__ = ["task_success"]
 
 from .terminations import task_success
-from isaaclab_tasks.contrib.h2_sharpa.mdp import *

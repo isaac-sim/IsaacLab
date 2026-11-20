@@ -10,6 +10,7 @@ import os
 
 from isaaclab_isaacsim.physics import PhysxCfg
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
@@ -18,27 +19,26 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
+from isaaclab_tasks.contrib.h2_sharpa.mdp import apply_camera_response, phase_reward
 from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import (
-    H2_TABLETOP_ROBOT_CFG,
     LEFT_WRIST_CAMERA_CFG,
-    POLICY_JOINT_NAMES,
     RIGHT_WRIST_CAMERA_CFG,
     ActionsCfg,
+    H2TabletopSceneCfg,
+    PolicyStateCfg,
 )
 
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
-from . import mdp
+from .mdp import task_success
 
 TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256.usd"
 AGX_ORIN_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/MiniPc001/MiniPc001.usd"
 PROTECTIVE_BOX_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/ProtectiveBox001/ProtectiveBox001.usd"
-BACKGROUND_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/NuRec/IMG_6246_nurec_aligned_scaled.usdz"
 
 
 # Reset-pose randomization half-ranges. PACK_AGX_XY_RANGE (metres) drives the x
@@ -50,75 +50,8 @@ YAW_RANGE = math.radians(float(os.environ.get("PACK_AGX_YAW_RANGE_DEG", "10")))
 
 
 @configclass
-class PackAgxOrinSceneCfg(InteractiveSceneCfg):
+class PackAgxOrinSceneCfg(H2TabletopSceneCfg):
     """Independent H2 scene for packing an AGX Orin."""
-
-    robot = H2_TABLETOP_ROBOT_CFG
-
-    background = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/background",
-        spawn=sim_utils.UsdFileCfg(usd_path=BACKGROUND_USD),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-1.35, -0.45, 2.0),
-            rot=(0.0, 0.0, 0.70710678, 0.70710678),
-        ),
-    )
-
-    room_left = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_left",
-        spawn=sim_utils.CuboidCfg(
-            size=(4.0, 0.05, 3.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 2.0, 1.5)),
-    )
-    room_right = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_right",
-        spawn=sim_utils.CuboidCfg(
-            size=(4.0, 0.05, 3.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, -2.0, 1.5)),
-    )
-    room_front = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_front",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.05, 4.0, 3.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.5, 0.0, 1.5)),
-    )
-    room_back = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_back",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.05, 4.0, 3.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-2.5, 0.0, 1.5)),
-    )
-    room_ceiling = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_ceiling",
-        spawn=sim_utils.CuboidCfg(
-            size=(4.0, 4.0, 0.05),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 3.0)),
-    )
-
-    room_floor = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/room_floor",
-        spawn=sim_utils.CuboidCfg(
-            size=(8.0, 8.0, 0.02),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.21), roughness=0.9, metallic=0.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.02)),
-    )
-
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
 
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
@@ -217,26 +150,13 @@ class ObservationsCfg:
     """Robot state and three camera observations."""
 
     @configclass
-    class PolicyCfg(ObsGroup):
-        robot_policy_joint_pos = ObsTerm(
-            func=mdp.joint_pos,
-            params={
-                "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_JOINT_NAMES, preserve_order=True),
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    @configclass
     class CameraImagesCfg(ObsGroup):
         front_camera = ObsTerm(
             func=mdp.image_rgb,
             params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=mdp.apply_camera_response,
+                    func=apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.879, 0.824, 0.848)},
                 )
             ],
@@ -246,7 +166,7 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=mdp.apply_camera_response,
+                    func=apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.732, 0.745, 0.735)},
                 )
             ],
@@ -256,7 +176,7 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=mdp.apply_camera_response,
+                    func=apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.815, 0.814, 0.826)},
                 )
             ],
@@ -265,7 +185,7 @@ class ObservationsCfg:
         def __post_init__(self):
             self.concatenate_terms = False
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyStateCfg = PolicyStateCfg()
     camera_images: CameraImagesCfg = CameraImagesCfg()
 
 
@@ -304,7 +224,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
-        func=mdp.task_success,
+        func=task_success,
         time_out=False,
         params={
             "agx_orin_cfg": SceneEntityCfg("agx_orin"),
@@ -325,10 +245,10 @@ class TerminationsCfg:
 class RewardsCfg:
     """Sparse phase rewards: lift, align, seat, then release."""
 
-    lift_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 0})
-    align_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 1})
-    seat_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 2})
-    release_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 3})
+    lift_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 0})
+    align_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 1})
+    seat_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 2})
+    release_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 3})
 
 
 @configclass

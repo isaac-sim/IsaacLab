@@ -5,6 +5,7 @@
 
 """H2 policy action ordering and task progress across episode boundaries."""
 
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +34,9 @@ def test_rlinf_task_registration(task, package):
     root = Path(isaaclab_tasks.__file__).parent
     task_dir = root / "contrib" / "h2_sharpa" / package
     assert not (root / "contrib" / "h2_sharpa.py").is_file()
+    # Only the success condition belongs to the task. Import shared and core terms from their owners.
+    task_mdp = import_module(f"isaaclab_tasks.contrib.h2_sharpa.{package}.mdp")
+    assert not hasattr(task_mdp, "phase_reward") and not hasattr(task_mdp, "time_out")
     for mode, env_id in (("train", task_id), ("eval", task_id + "-Eval")):
         cfg = load_cfg_from_registry(env_id, "env_cfg_entry_point")
         assert type(cfg).__module__ == f"isaaclab_tasks.contrib.h2_sharpa.{package}.{package}_env_cfg"

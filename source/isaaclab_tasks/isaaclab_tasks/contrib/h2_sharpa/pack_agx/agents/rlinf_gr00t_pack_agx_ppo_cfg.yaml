@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
-# SPDX-License-Identifier: BSD-3-Clause
-
 # GR00T N1.7 PPO + optional SFT co-training for H2 + Sharpa Pack-AGX.
 # The checkpoint processor owns N1.7 normalization/modality configuration, so
 # data_config_class is intentionally omitted.
@@ -192,8 +189,8 @@ rollout:
     trust_remote_code: ${actor.model.trust_remote_code}
     is_lora: ${actor.model.is_lora}
     rl_head_config: ${actor.model.rl_head_config}
-    model_path: ".pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX"
-    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
+    model_path: ${actor.model.model_path}
+    backbone_model_path: ${actor.model.backbone_model_path}
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
@@ -210,8 +207,7 @@ actor:
   seed: 1234
   enable_offload: False
 
-  # Stock RLinf has no SFT dataloader for gr00t_n1d7, so the demo runs pure PPO. Co-training
-  # needs an N1.7 SFT dataloader registered with RLinf before this can be enabled.
+  # GR00T N1.7 uses PPO without SFT co-training.
   enable_sft_co_train: False
   sft_loss_weight: 0.1
   sft_data_path: "datasets/mimicGen_lerobot"

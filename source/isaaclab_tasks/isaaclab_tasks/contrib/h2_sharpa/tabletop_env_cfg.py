@@ -12,9 +12,15 @@ from typing import TYPE_CHECKING
 from isaaclab_newton.controllers import NewtonJointImpedanceControllerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import mdp
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass, instantiate
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.string import resolve_matching_names_values
 
 from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
@@ -180,3 +186,83 @@ class ActionsCfg:
         use_default_offset=False,
         preserve_order=True,
     )
+
+
+@configclass
+class H2TabletopSceneCfg(InteractiveSceneCfg):
+    """H2 robot and room shared by the two tabletop tasks."""
+
+    robot = H2_TABLETOP_ROBOT_CFG
+
+    background = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/background",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Environments/NuRec/IMG_6246_nurec_aligned_scaled.usdz"
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(-1.35, -0.45, 2.0),
+            rot=(0.0, 0.0, 0.70710678, 0.70710678),
+        ),
+    )
+
+    room_left = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_left",
+        spawn=sim_utils.CuboidCfg(
+            size=(4.0, 0.05, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 2.0, 1.5)),
+    )
+    room_right = room_left.replace(
+        prim_path="{ENV_REGEX_NS}/room_right",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, -2.0, 1.5)),
+    )
+    room_front = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_front",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.05, 4.0, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.5, 0.0, 1.5)),
+    )
+    room_back = room_front.replace(
+        prim_path="{ENV_REGEX_NS}/room_back",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-2.5, 0.0, 1.5)),
+    )
+    room_ceiling = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_ceiling",
+        spawn=sim_utils.CuboidCfg(
+            size=(4.0, 4.0, 0.05),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 3.0)),
+    )
+
+    room_floor = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_floor",
+        spawn=sim_utils.CuboidCfg(
+            size=(8.0, 8.0, 0.02),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.21), roughness=0.9, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.02)),
+    )
+
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+    )
+
+
+@configclass
+class PolicyStateCfg(ObsGroup):
+    robot_policy_joint_pos = ObsTerm(
+        func=mdp.joint_pos,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_JOINT_NAMES, preserve_order=True),
+        },
+    )
+
+    def __post_init__(self):
+        self.enable_corruption = False
+        self.concatenate_terms = False
