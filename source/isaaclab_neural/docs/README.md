@@ -16,7 +16,7 @@ state at reset, then the last joint target), so joint observations and actions b
 | --- | --- |
 | `NeuralCfg` | `PhysicsCfg` selected as the task's `physics=` preset. Holds the model configuration and the reset records. |
 | `NeuralManager` | Physics backend (`backend_name = "neural"`). Buffers one joint target per step, calls the model once per chunk, and keeps the predicted frames of each view. |
-| `WorldModel` | Abstract model: `spec()`, `reset()`, `step()`, `close()`. |
+| `WorldModel` | Abstract model: `spec()`, `reset()`, `write()`, `step()`, `close()`. |
 | `NeuralRendererCfg` | Selected as a camera's `renderer_cfg`, with the model view the camera shows. Copies that view's frames into the camera, including its frame history. |
 | `Articulation` | Virtual articulation. Shares the manager's joint state and targets, so the task's joint observation and action terms work unchanged. Its reset starts an episode from a reset record. Everything that needs a body raises. |
 | `at_chunk_boundary` | Makes a termination function fire only where environments can reset. |
@@ -81,13 +81,15 @@ Implement the `WorldModel` interface, subclass `ModelCfg` and set its `class_typ
 
 | Method | Responsibility |
 | --- | --- |
-| `spec()` | Chunk length, frame rate, image size, the largest number of environments, and the names of the views and outputs. |
+| `spec()` | Chunk length, frame rate, image size, the largest number of environments, the inputs it needs, and the names of the views and outputs. |
 | `reset(env_ids, images, prompts, seeds)` | Restart the selected environments (host lists) from their start frames, `{view: {output: (K, H, W, C)}}`. Called right before `step()`, for the environments that reset since the last chunk. |
-| `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to frames `{view: {output: (N, T, H, W, C)}}`. |
+| `write(name, value)` | Set one of the inputs the spec lists, named by `WorldModelAttribute`: the chunk's joint targets `(N, T, J)` (`JOINT_TARGETS`) or the joint state before the chunk `(N, J)` (`START_JOINT_STATE`). Called before every `step()`. |
+| `step()` | Predict the next chunk from the inputs written, as frames `{view: {output: (N, T, H, W, C)}}`. |
 | `close()` | Release resources. |
 
-Frames are `uint8` torch tensors on the device, and joint targets arrive there. The targets buffer is reused for the
-next chunk, so a model that keeps it copies it. Construction is cheap; load the weights on the first call.
+Frames and inputs are torch tensors on the device. Each written input is the manager's buffer, reused for the next
+chunk, so a model that keeps it copies it. A new input needs the backend to provide it as a `WorldModelAttribute`; the
+manager rejects a model whose spec needs one it does not provide. Construction is cheap; load the weights on the first call.
 
 ## Tests
 
