@@ -136,7 +136,7 @@ and actions retain the model's dictionary order. When set, ``keys`` must list ev
 to emit, in environment order. Use ``uv run --no-sync`` to preserve the pins.
 
 H2 + Sharpa checkpoints and assets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The H2 examples use N1.7. Download the checkpoint for either task and the shared Cosmos backbone:
 
@@ -243,13 +243,15 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
-For H2 + Sharpa, use ``PPO_GR00T_PnPApple`` or ``PPO_GR00T_PackAGX`` as the configuration name.
-Their model paths default to the download locations above:
+Each H2 task registers its environment from ``<task>_env_cfg.py`` and keeps its RLinf recipe in ``agents/``.
+The recipe names include the task so that RLinf can find each one by name.
+Use ``rlinf_gr00t_pick_and_place_apple_ppo_cfg`` for Apple or ``rlinf_gr00t_pack_agx_ppo_cfg`` for AGX.
+Both recipes use the model download locations above.
 
 .. code-block:: bash
 
-   uv run --no-sync isaaclab train --rl_library rlinf --config_name PPO_GR00T_PnPApple
-   uv run --no-sync isaaclab play --rl_library rlinf --config_name PPO_GR00T_PnPApple --video
+   uv run --no-sync isaaclab train --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg
+   uv run --no-sync isaaclab play --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg --video
 
 Changing ``--num_envs`` alone can break RLinf's batch arithmetic:
 ``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks`` must remain a multiple of

@@ -5,6 +5,7 @@
 
 """H2 policy action ordering and task progress across episode boundaries."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,14 +16,37 @@ from isaaclab.managers import ActionManager, ObservationManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
+import isaaclab_tasks
 from isaaclab_tasks.contrib.h2_sharpa import POLICY_JOINT_NAMES, phase_reward
-from isaaclab_tasks.contrib.pack_agx.config.env_config import PackAgxOrinEnvCfg
-from isaaclab_tasks.contrib.pick_and_place_apple.config.env_config import PnpAppleEnvCfg
+from isaaclab_tasks.contrib.pack_agx.pack_agx_env_cfg import PackAgxOrinEnvCfg
+from isaaclab_tasks.contrib.pick_and_place_apple.pick_and_place_apple_env_cfg import PickAndPlaceAppleEnvCfg
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+
+@pytest.mark.parametrize(
+    "task, package", [("Pick-And-Place-Apple", "pick_and_place_apple"), ("Pack-AGX-Orin", "pack_agx")]
+)
+def test_rlinf_task_registration(task, package):
+    """The train and play IDs select the same task-local environment and RLinf recipe."""
+    task_id = f"IsaacContrib-{task}-H2-Sharpa"
+    root = Path(isaaclab_tasks.__file__).parent
+    task_dir = root / "contrib" / package
+    for mode, env_id in (("train", task_id), ("eval", task_id + "-Eval")):
+        cfg = load_cfg_from_registry(env_id, "env_cfg_entry_point")
+        assert type(cfg).__module__ == f"isaaclab_tasks.contrib.{package}.{package}_env_cfg"
+        recipe = load_cfg_from_registry(env_id, "rlinf_cfg_entry_point")
+        assert recipe["env"][mode]["init_params"]["id"] == env_id
+
+    # RLinf searches by basename. Copies outside agents/ make its selection ambiguous.
+    yaml_name = f"rlinf_gr00t_{package}_ppo_cfg.yaml"
+    assert list(root.rglob(yaml_name)) == [task_dir / "agents" / yaml_name]
+    assert not (task_dir / "config" / "env_config.py").is_file()
+    assert not list((task_dir / "config").glob("*.yaml"))
 
 
 def test_policy_actions_preserve_uncontrolled_targets():
     """The 58 policy outputs command arm torques and hand positions in dataset order."""
-    cfg = PnpAppleEnvCfg()
+    cfg = PickAndPlaceAppleEnvCfg()
     names = sorted(cfg.scene.robot.init_state.joint_pos)
     defaults = torch.tensor([cfg.scene.robot.init_state.joint_pos[name] for name in names]).repeat(2, 1)
     targets = defaults.clone()
@@ -77,7 +101,10 @@ def test_policy_actions_preserve_uncontrolled_targets():
 
 @pytest.mark.parametrize(
     "cfg_type, expected",
-    [(PnpAppleEnvCfg, [[123, 120, 117]] * 3), (PackAgxOrinEnvCfg, [[161, 149, 151], [134, 135, 131], [149, 147, 147]])],
+    [
+        (PickAndPlaceAppleEnvCfg, [[123, 120, 117]] * 3),
+        (PackAgxOrinEnvCfg, [[161, 149, 151], [134, 135, 131], [149, 147, 147]]),
+    ],
 )
 def test_camera_group_returns_calibrated_rgb(cfg_type, expected):
     """The policy receives calibrated uint8 RGB from each configured sensor through the manager."""
@@ -100,11 +127,11 @@ def test_camera_group_returns_calibrated_rgb(cfg_type, expected):
         torch.testing.assert_close(images[name], torch.tensor(rgb, dtype=torch.uint8).reshape(1, 1, 1, 3))
 
 
-@pytest.mark.parametrize("cfg_type", [PnpAppleEnvCfg, PackAgxOrinEnvCfg])
+@pytest.mark.parametrize("cfg_type", [PickAndPlaceAppleEnvCfg, PackAgxOrinEnvCfg])
 def test_progress_without_rewards_and_partial_reset(cfg_type):
     """Success progresses without evaluating rewards, and only the selected episode resets."""
     cfg = cfg_type().terminations.task_success
-    apple = cfg_type is PnpAppleEnvCfg
+    apple = cfg_type is PickAndPlaceAppleEnvCfg
     object_name, target_name = ("apple", "plate") if apple else ("agx_orin", "protective_box")
     position = torch.zeros(2, 3)
     wrist = torch.zeros(2, 2, 3)
