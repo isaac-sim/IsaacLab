@@ -37,7 +37,11 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
 
 @configclass
 class DelayedImplicitActuatorCfg(ImplicitActuatorCfg):
-    """Configuration for delayed targets with solver-side implicit PD control."""
+    """Configuration for delayed targets with solver-side implicit PD control.
+
+    The delay bounds must satisfy ``0 <= min_delay <= max_delay``. See
+    :ref:`actuators-command-delay` for reset behavior and native actuator compatibility.
+    """
 
     class_type: type["DelayedImplicitActuator"] | str = "{DIR}.actuator_pd:DelayedImplicitActuator"
 
