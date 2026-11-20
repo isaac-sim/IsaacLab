@@ -25,6 +25,7 @@ from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_visualizers.isaac_sim import IsaacSimBackendCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -198,6 +199,7 @@ def validate_launch(  # noqa: C901
         warn_kit_selector(launcher_args["physics"], stacklevel=3)
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
+        "isaac_sim": IsaacSimBackendCfg,
         "kit": KitBackendCfg,
         "newton_gl": NewtonGLBackendCfg,
         "newton_rtx": NewtonRTXBackendCfg,
@@ -215,6 +217,8 @@ def validate_launch(  # noqa: C901
                     FutureWarning,
                     stacklevel=3,
                 )
+        # Hyphens and underscores are interchangeable in names, e.g. ``--viz isaac-sim``.
+        selection = [name.replace("-", "_") for name in selection]
         selection = list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in selection))
         if selection == ["none"]:
             selection = []
