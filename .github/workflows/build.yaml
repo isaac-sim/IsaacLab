@@ -945,7 +945,7 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # Post-merge by default; pull requests opt in per run with ``run-ci ovstage``.
+  # Full OVStage suite post-merge; pull requests opt in per run with ``run-ci ovstage``.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
@@ -980,8 +980,6 @@ jobs:
           test_rendering_kitless_newton_ovrtx.py,
           test_rendering_kitless_ovphysx_ovrtx.py
         test-k-expr: ovstage
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kitless
         warp-cache: restore
