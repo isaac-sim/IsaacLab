@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -347,6 +348,9 @@ class DirectMARLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras (keyed by the agent ID).
         """
+        # terminal observations belong to the step that captured them
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -399,6 +403,9 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
+        # terminal observations belong to the step that captured them
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
@@ -441,7 +448,8 @@ class DirectMARLEnv(gym.Env):
             # autoreset. apply the same observation noise as the returned obs so the bootstrapped
             # terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                terminal_obs = self._compute_observations()
+                # copy, since resetting may update the task buffers that observations borrow
+                terminal_obs = tree_map(torch.clone, self._compute_observations())
                 for agent, obs in terminal_obs.items():
                     self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)

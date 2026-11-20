@@ -205,6 +205,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         # Episode metrics belong to this step; retained dictionaries may already be with an RL logger.
         self.extras["log"] = {}
         self.action_manager.process_action(action.to(self.device))
