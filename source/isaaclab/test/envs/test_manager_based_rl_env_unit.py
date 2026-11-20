@@ -14,10 +14,45 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import replace
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.kitless
+def test_configured_step_owns_execution_per_environment(monkeypatch):
+    """A configured step receives its environment and bypasses the default stepping pipeline."""
+
+    def initialize_base(env, cfg):
+        env.cfg = cfg
+        env._is_closed = True
+        env.sim = SimpleNamespace(get_setting=lambda path: False)
+
+    monkeypatch.setattr(ManagerBasedEnv, "__init__", initialize_base)
+
+    def step_fn(env, action):
+        env.common_step_counter += 1
+        return {"policy": action}, action.sum(dim=-1), env.reset_buf, env.reset_buf, {}
+
+    cfg = ManagerBasedRLEnvCfg(step_fn=step_fn, decimation=2, scene=InteractiveSceneCfg(num_envs=2, env_spacing=1.0))
+    cfg.sim.device = "cpu"
+    env = ManagerBasedRLEnv(cfg)
+    default_cfg = replace(cfg, step_fn=None)
+    default_env = ManagerBasedRLEnv(default_cfg)
+
+    action = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    observations, rewards, terminated, truncated, extras = env.step(action)
+
+    assert observations["policy"] is action
+    torch.testing.assert_close(rewards, torch.tensor([3.0, 7.0]))
+    assert not terminated.any() and not truncated.any()
+    assert extras == {}
+    assert env.common_step_counter == 1
+    assert default_env.common_step_counter == 0
+    assert default_env.step.__func__ is ManagerBasedRLEnv.step
 
 
 def _make_env_with_policy_obs_terms(

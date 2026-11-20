@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import math
+from types import MethodType
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -88,6 +89,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+        if self.cfg.step_fn is not None:
+            self.step = MethodType(self.cfg.step_fn, self)
         logger.info("Completed setting up the environment...")
 
     """
