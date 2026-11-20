@@ -14,6 +14,11 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 import warp as wp
+from newton import Contacts, State
+
+# The example model and its buffers are tied to the Newton revision in uv.lock.
+# Switch to the public runtime API tracked in https://github.com/newton-physics/newton/issues/5501 when available.
+from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
 from newton.solvers import SolverBase
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
@@ -23,8 +28,6 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import memory
 
 from isaaclab_newton.physics import MJWarpSolverCfg
-
-from ._conveyor_forces import ConveyorForceModel
 
 if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
@@ -69,15 +72,28 @@ class Conveyor(BaseConveyor):
         mask = memory.resolve_1d_mask(
             ids=env_ids, mask=env_mask, all_mask=self._all_env_mask, scratch_mask=self._selection_mask
         )
-        self._conveyor.reset(None if mask is self._all_env_mask else mask)
+        if mask is self._all_env_mask:
+            self._conveyor.conveyor_body_f.zero_()
+            self._elapsed_time.zero_()
+            self._conveyor.global_velocity_scale.zero_()
+            return
+        self._full_reset.fill_(1)
+        wp.launch(_check_full_reset, self.num_envs, inputs=[mask], outputs=[self._full_reset], device=self.device)
+        model = self._conveyor.model
+        wp.launch(
+            _clear_selected_body_forces,
+            dim=model.body_count,
+            inputs=[model.body_world, mask, self._full_reset],
+            outputs=[self._conveyor.conveyor_body_f, self._elapsed_time, self._conveyor.global_velocity_scale],
+            device=model.device,
+        )
 
     def close(self) -> None:
         """Detach lifecycle and graph callbacks before the model is released."""
         self._manager.unregister_solver_init_callback(self._bind_solver)
         self._physics_ready_handle.deregister()
-        if self._conveyor is not None:
-            self._manager.unregister_state_force_callback(self._conveyor.apply)
-            self._manager.unregister_post_solver_substep_callback(self._conveyor.update)
+        self._manager.unregister_state_force_callback(self._apply)
+        self._manager.unregister_post_solver_substep_callback(self._update)
         self._manager.release_solver_observables(self)
         self._conveyor = None
         self._is_initialized = False
@@ -147,7 +163,7 @@ class Conveyor(BaseConveyor):
                 f"Body pattern {self._body_pattern.pattern!r} expected {self.cfg.body_count_per_env} bodies per world, "
                 f"got {tracked_counts.tolist()}."
             )
-        conveyor = ConveyorForceModel(model, self._speed_scale.warp, self.cfg.startup_duration_s)
+        conveyor = ConveyorForceModel(model, solver_type="mujoco")
         transforms = model.shape_transform.numpy()
         surface_worlds = []
         for surface_id, shape_id in enumerate(surface_shapes):
@@ -173,9 +189,107 @@ class Conveyor(BaseConveyor):
                 )
             else:
                 conveyor.add_constant_belt(shape_id, direction * speed, **parameters)
-        conveyor.finalize(contacts, observables, surface_worlds, body_is_tracked)
+        conveyor.finalize(contacts, observables)
+        conveyor.set_speed_scale(0.0)
 
         self._conveyor = conveyor
-        self._manager.register_state_force_callback(conveyor.apply)
-        self._manager.register_post_solver_substep_callback(conveyor.update)
+        self._surface_worlds = wp.array(surface_worlds, dtype=wp.int32, device=model.device)
+        self._default_linear_velocity = wp.clone(conveyor.conv_const_vel)
+        self._default_angular_velocity = wp.clone(conveyor.conv_pivot_angvel)
+        self._body_is_tracked = wp.array(body_is_tracked, dtype=wp.int32, device=model.device)
+        self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=model.device)
+        self._full_reset = wp.ones(1, dtype=wp.int32, device=model.device)
+        self._manager.register_state_force_callback(self._apply)
+        self._manager.register_post_solver_substep_callback(self._update)
         self._is_initialized = True
+
+    def _apply(self, state: State) -> None:
+        """Apply the wrench from the preceding solve."""
+        self._conveyor.apply(state)
+
+    def _update(
+        self, contacts: Contacts | None, observables: SolverBase.Observables | None, state: State, dt: float
+    ) -> None:
+        """Compute the next wrench using Newton's upstream traction model."""
+        model = self._conveyor.model
+        wp.launch(
+            _set_surface_speed,
+            dim=self._conveyor.conv_const_vel.shape[0],
+            inputs=[
+                self._surface_worlds,
+                self._speed_scale.warp,
+                self._default_linear_velocity,
+                self._default_angular_velocity,
+            ],
+            outputs=[self._conveyor.conv_const_vel, self._conveyor.conv_pivot_angvel],
+            device=model.device,
+        )
+        wp.launch(
+            _advance_startup_scale,
+            dim=1,
+            inputs=[dt, self.cfg.startup_duration_s],
+            outputs=[self._elapsed_time, self._conveyor.global_velocity_scale],
+            device=model.device,
+        )
+        self._conveyor.update(contacts, observables, state, dt)
+        wp.launch(
+            _filter_body_forces,
+            dim=model.body_count,
+            inputs=[self._body_is_tracked],
+            outputs=[self._conveyor.conveyor_body_f],
+            device=model.device,
+        )
+
+
+@wp.kernel
+def _filter_body_forces(body_is_tracked: wp.array[wp.int32], body_force: wp.array[wp.spatial_vector]):
+    body_id = wp.tid()
+    if body_is_tracked[body_id] == 0:
+        body_force[body_id] = wp.spatial_vector()
+
+
+@wp.kernel
+def _advance_startup_scale(
+    dt: wp.float32, duration: wp.float32, elapsed: wp.array[wp.float32], scale: wp.array[wp.float32]
+):
+    elapsed[0] = elapsed[0] + dt
+    scale[0] = wp.min(1.0, elapsed[0] / duration)
+
+
+@wp.kernel
+def _check_full_reset(world_mask: wp.array[wp.bool], full_reset: wp.array[wp.int32]):
+    if not world_mask[wp.tid()]:
+        wp.atomic_min(full_reset, 0, 0)
+
+
+@wp.kernel
+def _clear_selected_body_forces(
+    body_world: wp.array[wp.int32],
+    world_mask: wp.array[wp.bool],
+    full_reset: wp.array[wp.int32],
+    body_force: wp.array[wp.spatial_vector],
+    elapsed: wp.array[wp.float32],
+    scale: wp.array[wp.float32],
+):
+    body_id = wp.tid()
+    if body_id == 0 and full_reset[0] != 0:
+        elapsed[0] = 0.0
+        scale[0] = 0.0
+    world_id = body_world[body_id]
+    if world_id >= 0 and world_mask[world_id]:
+        body_force[body_id] = wp.spatial_vector()
+
+
+@wp.kernel
+def _set_surface_speed(
+    surface_worlds: wp.array[wp.int32],
+    speed_scale: wp.array[wp.float32],
+    default_linear: wp.array[wp.vec3],
+    default_angular: wp.array[wp.vec3],
+    linear: wp.array[wp.vec3],
+    angular: wp.array[wp.vec3],
+):
+    surface = wp.tid()
+    scale = speed_scale[surface_worlds[surface]]
+    linear[surface] = default_linear[surface] * scale
+    angular[surface] = default_angular[surface] * scale
