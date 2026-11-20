@@ -42,7 +42,7 @@ def push(camera, mask):
 
 def test_default_push_appends_the_capture_of_updated_environments_only():
     data = allocate(3)
-    camera = SimpleNamespace(_data=data, _renderer=SimpleNamespace(provides_frame_history=False))
+    camera = SimpleNamespace(_data=data, cfg=SimpleNamespace(renderer_cfg=SimpleNamespace()))
     rgb = data.output["rgb"].torch
     for value in (1, 2):
         rgb[:] = value
@@ -55,7 +55,7 @@ def test_default_push_appends_the_capture_of_updated_environments_only():
 
 def test_a_renderer_that_provides_the_history_is_left_alone():
     data = allocate(3)
-    camera = SimpleNamespace(_data=data, _renderer=SimpleNamespace(provides_frame_history=True))
+    camera = SimpleNamespace(_data=data, cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(provides_frame_history=True)))
     data.output["rgb"].torch[:] = 9
     push(camera, [True] * 4)
     assert data.frame_history.torch.sum() == 0

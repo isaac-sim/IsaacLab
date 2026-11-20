@@ -828,11 +828,11 @@ class Camera(SensorBase):
     def _push_frame_history(self, env_mask: wp.array) -> None:
         """Append the latest RGB capture of the updated environments to the frame history.
 
-        Renderers that produce the whole history themselves (:attr:`BaseRenderer.provides_frame_history`) are
+        Renderers whose configuration sets ``provides_frame_history`` fill the whole history themselves and are
         skipped.
         """
         history = self._data.frame_history
-        if history is None or self._renderer.provides_frame_history:
+        if history is None or getattr(self.cfg.renderer_cfg, "provides_frame_history", False):
             return
         updated = wp.to_torch(env_mask).bool()
         frames = history.torch

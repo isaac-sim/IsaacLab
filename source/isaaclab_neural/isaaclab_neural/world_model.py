@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from isaaclab.utils import configclass
 
@@ -22,7 +23,7 @@ class ModelCfg:
     """Base configuration of a world model. Concrete models subclass it and set :attr:`class_type`."""
 
     class_type: type[WorldModel] | str = "{DIR}.world_model:WorldModel"
-    """The :class:`WorldModel` subclass built as ``class_type(cfg, num_envs)``."""
+    """The :class:`WorldModel` implementation, built as ``class_type(cfg, num_envs, device)``."""
 
 
 @dataclass(frozen=True)
@@ -41,13 +42,17 @@ class WorldModelSpec:
     max_envs: int | None = None
     """Largest number of environments one model instance serves, or ``None`` for no limit."""
 
+    views: tuple[str, ...] = ("camera",)
+    """Names of the camera views the model predicts. Each world-model camera shows one of them, selected with
+    :attr:`~isaaclab_neural.renderers.WorldModelRendererCfg.view`."""
+
 
 @dataclass(frozen=True)
 class ResetRecord:
     """Initial condition of an episode: a start image, the joint state at that image and a task prompt."""
 
-    image: Path
-    """RGB start image."""
+    image: Path | dict[str, Path]
+    """RGB start image, or one per view for a model that predicts several views."""
 
     joint_state: np.ndarray
     """Joint positions [m or rad, depending on joint type] at the start image, shape ``(num_joints,)``."""
@@ -62,52 +67,54 @@ class ResetRecord:
 def load_reset_records(manifest: str | Path) -> list[ResetRecord]:
     """Load reset records from a JSON list of ``{"image", "state", "prompt", "split"}`` objects.
 
-    Relative image paths resolve against the manifest's directory.
+    ``image`` is a path, or an object mapping each view to a path for a model that predicts several views. Relative
+    image paths resolve against the manifest's directory.
     """
     manifest = Path(manifest)
-    return [
-        ResetRecord(
-            manifest.parent / row["image"],
-            np.asarray(row["state"], np.float32),
-            row["prompt"],
-            row.get("split", "train"),
+    records = []
+    for row in json.loads(manifest.read_text()):
+        image = row["image"]
+        image = (
+            {view: manifest.parent / path for view, path in image.items()}
+            if isinstance(image, dict)
+            else (manifest.parent / image)
         )
-        for row in json.loads(manifest.read_text())
-    ]
+        records.append(
+            ResetRecord(image, np.asarray(row["state"], np.float32), row["prompt"], row.get("split", "train"))
+        )
+    return records
 
 
 class WorldModel(ABC):
-    """A learned model that predicts camera frames from joint targets.
+    """Interface of a learned model that predicts camera frames from joint targets.
 
-    The model owns only visual dynamics; it never outputs joint state. Construction is cheap and weights load on
-    the first :meth:`reset`.
+    The model owns only visual dynamics; it never outputs joint state. An implementation is built as
+    ``class_type(cfg, num_envs, device)`` and keeps what it needs of those. Construction is cheap and weights load on
+    the first call. Joint targets and frames are torch tensors on the simulation device, so a model that runs on the
+    GPU keeps them there.
     """
-
-    def __init__(self, cfg: ModelCfg, num_envs: int):
-        self.cfg = cfg
-        self.num_envs = num_envs
 
     @abstractmethod
     def spec(self) -> WorldModelSpec:
         """Return the model's static properties."""
 
     @abstractmethod
-    def reset(self, env_ids: np.ndarray, images: list[Path], prompts: list[str], seeds: np.ndarray) -> None:
-        """Initialize the selected environments' model history from start images.
+    def reset(self, env_ids: list[int], images: dict[str, torch.Tensor], prompts: list[str], seeds: list[int]) -> None:
+        """Restart the selected environments from their start images.
 
-        Called just before the next :meth:`step` for environments reset since the previous chunk. The manager
-        already publishes the record's original image as the initial camera observation; this method returns no image.
+        The manager calls it right before :meth:`step`, for the environments that reset since the last chunk. The
+        start images are the environment's frames until that chunk's frames arrive.
 
         Args:
-            env_ids: Environments to reset, shape ``(K,)``.
-            images: Start image of each selected environment.
+            env_ids: Environments to restart.
+            images: For each of the model's views, the start RGB image of each selected environment, shape
+                ``(K, H, W, 3)``, ``uint8``, on the simulation device.
             prompts: Task description of each selected environment.
-            seeds: Sampling seed of each selected environment, shape ``(K,)``.
-
+            seeds: Sampling seed of each selected environment.
         """
 
     @abstractmethod
-    def step(self, joint_targets: np.ndarray, start_joint_state: np.ndarray) -> np.ndarray:
+    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, torch.Tensor]:
         """Predict the next chunk of frames for all environments.
 
         Args:
@@ -115,7 +122,8 @@ class WorldModel(ABC):
             start_joint_state: Joint positions before the chunk, shape ``(N, num_joints)``.
 
         Returns:
-            RGB frames, shape ``(N, chunk_length, H, W, 3)``, ``uint8``.
+            For each of the model's views, RGB frames, shape ``(N, chunk_length, H, W, 3)``, ``uint8``, on the
+            simulation device.
         """
 
     @abstractmethod

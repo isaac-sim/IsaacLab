@@ -28,34 +28,34 @@ def test_reset_publishes_the_record_and_restarts_the_model_before_the_next_chunk
         manager = bound_manager(sim)
         manager.reset_envs(np.array([1]))
         assert manager.joint_state[:, 0].tolist() == [0.0, pytest.approx(0.1)]
-        assert (manager.frame_history[1] == 200).all()
+        assert (manager.frames().frames[1] == 200).all()
         manager.reset_envs(np.array([0]))
         assert not FakeModel.resets
-        assert (manager.frame_history[0] == 201).all() and not manager.new_frames
+        assert (manager.frames().frames[0] == 201).all() and not manager.new_frames
         for _ in range(T - 1):
             step(manager, 5.0)
             assert not FakeModel.calls
         step(manager, 5.0)
         assert FakeModel.calls == ["reset", "step"]
         ((env_ids, images, prompts, seeds),) = FakeModel.resets
-        assert env_ids.tolist() == [0, 1]
-        assert [image.name for image in images] == ["start_1.png", "start_0.png"]
+        assert env_ids == [0, 1]
+        assert images["camera"][:, 0, 0, 0].tolist() == [201, 200]
         assert prompts == ["prompt 1", "prompt 0"] and len(set(seeds)) == 2
 
         for _ in range(T):
             step(manager, 6.0)
         assert FakeModel.calls == ["reset", "step", "step"]
-        previous = manager.frame_history[1].copy()
+        previous = manager.frames().frames[1].clone()
         manager.reset_envs(np.array([0]))
-        assert (manager.frame_history[0] == 200).all()
+        assert (manager.frames().frames[0] == 200).all()
         manager.reset_envs(np.array([0]))
-        assert (manager.frame_history[0] == 201).all()
-        assert np.array_equal(manager.frame_history[1], previous)
+        assert (manager.frames().frames[0] == 201).all()
+        assert np.array_equal(manager.frames().frames[1], previous)
         assert len(FakeModel.resets) == 1
         for _ in range(T):
             step(manager, 7.0)
         assert FakeModel.calls == ["reset", "step", "step", "reset", "step"]
-        assert FakeModel.resets[-1][0].tolist() == [0]
+        assert FakeModel.resets[-1][0] == [0]
         assert FakeModel.resets[-1][2] == ["prompt 1"]
 
 
@@ -79,7 +79,7 @@ def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_targ
         targets, chunk_start = FakeModel.steps[0]
         assert targets.shape == (N, T, J) and targets[0, :, 0].tolist() == [1, 2, 3, 4]
         assert np.array_equal(chunk_start, start)
-        assert manager.frame_history.shape[:2] == (N, T)
+        assert manager.frames().frames.shape[:2] == (N, T)
 
 
 def test_environments_can_only_reset_between_chunks(tmp_path):

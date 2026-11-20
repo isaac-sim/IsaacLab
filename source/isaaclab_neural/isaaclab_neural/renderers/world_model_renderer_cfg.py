@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import warp as wp
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
@@ -20,6 +22,14 @@ class WorldModelRendererCfg(RendererCfg):
 
     class_type: type | str = "{DIR}.world_model_renderer:WorldModelRenderer"
     renderer_type: str = "world_model"
+
+    view: str | None = None
+    """The model's view this camera shows, one of :attr:`~isaaclab_neural.world_model.WorldModelSpec.views`. ``None``
+    selects the only view of a model that predicts one."""
+
+    provides_frame_history: ClassVar[bool] = True
+    """The renderer fills the camera's frame history with each predicted chunk, so the camera does not push its
+    captures into it."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab.cloner:UsdReplicateContext",)
     """Camera prims are replicated in USD; there is no physics scene to clone."""

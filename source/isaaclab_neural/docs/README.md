@@ -18,6 +18,7 @@ state at reset, then the last joint target), so joint observations and actions b
 | `WorldModelManager` | Physics backend (`backend_name = "neural"`). Buffers one joint target per step and calls the model once per chunk. |
 | `WorldModel` | Abstract model: `spec()`, `reset()`, `step()`, `close()`. |
 | `WorldModelRendererCfg` | Selected as a camera's `renderer_cfg`. Copies the generated frames into the camera, including its frame history. |
+| `FrameBuffer`, `FrameReader` | Keep one device-side frame buffer per model view and independent read progress per camera. |
 | `Articulation` | Virtual articulation. Reads and writes the manager's joint state, so the task's joint observation and action terms work unchanged. Everything that needs a body raises. |
 | `reset_from_records` | Reset event that starts an episode from a reset record, in place of `reset_joints_by_*`. |
 | `at_chunk_boundary` | Makes a termination function fire only where environments can reset. |
@@ -27,6 +28,12 @@ state at reset, then the last joint target), so joint observations and actions b
 The task declares an `ArticulationCfg` and a `CameraCfg` as it would for a physics backend, and selects the world
 model with `WorldModelCfg(model=..., reset_manifest=...)` and `WorldModelRendererCfg()`. The camera needs
 `frame_history_length` equal to the model's chunk length.
+
+The model names its views in `WorldModelSpec.views`. Each camera selects one with
+`WorldModelRendererCfg(view="front")`; `view=None` selects the only view of a single-view model. A model step returns
+all views of the same chunk together. Cameras read the latest published frames through their own `FrameReader`,
+skipping unchanged steps without copying frames. The renderer's `provides_frame_history` capability is declared in
+its configuration, so the camera leaves that history to the renderer.
 
 * **Joints and limits** come from the spawned USD asset (a URDF spawner converts to USD): the movable joints in
   traversal order, or in the order of `ArticulationCfg.joint_ordering`, which must match the reset records. Joint
@@ -64,21 +71,24 @@ chunks, so a reset in the middle of a chunk raises.
 
 ## Add a world model
 
-Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`:
+Implement `WorldModel`, subclass `ModelCfg`, and set the configuration's `class_type`. The manager constructs the
+implementation as `class_type(cfg, num_envs, device)`. `WorldModel` is a pure interface with no constructor or stored
+state; each implementation keeps the configuration and resources it needs.
 
 | Method | Responsibility |
 | --- | --- |
 | `spec()` | Chunk length, frame rate, image size and the largest number of environments. |
-| `reset(env_ids, images, prompts, seeds)` | Initialize model history for selected environments from image paths, prompts and seeds; return nothing. Called just before generating their next chunk. |
-| `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to frames `(N, T, H, W, 3)`. |
+| `reset(env_ids, images, prompts, seeds)` | Initialize selected environments from a `{view: tensor}` dictionary of start images `(K, H, W, 3)` on the simulation device. IDs, prompts and seeds are host lists. Return nothing. |
+| `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to `{view: frames}`; each frame tensor is `(N, T, H, W, 3)`, `uint8`, on the simulation device. |
 | `close()` | Release resources. |
 
 Construction is cheap; load the weights on the first `reset()`.
 
 Joint targets accumulate on the simulation device. At a chunk boundary the manager first resets any environments
-that restarted, then converts the targets and starting joint state to NumPy for `WorldModel.step`. The step's NumPy
-input/output and reset's image-path inputs are unchanged; reset no longer supplies camera frames. Reset images are
-loaded once during `bind` and must match the model's image size.
+that restarted, then passes device tensors to `WorldModel.step` and publishes the returned view tensors on that
+device. A model adapter can convert controls to NumPy internally if needed. Reset images are loaded once during
+`bind` and must match the model's image size. A single-view record keeps `"image": "start.png"`; a multi-view record
+uses `"image": {"front": "front.png", "left": "left.png", "right": "right.png"}` with one image per model view.
 
 ## Tests
 
