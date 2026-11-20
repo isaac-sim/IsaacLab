@@ -37,6 +37,9 @@ class CameraData:
         # Output image buffers — allocated in allocate()
         self._output: dict[str, ProxyArray] | None = None
 
+        self._frame_history: ProxyArray | None = None
+        self._frame_history_mask: ProxyArray | None = None
+
         self.image_shape: tuple[int, int] | None = None
         """A tuple containing (height, width) of the camera sensor."""
 
@@ -96,6 +99,24 @@ class CameraData:
         return self._intrinsic_matrices
 
     @property
+    def frame_history(self) -> ProxyArray | None:
+        """The most recent RGB captures, oldest first, or ``None`` if the history is disabled.
+
+        Shape is ``(N, T, H, W)`` with dtype ``wp.vec3ub``, which resolves to ``(N, T, H, W, 3)`` in torch,
+        where ``T`` is
+        :attr:`~isaaclab.sensors.camera.CameraCfg.frame_history_length`. The last entry equals the ``"rgb"`` output.
+        """
+        return self._frame_history
+
+    @property
+    def frame_history_mask(self) -> ProxyArray | None:
+        """Environments whose history received new frames in the last update, or ``None`` if disabled.
+
+        Shape is ``(N,)`` with dtype ``wp.bool``. Entries of environments that were not updated hold stale frames.
+        """
+        return self._frame_history_mask
+
+    @property
     @leapp_tensor_semantics(kind="state/camera/image")
     def output(self) -> dict[str, ProxyArray] | None:
         """The retrieved sensor data with sensor types as key.
@@ -139,6 +160,7 @@ class CameraData:
         num_views: int,
         device: str,
         supported_specs: dict[RenderBufferKind, RenderBufferSpec],
+        history_length: int = 0,
     ) -> CameraData:
         """Build a :class:`CameraData` with output buffers pre-allocated as warp arrays.
 
@@ -158,6 +180,7 @@ class CameraData:
             supported_specs: Per-buffer layout the active renderer can produce,
                 keyed by :class:`RenderBufferKind`. Names absent from this mapping
                 are not allocated.
+            history_length: Number of RGB frames to keep in :attr:`frame_history`. ``0`` disables it.
 
         Returns:
             A new :class:`CameraData` with :attr:`image_shape`, :attr:`output`,
@@ -210,6 +233,11 @@ class CameraData:
         obj.image_shape = (height, width)
         obj._output = buffers
         obj.info = {name: None for name in buffers}
+        if history_length > 0:
+            obj._frame_history = ProxyArray(
+                wp.zeros((num_views, history_length, height, width), dtype=wp.vec3ub, device=device)
+            )
+            obj._frame_history_mask = ProxyArray(wp.zeros(num_views, dtype=wp.bool, device=device))
         return obj
 
     ##
