@@ -1853,7 +1853,8 @@ def test_tasks_restart_their_state_timers_and_commands_when_they_start():
     gain = {"joint_pos": robot.joint_pos}
 
     def stage(joint: str, hooked: bool) -> mdp2.TaskCfg:
-        rewards = {"fused": mdp2.Reward(accumulate, inputs=gain, params={"gain": 1.0})}
+        # Uses that the tasks define alike run as one, so the gains differ.
+        rewards = {"fused": mdp2.Reward(accumulate, inputs=gain, params={"gain": 2.0 if hooked else 1.0})}
         commands = {}
         if hooked:
             rewards["hooked"] = mdp2.Reward(torch_accumulate(5.0), inputs=gain, params={"gain": 1.0})
@@ -1868,7 +1869,7 @@ def test_tasks_restart_their_state_timers_and_commands_when_they_start():
     total = [step[str(mdp2.term_state("rewards.second.fused", "total"))].item() for step in history]
     hooked = [step[str(mdp2.term_state("rewards.second.hooked", "total"))].item() for step in history]
     samples = [step[str(mdp2.term_state("commands.second.count", "samples"))].item() for step in history]
-    assert total[2:] == [1.0, 2.0, 3.0]  # Restarted at zero, then the first joint at every step
+    assert total[2:] == [2.0, 4.0, 6.0]  # Restarted at zero, then twice the first joint at every step
     assert hooked[1:] == [15.0, 16.0, 17.0, 18.0]  # Its initial 5, then its reset hook's 10, at its start
     assert samples == [0.0, 1.0, 1.0, 2.0, 2.0]  # Sampled at its start, then every two steps
     first = [step[str(mdp2.term_state("rewards.first.fused", "total"))].item() for step in history]
@@ -1880,7 +1881,7 @@ def test_subtasks_read_their_own_fields_by_name():
     """Subtasks written as tasks of their own read their quantities, the state of their uses, and their progress by
     their names, which their prefix keeps apart."""
 
-    def reach(joint: str) -> mdp2.TaskCfg:
+    def reach(joint: str, gain: float) -> mdp2.TaskCfg:
         inputs = {"joint_pos": robot.joint_pos, "joint_ids": robot.joints(joint)}
         started = mdp2.Observation(episode_length, inputs={"episode_length": mdp2.progress.started_at})
         total = {"command": mdp2.term_state("rewards.held", "total")}
@@ -1889,12 +1890,13 @@ def test_subtasks_read_their_own_fields_by_name():
                 "reached": mdp2.Quantity(joint_above, inputs=inputs),
                 "held": mdp2.Quantity(generated_commands, inputs=total),
             },
-            rewards={"held": mdp2.Reward(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": 1.0})},
+            # The gains differ, so that the rewards are not one use of both subtasks.
+            rewards={"held": mdp2.Reward(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": gain})},
             observations={"policy": {"started": started}},
             done=mdp2.quantities.reached,
         )
 
-    task = mdp2.sequence(first=reach("a"), second=reach("b"))
+    task = mdp2.sequence(first=reach("a", 1.0), second=reach("b", 2.0))
     history = check_progress(task, [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], joints=("a", "b"))
     assert [step["first.done_at"].item() for step in history] == [-1, 2, 2]
     assert [step["second.done_at"].item() for step in history] == [-1, -1, 3]
@@ -2457,3 +2459,87 @@ def test_variations_draw_record_and_replay_values():
         second[0][[1, 3], 0].tolist() == [1.0, 1.0] and second[0][[0, 2], 0].tolist() == joint_pos[[0, 2], 0].tolist()
     )
     assert third[0][:, 2].tolist() == [1.0, 2.0, 3.0, 1.0]
+
+
+class ContactScene:
+    """A scene with an ``object`` whose contact sensor is filtered by a destination: its normal forces, and its root
+    velocity."""
+
+    def __init__(self, num_worlds: int):
+        fields = {
+            "normal_force_matrix_w": mdp2.FieldSchema(("bodies", "filters"), wp.vec3f),
+            "root_com_vel_w": mdp2.FieldSchema((), wp.spatial_vectorf),
+        }
+        names = {"bodies": ("cube",), "filters": ("0",)}
+        entities = {"object": mdp2.EntitySchema(names=names, fields=fields)}
+        self.schema = mdp2.SceneSchema(num_worlds=num_worlds, step_dt=0.02, entities=entities)
+        self.forces = ProxyArray(wp.zeros((num_worlds, 1, 1), dtype=wp.vec3f, device=DEVICE))
+        self.velocity = ProxyArray(wp.zeros(num_worlds, dtype=wp.spatial_vectorf, device=DEVICE))
+
+    def data(self, entity: str, field: str) -> ProxyArray:
+        return self.forces if field == "normal_force_matrix_w" else self.velocity
+
+    def entity(self, name: str) -> "ContactScene":
+        return self
+
+    def commit(self, mask: wp.array, fields: Collection[mdp2.FieldSelector]) -> None:
+        """Nothing to commit."""
+
+
+def test_resting_on_needs_an_upward_contact_force_and_a_still_object():
+    """An object rests on its destination where the destination pushes it up, within the cone, hard enough, and the
+    object is still."""
+    obj = mdp2.Entity("object")
+    rest = mdp2.Quantity(
+        mdp2.mdp.resting_on,
+        inputs={
+            "normal_force_matrix_w": obj.normal_force_matrix_w,
+            "body_ids": obj.bodies("cube"),
+            "root_com_vel_w": obj.root_com_vel_w,
+        },
+        params={"filter_index": 0, "min_force": 0.1, "min_cos": math.cos(math.pi / 4), "max_speed": 0.003},
+    )
+    # Resting; too light; pushed sideways; moving.
+    forces = [[0.0, 0.0, 1.0], [0.0, 0.0, 0.05], [1.0, 0.0, 0.5], [0.0, 0.0, 1.0]]
+    speeds = [0.0, 0.0, 0.0, 0.01]
+    for backend in ("torch", "warp"):
+        scene = ContactScene(num_worlds=4)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(mdp2.TaskCfg(quantities={"rest": rest}))
+        mdp_ = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp_.state(scene), mdp_.transition()
+        scene.forces.torch.copy_(torch.tensor(forces, device=DEVICE).view(4, 1, 1, 3))
+        scene.velocity.torch[:, 0] = torch.tensor(speeds, device=DEVICE)
+        mdp2.evaluate(mdp_, state, transition)
+        assert state.arrays[mdp2.quantities.rest].torch.tolist() == [1.0, 0.0, 0.0, 0.0], backend
+
+
+def test_uses_that_tasks_of_a_sequence_define_alike_run_as_one():
+    """Uses that the tasks of a sequence define alike are one op that runs while any of them runs: its state and
+    observation history carry on from one task to the next. Uses that differ stay apart and restart."""
+    inputs = {"joint_pos": robot.joint_pos}
+    position = mdp2.Observation(joint_pos, inputs=inputs, history_length=2)
+
+    def stage(joint: str, weight: float) -> mdp2.TaskCfg:
+        rewards = {
+            "shared": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}),
+            "own": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, weight=weight),
+        }
+        return mdp2.TaskCfg(
+            rewards=rewards, observations={"policy": {"position": position}}, done=getattr(mdp2.quantities, joint)
+        )
+
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")), mdp2.sequence(first=stage("a", 1.0), second=stage("b", 2.0))
+    )
+    history = check_progress(task, [[0.25, 0.0], [1.0, 0.0], [0.5, 0.0], [0.75, 0.0]])
+    mdp_, _, _ = run_progress(task, [[0.0, 0.0]], "warp", capture=False)
+    rewards = [op.name for op in mdp_.ops[mdp2.Phase.REWARDS]]
+    assert rewards == ["rewards.first.shared", "rewards.first.own", "rewards.second.own"]
+    assert "during first or second" in mdp_.describe()
+    shared = [step[str(mdp2.term_state("rewards.first.shared", "total"))].item() for step in history]
+    own = [step[str(mdp2.term_state("rewards.second.own", "total"))].item() for step in history]
+    assert shared == [0.25, 1.25, 1.75, 2.5]  # Carries on into the second task, from step 3
+    assert own == [0.0, 0.0, 0.5, 1.25]  # Restarted when the second task started
+    # The history of joint "a" carries on too: [a, b] for the step before, then this step.
+    assert [step["policy"][0, :2].tolist() for step in history[2:]] == [[1.0, 0.0], [0.5, 0.0]]

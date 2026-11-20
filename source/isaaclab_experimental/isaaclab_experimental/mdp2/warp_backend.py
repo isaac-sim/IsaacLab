@@ -909,17 +909,23 @@ def _draw(code: Fusion, node: TaskNode) -> list[str]:
 
 
 def _switch(code: Fusion, ops: tuple[TermOp, ...], stepping: bool) -> None:
-    """Turn each op with ``when`` on where its task runs and its field is positive. Stepping marks the worlds where it
-    turned on, whose state restarts; observing new episodes marks none, since resets restarted them."""
+    """Turn each op with ``when`` on where its task runs and its field is positive, and each op of several tasks on
+    where any of them runs. Stepping marks the worlds where it turned on, whose state restarts; observing new episodes
+    marks none, since resets restarted them."""
     for op in ops:
         on, entered = (
             _array(code, op.active_key, wp.array(dtype=wp.bool)),
             _array(code, op.entry_key, wp.array(dtype=wp.bool)),
         )
-        positive = {wp.bool: "", wp.float32: " > 0.0", wp.int32: " > 0"}[op.when_dtype]
-        runs = f"{_array(code, op.when, wp.array(dtype=op.when_dtype))}[world]{positive}"
-        if op.scope_key is not None:
-            runs = f"{_array(code, op.scope_key, wp.array(dtype=wp.bool))}[world] and {runs}"
+        conditions = []
+        if op.stages:
+            conditions.append(f"({' or '.join(_progress(code, stage, 'active') for stage in op.stages)})")
+        elif op.scope_key is not None:
+            conditions.append(f"{_array(code, op.scope_key, wp.array(dtype=wp.bool))}[world]")
+        if op.when is not None:
+            positive = {wp.bool: "", wp.float32: " > 0.0", wp.int32: " > 0"}[op.when_dtype]
+            conditions.append(f"{_array(code, op.when, wp.array(dtype=op.when_dtype))}[world]{positive}")
+        runs = " and ".join(conditions)
         lines = [f"runs = {runs}", f"{entered}[world] = {'runs and not ' + on + '[world]' if stepping else 'False'}"]
         code.world(*lines, f"{on}[world] = runs", writes=[op.active_key, op.entry_key])
 

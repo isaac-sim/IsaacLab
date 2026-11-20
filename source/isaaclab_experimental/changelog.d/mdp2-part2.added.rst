@@ -70,3 +70,5 @@
   :class:`~isaaclab_experimental.mdp2.mdp.Replay`, independent of the number of worlds.
 * Added :data:`~isaaclab_experimental.mdp2.mdp.resting_on`, one where an object rests on another by its contact force
   in a cone and its speed, like Arena's ``object_on_destination``, for a milestone with ``hold``.
+* Added sharing of uses across the tasks of an MDP2 sequence or choice: uses that the tasks define alike run as one,
+  while any of these tasks runs, so that their state and observation histories carry on from one task to the next.

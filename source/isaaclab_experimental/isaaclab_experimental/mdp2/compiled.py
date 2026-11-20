@@ -71,8 +71,8 @@ class MDPState:
     - ``("scratch", op)``: the output of a Python hook in a Warp MDP;
     - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
-    - ``("on", op)`` and ``("entered", op)``: for an op with ``when``, the worlds where it runs at this step, and
-      those where it turned on at this step;
+    - ``("on", op)`` and ``("entered", op)``: for an op with ``when``, or of several tasks of a sequence or a choice,
+      the worlds where it runs at this step, and those where it turned on at this step;
     - ``"event_worlds"``: the worlds where an interval or start event that writes scene fields ran in the last
       ``evaluate``, for an MDP with such events;
     - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
@@ -360,6 +360,7 @@ class MDP:
                     details += [f"stream {op.stream}"] if op.stream is not None else []
                     details += ["torch hooks"] if op.torch_hooks else []
                     details += [f"during {op.stage}"] if op.stage else []
+                    details += [f"during {' or '.join(op.stages)}"] if op.stages else []
                     details += [f"when {op.when}"] if op.when is not None else []
                 if op.worlds is not None:
                     first, last = op.worlds[0], op.worlds[-1]
@@ -401,7 +402,7 @@ class MDP:
                     arrays[key] = self._zeros(self.num_worlds, dtype=dtypes[key])
                 worlds = slice(None) if op.worlds is None else list(op.worlds)
                 arrays[key].torch[worlds] = torch.tensor(default, dtype=arrays[key].torch.dtype, device=self.device)
-            if op.when is not None:
+            if op.when is not None or op.stages:
                 arrays["on", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
                 arrays["entered", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
         for subset, indices in self.subsets.items():

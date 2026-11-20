@@ -124,6 +124,9 @@ class TermOp:
     when: FieldSelector | None = None
     when_dtype: Any = None  # Element type of ``when``
     when_default: bool | None = None  # Default of a tunable ``when``, which the MDP owns; None for another field
+    # The tasks of a sequence or a choice that define the op alike: it runs while any of them runs, and restarts only
+    # when none ran
+    stages: tuple[str, ...] = ()
 
     @property
     def scope_key(self) -> Hashable | None:
@@ -136,13 +139,13 @@ class TermOp:
     def active_key(self) -> Hashable | None:
         """Key in :attr:`MDPState.arrays` of the worlds where the op runs at this step, None for every world: its
         task's, and with ``when``, those where ``when`` was positive at the start of the step."""
-        return self.scope_key if self.when is None else ("on", self.name)
+        return self.scope_key if self.when is None and not self.stages else ("on", self.name)
 
     @property
     def entry_key(self) -> Hashable | None:
         """Key in :attr:`MDPState.arrays` of the worlds where the op's scope started at this step, in which its state,
         timer, command, and history restart; None for an op whose scope does not change during an episode."""
-        if self.when is not None:
+        if self.when is not None or self.stages:
             return "entered", self.name
         return None if self.stage is None else progress_field(self.stage, "entered")
 
@@ -349,8 +352,10 @@ def build_plan(
     noises = [op.observation.noise for op in ops[Phase.OBSERVATIONS]]
     read |= {noise.scale for noise in noises if noise is not None and noise.scale is not None}
     read |= {op.offset for op in ops[Phase.ACTIONS] if isinstance(op, ActionOp)}
-    switched = tuple(op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.when)
-    read |= {op.when for op in switched}
+    switched = tuple(
+        op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and (op.when or op.stages)
+    )
+    read |= {op.when for op in switched if op.when is not None}
     observed = []
     for op in reversed(ops[Phase.QUANTITIES]):
         if op.writes[0] in read:
@@ -382,7 +387,7 @@ def build_plan(
         ]
 
     # A reset prepares the ops with ``when`` in every world of their task.
-    unswitched = {op.name: replace(op, when=None) for op in switched}
+    unswitched = {op.name: replace(op, when=None, stages=()) for op in switched}
     # The reset events see the progress of the episode that ended; the start events of the tasks that run from the
     # start of the new one, after the progress restarts.
     events = {"reset": [], "start": []}

@@ -296,12 +296,17 @@ def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
 
 
 def _switch(ops: tuple[TermOp, ...], state: MDPState, mask: torch.Tensor | None) -> None:
-    """Turn each op with ``when`` on where its task runs and its field is positive. Stepping (no mask) marks the
-    worlds where it turned on; observing new episodes, in the masked worlds, marks none, since resets restarted them."""
+    """Turn each op with ``when`` on where its task runs and its field is positive, and each op of several tasks on
+    where any of them runs. Stepping (no mask) marks the worlds where it turned on; observing new episodes, in the
+    masked worlds, marks none, since resets restarted them."""
     for op in ops:
-        runs = state.arrays[op.when].torch > 0
-        if op.scope_key is not None:
-            runs = runs & state.arrays[op.scope_key].torch
+        runs = torch.ones(state.episode_length.torch.shape, dtype=torch.bool, device=state.episode_length.torch.device)
+        if op.stages:
+            runs = torch.stack([state.arrays[progress_field(stage, "active")].torch for stage in op.stages]).any(0)
+        elif op.scope_key is not None:
+            runs = state.arrays[op.scope_key].torch
+        if op.when is not None:
+            runs = runs & (state.arrays[op.when].torch > 0)
         on, entered = state.arrays[op.active_key].torch, state.arrays[op.entry_key].torch
         if mask is None:
             torch.logical_and(runs, ~on, out=entered)

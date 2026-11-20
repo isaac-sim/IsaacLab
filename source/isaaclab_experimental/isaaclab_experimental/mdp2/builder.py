@@ -621,6 +621,7 @@ class MDPBuilder:
             for k, op in enumerate(ops):
                 ops[k] = replace(op, index=k)
 
+        _share_across_stages(context)
         context.tasks = tuple(self._compile_task(path, tasks, context) for path in tasks)
 
     def _compile_task(self, path: str, tasks: dict[str, tuple[TaskCfg, bool]], context: CompileContext) -> TaskNode:
@@ -1438,18 +1439,74 @@ def _allocate_slots(
     return tuple(placed[op.name] for op in ops), tuple(slots), dims, layouts
 
 
-def _exclusive(first: TermOp, second: TermOp, modes: Mapping[str, TaskMode]) -> bool:
+def _exclusive(first: TermOp | ActionOp, second: TermOp | ActionOp, modes: Mapping[str, TaskMode]) -> bool:
     """Return whether two ops never run in the same world at the same step."""
     if first.worlds is not None and second.worlds is not None and not set(first.worlds) & set(second.worlds):
         return True
-    if first.stage is None or second.stage is None:
-        return False
-    # Tasks of a sequence run one after another: the ops are exclusive below different subtasks of a sequence.
-    a, b = first.stage.split("."), second.stage.split(".")
+    firsts, seconds = _stages(first), _stages(second)
+    return bool(firsts and seconds) and all(_apart(a, b, modes) for a in firsts for b in seconds)
+
+
+def _stages(op: TermOp | ActionOp) -> tuple[str, ...]:
+    """Return the tasks of sequences or choices in which an op runs, none if it runs whenever its world config does."""
+    if isinstance(op, TermOp) and op.stages:
+        return op.stages
+    return () if op.stage is None else (op.stage,)
+
+
+def _apart(first: str, second: str, modes: Mapping[str, TaskMode]) -> bool:
+    """Return whether two tasks never run at the same step: they are below different subtasks of a sequence or a
+    choice, which run one at a time."""
+    a, b = first.split("."), second.split(".")
     common = list(itertools.takewhile(lambda pair: pair[0] == pair[1], zip(a, b)))
     if len(common) in (len(a), len(b)):
         return False
     return modes.get(".".join(part for part, _ in common)) in (TaskMode.SEQUENCE, TaskMode.CHOICE)
+
+
+def _share_across_stages(context: CompileContext) -> None:
+    """Merge the ops that tasks of a sequence or a choice define alike, but for their names, into one op that runs
+    while any of these tasks runs: its state, timer, and history carry on from one task to the next rather than
+    restart. Uses that differ, such as in a reward's weight, stay apart; so do quantities and commands, which write
+    fields of their own, actions, and start events, which run as each task starts."""
+    renamed: dict[str, str] = {}  # The uses of the merged ops, by those of the ops merged into them
+    for phase, ops in context.ops.items():
+        if phase in (Phase.ACTIONS, Phase.QUANTITIES, Phase.COMMANDS, Phase.RESET_EVENTS):
+            continue
+        kept: list[TermOp] = []
+        for op in ops:
+            key = replace(op, name="", use="", index=0, stage=None)
+            match = next(
+                (
+                    k
+                    for k, other in enumerate(kept)
+                    if op.stage is not None
+                    and _stages(other)
+                    and replace(other, name="", use="", index=0, stage=None, stages=()) == key
+                    and _exclusive(other, op, context.modes)
+                ),
+                None,
+            )
+            if match is None:
+                kept.append(op)
+                continue
+            other = kept[match]
+            kept[match] = replace(other, stage=None, stages=(*_stages(other), op.stage))
+            renamed[op.use] = other.use
+        ops[:] = kept
+    if not renamed:
+        return
+    # Uses that read the state of a merged op read that of the op it merged into.
+    for ops in context.ops.values():
+        for k, op in enumerate(ops):
+            if isinstance(op, TermOp):
+                inputs = {
+                    arg: replace(selector, entity=renamed.get(selector.entity, selector.entity))
+                    if isinstance(selector, FieldSelector) and not selector.scene
+                    else selector
+                    for arg, selector in op.inputs.items()
+                }
+                ops[k] = replace(op, inputs=MappingProxyType(inputs))
 
 
 def _used_columns(ops: tuple[TermOp, ...], worlds: range) -> dict[str, int]:
