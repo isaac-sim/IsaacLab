@@ -88,12 +88,16 @@ def test_a_new_initialization_replaces_the_model_and_one_articulation_binds(tmp_
         manager.reset()  # a full simulation reset, after which the articulation initializes again
         manager.bind(N, J)
         assert FakeModel.closed == 1
-        # A model that needs an input the backend does not provide is rejected when it binds.
+        # A model that needs an input the backend does not provide, or serves fewer environments than the scene has,
+        # is rejected when it binds.
         spec = FakeModel.spec
-        monkeypatch.setattr(FakeModel, "spec", lambda self: dataclasses.replace(spec(self), inputs=("joint_velocity",)))
-        manager.reset()
-        with pytest.raises(ValueError, match="provides the inputs"):
-            manager.bind(N, J)
+        for change, error in (({"inputs": ("joint_velocity",)}, "provides the inputs"), ({"max_envs": 1}, "at most 1")):
+            monkeypatch.setattr(
+                FakeModel, "spec", lambda self, change=change: dataclasses.replace(spec(self), **change)
+            )
+            manager.reset()
+            with pytest.raises(ValueError, match=error):
+                manager.bind(N, J)
 
 
 def test_the_reset_records_must_match_the_split_and_the_joints(tmp_path):
