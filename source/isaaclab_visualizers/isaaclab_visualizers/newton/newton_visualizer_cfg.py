@@ -116,9 +116,10 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     rtx_camera: bool | None = None
     """Declare an OVRTX viewer camera so the HUD can switch the main view between Newton GL and OVRTX.
 
-    The camera is added to the scene at launch because scene sensors cannot be added later. It renders only
-    while the OVRTX view is selected. ``None`` enables it when the ``ovrtx`` package is installed and the physics
-    backend is not PhysX; ``False`` disables it.
+    The camera is added to the scene at launch because scene sensors cannot be added later, and it adds startup
+    time and some frame time even while OpenGL is shown, so it is off by default. It renders only while the OVRTX
+    view is selected. Enabling it needs the ``ovrtx`` package and a physics backend other than Kit-based PhysX.
+    ``None`` leaves it off unless ``initial_renderer="rtx"`` asks for it; ``True`` adds it; ``False`` forbids it.
     """
 
     rtx_camera_path: str | None = None

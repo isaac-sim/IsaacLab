@@ -38,12 +38,18 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, list[int]]) -> None:
+    def initialize_geometry(
+        self,
+        geometry_batches: list,
+        cable_bindings: dict[str, list[int]],
+        cable_scales: dict[int, wp.vec3] | None = None,
+    ) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints.
 
         Args:
             geometry_batches: Deformable and particle geometry recorded by replication.
             cable_bindings: Native capsule shape indices of each open cable.
+            cable_scales: Authored capsule scales when collision provisioning changes their geometry.
         """
         self._geometry_batches = list(geometry_batches)
         endpoints, ranges = [], {}
@@ -64,7 +70,13 @@ class NewtonSceneDataBackend(SceneDataBackend):
             source.transforms = self._manager.backend.state_0.body_q
             source.shape_body = model.shape_body
             source.shape_transform = model.shape_transform
-            source.shape_scale = model.shape_scale
+            if cable_scales:
+                scales = model.shape_scale.numpy()
+                for index, scale in cable_scales.items():
+                    scales[index] = tuple(scale)
+                source.shape_scale = wp.array(scales, dtype=wp.vec3f, device=model.device)
+            else:
+                source.shape_scale = model.shape_scale
             source.endpoints = wp.array(np.concatenate(endpoints), dtype=wp.vec4i, device=model.device)
             self._geometry_batches.append((source, ranges))
 
