@@ -32,7 +32,6 @@ are unchanged:
    uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera --num_envs 4 presets=lidar
    uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=lidar
 
-Every ``--viz`` backend draws every visualized environment's finite hits every
-tenth step: Newton GL, Viser, and Rerun as points, Kit in the viewport, and
-Newton RTX on each environment's camera tile. The camera backs up until those
-environments fit in view.
+Newton GL, Viser, and Rerun draw every visualized environment's finite hits as
+points every tenth step, and Kit draws them in the viewport. The camera backs
+up until those environments fit in view.

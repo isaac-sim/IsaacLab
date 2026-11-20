@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
-from isaaclab.utils.math import project_points, quat_apply, quat_apply_inverse
+from isaaclab.utils.math import quat_apply
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
@@ -30,9 +30,6 @@ LIDAR_POINT_RADIUS = 0.02
 
 LIDAR_POINT_COLOR = (1.0, 0.0, 0.0)
 """RGB color of logged lidar hits."""
-
-_LIDAR_PIXEL_COLOR = (255, 0, 0)
-_LIDAR_PIXEL_RADIUS = 1
 
 
 def _iso8855_to_prim(points: torch.Tensor) -> torch.Tensor:
@@ -229,43 +226,6 @@ def collect_lidar_hits(
     return hits
 
 
-def collect_lidar_env_hits(
-    sim: SimulationContext, env_ids: list[int] | None, step_counter: int
-) -> list[tuple[int, np.ndarray]] | None:
-    """Return lidar hits grouped by environment on every tenth visualizer step.
-
-    Sensors are concatenated per environment. Environments with no finite hits are omitted.
-
-    Args:
-        sim: Simulation whose interactive scene owns the lidars.
-        env_ids: Visualized environments. None includes every environment.
-        step_counter: Visualizer step. Hits are collected when this is a multiple of
-            :data:`LIDAR_LOG_INTERVAL`.
-
-    Returns:
-        ``(env_index, points)`` pairs, or None when this step is not logged.
-    """
-    if step_counter % LIDAR_LOG_INTERVAL != 0:
-        return None
-    scene = sim.get_scene_data_provider().get_interactive_scene()
-    if scene is None:
-        return []
-
-    from isaaclab.sensors.lidar.lidar import Lidar
-
-    selected = None if env_ids is None else list(env_ids)
-    grouped: dict[int, list[np.ndarray]] = {}
-    for sensor in scene.sensors.values():
-        if not isinstance(sensor, Lidar):
-            continue
-        for env_id, cloud in lidar_env_hits(sensor, selected):
-            grouped.setdefault(env_id, []).append(cloud)
-    hits = []
-    for env_id, clouds in grouped.items():
-        hits.append((env_id, clouds[0] if len(clouds) == 1 else np.concatenate(clouds, axis=0)))
-    return hits
-
-
 def log_lidar_hits(viewer, hits: list[tuple[str, np.ndarray]], radius: float = LIDAR_POINT_RADIUS) -> None:
     """Log collected hits through a viewer ``log_points`` method.
 
@@ -297,80 +257,3 @@ def log_lidar_hits(viewer, hits: list[tuple[str, np.ndarray]], radius: float = L
             else:
                 colors = LIDAR_POINT_COLOR
         viewer.log_points(f"lidar/{name}", cloud, radii=radius, colors=colors)
-
-
-def paint_lidar_hits(
-    image: np.ndarray,
-    points: np.ndarray,
-    *,
-    position: np.ndarray,
-    rotation: np.ndarray,
-    intrinsics: np.ndarray,
-    tile_origin: tuple[int, int] = (0, 0),
-    tile_size: tuple[int, int] | None = None,
-    color: tuple[int, int, int] = _LIDAR_PIXEL_COLOR,
-) -> np.ndarray:
-    """Paint world-frame hits into one camera tile.
-
-    ``rotation`` is the camera orientation in ``(x, y, z, w)`` following the ROS optical frame:
-    ``+X`` right, ``+Y`` down, and ``+Z`` forward. Points at or behind the camera, and points
-    outside the tile, are left unchanged. The paint is display-only.
-
-    Args:
-        image: uint8 image, shape ``(height, width, channels)``. The painted pixels are written in place.
-        points: World-frame hit positions, shape ``(num_hits, 3)``.
-        position: Camera position in world coordinates, shape ``(3,)``.
-        rotation: Camera quaternion in ``(x, y, z, w)``, shape ``(4,)``.
-        intrinsics: Pinhole intrinsic matrix, shape ``(3, 3)``.
-        tile_origin: ``(row, column)`` of the tile's top-left pixel.
-        tile_size: ``(height, width)`` of the tile. None uses the whole image.
-        color: RGB color written into each hit pixel.
-
-    Returns:
-        The same image array.
-    """
-    if len(points) == 0:
-        return image
-    row0, col0 = tile_origin
-    height = image.shape[0] - row0 if tile_size is None else tile_size[0]
-    width = image.shape[1] - col0 if tile_size is None else tile_size[1]
-    if height <= 0 or width <= 0:
-        return image
-
-    cloud = torch.as_tensor(points, dtype=torch.float32)
-    origin = torch.as_tensor(position, dtype=torch.float32)
-    camera_points = quat_apply_inverse(torch.as_tensor(rotation, dtype=torch.float32), cloud - origin)
-    projected = project_points(camera_points, torch.as_tensor(intrinsics, dtype=torch.float32))
-    rows = torch.round(projected[:, 1]).to(torch.int64) + row0
-    cols = torch.round(projected[:, 0]).to(torch.int64) + col0
-    visible = (
-        (projected[:, 2] > 1e-4) & (rows >= row0) & (cols >= col0) & (rows < row0 + height) & (cols < col0 + width)
-    )
-    rows = rows[visible]
-    cols = cols[visible]
-    if len(rows) == 0:
-        return image
-
-    radius = _LIDAR_PIXEL_RADIUS
-    for offset_row in range(-radius, radius + 1):
-        for offset_col in range(-radius, radius + 1):
-            pixel_rows = rows + offset_row
-            pixel_cols = cols + offset_col
-            inside = (
-                (pixel_rows >= row0)
-                & (pixel_cols >= col0)
-                & (pixel_rows < row0 + height)
-                & (pixel_cols < col0 + width)
-                & (pixel_rows < image.shape[0])
-                & (pixel_cols < image.shape[1])
-            )
-            if not bool(inside.any()):
-                continue
-            selected_rows = pixel_rows[inside].numpy()
-            selected_cols = pixel_cols[inside].numpy()
-            image[selected_rows, selected_cols, 0] = color[0]
-            image[selected_rows, selected_cols, 1] = color[1]
-            image[selected_rows, selected_cols, 2] = color[2]
-            if image.shape[-1] > 3:
-                image[selected_rows, selected_cols, 3] = 255
-    return image

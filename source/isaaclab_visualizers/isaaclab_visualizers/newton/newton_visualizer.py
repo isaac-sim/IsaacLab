@@ -51,13 +51,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
-from isaaclab_visualizers.lidar_points import (
-    collect_lidar_env_hits,
-    collect_lidar_hits,
-    frame_visualizer_closeup,
-    log_lidar_hits,
-    paint_lidar_hits,
-)
+from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_key_event_source import NewtonKeyEventSource
@@ -509,8 +503,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
-        self._lidar_step_counter = 0
-        self._lidar_hit_cache: list[tuple[int, np.ndarray]] | None = None
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -747,13 +739,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
 
-    def _log_lidar_points(self, viewer: Any) -> None:
-        """Log one lidar environment's hits into the Newton GL scene."""
-        self._lidar_step_counter += 1
-        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
-        if hits is not None:
-            log_lidar_hits(viewer, hits)
-
     def _capture_frame(self, output: wp.array | None) -> wp.array:
         """Read the frame already displayed, or render once when capture is the only consumer."""
         if self._last_render_step != self._sim.get_physics_step_count() or (
@@ -839,6 +824,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
+        self._lidar_step_counter = 0
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -921,6 +907,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
         # exists in the scene.
         self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
+
+    def _log_lidar_points(self, viewer: Any) -> None:
+        """Log every visualized environment's lidar hits into the Newton GL scene."""
+        self._lidar_step_counter += 1
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            log_lidar_hits(viewer, hits)
 
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
@@ -1252,69 +1245,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
             self._last_render_step = self._sim.get_physics_step_count()
         finally:
             self._viewer.end_frame()
-
-    def _log_streaming_image(self) -> None:
-        """Present the camera image with the logged environment's lidar hits painted on it."""
-        view = self.current_image_view
-        paused = self._viewer.is_paused()
-        composite = view.frame.data
-        if composite is None or not paused:
-            composite = view.read(self._sim.get_physics_step_count())
-        if composite is not None and not paused:
-            self._paint_lidar_image(composite)
-        if composite is not None:
-            self._viewer.log_image("Streaming View", composite, fullscreen=True)
-
-    def _paint_lidar_image(self, image: wp.array) -> None:
-        """Paint each environment's lidar hits into its tile of ``image``.
-
-        The OVRTX scene is left unchanged. A fresh camera image is composed every displayed frame,
-        so the last collected clouds are painted again until the next logged step.
-        """
-        self._lidar_step_counter += 1
-        hits = collect_lidar_env_hits(self._sim, self._env_ids, self._lidar_step_counter)
-        if hits is not None:
-            self._lidar_hit_cache = hits
-        if not self._lidar_hit_cache:
-            return
-        view = self.current_image_view
-        camera = view.camera if view is not None else None
-        if camera is None:
-            return
-        envs = tuple(view.cfg.envs)
-        height, width = camera.image_shape
-        channels = tuple(view.cfg.channels)
-        num_channels = max(len(channels), 1)
-        if width <= 0 or image.shape[1] < width * num_channels:
-            return
-        columns = int(image.shape[1]) // (width * num_channels)
-        if columns <= 0:
-            return
-        channel = channels.index("rgb") if "rgb" in channels else 0
-        pixels = np.array(image.numpy(), copy=True)
-        painted = False
-        for env_id, cloud in self._lidar_hit_cache:
-            if env_id not in envs or len(cloud) == 0:
-                continue
-            tile = envs.index(env_id)
-            row, column = divmod(tile, columns)
-            pose = camera.data.pos_w.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
-            rotation = camera.data.quat_w_ros.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
-            intrinsics = (
-                camera.data.intrinsic_matrices.torch[env_id].detach().to(device="cpu", dtype=torch.float32).numpy()
-            )
-            paint_lidar_hits(
-                pixels,
-                cloud,
-                position=pose,
-                rotation=rotation,
-                intrinsics=intrinsics,
-                tile_origin=(row * height, (column * num_channels + channel) * width),
-                tile_size=(height, width),
-            )
-            painted = True
-        if painted:
-            wp.copy(image, wp.array(pixels, dtype=wp.uint8, device=image.device))
 
     def close(self) -> None:
         """Close the window; scene cameras retain their render products and shared renderer."""
