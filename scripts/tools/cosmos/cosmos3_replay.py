@@ -49,7 +49,8 @@ def main():
     args.output.mkdir(parents=True)
     with imageio.get_writer(args.output / "generated.mp4", fps=spec.fps, macro_block_size=1) as writer:
         start = np.asarray(Image.open(args.initial_image).convert("RGB"))
-        model.reset([0], torch.from_numpy(start)[None], [args.prompt], [args.seed])
+        (view,) = spec.views
+        model.reset([0], {view: torch.from_numpy(start)[None]}, [args.prompt], [args.seed])
         writer.append_data(start)
         for chunk in actions.reshape(-1, 1, spec.chunk_length, actions.shape[-1]):
             for frame in model.step_controls(chunk)[0].numpy():
