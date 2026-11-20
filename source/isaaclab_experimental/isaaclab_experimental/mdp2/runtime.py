@@ -11,6 +11,7 @@ Each function runs its launches eagerly. To replay them as CUDA graphs, bind fix
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
@@ -20,7 +21,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
-from .config import FieldSelector, Phase
+from .config import FieldSelector
 from .eager import call_init
 from .plan import Call
 
@@ -108,33 +109,36 @@ def tune(
     selected = torch.zeros(mdp.num_worlds, dtype=torch.bool, device=mdp.device)
     selected[slice(None) if worlds is None else worlds] = True
 
-    # The value waits in the pending copy; a tuning for this step also writes it in place, and keeps the copy equal.
-    destinations = [state.arrays["pending", target.key].torch]
-    destinations += [state.arrays[target.key].torch] if at == "step" else []
-    for destination in destinations:
-        values = destination if target.column is None else destination[:, target.column]
+    # A tuning for the next reset waits in the pending copy, and sets the value's bit; a tuning for this step writes
+    # the value in place, and drops what waited for the next reset, as it is the newer tuning.
+    destination = state.arrays[("pending", target.key) if at == "reset" else target.key].torch
+    for values in [destination[:, column] for column in target.columns] or [destination]:
         values[selected] = torch.as_tensor(value, dtype=values.dtype, device=mdp.device)
-    if at == "step":
-        state.arrays["revision"].torch.add_(selected.int())
+    word, bit = divmod(mdp.tuned.index(target), 32)
+    flags = state.arrays["pending"].torch[:, word]
+    if at == "reset":
+        flags.bitwise_or_(selected.int() << bit)
     else:
-        state.arrays["pending"].torch.logical_or_(selected)
+        flags.bitwise_and_(~(selected.int() << bit))
+        state.arrays["revision"].torch.add_(selected.int())
 
 
-_CARRIED = ("timer", "history", "on", "entered", "pending")
+_CARRIED = ("timer", "history", "on", "entered")
 """Kinds of the arrays of single ops that :func:`migrate` carries over, by the first part of their keys."""
 
 
 def migrate(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) -> None:
     """Carry the state of an MDP over to another built on the same scene, such as for an edited task.
 
-    Every array of the MDP that both key alike and shape alike carries over: the state, timers, histories, and
-    tunable values of the uses that both have, the commands, quantities, and progress, the episode lengths, and the
-    last actions. So do the random streams of the uses that both have, and the reward weights of the rewards. The init
-    hooks of the uses that the previous MDP did not have run, as at startup.
+    Every array of the MDP that both key alike and shape alike carries over: the state, timers, and histories of the
+    uses that both have, the commands, quantities, and progress, the episode lengths, and the last actions. So do the
+    random streams of the uses that both have, and the values that both declare :class:`~.config.Tunable`, with those
+    waiting for the next reset, as they may have been tuned; other reward weights and params are the new task's. The
+    init hooks of the uses that the previous MDP did not have, or whose params changed, run, as at startup.
     """
     for key, array in state.arrays.items():
-        carried = isinstance(key, FieldSelector) and not key.scene
-        carried |= key in ("revision", "pending") or isinstance(key, tuple) and key[0] in _CARRIED
+        carried = isinstance(key, FieldSelector) and not key.scene or key == "revision"
+        carried |= isinstance(key, tuple) and key[0] in _CARRIED
         old = previous_state.arrays.get(key)
         if (
             carried
@@ -147,12 +151,31 @@ def migrate(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) 
     for row, name in enumerate(mdp.streams):
         if name in previous.streams:
             state.rng.torch[row] = previous_state.rng.torch[previous.streams.index(name)]
-    rewards = [op.name for op in previous.ops[Phase.REWARDS]]
-    for column, op in enumerate(mdp.ops[Phase.REWARDS]):
-        if op.name in rewards:
-            state.reward_weights.torch[:, column] = previous_state.reward_weights.torch[:, rewards.index(op.name)]
+    _migrate_tuned(previous, previous_state, mdp, state)
 
-    uses = {op.use for op in previous.term_ops}
+    params = {op.use: op.params for op in previous.term_ops}
     for op in mdp.term_ops:
-        if op.init is not None and op.use not in uses:
+        if op.init is not None and params.get(op.use) != op.params:
             call_init(mdp, op, state, op.init)
+
+
+def _migrate_tuned(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) -> None:
+    """Carry over the tunable values that both MDPs have: the reward weights, which the arrays did not, and what waits
+    for the next reset, with the bits that mark it."""
+    indices = {value.path: index for index, value in enumerate(previous.tuned)}
+    for index, value in enumerate(mdp.tuned):
+        if value.path not in indices:
+            continue
+        old_index = indices[value.path]
+        old = previous.tuned[old_index]
+        for key in [value.key, ("pending", value.key)] if value.columns else [("pending", value.key)]:
+            source, target = previous_state.arrays[key].torch, state.arrays[key].torch
+            if value.columns:  # By column, as rewards may have moved
+                for column, old_column in zip(value.columns, itertools.cycle(old.columns)):
+                    target[:, column] = source[:, old_column]
+            elif source.shape == target.shape and source.dtype == target.dtype:
+                target.copy_(source)
+        word, bit = divmod(index, 32)
+        old_word, old_bit = divmod(old_index, 32)
+        waits = (previous_state.arrays["pending"].torch[:, old_word] >> old_bit) & 1
+        state.arrays["pending"].torch[:, word].bitwise_or_(waits << bit)

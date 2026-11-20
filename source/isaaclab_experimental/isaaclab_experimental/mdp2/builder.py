@@ -650,7 +650,9 @@ class MDPBuilder:
             chances = task.weights or dict.fromkeys(task.subtasks, 1.0)
             if set(chances) != set(task.subtasks) or not all(chance >= 0 for chance in chances.values()):
                 errors.append(f"{name}: a choice needs a weight of at least 0 for each of {list(task.subtasks)}.")
-            elif sum(chances.values()) > 0:
+            elif sum(chances.values()) <= 0:
+                errors.append(f"{name}: a choice needs some weight above 0, to draw one of {list(task.subtasks)}.")
+            else:
                 weights = tuple(chances[child] / sum(chances.values()) for child in task.subtasks)
         if task.require is not None and not 1 <= task.require <= len(completes):
             errors.append(f"{name}: require must be between 1 and {len(completes)}, the subtasks with a completion.")
@@ -1011,18 +1013,12 @@ def _allocate_columns(
 
 
 def _check_event(entry: ScheduleEntry, errors: list[str]) -> None:
-    """Record why an event cannot be compiled: its interval, its commit, or a start event of a task that never
-    starts during an episode."""
+    """Record why an event cannot be compiled: its interval or its commit."""
     cfg = entry.cfg
     if (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
         errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
     if cfg.commit is True and cfg.mode not in (EventMode.RESET, EventMode.START):
         errors.append(f"{entry}: only reset and start events can ask for a commit.")
-    if cfg.mode is EventMode.START and entry.stage is None:
-        errors.append(
-            f"{entry}: a start event runs when its task starts, so it belongs to a task of a sequence or a choice,"
-            " or to one that repeats."
-        )
 
 
 def _check_action(entry: ScheduleEntry, output_shape: tuple[int, ...] | None, errors: list[str]) -> None:
@@ -1089,10 +1085,14 @@ def _tuned_values(ops: Mapping[Phase, tuple], errors: list[str]) -> tuple[TunedV
             TunedValue(f"{op.use}.{name}", op.inputs[name], dtype=_tunable_layout(op.name, name, default, []).dtype)
             for name, default in op.tunables.items()
         ]
-        values += [TunedValue(f"{op.use}.weight", "reward_weights", op.index)] if op.tunable_weight else []
+        values += [TunedValue(f"{op.use}.weight", "reward_weights", (op.index,))] if op.tunable_weight else []
         values += [TunedValue(f"{op.use}.when", op.when, dtype=wp.bool)] if op.when_default is not None else []
         for value in values:
-            if tuned.setdefault(value.path, value) != value:
+            known = tuned.setdefault(value.path, value)
+            if known.columns != value.columns and known.key == value.key == "reward_weights":
+                # A reward that world configs define differently has a column in each.
+                tuned[value.path] = replace(known, columns=tuple(dict.fromkeys(known.columns + value.columns)))
+            elif known != value:
                 errors.append(f"The world configs tune '{value.path}' differently: tune it in all or none of them.")
     return tuple(tuned.values())
 

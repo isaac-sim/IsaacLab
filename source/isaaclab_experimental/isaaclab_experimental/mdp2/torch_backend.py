@@ -317,16 +317,18 @@ def _switch(ops: tuple[TermOp, ...], state: MDPState, mask: torch.Tensor | None)
 
 
 def _apply_tuned(tuned: tuple[TunedValue, ...], state: MDPState, mask: torch.Tensor) -> None:
-    """Apply the values tuned for the next reset in the reset worlds that have them, and count the tuning."""
+    """Apply, in the reset worlds, each value tuned for the next reset where it waits, and count the tunings that
+    took effect."""
     pending = state.arrays["pending"].torch
-    applied = pending & mask
-    for value in tuned:
+    for index, value in enumerate(tuned):
+        word, bit = divmod(index, 32)
+        waits = ((pending[:, word] >> bit) & 1).bool() & mask
         live, waiting = state.arrays[value.key].torch, state.arrays["pending", value.key].torch
-        if value.column is not None:
-            live, waiting = live[:, value.column], waiting[:, value.column]
-        live.copy_(torch.where(applied.view(-1, *[1] * (live.ndim - 1)), waiting, live))
-    state.arrays["revision"].torch.add_(applied.int())
-    pending.logical_and_(~applied)
+        pairs = [(live[:, column], waiting[:, column]) for column in value.columns] or [(live, waiting)]
+        for live, waiting in pairs:
+            live.copy_(torch.where(waits.view(-1, *[1] * (live.ndim - 1)), waiting, live))
+    state.arrays["revision"].torch.add_(((pending != 0).any(dim=1) & mask).int())
+    pending.masked_fill_(mask[:, None], 0)
 
 
 def _clear(mdp: MDP, slot: ObservationSlot, call: Call, stepping: bool) -> None:

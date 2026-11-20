@@ -217,10 +217,16 @@ class MDP2Env:
         """Replace the task by another on the same scene, such as with a reward added or removed, and keep running.
 
         The state of the uses that both tasks have carries over, see :func:`~isaaclab_experimental.mdp2.migrate`: term
-        state, timers, histories, commands, progress, tunable values, random streams, and reward weights. With
+        state, timers, histories, commands, progress, random streams, and tunable values; other reward weights and
+        params are the new task's. With
         ``truncate``, every world starts a new episode, so that no episode mixes two tasks; otherwise episodes go on.
         The next step captures its graphs again, which compiles the kernels of a new task once, in about a second.
+        With an episode budget, the new task starts a new evaluation, so it truncates the episodes.
         """
+        if not truncate and self.cfg.episode_budget is not None:
+            raise ValueError(
+                "With an episode budget, a new task starts a new evaluation: update it with truncate=True."
+            )
         self._build(task, previous=(self.mdp, self.state))
         self.cfg.task = task
         self._bind()
@@ -501,6 +507,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def __init__(self, cfg: MDP2RLEnvCfg, render_mode: str | None = None, **kwargs: Any) -> None:
         self.final_observations = cfg.compute_final_obs
         self._budgeted = cfg.episode_budget is not None
+        self._episode_rewards: torch.Tensor | None = None  # Set by _bind
         super().__init__(cfg)
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
@@ -547,7 +554,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         quantity, and whether each task with a completion was done, averaged over the worlds that ran the task."""
         n, device, transition = self.num_envs, self.device, self.transition
         code = Fusion("mdp2_episode_log", n, device)
-        self._episode_rewards = torch.zeros(n, len(self._reward_names), device=device)
+        # The episodes that go on after a task update keep the sums of the rewards that both tasks have.
+        previous = {} if self._episode_rewards is None else dict(zip(self._summed, self._episode_rewards.T))
+        self._summed = list(self._reward_names)
+        self._episode_rewards = (
+            torch.stack([previous.get(name, torch.zeros(n, device=device)) for name in self._summed], dim=1)
+            if self._summed
+            else torch.zeros(n, 0, device=device)
+        )
 
         def argument(tensor: torch.Tensor | ProxyArray, annotation: Any) -> str:
             array = tensor.warp if isinstance(tensor, ProxyArray) else wp.from_torch(tensor, dtype=annotation.dtype)

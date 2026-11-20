@@ -1941,13 +1941,15 @@ def test_splits_divide_the_same_worlds_and_may_be_steps_of_a_sequence():
 
 
 def test_task_trees_report_errors():
-    """A sequence task without a completion and a task with subtasks and a done are errors."""
+    """A sequence task without a completion, a task with subtasks and a done, and a choice that cannot draw are
+    errors."""
     schema = PointMassScene(num_worlds=2, joint_names=("a",)).schema
     quantities = mdp2.TaskCfg(quantities=above("a"))
     milestone = mdp2.Milestone(mdp2.quantities.a)
     cases = [
         (mdp2.sequence(first=milestone, second=mdp2.TaskCfg()), "needs a completion"),
         (mdp2.TaskCfg(done=mdp2.quantities.a, subtasks={"first": milestone}), "cannot have a done"),
+        (mdp2.choice(weights={"first": 0.0, "second": 0.0}, first=milestone, second=milestone), "weight above 0"),
     ]
     for task, message in cases:
         with pytest.raises(ValueError, match=message):
@@ -1983,7 +1985,8 @@ outside = mdp2.Term(torch=outside_torch, warp=outside_warp)
 def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
     """Tunable params and weights hold one value per world, which terms read as their world's value and observations
     as a field. A tuning waits for each world's next reset, or applies at the next step, also between graph replays,
-    and every world counts the tunings it applied."""
+    and every world counts the tunings it applied. A value that a term writes is not undone by a reset that applies
+    another."""
     task = mdp2.TaskCfg(
         observations={
             "policy": {
@@ -2005,6 +2008,7 @@ def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
         },
     )
     num_worlds = 5  # Not the number of joints, so that a wrong broadcast cannot go unseen
+    bounds = mdp2.tunable("terminations.outside", "bounds")
 
     def run(backend: str, capture: bool) -> list[dict[str, torch.Tensor]]:
         scene = PointMassScene(num_worlds=num_worlds, joint_names=("a", "b", "c"), device=DEVICE)
@@ -2044,10 +2048,14 @@ def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
                     "terminated": transition.terminated.torch.clone(),
                     "policy": transition.observations["policy"].torch.clone(),
                     "revision": state.revision.torch.clone(),
+                    "bounds": state.arrays[bounds].torch.clone(),
                 }
             )
             for path, value, worlds, at in tunings.get(step, []):
                 mdp2.tune(mdp, state, path, value, worlds, at)
+            if step == 1:
+                # As an event or a curriculum would: world 1 also has a tuned gain waiting for its reset.
+                state.arrays[bounds].torch[1] = torch.tensor([-2.0, 2.0], device=DEVICE)
         return history
 
     runs = [run(backend, capture) for backend in ("torch", "warp") for capture in (False, True)]
@@ -2063,6 +2071,7 @@ def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
     # World 1 reset after step 2 and took the gain of 2; world 3 still waits for its reset.
     assert rewards[2] == pytest.approx([1.0, 2.0, 1.0, 1.0, 1.0])
     assert history[2]["policy"][:, 0].tolist() == [1.0, 2.0, 1.0, 1.0, 1.0]
+    assert history[2]["bounds"][1].tolist() == [-2.0, 2.0]
     assert rewards[3] == pytest.approx([1.0, 4.0, 3.0, 4.0, 5.0])  # Weights of 1 to 5 from the next step
     assert history[4]["terminated"].tolist() == [False] * 4 + [True]  # World 4's tighter bounds
     assert history[4]["revision"].tolist() == [1, 2, 1, 1, 2]
@@ -2364,8 +2373,8 @@ count_successes = mdp2.Term(
 
 def test_start_events_write_the_scene_when_their_task_starts():
     """A start event writes the scene when its task starts: at the reset for the first task of a sequence, at the step
-    the next one starts for the others, whose worlds the scene then commits. Reset events see the progress of the
-    episode that ended."""
+    the next one starts for the others, whose worlds the scene then commits, and at every reset for a task that always
+    runs, so that a part can run alone. Reset events see the progress of the episode that ended."""
     push = mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, mode=mdp2.EventMode.START)
     velocity = mdp2.Observation(joint_vel, inputs={"joint_vel": robot.joint_vel})
     task = mdp2.compose(
@@ -2397,10 +2406,9 @@ def test_start_events_write_the_scene_when_their_task_starts():
     env_reset(mdp, state, scene, transition.observations, everywhere)
     assert state.arrays[mdp2.term_state("events.successes", "total")].torch.tolist() == [1.0, 0.0]
 
-    builder = mdp2.MDPBuilder(scene.schema)
-    builder.add_task(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), mdp2.TaskCfg(events={"push": push})))
-    with pytest.raises(ValueError, match="a start event runs when its task starts"):
-        builder.validate()
+    alone = mdp2.TaskCfg(events={"push": push}, observations={"policy": {"velocity": velocity}})
+    history = check_progress(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), alone), [[0.0], [1.0]])
+    assert [step["policy"][0].tolist() for step in history] == [[1.0], [1.0]]  # Pushed at the reset only
 
 
 def test_variations_draw_record_and_replay_values():

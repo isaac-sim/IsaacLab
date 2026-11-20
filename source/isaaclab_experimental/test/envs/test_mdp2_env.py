@@ -832,10 +832,13 @@ lifetime_steps = mdp2.Term(
 
 
 def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
-    """Replacing the task on a running environment keeps the state, random streams, and reward weights of the uses
-    that both tasks have, truncates the episodes, and replays the new task's step as a graph."""
+    """Replacing the task on a running environment keeps the state, random streams, and tuned values of the uses
+    that both tasks have, takes the other weights from the new task, truncates the episodes, and replays the new
+    task's step as a graph. Without truncating, the episodes go on with the reward sums of the rewards both have."""
     cfg = cartpole_cfg()
     cfg.task.quantities = {"lifetime": mdp2.Quantity(lifetime_steps)}
+    alive = replace(cfg.task.rewards["alive"], weight=mdp2.Tunable(1.0))
+    cfg.task = replace(cfg.task, rewards={**cfg.task.rewards, "alive": alive})
     env = MDP2RLEnv(cfg)
     try:
         env.reset()
@@ -843,18 +846,25 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
         for _ in range(3):
             env.step(actions)
         assert env.is_captured and env.num_graphs == 1
-        env.state.reward_weights.torch[:, 0] = 7.0  # Changed at runtime: kept
+        env.tune("rewards.alive.weight", 7.0, at="step")
         streams = {name: env.state.rng.torch[row].clone() for row, name in enumerate(env.mdp.streams)}
 
         task = replace(
             cfg.task,
-            rewards={**cfg.task.rewards, "upright": mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})},
+            rewards={
+                **cfg.task.rewards,
+                "terminating": replace(cfg.task.rewards["terminating"], weight=-5.0),
+                "upright": mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}),
+            },
         )
         env.update_task(task)
+        rewards = [op.name for op in env.mdp.ops[mdp2.Phase.REWARDS]]
         lifetime = env.state.arrays[mdp2.term_state("quantities.lifetime", "steps")].torch
         assert (lifetime == 3.0).all() and (env.episode_length_buf == 0).all()
-        assert (env.state.reward_weights.torch[:, 0] == 7.0).all()
-        assert env.state.reward_weights.torch[:, -1].tolist() == [1.0] * NUM_ENVS
+        weights = env.state.reward_weights.torch
+        assert (weights[:, rewards.index("rewards.alive")] == 7.0).all()  # Tuned: kept
+        assert (weights[:, rewards.index("rewards.terminating")] == -5.0).all()  # Edited: the new task's
+        assert weights[:, rewards.index("rewards.upright")].tolist() == [1.0] * NUM_ENVS
         for name, values in streams.items():
             # The reset that truncated the episodes advanced every stream once.
             rng.advance(values[None])
@@ -864,6 +874,12 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
         env.step(actions)
         assert env.is_captured and env.num_graphs == 1 and "Episode_Reward/upright" in extras["log"]
         assert (lifetime == 5.0).all()
+
+        sums = env.step_buffers()["episode_rewards"].clone()
+        env.update_task(cfg.task, truncate=False)
+        kept = [rewards.index(op.name) for op in env.mdp.ops[mdp2.Phase.REWARDS]]
+        assert (env.episode_length_buf == 2).all()
+        assert torch.equal(env.step_buffers()["episode_rewards"], sums[:, kept])
     finally:
         env.close()
 

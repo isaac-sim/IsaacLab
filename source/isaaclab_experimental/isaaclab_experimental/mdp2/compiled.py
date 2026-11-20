@@ -79,8 +79,9 @@ class MDPState:
       task's ``done`` held), ``entered`` (whether a task of a sequence started at this step), and, for a task that
       repeats, ``spent`` (done, and its completion still holds) and ``restarted`` (it restarted at this step);
     - ``mdp2.tunable(use, name)``: the value of a tunable param per world, and, for an MDP with tunable values,
-      ``("pending", key)``: the values tuned for the next reset of each array, ``"pending"``: the worlds that have
-      them, and ``"revision"``: the number of tunings applied in each world, see :func:`~.tune`.
+      ``("pending", key)``: the values tuned for the next reset of each array, ``"pending"``: which values wait in
+      each world, a bit per value of :attr:`MDP.tuned` in ``int32`` words, ``(num_worlds, words)``, and
+      ``"revision"``: the number of times tunings took effect in each world, see :func:`~.tune`.
     """
 
     arrays: dict[Hashable, ProxyArray]
@@ -438,8 +439,8 @@ class MDP:
             weights[config.worlds.start : config.worlds.stop] = [op.weights[index] for op in self.ops[Phase.REWARDS]]
         arrays["reward_weights"] = ProxyArray(wp.array(weights, dtype=wp.float32, device=self.device))
         if self.tuned:
-            # Values tuned for the next reset wait in a copy of their array, in the worlds marked pending.
-            arrays["pending"] = self._zeros(self.num_worlds, dtype=wp.bool)
+            # Values tuned for the next reset wait in a copy of their array, in the worlds whose bit of it is set.
+            arrays["pending"] = self._zeros(self.num_worlds, (len(self.tuned) + 31) // 32, dtype=wp.int32)
             arrays["revision"] = self._zeros(self.num_worlds, dtype=wp.int32)
             for key in dict.fromkeys(value.key for value in self.tuned):
                 arrays["pending", key] = ProxyArray(wp.clone(arrays[key].warp))

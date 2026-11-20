@@ -24,5 +24,9 @@
   step steps between the MDP's graphs. Replayed steps now count their physics steps and advance the simulation time.
 * Changed ``MDP2EnvCfg.verify_capture`` on physics without a reproducible mode to check the MDP alone, with the physics
   step replaced by nothing, bitwise, instead of comparing to a relative tolerance.
-* Changed :class:`~isaaclab_experimental.envs.MDP2Env` to render only the cameras that some term of the task reads,
-  and to compute the averages of ``extras["log"]`` inside the captured step.
+* Changed :class:`~isaaclab_experimental.envs.MDP2Env` to render only the cameras that some term of the task reads.
+* Changed :class:`~isaaclab_experimental.envs.MDP2RLEnv` to keep its episode statistics in one generated kernel
+  inside the captured step, instead of about 15 Torch operations per step, and to sum them once per step for
+  ``extras["log"]``: about 15 to 35 µs less per step at 4,096 worlds. Without a time limit, rewards are logged per
+  second of each episode rather than as zero, and a choice's tasks are averaged over the finished episodes that drew
+  them.

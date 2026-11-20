@@ -931,31 +931,24 @@ def _switch(code: Fusion, ops: tuple[TermOp, ...], stepping: bool) -> None:
 
 
 def _apply_tuned(code: Fusion, tuned: tuple[TunedValue, ...]) -> None:
-    """Apply the values tuned for the next reset in the reset worlds that have them, and count the tuning."""
-    pending = _array(code, "pending", wp.array(dtype=wp.bool))
+    """Apply, in the reset worlds, each value tuned for the next reset where it waits, and count the tunings that
+    took effect."""
+    pending = _array(code, "pending", wp.array2d(dtype=wp.int32))
     revision = _array(code, "revision", wp.array(dtype=wp.int32))
-    lines, writes = [], ["pending", "revision"]
-    for value in tuned:
-        if value.column is None:
-            annotation = wp.array(dtype=value.dtype)
-            live, waiting, index = (
-                _array(code, value.key, annotation),
-                _array(code, ("pending", value.key), annotation),
-                "world",
-            )
-        else:
-            annotation = wp.array2d(dtype=wp.float32)
+    lines, writes = ["tuned_any = False"], ["pending", "revision"]
+    for word in range(0, len(tuned), 32):
+        lines += [f"tuned_bits = {pending}[world, {word // 32}]", "if tuned_bits != 0:"]
+        for bit, value in enumerate(tuned[word : word + 32]):
+            if value.columns:
+                annotation, indices = wp.array2d(dtype=wp.float32), [f"world, {column}" for column in value.columns]
+            else:
+                annotation, indices = wp.array(dtype=value.dtype), ["world"]
             live, waiting = _array(code, value.key, annotation), _array(code, ("pending", value.key), annotation)
-            index = f"world, {value.column}"
-        lines.append(f"{live}[{index}] = {waiting}[{index}]")
-        writes.append(value.key)
-    code.world(
-        f"if {pending}[world]:",
-        *(f"    {line}" for line in lines),
-        f"    {revision}[world] = {revision}[world] + 1",
-        f"    {pending}[world] = False",
-        writes=writes,
-    )
+            lines.append(f"    if ((tuned_bits >> {bit}) & 1) != 0:")
+            lines += [f"        {live}[{index}] = {waiting}[{index}]" for index in indices]
+            writes.append(value.key)
+        lines += [f"    {pending}[world, {word // 32}] = 0", "    tuned_any = True"]
+    code.world(*lines, "if tuned_any:", f"    {revision}[world] = {revision}[world] + 1", writes=writes)
 
 
 def _clear(code: Fusion, mdp: MDP, slot: ObservationSlot, stepping: bool) -> None:

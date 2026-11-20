@@ -177,7 +177,7 @@ class TunedValue:
 
     path: str  # Name of the use and of the value, such as "rewards.track.std" or "rewards.track.weight"
     key: Hashable  # Key of its array in MDPState.arrays: mdp2.tunable(use, name), or "reward_weights"
-    column: int | None = None  # Reward weights: the column of the reward
+    columns: tuple[int, ...] = ()  # Reward weights: the columns of the reward, one per world config that differs
     dtype: Any = None  # Element type of a tunable param's field
 
 

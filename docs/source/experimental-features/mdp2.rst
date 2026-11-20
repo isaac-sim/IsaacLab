@@ -145,7 +145,7 @@ one:
   ran when the step started, and its observations the one that runs after it. Starting restarts their state, timers,
   commands, and observation histories. Quantities are measurements: they run in every step, and only restart. Reset
   and startup events set up whole episodes, so they run at every reset; ``EventMode.START`` events run when their
-  task starts, at the reset or during the episode. Uses that the tasks define alike, but for their names, run as one
+  task starts, at the reset or during the episode, and at every reset for a task that always runs. Uses that the tasks define alike, but for their names, run as one
   while any of these tasks runs, so their state and histories carry on; a use of all of them is one of the sequence.
 - **Repeats.** ``repeat=True`` counts a task's completions as ``mdp2.progress.<task>.count``, such as the drops of an
   object: once done, it restarts, with its subtasks and uses, when its completion no longer holds.
@@ -281,11 +281,12 @@ The values and structure of a task can change while it runs, at the cost of what
    rewards = {"stand_still": mdp2.Reward(..., when=mdp2.commands.standing)}  # Only where the mode command says so
    env.update_task(new_task)                                           # Recompile on the same scene, keep the state
 
-- **Runtime values.** A param or reward weight declared :class:`~isaaclab_experimental.mdp2.Tunable` is a field of
-  one value per world, ``mdp2.tunable(use, name)``, which ``wp.func`` s take as their world's value and other terms
-  and events may read and write, such as a curriculum. :meth:`~isaaclab_experimental.envs.MDP2Env.tune` changes it
-  in place while graphs replay, at each world's next reset by default, so that no episode mixes two values; each
-  world counts its tunings in ``state.revision``, which episode records hold. Tasks without tunable values compile
+- **Runtime values.** A param declared :class:`~isaaclab_experimental.mdp2.Tunable` is a field of one value per
+  world, ``mdp2.tunable(use, name)``, which ``wp.func`` s take as their world's value and other terms and events may
+  read and write, such as a curriculum; a tunable reward weight is the reward's column of ``state.reward_weights``.
+  :meth:`~isaaclab_experimental.envs.MDP2Env.tune` changes either in place while graphs replay, at each world's next
+  reset by default, so that no episode mixes two values, and leaves the other values alone; each world counts the
+  tunings that took effect in ``state.revision``, which episode records hold. Tasks without tunable values compile
   to the same kernels.
 - **Switches.** ``when`` on a reward, termination, observation, command, or interval event runs it where a field was
   positive at the start of the step, and restarts it where it turns on; ``when=mdp2.Tunable(True)`` is a switch per
@@ -300,8 +301,9 @@ The values and structure of a task can change while it runs, at the cost of what
   steps, such as an embedded whole-body controller that writes joint targets; the default applies it before every
   physics step. Tasks of a sequence may take actions of their own.
 - **New structure.** :meth:`~isaaclab_experimental.envs.MDP2Env.update_task` builds another task on the same scene
-  and carries over, with :func:`~isaaclab_experimental.mdp2.migrate`, the state, random streams, and reward weights
-  of the uses that both have; it truncates the episodes by default, and the next step compiles and captures anew.
+  and carries over, with :func:`~isaaclab_experimental.mdp2.migrate`, the state, random streams, and tunable values
+  of the uses that both have, while other weights and params are the new task's; it truncates the episodes by
+  default, and the next step compiles and captures anew.
 
 Measured on Go2 at 4096 worlds (MDP time per step, physics replaced by nothing): the plain task 81 µs, every reward
 weight and tracking width tunable 81 µs, all rewards switched 86 µs, the rewards in two stages of a sequence 103 µs.

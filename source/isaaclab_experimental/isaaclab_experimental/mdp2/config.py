@@ -142,18 +142,19 @@ class Tunable:
     """A value that may change while the MDP runs, per world: a param, as in ``params={"std": mdp2.Tunable(0.5)}``,
     or a reward's ``weight``.
 
-    It is a field of the MDP, ``mdp2.tunable("rewards.track", "std")``, of one value per world: ``float32``,
+    A param is a field of the MDP, ``mdp2.tunable("rewards.track", "std")``, of one value per world: ``float32``,
     ``int32``, ``bool``, or, for a tuple of numbers, a ``float32`` vector. A ``wp.func`` takes it as a param, of its
-    world's value; Python hooks get the array, which Torch hooks get as a ``(num_worlds,)`` tensor per number.
-    :func:`~.tune` changes it, at each world's next reset by default, so that no episode mixes two values; other terms
-    may read it and events may write it, such as a curriculum.
+    world's value; Python hooks get the array, which Torch hooks get as a ``(num_worlds,)`` tensor per number. A
+    weight is the reward's column of :attr:`~.MDPState.reward_weights`. :func:`~.tune` changes either, at each
+    world's next reset by default, so that no episode mixes two values; other terms may read a param and events may
+    write it, such as a curriculum.
     """
 
     default: float | int | bool | tuple[float, ...]
 
 
 def tunable(use: str, name: str) -> FieldSelector:
-    """Select the tunable value ``name`` of a use, a param or ``weight``, as in ``tunable("rewards.track", "std")``."""
+    """Select the tunable param ``name`` of a use, or its tunable ``when``: ``tunable("rewards.track", "std")``."""
     return FieldSelector("tunables", f"{use}.{name}", scene=False)
 
 

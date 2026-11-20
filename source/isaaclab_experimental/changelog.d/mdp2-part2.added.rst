@@ -34,8 +34,9 @@
 * Added runtime values to MDP2: a param or reward weight declared :class:`~isaaclab_experimental.mdp2.Tunable` holds
   one value per world, which :func:`~isaaclab_experimental.mdp2.tune` and
   :meth:`~isaaclab_experimental.envs.MDP2Env.tune` change at each world's next reset or from the next step, while
-  captured steps keep replaying. Terms read it as a field, :func:`~isaaclab_experimental.mdp2.tunable`, and each world
-  counts the tunings it applied, recorded as ``revision``.
+  captured steps keep replaying, leaving the other values as they are. Terms read a param as a field,
+  :func:`~isaaclab_experimental.mdp2.tunable`, and each world counts the tunings that took effect, recorded as
+  ``revision``.
 * Added ``when`` to MDP2 term uses: a reward, termination, observation, command, or interval event runs only in the
   worlds where a field, such as a mode command, was positive at the start of the step, and restarts its state, timer,
   command, and history where it turns on. ``when=mdp2.Tunable(True)`` is a switch per world that
@@ -58,11 +59,12 @@
 * Added :func:`~isaaclab_experimental.mdp2.rename`, which binds a part of a task to other scene entities, so that a
   part can run twice, such as two arms. Uses of subtasks that run together get columns of their own, named with the
   subtask's name, as in ``left.joint_pos``; uses of subtasks that take turns share the columns of their name.
-* Added start events to MDP2, ``EventMode.START``: an event of a task of a sequence or a choice, or of a task that
-  repeats, writes the scene when its task starts, at the reset or during the episode, where the scene commits it.
+* Added start events to MDP2, ``EventMode.START``: an event writes the scene when its task starts, at the reset or,
+  for a task of a sequence or a choice, or one that repeats, during the episode, where the scene commits it.
 * Added :meth:`~isaaclab_experimental.envs.MDP2Env.update_task`, which replaces the task of a running environment on
   the same scene, such as with a reward added, and :func:`~isaaclab_experimental.mdp2.migrate`, which carries over the
-  state, random streams, and reward weights of the uses that both tasks have.
+  state, random streams, and tunable values of the uses that both tasks have; other reward weights and params are the
+  new task's.
 * Added variations to the MDP2 library, :func:`~isaaclab_experimental.mdp2.mdp.variation`: a reset event that draws a
   value per world, such as how far a drawer is open, writes it to a scene field, and records it per episode, drawn
   :class:`~isaaclab_experimental.mdp2.mdp.Uniform` (in a tunable range), from a
