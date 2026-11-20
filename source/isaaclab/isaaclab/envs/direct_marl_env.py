@@ -348,10 +348,10 @@ class DirectMARLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras (keyed by the agent ID).
         """
-        # set the seed
         # terminal observations belong to the step that captured them
         for agent in self.cfg.possible_agents:
             self.extras[agent].pop("final_obs", None)
+        # set the seed
         if seed is not None:
             self.seed(seed)
 

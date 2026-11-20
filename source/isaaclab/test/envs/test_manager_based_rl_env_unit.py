@@ -12,8 +12,10 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
-from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
 
 pytestmark = pytest.mark.unit
 
@@ -105,13 +107,8 @@ def test_obs_space_follows_clip_constraint():
 
 
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
-def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind):
+def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: str) -> None:
     """An autoreset step exposes owned terminal observations; the next step and an explicit reset drop them."""
-    import torch
-
-    from isaaclab.envs import DirectMARLEnv, DirectRLEnv
-    from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-
     cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
@@ -144,7 +141,9 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind):
         step=lambda **kwargs: state.add_(1),
         forward=lambda: None,
     )
-    env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None)
+    env.scene = SimpleNamespace(
+        num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None, reset_to=lambda *args, **kwargs: None
+    )
     env.render_enabled = False
     env.has_rtx_sensors = False
     env.video_recorders = []
@@ -160,6 +159,10 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind):
         active_terms=["interval"], available_modes=["interval"], apply=lambda **kw: None
     )
     env.extras = {agent: {} for agent in agents} if env_kind == "marl" else {}
+    # an extras entry the step does not own must survive steps and resets
+    sentinel = object()
+    for agent in agents:
+        extras_of(agent)["user"] = sentinel
     done = torch.zeros(2, dtype=torch.bool)
     timeout = torch.zeros(2, dtype=torch.bool)
     reward = torch.zeros(2)
@@ -195,8 +198,8 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind):
             actions = {a: torch.zeros(2, 1) for a in agents}
 
     def terminal(agent):
-        obs = extras_of(agent).get("final_obs")
-        return None if obs is None else (obs if env_kind == "marl" else obs["policy"])
+        obs = extras_of(agent)["final_obs"]
+        return obs if env_kind == "marl" else obs["policy"]
 
     # step 1 ends env 0's episode: its terminal observation is the post-physics state, unaffected by the reset
     done[0] = True
@@ -206,12 +209,22 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind):
     # step 2 has no reset, so no terminal observation remains from step 1
     done[0] = False
     env.step(actions)
-    assert all(terminal(agent) is None for agent in agents)
+    for agent in agents:
+        assert "final_obs" not in extras_of(agent)
+        assert extras_of(agent)["user"] is sentinel
     # an explicit reset after an autoreset step drops the terminal observation but keeps the reset's log
     done[0] = True
     env.step(actions)
-    assert all(terminal(agent) is not None for agent in agents)
+    assert all("final_obs" in extras_of(agent) for agent in agents)
     _, extras = env.reset()
     for agent in agents:
-        assert terminal(agent) is None
+        assert "final_obs" not in extras_of(agent)
         assert extras_of(agent)["log"] == {"episode": 1}
+        assert extras_of(agent)["user"] is sentinel
+    # reset_to does the same for manager-based environments
+    if env_kind == "manager":
+        env.step(actions)
+        assert "final_obs" in env.extras
+        env.reset_to({}, None)
+        assert "final_obs" not in env.extras
+        assert env.extras["user"] is sentinel

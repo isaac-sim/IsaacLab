@@ -333,9 +333,9 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras.
         """
-        # set the seed
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
+        # set the seed
         if seed is not None:
             self.seed(seed)
 

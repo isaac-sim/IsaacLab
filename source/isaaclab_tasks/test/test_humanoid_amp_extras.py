@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab_tasks.contrib.humanoid_amp.humanoid_amp_env import HumanoidAmpEnv
+from isaaclab_tasks.contrib.humanoid_amp.humanoid_amp_env import HumanoidAmpEnv, compute_obs
 
 pytestmark = pytest.mark.unit
 
@@ -22,7 +22,7 @@ def _proxy(tensor: torch.Tensor) -> SimpleNamespace:
     return SimpleNamespace(torch=tensor)
 
 
-def test_amp_observations_keep_terminal_observations_and_other_extras():
+def test_amp_observations_keep_terminal_observations_and_other_extras() -> None:
     """Computing observations adds ``amp_obs`` without dropping ``final_obs`` or the time-outs."""
     env = object.__new__(HumanoidAmpEnv)
     num_bodies = 1 + NUM_KEY_BODIES
@@ -41,7 +41,7 @@ def test_amp_observations_keep_terminal_observations_and_other_extras():
     env.ref_body_index = 0
     env.key_body_indexes = list(range(1, num_bodies))
     # size the AMP history from one observation of this robot
-    obs_size = HumanoidAmpEnv._get_observations.__globals__["compute_obs"](
+    obs_size = compute_obs(
         env.robot.data.joint_pos.torch,
         env.robot.data.joint_vel.torch,
         env.robot.data.body_pos_w.torch[:, 0],
