@@ -180,6 +180,12 @@ class JointAction(ActionTerm):
         index_fill_(self._raw_actions, env_ids, 0.0)
 
 
+def _apply_joint_gravity_compensation(asset: Articulation, joint_ids: torch.Tensor) -> None:
+    """Write gravity efforts for the selected joints, skipping any floating-base coordinates."""
+    joint_forces = asset.data.gravity_compensation_forces.torch[:, asset.num_base_dofs :]
+    asset.set_joint_effort_target_index(target=joint_forces[:, joint_ids], joint_ids=joint_ids)
+
+
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
 
@@ -195,7 +201,17 @@ class JointPositionAction(JointAction):
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
+        self._gravity_joint_ids = None
+        if cfg.gravity_compensation_joint_names:
+            indices, _ = string_utils.resolve_matching_names(cfg.gravity_compensation_joint_names, self._joint_names)
+            joint_ids = torch.tensor(indices, device=self.device)
+            self._gravity_joint_ids = joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids[joint_ids]
+            # Backend gravity queries must run each step to refresh the current forces.
+            self.is_graphable = False
+
     def apply_actions(self):
+        if self._gravity_joint_ids is not None:
+            _apply_joint_gravity_compensation(self._asset, self._gravity_joint_ids)
         # set position targets
         self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 

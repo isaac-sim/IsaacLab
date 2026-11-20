@@ -7,6 +7,7 @@
 
 from collections.abc import Callable
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import torch
@@ -19,11 +20,12 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
     JointEffortActionCfg,
+    JointPositionActionCfg,
     JointPositionToLimitsActionCfg,
     OperationalSpaceControllerActionCfg,
 )
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
-from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
+from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction, JointPositionAction
 from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.envs.mdp.actions.rmpflow_task_space_actions import RMPFlowAction
@@ -67,6 +69,42 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
     )
     sim = SimpleNamespace(get_physics_dt=lambda: 0.01)
     return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim)
+
+
+@pytest.mark.parametrize("gravity_joints, base_dofs", [(None, 0), (["joint0", "joint2"], 6)])
+def test_position_action_applies_gravity_to_selected_joints(gravity_joints, base_dofs):
+    """Select forces by articulation index while position commands follow the policy order."""
+    env = _make_env()
+    robot = env.scene["robot"]
+    ids = _JointIds(3)
+    ids.torch = torch.tensor([2, 0, 1])
+    robot.find_joints = lambda *args, **kwargs: (ids, ["joint2", "joint0", "joint1"])
+    robot.num_base_dofs = base_dofs
+    forces = torch.arange(2 * (7 + base_dofs)).reshape(2, -1).float()
+    robot.data = SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces))
+    robot.set_joint_effort_target_index = Mock()
+    robot.set_joint_position_target_index = Mock()
+    cfg = JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["joint2", "joint0", "joint1"],
+        preserve_order=True,
+        use_default_offset=False,
+        gravity_compensation_joint_names=gravity_joints,
+    )
+    action = JointPositionAction(cfg, env)
+    commands = torch.tensor([[1.0, 2.0, 3.0]]).repeat(2, 1)
+    action.process_actions(commands)
+    action.apply_actions()
+
+    position = robot.set_joint_position_target_index.call_args.kwargs
+    assert position["joint_ids"].tolist() == [2, 0, 1]
+    torch.testing.assert_close(position["target"], commands)
+    if gravity_joints is None:
+        robot.set_joint_effort_target_index.assert_not_called()
+    else:
+        effort = robot.set_joint_effort_target_index.call_args.kwargs
+        assert effort["joint_ids"].tolist() == [2, 0]
+        torch.testing.assert_close(effort["target"], forces[:, [base_dofs + 2, base_dofs]])
 
 
 def _diff_ik_cfg(
