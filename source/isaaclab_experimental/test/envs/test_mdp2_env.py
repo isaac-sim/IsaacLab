@@ -389,8 +389,10 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
         "steps": observation,
     }
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
+    # A logged quantity of one task only, averaged over its worlds.
+    alive = replace(cfg.task, quantities={**cfg.task.quantities, "alive_steps": mdp2.Quantity(step_count, record=True)})
     worlds = None if task_worlds is None else dict(zip(("alive", "still"), task_worlds))
-    cfg.task = mdp2.split(alive=cfg.task, still=without_alive, worlds=worlds)
+    cfg.task = mdp2.split(alive=alive, still=without_alive, worlds=worlds)
     env = MDP2RLEnv(cfg)
     try:
         # Even shares, or the given number of worlds per task.
@@ -407,6 +409,8 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
         assert extras["log"]["Episode_Reward/alive"].item() == pytest.approx(1.0)
         # The episodes ended at their last step, not at the restart of the next one.
         assert extras["log"]["Metrics/steps"].item() == env.max_episode_length - 1
+        assert extras["log"]["Metrics/alive_steps"].item() == pytest.approx(env.max_episode_length - 1)
+        assert env.is_captured
     finally:
         env.close()
 

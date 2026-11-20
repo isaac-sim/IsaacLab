@@ -98,6 +98,7 @@ def _rollout(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int, physics: 
         for key, values in env.state.arrays.items():
             if isinstance(key, mdp2.FieldSelector) and key.entity == "progress":
                 named[str(key)] = values.torch
+        named |= env.step_buffers()
         steps = []
         for _ in range(num_steps):
             actions = 2.0 * torch.rand(env.num_envs, env.mdp.action_dim, device=env.device, generator=generator) - 1.0

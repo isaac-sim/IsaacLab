@@ -32,6 +32,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.mdp2 import rng
 from isaaclab_experimental.mdp2.capture import torch_in_warp_capture
+from isaaclab_experimental.mdp2.fusion import Fusion
 from isaaclab_experimental.mdp2.plan import Call
 
 from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg, ResetStep, Stage, Step
@@ -367,6 +368,11 @@ class MDP2Env:
     def _after_evaluate(self) -> None:
         """Read the step's results before the worlds that ended are reset. Part of the captured step."""
 
+    def step_buffers(self) -> dict[str, torch.Tensor]:
+        """Return, by name, the buffers beyond the MDP's that the captured step writes, which
+        :attr:`~MDP2EnvCfg.verify_capture` compares."""
+        return {}
+
     def _simulate(self) -> None:
         """Apply the actions and step the physics ``decimation`` times."""
         # Actions apply before every physics step, as in MDP1, so targets relative to the joint state follow it,
@@ -525,69 +531,114 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-        # Per-term episode statistics, kept on the device so that logging needs no host sync.
         self._reward_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.REWARDS]]
         self._termination_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.TERMINATIONS]]
-        # Terms are averaged over the worlds where they are active.
-        self._active_worlds = {
-            phase: torch.tensor(
-                [self.num_envs if op.worlds is None else len(op.worlds) for op in self.mdp.ops[phase]],
-                device=self.device,
-            )
-            for phase in (mdp2.Phase.REWARDS, mdp2.Phase.TERMINATIONS)
-        }
-        self._episode_rewards = torch.zeros(self.num_envs, len(self._reward_names), device=self.device)
-        self._last_episode_rewards = torch.zeros_like(self._episode_rewards)
-        self._last_terminations = torch.zeros(self.num_envs, len(self._termination_names), device=self.device)
-        self._metrics = {
-            op.name.split(".", 1)[1]: (
-                self.state.arrays[op.writes[0]].torch,
-                torch.zeros(self.num_envs, device=self.device),
-                slice(None) if op.worlds is None else list(op.worlds),
-            )
-            for op in self.mdp.ops[mdp2.Phase.QUANTITIES]
-            if op.record
-        }
-        # The time limit is not an op: whether it ended the last episode of each world is kept apart, under its name.
+        # The time limit is not an op: whether it ended the last episode of each world is logged under its name.
         time_limits = [name for name, term in _terminations(cfg.task) if isinstance(term, mdp2.TimeLimit)]
         self._time_limit = time_limits[0] if time_limits else None
-        # Progress: whether each task with a completion was done in each world's last finished episode, logged over
-        # the worlds of the world configs that have it, and for a task of a choice over those that drew it.
-        paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
-        drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
-        everywhere = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-        # Whether each world ran each task in its last episode, if a choice draws some tasks.
-        self._task_runs = None
-        if drawn & set(paths):
-            self._task_runs = [
-                self.state.arrays[mdp2.progress_field(path, "active")].torch if path in drawn else everywhere
-                for path in paths
-            ]
-        self._last_runs = torch.ones(self.num_envs, len(paths), device=self.device)
-        self._tasks = {
-            f"Progress/{path or 'task'}": self.state.arrays[mdp2.progress_field(path, "done")].torch for path in paths
-        }
-        # The worlds of the world configs that have each task, if some do not.
-        members = torch.zeros(self.num_envs, len(paths), device=self.device)
-        for k, path in enumerate(paths):
-            for tree in self.mdp.tasks:
-                members[tree.worlds.start : tree.worlds.stop, k] = float(path in tree.completes)
-        self._task_members = None if bool(members.all()) else members
-        self._last_done = torch.zeros(self.num_envs, len(self._tasks), device=self.device)
-        self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         if cfg.episode_budget is not None:
             self._init_episode_budget(cfg.episode_budget)
+        self._bind_logs()
 
-        # The captured step writes the logged values into one buffer; each step logs a copy, as learners keep the logs
-        # of the steps of a rollout.
-        names = [f"Episode_Reward/{name}" for name in self._reward_names]
-        names += [f"Episode_Termination/{name}" for name in self._termination_names]
-        names += [f"Episode_Termination/{self._time_limit}"] if self._time_limit is not None else []
-        names += [f"Metrics/{name}" for name in self._metrics]
-        names += list(self._tasks)
+    def _bind_logs(self) -> None:
+        """Generate the kernel that sums the term rewards of each world's episode and, where it ended, keeps the logged
+        values of the episode, scaled so that their sum over the worlds is the log: the reward sum per second and
+        whether each termination ended it, averaged over the worlds where the term runs, the value of each recorded
+        quantity, and whether each task with a completion was done, averaged over the worlds that ran the task."""
+        n, device, transition = self.num_envs, self.device, self.transition
+        code = Fusion("mdp2_episode_log", n, device)
+        self._episode_rewards = torch.zeros(n, len(self._reward_names), device=device)
+
+        def argument(tensor: torch.Tensor | ProxyArray, annotation: Any) -> str:
+            array = tensor.warp if isinstance(tensor, ProxyArray) else wp.from_torch(tensor, dtype=annotation.dtype)
+            self._log_arrays.append(array)
+            return code.argument(id(array), annotation, lambda call: array)
+
+        def share(worlds: Sequence[int] | None) -> float:
+            return 1.0 / (n if worlds is None else len(worlds))
+
+        def member(worlds: Sequence[int] | None) -> str:
+            """The condition that a world is one of ``worlds``, true if None."""
+            if worlds is None:
+                return "True"
+            mask = torch.zeros(n, dtype=torch.bool, device=device)
+            mask[list(worlds)] = True
+            return f"{argument(mask, wp.array(dtype=wp.bool))}[world]"
+
+        self._log_arrays: list[wp.array] = []  # The kernel's arguments, kept alive with their Torch tensors
+        names: list[str] = []
+        columns: list[str] = []  # The statement that keeps each column where an episode ended
+        # Rewards: their sums, also where the episodes go on.
+        rewards = self.mdp.ops[mdp2.Phase.REWARDS]
+        summed: list[str] = []  # Adds the step's reward to the sum
+        restarted: list[str] = []  # Restarts the sum where the episode ended
+        if rewards:
+            terms = argument(transition.reward_terms, wp.array2d(dtype=wp.float32))
+            sums = argument(self._episode_rewards, wp.array2d(dtype=wp.float32))
+            if math.isfinite(self.max_episode_length):
+                seconds = repr(float(self.max_episode_length_s))
+            else:  # Without a time limit, per second of the episode itself
+                length = argument(self.state.episode_length, wp.array(dtype=self.state.episode_length.warp.dtype))
+                seconds = f"(float({length}[world]) * {float(self.step_dt)!r})"
+            for k, op in enumerate(rewards):
+                names.append(f"Episode_Reward/{self._reward_names[k]}")
+                summed.append(f"{sums}[world, {k}] = {sums}[world, {k}] + {terms}[world, {k}]")
+                restarted.append(f"    {sums}[world, {k}] = 0.0")
+                columns.append(f"{sums}[world, {k}] * {share(op.worlds)!r} / {seconds}")
+        terminations = self.mdp.ops[mdp2.Phase.TERMINATIONS]
+        if terminations:
+            flags = argument(transition.termination_terms, wp.array2d(dtype=wp.bool))
+            for k, op in enumerate(terminations):
+                names.append(f"Episode_Termination/{self._termination_names[k]}")
+                columns.append(f"wp.where({flags}[world, {k}], {share(op.worlds)!r}, 0.0)")
+        if self._time_limit is not None:
+            length = argument(self.state.episode_length, wp.array(dtype=self.state.episode_length.warp.dtype))
+            names.append(f"Episode_Termination/{self._time_limit}")
+            columns.append(f"wp.where({length}[world] >= {int(self.max_episode_length)}, {share(None)!r}, 0.0)")
+        # Recorded quantities, averaged over the worlds that compute them.
+        for op in self.mdp.ops[mdp2.Phase.QUANTITIES]:
+            if op.record:
+                value = self.state.arrays[op.writes[0]]
+                array = argument(value, wp.array(dtype=value.warp.dtype))
+                names.append(f"Metrics/{op.name.split('.', 1)[1]}")
+                columns.append(f"wp.where({member(op.worlds)}, float({array}[world]) * {share(op.worlds)!r}, 0.0)")
+        # Progress, over the worlds of the world configs that have each task, and for a task of a choice over those
+        # that drew it: such a task keeps a second column, of the worlds that ran it, to divide by.
+        paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
+        drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
+        ratios: list[tuple[int, int]] = []  # Columns of the tasks of a choice: (done, ran)
+        for path in paths:
+            worlds = [w for tree in self.mdp.tasks if path in tree.completes for w in tree.worlds]
+            worlds = None if len(worlds) == n else worlds
+            done = argument(self.state.arrays[mdp2.progress_field(path, "done")], wp.array(dtype=wp.bool))
+            names.append(f"Progress/{path or 'task'}")
+            if path in drawn:
+                active = argument(self.state.arrays[mdp2.progress_field(path, "active")], wp.array(dtype=wp.bool))
+                ran = f"({member(worlds)} and {active}[world])"
+                columns.append(f"wp.where({ran} and {done}[world], 1.0, 0.0)")
+                ratios.append((len(columns) - 1, len(columns)))
+                columns.append(f"wp.where({ran}, 1.0, 0.0)")
+            else:
+                columns.append(f"wp.where({member(worlds)} and {done}[world], {share(worlds)!r}, 0.0)")
+
         self._log_names = names
-        self._log_values = torch.zeros(len(names), device=self.device)
-        self.extras["log"] = dict(zip(names, self._log_values.clone()))
+        self._last_episodes = torch.zeros(n, len(columns), device=device)
+        self._log_ratios = None
+        if ratios:
+            done, ran = zip(*ratios)
+            logged = [k for k in range(len(columns)) if k not in ran]
+            self._log_ratios = tuple(torch.tensor(k, device=device) for k in (done, ran, logged))
+        if columns:
+            ended = self._ended if self.cfg.episode_budget is not None else transition.done
+            last = argument(self._last_episodes, wp.array2d(dtype=wp.float32))
+            code.world(
+                *summed,
+                f"if {argument(ended, wp.array(dtype=wp.bool))}[world]:",
+                *(f"    {last}[world, {k}] = {column}" for k, column in enumerate(columns)),
+                *restarted,
+            )
+        self._log_kernels = code.steps()
+        self.extras["log"] = self._episode_log()
 
     @property
     def max_episode_length(self) -> int | float:
@@ -626,7 +677,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Apply the actions, step the physics, evaluate the MDP, reset the worlds that ended, and observe."""
         self._step_or_replay(action)
-        self.extras["log"] = dict(zip(self._log_names, self._log_values.clone()))
+        self.extras["log"] = self._episode_log()
         self.obs_buf = _clone(self.observations)
 
         transition = self.transition
@@ -733,52 +784,24 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._resets.torch.copy_(restarted)
 
     def _after_evaluate(self) -> None:
-        """Keep the recorded quantities of the worlds that ended, and whether they timed out, before their reset."""
-        # With an episode budget, only the episodes of active worlds count, and only some of them restart.
+        """Spend the episode budget, and keep the logged values of the episodes that ended, before their reset."""
         if self.cfg.episode_budget is not None:
             self._spend_episode_budget()
-        done = self._ended if self.cfg.episode_budget is not None else self.transition.done.torch
-        for value, last, _ in self._metrics.values():
-            torch.where(done, value, last, out=last)
-        if self._tasks:
-            done_tasks = torch.stack(list(self._tasks.values()), 1)
-            torch.where(done[:, None], done_tasks, self._last_done, out=self._last_done)
-            if self._task_runs is not None:
-                runs = torch.stack(self._task_runs, 1)
-                torch.where(done[:, None], runs, self._last_runs, out=self._last_runs)
-        if self._time_limit is not None:
-            timed_out = self.state.episode_length.torch >= self.max_episode_length
-            torch.where(done, timed_out, self._last_time_outs, out=self._last_time_outs)
-        self._log_episodes()
+        for kernel in self._log_kernels:
+            kernel(None)
 
-    def _log_episodes(self) -> None:
-        """Add the step's term rewards to the episode sums, and write the averages over the worlds' last finished
-        episodes to the values that ``extras["log"]`` holds. Part of the captured step."""
-        transition = self.transition
-        ended = (self._ended if self.cfg.episode_budget is not None else transition.done.torch)[:, None]
-        self._episode_rewards += transition.reward_terms.torch
+    def step_buffers(self) -> dict[str, torch.Tensor]:
+        return {"episode_rewards": self._episode_rewards, "last_episodes": self._last_episodes}
 
-        torch.where(ended, self._episode_rewards, self._last_episode_rewards, out=self._last_episode_rewards)
-        terminations = transition.termination_terms.torch.float()
-        torch.where(ended, terminations, self._last_terminations, out=self._last_terminations)
-        self._episode_rewards.masked_fill_(ended, 0.0)
-
-        values = [
-            self._last_episode_rewards.sum(dim=0)
-            / (self._active_worlds[mdp2.Phase.REWARDS] * self.max_episode_length_s)
-        ]
-        values.append(self._last_terminations.sum(dim=0) / self._active_worlds[mdp2.Phase.TERMINATIONS])
-        if self._time_limit is not None:
-            values.append(self._last_time_outs.float().mean()[None])
-        # A quantity that only some worlds compute is averaged over them.
-        values += [last[worlds].mean()[None] for _, last, worlds in self._metrics.values()]
-        if self._tasks and self._task_runs is None and self._task_members is None:
-            values.append(self._last_done.mean(dim=0))  # Every world ran every task
-        elif self._tasks:
-            # Each task is averaged over the worlds that ran it: of the world configs that have it, that drew it.
-            runs = self._last_runs if self._task_members is None else self._last_runs * self._task_members
-            values.append((self._last_done * runs).sum(dim=0) / runs.sum(dim=0).clamp(min=1.0))
-        torch.cat(values, out=self._log_values)
+    def _episode_log(self) -> dict[str, torch.Tensor]:
+        """Return the logs of the worlds' last finished episodes, a new tensor per step, as learners keep the logs of
+        the steps of a rollout."""
+        values = self._last_episodes.sum(dim=0)
+        if self._log_ratios is not None:
+            done, ran, logged = self._log_ratios
+            values[done] /= values[ran].clamp(min=1.0)
+            values = values[logged]
+        return dict(zip(self._log_names, values))
 
 
 def _terminations(task: mdp2.TaskCfg) -> list[tuple[str, Any]]:
