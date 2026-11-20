@@ -18,8 +18,6 @@ on:
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
       - ".github/workflows/build.yaml"
-      - ".github/workflows/nightly-isaacsim-image.yml"
-      - ".github/workflows/nightly-ovstage.yml"
       - ".github/workflows/run-docker-ci.yml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
