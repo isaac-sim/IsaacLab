@@ -102,6 +102,7 @@ Guidelines for modifications:
 * Fatima Anes
 * Felipe Mohr
 * Felix Yu
+* Feng Yu
 * Frank Lai
 * Gary Lvov
 * Giulio Romualdi
