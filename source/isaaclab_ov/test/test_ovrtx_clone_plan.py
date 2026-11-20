@@ -95,6 +95,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         population_env_paths=[],
         clone_positions=None,
         render_products=set(),
+        unrendered={},
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
@@ -367,16 +368,16 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     assert combined_layer.defaultPrim == "World"
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
     assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
-    assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
-    assert combined_layer.GetPrimAtPath(second_camera.render_product_path).typeName == "RenderProduct"
-    assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
+    assert combined_layer.GetPrimAtPath(render_data.products[0].path).typeName == "RenderProduct"
+    assert combined_layer.GetPrimAtPath(second_camera.products[0].path).typeName == "RenderProduct"
+    assert combined_layer.GetAttributeAtPath(render_data.products[0].path + ".deviceIds").default == [1]
     assert len(open_calls) == 1
     reference_text, reference_path = reference_calls[0]
     assert reference_path == "/RenderCamera_0"
     reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
     assert reference_layer.ImportFromString(reference_text)
     assert reference_layer.defaultPrim == render_data.render_scope_name
-    assert reference_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert reference_layer.GetPrimAtPath(render_data.products[0].path).typeName == "RenderProduct"
     with pytest.raises(ValueError, match="simulation device"):
         renderer.create_render_data(replace(spec, device="cpu"))
 
@@ -420,7 +421,7 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
         (
-            [render_data.render_product_path],
+            [render_data.products[0].path],
             "camera",
             [["/World/Camera"] if global_camera else [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]],
         )
