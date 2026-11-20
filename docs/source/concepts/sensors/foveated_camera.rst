@@ -45,8 +45,22 @@ Run the demo with the ``fovi`` extra.
 
    uv run --extra fovi isaaclab demo foveated-camera
 
-Add :class:`~sensors.FoveatedCameraCfg` to a scene like any other camera. Newton Warp and OptiX render the
-retinal rays directly. Isaac RTX and OVRTX use lens lookup textures.
+Declare a :class:`~sensors.FoveatedCameraCfg` directly on the scene. For example, a 32 × 32 RGB retina and a
+pooled variant can share the same camera setup.
+
+.. code-block:: python
+
+   from isaaclab.sim import PinholeCameraCfg
+   from isaaclab_fovi.sensors import FoveatedCameraCfg
+
+   camera = FoveatedCameraCfg(
+       prim_path="{ENV_REGEX_NS}/Camera",
+       spawn=PinholeCameraCfg(),
+       foveated_res=32,
+   )
+   pooled_camera = camera.replace(pool_enabled=True)
+
+Newton Warp and OptiX render the retinal rays directly. Isaac RTX and OVRTX use lens lookup textures.
 
 The retinal field of view defaults to the angle across the short side of the physical image. The camera
 uses ideal pinhole optics or supported OpenCV distortion from ``spawn``. Supply
@@ -64,6 +78,7 @@ Pooling
 
 Enable :attr:`~sensors.FoveatedCameraCfg.pool_enabled` to render a denser set of rays and pool their values
 into the published retina. Grid styles pool windows, while sample sets pool nearest neighbours.
+The neighbour metric applies to nearest-neighbour pooling, and Gaussian sigma applies to Gaussian pooling.
 The sensor mask excludes rays outside the physical image from the reduction. Segmentation selects the
 modal label in its original dtype.
 

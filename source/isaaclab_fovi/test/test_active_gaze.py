@@ -17,7 +17,6 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
-    teacher_block_dim,
     teacher_labels_kernel,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
@@ -132,7 +131,7 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
 
     labels = torch.empty(count, 3, device=device)
     log = torch.full((2,), float("nan"), device=device)
-    block = teacher_block_dim(device)
+    block = 1024 if torch.device(device).type == "cuda" else 1
     with torch_stream(device):
         wp.launch(
             teacher_labels_kernel,

@@ -96,8 +96,8 @@ class FoveatedCameraCfg(CameraCfg):
     exit_texture_size: int | None = None
     """Side of the RTX inverse lens texture; None uses ``max(128, 4 * grid side)``."""
 
-    # The camera sets height and width on its own copy of the configuration, from the retina's samples, before the
-    # parent allocates buffers. The defaults only satisfy CameraCfg's required fields.
+    # Render dimensions come from the retinal samples. On Newton, these initial dimensions also determine the
+    # aspect ratio used to infer an unspecified vertical aperture when spawning the camera.
     width: int = 1
     height: int = 1
 
