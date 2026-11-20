@@ -90,6 +90,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.next_camera_id = 0
     renderer.scene.clone_copies = []
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
+    renderer.scene.mesh_variant_paths = {}
+    renderer.scene.mesh_variant_sources = {}
     renderer.backend.attached = False
     renderer.backend.render_products = set()
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
@@ -1445,6 +1447,8 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         clone_copies=[],
         clone_positions=np.zeros((0, 3)),
         population_env_paths=[],
+        mesh_variant_paths={},
+        mesh_variant_sources={},
         ordinal=1 if shared else 0,
         cfg=types.SimpleNamespace(
             scene_key=None if shared else renderer.backend.cfg, populate_physics=populate_physics

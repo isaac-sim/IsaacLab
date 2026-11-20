@@ -15,6 +15,7 @@ __all__ = [
     "grid_transforms",
     "make_clone_plan",
     "make_valid_clone_combinations",
+    "mesh_variant_groups",
     "num_spawn_variants",
     "path",
     "PrototypeWorldTopology",
@@ -39,6 +40,7 @@ from .replicate_session import (
     ReplicateSession,
     clone_plan_from_env_0,
     make_valid_clone_combinations,
+    mesh_variant_groups,
     num_spawn_variants,
     replicate,
 )

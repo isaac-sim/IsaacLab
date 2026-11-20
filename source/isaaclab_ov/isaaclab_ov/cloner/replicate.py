@@ -246,7 +246,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
         """
         backends = [backend for backend in self._sim.get_backends(OVRTXBackendCfg) if not backend.cfg.use_ovstage]
-        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+        _prepare_scene_copies(plan, asset_prototype_ids, backends, self._sim.stage)
 
 
 class OvstageReplicateContext(cloner.ReplicateContext):
@@ -261,21 +261,48 @@ class OvstageReplicateContext(cloner.ReplicateContext):
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to OVStage resources.
         """
-        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg))
+        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg), self._sim.stage)
+
+
+def _rigid_body_path(stage: Usd.Stage, source: str) -> str:
+    """Return the rigid body at or below a mesh-variant source; Newton publishes its pose for the variant."""
+    root = stage.GetPrimAtPath(source)
+    if not root:
+        raise ValueError(f"Mesh-variant source prim is not valid on the stage: {source}")
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            return str(prim.GetPath())
+    return source
 
 
 def _prepare_scene_copies(
-    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend | OvstageBackend]
+    plan: ClonePlan,
+    asset_prototype_ids: tuple[int, ...],
+    backends: Sequence[OVRTXBackend | OvstageBackend],
+    stage: Usd.Stage,
 ) -> None:
-    """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan."""
+    """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan.
+
+    Every alternative of a reset-time mesh variant is copied under its world's body frame, so a stage
+    consumer can follow Newton's selection by toggling visibility instead of replacing prims.
+    """
     if not backends:
         return
-    sources = cloner.path.get_asset_prototype_paths(plan)
+    sources = list(cloner.path.get_asset_prototype_paths(plan))
+    variant_groups = {}
+    for rows in cloner.mesh_variant_groups(plan).values():
+        for row in rows:
+            # Alternatives unused by every initial composition have no world; the planner authored them anyway.
+            sources[row] = plan.asset_cfgs[row].spawn.spawn_path
+            variant_groups[row] = rows
+    body_path = cache(partial(_rigid_body_path, stage))
     templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
     )
     assets = plan.topology.world_prototypes
     copies = {}
+    variant_paths: dict[str, list[str]] = {}
+    variant_sources: dict[str, str] = {}
     for group in np.flatnonzero(np.diff(world_starts)):
         targets = world_ids[world_starts[group] : world_starts[group + 1]]
         members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
@@ -287,7 +314,19 @@ def _prepare_scene_copies(
                 suffix = cloner.path.relative_to(template, templates[ancestor])
                 if source == sources[assets[ancestor]] + suffix:
                     continue
-            copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+            rows = variant_groups.get(assets[index])
+            if rows is None:
+                copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+                continue
+            # The body frame receives the published pose; every alternative is one of its children.
+            frame = template + cloner.path.relative_to(body_path(sources[rows[0]]), sources[rows[0]])
+            for variant, row in enumerate(rows):
+                variant_sources.setdefault(sources[row], body_path(sources[row]))
+                child = f"{frame}/variant_{variant}"
+                copies.setdefault((sources[row], child), []).extend(child.format(int(world)) for world in targets)
+            for world in targets:
+                path = frame.format(int(world))
+                variant_paths[path] = [f"{path}/variant_{variant}" for variant in range(len(rows))]
     # Native clones cannot overwrite existing prims. Keep self-only sources for export,
     # but omit self-copies and children already carried by the same parent copy.
     native_copies = [
@@ -302,6 +341,8 @@ def _prepare_scene_copies(
         backend.clone_copies = native_copies
         backend.clone_env_paths = env_paths
         backend.clone_positions = plan.positions
+        backend.mesh_variant_paths = variant_paths
+        backend.mesh_variant_sources = variant_sources
 
 
 def ovrtx_replicate(

@@ -36,6 +36,8 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
+        self._variants_timestamp = 0
+        self._variants_state: tuple[Model, int] | None = None
         self._geometry_batches = []
 
     def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, list[int]]) -> None:
@@ -103,6 +105,25 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if self.model.body_label is not None:
             return list(self.model.body_label)
         return []
+
+    @property
+    def transform_variants(self) -> wp.array | None:
+        """Publish Newton's selected body variants; bodies without variants hold ``-1``."""
+        model = self.model
+        if model is None or not model._has_body_variants:
+            return None
+        return model.body_variant
+
+    @property
+    def variants_timestamp(self) -> int:
+        """Advance when the model is rebuilt or a native selection changes shape type or source."""
+        backend = self._manager.backend
+        if backend is not None:
+            state = self._variants_state
+            if state is None or state[0] is not backend.model or state[1] != backend.geometry_change_version:
+                self._variants_state = (backend.model, backend.geometry_change_version)
+                self._variants_timestamp += 1
+        return self._variants_timestamp
 
     @property
     def model(self) -> Model | None:

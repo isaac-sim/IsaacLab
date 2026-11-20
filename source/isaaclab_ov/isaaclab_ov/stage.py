@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from functools import cache
 
 import numpy as np
 import ovstage
 import warp as wp
 
-from pxr import Sdf, Usd, UsdRender, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender, UsdUtils, Vt
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
@@ -203,6 +203,10 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self.mesh_variant_paths: dict[str, list[str]] = {}
+        """Alternative prims of each mesh-variant body frame, in variant order."""
+        self.mesh_variant_sources: dict[str, str] = {}
+        """Rigid body of each mesh-variant source, whose frame the copies follow."""
         self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
         self._render_copy_error: Exception | None = None
         self.resources = contextlib.ExitStack()
@@ -358,6 +362,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     preserve_references: bool = False,
+    variant_sources: Mapping[str, str] | None = None,
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -370,10 +375,14 @@ def export_stage_to_string(
         clone_env_paths: Declared environment roots. Source filtering is skipped for one environment.
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
-        env_paths: Environment frames to create in the private export before native cloning.
+        env_paths: Frames to create in the private export before native cloning: environment roots
+            and the body frames that receive mesh-variant copies.
         preserve_references: Retain clean file-backed references and instances instead of baking
             their geometry into text. Anonymous or unsaved referenced layers require full
             composition so that the returned string does not depend on their Python lifetime.
+        variant_sources: Rigid body prim of each mesh-variant source. Copies of a source are placed
+            under the body frame that receives the published pose, so the source is authored
+            invisible, with its body at the frame origin and only the body's scale retained.
 
     Returns:
         USDA text containing the selected prototypes. By default, composition arcs are baked.
@@ -453,6 +462,22 @@ def export_stage_to_string(
             while prim and prim.specifier == Sdf.SpecifierOver:
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
+        xforms = UsdGeom.XformCache()
+        for source, body in (variant_sources or {}).items():
+            # A copy's body lands on its frame when the source undoes the body's pose below the source root;
+            # the body's scale is kept because the frame receives a rigid pose.
+            source_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(source))
+            body_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(body))
+            relative = body_world * source_world.GetInverse()
+            local = relative.GetInverse() * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
+            spec = Sdf.CreatePrimInLayer(layer, source)
+            for name, type_name, value in (
+                ("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, local),
+                (UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray, Vt.TokenArray(["xformOp:transform"])),
+                (UsdGeom.Tokens.visibility, Sdf.ValueTypeNames.Token, UsdGeom.Tokens.invisible),
+            ):
+                attribute = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, type_name)
+                attribute.default = value
     return layer.ExportToString()
 
 

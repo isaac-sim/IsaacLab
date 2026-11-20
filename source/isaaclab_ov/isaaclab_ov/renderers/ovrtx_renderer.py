@@ -271,6 +271,8 @@ class OVRTXBackend:
             self.clone_env_paths: list[str] = []
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
+            self.mesh_variant_paths: dict[str, list[str]] = {}
+            self.mesh_variant_sources: dict[str, str] = {}
         self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
@@ -382,6 +384,11 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
+        # Mesh-variant bodies: rows into the SDP transforms, their alternative prims, and the shown alternatives.
+        self._variant_rows: np.ndarray | None = None
+        self._variant_children: list[tuple[str, ...]] = []
+        self._variant_selection = np.empty(0, dtype=np.int32)
+        self._variants_timestamp = -1
         self._initialized_scene = False
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
@@ -418,8 +425,9 @@ class OVRTXRenderer(BaseRenderer):
             # Physics population needs fully composed instance collider data.
             usd = export_stage_to_string(
                 stage, self.scene.clone_env_paths, source_paths=tuple(source for source, _ in self.scene.clone_copies),
-                keep_env_roots=False, env_paths=self.scene.population_env_paths,
+                keep_env_roots=False, env_paths=[*self.scene.population_env_paths, *self.scene.mesh_variant_paths],
                 preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
+                variant_sources=self.scene.mesh_variant_sources,
             )  # fmt: skip
             if not self._use_ovstage:
                 # Author the camera mode before loading the stage: changing it later
@@ -463,6 +471,7 @@ class OVRTXRenderer(BaseRenderer):
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
+        self._setup_mesh_variants()
         self._setup_geometry_bindings()
         if self._use_ovstage:
             # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
@@ -530,6 +539,64 @@ class OVRTXRenderer(BaseRenderer):
             self._bindings.callback(self._object_xform_binding.unbind)
             self.backend.renderer.write_attribute(
                 prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
+            )
+
+    def _setup_mesh_variants(self) -> None:
+        """Map each mesh-variant body frame to its SDP transform row and its alternative prims."""
+        variants = self.scene.mesh_variant_paths
+        self._variant_rows = None
+        self._variant_children = []
+        self._variant_selection = np.full(len(variants), -1, dtype=np.int32)
+        self._variants_timestamp = -1
+        if not variants:
+            return
+        rows = {path: index for index, path in enumerate(self._sdp.backend.transform_paths)}
+        if missing := [path for path in variants if path not in rows]:
+            raise RuntimeError(f"Mesh-variant body frames are not published as transforms: {missing[:3]}")
+        self._variant_rows = np.fromiter((rows[path] for path in variants), dtype=np.int32, count=len(variants))
+        self._variant_children = [tuple(children) for children in variants.values()]
+
+    def _update_mesh_variants(self) -> None:
+        """Show the alternative each body frame selects, hiding the one shown before."""
+        if self._variant_rows is None:
+            return
+        backend = self._sdp.backend
+        timestamp = backend.variants_timestamp
+        if self._variants_timestamp == timestamp:
+            return
+        variants = backend.transform_variants
+        if variants is None:
+            selected = np.full(len(self._variant_children), -1, dtype=np.int32)
+        else:
+            selected = variants.numpy()[self._variant_rows]
+        paths, tokens = [], []
+        for row in np.flatnonzero(selected != self._variant_selection):
+            children = self._variant_children[row]
+            for variant, token in ((self._variant_selection[row], "invisible"), (selected[row], "inherited")):
+                if 0 <= variant < len(children):
+                    paths.append(children[variant])
+                    tokens.append(token)
+        if paths:
+            self._write_visibility(paths, tokens)
+        self._variant_selection = selected
+        self._variants_timestamp = timestamp
+
+    def _write_visibility(self, paths: Sequence[str], tokens: Sequence[str]) -> None:
+        """Write one USD visibility token per prim through the scene owner."""
+        if self._use_ovstage:
+            ids = np.array([self.scene.paths.intern_token(token).raw_id for token in tokens], dtype=np.uint64)
+            with self.scene.query(paths) as query:
+                self.scene.stage.write_attribute(
+                    query,
+                    "visibility",
+                    ordinal=self.scene.ordinal,
+                    tensors=ids,
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                ).wait()
+        else:
+            self.backend.renderer.write_attribute(
+                list(paths), "visibility", list(tokens), semantic=Semantic.TOKEN_STRING
             )
 
     def _setup_geometry_bindings(self) -> None:
@@ -1054,7 +1121,8 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
-        """Write changed SDP geometry to OVRTX."""
+        """Write changed SDP geometry and mesh-variant selections to OVRTX."""
+        self._update_mesh_variants()
         for callback in self.geometry_callbacks.values():
             callback(self)
         for marker in tuple(self.markers):
@@ -1279,6 +1347,10 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_paths = []
             self._geometry_timestamp = -1
             self._transforms_timestamp = -1
+            self._variant_rows = None
+            self._variant_children = []
+            self._variant_selection = np.empty(0, dtype=np.int32)
+            self._variants_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
             self._visual_material_writer_ref = None
