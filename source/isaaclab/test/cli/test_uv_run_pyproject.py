@@ -81,7 +81,6 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "teleop",
         "importers",
         "rlinf",
-        "cosmos3",
         "tetrahedralization",
         "all",
     }
@@ -114,7 +113,6 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
-        "cosmos3",
         "torchrl",
         "skrl-jax",
         "isaacsim",

@@ -21,7 +21,6 @@ state at reset, then the last joint target), so joint observations and actions b
 | `Articulation` | Virtual articulation. Reads and writes the manager's joint state, so the task's joint observation and action terms work unchanged. Everything that needs a body raises. |
 | `reset_from_records` | Reset event that starts an episode from a reset record, in place of `reset_joints_by_*`. |
 | `at_chunk_boundary` | Makes a termination function fire only where environments can reset. |
-| `Cosmos3Cfg`, `Cosmos3Model` | Cosmos3 `unified_v1` implementation of `WorldModel` (`isaaclab_neural.models.cosmos3`). |
 
 ## Using a task's configuration
 
@@ -73,40 +72,6 @@ Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`:
 | `close()` | Release resources. |
 
 Construction is cheap; load the weights on the first `reset()`.
-
-## Cosmos3
-
-```bash
-uv sync --extra cosmos3 --extra importers
-uv run python scripts/tools/cosmos/prepare_medical_pad.py --download
-uv run python scripts/tools/cosmos/cosmos3_replay.py \
-    --checkpoint .pretrained_checkpoints/medical_pad_unfold/world_model --output outputs/cosmos3/replay
-```
-
-`prepare_medical_pad.py` checks the model files listed in the task's
-[`artifacts.json`](../../isaaclab_tasks/isaaclab_tasks/contrib/medical_pad_unfold/assets/artifacts.json) and
-points the world model's config at them. The replay script drives `Cosmos3Model` with recorded controls and writes
-`generated.mp4`.
-
-`Cosmos3Model.step` converts joint targets to 59 normalized controls with the task's `JointMappingCfg`, so the robot
-description and the normalization stay with the task. `window` mode serves any number of environments, one after the
-other; `session` mode serves one.
-
-### The medical-pad task
-
-`Isaac-Cosmos3-Medical-Pad-Unfold-v0` is a manager-based task on this backend. It uses `JointPositionAction` over the
-58 recorded H2 joints, a `joint_pos` observation, the head camera's image and `reset_from_records`. Its reward and its
-success and failure terminations read one `ClassifierTracker`, which judges each generated chunk frame by frame:
-
-* An episode **succeeds** (**fails**) at the first frame that completes 30 consecutive frames of the classifier's best
-  (worst) class. The streaks continue across chunks and start again with each episode.
-* The **reward** is the sum of the classifier's per-frame progress up to and including that frame; later frames
-  belong to an episode that has already ended. The term's weight is the frame rate, which cancels the reward manager's
-  `step_dt` scaling.
-* The **terminations** report the outcome when the chunk completes. Episodes also time out after 30 chunks.
-
-The URDF import needs the `importers` extra. The task fixes the 17 joints that the reset records do not cover, so the
-articulation's joints are exactly the 58 recorded ones.
 
 ## Tests
 

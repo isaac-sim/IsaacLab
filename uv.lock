@@ -29,15 +29,10 @@ overrides = [
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "transformers", specifier = "==5.10.4" },
     { name = "urdf-usd-converter", specifier = "==0.3.4" },
     { name = "urllib3", specifier = ">=2.8.0" },
     { name = "usd-exchange", specifier = "==3.0.1" },
     { name = "usd-optimize", specifier = "~=1.3.1" },
-]
-excludes = [
-    { package = { name = "cosmos-framework", version = "1.2.2" }, dependencies = ["nvidia-cudnn-frontend", "obstore", "iopath", "uv"] },
-    { package = { name = "tyro", version = "1.0.17" }, dependencies = ["typeguard"] },
 ]
 
 [[package]]
@@ -476,19 +471,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cattrs"
-version = "25.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/42/988b3a667967e9d2d32346e7ed7edee540ef1cee829b53ef80aa8d4a0222/cattrs-25.2.0.tar.gz", hash = "sha256:f46c918e955db0177be6aa559068390f71988e877c603ae2e56c71827165cc06", size = 506531, upload-time = "2025-08-31T20:41:59.301Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/a5/b3771ac30b590026b9d721187110194ade05bfbea3d98b423a9cafd80959/cattrs-25.2.0-py3-none-any.whl", hash = "sha256:539d7eedee7d2f0706e4e109182ad096d608ba84633c32c75ef3458f1d11e8f1", size = 70040, upload-time = "2025-08-31T20:41:57.543Z" },
-]
-
-[[package]]
 name = "cbor2"
 version = "5.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -789,35 +771,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/05/0a/a3fe3be3ee2dceb3e615ebb4df97ae6f3828aa915d3e10549ce016302bd1/contourpy-1.3.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:451e71b5a7d597379ef572de31eeb909a87246974d960049a9848c3bc6c41bf7", size = 1331288, upload-time = "2025-07-26T12:01:31.198Z" },
     { url = "https://files.pythonhosted.org/packages/33/1d/acad9bd4e97f13f3e2b18a3977fe1b4a37ecf3d38d815333980c6c72e963/contourpy-1.3.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:459c1f020cd59fcfe6650180678a9993932d80d44ccde1fa1868977438f0b411", size = 1403386, upload-time = "2025-07-26T12:01:33.947Z" },
     { url = "https://files.pythonhosted.org/packages/19/e8/6026ed58a64563186a9ee3f29f41261fd1828f527dd93d33b60feca63352/contourpy-1.3.3-cp312-cp312-win_amd64.whl", hash = "sha256:8153b8bfc11e1e4d75bcb0bff1db232f9e10b274e0929de9d608027e0d34ff8b", size = 226567, upload-time = "2025-07-26T12:01:36.804Z" },
-]
-
-[[package]]
-name = "cosmos-framework"
-version = "1.2.2"
-source = { git = "https://github.com/NVIDIA/cosmos-framework.git?rev=3a84cd3b67f60520f523e184fa7b82011bc75cb4#3a84cd3b67f60520f523e184fa7b82011bc75cb4" }
-dependencies = [
-    { name = "accelerate" },
-    { name = "av" },
-    { name = "boto3" },
-    { name = "cattrs" },
-    { name = "diffusers" },
-    { name = "einops" },
-    { name = "hydra-core" },
-    { name = "imageio" },
-    { name = "imageio-ffmpeg" },
-    { name = "loguru" },
-    { name = "msgpack" },
-    { name = "nvidia-ml-py" },
-    { name = "omegaconf" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "qwen-vl-utils" },
-    { name = "requests" },
-    { name = "scipy" },
-    { name = "termcolor" },
-    { name = "transformers" },
-    { name = "tyro" },
-    { name = "websockets" },
 ]
 
 [[package]]
@@ -1944,9 +1897,6 @@ all = [
     { name = "tqdm" },
     { name = "viser" },
 ]
-cosmos3 = [
-    { name = "cosmos-framework", marker = "sys_platform != 'win32'" },
-]
 dev = [
     { name = "autodocsumm" },
     { name = "coverage" },
@@ -2079,9 +2029,8 @@ requires-dist = [
     { name = "av", marker = "extra == 'rlinf'", specifier = ">=12.3.0" },
     { name = "botocore" },
     { name = "coacd", specifier = ">=1.0.7" },
-    { name = "cosmos-framework", marker = "sys_platform == 'linux' and extra == 'cosmos3'", git = "https://github.com/NVIDIA/cosmos-framework.git?rev=3a84cd3b67f60520f523e184fa7b82011bc75cb4" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
-    { name = "daqp", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = "==0.8.5" },
+    { name = "daqp", marker = "(platform_machine == 'aarch64' or platform_machine == 'x86_64') and sys_platform == 'linux'", specifier = "==0.8.5" },
     { name = "decord2", marker = "extra == 'rlinf'" },
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "==0.5.0" },
     { name = "diffusers", marker = "extra == 'rlinf'", specifier = ">=0.35.0" },
@@ -2151,8 +2100,8 @@ requires-dist = [
     { name = "physx-usd-schemas", marker = "extra == 'ov'", specifier = "==25.11.2.72696984", index = "https://pypi.org/simple" },
     { name = "physx-usd-schemas", marker = "extra == 'ovphysx'", specifier = "==25.11.2.72696984", index = "https://pypi.org/simple" },
     { name = "pillow", specifier = ">=12.3.0" },
-    { name = "pin", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
-    { name = "pin-pink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = "==3.3.0" },
+    { name = "pin", marker = "(platform_machine == 'aarch64' or platform_machine == 'x86_64') and sys_platform == 'linux'" },
+    { name = "pin-pink", marker = "(platform_machine == 'aarch64' or platform_machine == 'x86_64') and sys_platform == 'linux'", specifier = "==3.3.0" },
     { name = "prettytable", specifier = ">=3.3.0" },
     { name = "protobuf", specifier = ">=4.25.8,!=5.26.0" },
     { name = "psutil" },
@@ -2209,7 +2158,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "cosmos3", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -3200,15 +3149,6 @@ wheels = [
 ]
 
 [[package]]
-name = "loguru"
-version = "0.8.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/61/ce/b5bb93d4d9fc7a067f69140b3bb3782f6ad6360bc76e99b6e3d386cb1320/loguru-0.8.0.tar.gz", hash = "sha256:fb3e4623288e37700a0577f6e0ce776cc1860b5d95c657d67f07a2476b304867", size = 71232, upload-time = "2026-11-11T18:50:26.248Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/00/9ee7c8da7342b1a5524bca9d036f89e7d1d1e5a6345c9623763eeeac941f/loguru-0.8.0-py3-none-any.whl", hash = "sha256:e0fba09d6f76ba2d2f4bd1757122942f5a670c702e988b5efaeab99dacba0069", size = 69409, upload-time = "2026-11-11T18:50:24.148Z" },
-]
-
-[[package]]
 name = "loop-rate-limiters"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3775,15 +3715,6 @@ source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
     { url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:400c6ed1cf6780fc6efedd64ec9f1345871767e6a1a0a552a1ea0578117ea77c" },
     { url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:25e30a8a7323935d4ad0340b95a0b69926eee755767e8e0b1cf8dd85b197d3fd" },
-]
-
-[[package]]
-name = "nvidia-ml-py"
-version = "13.615.71"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fd/30/b25216758be3d3e2834825d8193609e2d71c770a8bd7984438c058c90268/nvidia_ml_py-13.615.71.tar.gz", hash = "sha256:bebe4e48f51b1dc75028c0815cb7bfa14a31a5bb80be70c9d980c6036953fc3d", size = 57485, upload-time = "2026-09-25T15:15:28.226Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/a1/1681dfa1c904d4e3e72e51b55a0ff012d50b766843ef832d584abe2113c6/nvidia_ml_py-13.615.71-py3-none-any.whl", hash = "sha256:959bf4adf6fe1308e4bd739e722236b0d1ec8392e2cefad33ff70c311380b9b6", size = 58132, upload-time = "2026-09-25T15:15:26.54Z" },
 ]
 
 [[package]]
@@ -4985,21 +4916,6 @@ wheels = [
 ]
 
 [[package]]
-name = "qwen-vl-utils"
-version = "0.0.14"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "av" },
-    { name = "packaging" },
-    { name = "pillow" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/b1/ad4fc2260a3badd278b38d642f3b987412f1f6682f0ef2b31b0572d5caa8/qwen_vl_utils-0.0.14.tar.gz", hash = "sha256:9c7cad5ae803b3a10f8bb7194deb12aeacdd032f92f4224e880c73587a7346ad", size = 8453, upload-time = "2025-09-23T09:38:57.532Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/43/80f67e0336cb2fc725f8e06f7fe35c1d0fe946f4d2b8b2175e797e07349e/qwen_vl_utils-0.0.14-py3-none-any.whl", hash = "sha256:5e28657bfd031e56bd447c5901b58ddfc3835285ed100f4c56580e0ade054e96", size = 8120, upload-time = "2025-09-23T09:38:56.297Z" },
-]
-
-[[package]]
 name = "ray"
 version = "2.59.0"
 source = { registry = "https://pypi.org/simple" }
@@ -6094,19 +6010,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/55/e3/70399cb7dd41c10ac53367ae42139cf4b1ca5f36bb3dc6c9d33acdb43655/typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464", size = 75949, upload-time = "2025-10-01T02:14:41.687Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dc/9b/47798a6c91d8bdb567fe2698fe81e0c6b7cb7ef4d13da4114b41d239f65d/typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7", size = 14611, upload-time = "2025-10-01T02:14:40.154Z" },
-]
-
-[[package]]
-name = "tyro"
-version = "1.0.17"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "docstring-parser" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/91/02/9f6388420d5365a24317178157c02d4c737ab5c754baf036f6d0544ac21e/tyro-1.0.17.tar.gz", hash = "sha256:484a040f4bebf8374df2e3fa202b10e413f8d1506ca997ba18cd149bb540203e", size = 606203, upload-time = "2026-11-04T09:47:51.725Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/00/2f6e3ec8a96846564028bc20dd7d7a367f01c584067d01db9752d888aca0/tyro-1.0.17-py3-none-any.whl", hash = "sha256:89bbe5b4907965cac4077d2a1c3eaa3648afe177e214c57e490906d0ffef84c1", size = 217323, upload-time = "2026-11-04T09:47:49.994Z" },
 ]
 
 [[package]]
