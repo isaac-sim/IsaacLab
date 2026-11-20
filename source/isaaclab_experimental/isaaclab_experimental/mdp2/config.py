@@ -343,9 +343,10 @@ class TaskCfg:
 
     A task may also say when it is done, and hold named subtasks, which are tasks too. Its uses run whenever it runs;
     those of a subtask run when the subtask does, and their names get the subtask's name as a prefix, as in
-    ``rewards.grasp.lift``, except in a :func:`split`. A subtask reads its own commands and quantities by their names,
-    as a task that runs alone does; :func:`term_state` and :data:`progress` name uses and tasks by their full paths.
-    The progress of every task is a set of fields that terms read, see :data:`progress`.
+    ``rewards.grasp.lift``, except in a :func:`split`. A subtask reads its own fields by their names, as a task that
+    runs alone does: its commands and quantities, the :func:`term_state` and :func:`tunable` values of its uses, and
+    the :data:`progress` of itself and its subtasks. Inner names win: inside a subtask, ``mdp2.progress.done`` is the
+    subtask's own. The progress of every task is a set of fields that terms read, see :data:`progress`.
     """
 
     actions: dict[str, DirectAction | Action | None] = field(default_factory=dict)

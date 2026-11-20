@@ -143,8 +143,10 @@ one:
   commands, and observation histories. Quantities are measurements: they run in every step, and only restart. Reset
   and startup events set up whole episodes, so they run at every reset.
 - **Names.** The uses of a subtask get its name as a prefix, as in ``rewards.grasp.grasp``, except in a split, whose
-  subtasks run apart. A subtask reads its own commands and quantities by their names, as a task alone does, so
-  each stage of a sequence can have its own ``reached``; ``term_state`` and ``mdp2.progress`` take full paths. Observations of the same name share their columns, as wide as the widest, so a ``goal`` of each
+  subtasks run apart. A subtask reads its own fields by their names, as a task alone does, so each stage of a
+  sequence can have its own ``reached``: its commands and quantities, the ``term_state`` and ``tunable`` values of its
+  uses, and its ``mdp2.progress``; inner names win. Observations of the same name share their columns, as wide as the
+  widest, so a ``goal`` of each
   stage, or the ``joint_pos`` of two robots, is one input of the policy; :meth:`~isaaclab_experimental.mdp2.MDP.spec`
   names the columns, and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask` gives those each world writes.
 - **Progress.** Every task's progress is a set of fields that terms read: ``mdp2.progress.done``,

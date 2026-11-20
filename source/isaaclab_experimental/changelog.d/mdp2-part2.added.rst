@@ -15,7 +15,8 @@
   (:func:`~isaaclab_experimental.mdp2.compose`, with ``require``), one after another
   (:func:`~isaaclab_experimental.mdp2.sequence`), or in their own worlds (:func:`~isaaclab_experimental.mdp2.split`).
   :class:`~isaaclab_experimental.mdp2.Milestone` is a task with only a completion. The uses of a task of a sequence run
-  while it does, and restart when it starts. Terms read the progress of every task, such as
+  while it does, and restart when it starts. A subtask reads its own fields by name, as a task that runs alone does:
+  its commands, quantities, term state, tunable values, and progress. Terms read the progress of every task, such as
   ``mdp2.progress.grasp.done``, and :class:`~isaaclab_experimental.envs.MDP2RLEnv` logs it as ``Progress/<task>`` and
   records the step at which each task was done.
 * Added :meth:`~isaaclab_experimental.mdp2.MDP.spec`, which names the columns of the action and of the observation

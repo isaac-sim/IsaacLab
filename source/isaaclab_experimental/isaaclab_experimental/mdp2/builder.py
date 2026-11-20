@@ -23,6 +23,7 @@ import warp as wp
 from . import torch_backend, warp_backend
 from .compiled import MDP, Backend, WorldConfig
 from .config import (
+    PROGRESS_FIELDS,
     Action,
     ActionRate,
     Command,
@@ -221,8 +222,9 @@ class MDPBuilder:
         whether it is part of a sequence, and ``restarts`` whether it or a parent repeats.
 
         The subtask of a split runs in worlds of its own, so its uses keep their names: equal uses of the world configs
-        then run once, see :meth:`replicate`. A task reads its own commands and quantities by their names, as a task
-        that runs alone does: ``scope`` maps the names that the task and its parents define to their fields.
+        then run once, see :meth:`replicate`. A task reads its own fields by their names, as a task that runs alone
+        does: its commands and quantities, the state and tunable values of its uses, and its progress and that of its
+        subtasks. ``scope`` maps the names that the task and its parents define to their fields; inner names win.
         """
         task_path = ".".join(path)
         if task_path in self._tasks:
@@ -232,16 +234,7 @@ class MDPBuilder:
         prefix = ".".join(names)
         restarts = restarts or task.repeat
         stage = task_path if staged or restarts else None
-        scope = {
-            **scope,
-            **{
-                FieldSelector(entity.name, name, scene=False): FieldSelector(
-                    entity.name, f"{prefix}.{name}" if prefix else name, scene=False
-                )
-                for entity, uses in ((commands, task.commands), (quantities, task.quantities))
-                for name in uses
-            },
-        }
+        scope = {**scope, **_local_names(task, task_path, prefix)}
         self._tasks[task_path] = (replace(task, done=scope.get(task.done, task.done)), staged or restarts)
 
         def add(kind: str, name: str, cfg: object, group: str | None = None, concatenate: bool = True) -> None:
@@ -1244,6 +1237,45 @@ def _expand(task: TaskCfg, num_worlds: int) -> list[tuple[TaskCfg, int]]:
     if not splits:
         return [(replace(task, subtasks=single), num_worlds)]
     return [(replace(task, subtasks={**single, splits[0]: subtask}), count) for subtask, count in variants[splits[0]]]
+
+
+def _local_names(task: TaskCfg, path: str, prefix: str) -> dict[FieldSelector, FieldSelector]:
+    """Return the fields that a task defines, under the names that a task that runs alone gives them: its commands and
+    quantities, the state and tunable values of its uses, which get the prefix of its uses' names, and the progress of
+    it and of its subtasks, by their paths from it."""
+
+    def full(name: str) -> str:
+        return f"{prefix}.{name}" if prefix else name
+
+    names = {
+        FieldSelector(entity.name, name, scene=False): FieldSelector(entity.name, full(name), scene=False)
+        for entity, uses in ((commands, task.commands), (quantities, task.quantities))
+        for name in uses
+    }
+    groups = [(f"observations.{group}", group_terms(uses)[0]) for group, uses in task.observations.items()]
+    kinds = [(kind, getattr(task, kind)) for kind in ("actions", "commands", "quantities", "rewards", "events")]
+    for kind, uses in (*kinds, ("terminations", task.terminations), *groups):
+        for name, cfg in uses.items():
+            if not isinstance(cfg, TermCfg) or not prefix:
+                continue
+            local, use = f"{kind}.{name}", f"{kind}.{full(name)}"
+            names |= {term_state(local, state): term_state(use, state) for state in cfg.term.state}
+            tunables = [param for param, value in cfg.params.items() if isinstance(value, Tunable)]
+            tunables += ["when"] if isinstance(cfg.when, Tunable) else []
+            names |= {tunable(local, param): tunable(use, param) for param in tunables}
+    for relative in _task_paths(task):
+        absolute = ".".join(part for part in (path, relative) if part)
+        if relative != absolute:
+            names |= {progress_field(relative, name): progress_field(absolute, name) for name in PROGRESS_FIELDS}
+    return names
+
+
+def _task_paths(task: TaskCfg) -> list[str]:
+    """Return the paths from a task of it, "", and of its subtasks, their subtasks, and so on."""
+    return [
+        "",
+        *(f"{name}.{sub}" if sub else name for name, subtask in task.subtasks.items() for sub in _task_paths(subtask)),
+    ]
 
 
 def _scoped(cfg: object, scope: Mapping[FieldSelector, FieldSelector]) -> object:

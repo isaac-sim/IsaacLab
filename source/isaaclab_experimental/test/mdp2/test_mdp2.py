@@ -1871,19 +1871,33 @@ def test_tasks_restart_their_state_timers_and_commands_when_they_start():
     assert all(step["reward_terms"][0, 0].item() == 0.0 for step in history[2:])
 
 
-def test_subtasks_read_their_own_quantities_by_name():
-    """Subtasks written as tasks of their own read their quantities by their names, which their prefix keeps apart."""
+def test_subtasks_read_their_own_fields_by_name():
+    """Subtasks written as tasks of their own read their quantities, the state of their uses, and their progress by
+    their names, which their prefix keeps apart."""
 
     def reach(joint: str) -> mdp2.TaskCfg:
         inputs = {"joint_pos": robot.joint_pos, "joint_ids": robot.joints(joint)}
+        started = mdp2.Observation(episode_length, inputs={"episode_length": mdp2.progress.started_at})
+        total = {"command": mdp2.term_state("rewards.held", "total")}
         return mdp2.TaskCfg(
-            quantities={"reached": mdp2.Quantity(joint_above, inputs=inputs)}, done=mdp2.quantities.reached
+            quantities={
+                "reached": mdp2.Quantity(joint_above, inputs=inputs),
+                "held": mdp2.Quantity(generated_commands, inputs=total),
+            },
+            rewards={"held": mdp2.Reward(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": 1.0})},
+            observations={"policy": {"started": started}},
+            done=mdp2.quantities.reached,
         )
 
     task = mdp2.sequence(first=reach("a"), second=reach("b"))
     history = check_progress(task, [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], joints=("a", "b"))
     assert [step["first.done_at"].item() for step in history] == [-1, 2, 2]
     assert [step["second.done_at"].item() for step in history] == [-1, -1, 3]
+    # The step at which the subtask that runs started: the second from step 2.
+    assert [step["policy"][0, 0].item() for step in history] == [0.0, 2.0, 2.0]
+    # Each subtask's quantity reads the state of its own reward, from the step before.
+    assert [step["quantities.second.held"].item() for step in history] == [0.0, 0.0, 0.0]
+    assert [step["quantities.first.held"].item() for step in history] == [0.0, 0.0, 1.0]
 
 
 def test_split_runs_a_sequence_beside_a_plain_task():
