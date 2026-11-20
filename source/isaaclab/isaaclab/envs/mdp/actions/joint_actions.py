@@ -84,7 +84,7 @@ class JointAction(ActionTerm):
         if isinstance(cfg.scale, (float, int)):
             self._scale = float(cfg.scale)
         elif isinstance(cfg.scale, dict):
-            self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
+            self._scale = torch.ones(self.num_envs, self._num_joints, device=self.device)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
@@ -94,7 +94,7 @@ class JointAction(ActionTerm):
         if isinstance(cfg.offset, (float, int)):
             self._offset = float(cfg.offset)
         elif isinstance(cfg.offset, dict):
-            self._offset = torch.zeros_like(self._raw_actions)
+            self._offset = torch.zeros(self.num_envs, self._num_joints, device=self.device)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.offset, self._joint_names)
             self._offset[:, index_list] = torch.tensor(value_list, device=self.device)
@@ -104,7 +104,7 @@ class JointAction(ActionTerm):
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
+                    self.num_envs, self._num_joints, 1
                 )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
@@ -181,7 +181,19 @@ class JointAction(ActionTerm):
 
 
 class JointPositionAction(JointAction):
-    """Joint action term that applies the processed actions to the articulation's joints as position commands."""
+    """Joint action term that applies the processed actions to the articulation's joints as position commands.
+
+    By default one target per joint holds for all ``decimation`` physics steps of an environment step. With
+    :attr:`~JointPositionActionCfg.chunk_length` above one, the action is a chunk of targets, ordered by target, then
+    by joint, that apply in order, each for ``decimation / chunk_length`` physics steps, so a policy that plans a
+    chunk of future targets acts once per chunk. With :attr:`~JointPositionActionCfg.interpolate`, the action is one
+    target per joint instead, reached in ``chunk_length`` equal increments from the previous chunk's last target, or
+    from the joint positions after a reset.
+
+    For a chunk, scale, offset and clip apply to each target and :attr:`processed_actions` holds all the targets. The
+    physics-step counter stays on the device, so a physics backend that records :meth:`apply_actions` once and replays
+    it on every physics step applies the right target each time.
+    """
 
     is_graphable = True
 
@@ -189,67 +201,29 @@ class JointPositionAction(JointAction):
     """The configuration of the action term."""
 
     def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: ManagerBasedEnv):
+        if cfg.chunk_length != 1 and (cfg.chunk_length < 1 or env.cfg.decimation % cfg.chunk_length):
+            raise ValueError(
+                f"chunk_length must be a positive divisor of the environment step's {env.cfg.decimation} physics"
+                f" steps (decimation), so that each target holds for the same number of steps; got {cfg.chunk_length}."
+            )
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint positions as offset
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
-
-    def apply_actions(self):
-        # set position targets
-        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
-
-
-class JointPositionChunkAction(JointPositionAction):
-    """Joint position action that applies a chunk of position targets in order over the environment step.
-
-    :class:`JointPositionAction` applies one target on all ``decimation`` physics steps of an environment step. This
-    term instead takes a chunk of :attr:`~JointPositionChunkActionCfg.chunk_length` targets and applies them in order,
-    each for ``decimation / chunk_length`` physics steps, so a policy that plans a chunk of future targets acts once
-    per chunk. With :attr:`~JointPositionChunkActionCfg.interpolate`, the action is one target per joint instead,
-    reached in equal increments from the previous chunk's last target, or from the joint positions after a reset.
-
-    The action and :attr:`processed_actions` are ordered by target, then by joint. Scale, offset and clip apply to
-    each target. The physics-step counter stays on the device, so a physics backend that records :meth:`apply_actions`
-    once and replays it on every physics step applies the right target each time. A backend that runs the decimation
-    loop itself must also run the actions, since the targets change between its physics steps.
-    """
-
-    is_graphable = True
-
-    cfg: actions_cfg.JointPositionChunkActionCfg
-    """The configuration of the action term."""
-
-    _steps = 1
-    """Targets per environment step; one while :class:`JointAction` sizes the per-joint scale, offset and clip."""
-
-    def __init__(self, cfg: actions_cfg.JointPositionChunkActionCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        decimation = env.cfg.decimation
-        steps = decimation if cfg.chunk_length is None else cfg.chunk_length
-        if steps < 1 or decimation % steps:
-            raise ValueError(
-                f"chunk_length must be a positive divisor of the environment step's {decimation} physics steps"
-                f" (decimation), so that each target holds for the same number of physics steps; got {steps}."
-            )
-        self._steps, self._hold = steps, decimation // steps
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        # The chunk's targets, flat like every term's processed actions, and viewed one row per target.
-        self._processed_actions = torch.zeros(self.num_envs, steps * self._num_joints, device=self.device)
-        self._chunk = self._processed_actions.view(self.num_envs, steps, self._num_joints)
-        # The physics step since the action, and the target that step applies.
-        self._physics_step = torch.zeros(1, dtype=torch.long, device=self.device)
-        self._index = torch.zeros_like(self._physics_step)
-        self._target = torch.zeros(self.num_envs, 1, self._num_joints, device=self.device)
-        # Interpolation: the increments, and which environments start from their joint positions after a reset.
-        self._fractions = (torch.arange(1, steps + 1, device=self.device) / steps).view(1, -1, 1)
-        self._restart = torch.ones(self.num_envs, 1, 1, dtype=torch.bool, device=self.device)
+        # the targets of a chunk, viewed one row per target; None when one target holds for the environment step
+        self._chunk: torch.Tensor | None = None
+        if cfg.chunk_length != 1:
+            self._create_chunk_buffers(env.cfg.decimation)
 
     @property
     def action_dim(self) -> int:
-        return self._num_joints * (1 if self.cfg.interpolate else self._steps)
+        return self._num_joints * (1 if self.cfg.interpolate else self.cfg.chunk_length)
 
     def process_actions(self, actions: torch.Tensor):
+        if self._chunk is None:
+            super().process_actions(actions)
+            return
         self._raw_actions[:] = actions
         targets = self._raw_actions.view(self.num_envs, -1, self._num_joints)
         targets = targets * _per_target(self._scale) + _per_target(self._offset)
@@ -267,20 +241,40 @@ class JointPositionChunkAction(JointPositionAction):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         super().reset(env_ids)
-        index_fill_(self._restart, env_ids, True)
+        if self._chunk is not None:
+            index_fill_(self._restart, env_ids, True)
 
     def apply_actions(self):
+        if self._chunk is None:
+            # set position targets
+            self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+            return
         if getattr(self._env, "_physics_handles_decimation", False) and not self._env._physics_handles_actions:
             raise RuntimeError(
-                f"{type(self).__name__} changes the joint targets between physics steps, but the physics backend runs"
-                " the decimation loop without running the actions, so only the chunk's first target would apply."
-                " Make every action term and asset graphable so that the backend runs the actions too."
+                "A joint position chunk changes the targets between physics steps, but the physics backend runs the"
+                " decimation loop without running the actions, so only the chunk's first target would apply. Make"
+                " every action term and asset graphable so that the backend runs the actions too."
             )
         torch.div(self._physics_step, self._hold, rounding_mode="floor", out=self._index)
-        self._index.clamp_(max=self._steps - 1)
+        self._index.clamp_(max=self.cfg.chunk_length - 1)
         torch.index_select(self._chunk, 1, self._index, out=self._target)
         self._physics_step.add_(1)
         self._asset.set_joint_position_target_index(target=self._target[:, 0], joint_ids=self._joint_ids)
+
+    def _create_chunk_buffers(self, decimation: int) -> None:
+        """Allocate the targets of a chunk, the physics-step counter and the interpolation state."""
+        steps = self.cfg.chunk_length
+        self._hold = decimation // steps
+        # flat like every term's processed actions, so recorders concatenate the terms
+        self._processed_actions = torch.zeros(self.num_envs, steps * self._num_joints, device=self.device)
+        self._chunk = self._processed_actions.view(self.num_envs, steps, self._num_joints)
+        # the physics step since the action, and the target that step applies
+        self._physics_step = torch.zeros(1, dtype=torch.long, device=self.device)
+        self._index = torch.zeros_like(self._physics_step)
+        self._target = torch.zeros(self.num_envs, 1, self._num_joints, device=self.device)
+        # the interpolation increments, and the environments that start from their joint positions after a reset
+        self._fractions = (torch.arange(1, steps + 1, device=self.device) / steps).view(1, -1, 1)
+        self._restart = torch.ones(self.num_envs, 1, 1, dtype=torch.bool, device=self.device)
 
 
 def _per_target(value: torch.Tensor | float) -> torch.Tensor | float:

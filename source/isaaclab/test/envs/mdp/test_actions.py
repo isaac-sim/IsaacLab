@@ -19,12 +19,12 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
     JointEffortActionCfg,
-    JointPositionChunkActionCfg,
+    JointPositionActionCfg,
     JointPositionToLimitsActionCfg,
     OperationalSpaceControllerActionCfg,
 )
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
-from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction, JointPositionChunkAction
+from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction, JointPositionAction
 from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.envs.mdp.actions.rmpflow_task_space_actions import RMPFlowAction
@@ -297,13 +297,14 @@ def test_osc_controller_limits_bound_clip() -> None:
         ),
         (JointEffortAction, JointEffortActionCfg(scale=2.0, clip={".*": (-1.0, 1.0)})),
         (JointPositionToLimitsAction, JointPositionToLimitsActionCfg(scale=2.0, rescale_to_limits=False)),
-        (JointPositionChunkAction, JointPositionChunkActionCfg(scale=2.0, use_default_offset=False)),
+        (JointPositionAction, JointPositionActionCfg(scale=2.0, use_default_offset=False, chunk_length=1)),
+        (JointPositionAction, JointPositionActionCfg(scale=2.0, use_default_offset=False, chunk_length=4)),
     ],
 )
 def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) -> None:
     """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
     cfg.asset_name, cfg.joint_names = "robot", [".*"]
-    action = action_cls(cfg, _make_env(["a", "b"]))
+    action = action_cls(cfg, _make_env(["a", "b"], decimation=4))
     processed = action.processed_actions
 
     action.process_actions(torch.full((2, action.action_dim), -0.25))
@@ -312,8 +313,10 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
     assert torch.all(processed < 0.0)
 
 
-def _chunk_action(interpolate: bool, device: str = "cpu", **env_attrs) -> tuple[JointPositionChunkAction, list]:
-    """A chunk action of two targets over four physics steps on joints at 1.0, and the list of applied targets."""
+def _joint_position_action(
+    chunk_length: int, interpolate: bool = False, device: str = "cpu", **env_attrs
+) -> tuple[JointPositionAction, list]:
+    """A joint position action over four physics steps on joints at 1.0, and the list of applied targets."""
     env = _make_env(["a", "b"], decimation=4)
     env.device = device
     env.__dict__.update(env_attrs)
@@ -321,48 +324,64 @@ def _chunk_action(interpolate: bool, device: str = "cpu", **env_attrs) -> tuple[
     applied = []
     robot.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.full((NUM_ENVS, 2), 1.0, device=device)))
     robot.set_joint_position_target_index = lambda *, target, joint_ids: applied.append(target.clone())
-    cfg = JointPositionChunkActionCfg(
-        asset_name="robot", joint_names=[".*"], use_default_offset=False, chunk_length=2, interpolate=interpolate
+    cfg = JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=[".*"],
+        use_default_offset=False,
+        chunk_length=chunk_length,
+        interpolate=interpolate,
     )
-    return JointPositionChunkAction(cfg, env), applied
+    return JointPositionAction(cfg, env), applied
 
 
-def _chunks(interpolate: bool) -> list[tuple[list[float], list[float]]]:
-    """Actions and the first joint's target on each of the four physics steps, over two chunks and a reset."""
-    if not interpolate:
-        return [([2.0, 2.0, 4.0, 4.0], [2.0, 2.0, 4.0, 4.0]), ([5.0, 5.0, 7.0, 7.0], [5.0, 5.0, 7.0, 7.0])]
-    # From the joints at 1.0, then from the last target 3.0 rather than the joints, which a physics step may lag.
-    return [([3.0, 3.0], [2.0, 2.0, 3.0, 3.0]), ([5.0, 5.0], [4.0, 4.0, 5.0, 5.0]), ([3.0, 3.0], [2.0, 2.0, 3.0, 3.0])]
+# Per mode: chunk_length, interpolate, and each action with the first joint's target on the four physics steps.
+_STEPS = {
+    # The default holds one target for the environment step, as before chunks.
+    "held": (1, False, [([2.0, 2.0], [2.0] * 4), ([4.0, 4.0], [4.0] * 4)]),
+    "chunk": (2, False, [([2.0, 2.0, 4.0, 4.0], [2.0, 2.0, 4.0, 4.0]), ([5.0, 5.0, 7.0, 7.0], [5.0, 5.0, 7.0, 7.0])]),
+    # From the joints at 1.0, then from the last target 3.0 rather than the joints, which a physics step may lag; the
+    # third action follows a reset, so it starts from the joints again.
+    "interpolate": (
+        2,
+        True,
+        [([3.0, 3.0], [2.0, 2.0, 3.0, 3.0]), ([5.0, 5.0], [4.0, 4.0, 5.0, 5.0]), ([3.0, 3.0], [2.0, 2.0, 3.0, 3.0])],
+    ),
+}
 
 
-@pytest.mark.parametrize("interpolate", [False, True])
-def test_chunk_action_applies_its_targets_in_order_over_the_physics_steps(interpolate: bool) -> None:
+@pytest.mark.parametrize("mode", _STEPS)
+def test_joint_position_action_applies_its_targets_in_order_over_the_physics_steps(mode: str) -> None:
     """Each of a chunk's targets holds for ``decimation / chunk_length`` physics steps; the next action restarts it."""
-    action, applied = _chunk_action(interpolate)
-    for i, (chunk, expected) in enumerate(_chunks(interpolate)):
+    chunk_length, interpolate, steps = _STEPS[mode]
+    action, applied = _joint_position_action(chunk_length, interpolate)
+    assert action.action_dim == len(steps[0][0])
+    for i, (actions, expected) in enumerate(steps):
         if i == 2:
             action.reset()
         applied.clear()
-        action.process_actions(torch.tensor([chunk] * NUM_ENVS))
+        action.process_actions(torch.tensor([actions] * NUM_ENVS))
         for _ in range(4):
             action.apply_actions()
         torch.testing.assert_close(torch.stack(applied)[:, 0, 0], torch.tensor(expected))
     # Flat like every term's processed actions, so recorders can concatenate the terms.
-    assert action.processed_actions.shape == (NUM_ENVS, 2 * 2)
+    assert action.processed_actions.shape == (NUM_ENVS, chunk_length * 2)
 
+
+def test_joint_position_action_rejects_chunks_it_cannot_apply() -> None:
+    """A chunk must divide the physics steps, and its targets need a backend that runs the actions between them."""
+    action, _ = _joint_position_action(chunk_length=2)
     for chunk_length in (0, -2, 3):
         with pytest.raises(ValueError, match="positive divisor"):
-            JointPositionChunkAction(action.cfg.replace(chunk_length=chunk_length), action._env)
-    # A backend that runs the decimation loop without the actions would apply only the first target.
-    action, _ = _chunk_action(interpolate, _physics_handles_decimation=True, _physics_handles_actions=False)
+            JointPositionAction(action.cfg.replace(chunk_length=chunk_length), action._env)
+    action, _ = _joint_position_action(2, _physics_handles_decimation=True, _physics_handles_actions=False)
     with pytest.raises(RuntimeError, match="first target"):
         action.apply_actions()
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
-def test_chunk_action_advances_when_replayed_from_a_cuda_graph() -> None:
+def test_joint_position_chunk_advances_when_replayed_from_a_cuda_graph() -> None:
     """A backend records ``apply_actions`` once and replays it on every physics step."""
-    action, applied = _chunk_action(interpolate=False, device="cuda")
+    action, applied = _joint_position_action(chunk_length=2, device="cuda")
     action.process_actions(torch.zeros(NUM_ENVS, 4, device="cuda"))
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream):
@@ -372,8 +391,8 @@ def test_chunk_action_advances_when_replayed_from_a_cuda_graph() -> None:
     with torch.cuda.graph(graph):
         action.apply_actions()
     target = applied[-1]
-    for chunk, expected in _chunks(interpolate=False):
-        action.process_actions(torch.tensor([chunk] * NUM_ENVS, device="cuda"))
+    for actions, expected in _STEPS["chunk"][2]:
+        action.process_actions(torch.tensor([actions] * NUM_ENVS, device="cuda"))
         seen = []
         for _ in range(4):
             graph.replay()
