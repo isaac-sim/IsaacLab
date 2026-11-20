@@ -103,6 +103,13 @@ class ScheduleEntry:
         return tuple(reads)
 
     @property
+    def when(self) -> FieldSelector | None:
+        """The field that switches the use on and off, which it reads at the start of a step, if any."""
+        if not isinstance(self.cfg, TermCfg) or self.cfg.when is None:
+            return None
+        return tunable(str(self), "when") if isinstance(self.cfg.when, Tunable) else self.cfg.when
+
+    @property
     def writes(self) -> tuple[FieldSelector, ...]:
         """Fields the use writes: an action's target, the value of a command or quantity, or an event's outputs."""
         if isinstance(self.cfg, DirectAction):
@@ -122,6 +129,7 @@ class ScheduleEntry:
             return ()
         state = [term_state(str(self), name) for name in self.cfg.term.state]
         tunables = [tunable(str(self), name) for name, value in self.cfg.params.items() if isinstance(value, Tunable)]
+        tunables += [self.when] if isinstance(self.cfg.when, Tunable) else []
         return (*(selector for selector in self.writes if not selector.scene), *state, *tunables)
 
 
@@ -542,8 +550,9 @@ class MDPBuilder:
         # provide the commands, quantities, and term state it reads.
         entries = {entry.path: entry for entry in schedule}
         providers = {selector: entry.path for entry in schedule for selector in entry.provides}
+        # A use's when is read at the start of a step, which no use of its phase needs to run before.
         reads = {
-            path: {providers[selector] for selector in entry.reads if selector in providers} - {path}
+            path: {providers[selector] for selector in (*entry.reads, entry.when) if selector in providers} - {path}
             for path, entry in entries.items()
         }
         try:
@@ -722,6 +731,7 @@ class MDPBuilder:
             if layout is not None and (layout.ndim != 1 or layout.dtype is not wp.float32):
                 errors.append(f"{entry}: the noise scale '{cfg.noise.scale}' must be a float field of one per world.")
 
+        when, when_dtype = self._compile_when(entry, context)
         if len(errors) > num_errors:
             return
 
@@ -813,8 +823,36 @@ class MDPBuilder:
                 record=isinstance(cfg, Quantity) and cfg.record,
                 columns=columns,
                 stage=entry.stage,
+                when=when,
+                when_dtype=when_dtype,
+                when_default=cfg.when.default if isinstance(cfg.when, Tunable) else None,
             )
         )
+
+    def _compile_when(self, entry: ScheduleEntry, context: CompileContext) -> tuple[FieldSelector | None, type | None]:
+        """Resolve the field that switches a use on and off, and its element type, or record why it cannot."""
+        cfg, errors = entry.cfg, context.errors
+        if cfg.when is None:
+            return None, None
+        if isinstance(cfg, (Quantity, Action)) or isinstance(cfg, Event) and cfg.mode is not EventMode.INTERVAL:
+            errors.append(
+                f"{entry}: only rewards, terminations, observations, commands, and interval events can have a when."
+            )
+            return None, None
+        if isinstance(cfg.when, Tunable):
+            if type(cfg.when.default) is not bool:
+                errors.append(f"{entry}: a tunable when switches the use on or off, so its default must be a bool.")
+            context.mdp_fields[entry.when] = ArrayLayout(wp.bool, 1, {})
+            return entry.when, wp.bool
+        if cfg.when in entry.writes or cfg.when in entry.provides:
+            errors.append(f"{entry}: when '{cfg.when}' is written by the use itself, which could not turn it on again.")
+            return None, None
+        layout = self._resolve(entry, "when", cfg.when, context)
+        if layout is None:
+            return None, None
+        if layout.ndim != 1 or layout.dtype not in (wp.bool, wp.float32, wp.int32):
+            errors.append(f"{entry}: when '{cfg.when}' must be a field of one bool, float, or int per world.")
+        return cfg.when, layout.dtype
 
     def _fields_of(self, selector: FieldSelector | Entity) -> tuple[FieldSelector, ...]:
         """Return the fields a write covers: a field itself, or the writable fields of a scene entity."""
@@ -965,6 +1003,7 @@ def _tuned_values(ops: Mapping[Phase, tuple], errors: list[str]) -> tuple[TunedV
             for name, default in op.tunables.items()
         ]
         values += [TunedValue(f"{op.use}.weight", "reward_weights", op.index)] if op.tunable_weight else []
+        values += [TunedValue(f"{op.use}.when", op.when, dtype=wp.bool)] if op.when_default is not None else []
         for value in values:
             if tuned.setdefault(value.path, value) != value:
                 errors.append(f"The world configs tune '{value.path}' differently: tune it in all or none of them.")
@@ -1171,6 +1210,8 @@ def _scoped(cfg: object, scope: Mapping[FieldSelector, FieldSelector]) -> object
     if not isinstance(cfg, TermCfg):
         return cfg
     changes = {"inputs": {arg: scope.get(selector, selector) for arg, selector in cfg.inputs.items()}}
+    if isinstance(cfg.when, FieldSelector):
+        changes["when"] = scope.get(cfg.when, cfg.when)
     if isinstance(cfg, Observation) and cfg.noise is not None and cfg.noise.scale is not None:
         changes["noise"] = replace(cfg.noise, scale=scope.get(cfg.noise.scale, cfg.noise.scale))
     return replace(cfg, **changes)

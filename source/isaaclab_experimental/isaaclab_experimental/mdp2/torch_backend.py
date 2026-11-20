@@ -118,6 +118,9 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
         case StepKind.APPLY_TUNED:
             _apply_tuned(op, state, call.mask.torch)
             return
+        case StepKind.SWITCH:
+            _switch(op, state, None if call.mask is None else call.mask.torch)
+            return
 
     mask = None if call.mask is None else call.mask.torch
     active = _active(op, state)
@@ -266,6 +269,22 @@ def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     """Draw a new interval for the timer of an op in the masked worlds."""
     time_left = state.arrays["timer", op.name].torch
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+
+
+def _switch(ops: tuple[TermOp, ...], state: MDPState, mask: torch.Tensor | None) -> None:
+    """Turn each op with ``when`` on where its task runs and its field is positive. Stepping (no mask) marks the
+    worlds where it turned on; observing new episodes, in the masked worlds, marks none, since resets restarted them."""
+    for op in ops:
+        runs = state.arrays[op.when].torch > 0
+        if op.scope_key is not None:
+            runs = runs & state.arrays[op.scope_key].torch
+        on, entered = state.arrays[op.active_key].torch, state.arrays[op.entry_key].torch
+        if mask is None:
+            torch.logical_and(runs, ~on, out=entered)
+            on.copy_(runs)
+        else:
+            entered.masked_fill_(mask, False)
+            on.copy_(torch.where(mask, runs, on))
 
 
 def _apply_tuned(tuned: tuple[TunedValue, ...], state: MDPState, mask: torch.Tensor) -> None:

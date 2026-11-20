@@ -15,7 +15,7 @@ from __future__ import annotations
 import enum
 import itertools
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
@@ -102,18 +102,31 @@ class TermOp:
     # The task of a sequence that the op belongs to: it runs only while that task runs, and its state, timer, and
     # command restart when the task starts. Quantities run in every step: they only restart.
     stage: str | None = None
+    # A field of one value per world: the op runs, within its task, only where it was positive at the start of the
+    # step, and restarts where it turns on
+    when: FieldSelector | None = None
+    when_dtype: Any = None  # Element type of ``when``
+    when_default: bool | None = None  # Default of a tunable ``when``, which the MDP owns; None for another field
 
     @property
-    def active_key(self) -> Hashable | None:
-        """Key in :attr:`MDPState.arrays` of the worlds where the op runs at this step, None for every world."""
+    def scope_key(self) -> Hashable | None:
+        """Key in :attr:`MDPState.arrays` of the worlds where the op's task runs at this step, None for every world."""
         if self.stage is not None and self.phase is not Phase.QUANTITIES:
             return progress_field(self.stage, "active")
         return None if self.worlds is None else ("active", self.name)
 
     @property
+    def active_key(self) -> Hashable | None:
+        """Key in :attr:`MDPState.arrays` of the worlds where the op runs at this step, None for every world: its
+        task's, and with ``when``, those where ``when`` was positive at the start of the step."""
+        return self.scope_key if self.when is None else ("on", self.name)
+
+    @property
     def entry_key(self) -> Hashable | None:
         """Key in :attr:`MDPState.arrays` of the worlds where the op's scope started at this step, in which its state,
         timer, command, and history restart; None for an op whose scope does not change during an episode."""
+        if self.when is not None:
+            return "entered", self.name
         return None if self.stage is None else progress_field(self.stage, "entered")
 
     def array_key(self, arg: str) -> Hashable:
@@ -138,6 +151,7 @@ class StepKind(enum.Enum):
     RESET_PROGRESS = enum.auto()  # Restart the progress of every task for a new episode
     CLEAR = enum.auto()  # Zero the columns of an observation slot that no op writes at this step
     APPLY_TUNED = enum.auto()  # Apply the values tuned for the next reset, in the worlds that have them
+    SWITCH = enum.auto()  # Turn the ops with ``when`` on or off from their field, and mark where they turned on
 
 
 @dataclass(frozen=True)
@@ -208,7 +222,7 @@ class Step:
     """One unit of work on an op, the task trees, or an observation slot, in a runtime function."""
 
     kind: StepKind
-    op: ActionOp | TermOp | tuple[TaskTree, ...] | ObservationSlot | tuple[TunedValue, ...]
+    op: ActionOp | TermOp | tuple[TaskTree, ...] | ObservationSlot | tuple[TunedValue, ...] | tuple[TermOp, ...]
     entry: bool = False  # Whether it runs for the worlds whose task of the op just started, rather than for the mask
 
     @property
@@ -258,7 +272,9 @@ def build_plan(
     With task trees, ``evaluate`` counts the tasks' completions after the quantities, so that terminations and
     rewards see this step's progress, and starts the tasks that sequences advanced to after the events, so that the
     successor observations see them. The terminations, rewards, commands, and events of the step run in the tasks that
-    ran when it started. With tunable values, ``reset`` first applies the values tuned for it.
+    ran when it started. Ops with ``when`` switch on or off at the same point, and in ``observe`` for new episodes;
+    ``reset`` prepares them in all the worlds of their task. With tunable values, ``reset`` first applies the values
+    tuned for it.
     """
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
@@ -278,6 +294,8 @@ def build_plan(
     noises = [op.observation.noise for op in ops[Phase.OBSERVATIONS]]
     read |= {noise.scale for noise in noises if noise is not None and noise.scale is not None}
     read |= {op.offset for op in ops[Phase.ACTIONS] if isinstance(op, ActionOp)}
+    switched = tuple(op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.when)
+    read |= {op.when for op in switched}
     observed = []
     for op in reversed(ops[Phase.QUANTITIES]):
         if op.writes[0] in read:
@@ -294,16 +312,18 @@ def build_plan(
 
     progress = [Step(StepKind.UPDATE_PROGRESS, trees)] if trees else []
     # A task that starts restarts the timers, commands, and state of its ops, as a new episode does.
-    starts = []
-    if any(node.staged for tree in trees for node in tree.nodes):
+    starts = [Step(StepKind.START_TASKS, trees)] if any(node.staged for tree in trees for node in tree.nodes) else []
+    starts += [Step(StepKind.SWITCH, switched)] if switched else []
+    if starts:
         scoped = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.entry_key]
-        starts = [
-            Step(StepKind.START_TASKS, trees),
+        starts += [
             *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.entry_key),
             *(Step(StepKind.COMPUTE, op, entry=True) for op in scoped if op.phase is Phase.COMMANDS),
             *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.entry_key),
         ]
 
+    # A reset prepares the ops with ``when`` in every world of their task.
+    unswitched = {op.name: replace(op, when=None) for op in switched}
     reset_events = []
     pending: set[FieldSelector] = set()  # Scene fields written since the last commit
     for op in ops[Phase.RESET_EVENTS]:
@@ -335,13 +355,13 @@ def build_plan(
         reset=(
             *([Step(StepKind.APPLY_TUNED, tuned)] if tuned else []),
             *([Step(StepKind.RESET_PROGRESS, trees)] if trees else []),
-            *(Step(StepKind.RESET_TIMER, op) for op in timed),
+            *(Step(StepKind.RESET_TIMER, unswitched.get(op.name, op)) for op in timed),
             *reset_events,
-            *(Step(StepKind.COMPUTE, op) for op in ops[Phase.COMMANDS]),
+            *(Step(StepKind.COMPUTE, unswitched.get(op.name, op)) for op in ops[Phase.COMMANDS]),
             # State restarts last, from the fields and commands of the new episode.
-            *(Step(StepKind.RESET_STATE, op) for op in stateful),
+            *(Step(StepKind.RESET_STATE, unswitched.get(op.name, op)) for op in stateful),
         ),
-        observe=(*observed, *observations, *clears),
+        observe=(*observed, *([Step(StepKind.SWITCH, switched)] if switched else []), *observations, *clears),
     )
 
 

@@ -227,6 +227,9 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
             case StepKind.APPLY_TUNED:
                 _apply_tuned(code, step.op)
                 continue
+            case StepKind.SWITCH:
+                _switch(code, step.op, stepping)
+                continue
         op = step.op
         state = [term_state(op.use, name) for name in op.state]
         active = _active(code, op)
@@ -782,6 +785,22 @@ def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
             ]
         names = ("done", "holding", "done_at", "started_at", "score", "active", "stage", "streak", "entered")
         code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
+
+
+def _switch(code: Fusion, ops: tuple[TermOp, ...], stepping: bool) -> None:
+    """Turn each op with ``when`` on where its task runs and its field is positive. Stepping marks the worlds where it
+    turned on, whose state restarts; observing new episodes marks none, since resets restarted them."""
+    for op in ops:
+        on, entered = (
+            _array(code, op.active_key, wp.array(dtype=wp.bool)),
+            _array(code, op.entry_key, wp.array(dtype=wp.bool)),
+        )
+        positive = {wp.bool: "", wp.float32: " > 0.0", wp.int32: " > 0"}[op.when_dtype]
+        runs = f"{_array(code, op.when, wp.array(dtype=op.when_dtype))}[world]{positive}"
+        if op.scope_key is not None:
+            runs = f"{_array(code, op.scope_key, wp.array(dtype=wp.bool))}[world] and {runs}"
+        lines = [f"runs = {runs}", f"{entered}[world] = {'runs and not ' + on + '[world]' if stepping else 'False'}"]
+        code.world(*lines, f"{on}[world] = runs", writes=[op.active_key, op.entry_key])
 
 
 def _apply_tuned(code: Fusion, tuned: tuple[TunedValue, ...]) -> None:

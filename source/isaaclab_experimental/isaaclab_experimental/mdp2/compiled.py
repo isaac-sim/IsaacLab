@@ -72,6 +72,8 @@ class MDPState:
     - ``("scratch", op)``: the output of a Python hook in a Warp MDP;
     - ``("selected", op)``: the worlds that the hook of a timed op, or of an op active in some worlds, acts on;
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
+    - ``("on", op)`` and ``("entered", op)``: for an op with ``when``, the worlds where it runs at this step, and
+      those where it turned on at this step;
     - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
       ``evaluate``, for an MDP with such events;
     - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
@@ -314,6 +316,7 @@ class MDP:
                     details += [f"stream {op.stream}"] if op.stream is not None else []
                     details += ["torch hooks"] if op.torch_hooks else []
                     details += [f"during {op.stage}"] if op.stage else []
+                    details += [f"when {op.when}"] if op.when is not None else []
                 if op.worlds is not None:
                     first, last = op.worlds[0], op.worlds[-1]
                     contiguous = op.worlds == tuple(range(first, last + 1))
@@ -349,12 +352,16 @@ class MDP:
         dtypes = {value.key: value.dtype for value in self.tuned}
         for op in self.term_ops:
             # Each world config starts the tunable values of its worlds at its own default.
-            for name, default in op.tunables.items():
-                key = op.inputs[name]
+            defaults = {op.inputs[name]: default for name, default in op.tunables.items()}
+            defaults |= {op.when: op.when_default} if op.when_default is not None else {}
+            for key, default in defaults.items():
                 if key not in arrays:
                     arrays[key] = self._zeros(self.num_worlds, dtype=dtypes[key])
                 worlds = slice(None) if op.worlds is None else list(op.worlds)
                 arrays[key].torch[worlds] = torch.tensor(default, dtype=arrays[key].torch.dtype, device=self.device)
+            if op.when is not None:
+                arrays["on", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
+                arrays["entered", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
         for subset, indices in self.subsets.items():
             arrays[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
         # State belongs to the use: the ops that other world configs define differently share it.
@@ -376,6 +383,7 @@ class MDP:
         ]
         noises = [op.observation.noise for op in self.ops[Phase.OBSERVATIONS]]
         selectors += [noise.scale for noise in noises if noise is not None and noise.scale is not None]
+        selectors += [op.when for op in self.term_ops if op.when is not None]
         for selector in selectors:
             if selector not in arrays:
                 arrays[selector] = scene_data.data(selector.entity, selector.field)

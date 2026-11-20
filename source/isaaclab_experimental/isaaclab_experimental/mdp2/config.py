@@ -173,6 +173,10 @@ class TermCfg:
     # Constant keyword arguments, or Tunable values. The MDP keeps the values themselves, not copies: do not change
     # them after finalizing.
     params: dict[str, Any] = field(default_factory=dict)
+    # Run only in the worlds where this field of one value per world is positive, taken at the start of each step: a
+    # use that does not run outputs zero, and its state, timer, command, and history restart when it turns on. A
+    # Tunable(True) is a switch per world, mdp2.tunable(use, "when"). Resets prepare the use in every world.
+    when: FieldSelector | Tunable | None = None
 
 
 @dataclass

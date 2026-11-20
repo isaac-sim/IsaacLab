@@ -84,7 +84,8 @@ def tune(
 
     ``value`` is one value, or one per selected world. ``worlds`` selects worlds by index, slice, or ``bool`` mask, all
     of them if None. At ``"reset"``, each world takes the value when its episode next resets, so that no episode mixes
-    two values; at ``"step"``, from the next step on. Each world counts the tunings it applied in
+    two values; at ``"step"``, from the next step on, except a ``when``, which uses take at the end of a step and so
+    switch one step later. Each world counts the tunings it applied in
     :attr:`MDPState.revision`. Writes in place, so captured steps keep replaying. Raises ``KeyError`` for a value that
     is not tunable.
     """

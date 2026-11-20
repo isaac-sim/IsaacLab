@@ -33,3 +33,7 @@
   :meth:`~isaaclab_experimental.envs.MDP2Env.tune` change at each world's next reset or from the next step, while
   captured steps keep replaying. Terms read it as a field, :func:`~isaaclab_experimental.mdp2.tunable`, and each world
   counts the tunings it applied, recorded as ``revision``.
+* Added ``when`` to MDP2 term uses: a reward, termination, observation, command, or interval event runs only in the
+  worlds where a field, such as a mode command, was positive at the start of the step, and restarts its state, timer,
+  command, and history where it turns on. ``when=mdp2.Tunable(True)`` is a switch per world that
+  :func:`~isaaclab_experimental.mdp2.tune` turns on and off.

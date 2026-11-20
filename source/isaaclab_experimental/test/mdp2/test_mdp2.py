@@ -2036,3 +2036,88 @@ def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
     mdp = builder.finalize(device=DEVICE)
     with pytest.raises(KeyError, match="not tunable: declare it with mdp2.Tunable"):
         mdp2.tune(mdp, mdp.state(PointMassScene(num_worlds=2, device=DEVICE)), "rewards.scaled.std", 1.0)
+
+
+def test_uses_with_when_run_where_their_field_held_at_the_start_of_the_step():
+    """A use with ``when`` follows its field as it was at the start of the step, as rewards follow the task that
+    governed the action: it outputs zero while off, and its state and history restart where it turns on. A reset
+    prepares it, and a new episode starts with the field's value at the reset. A tunable ``when`` is a switch."""
+    inputs = {"joint_pos": robot.joint_pos}
+    position = mdp2.Observation(joint_pos, inputs=inputs, history_length=2, when=mdp2.quantities.a)
+    task = mdp2.TaskCfg(
+        quantities=above("a"),
+        observations={"policy": {"position": position}},
+        rewards={"gated": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, when=mdp2.quantities.a)},
+        terminations={
+            "switched": mdp2.Termination(
+                mdp2.mdp.is_positive, inputs={"value": mdp2.quantities.a}, when=mdp2.Tunable(True)
+            )
+        },
+    )
+    flags = [0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]  # Joint "a" at each step; joint "b" is 0.25 throughout
+
+    def run(backend: str, capture: bool) -> list[dict[str, torch.Tensor]]:
+        scene = PointMassScene(num_worlds=1, joint_names=("b", "a"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp = builder.finalize(device=DEVICE, backend=backend, diagnostics=True)
+        state, transition = mdp.state(scene), mdp.transition()
+        mask = ProxyArray(wp.ones(1, dtype=wp.bool, device=DEVICE))
+        actions = ProxyArray(wp.zeros((1, 1), dtype=wp.float32, device=DEVICE))
+        captured = mdp2.CapturedMDP(mdp, state, transition, actions, mask) if capture else None
+        env_reset(mdp, state, scene, transition.observations, mask.torch)
+        joints = scene.data("robot", "joint_pos").torch
+        history = []
+        for step, flag in enumerate(flags, start=1):
+            joints.copy_(torch.tensor([[0.25, flag]], device=DEVICE))
+            if step == 6:
+                # A new episode, whose reset sees the joint "a" up.
+                mdp2.reset(mdp, state, mask) if captured is None else captured.reset()
+                mdp2.observe(mdp, state, transition.observations, mask) if captured is None else captured.observe()
+                mdp2.tune(mdp, state, "terminations.switched.when", False, at="step")
+            if captured is None:
+                mdp2.evaluate(mdp, state, transition)
+            else:
+                captured.evaluate()
+            total = state.arrays[mdp2.term_state("rewards.gated", "total")].torch
+            history.append(
+                {
+                    "reward": transition.reward_terms.torch[0, 0].clone(),
+                    "total": total.clone(),
+                    "terminated": transition.terminated.torch.clone(),
+                    "policy": transition.observations["policy"].torch.clone(),
+                }
+            )
+        return history
+
+    runs = [run(backend, capture) for backend in ("torch", "warp") for capture in (False, True)]
+    for other in runs[1:]:
+        for expected, actual in zip(runs[0], other):
+            for name in expected:
+                assert torch.equal(expected[name], actual[name]), name
+
+    history = runs[0]
+    # Off at the start, on from the step after "a" rose, off from the step after it fell, and restarted when back on.
+    assert [round(step["reward"].item() / 0.02, 6) for step in history[:5]] == [0.0, 0.0, 0.25, 0.5, 0.0]
+    assert [step["total"].item() for step in history[:5]] == [0.0, 0.0, 0.25, 0.5, 0.5]
+    # The observation is zero while off, and its history restarts where it turns on: [b, a] per step of history.
+    policy = [step["policy"][0].tolist() for step in history]
+    assert policy[0] == [0.0] * 4 and policy[1] == [0.25, 1.0, 0.25, 1.0] and policy[3] == [0.0] * 4
+    assert policy[2] == [0.25, 1.0, 0.25, 1.0]
+    # The reset saw "a" rise: the new episode's first step runs, with the state the reset restarted.
+    assert history[5]["total"].item() == 0.25
+    # The termination ran while its switch was on, and stops from the step boundary after it was tuned off.
+    assert [step["terminated"].item() for step in history] == [False, True, True, False, False, True, False]
+
+    gate = mdp2.quantities.a
+    reset_event = mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, when=gate)
+    errors = {
+        "quantities.b": mdp2.TaskCfg(quantities={"b": dataclasses.replace(above("a")["a"], when=gate)}),
+        "events.push": mdp2.TaskCfg(events={"push": reset_event}),
+        "commands.c": mdp2.TaskCfg(commands={"c": mdp2.Command(uniform_command, when=mdp2.commands.c)}),
+    }
+    for name, part in errors.items():
+        builder = mdp2.MDPBuilder(PointMassScene(num_worlds=1, joint_names=("a",)).schema)
+        builder.add_task(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), part))
+        with pytest.raises(ValueError, match=f"{name}: (only rewards|when 'commands.c' is written by the use)"):
+            builder.validate()
