@@ -466,7 +466,7 @@ class NewtonViewerGL(ViewerGL):
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
         if getattr(owner, "rtx_rendering", False):
-            hud_note(imgui, "RTX: hidden environments are also hidden from sensor cameras that share the scene.")
+            hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
 
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
@@ -1025,6 +1025,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_rtx_appearance(self, imgui) -> None:
         """Draw the Appearance options the OVRTX view supports: its lights, one group per type."""
+        hud_note(imgui, "RTX: lighting also changes what RTX sensor cameras see.")
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         if not imgui.tree_node("Lighting & Appearance###rtx_appearance"):
             return
