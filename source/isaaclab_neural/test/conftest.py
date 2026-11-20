@@ -25,8 +25,9 @@ DT = 1.0 / 30
 
 
 class FakeModel(WorldModel):
-    """Frame ``t`` of chunk ``c`` is filled with ``10 * c + t``."""
+    """Frame ``t`` of chunk ``c`` of view ``v`` is filled with ``10 * c + t + 100 * v``."""
 
+    views = ("camera",)
     chunks = 0
     steps = []
     resets = []
@@ -36,10 +37,11 @@ class FakeModel(WorldModel):
         self.num_envs, self.device = num_envs, device
 
     def spec(self):
-        return WorldModelSpec(chunk_length=T, fps=30, image_size=(H, W))
+        return WorldModelSpec(chunk_length=T, fps=30, image_size=(H, W), views=FakeModel.views)
 
     def reset(self, env_ids, images, prompts, seeds):
-        FakeModel.resets.append((env_ids, images[:, 0, 0, 0].tolist(), prompts, seeds))
+        first = images[FakeModel.views[0]]
+        FakeModel.resets.append((env_ids, first[:, 0, 0, 0].tolist(), prompts, seeds))
 
     def step(self, joint_targets, start_joint_state):
         FakeModel.chunks += 1
@@ -47,7 +49,7 @@ class FakeModel(WorldModel):
         out = torch.zeros((self.num_envs, T, H, W, 3), dtype=torch.uint8, device=self.device)
         for t in range(T):
             out[:, t] = 10 * FakeModel.chunks + t
-        return out
+        return {view: out + 100 * v for v, view in enumerate(FakeModel.views)}
 
     def close(self):
         FakeModel.closed += 1
@@ -58,30 +60,37 @@ class FakeModelCfg(ModelCfg):
     class_type: type = FakeModel
 
 
-def write_manifest(directory, states=None, split="train"):
+def write_manifest(directory, states=None, split="train", views=None):
     """Write one reset record per joint state and return the manifest path. Record ``i``'s start image is filled
-    with ``200 + i``."""
+    with ``200 + i``, plus ``20 * v`` for view ``v`` when ``views`` gives one image per view."""
     from PIL import Image
 
     states = [np.full(J, 0.1 * (i + 1)) for i in range(2)] if states is None else states
-    for i in range(len(states)):
+    rows = []
+    for i, s in enumerate(states):
         Image.fromarray(np.full((H, W, 3), 200 + i, dtype=np.uint8)).save(directory / f"start{i}.png")
-    rows = [
-        {"image": f"start{i}.png", "state": np.asarray(s).tolist(), "prompt": f"prompt {i}", "split": split}
-        for i, s in enumerate(states)
-    ]
+        image = f"start{i}.png"
+        if views is not None:
+            for v, view in enumerate(views):
+                Image.fromarray(np.full((H, W, 3), 200 + i + 20 * v, dtype=np.uint8)).save(directory / f"{view}{i}.png")
+            image = {view: f"{view}{i}.png" for view in views}
+        rows.append({"image": image, "state": np.asarray(s).tolist(), "prompt": f"prompt {i}", "split": split})
     path = directory / "resets.json"
     path.write_text(json.dumps(rows))
     return str(path)
 
 
 @contextlib.contextmanager
-def world_model_sim(directory, num_envs=N, envs_per_reset_record=N, states=None, split="train", device="cpu"):
-    """A simulation context on the world-model backend. Yields the simulation."""
+def world_model_sim(
+    directory, num_envs=N, envs_per_reset_record=N, states=None, split="train", device="cpu", views=None
+):
+    """A simulation context on the world-model backend, with a model of one view or of ``views``. Yields the
+    simulation."""
     FakeModel.chunks, FakeModel.steps, FakeModel.resets, FakeModel.closed = 0, [], [], 0
+    FakeModel.views = ("camera",) if views is None else tuple(views)
     physics = WorldModelCfg(
         model=FakeModelCfg(),
-        reset_manifest=write_manifest(directory, states, split),
+        reset_manifest=write_manifest(directory, states, split, views),
         split=split,
         envs_per_reset_record=envs_per_reset_record,
     )

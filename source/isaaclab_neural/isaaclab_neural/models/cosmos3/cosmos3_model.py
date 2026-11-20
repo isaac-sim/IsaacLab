@@ -31,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Cosmos3Model(WorldModel):
-    """Client of a Cosmos3 world-model service; one session serves all environments.
+    """Client of a Cosmos3 world-model service; one session serves all environments, and the model predicts one view.
 
     On the service's machine, chunks arrive through a GPU buffer the service writes (CUDA IPC) and are copied to
     :attr:`device` without the host; otherwise they arrive through the socket.
@@ -68,12 +68,13 @@ class Cosmos3Model(WorldModel):
             )
         return self._spec
 
-    def reset(self, env_ids: list[int], images: torch.Tensor, prompts: list[str], seeds: list[int]) -> None:
+    def reset(self, env_ids: list[int], images: dict[str, torch.Tensor], prompts: list[str], seeds: list[int]) -> None:
         """Send the start images and prompts of the selected environments."""
         if self._socket is None:
             self._open()
+        (start,) = images.values()
         message = {"op": "reset", "env_ids": list(env_ids), "prompts": list(prompts), "seeds": list(seeds)}
-        self._exchange(message, images.cpu().numpy(), frames=False)
+        self._exchange(message, start.cpu().numpy(), frames=False)
 
     def step_controls(self, controls: np.ndarray) -> torch.Tensor:
         """Predict the next chunk from normalized ``unified_v1`` controls shaped ``(N, T, 59)``.
@@ -82,7 +83,7 @@ class Cosmos3Model(WorldModel):
         """
         return self._exchange({"op": "step"}, np.ascontiguousarray(controls, dtype=np.float32), shared=True)
 
-    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> torch.Tensor:
+    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, torch.Tensor]:
         """Convert joint targets to controls with the task's joint mapping, then predict the chunk.
 
         The mapping runs on the host and the controls cross to the service there, so the targets are read once per
@@ -91,7 +92,9 @@ class Cosmos3Model(WorldModel):
         if self.mapping is None:
             self.mapping = instantiate(self.cfg.joint_mapping)
         targets, start = joint_targets.cpu().numpy(), start_joint_state.cpu().numpy()
-        return self.step_controls(np.stack([self.mapping.encode(targets[i], start[i]) for i in range(self.num_envs)]))
+        controls = np.stack([self.mapping.encode(targets[i], start[i]) for i in range(self.num_envs)])
+        (view,) = self.spec().views
+        return {view: self.step_controls(controls)}
 
     def close(self) -> None:
         """Close the session; the service keeps the weights loaded for the next client."""
