@@ -9,9 +9,9 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.assets import SurfaceGripper as PhysxSurfaceGripper
+from isaaclab_isaacsim.assets import SurfaceGripperCfg as PhysxSurfaceGripperCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
-from isaaclab_physx.assets import SurfaceGripper as PhysxSurfaceGripper
-from isaaclab_physx.assets import SurfaceGripperCfg as PhysxSurfaceGripperCfg
 from newton import eval_fk
 
 from isaaclab.assets import SurfaceGripper, SurfaceGripperCfg

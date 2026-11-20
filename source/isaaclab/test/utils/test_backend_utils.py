@@ -18,7 +18,7 @@ from isaaclab.utils.backend_utils import FactoryBase
     "backend, package",
     [
         ("ovphysx", "isaaclab_ov"),
-        ("physx", "isaaclab_physx"),
+        ("physx", "isaaclab_isaacsim"),
         ("newton", "isaaclab_newton"),
     ],
 )
