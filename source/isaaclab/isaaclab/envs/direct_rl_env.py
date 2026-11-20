@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -332,6 +333,8 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -396,6 +399,8 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -679,7 +684,8 @@ class DirectRLEnv(gym.Env):
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                self.extras["final_obs"] = self._compute_observations()
+                # copy, since resetting may update the task buffers that observations borrow
+                self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
             self._reset_idx(reset_env_ids)
         return reset_env_ids
 
