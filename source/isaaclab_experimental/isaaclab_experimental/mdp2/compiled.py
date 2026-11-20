@@ -77,7 +77,8 @@ class MDPState:
     - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
       ``evaluate``, for an MDP with such events;
     - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
-      task's ``done`` held) and ``entered`` (whether a task of a sequence started at this step);
+      task's ``done`` held), ``entered`` (whether a task of a sequence started at this step), and, for a task that
+      repeats, ``spent`` (done, and its completion still holds) and ``restarted`` (it restarted at this step);
     - ``mdp2.tunable(use, name)``: the value of a tunable param per world, and, for an MDP with tunable values,
       ``("pending", key)``: the values tuned for the next reset of each array, ``"pending"``: the worlds that have
       them, and ``"revision"``: the number of tunings applied in each world, see :func:`~.tune`.
@@ -291,6 +292,7 @@ class MDP:
                 details += [f"require {node.require}"] if node.require is not None else []
                 details += [f"final {node.final}"] if node.final is not None else []
                 details += ["staged"] if node.staged else []
+                details += ["repeat"] if node.repeat else []
                 lines.append(f"  {node.path or '(root)'}  {', '.join(details)}".rstrip())
 
         for phase, ops in self.ops.items():
@@ -473,6 +475,10 @@ class MDP:
                     array(node.path, "streak", np.int32)
                 if node.staged:
                     array(node.path, "entered", np.bool_)
+                if node.repeat:
+                    array(node.path, "count", np.int32)
+                    array(node.path, "spent", np.bool_)
+                    array(node.path, "restarted", np.bool_)
                 values[progress_field(node.path, "active")][worlds] = tree.runs_at_start(node)
 
         dtypes = {np.bool_: wp.bool, np.int32: wp.int32, np.float32: wp.float32}

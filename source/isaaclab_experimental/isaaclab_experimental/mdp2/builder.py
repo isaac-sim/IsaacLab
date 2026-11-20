@@ -213,8 +213,10 @@ class MDPBuilder:
         names: tuple[str, ...],
         staged: bool,
         scope: dict[FieldSelector, FieldSelector],
+        restarts: bool = False,
     ) -> None:
-        """Add a task of one world config, its uses with the prefix ``names``, then its subtasks.
+        """Add a task of one world config, its uses with the prefix ``names``, then its subtasks. ``staged`` is
+        whether it is part of a sequence, and ``restarts`` whether it or a parent repeats.
 
         The subtask of a split runs in worlds of its own, so its uses keep their names: equal uses of the world configs
         then run once, see :meth:`replicate`. A task reads its own commands and quantities by their names, as a task
@@ -226,7 +228,8 @@ class MDPBuilder:
         if task.done is not None and task.subtasks:
             raise ValueError(f"Task '{task_path}': a task with subtasks is done when they are; it cannot have a done.")
         prefix = ".".join(names)
-        stage = task_path if staged else None
+        restarts = restarts or task.repeat
+        stage = task_path if staged or restarts else None
         scope = {
             **scope,
             **{
@@ -237,7 +240,7 @@ class MDPBuilder:
                 for name in uses
             },
         }
-        self._tasks[task_path] = (replace(task, done=scope.get(task.done, task.done)), staged)
+        self._tasks[task_path] = (replace(task, done=scope.get(task.done, task.done)), staged or restarts)
 
         def add(kind: str, name: str, cfg: object, group: str | None = None, concatenate: bool = True) -> None:
             # A time limit ends episodes; a task of a sequence can end itself with a termination on its started_at.
@@ -272,7 +275,8 @@ class MDPBuilder:
 
         for name, subtask in task.subtasks.items():
             subtask_names = names if task.mode is TaskMode.SPLIT else (*names, name)
-            self._add_task(subtask, (*path, name), subtask_names, staged or task.mode is TaskMode.SEQUENCE, scope)
+            in_sequence = staged or task.mode is TaskMode.SEQUENCE
+            self._add_task(subtask, (*path, name), subtask_names, in_sequence, scope, restarts)
 
     def add_action(self, name: str, action: DirectAction | Action) -> ScheduleEntry:
         return self._add(ScheduleEntry(("actions", name), action))
@@ -537,7 +541,8 @@ class MDPBuilder:
         for path, (task, _) in tasks.items():
             for name in ("done", "holding", "active"):
                 context.mdp_fields[progress_field(path, name)] = ArrayLayout(wp.bool, 1, {})
-            for name in ("done_at", "started_at", *(["stage"] if task.mode is TaskMode.SEQUENCE else [])):
+            sequence, repeat = ["stage"] if task.mode is TaskMode.SEQUENCE else [], ["count"] if task.repeat else []
+            for name in ("done_at", "started_at", *sequence, *repeat):
                 context.mdp_fields[progress_field(path, name)] = ArrayLayout(wp.int32, 1, {})
             context.mdp_fields[progress_field(path, "score")] = ArrayLayout(wp.float32, 1, {})
         # The time limit compiles to no op, so it is known even when the other uses cannot be ordered.
@@ -625,6 +630,7 @@ class MDPBuilder:
             final=task.final,
             require=task.require,
             staged=staged,
+            repeat=task.repeat,
         )
 
     def _compile_action(self, entry: ScheduleEntry, context: CompileContext) -> None:

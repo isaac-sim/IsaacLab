@@ -351,7 +351,9 @@ def _update_progress(trees: tuple[TaskTree, ...], state: MDPState) -> None:
                 if node.mode is TaskMode.SEQUENCE:
                     stage = field("stage")
                     current = done_children.gather(1, stage.long().clamp(max=len(counted) - 1)[:, None])[:, 0]
-                    stage.add_((active & ~done & (stage < len(counted)) & current).int())
+                    # A sequence that repeats advances again once it restarted.
+                    finished = field("spent") if node.repeat else done
+                    stage.add_((active & ~finished & (stage < len(counted)) & current).int())
                     complete = (stage == len(counted)) & finals
                     holding.copy_(held[:, -1])
                 else:
@@ -359,10 +361,41 @@ def _update_progress(trees: tuple[TaskTree, ...], state: MDPState) -> None:
                     complete = (done_children.sum(1) >= required) & finals
                     holding.copy_(held.sum(1) >= required)
 
-            started = active & ~done & complete
-            field("done_at").copy_(torch.where(started, length, field("done_at")))
-            done.logical_or_(started)
+            if node.repeat:
+                _repeat(state, tree, node, complete, length)
+            else:
+                started = active & ~done & complete
+                field("done_at").copy_(torch.where(started, length, field("done_at")))
+                done.logical_or_(started)
             score.copy_(_score(state, tree, node) if node.done is None else done.float())
+            if node.repeat:
+                # A task that repeats keeps the score of being done once it was.
+                score.copy_(torch.where(done, 1.0, score))
+
+
+def _repeat(state: MDPState, tree: TaskTree, node, complete: torch.Tensor, length: torch.Tensor) -> None:
+    """Count the completions of a task that repeats, and restart it, with its subtasks' progress, once its completion
+    no longer holds."""
+    field = functools.partial(_progress, state, tree, node.path)
+    active, done, spent = field("active"), field("done"), field("spent")
+    counted = active & complete & ~spent
+    spent.logical_or_(counted)
+    field("count").add_(counted.int())
+    first = counted & ~done
+    field("done_at").copy_(torch.where(first, length, field("done_at")))
+    done.logical_or_(first)
+    restarted = field("restarted")
+    torch.logical_and(active & spent, ~field("holding"), out=restarted)
+    spent.logical_and_(~restarted)
+    initial = {"done": False, "holding": False, "done_at": -1, "score": 0.0, "stage": 0, "streak": 0, "count": 0}
+    initial["spent"] = False
+    if node.mode is TaskMode.SEQUENCE:
+        field("stage").masked_fill_(restarted, 0)
+    for child in tree.descendants(node):
+        for name, value in initial.items():
+            key = progress_field(child.path, name)
+            if key in state.arrays:
+                state.arrays[key].torch[tree.worlds.start : tree.worlds.stop].masked_fill_(restarted, value)
 
 
 def _score(state: MDPState, tree: TaskTree, node) -> torch.Tensor:
@@ -383,13 +416,19 @@ def _start_tasks(trees: tuple[TaskTree, ...], state: MDPState) -> None:
             if not node.staged:
                 continue
             parent = tree.parent(node)
-            runs = _progress(state, tree, parent.path, "active").clone()
-            if parent.mode is TaskMode.SEQUENCE:
+            active, entered = _progress(state, tree, node.path, "active"), _progress(state, tree, node.path, "entered")
+            runs = torch.ones_like(active) if parent is None else _progress(state, tree, parent.path, "active").clone()
+            if parent is not None and parent.mode is TaskMode.SEQUENCE:
                 # The last task keeps running once it is done.
                 stage = _progress(state, tree, parent.path, "stage").clamp(max=len(parent.children) - 1)
                 runs &= stage == parent.children.index(node.path)
-            active, entered = _progress(state, tree, node.path, "active"), _progress(state, tree, node.path, "entered")
-            torch.logical_and(runs, ~active, out=entered)
+            # A task starts where it did not run, and restarts with a parent that started or a repeat.
+            fresh = ~active
+            if parent is not None and tree.restarts(parent):
+                fresh = fresh | _progress(state, tree, parent.path, "entered")
+            if node.repeat:
+                fresh = fresh | _progress(state, tree, node.path, "restarted")
+            torch.logical_and(runs, fresh, out=entered)
             started = _progress(state, tree, node.path, "started_at")
             started.copy_(torch.where(entered, length, started))
             active.copy_(runs)
@@ -402,6 +441,7 @@ def _reset_progress(trees: tuple[TaskTree, ...], state: MDPState, mask: torch.Te
         for node in tree.nodes:
             initial = {"done": False, "holding": False, "done_at": -1, "started_at": 0, "score": 0.0, "stage": 0}
             initial |= {"streak": 0, "entered": False, "active": tree.runs_at_start(node)}
+            initial |= {"count": 0, "spent": False, "restarted": False}
             for name, value in initial.items():
                 key = progress_field(node.path, name)
                 if key in state.arrays:

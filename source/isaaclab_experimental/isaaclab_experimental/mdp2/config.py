@@ -352,6 +352,9 @@ class TaskCfg:
     score: float = 1.0  # Weight of the task in its parent's score
     # Whether the parent is done only while this task's completion holds (True) or does not (False); None to not check
     final: bool | None = None
+    # Restart once done and its completion no longer holds, to count how often it happens in an episode, such as drops
+    # of an object: its progress and uses restart, ``count`` counts the completions, and ``done`` stays true
+    repeat: bool = False
 
     subtasks: dict[str, TaskCfg] = field(default_factory=dict)
     mode: TaskMode = TaskMode.TOGETHER
@@ -364,16 +367,22 @@ class Milestone(TaskCfg):
     """A task that only has a completion, such as a step of a :func:`sequence`."""
 
     def __init__(
-        self, done: FieldSelector, hold: int = 1, score: float = 1.0, final: bool | None = None, **fields: Any
+        self,
+        done: FieldSelector,
+        hold: int = 1,
+        score: float = 1.0,
+        final: bool | None = None,
+        repeat: bool = False,
+        **fields: Any,
     ) -> None:
         # The other fields are those of a task, as ``dataclasses.replace`` passes them.
-        super().__init__(done=done, hold=hold, score=score, final=final, **fields)
+        super().__init__(done=done, hold=hold, score=score, final=final, repeat=repeat, **fields)
 
 
-PROGRESS_FIELDS = ("done", "holding", "active", "score", "done_at", "started_at", "stage")
+PROGRESS_FIELDS = ("done", "holding", "active", "score", "done_at", "started_at", "stage", "count")
 """Fields of the progress of a task: whether it is done (once done, until the episode ends), whether its completion
-holds at this step, whether it runs, its score in ``[0, 1]``, the episode step at which it was done (-1 before) and at
-which it last started, and the subtask that a sequence runs."""
+holds at this step, whether it runs, its score in ``[0, 1]``, the episode step at which it was first done (-1 before)
+and at which it last started, the subtask that a sequence runs, and how often a task that repeats was done."""
 
 
 @dataclass(frozen=True)
@@ -442,6 +451,7 @@ def compose(*tasks: TaskCfg, require: int | None = None, **subtasks: TaskCfg) ->
     elif cores:
         core = cores[0]
         composed.done, composed.hold, composed.score, composed.final = core.done, core.hold, core.score, core.final
+        composed.repeat = core.repeat
         composed.subtasks, composed.mode = dict(core.subtasks), core.mode
         composed.require, composed.worlds = core.require, core.worlds
     if subtasks:

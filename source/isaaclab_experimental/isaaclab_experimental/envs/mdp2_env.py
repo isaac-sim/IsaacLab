@@ -579,8 +579,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         The columns are ``world``, ``episode`` (its index among the world's episodes), ``length`` (control steps),
         ``terminated`` and ``truncated``, the value at the end of each recorded quantity, whether each termination
         ended it, as ``termination/<name>``, and, for each task with a completion, the episode step at which it was
-        done (-1 if it was not) as ``progress/<path>`` and the task's score as ``progress/score``, and, for a task with
-        tunable values, the tunings its world had applied as ``revision``. Rows of episodes that ended in the same
+        done (-1 if it was not) as ``progress/<path>``, the task's score as ``progress/score``, how often each task that
+        repeats was done as ``progress/<path>/count``, and, for a task with tunable values, the tunings its world had
+        applied as ``revision``. Rows of episodes that ended in the same
         step are ordered by world. Waits for the device.
         """
         rows = self._records[: self.episodes_completed]
@@ -608,6 +609,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         if completes:
             self._recorded.append(self.state.arrays[mdp2.progress_field("", "score")].torch)
             self._record_columns.append("progress/score")
+        repeats = list(dict.fromkeys(node.path for tree in self.mdp.tasks for node in tree.nodes if node.repeat))
+        self._recorded += [self.state.arrays[mdp2.progress_field(path, "count")].torch for path in repeats]
+        self._record_columns += [f"progress/{path or 'task'}/count" for path in repeats]
         if self.state.revision is not None:
             self._recorded.append(self.state.revision.torch)
             self._record_columns.append("revision")

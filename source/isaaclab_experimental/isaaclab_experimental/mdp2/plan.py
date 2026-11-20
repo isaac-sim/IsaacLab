@@ -177,7 +177,10 @@ class TaskNode:
     score: float  # Weight in its parent's score
     final: bool | None
     require: int | None
-    staged: bool  # Whether it runs only in some steps of an episode: a sequence is one of its ancestors
+    # Whether its uses start or restart during an episode: a sequence is one of its ancestors, or it or one of its
+    # ancestors repeats
+    staged: bool
+    repeat: bool = False
 
 
 @dataclass(frozen=True)
@@ -201,6 +204,16 @@ class TaskTree:
             return True
         first = parent.mode is not TaskMode.SEQUENCE or parent.children[0] == node.path
         return first and self.runs_at_start(parent)
+
+    def restarts(self, node: TaskNode) -> bool:
+        """Return whether a task restarts while it runs: it or one of its ancestors repeats."""
+        parent = self.parent(node)
+        return node.repeat or parent is not None and self.restarts(parent)
+
+    def descendants(self, node: TaskNode) -> tuple[TaskNode, ...]:
+        """Return the subtasks of a task, theirs, and so on, parents first."""
+        prefix = f"{node.path}." if node.path else ""
+        return tuple(other for other in self.nodes if other.path.startswith(prefix) and other.path != node.path)
 
     def counted(self, node: TaskNode) -> tuple[TaskNode, ...]:
         """Return the subtasks of a task that count towards its completion: those that have one."""

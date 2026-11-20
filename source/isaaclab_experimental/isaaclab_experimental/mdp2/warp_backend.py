@@ -630,7 +630,10 @@ def _under(conditions: Sequence[str], *lines: str) -> list[str]:
     return nested + [f"{'    ' * len(conditions)}{line}" for line in lines]
 
 
-_PROGRESS_TYPES = {"done": wp.bool, "holding": wp.bool, "active": wp.bool, "entered": wp.bool, "score": wp.float32}
+_PROGRESS_TYPES = {
+    **dict.fromkeys(("done", "holding", "active", "entered", "spent", "restarted"), wp.bool),
+    "score": wp.float32,
+}
 """Element types of the progress fields other than the ``int32`` ones."""
 
 
@@ -658,7 +661,7 @@ def _update_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
         for node in reversed(tree.nodes):
             if node.path in tree.completes:
                 lines += _node_progress(code, tree, node, length)
-        names = ("done", "holding", "score", "done_at", "streak", "stage")
+        names = ("done", "holding", "score", "done_at", "streak", "stage", "count", "spent", "restarted")
         if lines:
             code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
 
@@ -689,9 +692,10 @@ def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) ->
         finals = [final for final, child_node in zip(finals, counted) if child_node.final is not None]
         finals = " and ".join(finals) or "True"
         if node.mode is TaskMode.SEQUENCE:
-            # One subtask at most per step: the next one starts at the step after.
+            # One subtask at most per step: the next one starts at the step after. A sequence that repeats advances
+            # again once it restarted.
             stage = field("stage")
-            lines = [f"if {active} and not {done}:"]
+            lines = [f"if {active} and not {field('spent') if node.repeat else done}:"]
             for k, child in enumerate(children):
                 lines += [
                     f"    {'if' if k == 0 else 'elif'} {stage} == {k} and {child('done')}:",
@@ -712,13 +716,18 @@ def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) ->
                 f"{holding} = held >= {required}",
             ]
 
-    lines += [
-        f"if {active} and not {done} and complete:",
-        f"    {done} = True",
-        f"    {field('done_at')} = {length}",
-    ]
+    if node.repeat:
+        lines += _repeat(code, tree, node, length)
+    else:
+        lines += [
+            f"if {active} and not {done} and complete:",
+            f"    {done} = True",
+            f"    {field('done_at')} = {length}",
+        ]
     if node.done is not None:
         return [*lines, f"{score} = wp.where({done}, 1.0, 0.0)"]
+    # A task that repeats keeps the score of being done once it was.
+    kept = [f"{score} = wp.where({done}, 1.0, {score})"] if node.repeat else []
 
     counted = tree.counted(node)
     scores = [_progress(code, child.path, "score") for child in counted]
@@ -734,9 +743,46 @@ def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) ->
                     f"    pick = {1 << k}",
                 ]
             lines += ["taken = taken | pick", "total = total + best"]
-        return [*lines, f"{score} = total / {float(node.require)}"]
+        return [*lines, f"{score} = total / {float(node.require)}", *kept]
     weights = [child.score / sum(child.score for child in counted) for child in counted]
-    return [*lines, f"{score} = " + " + ".join(f"{weight!r} * {child}" for weight, child in zip(weights, scores))]
+    weighted = " + ".join(f"{weight!r} * {child}" for weight, child in zip(weights, scores))
+    return [*lines, f"{score} = {weighted}", *kept]
+
+
+def _repeat(code: Fusion, tree: TaskTree, node: TaskNode, length: str) -> list[str]:
+    """Return the statements that count the completions of a task that repeats, and restart it, with its subtasks'
+    progress, once its completion no longer holds."""
+    field = functools.partial(_progress, code, node.path)
+    spent, done = field("spent"), field("done")
+    restart = [*([f"{field('stage')} = 0"] if node.mode is TaskMode.SEQUENCE else [])]
+    for child in tree.descendants(node):
+        restart += _restart_lines(code, child)
+    return [
+        f"if {field('active')} and complete and not {spent}:",
+        f"    {spent} = True",
+        f"    {field('count')} = {field('count')} + 1",
+        f"    if not {done}:",
+        f"        {done} = True",
+        f"        {field('done_at')} = {length}",
+        f"{field('restarted')} = {field('active')} and {spent} and not {field('holding')}",
+        f"if {field('restarted')}:",
+        f"    {spent} = False",
+        *(f"    {line}" for line in restart),
+    ]
+
+
+def _restart_lines(code: Fusion, node: TaskNode) -> list[str]:
+    """Return the statements that restart the progress of a task, but whether and since when it runs."""
+    field = functools.partial(_progress, code, node.path)
+    return [
+        f"{field('done')} = False",
+        f"{field('holding')} = False",
+        f"{field('done_at')} = -1",
+        f"{field('score')} = 0.0",
+        *([f"{field('stage')} = 0"] if node.mode is TaskMode.SEQUENCE else []),
+        *([f"{field('streak')} = 0"] if node.done is not None else []),
+        *([f"{field('count')} = 0", f"{field('spent')} = False"] if node.repeat else []),
+    ]
 
 
 def _start_tasks(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
@@ -748,15 +794,19 @@ def _start_tasks(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
             if not node.staged:
                 continue
             parent = tree.parent(node)
-            runs = _progress(code, parent.path, "active")
-            if parent.mode is TaskMode.SEQUENCE:
+            runs = "True" if parent is None else _progress(code, parent.path, "active")
+            if parent is not None and parent.mode is TaskMode.SEQUENCE:
                 # The last task keeps running once it is done.
                 stage = f"wp.min({_progress(code, parent.path, 'stage')}, {len(parent.children) - 1})"
                 runs = f"{runs} and {stage} == {parent.children.index(node.path)}"
             field = functools.partial(_progress, code, node.path)
+            # A task starts where it did not run, and restarts with a parent that started or a repeat.
+            fresh = [f"not {field('active')}"]
+            fresh += [_progress(code, parent.path, "entered")] if parent is not None and tree.restarts(parent) else []
+            fresh += [field("restarted")] if node.repeat else []
             lines += [
                 f"runs = {runs}",
-                f"{field('entered')} = runs and not {field('active')}",
+                f"{field('entered')} = runs and {fresh[0] if len(fresh) == 1 else '(' + ' or '.join(fresh) + ')'}",
                 f"if {field('entered')}:",
                 f"    {field('started_at')} = {length}",
                 f"{field('active')} = runs",
@@ -782,8 +832,11 @@ def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
                 *([f"{field('stage')} = 0"] if node.mode is TaskMode.SEQUENCE else []),
                 *([f"{field('streak')} = 0"] if node.done is not None else []),
                 *([f"{field('entered')} = False"] if node.staged else []),
+                *([f"{field('count')} = 0", f"{field('spent')} = False"] if node.repeat else []),
+                *([f"{field('restarted')} = False"] if node.repeat else []),
             ]
         names = ("done", "holding", "done_at", "started_at", "score", "active", "stage", "streak", "entered")
+        names += ("count", "spent", "restarted")
         code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
 
 

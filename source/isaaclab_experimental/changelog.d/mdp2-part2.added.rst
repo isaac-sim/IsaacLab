@@ -37,3 +37,6 @@
   worlds where a field, such as a mode command, was positive at the start of the step, and restarts its state, timer,
   command, and history where it turns on. ``when=mdp2.Tunable(True)`` is a switch per world that
   :func:`~isaaclab_experimental.mdp2.tune` turns on and off.
+* Added ``repeat`` to MDP2 tasks: a task that repeats counts its completions as ``mdp2.progress.<task>.count``, such as
+  the drops of an object, and restarts with its subtasks and uses once its completion no longer holds.
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` records the count of every episode.

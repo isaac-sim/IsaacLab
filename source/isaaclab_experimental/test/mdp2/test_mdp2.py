@@ -2121,3 +2121,32 @@ def test_uses_with_when_run_where_their_field_held_at_the_start_of_the_step():
         builder.add_task(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), part))
         with pytest.raises(ValueError, match=f"{name}: (only rewards|when 'commands.c' is written by the use)"):
             builder.validate()
+
+
+def test_tasks_that_repeat_count_each_time_they_are_done():
+    """A task that repeats counts its completions, waits until its completion no longer holds, and then restarts: its
+    uses restart, as when a task of a sequence starts, and its ``done`` stays true from the first time."""
+    held = mdp2.Reward(accumulate, inputs={"joint_pos": robot.joint_pos}, params={"gain": 1.0})
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a")),
+        drops=mdp2.TaskCfg(rewards={"held": held}, done=mdp2.quantities.a, repeat=True),
+    )
+    # Joint "a" rises at steps 2, 5, and 8; joint "b", which the reward sums, is 0.25 throughout.
+    steps = [[0.25, a] for a in (0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0)]
+    history = check_progress(task, steps, joints=("b", "a"))
+    assert [step["drops.count"].item() for step in history] == [0, 1, 1, 1, 2, 2, 2, 3]
+    assert history[-1]["drops.done_at"].item() == 2 and history[-1]["done_at"].item() == 2
+    assert all(step["done"].item() for step in history[1:])
+    # The reward's state restarts at the end of the steps where "a" fell after a completion.
+    total = [step[str(mdp2.term_state("rewards.drops.held", "total"))].item() for step in history]
+    assert total == [0.25, 0.5, 0.75, 0.0, 0.25, 0.0, 0.25, 0.5]
+
+    # A sequence that repeats restarts its subtasks: each up-then-down cycle counts once.
+    cycle = dataclasses.replace(
+        mdp2.sequence(up=mdp2.Milestone(mdp2.quantities.a), down=mdp2.Milestone(mdp2.quantities.b)), repeat=True
+    )
+    task = mdp2.compose(mdp2.TaskCfg(quantities=above("a", "b")), cycle)
+    history = check_progress(task, [[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    assert [step["count"].item() for step in history] == [0, 1, 1, 1, 2]
+    assert [step["up.done"].item() for step in history] == [True, True, False, True, True]
+    assert [step["stage"].item() for step in history] == [1, 2, 0, 1, 2]
