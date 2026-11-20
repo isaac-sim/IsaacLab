@@ -320,7 +320,7 @@ def test_ovstage_ci_coverage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.syspath_prepend(str(_REPO_ROOT / "source/_isaaclab_testing/test/rendering"))
     from rendering_cases import KITLESS_RENDERING_CASES
 
-    monkeypatch.delitem(sys.modules, "rendering_cases", raising=False)
+    sys.modules.pop("rendering_cases", None)
 
     expected_ovstage_files = {
         f"test_rendering_kitless_{case.physics}_{case.renderer}.py"
