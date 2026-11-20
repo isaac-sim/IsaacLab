@@ -109,6 +109,10 @@ def _build_proxy_coupled_solver(
         values = vars(proxy_cfg).copy()
         if isinstance(values["collision_pipeline"], NewtonCollisionPipelineCfg):
             collision_cfg = values["collision_pipeline"]
+            if collision_cfg.sdf_all_shapes is not None or collision_cfg.speculative_contact_gap_max is not None:
+                raise ValueError(
+                    "Proxy collision pipelines do not support sdf_all_shapes or speculative_contact_gap_max."
+                )
             values["collision_pipeline"] = partial(CollisionPipeline, **collision_cfg.to_pipeline_args())
         proxies.append(SolverCoupledProxy.Proxy(**values))
     coupling_values = solver_kwargs(SolverCoupledProxy.Config, cfg, deterministic_mode)
