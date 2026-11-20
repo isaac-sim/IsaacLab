@@ -170,6 +170,10 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``friction_epsilon``
       - Default: ``1.0e-2`` [m/s]. Relative tangential-speed threshold for smoothing friction near rest. Reducing it retains Coulomb-like friction at lower sliding speeds.
+    * - ``rigid_avbd_contact_alpha``
+      - Default: ``None``. Body-body contact C0 stabilization strength in [0, 1]. ``None`` uses Newton's default (``0.0``). This does not set contact stiffness or multiplier retention.
+    * - ``rigid_contact_history``
+      - Default: ``False``. Warm-starts matched body-body contacts across steps. Standalone VBD requires ``NewtonCfg.collision_cfg.contact_matching`` set to ``"latest"`` or ``"sticky"`` when it integrates rigid bodies. Coupled entries that integrate rigid bodies do not support history; Newton ignores it with external rigid integration.
     * - ``rigid_joint_linear_ke``
       - Default: ``1.0e5`` [N/m]. Structural linear stiffness for non-rod rigid joints, separate from actuator gains.
     * - ``rigid_joint_angular_ke``
@@ -208,6 +212,18 @@ change stiffness.
 
 ``VBDSolverCfg`` leaves Newton's C0 stabilization parameter ``rigid_avbd_alpha``
 unset, so Newton uses ``0.0`` for rigid joints and body-body contacts.
+
+Enable standalone contact history with collision matching as shown below;
+Isaac Lab clears both histories for reset worlds.
+
+.. code-block:: python
+
+    from isaaclab_newton.physics import NewtonCfg, NewtonCollisionPipelineCfg, VBDSolverCfg
+
+    physics_cfg = NewtonCfg(
+        solver_cfg=VBDSolverCfg(rigid_contact_history=True),
+        collision_cfg=NewtonCollisionPipelineCfg(contact_matching="latest"),
+    )
 
 
 Self-Contact
