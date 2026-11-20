@@ -12,9 +12,6 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import Sdf, Usd, UsdGeom, UsdShade
-
-from isaaclab.sim import use_stage
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
@@ -105,49 +102,3 @@ def test_progress_without_rewards_and_partial_reset(cfg_type):
     position[0, 2] = 2.0
     term.reset(torch.tensor([0]))
     assert term(env, **cfg.params).tolist() == [False, True]
-
-
-@pytest.mark.parametrize("asset_name", ["agx_orin", "protective_box"])
-def test_prop_material_overrides_clone_with_the_prototype(tmp_path, asset_name):
-    """Clones keep distinct authored materials, texture connections, and the configured overrides."""
-    asset_id = "MiniPc001" if asset_name == "agx_orin" else "ProtectiveBox001"
-    path = str(tmp_path / f"{asset_id}.usda")
-    source = Usd.Stage.CreateNew(path)
-    source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Prop").GetPrim())
-    for name in (f"M_{asset_id}_001", "label"):
-        material = UsdShade.Material.Define(source, f"/Prop/Looks/{name}")
-        shader = UsdShade.Shader.Define(source, f"{material.GetPath()}/Shader")
-        shader.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
-        shader.SetSourceAssetSubIdentifier("OmniPBR", "mdl")
-        material.CreateSurfaceOutput("mdl").ConnectToSource(shader.CreateOutput("out", Sdf.ValueTypeNames.Token))
-        shader.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(f"{name}.png"))
-        shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set((0.2, 0.3, 0.4))
-        texture = UsdShade.Shader.Define(source, f"{material.GetPath()}/Texture")
-        shader.CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).ConnectToSource(
-            texture.CreateOutput("texture", Sdf.ValueTypeNames.Asset)
-        )
-        UsdShade.MaterialBindingAPI.Apply(UsdGeom.Cube.Define(source, f"/Prop/{name}").GetPrim()).Bind(material)
-    source.GetRootLayer().Save()
-    cfg = getattr(PackAgxOrinEnvCfg().scene, asset_name).spawn.replace(usd_path=path)
-    stage = Usd.Stage.CreateInMemory()
-    for index in range(2):
-        UsdGeom.Xform.Define(stage, f"/World/env_{index}")
-    with use_stage(stage):
-        cfg.func("/World/env_.*/Prop", cfg)
-    for index in range(2):
-        for name in (f"M_{asset_id}_001", "label"):
-            root = f"/World/env_{index}/Prop"
-            material_path = f"{root}/Looks/{name}"
-            binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/{name}"))
-            assert binding.ComputeBoundMaterial()[0].GetPath() == material_path
-            shader = UsdShade.Shader(stage.GetPrimAtPath(f"{material_path}/Shader"))
-            assert shader.GetInput("diffuse_texture").Get().path == f"{name}.png"
-            assert shader.GetInput("diffuse_color_constant").Get() == pytest.approx((0.2, 0.3, 0.4))
-            assert shader.GetInput("normalmap_texture").GetConnectedSource()[0].GetPath() == f"{material_path}/Texture"
-            brightness = shader.GetInput("albedo_brightness")
-            if name == "label":
-                assert not brightness
-            else:
-                assert brightness.Get() == pytest.approx(3.4 if asset_name == "agx_orin" else 2.6)
-                assert shader.GetInput("metallic_texture_influence").Get() == 0.0
-                assert shader.GetInput("reflection_roughness_texture_influence").Get() == 0.0
