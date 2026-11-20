@@ -41,8 +41,12 @@ class Cosmos3Cfg(ModelCfg):
 
     class_type: type | str = "{DIR}.cosmos3_model:Cosmos3Model"
 
-    endpoint: str = DEFAULT_WORLD_MODEL_ENDPOINT
-    """Service endpoint: ``unix:///path`` on this machine or ``tcp://host:port``."""
+    endpoint: str | list[str] = DEFAULT_WORLD_MODEL_ENDPOINT
+    """Service endpoint: ``unix:///path`` on this machine or ``tcp://host:port``.
+
+    A list names several services, for example one per GPU. The environments are then split into contiguous shares
+    of near-equal size, one per service in list order; each service generates its share as one batch, all services at
+    the same time."""
 
     timeout: float = DEFAULT_TIMEOUT_S
     """Wait per service request [s]. A window-mode chunk of many environments can take minutes."""

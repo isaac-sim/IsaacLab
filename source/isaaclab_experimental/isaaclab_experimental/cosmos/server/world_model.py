@@ -60,8 +60,9 @@ class Cosmos3Settings:
     config_file: str | None = None
     """Saved YAML configuration of a DCP checkpoint."""
     mode: Literal["window", "session"] = "window"
-    """``window`` conditions each prediction on the last generated image (Stage 0 checkpoints) and serves any number
-    of environments. ``session`` keeps the native causal history of distilled checkpoints and serves one."""
+    """``window`` conditions each prediction on the last generated image (Stage 0 checkpoints) and generates any
+    number of environments as one batch, within GPU memory. ``session`` keeps the native causal history of distilled
+    checkpoints and serves one."""
     image_size: tuple[int, int] = (480, 640)
     """Height and width of the frames [pixels]."""
     chunk_size: int = 16
@@ -195,18 +196,21 @@ class Cosmos3Session:
                 rgb = self.native.step({"action_space": "normalized_unified_v1", "action": controls[0].tolist()})
                 frames = _pixels(rgb)
             else:
-                chunks = []
-                for env in range(self.num_envs):
-                    result = model.generate_samples_from_batch(
-                        self._batch(self.condition[env], controls[env], self.prompts[env]),
-                        guidance=settings.guidance,
-                        shift=settings.shift,
-                        seed=[(self.seeds[env] + self.elapsed[env]) % _SEED_LIMIT],
-                        num_steps=settings.num_inference_steps,
-                        n_sample=1,
-                    )
-                    chunks.append(_pixels((model.decode(result["vision"][0]) + 1) / 2)[:, 1:])
-                frames = torch.cat(chunks)
+                from cosmos_framework.inference.inference import _finalize_data_batch, _merge_data_batches
+
+                # One batch of every environment, each with its own condition, prompt and seed, so its noise is the
+                # one it would get alone.
+                envs = range(self.num_envs)
+                batch = _merge_data_batches([self._batch(env, controls[env]) for env in envs])
+                result = model.generate_samples_from_batch(
+                    _finalize_data_batch(batch, self.num_envs, model),
+                    guidance=settings.guidance,
+                    shift=settings.shift,
+                    seed=[(self.seeds[env] + self.elapsed[env]) % _SEED_LIMIT for env in envs],
+                    num_steps=settings.num_inference_steps,
+                    n_sample=self.num_envs,
+                )
+                frames = torch.cat([_pixels((model.decode(latent) + 1) / 2)[:, 1:] for latent in result["vision"]])
         for env, frame in enumerate(frames):
             self.condition[env] = _condition(frame[-1])
             self.elapsed[env] += settings.chunk_size
@@ -220,11 +224,11 @@ class Cosmos3Session:
             self.native = None
             self._native_resources.close()
 
-    def _batch(self, condition: torch.Tensor, controls: np.ndarray, prompt: str) -> dict:
+    def _batch(self, env: int, controls: np.ndarray) -> dict:
+        """The Framework's data batch of one environment's chunk."""
         import torch
         from cosmos_framework.inference.action import build_action_batch
         from cosmos_framework.inference.args import ModelMode
-        from cosmos_framework.inference.inference import _finalize_data_batch
 
         settings = self.model.settings
         model = self.model.pipe.model
@@ -234,11 +238,11 @@ class Cosmos3Session:
         )
         padded = torch.zeros(settings.chunk_size, 64, dtype=torch.float32)
         padded[:, :NUM_CONTROLS] = torch.tensor(values, dtype=torch.float32)
-        batch = build_action_batch(
-            video=condition,
+        return build_action_batch(
+            video=self.condition[env],
             action=padded,
             raw_action_dim=NUM_CONTROLS,
-            prompt=prompt,
+            prompt=self.prompts[env],
             view_point="ego_view",
             domain_name=settings.domain_name,
             model_mode=ModelMode.FORWARD_DYNAMICS,
@@ -250,7 +254,6 @@ class Cosmos3Session:
             action_domain_ids=torch.tensor(domains, dtype=torch.long),
             format_prompt_as_json=False,
         )
-        return _finalize_data_batch(batch, 1, model)
 
 
 def _pixels(rgb: torch.Tensor) -> torch.Tensor:

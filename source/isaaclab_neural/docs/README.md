@@ -115,10 +115,37 @@ Wait for `Cosmos ready at ...`, then run the task in the Isaac Lab environment. 
 `NeuralCfg(model_cfg=Cosmos3Cfg(joint_mapping=...))`. `Cosmos3Model.step` converts joint targets to 59 normalized
 controls with the task's `JointMappingCfg`, so the robot description and the normalization stay with the task.
 
-The service's `--mode window` (default) serves any number of environments, one after the other; `--mode session`
-serves one. With the service on the same machine and a GPU this process can access directly, chunks stay on the GPU
+The service's `--mode window` (default) generates any number of environments as one batch, each with its own start
+frame, prompt and seed; `--mode session` serves one. A larger batch is faster per environment, and GPU memory limits
+it; `scripts/benchmarks/benchmark_cosmos3_world_model.py`, run in the Framework environment, measures both for each
+batch size. With the service on the same machine and a GPU this process can access directly, chunks stay on the GPU
 (CUDA IPC, Linux); otherwise they go through the socket, which carries about 16 environments of 16 frames at
 480 x 640 per message. `Cosmos3Cfg.transport` forces either one.
+
+### Several GPUs
+
+Several services can share the environments, for example one service per GPU, as for
+[Cosmos Transfer](../../isaaclab_experimental/docs/cosmos_transfer.md#several-gpus). Start each service in its own
+terminal with its own GPU and endpoint; each loads its own copy of the model:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+export LD_LIBRARY_PATH=
+uv run --no-sync isaaclab-cosmos-world-model-server --checkpoint "$COSMOS3_CHECKPOINT" --device cuda:1 \
+  --endpoint unix:///tmp/isaaclab-cosmos3-gpu1.sock
+```
+
+Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos3-gpu2.sock`, and set
+`Cosmos3Cfg.endpoint` to the list of both:
+
+```python
+Cosmos3Cfg(endpoint=["unix:///tmp/isaaclab-cosmos3-gpu1.sock", "unix:///tmp/isaaclab-cosmos3-gpu2.sock"], ...)
+```
+
+The environments are split into contiguous shares of near-equal size, one per service in list order: with 4
+environments, 0-1 on the first service and 2-3 on the second. Every chunk sends each service its share before
+waiting for any reply, so the services generate at the same time, and a chunk lasts as long as the slowest service.
+There must be at least one environment per service. If one service fails, the model closes every session.
 
 ## Tests
 
