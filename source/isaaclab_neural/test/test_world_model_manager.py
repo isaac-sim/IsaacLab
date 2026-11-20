@@ -5,6 +5,7 @@
 
 """The world-model backend: chunked prediction, joint state and resets."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -79,6 +80,24 @@ def test_a_missing_reset_split_reports_the_split_before_binding(tmp_path):
         WorldModelManager(
             WorldModelCfg(model=FakeModelCfg(), reset_manifest=write_manifest(tmp_path), split="validation")
         )
+
+
+def test_model_environment_limit_is_checked_during_binding(tmp_path, monkeypatch):
+    original_spec = FakeModel.spec
+
+    def limited_spec(model):
+        return replace(original_spec(model), max_envs=N)
+
+    monkeypatch.setattr(FakeModel, "spec", limited_spec)
+    with world_model_sim(tmp_path, envs_per_reset_record=1) as sim:
+        with pytest.raises(ValueError, match=f"supports at most {N} environments.*{N + 1}"):
+            bound_manager(sim, num_envs=N + 1)
+    with world_model_sim(tmp_path, envs_per_reset_record=1) as sim:
+        manager = bound_manager(sim)
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
+        for _ in range(T):
+            step(manager, 1.0)
+        assert FakeModel.calls == ["reset", "step"]
 
 
 @pytest.mark.parametrize("states", [[np.zeros(1)], [np.zeros(J + 1)], [np.zeros(J), np.zeros(J - 1)]])

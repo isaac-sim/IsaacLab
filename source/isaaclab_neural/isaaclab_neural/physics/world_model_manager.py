@@ -87,7 +87,7 @@ class WorldModelManager(PhysicsManager):
 
         Raises:
             ValueError: If a second articulation binds in the same initialization, or reset records have the wrong
-                number of joint positions.
+                number of joint positions, or the scene exceeds the model's environment limit.
         """
         if self._bound:
             raise ValueError("The world-model backend drives one articulation, but the scene has more than one.")
@@ -105,6 +105,10 @@ class WorldModelManager(PhysicsManager):
             self.model.close()
         self.model = instantiate(self._cfg.model, num_envs, self._device)
         self.spec = self.model.spec()
+        if self.spec.max_envs is not None and num_envs > self.spec.max_envs:
+            raise ValueError(
+                f"The world model supports at most {self.spec.max_envs} environments, but the scene has {num_envs}."
+            )
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
             raise ValueError(f"sim.dt must equal 1 / fps = {1.0 / self.spec.fps} s, got {self._sim.cfg.dt}")
         if not self.spec.views or len(set(self.spec.views)) != len(self.spec.views):
