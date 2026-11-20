@@ -9,8 +9,8 @@ Extends the hold-pose task with a base-velocity command, a gait-phase clock, a f
 contact sensor, and gait / contact / foot-clearance rewards.
 """
 
+from isaaclab_isaacsim.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm

@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+9.2.1 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Rejected explicit contact stiffness/damping ranges in material randomization because OVPhysX does not expose runtime gain bindings.
+* Updated the Omniverse library dependency pins to OVRTX 0.7.0.1794596436,
+  OvPhysX 0.8.0.43443703471, and OvStage 0.4.0.1794520352.
+
+
 9.2.0 (2026-11-18)
 ~~~~~~~~~~~~~~~~~~
 

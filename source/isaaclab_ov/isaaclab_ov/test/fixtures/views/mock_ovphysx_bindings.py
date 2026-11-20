@@ -362,17 +362,9 @@ class MockOvPhysxBindingSet:
                 TT.RIGID_BODY_COM_POSE: MockTensorBinding(TT.RIGID_BODY_COM_POSE, (N, 7), **common),
                 TT.RIGID_BODY_INERTIA: MockTensorBinding(TT.RIGID_BODY_INERTIA, (N, 9), **common),
             }
-            # Optional bindings: only present when the wheel exposes the alias.
-            if hasattr(TT, "RIGID_BODY_ACCELERATION"):
-                self.bindings[TT.RIGID_BODY_ACCELERATION] = MockTensorBinding(
-                    TT.RIGID_BODY_ACCELERATION, (N, 6), **common
-                )
-            if hasattr(TT, "RIGID_BODY_INV_MASS"):
-                self.bindings[TT.RIGID_BODY_INV_MASS] = MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common)
-            if hasattr(TT, "RIGID_BODY_INV_INERTIA"):
-                self.bindings[TT.RIGID_BODY_INV_INERTIA] = MockTensorBinding(
-                    TT.RIGID_BODY_INV_INERTIA, (N, 9), **common
-                )
+            self.bindings[TT.RIGID_BODY_ACCELERATION] = MockTensorBinding(TT.RIGID_BODY_ACCELERATION, (N, 6), **common)
+            self.bindings[TT.RIGID_BODY_INV_MASS] = MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common)
+            self.bindings[TT.RIGID_BODY_INV_INERTIA] = MockTensorBinding(TT.RIGID_BODY_INV_INERTIA, (N, 9), **common)
             return
 
         N = num_instances

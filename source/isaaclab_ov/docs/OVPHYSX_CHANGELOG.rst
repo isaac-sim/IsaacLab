@@ -295,7 +295,7 @@ Added
 * Added :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_enhanced_determinism` and
   :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_external_forces_every_iteration`, mirroring the
   equivalent PhysX solver settings already exposed on
-  :class:`~isaaclab_physx.physics.PhysxCfg`.
+  :class:`~isaaclab_isaacsim.physics.PhysxCfg`.
 
 
 6.0.0 (2026-07-03)
@@ -424,7 +424,7 @@ Added
   :class:`~isaaclab_ovphysx.sensors.ray_caster.RayCasterCamera`,
   :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCaster`, and
   :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCasterCamera`.
-  Mirrors :mod:`isaaclab_physx.sensors.ray_caster` structure: a single
+  Mirrors :mod:`isaaclab_isaacsim.sensors.ray_caster` structure: a single
   ``_OvPhysxRayCasterMixin`` carries the backend-specific pose-tracking
   surface, reading body poses via the ovphysx
   ``create_tensor_binding(pattern=..., tensor_type=RIGID_BODY_POSE)``
@@ -580,7 +580,7 @@ Changed
 * Changed the existing
   ``source/isaaclab_ovphysx/test/sensors/check_contact_sensor.py``
   stubs to real tests adapted from the PhysX
-  :mod:`isaaclab_physx.test.sensors.test_contact_sensor` suite. The
+  :mod:`isaaclab_isaacsim.test.sensors.test_contact_sensor` suite. The
   three tests that exercise ``track_contact_points`` or
   ``track_friction_forces`` are decorated with
   :func:`pytest.mark.skip` until the OVPhysX wheel ships

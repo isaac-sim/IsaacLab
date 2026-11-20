@@ -180,10 +180,10 @@ class SpatialSoftmaxCNNModel(MLPModel):
             obs_groups,
             obs_set,
             output_dim,
-            hidden_dims,
-            activation,
-            obs_normalization,
-            distribution_cfg,
+            hidden_dims=hidden_dims,
+            activation=activation,
+            obs_normalization=obs_normalization,
+            distribution_cfg=distribution_cfg,
         )
         self.cnns = nn.ModuleDict(cnns)
         self.softmaxes = nn.ModuleDict(softmaxes)
