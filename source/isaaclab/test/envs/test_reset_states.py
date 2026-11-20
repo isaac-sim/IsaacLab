@@ -129,3 +129,22 @@ def test_masked_state_gather_replays_changed_indices_without_touching_other_worl
     ids.assign(np.array([2**32, 2**32, 2 - 2**32], dtype=np.int64))
     wp.capture_launch(capture.graph)
     np.testing.assert_array_equal(padded.numpy(), [[30, -7, 31, -7], [30, -7, 31, -7], [20, -7, 21, -7]])
+
+
+def test_masked_state_scatter_writes_selected_rows_and_round_trips() -> None:
+    buffer = ResetStateBuffer(
+        {"pose": wp.zeros(3, dtype=wp.transformf, device="cpu"), "robot": {"joint": torch.zeros(3, 2)}}
+    )
+    values = {
+        "pose": wp.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]], dtype=wp.transformf, device="cpu"),
+        "robot": {"joint": torch.tensor([[1.0, 2.0], [3.0, 4.0]])},
+    }
+    # Row 0 goes to state 2; row 1 is masked out; an invalid index is skipped.
+    buffer.set_state(torch.tensor([2, 0]), values, mask=torch.tensor([True, False]))
+    buffer.set_state(torch.tensor([-1, 5]), values)
+    stored = buffer.states
+    np.testing.assert_array_equal(stored["pose"].warp.numpy()[:, :3], [[0, 0, 0], [0, 0, 0], [1, 2, 3]])
+    torch.testing.assert_close(stored["robot"]["joint"].torch, torch.tensor([[0.0, 0.0], [0.0, 0.0], [1.0, 2.0]]))
+    np.testing.assert_array_equal(buffer.get_state(torch.tensor([2]))["pose"].warp.numpy(), values["pose"].numpy()[:1])
+    with pytest.raises(ValueError, match="values must match the stored state tree"):
+        buffer.set_state(torch.tensor([0]), {"pose": values["pose"]})
