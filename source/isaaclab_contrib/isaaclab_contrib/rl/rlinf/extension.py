@@ -255,6 +255,14 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             rl_head_config=model_cfg.rl_head_config,
         )
 
+        if "gpu_resize_width" in cfg or "gpu_resize_height" in cfg:
+            # GR00T validates incoming video against the recording metadata. The env worker has already resized RGB.
+            input_metadata = model.metadata.model_copy(deep=True)
+            for video in input_metadata.modalities.video.values():
+                width, height = video.resolution
+                video.resolution = (cfg.get("gpu_resize_width", width), cfg.get("gpu_resize_height", height))
+            modality_transform.set_metadata(input_metadata)
+
         if rl_model_path:
             rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
             if not rl_weights.exists():
@@ -428,6 +436,36 @@ def _register_isaaclab_envs() -> None:
     logger.debug(f"REGISTER_ISAACLAB_ENVS now contains: {list(REGISTER_ISAACLAB_ENVS.keys())}")
 
 
+def _prepare_camera_image(image: torch.Tensor, cfg: dict) -> torch.Tensor:
+    """Crop a batch of RGB frames and resize to the policy input dimensions on the image device."""
+    batch, height, width, _ = image.shape
+    size = (cfg.get("gpu_resize_height", height), cfg.get("gpu_resize_width", width))
+    if size == (height, width):
+        return image
+    fraction = cfg.get("gpu_crop_scale", 0.0)
+    if fraction:
+        if not 0 < fraction < 1:
+            raise ValueError("gpu_crop_scale must be in [0, 1).")
+        h, w = max(1, int(height * (1 - fraction))), max(1, int(width * (1 - fraction)))
+        if cfg.get("gpu_crop_random", False):
+            tops = torch.randint(height - h + 1, (batch, 1), device=image.device)
+            lefts = torch.randint(width - w + 1, (batch, 1), device=image.device)
+            rows = tops + torch.arange(h, device=image.device)
+            cols = lefts + torch.arange(w, device=image.device)
+            image = image[torch.arange(batch, device=image.device)[:, None, None], rows[:, :, None], cols[:, None, :]]
+        else:
+            top, left = (height - h) // 2, (width - w) // 2
+            image = image[:, top : top + h, left : left + w]
+    if image.shape[1:3] == size:
+        return image
+    resized = torch.nn.functional.interpolate(
+        image.permute(0, 3, 1, 2).float(), size=size, mode="bilinear", align_corners=False, antialias=True
+    ).permute(0, 2, 3, 1)
+    if image.dtype == torch.uint8:
+        resized = resized.clamp(0, 255)
+    return resized.to(image.dtype)
+
+
 def _create_generic_env_wrapper(task_id: str) -> type:
     """Create a generic wrapper class for an IsaacLab task.
 
@@ -541,6 +579,15 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
+                options = self.cfg.get("isaaclab", {})
+                if options.get("absolute_joint_position_actions", False):
+                    from .joint_position_env import AbsoluteJointPositionEnv
+
+                    env = AbsoluteJointPositionEnv(
+                        env,
+                        prefix_pad=options["action_mapping"].get("prefix_pad", 0),
+                        warmup_steps=options.get("renderer_warmup_steps", 0),
+                    )
                 return env, sim_app
 
             return make_env_isaaclab
@@ -567,7 +614,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             policy_obs = obs.get("policy", obs)
             camera_obs = obs.get("camera_images", {})
 
-            cfg = _get_isaaclab_cfg()
+            cfg = {**_get_isaaclab_cfg(), **self.cfg.get("isaaclab", {})}
             # Get task description from config
             task_desc = cfg.get("task_description", "") or self.task_description
             rlinf_obs = {
@@ -581,14 +628,14 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             # main_images: single camera key -> (B, H, W, C)
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
-                rlinf_obs["main_images"] = camera_obs[main_key]
+                rlinf_obs["main_images"] = _prepare_camera_image(camera_obs[main_key], cfg)
 
             # extra_view_images: camera key(s) -> stack to (B, N, H, W, C)
             extra_keys = cfg.get("extra_view_images")
             if extra_keys:
                 if isinstance(extra_keys, str):
                     extra_keys = [extra_keys]
-                extra_imgs = [camera_obs[k] for k in extra_keys if k in camera_obs]
+                extra_imgs = [_prepare_camera_image(camera_obs[k], cfg) for k in extra_keys if k in camera_obs]
                 if extra_imgs:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
@@ -602,7 +649,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                         state = policy_obs.get(spec)
                         if state is not None:
                             state_parts.append(state)
-                    elif isinstance(spec, dict):
+                    elif isinstance(spec, collections.abc.Mapping):
                         state = policy_obs.get(spec.get("key"))
                         if state is not None:
                             slice_range = spec.get("slice")

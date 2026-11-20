@@ -114,7 +114,7 @@ def update_task_stage(
     asset_cfg1: SceneEntityCfg,
     asset_cfg2: SceneEntityCfg,
     table_height: float = 0.85483,
-    lift_threshold: float = 0.05,
+    lift_threshold: float = 0.08,
     tip_align_threshold: float = 0.015,
     insertion_dist_threshold: float = 0.03,
     insertion_angle_threshold: float = 0.15,
@@ -147,7 +147,7 @@ def update_task_stage(
 
     # Stage 0 -> 1: Check if lifted
     target_z = table_height + lift_threshold
-    is_lifted_1 = pos1[:, 2] > target_z
+    is_lifted_1 = obj1.data.root_com_pos_w.torch[:, 2] > target_z
     is_lifted_2 = pos2[:, 2] > target_z
     both_lifted = is_lifted_1 & is_lifted_2
     stage = torch.where((stage == 0) & both_lifted, torch.ones_like(stage), stage)
@@ -222,7 +222,7 @@ def update_task_stage(
 def lift_trocars_reward(
     env: ManagerBasedRLEnv,
     table_height: float = 0.85483,
-    lift_threshold: float = 0.05,
+    lift_threshold: float = 0.08,
     asset_cfg1: SceneEntityCfg = SceneEntityCfg("trocar_1"),
     asset_cfg2: SceneEntityCfg = SceneEntityCfg("trocar_2"),
     use_sparse_reward: bool = True,
@@ -249,7 +249,7 @@ def lift_trocars_reward(
     obj1: RigidObject = env.scene[asset_cfg1.name]
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
-    pos1 = obj1.data.root_pos_w.torch
+    pos1 = obj1.data.root_com_pos_w.torch
     pos2 = obj2.data.root_pos_w.torch
     target_z = table_height + lift_threshold
 

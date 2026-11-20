@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
+
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
@@ -32,7 +34,7 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
 from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import (
     spawn_usd_with_newton_compatible_colliders,
 )
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 joint_names = [
@@ -85,8 +87,8 @@ offset_dict = {
     "right_elbow_joint": -0.3,
 }
 
-HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
-USD_ROOT = f"{HEALTHCARE_S3}/Props/LightWheel"
+HEALTHCARE_ASSET_ROOT = os.environ.get("ASSET_LOCAL", "/workspace/assets/132c82d")
+USD_ROOT = f"{HEALTHCARE_ASSET_ROOT}/Props/LightWheel"
 
 
 @configclass
@@ -95,8 +97,9 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
 
     # humanoid robot configuration
     robot: ArticulationCfg = G1RobotPresets.g1_29dof_dex3_base_fix(
-        init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
+        init_pos=(-1.86719, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
     )
+    robot.spawn.usd_path = f"{HEALTHCARE_ASSET_ROOT}/Robots/g1_29dof_with_dex3_base_fix02.usd"
     robot.spawn.func = spawn_usd_with_newton_compatible_colliders
     # add camera configuration
     front_camera = CameraPresets.g1_front_camera()
@@ -106,14 +109,14 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     scene = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Scene",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/scene03.usd",
+            usd_path=f"{USD_ROOT}/scene03cell.usd",
         ),
     )
 
     trocar_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
+            usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar004_test_nodeform.usd",
             collision_props={
                 "/.*": [
                     sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
@@ -127,8 +130,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
             },
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
-            pos=[-1.60202, 1.91362, 0.87183],
-            rot=[-0.0, 0.70711, 0.70711, 0.0],
+            pos=(-1.60338, 1.91313, 0.86879),
+            rot=(-0.04351, 0.70001, 0.71218, 0.02998),
         ),
     )
 
@@ -138,7 +141,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
             usd_path=(
                 f"{USD_ROOT}/Assets/"
                 "DisposableLaparoscopicPunctureDevice001/"
-                "DisposableLaparoscopicPunctureDevice005-xform.usd"
+                "DisposableLaparoscopicPunctureDevice006_test.usd"
             ),
             rigid_props=[
                 sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
@@ -146,13 +149,14 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
             ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
-            rot=[-0.71475, -0.000243, 0.05853, 0.69692], pos=[-1.50635, 1.90997, 0.8631]
+            pos=(-1.507, 1.90732, 0.85542), rot=(-0.65889, -0.05555, 0.01346, 0.75007)
         ),
     )
     tray = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
+            usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001_FixedBoxProp.usd",
+            mass_props={"/[^/]+": [sim_utils.MassCfg(mass=1000.0)]},
             func=spawn_usd_with_newton_compatible_colliders,
         ),
         init_state=ArticulationCfg.InitialStateCfg(pos=[-1.54919, 2.03365, 0.84554], rot=[0.0, 0.0, -0.70711, 0.70711]),
@@ -166,6 +170,12 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
             color=(0.75, 0.75, 0.75),
             intensity=1000.0,
         ),
+    )
+
+    work_light = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/WorkLight",
+        spawn=sim_utils.CylinderLightCfg(color=(1.0, 1.0, 1.0), intensity=0.0, length=2.5, radius=0.03),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.012, 2.067, 2.87), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
 
@@ -283,7 +293,7 @@ class RewardsCfg:
             "asset_cfg1": SceneEntityCfg("trocar_1"),
             "asset_cfg2": SceneEntityCfg("trocar_2"),
             "table_height": 0.85483,
-            "lift_threshold": 0.15,
+            "lift_threshold": 0.08,
             "tip_align_threshold": 0.015,
             "insertion_dist_threshold": 0.05,
             "insertion_angle_threshold": 0.15,
@@ -301,7 +311,7 @@ class RewardsCfg:
         weight=1.0,
         params={
             "table_height": 0.85483,
-            "lift_threshold": 0.15,
+            "lift_threshold": 0.08,
             "asset_cfg1": SceneEntityCfg("trocar_1"),
             "asset_cfg2": SceneEntityCfg("trocar_2"),
             "use_sparse_reward": True,
@@ -398,7 +408,7 @@ class EventCfg:
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for the assemble_trocar task."""
 
-    isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01)
+    isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01, enable_external_forces_every_iteration=False)
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
@@ -440,12 +450,23 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        # simulation settings
-        self.sim.dt = 1 / 200
+        self.decimation = 8
+        self.episode_length_s = 25.0
+        self.sim.dt = 1 / 240
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
+        # The cotrain policies used Isaac Lab PD and PhysX parsing of the composed USD environments.
+        # Per-asset PhysX replication changes the initial contacts between the instruments and the tray.
+        self.sim.use_newton_actuators = preset(default=False, newton_mjwarp=True)
+        for asset in (
+            self.scene.robot,
+            self.scene.scene,
+            self.scene.trocar_1,
+            self.scene.trocar_2,
+            self.scene.tray,
+            self.scene.work_light,
+        ):
+            asset.cloning_contexts = preset(default=("isaaclab.cloner:UsdReplicateContext",), newton_mjwarp=None)
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
@@ -455,7 +476,10 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
             set_isaac_rtx_global_settings(
                 camera_cfg.renderer_cfg,
                 enable_translucency=True,
-                carb_settings={"rtx.raytracing.fractionalCutoutOpacity": True},
+                carb_settings={
+                    "rtx.raytracing.fractionalCutoutOpacity": True,
+                    "renderer.scenePartitioning.enabled": False,
+                },
                 antialiasing_mode="DLAA",
             )
 

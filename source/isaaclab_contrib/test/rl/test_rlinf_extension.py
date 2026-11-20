@@ -248,6 +248,27 @@ class TestConfigLoading:
 class TestObsConversion:
     """Tests for ``_convert_isaaclab_obs_to_gr00t``."""
 
+    def test_policy_camera_crop_uses_evaluation_options_for_all_views(self, set_config_env) -> None:
+        from omegaconf import OmegaConf
+
+        options = {
+            "states": [{"key": "joints", "slice": [1, 3]}],
+            "main_images": "head",
+            "extra_view_images": ["wrist"],
+            "gpu_resize_height": 2,
+            "gpu_resize_width": 3,
+            "gpu_crop_scale": 0.5,
+            "gpu_crop_random": False,
+        }
+        worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 2, 0, 1, None)
+        head = torch.arange(2 * 4 * 6 * 3, dtype=torch.uint8).reshape(2, 4, 6, 3)
+        wrist = head.flip((2,))
+        joints = torch.arange(8).reshape(2, 4)
+        obs = worker._wrap_obs({"policy": {"joints": joints}, "camera_images": {"head": head, "wrist": wrist}})
+        torch.testing.assert_close(obs["states"], joints[:, 1:3])
+        torch.testing.assert_close(obs["main_images"], head[:, 1:3, 1:4])
+        torch.testing.assert_close(obs["extra_view_images"], wrist[:, None, 1:3, 1:4])
+
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
         ext._load_full_cfg()
@@ -311,6 +332,45 @@ class TestObsConversion:
 
 class TestActionConversion:
     """Tests for ``_convert_gr00t_to_isaaclab_action``."""
+
+    def test_absolute_targets_and_partial_reset(self) -> None:
+        import gymnasium as gym
+
+        from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
+
+        from isaaclab_contrib.rl.rlinf.joint_position_env import AbsoluteJointPositionEnv
+
+        env = mock.Mock(spec=gym.Env)
+        env.unwrapped = env
+        env.device, env.num_envs = "cpu", 2
+        joint = mock.Mock(spec=JointPositionAction)
+        joint.action_dim, joint._joint_ids = 2, [1, 0]
+        joint._offset, joint._scale = torch.tensor([0.5, -1.0]), 2.0
+        joint.cfg = types.SimpleNamespace(asset_name="robot")
+        env.action_manager = mock.Mock(total_action_dim=2)
+        env.action_manager.get_term.return_value = joint
+        defaults = torch.tensor([[0.0, 1.5], [0.0, 2.5]])
+        positions = torch.tensor([[3.0, 0.0], [5.0, 0.0]])
+        env.scene = {
+            "robot": types.SimpleNamespace(
+                data=types.SimpleNamespace(
+                    default_joint_pos=types.SimpleNamespace(torch=defaults),
+                    joint_pos=types.SimpleNamespace(torch=positions),
+                )
+            )
+        }
+        env.reset.return_value = ("reset frame", {})
+        env.step.return_value = ("new camera frame", None, None, None, {})
+        wrapper = AbsoluteJointPositionEnv(env, prefix_pad=1, warmup_steps=0)
+        assert wrapper.reset()[0] == "new camera frame"
+        torch.testing.assert_close(env.step.call_args.args[0], torch.tensor([[0.5, 2.0], [1.0, 3.0]]))
+        env.step.reset_mock()
+        assert wrapper.reset(env_ids=torch.tensor([1]))[0] == "reset frame"
+        env.step.assert_not_called()
+        targets = torch.tensor([[0.0, 7.0], [0.0, 9.0]])
+        wrapper.step(targets)
+        torch.testing.assert_close(env.step.call_args.args[0], torch.tensor([[0.5, 4.0], [1.0, 5.0]]))
+        assert targets[:, 0].tolist() == [0.0, 0.0]
 
     def test_concatenation_and_padding(self, set_config_env) -> None:
         """Actions should be concatenated and padded with prefix/suffix zeros."""
