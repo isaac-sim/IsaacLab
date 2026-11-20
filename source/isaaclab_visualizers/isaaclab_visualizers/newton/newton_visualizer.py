@@ -1802,7 +1802,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._render_live_plots()
         finally:
             viewer.end_frame()
-            self._rtx_switch = None  # the first RTX frame arrived, or the switch failed
+            if self._rtx_switch == "loading":  # the first RTX frame arrived, or the switch failed
+                self._rtx_switch = None
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
         self._last_render_step = self._sim.get_physics_step_count()

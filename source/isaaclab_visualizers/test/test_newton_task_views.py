@@ -192,6 +192,30 @@ def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
     assert switched == [(True, "loading")]  # the HUD already showed the message for the previous frame
 
 
+def test_a_request_made_while_drawing_the_hud_survives_to_the_next_frame():
+    free = _view(PerspectiveCameraCfg())
+    free.invalidate = lambda: None
+    viz = _switchable([free, _rtx_view()])
+    viz._rtx_appearance, viz._sim_time = None, 0.0
+    viz._pending_mesh_submissions = {}
+    viz._last_render_step = 0
+    viz._sim.get_physics_step_count = lambda: 0
+
+    def end_frame():  # the HUD is drawn here, and the RTX button was clicked
+        viz._rtx_switch = "requested"
+
+    viz._viewer = SimpleNamespace(
+        begin_frame=lambda t: None,
+        end_frame=end_frame,
+        is_paused=lambda: True,
+        is_running=lambda: True,
+    )
+
+    NewtonGLVisualizer._render_frame(viz)
+
+    assert viz._rtx_switch == "requested"
+
+
 def test_leaving_rtx_hides_the_overlays_and_suspends_the_viewer_lights():
     viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
     suspended = []
