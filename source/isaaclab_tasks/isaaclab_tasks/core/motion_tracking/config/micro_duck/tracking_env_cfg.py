@@ -125,6 +125,11 @@ class MicroDuckTrackingRewardsCfg(RewardsCfg):
 class MicroDuckTrackingTerminationsCfg(TerminationsCfg):
     """Control foot tracking tolerance separately from head tracking tolerance."""
 
+    anchor_pos = replace(TerminationsCfg().anchor_pos, params={"command_name": "motion", "threshold": 0.15})
+    ee_body_pos = replace(
+        TerminationsCfg().ee_body_pos,
+        params={"command_name": "motion", "threshold": 0.18, "body_names": ["jaw_soft"]},
+    )
     feet_pos = DoneTerm(
         func=mdp.bad_motion_body_pos_z_only,
         params={"command_name": "motion", "body_names": ["ankle_left", "ankle_right"], "threshold": 0.09},
@@ -169,6 +174,3 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.episode_length_s = 14.0
-        self.sim.use_newton_actuators = True
-        self.terminations.anchor_pos.params["threshold"] = 0.15
-        self.terminations.ee_body_pos.params.update(threshold=0.18, body_names=["jaw_soft"])
