@@ -274,13 +274,16 @@ support does not make this adapter a multi-view model.
 `transport="auto"` selects CUDA IPC on Linux when the client can directly access the local service's GPU, and
 otherwise uses socket transport. `"socket"` and `"cuda_ipc"` force the choice; forcing unavailable IPC raises an
 error. Reset images and action controls pass through host memory and the socket in both modes. IPC is used for
-returned image chunks, which the client copies into its own device tensors before the service reuses its buffer.
+returned image chunks, which the client copies into its own device tensors. The client records a CUDA event after
+each copy and waits for it before the next request or closing the mapping, so the service cannot reuse or free the
+buffer while the copy is pending, including when successive calls use different CUDA streams.
 Socket payloads are capped at 256 MiB per message (about 18 environments at the default output size; allow headroom).
 Each step waits for the generated chunk; running a service does not add asynchronous policy execution.
 
 The backend publishes the record's original image immediately on reset and defers the model reset to the
 next chunk boundary. The client reset returns no replacement image. In native `session` mode the model's internal
 conditioning comes from its initial decoded observation, following the Framework API.
+The native session owns its temporary start image and removes it when reset, closed or initialization fails.
 
 ## Tests
 
