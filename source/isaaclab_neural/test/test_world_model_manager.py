@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_neural.physics import WorldModelCfg, WorldModelManager
+from isaaclab_neural.physics import FrameBuffer, WorldModelCfg, WorldModelManager
 
 from .conftest import FakeModel, FakeModelCfg, J, N, T, world_model_sim, write_manifest
 
@@ -39,7 +39,7 @@ def test_reset_starts_from_the_record_and_the_model_restarts_before_the_next_chu
         manager.reset_envs(envs(1))
         # The episode starts at once from record 0: its state and its start image.
         assert manager.joint_state[:, 0].tolist() == [0, 0] and manager.joint_target[1, 0] == 0
-        assert (manager.frame_history[1] == 200).all() and manager.frame_serial.tolist() == [0, 1]
+        assert (manager.frames().frames[1] == 200).all()
         assert not FakeModel.resets
         manager.reset_envs(envs(0))
         for _ in range(T):
@@ -64,7 +64,7 @@ def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_targ
         targets, chunk_start = FakeModel.steps[0]
         assert targets.shape == (N, T, J) and targets[0, :, 0].tolist() == [1, 2, 3, 4]
         assert np.array_equal(chunk_start, start.numpy())
-        assert manager.frame_history.shape[:2] == (N, T)
+        assert manager.frames().frames.shape[:2] == (N, T)
 
 
 def test_a_partial_reset_keeps_the_chunk_boundary_of_the_step(tmp_path):
@@ -123,3 +123,34 @@ def test_a_group_shares_a_record_and_other_splits_visit_records_in_order(tmp_pat
         assert manager.joint_state[:, 0].tolist() == [0, 0, 2, 2]
         manager.reset_envs(envs(num_envs=4))
         assert manager.joint_state[:, 0].tolist() == [0, 0, 1, 1]
+
+
+def test_a_camera_reads_only_the_frames_that_changed():
+    buffer = FrameBuffer(num_envs=3, chunk_length=T, image_size=(2, 2), device="cpu")
+    reader = buffer.reader()
+    history = torch.zeros_like(buffer.frames)
+    mask = torch.zeros(3, dtype=torch.bool)
+    buffer.publish(torch.full_like(buffer.frames, 7))
+    assert reader.read_into(history, mask) and mask.all() and (history == 7).all()
+    # Nothing new: no copy, and the mask is cleared.
+    assert not reader.read_into(history, mask) and not mask.any()
+    # A reset publishes one start frame for the selected environments only.
+    buffer.publish(torch.full((3, 1, 2, 2, 3), 9, dtype=torch.uint8), torch.tensor([False, True, False]))
+    assert reader.read_into(history, mask) and mask.tolist() == [False, True, False]
+    assert history[:, :, 0, 0, 0].tolist() == [[7] * T, [9] * T, [7] * T]
+
+
+def test_each_view_has_its_own_frames_and_start_images(tmp_path):
+    with world_model_sim(tmp_path, split="validation", views=("left", "right")) as sim:
+        manager = bound_manager(sim)
+        manager.reset_envs(envs())
+        assert manager.frames("left").frames[0, 0, 0, 0, 0] == 200
+        assert manager.frames("right").frames[0, 0, 0, 0, 0] == 220
+        for _ in range(T):
+            step(manager, 0.0)
+        assert manager.frames("left").frames[0, -1, 0, 0, 0] == 13
+        assert manager.frames("right").frames[0, -1, 0, 0, 0] == 113
+        with pytest.raises(ValueError, match="views \\['left', 'right'\\]"):
+            manager.frames()
+        with pytest.raises(ValueError, match="got 'top'"):
+            manager.frames("top")

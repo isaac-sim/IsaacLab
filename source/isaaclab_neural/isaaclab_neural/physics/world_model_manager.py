@@ -20,6 +20,7 @@ from isaaclab.sim.views import FrameView, UsdFrameView
 from isaaclab.utils.configclass import instantiate
 
 from ..world_model import load_reset_records
+from .frame_buffer import FrameBuffer
 
 if TYPE_CHECKING:
     from ..world_model import ResetRecord, WorldModel, WorldModelSpec
@@ -57,14 +58,7 @@ class WorldModelManager(PhysicsManager):
         """Joint positions [m or rad, depending on joint type], shape ``(N, J)``."""
         self.joint_target: torch.Tensor
         """Joint position targets applied by the next :meth:`step`, shape ``(N, J)``."""
-        self.frame_history: torch.Tensor
-        """RGB frames of the last completed chunk, shape ``(N, T, H, W, 3)``, ``uint8``. After a reset, every frame
-        is the start frame."""
-        self.frame_serial: torch.Tensor
-        """Per-environment counter that increases whenever the environment's frames change, shape ``(N,)``."""
-        self.frame_version = 0
-        """Host counter that increases whenever any environment's frames change, so readers skip steps without new
-        frames without reading the device."""
+        self._frames: dict[str, FrameBuffer] = {}
         self.new_frames = False
         """Whether the last :meth:`step` completed a chunk."""
         self.chunk_boundary: torch.Tensor
@@ -78,7 +72,7 @@ class WorldModelManager(PhysicsManager):
         self._draws = 0
         self._reset_called = False
         self._record_states: torch.Tensor
-        self._record_images: torch.Tensor
+        self._record_images: dict[str, torch.Tensor] = {}
         self._targets: torch.Tensor
         self._chunk_start: torch.Tensor
         self._steps_in_chunk = 0
@@ -117,17 +111,19 @@ class WorldModelManager(PhysicsManager):
         self.spec = self.model.spec()
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
             raise ValueError(f"sim.dt must equal 1 / fps = {1.0 / self.spec.fps} s, got {self._sim.cfg.dt}")
+        if not self.spec.views or len(set(self.spec.views)) != len(self.spec.views):
+            raise ValueError(f"A world model names one or more distinct views, got {self.spec.views}.")
         self.num_envs, self.num_joints = num_envs, num_joints
         device = self._device
         self.joint_state = torch.zeros((num_envs, num_joints), device=device)
         self.joint_target = torch.zeros_like(self.joint_state)
-        self.frame_history = torch.zeros(
-            (num_envs, self.spec.chunk_length, *self.spec.image_size, 3), dtype=torch.uint8, device=device
-        )
-        self.frame_serial = torch.zeros(num_envs, dtype=torch.int64, device=device)
+        chunk, size = self.spec.chunk_length, self.spec.image_size
+        self._frames = {view: FrameBuffer(num_envs, chunk, size, device) for view in self.spec.views}
         self.chunk_boundary = torch.zeros(num_envs, dtype=torch.bool, device=device)
         self._record_states = torch.from_numpy(np.stack([r.joint_state for r in self._split_records])).to(device)
-        self._record_images = _load_images(self._split_records, self.spec.image_size).to(device)
+        self._record_images = {
+            view: _load_images(self._split_records, view, self.spec).to(device) for view in self.spec.views
+        }
         self._targets = torch.zeros((num_envs, self.spec.chunk_length, num_joints), device=device)
         self._chunk_start = torch.zeros_like(self.joint_state)
         self._env_record = torch.zeros(num_envs, dtype=torch.int64, device=device)
@@ -142,6 +138,26 @@ class WorldModelManager(PhysicsManager):
         super().initialize(sim_context)
         # World-model frames are not rigid-body poses, so there is no scene data to publish.
         self._scene_data = _EmptySceneData(self._device)
+
+    def frames(self, view: str | None = None) -> FrameBuffer:
+        """Return the predicted frames of one view; a camera reads them through :meth:`FrameBuffer.reader`.
+
+        Args:
+            view: One of the model's :attr:`~isaaclab_neural.world_model.WorldModelSpec.views`, or ``None`` if the
+                model predicts one view.
+
+        Raises:
+            ValueError: If the model has no such view, or ``view`` is ``None`` and the model predicts several.
+        """
+        views = list(self._frames)
+        if view is None and len(views) == 1:
+            return self._frames[views[0]]
+        if view not in self._frames:
+            raise ValueError(
+                f"The world model predicts the views {views}; a world-model camera selects one of them with"
+                f" WorldModelRendererCfg.view, got {view!r}."
+            )
+        return self._frames[view]
 
     def reset(self, soft: bool = False) -> None:
         """Dispatch the lifecycle events. Episodes start with :meth:`reset_envs`, called by the articulation's reset."""
@@ -172,10 +188,8 @@ class WorldModelManager(PhysicsManager):
         state = self._record_states[records]
         torch.where(env_mask[:, None], state, self.joint_state, out=self.joint_state)
         torch.where(env_mask[:, None], state, self.joint_target, out=self.joint_target)
-        selected = env_mask.view(-1, 1, 1, 1, 1)
-        torch.where(selected, self._record_images[records][:, None], self.frame_history, out=self.frame_history)
-        self.frame_serial += env_mask
-        self.frame_version += 1
+        for view, buffer in self._frames.items():
+            buffer.publish(self._record_images[view][records][:, None], env_mask)
 
     def step(self) -> None:
         """Advance one frame; on the last frame of a chunk, predict the chunk with the model."""
@@ -189,9 +203,11 @@ class WorldModelManager(PhysicsManager):
         if self.new_frames:
             if self._reset_called:
                 self._restart_model()
-            self.frame_history.copy_(self.model.step(self._targets, self._chunk_start))
-            self.frame_serial += 1
-            self.frame_version += 1
+            frames = self.model.step(self._targets, self._chunk_start)
+            if frames.keys() != self._frames.keys():
+                raise RuntimeError(f"The world model returned the views {list(frames)}, not {list(self._frames)}.")
+            for view, buffer in self._frames.items():
+                buffer.publish(frames[view])
             self._steps_in_chunk = 0
         self._sim_time += self.get_physics_dt()
 
@@ -231,9 +247,10 @@ class WorldModelManager(PhysicsManager):
         if not env_ids:
             return
         indices = [records[env] for env in env_ids]
+        rows = torch.tensor(indices, device=self._device)
         self.model.reset(
             env_ids,
-            self._record_images[torch.tensor(indices, device=self._device)],
+            {view: images[rows] for view, images in self._record_images.items()},
             [self._split_records[i].prompt for i in indices],
             [(self._cfg.seed + 997 * draws[env] + env) % 2**32 for env in env_ids],
         )
@@ -255,21 +272,32 @@ class WorldModelManager(PhysicsManager):
         return draws.repeat_interleave(group_size)
 
 
-def _load_images(records: list[ResetRecord], image_size: tuple[int, int]) -> torch.Tensor:
-    """Read the records' start images as ``uint8`` RGB, shape ``(R, H, W, 3)``.
+def _load_images(records: list[ResetRecord], view: str, spec: WorldModelSpec) -> torch.Tensor:
+    """Read the records' start images of one view as ``uint8`` RGB, shape ``(R, H, W, 3)``.
 
     Raises:
-        ValueError: If an image is not the model's image size.
+        ValueError: If a record has no image for the view, or an image is not the model's image size.
     """
     from PIL import Image
 
     images = []
     for record in records:
-        image = np.asarray(Image.open(record.image).convert("RGB"))
-        if image.shape[:2] != tuple(image_size):
+        if isinstance(record.image, dict):
+            path = record.image.get(view)
+            if path is None:
+                raise ValueError(f"The reset record with {record.image} has no start image for the view '{view}'.")
+        elif len(spec.views) > 1:
             raise ValueError(
-                f"The start image {record.image} is {image.shape[0]} x {image.shape[1]}, but the world model predicts"
-                f" {image_size[0]} x {image_size[1]} frames."
+                f"The world model predicts the views {list(spec.views)}, so each reset record needs one start image"
+                f" per view, as {{view: path}}; got {record.image}."
+            )
+        else:
+            path = record.image
+        image = np.asarray(Image.open(path).convert("RGB"))
+        if image.shape[:2] != tuple(spec.image_size):
+            raise ValueError(
+                f"The start image {path} is {image.shape[0]} x {image.shape[1]}, but the world model predicts"
+                f" {spec.image_size[0]} x {spec.image_size[1]} frames."
             )
         images.append(image)
     return torch.from_numpy(np.stack(images))

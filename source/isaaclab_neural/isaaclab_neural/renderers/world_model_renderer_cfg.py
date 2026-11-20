@@ -23,6 +23,10 @@ class WorldModelRendererCfg(RendererCfg):
     class_type: type | str = "{DIR}.world_model_renderer:WorldModelRenderer"
     renderer_type: str = "world_model"
 
+    view: str | None = None
+    """The model's view this camera shows, one of :attr:`~isaaclab_neural.world_model.WorldModelSpec.views`. ``None``
+    selects the only view of a model that predicts one."""
+
     provides_frame_history: ClassVar[bool] = True
     """The renderer fills the camera's frame history with each predicted chunk, so the camera does not push its
     captures into it."""
