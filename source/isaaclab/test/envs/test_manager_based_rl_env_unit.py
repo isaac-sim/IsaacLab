@@ -280,4 +280,4 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
     env.step(torch.zeros(2, 1))
     assert calls[-1] == "observe"
     assert calls.count("forward") == 1
-    assert calls.index("reset") < calls.index("forward") < calls.index("observe")
+    assert max(i for i, call in enumerate(calls) if call == "reset") < calls.index("forward") < calls.index("observe")

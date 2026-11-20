@@ -30,7 +30,16 @@ class FactoryVariantEnv(ManagerBasedRLEnv):
             self.recorder_manager.record_post_reset(env_ids)
             self.scene.write_data_to_sim()
             self.sim.forward()
+            healthy = ~invalid
+            histories = [
+                (buffer, buffer.buffer[healthy].clone(), buffer._num_pushes[healthy].clone())
+                for group in self.observation_manager._group_obs_term_history_buffer.values()
+                for buffer in group.values()
+            ]
             refreshed = self.observation_manager.compute(update_history=True)
+            for buffer, history, count in histories:
+                buffer.buffer[healthy] = history
+                buffer._num_pushes[healthy] = count
             for name, group in observations.items():
                 group[env_ids] = refreshed[name][env_ids]
             invalid = self._invalid_observation_rows(observations)

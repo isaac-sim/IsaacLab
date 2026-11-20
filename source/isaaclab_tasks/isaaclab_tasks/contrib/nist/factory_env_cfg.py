@@ -245,8 +245,8 @@ class FactoryPhysicsCfg(PresetCfg):
             # of the variants use, and asked for 1928 rows against the previous 1500. Going
             # over budget is silent: the solver drops constraints and the state diverges to
             # NaN a few steps later, so the ceiling carries headroom for a trained policy
-            # pressing parts together harder than an untrained one does. ``nconmax`` is left
-            # alone -- no run has reported a contact overflow.
+            # pressing parts together harder than an untrained one does. The contact
+            # capacity also rises from 400 to 600 for the larger scene.
             njmax=3000,
             nconmax=600,
             impratio=1.0,

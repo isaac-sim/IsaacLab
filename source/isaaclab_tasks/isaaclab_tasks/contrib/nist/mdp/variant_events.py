@@ -447,12 +447,5 @@ class reset_variant_end_effector_around_asset(ManagerTermBase):
             rot_error = math_utils.quat_error_magnitude(reached_quat_b[env_ids], quat_b[env_ids])
             self.is_valid[env_ids] = (pos_error < pose_tolerance[0]) & (rot_error < pose_tolerance[1])
 
-        # wrist_low  = self.robot.data.joint_pos_limits[env_ids, self.wrist_idx, 0]
-        # wrist_high = self.robot.data.joint_pos_limits[env_ids, self.wrist_idx, 1]
-        # wrist_pos = (wrist_low + (wrist_high - wrist_low) * torch.rand_like(wrist_low)).view(len(env_ids), -1)
-        # self.robot.write_joint_position_to_sim(position=wrist_pos, joint_ids=self.wrist_idx, env_ids=env_ids)
         if self.is_physx:
             self.robot.root_physx_view.get_jacobians()
-
-
-# @torch.jit.script

@@ -378,55 +378,6 @@ class CollisionAnalyzer:
             env, ids, ids, self.asset.data.body_link_pos_w.warp, self.asset.data.body_link_quat_w.warp, rows
         )
 
-    def check_poses(
-        self,
-        env: ManagerBasedRLEnv,
-        env_ids: torch.Tensor,
-        body_poses_w: torch.Tensor,
-        variant_ids: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        """Check hypothetical source poses against live obstacles without changing scene state.
-
-        Args:
-            env: Environment owning the configured source and obstacles.
-            env_ids: Live obstacle environment indices, shape ``(N,)``. Repeated indices are supported.
-            body_poses_w: Source body positions [m] and unit quaternions (x, y, z, w), shape
-                ``(N, len(asset.body_names), 7)``, in the source asset's body order.
-            variant_ids: Source mesh-variant indices, shape ``(N,)``. Defaults to the live variants
-                selected by ``env_ids``, or zero for a source without variants.
-
-        Returns:
-            Collision-free flags, shape ``(N,)``, using the same geometry and thresholds as :meth:`__call__`.
-        """
-        count = len(env_ids)
-        if env_ids.ndim != 1 or body_poses_w.shape != (count, len(self.asset.body_names), 7):
-            raise ValueError("Expected environment indices (N,) and source body poses (N, num_asset_bodies, 7).")
-        if env_ids.dtype not in (torch.int32, torch.int64) or ((env_ids < 0) | (env_ids >= env.num_envs)).any():
-            raise ValueError("Expected integer environment indices in [0, env.num_envs).")
-        poses = body_poses_w.to(device=env.device, dtype=torch.float32)
-        if variant_ids is None:
-            variant_ids = (
-                self.asset.mesh_variant_ids.torch[env_ids]
-                if self._asset_uses_variants
-                else torch.zeros(count, device=env.device, dtype=torch.int32)
-            )
-        if variant_ids.shape != (count,) or variant_ids.dtype not in (torch.int32, torch.int64):
-            raise ValueError("Expected integer source variant indices with shape (N,).")
-        if ((variant_ids < 0) | (variant_ids >= self.local_pts.shape[0])).any():
-            raise ValueError("Expected source variant indices within the configured source geometry.")
-        ids = wp.from_torch(env_ids.to(device=env.device, dtype=torch.int32), dtype=wp.int32)
-        sources = wp.from_torch(torch.arange(count, device=env.device, dtype=torch.int32), dtype=wp.int32)
-        rows = wp.from_torch(variant_ids.to(device=env.device, dtype=torch.int32), dtype=wp.int32)
-        valid = self._query(
-            env,
-            ids,
-            sources,
-            wp.from_torch(poses[..., :3], dtype=wp.vec3),
-            wp.from_torch(poses[..., 3:], dtype=wp.quat),
-            rows,
-        )
-        return valid & torch.isfinite(poses).all(dim=(1, 2))
-
     def _query(
         self,
         env: ManagerBasedRLEnv,

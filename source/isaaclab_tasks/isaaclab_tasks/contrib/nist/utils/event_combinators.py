@@ -357,6 +357,8 @@ class ChainedResetTerms(ManagerTermBase):
         self.is_valid[env_ids] = True
         if probability < 1.0:
             env_ids = env_ids[torch.rand(env_ids.numel(), device=env.device) < probability]
+        if env_ids.numel() == 0:
+            return
         for _, term in terms.items():
             term.func(env, env_ids, **term.params)  # type: ignore
             reported = getattr(term.func, "is_valid", None)

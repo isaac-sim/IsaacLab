@@ -7,11 +7,8 @@
 
 from __future__ import annotations
 
-import random
 from collections.abc import Sequence
-from contextlib import contextmanager
 
-import numpy as np
 import torch
 from torch import Tensor
 
@@ -79,33 +76,3 @@ def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence
 
     if offset != states.shape[1]:
         raise ValueError(f"Reset state has {states.shape[1]} values, but the scene consumed {offset}.")
-
-
-@contextmanager
-def temporary_seed(seed: int, restore_numpy: bool = True, restore_python: bool = True):
-    """Seed torch / numpy / python RNGs within a ``with`` block; restore on exit.
-
-    Saves and restores torch (CPU + all CUDA), numpy, and python ``random``
-    RNG state so deterministic build-time sampling does not perturb the
-    global RNGs used elsewhere.
-    """
-    cpu_state = torch.get_rng_state()
-    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
-    np_state = np.random.get_state() if restore_numpy else None
-    py_state = random.getstate() if restore_python else None
-
-    try:
-        torch.manual_seed(seed)  # seeds CPU + all visible CUDA devices
-        if restore_numpy:
-            np.random.seed(seed)
-        if restore_python:
-            random.seed(seed)
-        yield
-    finally:
-        torch.set_rng_state(cpu_state)
-        if cuda_states is not None:
-            torch.cuda.set_rng_state_all(cuda_states)
-        if np_state is not None:
-            np.random.set_state(np_state)
-        if py_state is not None:
-            random.setstate(py_state)

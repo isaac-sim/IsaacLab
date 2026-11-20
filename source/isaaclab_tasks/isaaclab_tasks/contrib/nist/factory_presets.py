@@ -755,10 +755,8 @@ class HeldAssetObstaclesCfg(PresetCfg):
 class RobotObstaclesCfg(PresetCfg):
     """Entities the robot is checked against before a reset state is accepted.
 
-    Same omission as :class:`HeldAssetObstaclesCfg`, on the arm rather than the part: a pose
-    that reaches the gripper into one of the spare gears is banked as valid because those
-    gears are not screened. It bites hardest on ``gear_mesh_medium``, whose shaft has a gear
-    on either side of it.
+    Gear presets include the spare gears as obstacles; other assemblies use the
+    table, board, and fixed asset.
     """
 
     default: list = [
