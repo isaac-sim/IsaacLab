@@ -722,10 +722,12 @@ def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
     cfg.task.quantities["cart_x"] = mdp2.Quantity(
         cart_x, inputs={"joint_pos": robot.joint_pos, "joint_ids": cart}, record=True
     )
-    # Cameras that never render would observe stale images.
+    # Cameras that never render would observe stale images. Cameras that no term reads do not render.
     cfg.step = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
     with pytest.raises(ValueError, match="must hold Step.RENDER"):
         MDP2RLEnv(cfg)
+    unread = replace(cfg, task=replace(cfg.task, observations={"policy": cfg.task.observations["policy"]}))
+    MDP2RLEnv(unread).close()
     cfg.step = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
     budget = NUM_ENVS + 4
     cfg.episode_budget = budget

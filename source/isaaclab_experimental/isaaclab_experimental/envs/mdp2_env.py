@@ -91,14 +91,7 @@ class MDP2Env:
             sim.reset()
         # The cameras render once per control step, the other sensors refresh with every physics step.
         scene = self.scene
-        self._cameras = [sensor for sensor in scene.sensors.values() if isinstance(sensor, Camera)]
-        # OptiX refits its acceleration structures on the host, which a CUDA graph cannot record: such cameras render
-        # between the graphs of a step.
-        self._render_capturable = not any(
-            isinstance(camera.cfg.renderer_cfg, NewtonOptixRendererCfg) for camera in self._cameras
-        )
-        if self._cameras and Step.RENDER not in cfg.step:
-            raise ValueError("The scene has cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
+        self._all_cameras = {name: sensor for name, sensor in scene.sensors.items() if isinstance(sensor, Camera)}
         sensors = [sensor for sensor in scene.sensors.values() if not isinstance(sensor, Camera)]
         # Sensors that support it refresh together, as in the scene's update.
         self._batched_sensors = [sensor for sensor in sensors if sensor.supports_batch_update]
@@ -140,6 +133,20 @@ class MDP2Env:
             diagnostics=self.diagnostics,
             final_observations=self.final_observations,
         )
+        # The cameras that some term reads render, once per control step.
+        read = {
+            selector.name if isinstance(selector, mdp2.Entity) else selector.entity
+            for op in self.mdp.term_ops
+            for selector in op.inputs.values()
+        }
+        self._cameras = [camera for name, camera in self._all_cameras.items() if name in read]
+        # OptiX refits its acceleration structures on the host, which a CUDA graph cannot record: such cameras render
+        # between the graphs of a step.
+        self._render_capturable = not any(
+            isinstance(camera.cfg.renderer_cfg, NewtonOptixRendererCfg) for camera in self._cameras
+        )
+        if self._cameras and Step.RENDER not in self.cfg.step:
+            raise ValueError("The task reads cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
         self.state = self.mdp.state(self.scene_data, seed=self._seed)
         if previous is not None:
             mdp2.migrate(*previous, self.mdp, self.state)
