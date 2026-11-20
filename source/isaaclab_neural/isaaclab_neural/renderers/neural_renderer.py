@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-    from ..physics.frame_buffer import FrameReader
+    from ..frame_buffer import FrameReader
     from .neural_renderer_cfg import NeuralRendererCfg
 
 
