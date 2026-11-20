@@ -146,6 +146,20 @@ def _valid_proxy_setup(
     )
 
 
+@pytest.mark.parametrize(
+    "collision_cfg",
+    [
+        NewtonCollisionPipelineCfg(sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg()),
+        NewtonCollisionPipelineCfg(speculative_contact_gap_max=0.01),
+    ],
+)
+def test_proxy_rejects_unsupported_collision_options(collision_cfg):
+    cfg, _, proxies = _valid_proxy_setup()
+    proxies[0].collision_pipeline = collision_cfg
+    with pytest.raises(ValueError, match="Proxy collision pipelines do not support"):
+        coupler._build_proxy_coupled_solver(_FakeModel(), [], proxies, cfg, wp.DeterministicMode.NOT_GUARANTEED)
+
+
 def test_config_validation_requires_entries():
     with pytest.raises(ValueError, match="at least one solver entry"):
         coupler._validate_cfg(CouplerProxyCfg())
