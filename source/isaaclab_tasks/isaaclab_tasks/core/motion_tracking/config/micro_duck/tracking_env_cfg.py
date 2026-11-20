@@ -13,7 +13,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.microduck.flat_env_cfg import MicroDuckSceneCfg, MicroDuckVelocityFlatEnvCfg
 
@@ -24,6 +23,7 @@ from ...mdp.commands_cfg import MotionCommandCfg
 from ...motion_tracking_env_cfg import (
     ActionsCfg,
     CommandsCfg,
+    EventCfg,
     MotionTrackingEnvCfg,
     MotionTrackingSceneCfg,
     RewardsCfg,
@@ -132,6 +132,29 @@ class MicroDuckTrackingTerminationsCfg(TerminationsCfg):
 
 
 @configclass
+class MicroDuckTrackingEventCfg(EventCfg):
+    """MicroDuck contact material and trunk mass randomization without pushes."""
+
+    physics_material = replace(
+        EventCfg().physics_material,
+        params={
+            **EventCfg().physics_material.params,
+            "static_friction_range": (0.7, 1.3),
+            "dynamic_friction_range": (0.7, 1.3),
+        },
+    )
+    base_mass = replace(
+        EventCfg().base_mass,
+        params={
+            **EventCfg().base_mass.params,
+            "asset_cfg": SceneEntityCfg("robot", body_names="trunk_base"),
+            "mass_distribution_params": (0.95, 1.05),
+        },
+    )
+    push_robot = None
+
+
+@configclass
 class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
     """Whole-body tracking at 50 Hz using MicroDuck's 200 Hz BAM dynamics."""
 
@@ -140,20 +163,12 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
     commands: CommandsCfg = CommandsCfg(motion=MicroDuckMotionCommandCfg())
     rewards: MicroDuckTrackingRewardsCfg = MicroDuckTrackingRewardsCfg()
     terminations: MicroDuckTrackingTerminationsCfg = MicroDuckTrackingTerminationsCfg()
+    events: MicroDuckTrackingEventCfg = MicroDuckTrackingEventCfg()
     sim = MicroDuckVelocityFlatEnvCfg().sim
 
     def __post_init__(self):
         super().__post_init__()
         self.episode_length_s = 14.0
         self.sim.use_newton_actuators = True
-        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.6, 0.6, 0.35), lookat=(0.0, 0.0, 0.12))
-        self.scene.contact_forces.update_period = self.sim.dt
-        self.scene.self_collision.update_period = self.sim.dt
         self.terminations.anchor_pos.params["threshold"] = 0.15
         self.terminations.ee_body_pos.params.update(threshold=0.18, body_names=["jaw_soft"])
-        self.events.base_mass.params.update(
-            asset_cfg=SceneEntityCfg("robot", body_names="trunk_base"),
-            mass_distribution_params=(0.95, 1.05),
-        )
-        self.events.physics_material.params.update(static_friction_range=(0.7, 1.3), dynamic_friction_range=(0.7, 1.3))
-        self.events.push_robot = None
