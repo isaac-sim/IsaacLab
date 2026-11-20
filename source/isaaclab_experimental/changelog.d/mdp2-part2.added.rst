@@ -40,3 +40,5 @@
 * Added ``repeat`` to MDP2 tasks: a task that repeats counts its completions as ``mdp2.progress.<task>.count``, such as
   the drops of an object, and restarts with its subtasks and uses once its completion no longer holds.
   :class:`~isaaclab_experimental.envs.MDP2RLEnv` records the count of every episode.
+* Added actions to the tasks of an MDP2 sequence: each task writes its actions while it runs, and actions of the same
+  name share their columns of the action, so that one policy drives every task.

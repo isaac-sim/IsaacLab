@@ -2151,3 +2151,52 @@ def test_tasks_that_repeat_count_each_time_they_are_done():
     assert [step["count"].item() for step in history] == [0, 1, 1, 1, 2]
     assert [step["up.done"].item() for step in history] == [True, True, False, True, True]
     assert [step["stage"].item() for step in history] == [1, 2, 0, 1, 2]
+
+
+def test_tasks_of_a_sequence_take_their_own_actions():
+    """Each task of a sequence writes its actions while it runs. Actions of one name share their columns, so a policy
+    keeps its outputs across tasks, and the last actions zero the columns of a task that does not run."""
+
+    def stage(joint: str, actions: dict[str, mdp2.DirectAction]) -> mdp2.TaskCfg:
+        return mdp2.TaskCfg(actions=actions, done=getattr(mdp2.quantities, joint))
+
+    effort = mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("a"))
+    grip = mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("b"))
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")),
+        mdp2.sequence(
+            reach=stage("a", {"effort": effort}),
+            lift=stage("b", {"effort": dataclasses.replace(effort, scale=3.0), "grip": grip}),
+        ),
+    )
+
+    def run(backend: str, capture: bool) -> list[dict[str, torch.Tensor]]:
+        scene = PointMassScene(num_worlds=1, joint_names=("a", "b"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        actions = ProxyArray(wp.from_torch(torch.tensor([[0.5, 0.25]], device=DEVICE)))
+        captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
+        env_reset(mdp, state, scene, transition.observations, torch.ones(1, dtype=torch.bool, device=DEVICE))
+        history = []
+        for joints in ([0.0, 0.0], [1.0, 0.0], [1.0, 0.0]):
+            mdp2.apply_actions(mdp, state, actions) if captured is None else captured.apply_actions()
+            scene.data("robot", "joint_pos").torch.copy_(torch.tensor([joints], device=DEVICE))
+            mdp2.evaluate(mdp, state, transition) if captured is None else captured.evaluate()
+            target = scene.data("robot", "joint_effort_target").torch
+            history.append({"target": target.clone(), "last": state.actions.torch.clone()})
+            history[-1]["mask"] = mdp.action_mask(state).clone()
+        return history
+
+    runs = [run(backend, capture) for backend in ("torch", "warp") for capture in (False, True)]
+    for other in runs[1:]:
+        for expected, actual in zip(runs[0], other):
+            for name in expected:
+                assert torch.equal(expected[name], actual[name]), name
+    history = runs[0]
+    # Reach writes the effort until it is done at step 2; lift scales it by 3 and grips from step 3.
+    assert [step["target"][0].tolist() for step in history] == [[0.5, 0.0], [0.5, 0.0], [1.5, 0.25]]
+    assert [step["last"][0].tolist() for step in history] == [[0.5, 0.0], [0.5, 0.0], [0.5, 0.25]]
+    # The mask is of the next step: lift runs from step 3.
+    assert [step["mask"][0].tolist() for step in history] == [[True, False], [True, True], [True, True]]

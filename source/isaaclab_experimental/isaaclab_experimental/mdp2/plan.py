@@ -41,10 +41,13 @@ class ActionOp:
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
     slot: str = ""  # Name of its columns of the action, which the actions of the same name share
+    stage: str | None = None  # The task of a sequence that the op belongs to: it writes only while that task runs
 
     @property
     def active_key(self) -> Hashable | None:
-        """Key in :attr:`MDPState.arrays` of the worlds where the op is active, None for every world."""
+        """Key in :attr:`MDPState.arrays` of the worlds where the op writes at this step, None for every world."""
+        if self.stage is not None:
+            return progress_field(self.stage, "active")
         return None if self.worlds is None else ("active", self.name)
 
 

@@ -247,8 +247,6 @@ class MDPBuilder:
             # A time limit ends episodes; a task of a sequence can end itself with a termination on its started_at.
             if isinstance(cfg, TimeLimit) and staged:
                 raise ValueError(f"Task '{task_path}': the tasks of a sequence cannot have a time limit.")
-            if isinstance(cfg, (DirectAction, Action)) and staged:
-                raise ValueError(f"Task '{task_path}': the tasks of a sequence cannot have actions yet.")
             # Reset and startup events set up whole episodes, so they run in every world of their task.
             setup = isinstance(cfg, Event) and cfg.mode is not EventMode.INTERVAL
             full = f"{prefix}.{name}" if prefix else name
@@ -659,18 +657,19 @@ class MDPBuilder:
             if self._resolve(entry, "subset", cfg.subset, context) is None:
                 return
             elements = set(context.subsets[cfg.subset])
-        # Action terms may write other elements of the same field, such as other joints, after or before it.
+        # Its columns of the action are given with those of every world config, by name.
+        columns, slot = slice(0, len(elements)), entry.name or entry.path[-1]
+        action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset, slot=slot)
+        action = replace(action, stage=entry.stage)
+        # Action terms may write other elements of the same field, such as other joints, after or before it, and
+        # actions of tasks of a sequence that never run together the same ones.
         for op in context.ops[Phase.ACTIONS]:
-            if isinstance(op, TermOp):
+            if isinstance(op, TermOp) or _exclusive(op, action, context.modes):
                 continue
             written = set(context.subsets[op.subset]) if op.subset is not None else elements
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
-
-        # Its columns of the action are given with those of every world config, by name.
-        slot = entry.name or entry.path[-1]
-        action = ActionOp(str(entry), cfg.target, slice(0, len(elements)), cfg.scale, cfg.offset, subset=cfg.subset)
-        context.ops[Phase.ACTIONS].append(replace(action, slot=slot))
+        context.ops[Phase.ACTIONS].append(action)
 
     def _compile_term(self, entry: ScheduleEntry, context: CompileContext) -> None:
         """Compile a term use into an op, or record why it cannot be compiled."""
