@@ -15,7 +15,7 @@ import warp as wp
 
 from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import BaseContactSensor
+from isaaclab.sensors import BaseContactSensor, Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
@@ -49,6 +49,10 @@ class InteractiveSceneData:
     ``current_air_time``, ``last_air_time``, ``current_contact_time``, and ``last_contact_time``, per world and body.
     Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) [N] per world, body, and
     filter.
+
+    Cameras provide each of their data types, such as ``rgb`` (``uint8``) or ``depth`` [m], per world, pixel row,
+    pixel column, and channel, with the dimensions ``height``, ``width``, and ``<data type>_channels``. The
+    environment renders them once per control step, after the physics. Their fields are read-only.
 
     Events and actions write fields in place, and :meth:`commit` makes the simulation see the writes to the joint and
     root state. Where the asset's data is the solver's own state, as Newton's joint positions and root state usually
@@ -212,6 +216,28 @@ class InteractiveSceneData:
             entities[name] = EntitySchema(
                 names={"bodies": tuple(sensor.body_names), "history": history, "filters": filters},
                 fields={field: fields[field] for field in views},
+            )
+            self._views[name] = views
+
+        # Cameras.
+        for name, sensor in scene.sensors.items():
+            if not isinstance(sensor, Camera):
+                continue
+            if sensor.cfg.update_period > 0.0:
+                raise ValueError(
+                    f"MDP2 renders cameras once per control step, so camera '{name}' must have an update_period of 0."
+                )
+            # Data types have their own number of channels, such as rgb_channels.
+            views = dict(sensor.data.output)
+            _, height, width, _ = next(iter(views.values())).shape
+            names = {"height": tuple(map(str, range(height))), "width": tuple(map(str, range(width)))}
+            names |= {f"{field}_channels": tuple(map(str, range(view.shape[3]))) for field, view in views.items()}
+            entities[name] = EntitySchema(
+                names=names,
+                fields={
+                    field: FieldSchema(("height", "width", f"{field}_channels"), view.warp.dtype)
+                    for field, view in views.items()
+                },
             )
             self._views[name] = views
 

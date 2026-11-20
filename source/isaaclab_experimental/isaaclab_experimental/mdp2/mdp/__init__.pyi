@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "binary_joint_position",
     "heading_velocity_command",
     "uniform_pose_command",
     "uniform_velocity_command",
@@ -21,7 +22,10 @@ __all__ = [
     "base_ang_vel",
     "base_lin_vel",
     "generated_commands",
+    "image_rgb",
+    "one_hot",
     "joint_pos",
+    "joint_pos_normalized",
     "joint_pos_limit_normalized",
     "joint_pos_rel",
     "joint_vel",
@@ -53,11 +57,13 @@ __all__ = [
     "bad_orientation",
     "illegal_contact",
     "is_positive",
+    "is_true",
     "joint_pos_out_of_manual_limit",
     "joint_vel_out_of_limit",
     "root_height_below_minimum",
 ]
 
+from .actions import binary_joint_position
 from .commands import heading_velocity_command, uniform_pose_command, uniform_velocity_command
 from .curriculums import difficulty_scheduler
 from .events import (
@@ -76,7 +82,10 @@ from .observations import (
     base_ang_vel,
     base_lin_vel,
     generated_commands,
+    image_rgb,
+    one_hot,
     joint_pos,
+    joint_pos_normalized,
     joint_pos_limit_normalized,
     joint_pos_rel,
     joint_vel,
@@ -112,6 +121,7 @@ from .terminations import (
     bad_orientation,
     illegal_contact,
     is_positive,
+    is_true,
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
     root_height_below_minimum,

@@ -22,7 +22,7 @@ import warp as wp
 
 from isaaclab_experimental import mdp2
 
-from .mdp2_env_cfg import MDP2EnvCfg, Stage
+from .mdp2_env_cfg import MDP2EnvCfg, Stage, splits_by_count
 
 if TYPE_CHECKING:
     from .mdp2_env import MDP2Env
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 def verify_capture(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> None:
     """Step a task ``num_steps`` times uncaptured, then captured, and raise where a step differs.
 
-    Both runs use a copy of the config with at most 8 worlds (unless it splits them between tasks), the same seed, and
+    Both runs use a copy of the config with at most 8 worlds (unless it splits them by counts), the same seed, and
     seeded random actions in ``[-1, 1]``. Steps are compared on the rewards, the terminated and truncated flags, the
     observations, and every quantity and term state, which are named in the error in schedule order, with the Python
     hooks and stages that run inside the graphs, where the cause usually is. The worlds start at staggered episode
@@ -43,7 +43,7 @@ def verify_capture(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> 
     # One seed for both runs, also when the config asks for a random one.
     seed = 0 if cfg.seed in (None, -1) else cfg.seed
     cfg = dataclasses.replace(cfg, capture=False, verify_capture=0, seed=seed)
-    if cfg.task_worlds is None:
+    if not splits_by_count(cfg.task):
         # A shallow copy keeps the entities that were added to the scene config as attributes.
         cfg.scene = copy.copy(cfg.scene)
         cfg.scene.num_envs = min(cfg.scene.num_envs, 8)
@@ -92,6 +92,9 @@ def _rollout(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> tuple[
             for name in op.state:
                 selector = mdp2.term_state(op.use, name)
                 named[str(selector)] = env.state.arrays[selector].torch
+        for key, values in env.state.arrays.items():
+            if isinstance(key, mdp2.FieldSelector) and key.entity == "progress":
+                named[str(key)] = values.torch
         steps = []
         for _ in range(num_steps):
             actions = 2.0 * torch.rand(env.num_envs, env.mdp.action_dim, device=env.device, generator=generator) - 1.0

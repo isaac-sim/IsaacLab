@@ -33,6 +33,19 @@ is_positive = Term(torch=_is_positive_torch, warp=_is_positive)
 """Whether the ``value`` input, one float per world such as a quantity, is positive."""
 
 
+@wp.func
+def _is_true(world: int, value: wp.array(dtype=wp.bool)) -> bool:
+    return value[world]
+
+
+def _is_true_torch(value: torch.Tensor) -> torch.Tensor:
+    return value
+
+
+is_true = Term(torch=_is_true_torch, warp=_is_true)
+"""The ``value`` input, one bool per world, such as whether the task is done: ``mdp2.progress.done``."""
+
+
 # Joint state.
 
 
