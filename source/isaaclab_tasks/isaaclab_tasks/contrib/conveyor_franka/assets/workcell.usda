@@ -21,7 +21,7 @@ def Xform "Workcell"
         prepend references = @warehouse.usda@
     )
     {
-        double3 xformOp:translate = (0, 0, -0.7956274313214358)
+        float3 xformOp:translate = (0, 0, -0.7956274313214358)
         uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
@@ -30,7 +30,7 @@ def Xform "Workcell"
         prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Props/Mounts/thor_table.usd@
     )
     {
-        double3 xformOp:scale = (1.0007892217879695, 1.0007892217879695, 1.0007892217879695)
+        float3 xformOp:scale = (1.0007892217879695, 1.0007892217879695, 1.0007892217879695)
         uniform token[] xformOpOrder = ["xformOp:scale"]
     }
 
@@ -40,8 +40,8 @@ def Xform "Workcell"
         prepend references = @conveyor_straight_supported.usda@
     )
     {
-        double3 xformOp:translate = (1.02, 0.27, -0.24562743132143575)
-        double3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
+        float3 xformOp:translate = (1.02, 0.27, -0.24562743132143575)
+        float3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
     }
 
@@ -49,8 +49,8 @@ def Xform "Workcell"
         prepend references = @conveyor_straight_supported.usda@
     )
     {
-        double3 xformOp:translate = (1.02, -0.27, -0.24562743132143575)
-        double3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
+        float3 xformOp:translate = (1.02, -0.27, -0.24562743132143575)
+        float3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
     }
 }
