@@ -152,8 +152,19 @@ def test_recorder_storage_boundary(source_checkout_root):
     from isaaclab.envs import ManagerBasedEnvCfg
 
     assert "recorders" not in ManagerBasedEnvCfg.__dataclass_fields__
+    import isaaclab.envs.mdp as mdp
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.envs.mdp import recorders
+    from isaaclab.envs.mdp.recorders import recorders as capture_functions
 
+    assert "record_step" not in mdp.__all__
+    assert "record_step" not in recorders.__all__
+    assert "record_step" not in vars(capture_functions)
+    lifecycle_operations = {"process_action", "apply_action", "step", "_reset_idx", "export_episodes", "set_decimation"}
+    capture_source = ast.parse(inspect.getsource(capture_functions))
+    assert not any(
+        isinstance(node, ast.Attribute) and node.attr in lifecycle_operations for node in ast.walk(capture_source)
+    )
     assert "simulate" not in vars(ManagerBasedEnv)
     assert not {"compute_transition", "reset_done", "finish_step"} & vars(ManagerBasedRLEnv).keys()
     assert not {"RecorderManager", "RecorderManagerBaseCfg", "RecorderTerm", "RecorderTermCfg"} & set(managers.__all__)

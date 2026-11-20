@@ -371,30 +371,31 @@ Recording workflows create :class:`isaaclab.utils.datasets.EpisodeRecorder` and 
 functions at the required points. Storage accepts batched tensors and nested dictionaries;
 it has no environment reference, term registry, or lifecycle dispatch.
 
+Define the step in your recording script. The teleoperation entry point below calls capture
+functions at its own episode boundaries. The physics loop is also where a script can add
+capture after each scene update.
+
+.. literalinclude:: ../../../../source/isaaclab_teleop/isaaclab_teleop/entrypoints/record_demos.py
+   :language: python
+   :pyobject: _step_teleop
+
+The script creates the recorder and binds its own function before stepping:
+
 .. code-block:: python
 
     from functools import partial
     from types import MethodType
 
-    from isaaclab.envs.mdp.recorders import record_initial_state, record_step
+    from isaaclab.envs.mdp.recorders import record_initial_state
     from isaaclab.utils.datasets import EpisodeRecorder, EpisodeRecorderCfg
 
     recorder = EpisodeRecorder(EpisodeRecorderCfg(), env.num_envs, env.device, env_name="my-task")
-    # Select the complete recording step before the first environment step.
-    env.step = MethodType(partial(record_step, recorder=recorder), env)
+    env.sim.backend_manager.set_decimation(1)
+    env.step = MethodType(partial(_step_teleop, recorder=recorder), env)
     env.reset()
     record_initial_state(recorder, env)
     result = env.step(action)
-    recorder.export_episodes()
     recorder.close()
-
-The recording step is ordinary Python code. Its loop and manager calls are explicit so users
-can copy it and place capture before/after controls, inside the decimation loop, before reset,
-and after reset. It does not delegate ordering to broad lifecycle phase helpers:
-
-.. literalinclude:: ../../../../source/isaaclab/isaaclab/envs/mdp/recorders/recorders.py
-   :language: python
-   :pyobject: record_step
 
 Fields can have different sample rates. ``buffer_initial_capacity`` sets initial storage per world
 and field; storage grows as needed and is reused after reset. ``get_episode`` returns an owned
