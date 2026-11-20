@@ -10,9 +10,11 @@ The `fovi <https://nblauch.github.io/fovi>`__ library places the viewing rays. M
 relative to the physical camera's mount.
 
 .. figure:: ../../_static/overview/sensors/foveated_camera_overview.jpg
-   :alt: The foveated ray grid and its published images at two fixations.
+   :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.
 
-   Each pair shows the retinal rays on the viewing sphere and the image at that fixation.
+   A foveated retina behind a 180° fisheye lens, path-traced with OVRTX. Each pair shows the retina's rays on the
+   viewing sphere, faded outside the retina's field, and the rendered image. Fixating the drill puts part of the
+   retina outside the camera's view, and those samples render black.
 
 Sampling
 --------
