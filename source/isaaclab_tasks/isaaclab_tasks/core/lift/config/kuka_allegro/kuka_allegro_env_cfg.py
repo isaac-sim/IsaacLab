@@ -5,10 +5,7 @@
 
 """Configuration for the Kuka-Allegro lift and reorient environments."""
 
-import os
-
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -28,27 +25,6 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thum
 """Contact sensors of the remaining fingers."""
 
 
-@configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Graspable objects for the Kuka-Allegro hand, with SimReady props as an alternative to the shapes."""
-
-    # the props keep their authored mass and inertia; their instanced colliders take the shapes' collision overrides
-    simready = sim_utils.SimReadyUsdFileCfg(
-        # the first 100 single-body PhysX props of 2 to 15 cm and 5 g to 3 kg
-        search={
-            "size_range": (0.02, 0.15),
-            "mass_range": (0.005, 3.0),
-            "features": ["FET003_BASE_PHYSX"],
-            "exclude_features": ["FET004_BASE_PHYSX"],
-            "limit": 100,
-        },
-        cache_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "simready_objects.json"),
-        make_uninstanceable=True,
-        rigid_props=lift.ObjectCfg().shapes.rigid_props,
-        collision_props=lift.ObjectCfg().shapes.collision_props,
-    )
-
-
 ##
 # Scene definition
 ##
@@ -63,7 +39,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
     """
 
     robot: ArticulationCfg = replace(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    object: RigidObjectCfg = replace(lift.SceneCfg().object, spawn=KukaAllegroObjectCfg())
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
