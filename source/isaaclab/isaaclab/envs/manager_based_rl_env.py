@@ -205,6 +205,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
         self.action_manager.process_action(action.to(self.device))
         if self._physics_handles_actions is None:

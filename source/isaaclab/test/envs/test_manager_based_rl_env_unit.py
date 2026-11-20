@@ -12,8 +12,10 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
-from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
 
 pytestmark = pytest.mark.unit
 
@@ -104,14 +106,10 @@ def test_obs_space_follows_clip_constraint():
             assert np.all(term_space.high == high)
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
-def test_final_observations_precede_resets_and_events(env_kind):
+def test_final_observations_precede_resets_and_events(env_kind: str) -> None:
     """Automatic resets capture an owned successor before reset and interval events."""
-    import torch
-
-    from isaaclab.envs import DirectMARLEnv, DirectRLEnv
-    from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-
     cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
@@ -123,7 +121,13 @@ def test_final_observations_precede_resets_and_events(env_kind):
         observation_noise_model=None,
         num_rerenders_on_reset=0,
         events=True,
+        wait_for_textures=False,
     )
+    agents = ["a", "b"] if env_kind == "marl" else [None]
+
+    def extras_of(agent):
+        return env.extras[agent] if agent else env.extras
+
     state = torch.tensor([[10.0], [20.0]])
     reset_calls = []
     preview_calls = []
@@ -134,8 +138,10 @@ def test_final_observations_precede_resets_and_events(env_kind):
         return state
 
     def reset(ids):
-        reset_calls.append(ids.clone())
+        reset_calls.append(ids.clone() if isinstance(ids, torch.Tensor) else ids)
         state[ids] = -1
+        for agent in agents:
+            extras_of(agent)["log"] = {"episode": 1}
 
     def event(**kwargs):
         state.add_(1000)
@@ -146,8 +152,11 @@ def test_final_observations_precede_resets_and_events(env_kind):
         is_playing=lambda: True,
         consume_reset_request=lambda: False,
         step=lambda **kwargs: state.add_(1),
+        forward=lambda: None,
     )
-    env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None)
+    env.scene = SimpleNamespace(
+        num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None, reset_to=lambda *args, **kwargs: None
+    )
     env.render_enabled = False
     env.has_rtx_sensors = False
     env.video_recorders = []
@@ -200,6 +209,9 @@ def test_final_observations_precede_resets_and_events(env_kind):
             wrapper_timeouts = torch.zeros(2, dtype=torch.bool)
             env.extras.update(time_outs=wrapper_timeouts, log={"final_obs": "keep"})
             actions = {"a": torch.zeros(2, 1), "b": torch.zeros(2, 1)}
+    sentinel = object()
+    for agent in agents:
+        extras_of(agent)["user"] = sentinel
     first_terminal = None
     for auto_reset in (True, False, True):
         done.zero_()
@@ -210,6 +222,8 @@ def test_final_observations_precede_resets_and_events(env_kind):
         _, _, terminated, _, extras = env.step(actions)
         terminated = terminated["a"] if env_kind == "marl" else terminated
         assert terminated.tolist() == [auto_reset, False]
+        for agent in agents:
+            assert extras_of(agent)["user"] is sentinel
         assert not env.is_observation_preview
         assert len(preview_calls) == len(reset_calls) == int(auto_reset)
         if not auto_reset:
@@ -219,7 +233,9 @@ def test_final_observations_precede_resets_and_events(env_kind):
                 assert "final_obs" not in env.extras
             continue
         terminal = extras["a"]["final_obs"] if env_kind == "marl" else extras["final_obs"]["policy"]
-        torch.testing.assert_close(terminal, expected)
+        for agent in agents:
+            captured = extras_of(agent)["final_obs"]
+            torch.testing.assert_close(captured if env_kind == "marl" else captured["policy"], expected)
         assert reset_calls[0].tolist() == [0]
         if first_terminal is None:
             first_terminal = terminal
@@ -227,3 +243,16 @@ def test_final_observations_precede_resets_and_events(env_kind):
     if env_kind == "marl":
         assert env.extras["log"] == {"final_obs": "keep"}
         assert env.extras["time_outs"] is wrapper_timeouts
+
+    # Explicit resets clear terminal observations while preserving episode logs and unrelated extras.
+    _, extras = env.reset()
+    for agent in agents:
+        assert "final_obs" not in extras_of(agent)
+        assert extras_of(agent)["log"] == {"episode": 1}
+        assert extras_of(agent)["user"] is sentinel
+    if env_kind == "manager":
+        env.step(actions)
+        assert "final_obs" in env.extras
+        env.reset_to({}, None)
+        assert "final_obs" not in env.extras
+        assert env.extras["user"] is sentinel

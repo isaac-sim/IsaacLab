@@ -180,6 +180,9 @@ class DirectMARLEnv(gym.Env):
         # fold the full loop into a single step() when possible
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -356,6 +359,9 @@ class DirectMARLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras (keyed by the agent ID).
         """
+        # terminal observations belong to the step that captured them
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -408,6 +414,7 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
+        # terminal observations belong to the step that captured them
         for agent in self.cfg.possible_agents:
             self.extras[agent].pop("final_obs", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}

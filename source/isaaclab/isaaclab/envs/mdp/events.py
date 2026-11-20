@@ -26,7 +26,7 @@ from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import math as math_utils
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import DeformableObject
+    from isaaclab_isaacsim.assets import DeformableObject
 
     from omni.replicator.core.scripts.utils.rng import ReplicatorRNG
     from pxr import Usd
@@ -185,6 +185,12 @@ class randomize_rigid_body_material(ManagerTermBase):
     On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
     preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
 
+    ``contact_stiffness_range`` [N/m] (kp; Newton ke) and ``contact_damping_range`` [N*s/m]
+    (kd) default to ``None`` and preserve current gains. Stiffness must be positive: zero
+    means rigid contact on PhysX and zero spring stiffness on Newton. Use a custom event
+    for engine-specific zero stiffness. Gains use force-based units and affect Newton
+    solvers that consume ke/kd; OVPhysX runtime gain updates are unsupported.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.
@@ -215,6 +221,12 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
+        stiffness = cfg.params.get("contact_stiffness_range")
+        if stiffness is not None and stiffness[0] <= 0:
+            raise ValueError(
+                "Contact stiffness must be positive: zero means rigid contact on PhysX and zero spring stiffness "
+                "on Newton. Use a custom event for engine-specific zero stiffness."
+            )
         self._impl = _get_backend_events(env).randomize_rigid_body_material(cfg, env)
 
     def __call__(
@@ -227,6 +239,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
+        contact_stiffness_range: tuple[float, float] | None = None,
+        contact_damping_range: tuple[float, float] | None = None,
     ) -> None:
         self._impl(
             env,
@@ -1748,7 +1762,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_texture_material(cfg, env)
 
@@ -1800,7 +1814,7 @@ class randomize_visual_color(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_color(cfg, env)
 
@@ -1958,9 +1972,9 @@ def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
         from isaaclab_ov.physics import OvPhysxCfg
 
         expected_cfg_type = OvPhysxCfg
-    elif "isaaclab_physx" in physics_cfg_modules:
-        from isaaclab_physx.envs.mdp import events
-        from isaaclab_physx.physics import PhysxCfg
+    elif "isaaclab_isaacsim" in physics_cfg_modules:
+        from isaaclab_isaacsim.envs.mdp import events
+        from isaaclab_isaacsim.physics import PhysxCfg
 
         expected_cfg_type = PhysxCfg
     else:

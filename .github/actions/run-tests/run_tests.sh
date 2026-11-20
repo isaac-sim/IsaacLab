@@ -207,6 +207,8 @@ run_tests() {
 
   # Set by the multi-GPU smoke steps: fail rather than skip on a runner with too few GPUs.
   [ -z "${ISAACLAB_TEST_REQUIRE_MULTI_GPU:-}" ] || docker_env_args+=(-e ISAACLAB_TEST_REQUIRE_MULTI_GPU)
+  # Set by the kitless legacy rendering job: fail rather than skip when OptiX is not importable.
+  [ -z "${ISAACLAB_TEST_REQUIRE_OPTIX:-}" ] || docker_env_args+=(-e ISAACLAB_TEST_REQUIRE_OPTIX)
 
   if [ -n "$standalone_script_scope" ]; then
     docker_env_args+=(

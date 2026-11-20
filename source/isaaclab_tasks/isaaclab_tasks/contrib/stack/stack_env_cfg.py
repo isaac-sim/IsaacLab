@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -347,7 +347,7 @@ class PhysicsCfg(PresetCfg):
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
     """Reject Newton physics for scenes that configure a surface gripper.
 
-    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_physx.assets.SurfaceGripperCfg`)
+    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_isaacsim.assets.SurfaceGripperCfg`)
     with no Newton equivalent. This raises an actionable error at config-validation time
     instead of failing later during scene creation with an opaque ``isaacsim.core`` import error.
 

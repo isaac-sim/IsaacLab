@@ -31,7 +31,7 @@ _ENV_CFG_CLASSES = [
 @pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
 def test_newton_renderer_rejects_simple_shading(cfg_cls):
     """The Newton Warp renderer cannot shade, so this combination must not resolve."""
-    cfg = resolve_presets(cfg_cls(), {"newton_renderer", "simple_shading_full_mdl"})
+    cfg = resolve_presets(cfg_cls(), {"newton_warp", "simple_shading_full_mdl"})
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(cfg)
 
@@ -47,7 +47,7 @@ def test_rtx_renderers_accept_simple_shading(cfg_cls, renderer_preset):
 @pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
 def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
-    cfg = resolve_presets(cfg_cls(), {"newton_renderer", "rgb"})
+    cfg = resolve_presets(cfg_cls(), {"newton_warp", "rgb"})
     validate(cfg)  # must not raise
 
 

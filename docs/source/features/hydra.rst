@@ -227,7 +227,7 @@ override is given:
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
     from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
@@ -437,8 +437,10 @@ task-specific modes.
      - Concrete Isaac Sim RTX renderer
    * - ``rtx``
      - Automatic RTX-family selection between configured alternatives
-   * - ``newton_renderer``
+   * - ``newton_warp``
      - Newton Warp renderer
+   * - ``newton_optix``
+     - Newton OptiX renderer for RTX GPUs; requires the ``optix`` extra
    * - ``ovrtx``
      - Concrete OVRTX renderer for supported kit-less tasks
 
@@ -502,12 +504,12 @@ Using Presets
 
     # Switch to Newton renderer for camera environments
     uv run isaaclab train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+        --task Isaac-Cartpole-Camera-Direct renderer=newton_warp
 
     # Combine typed selectors with a task-specific observation preset
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Cartpole-Camera-Direct \
-        physics=newton_mjwarp renderer=newton_renderer presets=rgb
+        physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 **Path presets** -- select a specific preset for one config path:
 
@@ -542,7 +544,7 @@ inputs; the critic continues to use state observations.
 
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Cartpole-Camera \
-        physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+        physics=newton_mjwarp renderer=newton_warp presets=rgb \
         env.sim.dt=0.002
 
 
@@ -605,8 +607,8 @@ Summary
      - ``physics=newton_mjwarp``
      - Select a physics variant, update matching dependent presets, and require a typed match
    * - Typed renderer selector
-     - ``renderer=newton_renderer``
+     - ``renderer=newton_warp``
      - Select a renderer variant and require a typed match
    * - Combined
-     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb env.sim.dt=0.001``
+     - ``physics=newton_mjwarp renderer=newton_warp presets=rgb env.sim.dt=0.001``
      - Typed selectors + domain preset + scalar override
