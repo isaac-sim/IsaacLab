@@ -61,6 +61,7 @@ __all__ = [
     "episode_length",
     "evaluate",
     "last_action",
+    "migrate",
     "observe",
     "process_actions",
     "progress",
@@ -128,6 +129,6 @@ from .config import (
 from .eager import TermContext
 from .plan import ExecutionPlan, ObservationSlot, Segment, Step, StepKind, TaskNode, TaskTree, TunedValue
 from .rng import uniform
-from .runtime import apply_actions, evaluate, observe, process_actions, reset, startup, tune
+from .runtime import apply_actions, evaluate, migrate, observe, process_actions, reset, startup, tune
 from .scene import EntitySchema, FieldSchema, SceneData, SceneSchema
 from .terms import Implementation, State, Term

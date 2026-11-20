@@ -60,3 +60,6 @@
   subtask's name, as in ``left.joint_pos``; uses of subtasks that take turns share the columns of their name.
 * Added start events to MDP2, ``EventMode.START``: an event of a task of a sequence or a choice, or of a task that
   repeats, writes the scene when its task starts, at the reset or during the episode, where the scene commits it.
+* Added :meth:`~isaaclab_experimental.envs.MDP2Env.update_task`, which replaces the task of a running environment on
+  the same scene, such as with a reward added, and :func:`~isaaclab_experimental.mdp2.migrate`, which carries over the
+  state, random streams, and reward weights of the uses that both tasks have.

@@ -123,21 +123,32 @@ class MDP2Env:
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
 
         self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
-        schema = self.scene_data.schema
-        builder = mdp2.MDPBuilder(schema)
-        builder.add_task(cfg.task)
+        self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
+        self.common_step_counter = 0
+        self.extras: dict[str, Any] = {}
+        self._capturable = cfg.capture and wp.get_device(self.device).is_cuda
+        self._pool = torch.cuda.MemPool() if self._capturable else None  # Torch memory that the graphs use
+        self._build(cfg.task)
+
+    def _build(self, task: mdp2.TaskCfg, previous: tuple[mdp2.MDP, mdp2.MDPState] | None = None) -> None:
+        """Build the MDP of a task on the scene, and the step that runs it. Without a ``previous`` MDP, run its startup;
+        with one, carry its state over, see :func:`~isaaclab_experimental.mdp2.migrate`."""
+        builder = mdp2.MDPBuilder(self.scene_data.schema)
+        builder.add_task(task)
         self.mdp = builder.finalize(
             device=self.device,
-            backend=cfg.backend,
+            backend=self.cfg.backend,
             diagnostics=self.diagnostics,
             final_observations=self.final_observations,
         )
         self.state = self.mdp.state(self.scene_data, seed=self._seed)
-        self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
-        mdp2.startup(self.mdp, self.state)
-        if self.mdp.startup_writes:
-            # Startup events write scene fields in place, which the scene commits to the solver.
-            self.scene_data.commit(self._all_envs.warp, self.mdp.startup_writes)
+        if previous is not None:
+            mdp2.migrate(*previous, self.mdp, self.state)
+        else:
+            mdp2.startup(self.mdp, self.state)
+            if self.mdp.startup_writes:
+                # Startup events write scene fields in place, which the scene commits to the solver.
+                self.scene_data.commit(self._all_envs.warp, self.mdp.startup_writes)
         self.transition = self.mdp.transition()
         self._observations = self._views(self.transition.observations)
         # The worlds that a step resets: those whose episodes ended, unless an episode budget restarts only some.
@@ -148,14 +159,10 @@ class MDP2Env:
         self._event_worlds = self.state.arrays.get("event_worlds")
         if self._event_worlds is not None:
             self._commit_mask = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
-        self.common_step_counter = 0
-        self.extras: dict[str, Any] = {}
 
         self._work = self._step_work()  # The work of a step, in order, each with whether a graph can capture it
-        self._capturable = cfg.capture and wp.get_device(self.device).is_cuda
         self._runs: list[Callable[[], None]] | None = None  # The captured step: graph replays and the work between them
         self.num_graphs = 0  # CUDA graphs that one captured step replays
-        self._pool = torch.cuda.MemPool() if self._capturable else None  # Torch memory that the graphs use
         self._stepped = False
 
     @property
@@ -198,6 +205,23 @@ class MDP2Env:
         """Apply the actions, step the physics, reset the worlds whose episodes ended, and observe."""
         self._step_or_replay(action)
         return self.observations, self.extras
+
+    def update_task(self, task: mdp2.TaskCfg, truncate: bool = True) -> None:
+        """Replace the task by another on the same scene, such as with a reward added or removed, and keep running.
+
+        The state of the uses that both tasks have carries over, see :func:`~isaaclab_experimental.mdp2.migrate`: term
+        state, timers, histories, commands, progress, tunable values, random streams, and reward weights. With
+        ``truncate``, every world starts a new episode, so that no episode mixes two tasks; otherwise episodes go on.
+        The next step captures its graphs again, which compiles the kernels of a new task once, in about a second.
+        """
+        self._build(task, previous=(self.mdp, self.state))
+        self.cfg.task = task
+        self._bind()
+        if truncate:
+            self.reset()
+
+    def _bind(self) -> None:
+        """Bind what an environment derives from the MDP, after it was built."""
 
     def tune(
         self,
@@ -459,11 +483,16 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self.final_observations = cfg.compute_final_obs
         self._budgeted = cfg.episode_budget is not None
         super().__init__(cfg)
-        if cfg.compute_final_obs:
-            self.extras["final_obs"] = self._views(self.transition.final_observations)
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
+        self.obs_buf: VecEnvObs = {}
+        self._bind()
 
+    def _bind(self) -> None:
+        """Bind the spaces, the final observations, and the episode statistics to the MDP."""
+        cfg = self.cfg
+        if cfg.compute_final_obs:
+            self.extras["final_obs"] = self._views(self.transition.final_observations)
         spaces: dict[str, Any] = {}
         for buffer, (shape, dtype) in self.mdp.observation_layouts.items():
             if dtype is wp.float32:
@@ -528,7 +557,6 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             self._task_worlds.append(slice(None) if len(worlds) == self.num_envs else worlds)
         self._last_done = torch.zeros(self.num_envs, len(self._tasks), device=self.device)
         self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self.obs_buf: VecEnvObs = {}
         if cfg.episode_budget is not None:
             self._init_episode_budget(cfg.episode_budget)
 

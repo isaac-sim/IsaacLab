@@ -20,6 +20,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
+from .config import FieldSelector, Phase
 from .eager import call_init
 from .plan import Call
 
@@ -117,3 +118,41 @@ def tune(
         state.arrays["revision"].torch.add_(selected.int())
     else:
         state.arrays["pending"].torch.logical_or_(selected)
+
+
+_CARRIED = ("timer", "history", "on", "entered", "pending")
+"""Kinds of the arrays of single ops that :func:`migrate` carries over, by the first part of their keys."""
+
+
+def migrate(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) -> None:
+    """Carry the state of an MDP over to another built on the same scene, such as for an edited task.
+
+    Every array of the MDP that both key alike and shape alike carries over: the state, timers, histories, and
+    tunable values of the uses that both have, the commands, quantities, and progress, the episode lengths, and the
+    last actions. So do the random streams of the uses that both have, and the reward weights of the rewards. The init
+    hooks of the uses that the previous MDP did not have run, as at startup.
+    """
+    for key, array in state.arrays.items():
+        carried = isinstance(key, FieldSelector) and not key.scene
+        carried |= key in ("revision", "pending") or isinstance(key, tuple) and key[0] in _CARRIED
+        old = previous_state.arrays.get(key)
+        if (
+            carried
+            and old is not None
+            and old.torch.shape == array.torch.shape
+            and old.torch.dtype == array.torch.dtype
+        ):
+            array.torch.copy_(old.torch)
+
+    for row, name in enumerate(mdp.streams):
+        if name in previous.streams:
+            state.rng.torch[row] = previous_state.rng.torch[previous.streams.index(name)]
+    rewards = [op.name for op in previous.ops[Phase.REWARDS]]
+    for column, op in enumerate(mdp.ops[Phase.REWARDS]):
+        if op.name in rewards:
+            state.reward_weights.torch[:, column] = previous_state.reward_weights.torch[:, rewards.index(op.name)]
+
+    uses = {op.use for op in previous.term_ops}
+    for op in mdp.term_ops:
+        if op.init is not None and op.use not in uses:
+            call_init(mdp, op, state, op.init)

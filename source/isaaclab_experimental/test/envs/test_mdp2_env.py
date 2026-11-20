@@ -803,3 +803,47 @@ def test_optix_cameras_render_between_the_graphs_of_a_step():
         assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
     finally:
         env.close()
+
+
+lifetime_steps = mdp2.Term(
+    torch=mdp2.Implementation(compute=lambda steps: steps.clone(), update=lambda steps: steps.add_(1.0)),
+    state={"steps": mdp2.State(persistent=True)},
+)
+"""Steps since the start, across episodes."""
+
+
+def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
+    """Replacing the task on a running environment keeps the state, random streams, and reward weights of the uses
+    that both tasks have, truncates the episodes, and replays the new task's step as a graph."""
+    cfg = cartpole_cfg()
+    cfg.task.quantities = {"lifetime": mdp2.Quantity(lifetime_steps)}
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        for _ in range(3):
+            env.step(actions)
+        assert env.is_captured and env.num_graphs == 1
+        env.state.reward_weights.torch[:, 0] = 7.0  # Changed at runtime: kept
+        streams = {name: env.state.rng.torch[row].clone() for row, name in enumerate(env.mdp.streams)}
+
+        task = replace(
+            cfg.task,
+            rewards={**cfg.task.rewards, "upright": mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})},
+        )
+        env.update_task(task)
+        lifetime = env.state.arrays[mdp2.term_state("quantities.lifetime", "steps")].torch
+        assert (lifetime == 3.0).all() and (env.episode_length_buf == 0).all()
+        assert (env.state.reward_weights.torch[:, 0] == 7.0).all()
+        assert env.state.reward_weights.torch[:, -1].tolist() == [1.0] * NUM_ENVS
+        for name, values in streams.items():
+            # The reset that truncated the episodes advanced every stream once.
+            rng.advance(values[None])
+            assert torch.equal(env.state.rng.torch[env.mdp.streams.index(name)], values), name
+
+        _, _, _, _, extras = env.step(actions)
+        env.step(actions)
+        assert env.is_captured and env.num_graphs == 1 and "Episode_Reward/upright" in extras["log"]
+        assert (lifetime == 5.0).all()
+    finally:
+        env.close()
