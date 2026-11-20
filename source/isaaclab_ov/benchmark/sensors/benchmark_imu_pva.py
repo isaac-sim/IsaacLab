@@ -5,7 +5,7 @@
 
 """Benchmark the OVPhysX IMU and PVA sensor update paths.
 
-Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_imu_pva.py`` but runs
+Mirrors ``isaaclab_isaacsim/benchmark/sensors/benchmark_imu_pva.py`` but runs
 kitless against the OVPhysX backend. In addition to the full-update timing it
 also times the blocking native reads and required staging copies so the derived
 processing share can be estimated.
@@ -36,8 +36,8 @@ args_cli = parser.parse_args()
 
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

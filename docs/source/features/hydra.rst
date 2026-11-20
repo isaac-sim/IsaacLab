@@ -227,7 +227,7 @@ override is given:
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
     from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
@@ -439,6 +439,8 @@ task-specific modes.
      - Automatic RTX-family selection between configured alternatives
    * - ``newton_warp``
      - Newton Warp renderer
+   * - ``newton_optix``
+     - Newton OptiX renderer for RTX GPUs; requires the ``optix`` extra
    * - ``ovrtx``
      - Concrete OVRTX renderer for supported kit-less tasks
 

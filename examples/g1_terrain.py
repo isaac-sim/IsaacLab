@@ -16,7 +16,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 wp.config.enable_backward = False
 

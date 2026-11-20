@@ -263,7 +263,7 @@ from typing import Protocol, runtime_checkable
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.cli import load_external_tasks
@@ -1260,7 +1260,7 @@ def _run_single_replay(
         # at the cost of doing nothing measurable (the wait returns
         # immediately on a fully-loaded stage anyway).
         if run_index == 0:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
+            from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
 
             print("Waiting for USD stage to finish loading...")
             wait_for_stage_load(args_cli.max_stage_load_wait_s, settle_frames=_RENDERER_SETTLE_FRAMES)
@@ -1559,7 +1559,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         cloudxr_launcher = _maybe_launch_cloudxr(args_cli.cloudxr_env, args_cli.auto_launch_cloudxr)
 
         if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+            from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
             apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"))
 

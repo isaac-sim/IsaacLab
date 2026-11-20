@@ -5,8 +5,8 @@
 
 import math
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.managers import (
     ObservationGroupCfg,
