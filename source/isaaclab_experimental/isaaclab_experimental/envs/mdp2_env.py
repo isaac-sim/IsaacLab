@@ -555,13 +555,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         n, device, transition = self.num_envs, self.device, self.transition
         code = Fusion("mdp2_episode_log", n, device)
         # The episodes that go on after a task update keep the sums of the rewards that both tasks have.
-        previous = {} if self._episode_rewards is None else dict(zip(self._summed, self._episode_rewards.T))
+        # Both buffers hold a row per column and a column per world, so that the kernel writes and the sum over the
+        # worlds reads contiguous memory.
+        previous = {} if self._episode_rewards is None else dict(zip(self._summed, self._episode_rewards))
         self._summed = list(self._reward_names)
-        self._episode_rewards = (
-            torch.stack([previous.get(name, torch.zeros(n, device=device)) for name in self._summed], dim=1)
-            if self._summed
-            else torch.zeros(n, 0, device=device)
-        )
+        self._episode_rewards = torch.zeros(len(self._summed), n, device=device)
+        for row, name in enumerate(self._summed):
+            if name in previous:
+                self._episode_rewards[row] = previous[name]
 
         def argument(tensor: torch.Tensor | ProxyArray, annotation: Any) -> str:
             array = tensor.warp if isinstance(tensor, ProxyArray) else wp.from_torch(tensor, dtype=annotation.dtype)
@@ -596,9 +597,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 seconds = f"(float({length}[world]) * {float(self.step_dt)!r})"
             for k, op in enumerate(rewards):
                 names.append(f"Episode_Reward/{self._reward_names[k]}")
-                summed.append(f"{sums}[world, {k}] = {sums}[world, {k}] + {terms}[world, {k}]")
-                restarted.append(f"    {sums}[world, {k}] = 0.0")
-                columns.append(f"{sums}[world, {k}] * {share(op.worlds)!r} / {seconds}")
+                summed.append(f"{sums}[{k}, world] = {sums}[{k}, world] + {terms}[world, {k}]")
+                restarted.append(f"    {sums}[{k}, world] = 0.0")
+                columns.append(f"{sums}[{k}, world] * {share(op.worlds)!r} / {seconds}")
         terminations = self.mdp.ops[mdp2.Phase.TERMINATIONS]
         if terminations:
             flags = argument(transition.termination_terms, wp.array2d(dtype=wp.bool))
@@ -636,7 +637,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 columns.append(f"wp.where({member(worlds)} and {done}[world], {share(worlds)!r}, 0.0)")
 
         self._log_names = names
-        self._last_episodes = torch.zeros(n, len(columns), device=device)
+        self._last_episodes = torch.zeros(len(columns), n, device=device)
         self._log_ratios = None
         if ratios:
             done, ran = zip(*ratios)
@@ -648,7 +649,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             code.world(
                 *summed,
                 f"if {argument(ended, wp.array(dtype=wp.bool))}[world]:",
-                *(f"    {last}[world, {k}] = {column}" for k, column in enumerate(columns)),
+                *(f"    {last}[{k}, world] = {column}" for k, column in enumerate(columns)),
                 *restarted,
             )
         self._log_kernels = code.steps()
@@ -810,7 +811,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def _episode_log(self) -> dict[str, torch.Tensor]:
         """Return the logs of the worlds' last finished episodes, a new tensor per step, as learners keep the logs of
         the steps of a rollout."""
-        values = self._last_episodes.sum(dim=0)
+        values = self._last_episodes.sum(dim=1)
         if self._log_ratios is not None:
             done, ran, logged = self._log_ratios
             values[done] /= values[ran].clamp(min=1.0)

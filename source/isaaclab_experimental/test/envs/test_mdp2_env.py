@@ -879,7 +879,7 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
         env.update_task(cfg.task, truncate=False)
         kept = [rewards.index(op.name) for op in env.mdp.ops[mdp2.Phase.REWARDS]]
         assert (env.episode_length_buf == 2).all()
-        assert torch.equal(env.step_buffers()["episode_rewards"], sums[:, kept])
+        assert torch.equal(env.step_buffers()["episode_rewards"], sums[kept])
     finally:
         env.close()
 
