@@ -441,7 +441,7 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_po
     clear = torch.zeros(2, dtype=torch.bool)
     step = mock.Mock(
         side_effect=[
-            ({"states": states}, torch.ones(2), done, clear, {}),
+            ({"states": states}, torch.ones(2), clear, done, {}),
             ({"states": states}, torch.ones(2), clear, clear, {}),
             ({"states": states}, torch.ones(2), clear, clear, {}),
             ({"states": states}, torch.ones(2), clear, clear, {}),

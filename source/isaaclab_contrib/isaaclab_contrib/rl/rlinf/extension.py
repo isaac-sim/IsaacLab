@@ -519,7 +519,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
             obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
             if self._chunk_done is not None:
-                self._chunk_done |= terminated | truncated
+                self._chunk_done |= truncated
                 self._hold_actions = obs["states"]
             return obs, reward, terminated, truncated, info
 

@@ -21,6 +21,7 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 import isaaclab.sim as sim_utils
@@ -994,32 +995,35 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_yaw_joint", ".*_hip_roll_joint", ".*_hip_pitch_joint", ".*_knee_joint"],
-            effort_limit=1000.0,
-            velocity_limit=0.0,
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
             stiffness=10000.0,
             damping=1000.0,
             armature=0.03,
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_roll_joint", ".*_ankle_pitch_joint"],
-            effort_limit=1000.0,
-            velocity_limit=0.0,
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
             stiffness=10000.0,
             damping=1000.0,
             armature=0.03,
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_.*_joint"],
-            effort_limit=1000.0,
-            velocity_limit=0.0,
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
             stiffness=1e6,
             damping=1e5,
             armature=0.03,
         ),
         "head": IdealPDActuatorCfg(
             joint_names_expr=["head_.*_joint"],
-            effort_limit=50.0,
-            velocity_limit=10.0,
+            actuator_effort_limit=50.0,
+            actuator_velocity_limit=10.0,
             stiffness=150.0,
             damping=10.0,
             armature=0.03,
@@ -1033,7 +1037,7 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
             ],
-            effort_limit={
+            actuator_effort_limit={
                 ".*_shoulder_pitch_joint": 220.0,
                 ".*_shoulder_roll_joint": 154.0,
                 ".*_shoulder_yaw_joint": 154.0,
@@ -1042,7 +1046,7 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
                 ".*_wrist_pitch_joint": 125.0,
                 ".*_wrist_yaw_joint": 125.0,
             },
-            velocity_limit={
+            actuator_velocity_limit={
                 ".*_shoulder_pitch_joint": 28.0,
                 ".*_shoulder_roll_joint": 34.0,
                 ".*_shoulder_yaw_joint": 34.0,
@@ -1069,9 +1073,9 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
             # Grasp vs tunneling tradeoff (IdealPD, torque capped by effort_limit):
             #   20/2  -> contact wins, but fingers often cannot hold the apple
             #   40/5  -> grasp succeeds more, but fingers tunnel into the apple
-            #   28/3  -> middle ground; keep effort_limit=5 so peak force stays bounded
-            effort_limit=5.0,
-            velocity_limit=16.0,
+            #   28/3  -> middle ground; keep actuator_effort_limit=5 so peak force stays bounded
+            actuator_effort_limit=5.0,
+            actuator_velocity_limit=16.0,
             stiffness=28.0,
             damping=3.0,
             armature=0.03,
