@@ -12,8 +12,6 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
 
-from functools import partial
-from types import MethodType
 from unittest.mock import Mock
 
 import pytest
@@ -21,14 +19,12 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-from isaaclab.envs.mdp.recorders import recorders as capture_terms
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import TerminationTermCfg
+from isaaclab.managers import RewardTermCfg, TerminationTermCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg, make_empty_manager_based_rl_env_cfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
-from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
 from isaaclab.utils.noise import UniformNoiseCfg
 
 pytestmark = pytest.mark.integration
@@ -67,14 +63,20 @@ def episode_step(env: ManagerBasedRLEnv) -> torch.Tensor:
     [(ManagerBasedEnv, make_empty_manager_based_env_cfg), (ManagerBasedRLEnv, make_empty_manager_based_rl_env_cfg)],
 )
 def test_step_updates_observation_history(device, env_type, cfg_factory, monkeypatch):
-    """Real steps advance history; recording preserves policy noise/RNG and captures before reset."""
+    """Real steps advance history, and reading a noiseless group preserves policy RNG."""
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
     cfg = cfg_factory(device=device, num_envs=3)
-    # Both paths expose every physics step for custom per-substep capture.
-    cfg.sim.render_interval = 1
     cfg.observations = EmptyObservationWithHistoryCfg()
+    captured = None
+
+    def sample_terminal_observation(env):
+        if captured is not None:
+            captured["latest"] = env.episode_length_buf.clone()
+            captured["observation"] = env.observation_manager.compute_group("state", update_history=False)
+        return torch.zeros(env.num_envs, device=env.device)
+
     if env_type is ManagerBasedRLEnv:
         cfg.observations.empty_observation.enable_corruption = True
         cfg.observations.empty_observation.dummy_term = ObsTerm(
@@ -82,8 +84,7 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
         )
         cfg.observations.state = ObsGroup(enable_corruption=False)
         cfg.observations.state.step = ObsTerm(func=episode_step)
-        cfg.observations.policy = ObsGroup(enable_corruption=False)
-        cfg.observations.policy.step = ObsTerm(func=episode_step)
+        cfg.rewards.sample = RewardTermCfg(func=sample_terminal_observation, weight=1.0)
         cfg.terminations.stop = TerminationTermCfg(
             func=lambda env: (env.episode_length_buf == 4) & (torch.arange(env.num_envs, device=env.device) == 0)
         )
@@ -135,22 +136,8 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     if env_type is ManagerBasedRLEnv:
         outputs, rng_states = [], []
         action = torch.empty_like(env.action_manager.action)
-        recorder = EpisodeRecorder(
-            EpisodeRecorderCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE), env.num_envs, env.device
-        )
-        original_capture = capture_terms.record_post_step
         for capture in (False, True):
-            captured = {}
-
-            def capture_post_step(recorder, env):
-                captured["latest"] = env.episode_length_buf.clone()
-                captured["observation"] = env.observation_manager.compute_group("state", update_history=False)
-                original_capture(recorder, env)
-
-            monkeypatch.setattr(capture_terms, "record_post_step", capture_post_step)
-            custom_step = partial(capture_terms.record_step, recorder=recorder)
-            env.step = MethodType(custom_step if capture else ManagerBasedRLEnv.step, env)
-            recorder.reset()
+            captured = {} if capture else None
             env.reset(seed=17)
             start_time = env.sim.backend_manager.get_simulation_time()
             trajectory = [env.step(action)[0]["empty_observation"].clone() for _ in range(4)]

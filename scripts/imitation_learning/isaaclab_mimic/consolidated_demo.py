@@ -80,7 +80,8 @@ import torch
 from isaaclab.envs.mdp.recorders import (
     get_episode_metadata,
     record_initial_state,
-    record_step,
+    record_post_step,
+    record_pre_step,
 )
 from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
 
@@ -238,6 +239,53 @@ async def run_data_generator(
         num_attempts += 1
 
 
+def _step_consolidated_demo(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Advance the live demonstrations and generated trajectories together."""
+    recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
+    recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
+
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # The workflow decides when attempts finish. A visualizer reset interrupts them.
+    if env.sim.consume_reset_request():
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.int32)
+        env.reset_terminated.fill_(True)
+        recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
+        recorder.export_episodes(env_ids)
+        env._reset_idx(env_ids)
+        record_initial_state(recorder, env, env_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
 def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop, recorder, env_reset_queue):
     """Main loop for the environment."""
     global num_recorded, num_success, num_failures, num_attempts
@@ -269,8 +317,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
                 actions[env_id] = action
 
             # perform action on environment
-            recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env.unwrapped, actions))
-            recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.unwrapped.get_subtask_term_signals())
             env.step(actions)
 
             # mark done so the data generators can continue with the step results
@@ -393,7 +439,9 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, recorder_cfg, clean
         env_metadata=get_episode_metadata(env.unwrapped),
     )
     cleanup.callback(recorder.close)
-    env.unwrapped.step = MethodType(partial(record_step, recorder=recorder), env.unwrapped)
+    # This script owns decimation, so each simulator call advances one physics step.
+    env.unwrapped.sim.backend_manager.set_decimation(1)
+    env.unwrapped.step = MethodType(partial(_step_consolidated_demo, recorder=recorder), env.unwrapped)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")

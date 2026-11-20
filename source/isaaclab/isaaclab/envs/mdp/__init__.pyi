@@ -5,7 +5,6 @@
 
 __all__ = [
     "get_episode_metadata",
-    "record_step",
     "AbsBinaryJointPositionAction",
     "AbsBinaryJointPositionActionCfg",
     "BinaryJointAction",
@@ -239,7 +238,6 @@ from .events import (
     reset_root_state_with_random_orientation,
     reset_scene_to_default,
 )
-from .visual_events import randomize_visual_material, randomize_visual_shape
 from .observations import (
     base_ang_vel,
     base_lin_vel,
@@ -257,8 +255,6 @@ from .observations import (
     image_segmentation,
     imu_ang_vel,
     imu_lin_acc,
-    pva_orientation,
-    pva_projected_gravity,
     joint_effort,
     joint_pos,
     joint_pos_limit_normalized,
@@ -267,13 +263,15 @@ from .observations import (
     joint_vel_rel,
     last_action,
     projected_gravity,
+    pva_orientation,
+    pva_projected_gravity,
     remaining_time_s,
     root_ang_vel_w,
     root_lin_vel_w,
     root_pos_w,
     root_quat_w,
 )
-from .recorders import get_episode_metadata, record_initial_state, record_pre_step, record_post_step, record_step
+from .recorders import get_episode_metadata
 from .rewards import (
     action_l2,
     action_rate_l2,
@@ -321,8 +319,9 @@ from .terminations import (
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
     joint_vel_out_of_manual_limit,
-    pose_command_success,
     pelvis_below_terrain_clearance,
+    pose_command_success,
     root_height_below_minimum,
     time_out,
 )
+from .visual_events import randomize_visual_material, randomize_visual_shape

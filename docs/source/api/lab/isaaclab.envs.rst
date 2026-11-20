@@ -67,11 +67,9 @@ The default ``step`` keeps action processing, physics stepping, reward and termi
 reset logic, command/event updates, and observation computation visible in one function. Custom
 functions can write out the same sequence and insert their own work between any of these operations.
 
-For per-physics-step capture, use an explicit decimation loop with one physics step per simulator
-call. The concrete :func:`~isaaclab.envs.mdp.recorders.record_step` example shows this, including
-rendering cadence, terminal capture before reset, and initial-state capture after reset. Select
-that function before the first environment step; default backend action handling may otherwise
-already own the decimation loop. See :ref:`recorder-capture` for the complete implementation.
+For per-physics-step capture, write the decimation loop in your script and set backend
+decimation to one before the first environment step. The :ref:`recorder-capture` example shows
+where to place capture relative to physics, episode export, and reset.
 
 Dataset recording is explicit. Environments do not construct a recorder manager or dispatch
 capture callbacks during step, reset, reset_to, or close. Recording workflows own their episode

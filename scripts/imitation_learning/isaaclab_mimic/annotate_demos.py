@@ -66,7 +66,8 @@ import torch
 from isaaclab.envs.mdp.recorders import (
     get_episode_metadata,
     record_initial_state,
-    record_step,
+    record_post_step,
+    record_pre_step,
 )
 from isaaclab.managers import TerminationTermCfg
 from isaaclab.utils.datasets import EpisodeData, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
@@ -180,7 +181,9 @@ def annotate_dataset(
         recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
     )
 
-    env.step = MethodType(partial(record_step, recorder=recorder), env)
+    # This script owns decimation, so each simulator call advances one physics step.
+    env.sim.backend_manager.set_decimation(1)
+    env.step = MethodType(partial(_step_annotation, recorder=recorder), env)
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -286,6 +289,56 @@ def annotate_dataset(
     return successful_task_count
 
 
+def _step_annotation(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Replay one action and capture the fields used for Mimic annotations."""
+    recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
+    if args_cli.auto:
+        recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
+        if args_cli.annotate_subtask_start_signals:
+            recorder.add_to_episodes("obs/datagen_info/subtask_start_signals", env.get_subtask_start_signals())
+
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # The workflow decides when attempts finish. A visualizer reset interrupts them.
+    if env.sim.consume_reset_request():
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.int32)
+        env.reset_terminated.fill_(True)
+        recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
+        recorder.export_episodes(env_ids)
+        env._reset_idx(env_ids)
+        record_initial_state(recorder, env, env_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
 def replay_episode(
     env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
@@ -327,11 +380,6 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         action_tensor = action_tensor.to(env.device)
-        recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action_tensor))
-        if args_cli.auto:
-            recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
-            if args_cli.annotate_subtask_start_signals:
-                recorder.add_to_episodes("obs/datagen_info/subtask_start_signals", env.get_subtask_start_signals())
         env.step(action_tensor)
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
