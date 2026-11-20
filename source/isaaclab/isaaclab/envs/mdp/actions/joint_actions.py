@@ -207,11 +207,12 @@ class JointPositionChunkAction(JointPositionAction):
     term instead takes a chunk of :attr:`~JointPositionChunkActionCfg.chunk_length` targets and applies them in order,
     each for ``decimation / chunk_length`` physics steps, so a policy that plans a chunk of future targets acts once
     per chunk. With :attr:`~JointPositionChunkActionCfg.interpolate`, the action is one target per joint instead,
-    reached in equal increments from the joint positions at the start of the environment step.
+    reached in equal increments from the previous chunk's last target, or from the joint positions after a reset.
 
-    The action is ordered by target, then by joint. Scale, offset and clip apply to each target. The physics-step
-    counter stays on the device, so a physics backend that records :meth:`apply_actions` once and replays it on every
-    physics step applies the right target each time.
+    The action and :attr:`processed_actions` are ordered by target, then by joint. Scale, offset and clip apply to
+    each target. The physics-step counter stays on the device, so a physics backend that records :meth:`apply_actions`
+    once and replays it on every physics step applies the right target each time. A backend that runs the decimation
+    loop itself must also run the actions, since the targets change between its physics steps.
     """
 
     is_graphable = True
@@ -225,20 +226,24 @@ class JointPositionChunkAction(JointPositionAction):
     def __init__(self, cfg: actions_cfg.JointPositionChunkActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         decimation = env.cfg.decimation
-        steps = cfg.chunk_length or decimation
-        if decimation % steps:
+        steps = decimation if cfg.chunk_length is None else cfg.chunk_length
+        if steps < 1 or decimation % steps:
             raise ValueError(
-                f"The chunk's {steps} targets must divide the environment step's {decimation} physics steps"
-                " (decimation), so that each target holds for the same number of physics steps."
+                f"chunk_length must be a positive divisor of the environment step's {decimation} physics steps"
+                f" (decimation), so that each target holds for the same number of physics steps; got {steps}."
             )
         self._steps, self._hold = steps, decimation // steps
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        # The chunk's targets, the physics step since the action, and the target that step applies.
-        self._processed_actions = torch.zeros(self.num_envs, steps, self._num_joints, device=self.device)
+        # The chunk's targets, flat like every term's processed actions, and viewed one row per target.
+        self._processed_actions = torch.zeros(self.num_envs, steps * self._num_joints, device=self.device)
+        self._chunk = self._processed_actions.view(self.num_envs, steps, self._num_joints)
+        # The physics step since the action, and the target that step applies.
         self._physics_step = torch.zeros(1, dtype=torch.long, device=self.device)
         self._index = torch.zeros_like(self._physics_step)
         self._target = torch.zeros(self.num_envs, 1, self._num_joints, device=self.device)
+        # Interpolation: the increments, and which environments start from their joint positions after a reset.
         self._fractions = (torch.arange(1, steps + 1, device=self.device) / steps).view(1, -1, 1)
+        self._restart = torch.ones(self.num_envs, 1, 1, dtype=torch.bool, device=self.device)
 
     @property
     def action_dim(self) -> int:
@@ -251,16 +256,29 @@ class JointPositionChunkAction(JointPositionAction):
         if self.cfg.clip is not None:
             targets = targets.clamp(min=self._clip[:, None, :, 0], max=self._clip[:, None, :, 1])
         if self.cfg.interpolate:
-            start = self._asset.data.joint_pos.torch[:, self._joint_ids].unsqueeze(1)
+            # From the previous chunk's last target, which the joints may still lag, so the command never steps back.
+            joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids].unsqueeze(1)
+            start = torch.where(self._restart, joint_pos, self._chunk[:, -1:])
             targets = start + self._fractions * (targets - start)
+            self._restart.zero_()
         # in place: a recorded apply_actions reads this buffer
-        self._processed_actions[:] = targets
+        self._chunk[:] = targets
         self._physics_step.zero_()
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+        index_fill_(self._restart, env_ids, True)
+
     def apply_actions(self):
+        if getattr(self._env, "_physics_handles_decimation", False) and not self._env._physics_handles_actions:
+            raise RuntimeError(
+                f"{type(self).__name__} changes the joint targets between physics steps, but the physics backend runs"
+                " the decimation loop without running the actions, so only the chunk's first target would apply."
+                " Make every action term and asset graphable so that the backend runs the actions too."
+            )
         torch.div(self._physics_step, self._hold, rounding_mode="floor", out=self._index)
         self._index.clamp_(max=self._steps - 1)
-        torch.index_select(self._processed_actions, 1, self._index, out=self._target)
+        torch.index_select(self._chunk, 1, self._index, out=self._target)
         self._physics_step.add_(1)
         self._asset.set_joint_position_target_index(target=self._target[:, 0], joint_ids=self._joint_ids)
 

@@ -312,34 +312,73 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
     assert torch.all(processed < 0.0)
 
 
-@pytest.mark.parametrize("interpolate", [False, True])
-def test_chunk_action_applies_its_targets_in_order_over_the_physics_steps(interpolate: bool) -> None:
-    """Each of a chunk's targets holds for ``decimation / chunk_length`` physics steps; the next action restarts it."""
+def _chunk_action(interpolate: bool, device: str = "cpu", **env_attrs) -> tuple[JointPositionChunkAction, list]:
+    """A chunk action of two targets over four physics steps on joints at 1.0, and the list of applied targets."""
     env = _make_env(["a", "b"], decimation=4)
+    env.device = device
+    env.__dict__.update(env_attrs)
     robot = env.scene["robot"]
     applied = []
-    robot.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.full((NUM_ENVS, 2), 1.0)))
+    robot.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.full((NUM_ENVS, 2), 1.0, device=device)))
     robot.set_joint_position_target_index = lambda *, target, joint_ids: applied.append(target.clone())
     cfg = JointPositionChunkActionCfg(
         asset_name="robot", joint_names=[".*"], use_default_offset=False, chunk_length=2, interpolate=interpolate
     )
-    action = JointPositionChunkAction(cfg, env)
+    return JointPositionChunkAction(cfg, env), applied
 
-    # A chunk of targets 2 then 4, or the one target 3 that the interpolation reaches from 1 in two increments.
-    chunk = torch.tensor([[2.0, 2.0, 4.0, 4.0]] if not interpolate else [[3.0, 3.0]]).repeat(NUM_ENVS, 1)
-    assert action.action_dim == chunk.shape[1]
-    for _ in range(2):
+
+def _chunks(interpolate: bool) -> list[tuple[list[float], list[float]]]:
+    """Actions and the first joint's target on each of the four physics steps, over two chunks and a reset."""
+    if not interpolate:
+        return [([2.0, 2.0, 4.0, 4.0], [2.0, 2.0, 4.0, 4.0]), ([5.0, 5.0, 7.0, 7.0], [5.0, 5.0, 7.0, 7.0])]
+    # From the joints at 1.0, then from the last target 3.0 rather than the joints, which a physics step may lag.
+    return [([3.0, 3.0], [2.0, 2.0, 3.0, 3.0]), ([5.0, 5.0], [4.0, 4.0, 5.0, 5.0]), ([3.0, 3.0], [2.0, 2.0, 3.0, 3.0])]
+
+
+@pytest.mark.parametrize("interpolate", [False, True])
+def test_chunk_action_applies_its_targets_in_order_over_the_physics_steps(interpolate: bool) -> None:
+    """Each of a chunk's targets holds for ``decimation / chunk_length`` physics steps; the next action restarts it."""
+    action, applied = _chunk_action(interpolate)
+    for i, (chunk, expected) in enumerate(_chunks(interpolate)):
+        if i == 2:
+            action.reset()
         applied.clear()
-        action.process_actions(chunk)
-        for _ in range(env.cfg.decimation):
+        action.process_actions(torch.tensor([chunk] * NUM_ENVS))
+        for _ in range(4):
             action.apply_actions()
-        torch.testing.assert_close(
-            torch.stack(applied)[:, 0, 0],
-            torch.tensor([2.0, 2.0, 4.0, 4.0] if not interpolate else [2.0, 2.0, 3.0, 3.0]),
-        )
+        torch.testing.assert_close(torch.stack(applied)[:, 0, 0], torch.tensor(expected))
+    # Flat like every term's processed actions, so recorders can concatenate the terms.
+    assert action.processed_actions.shape == (NUM_ENVS, 2 * 2)
 
-    with pytest.raises(ValueError, match="must divide"):
-        JointPositionChunkAction(cfg.replace(chunk_length=3), env)
+    for chunk_length in (0, -2, 3):
+        with pytest.raises(ValueError, match="positive divisor"):
+            JointPositionChunkAction(action.cfg.replace(chunk_length=chunk_length), action._env)
+    # A backend that runs the decimation loop without the actions would apply only the first target.
+    action, _ = _chunk_action(interpolate, _physics_handles_decimation=True, _physics_handles_actions=False)
+    with pytest.raises(RuntimeError, match="first target"):
+        action.apply_actions()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_chunk_action_advances_when_replayed_from_a_cuda_graph() -> None:
+    """A backend records ``apply_actions`` once and replays it on every physics step."""
+    action, applied = _chunk_action(interpolate=False, device="cuda")
+    action.process_actions(torch.zeros(NUM_ENVS, 4, device="cuda"))
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        action.apply_actions()
+    torch.cuda.synchronize()
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        action.apply_actions()
+    target = applied[-1]
+    for chunk, expected in _chunks(interpolate=False):
+        action.process_actions(torch.tensor([chunk] * NUM_ENVS, device="cuda"))
+        seen = []
+        for _ in range(4):
+            graph.replay()
+            seen.append(target[0, 0].item())
+        assert seen == expected
 
 
 def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:
