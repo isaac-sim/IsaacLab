@@ -16,8 +16,8 @@ from contextlib import contextmanager
 from enum import Enum, auto
 
 import pytest
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

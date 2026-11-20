@@ -7,23 +7,23 @@
 
 import dataclasses
 
-import isaaclab_physx.sim.schemas as physx_schemas
+import isaaclab_isaacsim.sim.schemas as physx_schemas
 import pytest
+from isaaclab_isaacsim.sim.schemas import (
+    OmniPhysicsDeformableBodyPropertiesCfg,
+    PhysxDeformableBodyPropertiesCfg,
+)
+from isaaclab_isaacsim.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
+from isaaclab_isaacsim.sim.spawners.materials import (
+    PhysxDeformableBodyMaterialCfg,
+    PhysXDeformableMaterialCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonDeformableMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
-)
-from isaaclab_physx.sim.schemas import (
-    OmniPhysicsDeformableBodyPropertiesCfg,
-    PhysxDeformableBodyPropertiesCfg,
-)
-from isaaclab_physx.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
-from isaaclab_physx.sim.spawners.materials import (
-    PhysxDeformableBodyMaterialCfg,
-    PhysXDeformableMaterialCfg,
-    PhysxSurfaceDeformableBodyMaterialCfg,
 )
 
 import isaaclab.sim.schemas as schemas

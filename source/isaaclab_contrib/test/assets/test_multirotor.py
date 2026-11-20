@@ -18,7 +18,7 @@ import warnings
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, build_simulation_context

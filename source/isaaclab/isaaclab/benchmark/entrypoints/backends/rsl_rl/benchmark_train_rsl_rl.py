@@ -17,8 +17,6 @@ import sys
 import time
 from typing import Any
 
-from isaaclab.utils import to_dict
-
 from isaaclab_rl.entrypoints import common
 
 logger = logging.getLogger(__name__)
@@ -150,8 +148,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     import re
     from datetime import datetime
 
-    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
-
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import (
         BaseIsaacLabBenchmark,
@@ -166,7 +162,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
+    from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
@@ -264,6 +261,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             env_cfg.log_dir = log_dir
             common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
+            configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
             env_t0 = time.perf_counter_ns()
             env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
@@ -271,12 +269,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-            runner_types = {"OnPolicyRunner": OnPolicyRunner, "DistillationRunner": DistillationRunner}
-            if agent_cfg.class_name not in runner_types:
-                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            runner = runner_types[agent_cfg.class_name](
-                env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device
-            )
+            runner = create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
             _disable_code_state_capture(runner)
             if resume_path is not None:
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
@@ -313,16 +306,16 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             # RSL-RL reports collection and learning durations separately in seconds. Ranks train in
             # lockstep, so rank 0's durations cover the whole world's work for that iteration.
-            coll = log_data.get("Perf/collection_time", [])
-            learn_ = log_data.get("Perf/learning_time", [])
+            coll = log_data.get("Performance/collection_time", [])
+            learn_ = log_data.get("Performance/learning_time", [])
             iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
             num_envs, steps_per_iteration = distributed.global_work(env.unwrapped.num_envs, agent_cfg.num_steps_per_env)
             collection_fps_series = [steps_per_iteration / c for c in coll if c > 0]
             total_fps_series = (
-                # RSL-RL's own total_fps counts only this rank's environments.
+                # Derive the world-wide rate from rank 0 durations instead of the rate RSL-RL logs.
                 [steps_per_iteration / t for t in iteration_times_s if t > 0]
                 if distributed.enabled
-                else list(log_data.get("Perf/total_fps", []))
+                else list(log_data.get("Performance/steps_per_second", []))
             )
 
             startup = StartupTime(
