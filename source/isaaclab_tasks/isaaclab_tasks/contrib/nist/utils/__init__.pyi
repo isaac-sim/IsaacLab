@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "BetaSamplingStrategy",
-    "BetaSamplingStrategyCfg",
     "ChainedResetTerms",
     "CollisionAnalyzer",
     "CollisionAnalyzerCfg",
@@ -13,13 +11,7 @@ __all__ = [
     "Offset",
     "PreparedTermChoice",
     "RigidObjectHasher",
-    "Sampler",
-    "SamplerCfg",
-    "SamplingStrategy",
-    "SamplingStrategyCfg",
     "TermChoice",
-    "UniformSamplingStrategy",
-    "UniformSamplingStrategyCfg",
     "create_primitive_mesh",
     "get_reset_state",
     "prim_to_trimesh",
@@ -45,14 +37,4 @@ from .mesh_ops import (
 from .pose_offset import Offset
 from .reset_state import get_reset_state, set_reset_state, temporary_seed
 from .rigid_object_hasher import RigidObjectHasher
-from .sampling import (
-    BetaSamplingStrategy,
-    BetaSamplingStrategyCfg,
-    Sampler,
-    SamplerCfg,
-    SamplingStrategy,
-    SamplingStrategyCfg,
-    UniformSamplingStrategy,
-    UniformSamplingStrategyCfg,
-)
 from .variant_event_combinators import PreparedTermChoice, variant_reset_accumulator

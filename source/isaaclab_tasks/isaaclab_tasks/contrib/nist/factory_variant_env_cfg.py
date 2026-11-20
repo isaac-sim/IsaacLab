@@ -26,7 +26,7 @@ from .factory_env_cfg import (
 )
 from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg
 from .factory_variant_scene_cfg import FactoryVariantSceneCfg
-from .utils import SamplerCfg, UniformSamplingStrategyCfg
+from .utils.variant_sampling import SamplerCfg, UniformSamplingStrategyCfg
 from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
 
 

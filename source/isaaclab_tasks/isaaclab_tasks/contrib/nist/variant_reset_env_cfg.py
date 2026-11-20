@@ -15,10 +15,7 @@ from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 from . import mdp
 from .assembly_profile_cfg import UniformPoseNoiseCfg
 from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, GripperJointNamesCfg, IKJointNamesCfg
-from .utils import (
-    BetaSamplingStrategyCfg,
-    SamplerCfg,
-)
+from .utils.variant_sampling import BetaSamplingStrategyCfg, SamplerCfg
 
 RESET_ASSETS = ["nistboard", "fixed_asset", "held_asset", "robot"]
 

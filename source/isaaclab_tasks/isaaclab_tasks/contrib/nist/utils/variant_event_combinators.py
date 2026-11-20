@@ -18,7 +18,7 @@ from isaaclab.utils import instantiate
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from . import reset_state
-from .sampling import Sampler, SamplerCfg
+from .variant_sampling import Sampler, SamplerCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -124,7 +124,7 @@ class variant_reset_accumulator(ManagerTermBase):
 
         if env_ids.numel() > 0:
             if self._sampler is None:
-                self._sampler = instantiate(self._sampling_cfg, self.monitor_success_rate)
+                self._sampler = Sampler(self._sampling_cfg, self.monitor_success_rate)
 
             probs, slot_idx = self._sample_marginally_balanced(len(env_ids))
             self.sampled_slots[env_ids] = slot_idx
