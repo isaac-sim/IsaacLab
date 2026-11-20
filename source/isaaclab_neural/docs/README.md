@@ -106,7 +106,7 @@ uv run --no-sync isaaclab-cosmos-world-model-server --checkpoint "$COSMOS3_CHECK
 ```
 
 Wait for `Cosmos ready at ...`, then run the task in the Isaac Lab environment. A task selects the model with
-`WorldModelCfg(model=Cosmos3Cfg(joint_mapping=...))`. `Cosmos3Model.step` converts joint targets to 59 normalized
+`NeuralCfg(model_cfg=Cosmos3Cfg(joint_mapping=...))`. `Cosmos3Model.step` converts joint targets to 59 normalized
 controls with the task's `JointMappingCfg`, so the robot description and the normalization stay with the task.
 
 The service's `--mode window` (default) serves any number of environments, one after the other; `--mode session`
