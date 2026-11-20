@@ -5,6 +5,8 @@
 
 """A camera fed by the world-model backend."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 
@@ -13,7 +15,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from isaaclab.utils import configclass
 
-from isaaclab_neural.renderers import WorldModelRendererCfg
+from isaaclab_neural.renderers import WorldModelRenderer, WorldModelRendererCfg
 
 from .conftest import DT, H, J, N, T, W, world_model_sim
 
@@ -69,17 +71,44 @@ def test_a_chunk_fills_the_history_and_rgb_is_its_last_frame(world):
     assert data.frame_history_mask.torch.all()
 
 
-def test_a_camera_without_a_matching_history_is_rejected(tmp_path):
+def test_a_camera_is_bound_to_the_world_model_backend_and_must_match_the_model(tmp_path):
+    # Another physics backend has no world-model frames to publish.
+    renderer = WorldModelRenderer(WorldModelRendererCfg(), sim=SimpleNamespace(backend_manager=object(), device="cpu"))
+    with pytest.raises(ValueError, match="world-model physics backend"):
+        renderer.create_render_data(SimpleNamespace(cfg=SceneCfg().camera, num_instances=N))
+    # The camera is checked against the model when it binds, before any step, and must name an existing view.
     with world_model_sim(tmp_path) as sim:
-        scene = InteractiveScene(
+        scene = InteractiveScene(  # kept alive until the camera initializes
             SceneCfg(num_envs=N, env_spacing=1.0).replace(camera=SceneCfg().camera.replace(frame_history_length=0))
         )
         sim.backend_manager.bind(N, J)
+        with pytest.raises(ValueError, match="frame_history_length=4"):
+            sim.reset()
+        assert not scene["camera"].is_initialized
+
+
+def test_each_camera_shows_the_view_it_selects(tmp_path):
+    camera = SceneCfg().camera
+
+    @configclass
+    class TwoViewSceneCfg(InteractiveSceneCfg):
+        left = camera.replace(prim_path="{ENV_REGEX_NS}/Left", renderer_cfg=WorldModelRendererCfg(view="left"))
+        right = camera.replace(prim_path="{ENV_REGEX_NS}/Right", renderer_cfg=WorldModelRendererCfg(view="right"))
+
+    with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation", views=("left", "right")) as sim:
+        scene = InteractiveScene(TwoViewSceneCfg(num_envs=N, env_spacing=1.0))
+        sim.backend_manager.bind(N, J)
         sim.reset()
         sim.backend_manager.reset_envs(torch.ones(N, dtype=torch.bool))
-        with pytest.raises(ValueError, match="frame_history_length=4"):
+        scene.update(DT)
+        # Each view starts from its own start image.
+        assert scene["left"].data.output["rgb"].torch[:, 0, 0, 0].tolist() == [200, 201]
+        assert scene["right"].data.output["rgb"].torch[:, 0, 0, 0].tolist() == [220, 221]
+        for _ in range(T):
+            sim.step(render=False)
             scene.update(DT)
-            scene["camera"].data
+        assert (scene["left"].data.output["rgb"].torch == 13).all()
+        assert (scene["right"].data.output["rgb"].torch == 113).all()
 
 
 def test_the_mask_is_clear_between_chunks(world):

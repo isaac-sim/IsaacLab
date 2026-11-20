@@ -15,24 +15,24 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 
+from ..physics.world_model_manager import WorldModelManager
+
 if TYPE_CHECKING:
     from isaaclab.renderers import CameraRenderSpec
+    from isaaclab.sensors import CameraCfg
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-    from ..physics import WorldModelManager
+    from ..physics.frame_buffer import FrameReader
     from .world_model_renderer_cfg import WorldModelRendererCfg
 
 
 @dataclass
 class _RenderData:
-    """Per-camera state: the frames the camera has already received."""
+    """Per-camera state."""
 
-    seen: torch.Tensor
-    """The manager's frame serial of each environment at the last copy, shape ``(N,)``."""
-
-    version: int = -1
-    """The manager's frame version at the last copy."""
+    reader: FrameReader
+    """The camera's binding to the world model's frames, made when its render data is created."""
 
 
 class WorldModelRenderer(BaseRenderer):
@@ -51,7 +51,20 @@ class WorldModelRenderer(BaseRenderer):
         pass
 
     def create_render_data(self, spec: CameraRenderSpec) -> _RenderData:
-        return _RenderData(seen=torch.full((spec.num_instances,), -1, dtype=torch.int64, device=self._sim.device))
+        """Bind the camera to the world model's frames and check that it keeps one chunk at the model's image size.
+
+        Raises:
+            ValueError: If the simulation does not run the world-model backend, the camera does not match the model,
+                or :attr:`~.WorldModelRendererCfg.view` names no view of the model.
+        """
+        manager = self._sim.backend_manager
+        if not isinstance(manager, WorldModelManager):
+            raise ValueError(
+                "WorldModelRenderer publishes the frames of the world-model physics backend (WorldModelCfg), but the"
+                f" simulation runs {type(manager).__name__}."
+            )
+        _check_camera(spec.cfg, manager)
+        return _RenderData(reader=manager.frames(self.cfg.view).reader())
 
     def set_outputs(self, render_data: _RenderData, output_data: dict[str, ProxyArray]) -> None:
         pass
@@ -70,18 +83,10 @@ class WorldModelRenderer(BaseRenderer):
 
     def read_output(self, render_data: _RenderData, camera_data: CameraData) -> None:
         """Copy the environments whose frames changed since the last call, and only on steps where any did."""
-        manager: WorldModelManager = self._sim.backend_manager
-        if render_data.version < 0:
-            _check_camera(camera_data, manager)
         mask = wp.to_torch(camera_data.frame_history_mask.warp)
-        if manager.frame_version == render_data.version:
-            mask.zero_()
-            return
-        render_data.version = manager.frame_version
-        torch.ne(manager.frame_serial, render_data.seen, out=mask)
-        render_data.seen.copy_(manager.frame_serial)
         history = wp.to_torch(camera_data.frame_history.warp)
-        torch.where(mask[:, None, None, None, None], manager.frame_history, history, out=history)
+        if not render_data.reader.read_into(history, mask):
+            return
         # The newest frame becomes the camera's image, written in place: RGB from the frame, alpha opaque.
         rgba = wp.to_torch(camera_data.output["rgba"].warp)
         torch.where(mask[:, None, None, None], history[:, -1], rgba[..., :3], out=rgba[..., :3])
@@ -91,18 +96,20 @@ class WorldModelRenderer(BaseRenderer):
         pass
 
 
-def _check_camera(camera_data: CameraData, manager: WorldModelManager) -> None:
+def _check_camera(cfg: CameraCfg, manager: WorldModelManager) -> None:
     """Check that the camera keeps one chunk of frames at the model's image size.
 
     Raises:
+        RuntimeError: If the model is not built yet; the articulation builds it and initializes before cameras.
         ValueError: If the camera has no frame history, or its length or image size differs from the model's.
     """
+    if manager.spec is None:
+        raise RuntimeError("The world model is not built yet: the articulation must initialize before the cameras.")
     expected = (manager.spec.chunk_length, *manager.spec.image_size)
-    history = camera_data.frame_history
-    actual = None if history is None else tuple(history.torch.shape[1:4])
+    actual = (cfg.frame_history_length, cfg.height, cfg.width)
     if actual != expected:
         raise ValueError(
             f"A world-model camera needs frame_history_length={expected[0]} and a {expected[1]} x {expected[2]} image,"
             f" the model's chunk length and image size; it has "
-            + ("no frame history." if actual is None else f"{actual[0]} frames of {actual[1]} x {actual[2]}.")
+            + ("no frame history." if not actual[0] else f"{actual[0]} frames of {actual[1]} x {actual[2]}.")
         )
