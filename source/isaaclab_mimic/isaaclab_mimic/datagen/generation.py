@@ -12,7 +12,7 @@ from typing import Any
 import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
-from isaaclab.envs.mdp.recorders import record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import record_initial_state
 from isaaclab.managers import TerminationTermCfg
 from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
 
@@ -137,16 +137,7 @@ def env_loop(
                 actions[env_id] = action
 
             # perform action on environment
-            record_pre_step(recorder, env, actions)
-            env.simulate(actions)
-            env.compute_transition()
-            record_post_step(recorder, env)
-            reset_ids = env.reset_done()
-            if len(reset_ids):
-                recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
-                recorder.export_episodes(reset_ids)
-                record_initial_state(recorder, env, reset_ids)
-            env.finish_step()
+            env.step(actions)
 
             # mark done so the data generators can continue with the step results
             for i in range(env.num_envs):

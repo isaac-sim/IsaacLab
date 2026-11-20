@@ -152,6 +152,10 @@ def test_recorder_storage_boundary(source_checkout_root):
     from isaaclab.envs import ManagerBasedEnvCfg
 
     assert "recorders" not in ManagerBasedEnvCfg.__dataclass_fields__
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+
+    assert "simulate" not in vars(ManagerBasedEnv)
+    assert not {"compute_transition", "reset_done", "finish_step"} & vars(ManagerBasedRLEnv).keys()
     assert not {"RecorderManager", "RecorderManagerBaseCfg", "RecorderTerm", "RecorderTermCfg"} & set(managers.__all__)
     for package in ("isaaclab", "isaaclab_experimental"):
         env_dir = source_checkout_root / "source" / package / package / "envs"

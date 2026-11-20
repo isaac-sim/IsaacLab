@@ -10,6 +10,8 @@ Script to record teleoperated demos and run mimic dataset generation in real-tim
 # Parse CLI first so we can decide whether to launch Isaac Sim Kit.
 
 import argparse
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -75,7 +77,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_step,
+)
 from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
@@ -263,18 +269,9 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
                 actions[env_id] = action
 
             # perform action on environment
-            record_pre_step(recorder, env.unwrapped, actions)
             recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env.unwrapped, actions))
             recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.unwrapped.get_subtask_term_signals())
-            env.unwrapped.simulate(actions)
-            env.unwrapped.compute_transition()
-            record_post_step(recorder, env.unwrapped)
-            reset_ids = env.unwrapped.reset_done()
-            if len(reset_ids):
-                recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
-                recorder.export_episodes(reset_ids)
-                record_initial_state(recorder, env.unwrapped, reset_ids)
-            env.unwrapped.finish_step()
+            env.step(actions)
 
             # mark done so the data generators can continue with the step results
             for i in range(env.unwrapped.num_envs):
@@ -396,6 +393,7 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, recorder_cfg, clean
         env_metadata=get_episode_metadata(env.unwrapped),
     )
     cleanup.callback(recorder.close)
+    env.unwrapped.step = MethodType(partial(record_step, recorder=recorder), env.unwrapped)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")

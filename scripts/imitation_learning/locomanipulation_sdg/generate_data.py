@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import os
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -142,7 +144,11 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_step,
+)
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import (
     DatasetExportMode,
@@ -984,22 +990,13 @@ def replay(
             left_hand_pose_target=output_data.left_hand_pose_target,
             right_hand_pose_target=output_data.right_hand_pose_target,
         )
-        record_pre_step(recorder, env, action)
-        env.simulate(action)
-        env.compute_transition()
-        record_post_step(recorder, env)
-        reset_terminated = env.reset_terminated.clone()
-        reset_time_outs = env.reset_time_outs.clone()
+        _, _, reset_terminated, reset_time_outs, _ = env.step(action)
         success_terminated = "success" in env.termination_manager.active_terms and bool(
             env.termination_manager.get_term("success")[0].item()
         )
-        env.reset_done()
-        env.finish_step()
 
         if reset_terminated[0] or reset_time_outs[0]:
             print(f"Environment terminated at state {current_state.name}, step {recording_step}", flush=True)
-            recorder.set_success_to_episodes([0], torch.tensor([success_terminated], device=env.device))
-            recorder.export_episodes([0])
 
             if success_terminated:
                 print(f"Success termination at state {current_state.name}, step {recording_step}", flush=True)
@@ -1046,6 +1043,7 @@ if __name__ == "__main__":
         recorder = EpisodeRecorder(
             recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
         )
+        env.step = MethodType(partial(record_step, recorder=recorder), env)
 
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()

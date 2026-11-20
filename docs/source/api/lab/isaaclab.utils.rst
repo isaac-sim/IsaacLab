@@ -373,28 +373,28 @@ it has no environment reference, term registry, or lifecycle dispatch.
 
 .. code-block:: python
 
-    from isaaclab.envs.mdp.recorders import record_initial_state, record_pre_step, record_post_step
+    from functools import partial
+    from types import MethodType
+
+    from isaaclab.envs.mdp.recorders import record_initial_state, record_step
     from isaaclab.utils.datasets import EpisodeRecorder, EpisodeRecorderCfg
 
     recorder = EpisodeRecorder(EpisodeRecorderCfg(), env.num_envs, env.device, env_name="my-task")
+    # Select the complete recording step before the first environment step.
+    env.step = MethodType(partial(record_step, recorder=recorder), env)
     env.reset()
     record_initial_state(recorder, env)
-
-    # Inside the recording workflow's control loop:
-    record_pre_step(recorder, env, action)
-    env.simulate(action)
-    env.compute_transition()
-    record_post_step(recorder, env)
-    # Read success/termination terms and export completed episodes before finishing the step.
-    reset_ids = env.reset_done()
-    if len(reset_ids):
-        recorder.export_episodes(reset_ids)
-        record_initial_state(recorder, env, reset_ids)
-    result = env.finish_step()
-
-    # The workflow explicitly exports/discards completed episodes and captures the next initial state.
+    result = env.step(action)
     recorder.export_episodes()
     recorder.close()
+
+The recording step is ordinary Python code. Its loop and manager calls are explicit so users
+can copy it and place capture before/after controls, inside the decimation loop, before reset,
+and after reset. It does not delegate ordering to broad lifecycle phase helpers:
+
+.. literalinclude:: ../../../../source/isaaclab/isaaclab/envs/mdp/recorders/recorders.py
+   :language: python
+   :pyobject: record_step
 
 Fields can have different sample rates. ``buffer_initial_capacity`` sets initial storage per world
 and field; storage grows as needed and is reused after reset. ``get_episode`` returns an owned
@@ -414,7 +414,7 @@ workflow's cleanup path. HDF5 fields and playback tensor formats are unchanged.
 For current observations before reset, call
 ``env.observation_manager.compute_group("recording", update_history=False)`` on a separate
 noiseless group without history or delay. The policy observation buffer still describes the
-previous policy input until ``finish_step``. Avoid evaluating noisy policy groups a second time.
+previous policy input until the final observation computation. Avoid evaluating noisy policy groups a second time.
 
 .. automodule:: isaaclab.utils.datasets.episode_recorder
    :members:

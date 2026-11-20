@@ -543,37 +543,6 @@ class ManagerBasedEnv:
         )
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
-    def simulate(self, action: torch.Tensor) -> None:
-        """Process actions and advance physics, rendering, and scene buffers by one control step.
-
-        Custom step functions can reuse this operation without managing backend action ownership,
-        physics decimation, rendering cadence, or scene synchronization. It does not compute RL
-        rewards, terminations, resets, commands, interval events, or observations.
-
-        Args:
-            action: Batched actions with shape (num_envs, action_dim).
-        """
-        self.action_manager.process_action(action.to(self.device))
-        if self._physics_handles_actions is None:
-            self._handle_physics_actions()
-
-        # check if we need to do rendering within the physics loop
-        # note: evaluated once per step rather than once per physics substep
-        is_rendering = self.sim.is_rendering
-
-        # physics-owned decimation covers all substeps in one call
-        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        for _ in range(self.cfg.decimation // steps_per_call):
-            self._sim_step_counter += steps_per_call
-            if not self._physics_handles_actions:
-                self.action_manager.apply_action()
-                self.scene.write_data_to_sim()
-            self.sim.step(render=False)
-            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.physics_dt * steps_per_call)
-
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
@@ -600,7 +569,26 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        self.simulate(action)
+        self.action_manager.process_action(action.to(self.device))
+        if self._physics_handles_actions is None:
+            self._handle_physics_actions()
+
+        # check if we need to do rendering within the physics loop
+        # note: evaluated once per step rather than once per physics substep
+        is_rendering = self.sim.is_rendering
+
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
+            self.sim.step(render=False)
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render(skip_app_pumping=not self.render_enabled)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
         if "interval" in self.event_manager.active_terms:

@@ -63,24 +63,15 @@ For example, this function delegates to the standard implementation and scales i
     env_cfg.step_fn = custom_step
     env = ManagerBasedRLEnv(cfg=env_cfg)
 
-A custom function can reuse the standard operations and capture a completed transition
-before automatic reset:
+The default ``step`` keeps action processing, physics stepping, reward and termination computation,
+reset logic, command/event updates, and observation computation visible in one function. Custom
+functions can write out the same sequence and insert their own work between any of these operations.
 
-.. code-block:: python
-
-    def custom_step(env, action):
-        # Capture policy inputs and requested actions here, if needed.
-        env.simulate(action)
-        env.compute_transition()
-        # Capture terminal state and termination terms here, before reset.
-        reset_ids = env.reset_done()
-        # Capture initial state for reset_ids here, if needed.
-        return env.finish_step()
-
-``simulate`` owns action processing, backend action ownership, physics decimation, rendering,
-and scene updates. ``compute_transition`` advances counters and computes rewards and terminations.
-``reset_done`` resets terminated environments and returns their indices. ``finish_step`` updates
-commands and interval events, advances video capture, and computes observations once with history updates.
+For per-physics-step capture, use an explicit decimation loop with one physics step per simulator
+call. The concrete :func:`~isaaclab.envs.mdp.recorders.record_step` example shows this, including
+rendering cadence, terminal capture before reset, and initial-state capture after reset. Select
+that function before the first environment step; default backend action handling may otherwise
+already own the decimation loop. See :ref:`recorder-capture` for the complete implementation.
 
 Dataset recording is explicit. Environments do not construct a recorder manager or dispatch
 capture callbacks during step, reset, reset_to, or close. Recording workflows own their episode

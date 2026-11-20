@@ -5,7 +5,7 @@
 
 """Tests for the ``max_num_failures`` bound in the Mimic generation loop.
 
-``env_loop`` is driven with a fake environment whose ``simulate`` consumes one scripted attempt outcome
+``env_loop`` is driven with a fake environment whose ``step`` consumes one scripted attempt outcome
 per call and feeds the action queue back, so the loop's own termination logic runs unmodified
 without a simulator, data generator, or dataset. A step-count fuse turns an unbounded loop into a
 test failure instead of a hang.
@@ -74,13 +74,7 @@ def _run(
         num_envs=num_envs,
         device="cpu",
         action_space=SimpleNamespace(shape=(num_envs, 7)),
-        simulate=step,
-        compute_transition=lambda: None,
-        reset_done=lambda: torch.empty(0, dtype=torch.int32),
-        finish_step=lambda: None,
-        obs_buf={"policy": torch.zeros(num_envs, 1)},
-        action_manager=SimpleNamespace(action=torch.zeros(num_envs, 7), active_terms=[]),
-        scene=SimpleNamespace(get_state=lambda **kwargs: {}),
+        step=step,
         reset=lambda env_ids=None: None,
         close=lambda: None,
         sim=SimpleNamespace(is_stopped=lambda: False),
