@@ -104,20 +104,24 @@ def test_play_mode_selects_randomized_table_starts(stack_cfg: FrankaCubeStackRLE
 
 
 def test_success_requires_an_order_invariant_released_stack_held_at_rest(stack_cfg: FrankaCubeStackRLEnvCfg) -> None:
-    class Scene(dict):
-        env_origins = torch.zeros(3, 3)
+    num_envs = 4
 
-    # The physical stack is asset 2 -> asset 3 -> asset 1 in each environment.
+    class Scene(dict):
+        env_origins = torch.zeros(num_envs, 3)
+
+    # The candidate stack order is asset 2 -> asset 3 -> asset 1.
     scene = Scene()
     for cube_index, height in enumerate((0.10, 0.02, 0.06), start=1):
-        positions = torch.zeros(3, 3)
+        positions = torch.zeros(num_envs, 3)
         positions[:, 2] = height
-        pose = torch.zeros(3, 7)
-        pose[:, :3] = positions
-        pose[:, 6] = 1.0
-        velocities = torch.zeros(3, 6)
+        velocities = torch.zeros(num_envs, 6)
         if cube_index == 1:
             velocities[2, 2] = 0.2
+            # Only 18 mm separates the top and middle centers in this environment.
+            positions[3, 2] = 0.078
+        pose = torch.zeros(num_envs, 7)
+        pose[:, :3] = positions
+        pose[:, 6] = 1.0
         scene[f"cube_{cube_index}"] = SimpleNamespace(
             data=SimpleNamespace(
                 root_pos_w=SimpleNamespace(torch=positions),
@@ -126,28 +130,29 @@ def test_success_requires_an_order_invariant_released_stack_held_at_rest(stack_c
             )
         )
     joint_names = [f"panda_joint{number}" for number in range(1, 8)] + ["panda_finger_joint1", "panda_finger_joint2"]
-    joint_positions = torch.zeros(3, 9)
-    joint_positions[:, 7:] = torch.tensor([[0.04, 0.04], [0.02, 0.02], [0.04, 0.04]])
+    joint_positions = torch.zeros(num_envs, 9)
+    joint_positions[:, 7:] = 0.04
+    joint_positions[1, 7:] = 0.02
     scene["robot"] = SimpleNamespace(
         num_joints=9,
         joint_names=joint_names,
         data=SimpleNamespace(
             joint_pos=SimpleNamespace(torch=joint_positions),
             joint_vel=SimpleNamespace(torch=torch.zeros_like(joint_positions)),
-            body_pos_w=SimpleNamespace(torch=torch.zeros(3, 1, 3)),
-            body_quat_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0, 1.0]]]).expand(3, -1, -1)),
+            body_pos_w=SimpleNamespace(torch=torch.zeros(num_envs, 1, 3)),
+            body_quat_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0, 1.0]]]).expand(num_envs, -1, -1)),
         ),
         find_joints=lambda names, preserve_order=False: resolve_matching_names(names, joint_names, preserve_order),
         find_bodies=lambda name: ([0], [name]),
     )
     env = SimpleNamespace(
-        num_envs=3,
+        num_envs=num_envs,
         device="cpu",
         cfg=stack_cfg,
         scene=scene,
         sim=SimpleNamespace(is_playing=lambda: True),
         max_episode_length=100,
-        episode_length_buf=torch.full((3,), 3),
+        episode_length_buf=torch.full((num_envs,), 3),
         step_dt=0.02,
         extras={},
     )
@@ -160,11 +165,11 @@ def test_success_requires_an_order_invariant_released_stack_held_at_rest(stack_c
         assert not reward.func(env, **reward.params).any()
         env.episode_length_buf += 1
 
-    assert env.termination_manager.compute().tolist() == [True, False, False]
-    assert env.termination_manager.get_term("success").tolist() == [True, False, False]
+    assert env.termination_manager.compute().tolist() == [True, False, False, False]
+    assert env.termination_manager.get_term("success").tolist() == [True, False, False, False]
     torch.testing.assert_close(
-        reward.func(env, **reward.params) * env.step_dt * reward.weight, torch.tensor([2.0, 0.0, 0.0])
+        reward.func(env, **reward.params) * env.step_dt * reward.weight, torch.tensor([2.0, 0.0, 0.0, 0.0])
     )
     env.termination_manager.reset(env_ids=torch.tensor([0]))
-    assert env.extras["successes"].tolist() == [True, False, False]
+    assert env.extras["successes"].tolist() == [True, False, False, False]
     assert not reward.func(env, **reward.params).any()

@@ -16,7 +16,6 @@ from isaaclab.managers import SceneEntityCfg
 
 from .robot_state import end_effector_pose
 from .runtime_state import get_stack_reset_runtime_state
-from .terminations import _cube_pair_is_aligned
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -114,11 +113,23 @@ def order_invariant_stack_progress(
     return _stack_progress_from_positions(_cube_positions(env, cube_cfgs), xy_threshold, height_threshold, cube_height)
 
 
+def _cube_pair_is_aligned(
+    separation: torch.Tensor, xy_threshold: float, cube_height: float, height_threshold: float
+) -> torch.Tensor:
+    """Check upper-minus-lower cube offsets against the task's stack tolerances."""
+    height = separation[..., 2]
+    return (
+        (torch.linalg.vector_norm(separation[..., :2], dim=-1) < xy_threshold)
+        & (height > 0.0)
+        & ((height - cube_height).abs() < height_threshold)
+    )
+
+
 def _stack_progress_from_positions(
     positions: torch.Tensor, xy_threshold: float, height_threshold: float, cube_height: float
 ) -> torch.Tensor:
     delta = positions[:, :, None, :] - positions[:, None, :, :]
-    pair_is_stacked = _cube_pair_is_aligned(delta, xy_threshold, cube_height, height_threshold, True)
+    pair_is_stacked = _cube_pair_is_aligned(delta, xy_threshold, cube_height, height_threshold)
     pair_exists = pair_is_stacked.flatten(start_dim=1).any(dim=1)
 
     complete = torch.zeros_like(pair_exists)
@@ -173,11 +184,9 @@ def _role_plan_potential(
         dim=1,
     )
 
-    middle_stacked = _cube_pair_is_aligned(
-        middle_position - base_position, xy_threshold, cube_height, height_threshold, True
-    )
+    middle_stacked = _cube_pair_is_aligned(middle_position - base_position, xy_threshold, cube_height, height_threshold)
     top_stacked = middle_stacked & _cube_pair_is_aligned(
-        top_position - middle_position, xy_threshold, cube_height, height_threshold, True
+        top_position - middle_position, xy_threshold, cube_height, height_threshold
     )
     middle_near = middle_distance < grasp_distance
     top_near = top_distance < grasp_distance

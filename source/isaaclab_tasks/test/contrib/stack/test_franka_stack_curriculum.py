@@ -52,6 +52,7 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
     assert metrics["Curriculum/reset_sampling/recipe_second_transport_attempts"].item() == 1
     assert metrics["Curriculum/reset_sampling/recipe_table_attempts"].item() == 0
     assert metrics["Curriculum/reset_sampling/batch_success_rate"].item() == 1
+    assert metrics["Curriculum/reset_sampling/table_probability"].item() == pytest.approx(0.35)
     assert "Curriculum/reset_sampling/batch_table_full_task_success_rate" not in metrics
     assert state.row_ids[-1] == old_row
     assert (state.recipes[env_ids] == StackResetRecipe.TABLE).all()
@@ -64,6 +65,23 @@ def test_curriculum_credits_the_completed_row_before_reset() -> None:
     curriculum.compute(slice(0, 0))
     updated = curriculum.reset(slice(0, 0))
     assert updated["Curriculum/reset_sampling/table_probability"].item() == pytest.approx(0.60)
+
+    term.params["fixed_recipe"] = None
+    env.reset_buf.zero_()
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        curriculum.compute(env_ids)
+        env.event_manager.apply("reset", env_ids=env_ids, global_env_step_count=5)
+        sampled_rows = state.row_ids.clone()
+        sampled_roles = state.role_to_cube.clone()
+
+        torch.manual_seed(42)
+        curriculum.compute(env_ids)
+        env.event_manager.apply("reset", env_ids=env_ids, global_env_step_count=6)
+
+    torch.testing.assert_close(state.row_ids, sampled_rows)
+    torch.testing.assert_close(state.role_to_cube, sampled_roles)
+    assert curriculum.reset(env_ids)["Curriculum/reset_sampling/full_task_attempts"].item() == 1
 
 
 def test_reset_rejects_arm_noise_that_pushes_a_held_cube_into_its_support() -> None:
