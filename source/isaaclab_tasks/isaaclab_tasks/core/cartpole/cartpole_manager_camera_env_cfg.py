@@ -6,9 +6,7 @@
 """Configuration for the manager-based cartpole camera environment."""
 
 import math
-from pathlib import Path
 
-from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -33,20 +31,6 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
     """Cartpole scene with a selectable tiled camera."""
 
     tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
-
-
-def export_lidar_stage_before_sim(env, env_ids) -> None:
-    """Write the authored stage to ``huidongc/cartpole_lidar_before_sim.usda`` before physics starts.
-
-    The root layer includes the lidar prim. The write is skipped when this checkout has no
-    ``huidongc`` directory.
-    """
-    del env_ids
-    output = Path.cwd() / "huidongc" / "cartpole_lidar_before_sim.usda"
-    if not output.parent.is_dir():
-        return
-    env.sim.stage.GetRootLayer().Export(str(output))
-    print(f"WROTE {output}", flush=True)
 
 
 @configclass
@@ -229,8 +213,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
             # Hits are a few centimeters across, so frame environment 0 tightly enough to compare
             # them with the cart and pole.
             self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
-            # Runs after the scene is authored and before the simulation plays.
-            self.events.export_stage = EventTerm(func=export_lidar_stage_before_sim, mode="prestartup")
 
     lidar = LidarCartpoleCameraEnvCfg(observations=lidar_observations_cfg())
     default = rgb

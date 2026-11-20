@@ -57,7 +57,7 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
 
     ``points`` has shape ``(num_envs, num_rays, 3)``. Tile ``i`` is environment ``i``, which is the
     render-product relationship order. Misses stay non-finite. A dense cloud must contain one slot
-    per authored ray; a compacted cloud is scattered into the leading slots and the tail is a miss.
+    per authored ray. A compacted cloud is rejected because it does not identify the authored ray.
 
     Args:
         mapped: Mapped PointCloud render variable. It must stay mapped for this call.
@@ -107,24 +107,24 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
     device = points.device
     stride = _scalar(mapped, "tileStridePoints") or 0
     compacted = _scalar(mapped, "compactionType") == _COMPACTED
-    if on_device and not compacted and stride == num_rays:
+    if compacted:
+        raise RuntimeError(
+            "OVRTX returned a compacted lidar cloud. Missed rays must keep their authored slots"
+            " until each return can be placed by ray id."
+        )
+    if on_device and stride == num_rays:
         _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
         return
     coordinates = coordinates.to(device=device, dtype=points.dtype)
     signal = signal.to(device=device, dtype=intensity.dtype)
     hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
-    if not compacted and stride == num_rays:
+    if stride == num_rays:
         _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
         return
-    if not compacted and stride > 0:
-        raise RuntimeError(
-            f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
-            "include_invalid_points keeps one slot per ray."
-        )
-    offsets = _channel(mapped, "TilePointOffsets")
-    if offsets is None:
-        raise RuntimeError("OVRTX lidar returned a compacted point cloud without TilePointOffsets.")
-    _copy_compacted(coordinates, signal, hit_source, offsets.to(device=device), points, intensity, valid, num_rays)
+    raise RuntimeError(
+        f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
+        "include_invalid_points keeps one slot per ray."
+    )
 
 
 def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count: int, stride: int) -> None:
@@ -165,27 +165,3 @@ def _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, 
         device=launch_device,
     )
     wp.synchronize_device(launch_device)
-
-
-def _copy_compacted(coordinates, signal, hits, offsets, points, intensity, valid, num_rays: int) -> None:
-    """Scatter packed returns into the leading ray slots. Unused slots stay misses."""
-    offsets = offsets.reshape(-1).to(dtype=torch.int64)
-    filled = torch.full_like(points, float("inf"))
-    signal_out = torch.zeros_like(intensity)
-    valid_out = torch.zeros_like(valid)
-    for index in range(points.shape[0]):
-        start, end = int(offsets[index]), int(offsets[index + 1])
-        count = end - start
-        if count > num_rays:
-            raise RuntimeError(f"OVRTX lidar tile {index} has {count} points, more than the {num_rays} ray slots.")
-        if count <= 0:
-            continue
-        tile_hits = hits[start:end]
-        filled[index, :count] = torch.where(
-            tile_hits.unsqueeze(-1), coordinates[start:end], torch.full((count, 3), float("inf"), device=points.device)
-        )
-        signal_out[index, :count] = torch.where(tile_hits, signal[start:end], torch.zeros(count, device=points.device))
-        valid_out[index, :count] = tile_hits
-    points.copy_(filled)
-    intensity.copy_(signal_out)
-    valid.copy_(valid_out)

@@ -441,7 +441,10 @@ class OVRTXRenderer(BaseRenderer):
         self._lidar_render_data: list[OVRTXLidarRenderData] = []
         self._next_lidar_id = 0
         self._pose_updates: list[weakref.ref] = []
-        self._sensor_capture_key: tuple[int, float] | None = None
+        self._sensor_capture_key: int | None = None
+        self._sensor_capture_products: RenderProductSetOutputs | None = None
+        self._published_cameras: set[OVRTXCameraRenderData] = set()
+        self._lidar_delta_time = 0.0
         self._force_pose_wait = False
         self._lidar_sync_warned = False
         self._lidar_cuda_map_logged = False
@@ -792,6 +795,7 @@ class OVRTXRenderer(BaseRenderer):
         points: ProxyArray,
         intensity: ProxyArray,
         valid: ProxyArray,
+        sample_dt: float = 0.0,
     ) -> OVRTXLidarRenderData:
         """Register one tiled lidar product. The product is not part of the camera-only set.
 
@@ -803,6 +807,8 @@ class OVRTXRenderer(BaseRenderer):
             points: Destination positions, shape ``(num_envs, num_rays)`` as ``vec3f``.
             intensity: Destination intensity, shape ``(num_envs, num_rays)``.
             valid: Destination hit mask, shape ``(num_envs, num_rays)``.
+            sample_dt: Lidar sampling interval, in seconds. Cameras that share this renderer use it
+                for the combined step. ``0`` leaves the interval unset.
 
         Returns:
             The lidar's render data. The caller retains it and passes it to :meth:`update_lidar`.
@@ -921,7 +927,11 @@ class OVRTXRenderer(BaseRenderer):
         self._lidar_render_data.append(render_data)
         self.backend.lidar_render_products.add(product_path)
         render_data.resources.callback(self.backend.lidar_render_products.discard, product_path)
-        self._sensor_capture_key = None
+        if sample_dt > 0.0:
+            self._lidar_delta_time = (
+                sample_dt if self._lidar_delta_time <= 0.0 else min(self._lidar_delta_time, sample_dt)
+            )
+        self._drop_sensor_capture()
         return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -1215,7 +1225,7 @@ class OVRTXRenderer(BaseRenderer):
         and ``env_ids`` is not consulted.
         """
         del env_ids
-        self._sensor_capture_key = None
+        self._drop_sensor_capture()
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}
@@ -1398,18 +1408,21 @@ class OVRTXRenderer(BaseRenderer):
 
     def invalidate_sensor_capture(self) -> None:
         """Drop the cached combined capture so the next read renders again."""
-        self._sensor_capture_key = None
+        self._drop_sensor_capture()
 
-    def render_lidars(self, delta_time: float) -> None:
-        """Capture every registered lidar, and any cameras that share this renderer.
+    def render_lidars(self, delta_time: float, *, force: bool = False) -> None:
+        """Capture every registered lidar, and cameras prepared on this renderer.
 
         Args:
             delta_time: Sensor interval, in seconds. ``instantLidar`` turns the step into a full scan.
+            force: When True, render again even if this physics step already captured.
         """
         if not self._lidar_render_data:
             return
+        if delta_time > 0.0:
+            self._lidar_delta_time = float(delta_time)
         self._sim.render_context.update_scene_state(self._sim.get_physics_step_count())
-        self._capture_sensors(delta_time)
+        self._capture_sensors(self._agreed_lidar_delta(delta_time), force=force)
 
     def update_lidar(self, render_data: OVRTXLidarRenderData, positions: ProxyArray, orientations: ProxyArray) -> None:
         """Write lidar world poses. The lidar frame is used as authored, without a camera conversion."""
@@ -1441,27 +1454,53 @@ class OVRTXRenderer(BaseRenderer):
         """Release one lidar product. Camera products registered on this renderer stay active."""
         if render_data is None:
             return
-        self._sensor_capture_key = None
+        self._drop_sensor_capture()
         try:
             render_data.cleanup()
         finally:
             if render_data in self._lidar_render_data:
                 self._lidar_render_data.remove(render_data)
 
-    def _capture_sensors(self, delta_time: float) -> None:
-        """Submit the camera and lidar products together and publish both results.
+    def _agreed_lidar_delta(self, requested: float) -> float:
+        """Return the interval, in seconds, shared by a lidar and the cameras on this renderer."""
+        if self._lidar_delta_time > 0.0:
+            return self._lidar_delta_time
+        if requested > 0.0:
+            return float(requested)
+        return _RENDER_DELTA_TIME
 
-        Repeated reads in the same physics step and with the same interval reuse the capture.
-        Camera-only scenes do not call this method, so their time step and asynchronous path
-        stay unchanged. A lidar needs the point cloud immediately, so this submission waits.
+    def _drop_sensor_capture(self) -> None:
+        """Forget the combined capture so the next read renders and publishes again."""
+        self._sensor_capture_key = None
+        self._sensor_capture_products = None
+        self._published_cameras.clear()
+
+    def _capture_sensors(
+        self,
+        delta_time: float,
+        cameras: Sequence[OVRTXCameraRenderData] | None = None,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Submit the camera and lidar products together and publish the requested results.
+
+        One physics step renders once. The submitted interval is the lidar interval when a lidar
+        is registered, so a camera read and a lidar read do not render the step twice. A later
+        read in that step publishes cameras that were not in the first request and leaves every
+        other camera buffer untouched. ``force`` renders again. Camera-only scenes do not call
+        this method, so their time step and asynchronous path stay unchanged. A lidar needs the
+        point cloud immediately, so this submission waits.
         """
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend is None or self.backend.renderer is None or not self._lidar_render_data:
             return
-        key = (self._sim.get_physics_step_count(), round(float(delta_time), 9))
-        if key == self._sensor_capture_key:
+        requested = list(cameras or ())
+        step = self._sim.get_physics_step_count()
+        if not force and self._sensor_capture_key == step and self._sensor_capture_products is not None:
+            self._publish_prepared_cameras(requested, self._sensor_capture_products)
             return
+        delta_time = self._agreed_lidar_delta(delta_time)
         if self.cfg.async_rendering and not self._use_ovstage and not self._lidar_sync_warned:
             logger.warning("OVRTX lidar captures run synchronously, including cameras that share this renderer.")
             self._lidar_sync_warned = True
@@ -1483,7 +1522,6 @@ class OVRTXRenderer(BaseRenderer):
                 ordinal = self.scene.commit()
             else:
                 result = self.backend.renderer.step(render_products=products, delta_time=delta_time)
-                self._publish_sensor_outputs(result)
         finally:
             if material_writer is not None:
                 primary_active = sys.exc_info()[0] is not None
@@ -1495,8 +1533,10 @@ class OVRTXRenderer(BaseRenderer):
                     logger.warning("Error draining material writes after a failed render: %s", exc, exc_info=True)
         if self._use_ovstage:
             result = self.backend.renderer.step(render_products=products, delta_time=delta_time, ordinal=ordinal)
-            self._publish_sensor_outputs(result)
-        self._sensor_capture_key = key
+        self._published_cameras.clear()
+        self._sensor_capture_products = result
+        self._sensor_capture_key = step
+        self._publish_sensor_outputs(result, requested)
 
     def _update_registered_poses(self) -> None:
         """Call each live sensor pose callback. Dead sensors are dropped."""
@@ -1509,13 +1549,24 @@ class OVRTXRenderer(BaseRenderer):
             callback()
         self._pose_updates = live
 
-    def _publish_sensor_outputs(self, products: RenderProductSetOutputs) -> None:
-        """Write this step's camera images and lidar point clouds into their buffers."""
-        if self._camera_render_data:
-            self._process_render_products(self._camera_render_data, products)
-            if self.cfg.async_rendering and not self._use_ovstage:
-                for data in self._camera_render_data:
-                    data.sync_frame_ready = True
+    def _publish_prepared_cameras(
+        self, cameras: Sequence[OVRTXCameraRenderData], products: RenderProductSetOutputs
+    ) -> None:
+        """Write this step's images for cameras that have not yet been published."""
+        pending = [camera for camera in cameras if camera not in self._published_cameras]
+        if not pending:
+            return
+        self._process_render_products(pending, products)
+        if self.cfg.async_rendering and not self._use_ovstage:
+            for data in pending:
+                data.sync_frame_ready = True
+        self._published_cameras.update(pending)
+
+    def _publish_sensor_outputs(
+        self, products: RenderProductSetOutputs, cameras: Sequence[OVRTXCameraRenderData]
+    ) -> None:
+        """Write this step's prepared camera images and every lidar point cloud."""
+        self._publish_prepared_cameras(cameras, products)
         for data in self._lidar_render_data:
             self._publish_lidar_output(data, products)
 
@@ -1593,9 +1644,9 @@ class OVRTXRenderer(BaseRenderer):
         if not render_data:
             return
         if self._lidar_render_data:
-            # A lidar shares this step. Camera-only scenes keep the path below, including its
-            # fixed time step and asynchronous submission.
-            self._capture_sensors(_RENDER_DELTA_TIME)
+            # A lidar shares this step. Submit every product once, at the lidar interval, and
+            # publish only the cameras in this request. Camera-only scenes keep the path below.
+            self._capture_sensors(self._agreed_lidar_delta(_RENDER_DELTA_TIME), cameras=render_data)
             return
         for data in render_data:
             data.sync_frame_ready = False
