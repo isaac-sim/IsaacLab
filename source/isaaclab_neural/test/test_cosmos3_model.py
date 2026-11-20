@@ -101,8 +101,9 @@ def service():
 
 
 def start_images(count):
-    """The model's one view, whose start image ``i`` is filled with ``100 + i``."""
-    return {"camera": (100 + torch.arange(count, dtype=torch.uint8)).view(-1, 1, 1, 1).expand(count, H, W, 3)}
+    """The RGB of the model's one view, whose start image ``i`` is filled with ``100 + i``."""
+    rgb = (100 + torch.arange(count, dtype=torch.uint8)).view(-1, 1, 1, 1).expand(count, H, W, 3)
+    return {"camera": {"rgb": rgb}}
 
 
 @pytest.fixture
@@ -175,7 +176,7 @@ def test_the_client_reads_the_spec_resets_from_start_images_and_steps_with_mappe
     model.reset([0, 1], start_images(2), ["unfold", "fold"], [3, 4])
     assert fake.resets == [([0, 1], [100, 101], ["unfold", "fold"], [3, 4])]
     targets = torch.arange(2 * T * 3, dtype=torch.float32).reshape(2, T, 3)
-    (frames,) = model.step(targets, torch.tensor([[1.0, 0, 0], [5.0, 0, 0]])).values()
+    frames = model.step(targets, torch.tensor([[1.0, 0, 0], [5.0, 0, 0]]))["camera"]["rgb"]
     assert frames.shape == (2, T, H, W, 3) and frames.dtype == torch.uint8 and (frames == 1).all()
     assert fake.controls[0].shape == (2, T, NUM_CONTROLS) and fake.controls[0][1, 0, 0] == targets[1, 0, 0] + 5
     model.close()
