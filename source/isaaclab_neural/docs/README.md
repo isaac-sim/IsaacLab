@@ -35,8 +35,9 @@ model with `WorldModelCfg(model=..., reset_manifest=...)` and `WorldModelRendere
   device, so `joint_pos` terms read the state and `JointPositionAction` writes the target without per-step host copies.
   Velocity and effort targets, poses, forces and physical properties raise `NotImplementedError`.
 * **Resets**: `Articulation.reset` only clears the command buffers, as for a physics backend. The reset event
-  `reset_from_records` samples a reset record (`image`, `state`, `prompt`, `split` in the JSON manifest), resets the
-  model from the record's image and prompt, and writes the record's joint state. Training samples records at random;
+  `reset_from_records` samples a reset record (`image`, `state`, `prompt`, `split` in the JSON manifest), immediately
+  publishes its original image and joint state, and schedules the model to restart from its image and prompt just
+  before generating the next chunk. The configured `default_joint_pos` stays unchanged. Training samples records at random;
   other splits visit them in order. `envs_per_reset_record` consecutive environments share a record (default 1); a group-relative algorithm such as GRPO sets it to its group size so that a group compares rollouts of one scene.
 
 ## Timing
@@ -59,7 +60,7 @@ chunks, so a reset in the middle of a chunk raises.
   The condition is judged on the step that completes a chunk. A condition that stays true, such as a success or a
   failure, is caught at the next boundary, at most one chunk late; one that holds only briefly inside a chunk is
   missed.
-* Each environment resets at its own next boundary; it does not wait for the others.
+* Environments share one chunk clock. At a boundary, only the selected environments reset; the others continue.
 
 ## Add a world model
 
@@ -68,14 +69,16 @@ Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`:
 | Method | Responsibility |
 | --- | --- |
 | `spec()` | Chunk length, frame rate, image size and the largest number of environments. |
-| `reset(env_ids, images, prompts, seeds)` | Reset the selected environments; return their first frames `(K, H, W, 3)`. |
+| `reset(env_ids, images, prompts, seeds)` | Initialize model history for selected environments from image paths, prompts and seeds; return nothing. Called just before generating their next chunk. |
 | `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to frames `(N, T, H, W, 3)`. |
 | `close()` | Release resources. |
 
 Construction is cheap; load the weights on the first `reset()`.
 
-Joint targets accumulate on the simulation device. At a chunk boundary the manager converts the targets and starting
-joint state to NumPy for `WorldModel.step`; the model's existing NumPy input/output and reset interface are unchanged.
+Joint targets accumulate on the simulation device. At a chunk boundary the manager first resets any environments
+that restarted, then converts the targets and starting joint state to NumPy for `WorldModel.step`. The step's NumPy
+input/output and reset's image-path inputs are unchanged; reset no longer supplies camera frames. Reset images are
+loaded once during `bind` and must match the model's image size.
 
 ## Tests
 

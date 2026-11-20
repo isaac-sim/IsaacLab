@@ -92,8 +92,11 @@ class WorldModel(ABC):
         """Return the model's static properties."""
 
     @abstractmethod
-    def reset(self, env_ids: np.ndarray, images: list[Path], prompts: list[str], seeds: np.ndarray) -> np.ndarray:
-        """Reset the selected environments from start images.
+    def reset(self, env_ids: np.ndarray, images: list[Path], prompts: list[str], seeds: np.ndarray) -> None:
+        """Initialize the selected environments' model history from start images.
+
+        Called just before the next :meth:`step` for environments reset since the previous chunk. The manager
+        already publishes the record's original image as the initial camera observation; this method returns no image.
 
         Args:
             env_ids: Environments to reset, shape ``(K,)``.
@@ -101,8 +104,6 @@ class WorldModel(ABC):
             prompts: Task description of each selected environment.
             seeds: Sampling seed of each selected environment, shape ``(K,)``.
 
-        Returns:
-            The first RGB frame of each selected environment, shape ``(K, H, W, 3)``, ``uint8``.
         """
 
     @abstractmethod

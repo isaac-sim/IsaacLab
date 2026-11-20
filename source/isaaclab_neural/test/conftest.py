@@ -9,6 +9,7 @@ import contextlib
 import json
 
 import numpy as np
+from PIL import Image
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg
@@ -24,20 +25,22 @@ DT = 1.0 / 30
 
 
 class FakeModel(WorldModel):
-    """Frame ``t`` of chunk ``c`` is filled with ``10 * c + t``; the start frames with 200 + the environment."""
+    """Frame ``t`` of chunk ``c`` is filled with ``10 * c + t``. Reset only records model inputs."""
 
     chunks = 0
     steps = []
     resets = []
+    calls = []
 
     def spec(self):
         return WorldModelSpec(chunk_length=T, fps=30, image_size=(H, W))
 
     def reset(self, env_ids, images, prompts, seeds):
-        FakeModel.resets.append(prompts)
-        return np.stack([np.full((H, W, 3), 200 + int(i), np.uint8) for i in env_ids])
+        FakeModel.calls.append("reset")
+        FakeModel.resets.append((env_ids.copy(), list(images), list(prompts), seeds.copy()))
 
     def step(self, joint_targets, start_joint_state):
+        FakeModel.calls.append("step")
         FakeModel.chunks += 1
         FakeModel.steps.append((joint_targets.copy(), start_joint_state.copy()))
         out = np.zeros((self.num_envs, T, H, W, 3), np.uint8)
@@ -56,10 +59,11 @@ class FakeModelCfg(ModelCfg):
 
 def write_manifest(directory, states=None, split="train"):
     """Write one reset record per joint state and return the manifest path."""
-    (directory / "start.png").write_bytes(b"x")
     states = [np.full(J, 0.1 * (i + 1)) for i in range(2)] if states is None else states
+    for i in range(len(states)):
+        Image.fromarray(np.full((H, W, 3), 200 + i, np.uint8)).save(directory / f"start_{i}.png")
     rows = [
-        {"image": "start.png", "state": np.asarray(s).tolist(), "prompt": f"prompt {i}", "split": split}
+        {"image": f"start_{i}.png", "state": np.asarray(s).tolist(), "prompt": f"prompt {i}", "split": split}
         for i, s in enumerate(states)
     ]
     path = directory / "resets.json"
@@ -71,6 +75,7 @@ def write_manifest(directory, states=None, split="train"):
 def world_model_sim(directory, num_envs=N, envs_per_reset_record=N, states=None, split="train"):
     """A simulation context on the world-model backend. Yields the simulation."""
     FakeModel.chunks, FakeModel.steps, FakeModel.resets = 0, [], []
+    FakeModel.calls = []
     physics = WorldModelCfg(
         model=FakeModelCfg(),
         reset_manifest=write_manifest(directory, states, split),

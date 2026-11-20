@@ -35,7 +35,7 @@ class SceneCfg(InteractiveSceneCfg):
 
 @pytest.fixture
 def world(tmp_path):
-    with world_model_sim(tmp_path) as sim:
+    with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation") as sim:
         scene = InteractiveScene(SceneCfg(num_envs=N, env_spacing=1.0))
         sim.backend_manager.bind(N, J)
         sim.reset()

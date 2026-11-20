@@ -7,8 +7,9 @@
 
 import numpy as np
 import pytest
+from PIL import Image
 
-from .conftest import FakeModel, J, N, T, world_model_sim
+from .conftest import FakeModel, H, J, N, T, W, world_model_sim
 
 
 def bound_manager(sim, num_envs=N):
@@ -22,13 +23,47 @@ def step(manager, target):
     manager.step()
 
 
-def test_reset_starts_from_the_record(tmp_path):
-    with world_model_sim(tmp_path) as sim:
+def test_reset_publishes_the_record_and_restarts_the_model_before_the_next_chunk(tmp_path):
+    with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation") as sim:
         manager = bound_manager(sim)
-        manager.reset_envs(np.arange(N))
-        assert manager.joint_state.shape == (N, J)
-        assert manager.joint_state[0, 0] in (np.float32(0.1), np.float32(0.2))
-        assert (manager.frame_history[1] == 201).all() and not manager.new_frames
+        manager.reset_envs(np.array([1]))
+        assert manager.joint_state[:, 0].tolist() == [0.0, pytest.approx(0.1)]
+        assert (manager.frame_history[1] == 200).all()
+        manager.reset_envs(np.array([0]))
+        assert not FakeModel.resets
+        assert (manager.frame_history[0] == 201).all() and not manager.new_frames
+        for _ in range(T - 1):
+            step(manager, 5.0)
+            assert not FakeModel.calls
+        step(manager, 5.0)
+        assert FakeModel.calls == ["reset", "step"]
+        ((env_ids, images, prompts, seeds),) = FakeModel.resets
+        assert env_ids.tolist() == [0, 1]
+        assert [image.name for image in images] == ["start_1.png", "start_0.png"]
+        assert prompts == ["prompt 1", "prompt 0"] and len(set(seeds)) == 2
+
+        for _ in range(T):
+            step(manager, 6.0)
+        assert FakeModel.calls == ["reset", "step", "step"]
+        previous = manager.frame_history[1].copy()
+        manager.reset_envs(np.array([0]))
+        assert (manager.frame_history[0] == 200).all()
+        manager.reset_envs(np.array([0]))
+        assert (manager.frame_history[0] == 201).all()
+        assert np.array_equal(manager.frame_history[1], previous)
+        assert len(FakeModel.resets) == 1
+        for _ in range(T):
+            step(manager, 7.0)
+        assert FakeModel.calls == ["reset", "step", "step", "reset", "step"]
+        assert FakeModel.resets[-1][0].tolist() == [0]
+        assert FakeModel.resets[-1][2] == ["prompt 1"]
+
+
+def test_record_images_must_match_the_model_size(tmp_path):
+    with world_model_sim(tmp_path) as sim:
+        Image.new("RGB", (W + 1, H)).save(tmp_path / "start_0.png")
+        with pytest.raises(ValueError, match="world model expects"):
+            bound_manager(sim)
 
 
 def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_target(tmp_path):

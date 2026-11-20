@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 class reset_from_records(ManagerTermBase):
     """Start new episodes from reset records, in place of a physics task's ``reset_joints_by_*`` event.
 
-    Samples a record per environment, resets the world model from its start image and prompt, and writes the
-    record's joint state to the articulation, so the first chunk starts from the recorded state.
+    Samples a record per environment and publishes its start image and joint state immediately. The model's history
+    is reset from that image and prompt just before the next chunk is generated.
 
     The world model runs once per chunk of environment steps, so environments can only reset on chunk boundaries.
     The term checks when the environment is created that one environment step is one model frame and that
