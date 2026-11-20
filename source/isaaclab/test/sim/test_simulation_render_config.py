@@ -13,7 +13,7 @@ import types
 from pathlib import Path
 
 import pytest
-from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
+from isaaclab_isaacsim.renderers.isaac_rtx_renderer_cfg import (
     IsaacRtxRendererGlobalSettingsCfg,
 )
 
@@ -90,7 +90,7 @@ def _install_omni_stubs(monkeypatch) -> _FakeReplicatorSettings:
 def _import_isaac_rtx_utils(monkeypatch):
     """Import Isaac RTX utilities after installing Kit/Replicator stubs."""
     _install_omni_stubs(monkeypatch)
-    return importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
+    return importlib.import_module("isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils")
 
 
 def _parse_kit_setting_values(path: Path) -> dict[str, object]:
@@ -116,7 +116,7 @@ def _parse_kit_setting_values(path: Path) -> dict[str, object]:
 def test_isaac_rtx_global_settings(monkeypatch):
     """Test that Isaac RTX global settings are applied by the helper."""
     rep_settings = _install_omni_stubs(monkeypatch)
-    utils = importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
+    utils = importlib.import_module("isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils")
     settings = _FakeSettings()
     monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
     # the stubs replace Replicator, so there is no Kit extension to enable

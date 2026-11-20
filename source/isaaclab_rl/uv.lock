@@ -15,7 +15,7 @@ dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-newton" },
-    { name = "isaaclab-physx" },
+    { name = "isaaclab-isaacsim" },
 ]
 
 [package.metadata]
@@ -23,7 +23,7 @@ requires-dist = [
     { name = "isaaclab", editable = "../isaaclab" },
     { name = "isaaclab-contrib", editable = "../isaaclab_contrib" },
     { name = "isaaclab-newton", editable = "../isaaclab_newton" },
-    { name = "isaaclab-physx", editable = "../isaaclab_physx" },
+    { name = "isaaclab-isaacsim", editable = "../isaaclab_isaacsim" },
 ]
 
 [[package]]
@@ -49,9 +49,9 @@ dependencies = [
 requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
 
 [[package]]
-name = "isaaclab-physx"
+name = "isaaclab-isaacsim"
 version = "7.1.4"
-source = { editable = "../isaaclab_physx" }
+source = { editable = "../isaaclab_isaacsim" }
 dependencies = [
     { name = "isaaclab" },
 ]

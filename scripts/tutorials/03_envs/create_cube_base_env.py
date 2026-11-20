@@ -45,7 +45,7 @@ args_cli = parser.parse_args()
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils

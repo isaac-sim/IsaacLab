@@ -259,10 +259,14 @@
   },
   {
     "package": "certifi",
+    "package_type": "Python",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
     "license_aliases": [
       "MPL-2.0"
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "MPL-2.0; CA certificate bundle used by Python HTTPS clients; OSRB: https://nvbugspro.nvidia.com/bug/5303623"
   },
   {
       "package": "rl_games",

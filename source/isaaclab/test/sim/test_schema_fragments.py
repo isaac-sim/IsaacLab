@@ -55,8 +55,8 @@ def test_apply_namespaced_writes_only_set_fields():
 
 
 def test_apply_rigid_body_properties_composes_namespaces():
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_rigid_body_properties
 

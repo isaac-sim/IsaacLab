@@ -19,7 +19,7 @@ from isaaclab.benchmark.microbenchmark import MicrobenchmarkFactory, run_microbe
         (
             "physx",
             "articulation",
-            "source/isaaclab_physx/benchmark/assets/benchmark_articulation.py",
+            "source/isaaclab_isaacsim/benchmark/assets/benchmark_articulation.py",
             ["--physics_variant", "physx"],
         ),
         (

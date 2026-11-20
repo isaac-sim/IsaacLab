@@ -12,8 +12,8 @@ from .base_pva import BasePva
 from .base_pva_data import BasePvaData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.pva import Pva as PhysXPva
     from isaaclab_newton.sensors.pva import Pva as NewtonPva
-    from isaaclab_physx.sensors.pva import Pva as PhysXPva
 
 
 class Pva(FactoryBase, BasePva):
