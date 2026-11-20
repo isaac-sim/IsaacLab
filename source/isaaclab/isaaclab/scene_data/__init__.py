@@ -12,7 +12,7 @@ transforms in one of the :class:`SceneDataFormat` Warp struct variants;
 the provider converts and remaps them on demand for each consumer.
 
 This package is deliberately separate from :mod:`isaaclab.scene` so that
-physics backends (``isaaclab_physx``, ``isaaclab_newton``) can subclass
+physics backends (``isaaclab_isaacsim``, ``isaaclab_newton``) can subclass
 :class:`SceneDataBackend` without pulling :mod:`isaaclab.scene` into the
 Kit launcher pre-launch import chain.
 """

@@ -7,7 +7,7 @@
 
 """Real-backend tests for the OVPhysX FrameTransformer.
 
-Mirrors :mod:`isaaclab_physx.test.sensors.test_frame_transformer` 1-to-1 for the
+Mirrors :mod:`isaaclab_isaacsim.test.sensors.test_frame_transformer` 1-to-1 for the
 test cases that already exist in PhysX. One additional case exercises the
 OVPhysX-specific multi-binding gather path that combines an articulation link
 target and a standalone RigidObject target.
@@ -39,8 +39,8 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
         allow_module_level=True,
     )
 
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402

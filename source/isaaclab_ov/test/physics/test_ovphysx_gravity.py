@@ -13,7 +13,7 @@ import torch
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject
-from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+from isaaclab_ov.physics import OvPhysxCfg
 from ovphysx import PhysX
 
 import isaaclab.sim as sim_utils
@@ -97,14 +97,14 @@ def test_gravity_event_changes_rigid_body_motion(device: str, monkeypatch: pytes
 
         # A failed update may already have changed native gravity. Re-requesting
         # the last successful value must restore it rather than hit the cache.
-        finish_stage_operation = ovphysx_compat.finish_stage_operation
+        wait_task = PhysX.wait_task
 
         def finish_then_fail(physx: PhysX, operation: object) -> None:
-            finish_stage_operation(physx, operation)
+            wait_task(physx, operation)
             raise RuntimeError("control completion failed")
 
         with monkeypatch.context() as failed_update:
-            failed_update.setattr(ovphysx_compat, "finish_stage_operation", finish_then_fail)
+            failed_update.setattr(PhysX, "wait_task", finish_then_fail)
             with pytest.raises(RuntimeError, match="control completion failed"):
                 set_gravity((0.0, 0.0, 0.0))
         set_gravity((0.0, 0.0, -9.81))

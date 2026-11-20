@@ -53,6 +53,7 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
+from isaaclab.utils.backend_utils import warn_kit_selector
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
@@ -140,6 +141,25 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
         stacklevel=user_stacklevel(),
     )
     return replacement
+
+
+def _kit_selectors_in_use(env_cfg) -> set[str]:
+    """Names of the Kit selectors whose backend the resolved *env_cfg* uses.
+
+    A preset named like a Kit selector can change an unrelated field, so the warning follows the resolved backend.
+    """
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+
+    from isaaclab.app.sim_launcher import _walk_runtime_configs
+
+    nodes = _walk_runtime_configs(env_cfg)
+    in_use = set()
+    if any(isinstance(node, PhysxCfg) for node in nodes):
+        in_use.add("isaacsim_physx")
+    if any(isinstance(node, IsaacRtxRendererCfg) for node in nodes):
+        in_use.add("isaacsim_rtx")
+    return in_use
 
 
 @configclass
@@ -661,6 +681,12 @@ def register_task(
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
 
+    # A deprecated Kit backend warns once its selection resolved, so a rejected choice reports only its own error.
+    kit_selectors = _kit_selectors_in_use(env_cfg)
+    for name in dict.fromkeys(global_presets):
+        if name in consumed_presets and name in kit_selectors:
+            warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
+
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
     if play_mode and hasattr(env_cfg, "play_mode"):
@@ -846,7 +872,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    This function is safe to call after :class:`~isaaclab_isaacsim.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
@@ -907,7 +933,10 @@ def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[s
 def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
     """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
     try:
-        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        with warnings.catch_warnings():
+            # Enumerating every backend is not a user selecting the deprecated ones.
+            warnings.filterwarnings("ignore", message="Selecting '.*' runs on Isaac Sim")
+            env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
         validate(env_cfg)
         validate_launch(env_cfg, {"livestream": 0})
     except ValueError:

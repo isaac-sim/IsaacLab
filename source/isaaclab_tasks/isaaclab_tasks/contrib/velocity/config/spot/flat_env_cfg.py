@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonShapeCfg,
 )
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen

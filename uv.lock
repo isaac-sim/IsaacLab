@@ -1775,7 +1775,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "47.1.0"
+version = "47.2.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1786,7 +1786,7 @@ dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-newton" },
-    { name = "isaaclab-physx" },
+    { name = "isaaclab-isaacsim" },
 ]
 
 [package.metadata]
@@ -1794,7 +1794,7 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
-    { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
 ]
 
 [[package]]
@@ -1833,7 +1833,7 @@ dependencies = [
     { name = "isaaclab-neural" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
-    { name = "isaaclab-physx" },
+    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-ppisp" },
     { name = "isaaclab-rl" },
     { name = "isaaclab-tasks" },
@@ -2059,7 +2059,7 @@ requires-dist = [
     { name = "isaaclab-neural", editable = "source/isaaclab_neural" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-    { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2122,8 +2122,8 @@ requires-dist = [
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
-    { name = "rsl-rl-lib", specifier = "==5.5.1" },
-    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.5.1" },
+    { name = "rsl-rl-lib", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
+    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
@@ -2162,7 +2162,7 @@ provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", 
 
 [[package]]
 name = "isaaclab-experimental"
-version = "3.0.0"
+version = "3.1.0"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2209,7 +2209,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "18.0.0"
+version = "18.1.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2220,7 +2220,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "9.2.0"
+version = "9.2.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2234,9 +2234,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "isaaclab-physx"
-version = "13.1.0"
-source = { editable = "source/isaaclab_physx" }
+name = "isaaclab-isaacsim"
+version = "13.2.0"
+source = { editable = "source/isaaclab_isaacsim" }
 dependencies = [
     { name = "isaaclab" },
 ]
@@ -2257,7 +2257,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "5.4.0"
+version = "5.4.1"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2274,7 +2274,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "30.5.0"
+version = "31.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2317,7 +2317,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "4.1.4"
+version = "4.1.5"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -5143,8 +5143,8 @@ wheels = [
 
 [[package]]
 name = "rsl-rl-lib"
-version = "5.5.1"
-source = { registry = "https://pypi.org/simple" }
+version = "5.5.2"
+source = { git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd#ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" }
 dependencies = [
     { name = "gitpython" },
     { name = "numpy" },
@@ -5153,10 +5153,6 @@ dependencies = [
     { name = "tensorboard" },
     { name = "tensordict" },
     { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/97/0e/142a31e8124255ec9276516c49c6fbe1497f2146ea384a92b81d23e3c525/rsl_rl_lib-5.5.1.tar.gz", hash = "sha256:50129065b35c69735ea197343321145a400af8c1b5fe9a28116fdaf1890fab43", size = 68077, upload-time = "2026-09-09T11:28:51.656Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/d3/0d4d446c61cb61377802c9e4366cfab8a6c378b9dbcaaad376dcc152c03c/rsl_rl_lib-5.5.1-py3-none-any.whl", hash = "sha256:bdb6382e21c62ddc2b47a37f39318486d0dfde234c7d446bfd42be482ecbd6ea", size = 100035, upload-time = "2026-09-09T11:28:50.331Z" },
 ]
 
 [[package]]

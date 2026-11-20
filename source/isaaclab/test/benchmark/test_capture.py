@@ -345,3 +345,12 @@ def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
     r = capture_resources(_Bm({"GPUInfo": gpu, "CPUInfo": cpu, "MemoryInfo": mem}))
     assert r.gpu_mem_gb.peak == pytest.approx(10.0)
     assert r.ram_gb.peak == pytest.approx(10.0)
+
+
+def test_capture_versions_reads_the_renamed_package_into_the_unchanged_record_field():
+    md = [
+        StringMetadata(name="isaaclab_version", data="4.6.8"),
+        StringMetadata(name="isaaclab_isaacsim_version", data="2.1.0"),
+    ]
+    bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
+    assert capture_versions(bm).isaaclab_physx == "2.1.0"

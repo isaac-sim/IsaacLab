@@ -15,9 +15,13 @@ The following classes are part of the public :mod:`isaaclab_newton.renderers` AP
 
    NewtonWarpRenderer
    NewtonWarpRendererCfg
+   NewtonOptixRendererCfg
 
 .. autoclass:: NewtonWarpRenderer
    :show-inheritance:
 
 .. autoclass:: NewtonWarpRendererCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonOptixRendererCfg
    :show-inheritance:
