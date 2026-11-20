@@ -183,7 +183,7 @@ class Articulation(BaseArticulation):
     # ----------------------------------------------------------- joint targets
 
     def set_joint_position_target_index(self, *, target, joint_ids=None, env_ids=None, full_data=False) -> None:
-        """Set joint position targets. They apply on the next :meth:`write_data_to_sim`."""
+        """Write shared joint position targets. The manager applies them on its next backend step."""
         self._set(self._data.joint_pos_target.torch, target, joint_ids, env_ids, full_data)
 
     def set_joint_position_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
