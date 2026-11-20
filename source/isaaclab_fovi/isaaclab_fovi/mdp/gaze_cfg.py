@@ -28,11 +28,21 @@ class GazeActionCfg(ActionTermCfg):
     step_size: float = 0.1
     """Change of each gaze coordinate per step at an action of 1, in field radii. Positive and finite."""
     gaze_limit: float = 1.0
-    """Radius of the allowed tilt/pan disk, in field radii. Positive and finite."""
+    """Largest distance of the gaze from the camera's optical axis, in field radii. Positive and finite."""
+    random_reset: bool = False
+    """Start episodes at a random gaze the camera sees; otherwise on the optical axis."""
+    mount: str = "fixed"
+    """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body (Newton, OVRTX)."""
 
     def validate_config(self):
-        """Reject gaze bounds that would divide by zero."""
-        if not math.isfinite(self.step_size) or self.step_size <= 0:
+        """Reject gaze bounds that would divide by zero and unknown mounts."""
+        if not _positive_finite(self.step_size):
             raise ValueError(f"GazeActionCfg.step_size must be positive and finite, got {self.step_size!r}.")
-        if not math.isfinite(self.gaze_limit) or self.gaze_limit <= 0:
+        if not _positive_finite(self.gaze_limit):
             raise ValueError(f"GazeActionCfg.gaze_limit must be positive and finite, got {self.gaze_limit!r}.")
+        if self.mount not in ("fixed", "tracked"):
+            raise ValueError(f"GazeActionCfg.mount must be 'fixed' or 'tracked', got {self.mount!r}.")
+
+
+def _positive_finite(value) -> bool:
+    return isinstance(value, (int, float)) and math.isfinite(value) and value > 0

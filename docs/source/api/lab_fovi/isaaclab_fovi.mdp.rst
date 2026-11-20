@@ -9,6 +9,7 @@ isaaclab_fovi.mdp
 
     GazeAction
     GazeActionCfg
+    gaze_teacher_labels
 
   .. rubric:: Functions
 
@@ -33,3 +34,6 @@ Observations
 ------------
 
 .. autofunction:: gaze_state
+
+.. autoclass:: gaze_teacher_labels
+    :show-inheritance:

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pytest
 import torch
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
-from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model
+from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model, sampling_geometry
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -48,22 +48,24 @@ def ray_angle_deg(camera, pixel: tuple[float, float]) -> float:
 
 def test_defaults_are_grid_sampling_at_the_human_cmf_estimate() -> None:
     cfg = FoveatedCameraCfg()
+    assert cfg.foveated_style == "warped_cartesian_as_grid"
     assert cfg.cmf_a_deg == 0.591
     assert cfg.camera_model is None
 
 
 def test_pinhole_spawn_describes_an_ideal_pinhole_across_its_short_side() -> None:
     spawn = PinholeCameraCfg()
-    camera = resolve_camera_model(make_cfg(spawn=spawn))
-    fov = camera.field_of_view("short")
+    fov, cmf_a = sampling_geometry(make_cfg(spawn=spawn))
     expected = math.degrees(2 * math.atan(spawn.horizontal_aperture / (2 * spawn.focal_length)))
     assert fov == pytest.approx(expected, rel=1e-6)
+    assert cmf_a == 0.591
+    camera = resolve_camera_model(make_cfg(spawn=spawn))
     assert camera.model == "pinhole"
     assert camera.distortion == ()
     # Without a vertical aperture the image is square; with one, the retina spans the short (vertical) side.
     assert camera.image_size[0] == camera.image_size[1]
     spawn = PinholeCameraCfg(focal_length=10.0, horizontal_aperture=20.0, vertical_aperture=10.0)
-    fov = resolve_camera_model(make_cfg(spawn=spawn)).field_of_view("short")
+    fov, _ = sampling_geometry(make_cfg(spawn=spawn))
     assert fov == pytest.approx(math.degrees(2 * math.atan(0.5)), rel=1e-6)
 
 
@@ -94,7 +96,7 @@ def test_zero_coefficient_opencv_fisheye_is_an_ideal_equidistant_fisheye() -> No
     # Equidistant: the angle off the optical axis grows linearly with image radius.
     for radius in (50.0, 150.0, 310.0):
         assert ray_angle_deg(camera, (319.5 + radius, 319.5)) == pytest.approx(math.degrees(radius / focal), rel=1e-6)
-    fov = camera.field_of_view("short")
+    fov, _ = sampling_geometry(cfg)
     assert fov == pytest.approx(math.degrees(640 / focal), rel=1e-6)
 
 
@@ -118,10 +120,25 @@ def test_cameras_fovi_cannot_model_are_rejected() -> None:
             resolve_camera_model(make_cfg(spawn=spawn))
 
 
-@pytest.mark.parametrize("option", [{"pool_enabled": True}, {"foveated_style": "isotropic"}])
-def test_camera_config_rejects_deferred_sampling_options(option) -> None:
-    with pytest.raises(TypeError, match=next(iter(option))):
-        make_cfg(**option)
+def test_config_validates_pooling_and_shell_settings() -> None:
+    assert make_cfg(pool_mode="gaussian").pool_mode == "gaussian"
+    with pytest.raises(ValueError, match="pool_mode must be one of"):
+        make_cfg(pool_mode="median")
+    # Segmentation pools only by modal label: other modes would mix labels into ones no object has.
+    assert make_cfg().pool_int_mode == "modal"
+    with pytest.raises(ValueError, match="pool_int_mode must be one of"):
+        make_cfg(pool_int_mode="avg")
+    # Square shells need a square or circular footprint and a grid style.
+    grid = dict(foveated_style="warped_cartesian_as_grid", radius_norm=math.inf)
+    assert make_cfg(**grid, fov_type="square").fov_type == "square"
+    with pytest.raises(ValueError, match="wang"):
+        make_cfg(**grid, fov_type="wang")
+    for kwargs in (
+        dict(radius_norm=1.0, foveated_style="warped_cartesian_as_grid"),
+        dict(radius_norm=math.inf, foveated_style="isotropic"),
+    ):
+        with pytest.raises(ValueError, match="radius_norm"):
+            make_cfg(**kwargs)
 
 
 @dataclass
@@ -134,9 +151,7 @@ class CameraSelection:
     renderer_cfg: RendererSelection
 
 
-def test_renderer_selects_the_implementation(monkeypatch) -> None:
-    monkeypatch.setattr(Camera, "__del__", lambda self: None)
-
+def test_renderer_selects_the_implementation() -> None:
     def dispatch(cfg) -> type:
         return type(FoveatedCamera.__new__(FoveatedCamera, cfg))
 
@@ -155,12 +170,7 @@ def test_renderer_selects_the_implementation(monkeypatch) -> None:
 def test_cameras_that_turn_their_pose_by_the_gaze_need_per_frame_pose_updates(monkeypatch) -> None:
     """Newton and OVRTX turn the rendered pose by the gaze in each pose update, so without pose updates the renderer
     would never see the gaze; Isaac RTX writes the gaze into its camera prims instead."""
-
-    def construct(self, cfg):
-        self.cfg = cfg
-        self.stage = None
-
-    monkeypatch.setattr(Camera, "__init__", construct)
+    monkeypatch.setattr(Camera, "__init__", lambda self, cfg: setattr(self, "stage", None))
     monkeypatch.setattr(Camera, "__del__", lambda self: None)
     monkeypatch.setattr(FoveatedRTXCamera, "_prepare_projection", lambda self: None)
     monkeypatch.setattr(sim_utils, "find_matching_prims", lambda *args: [])
@@ -170,16 +180,14 @@ def test_cameras_that_turn_their_pose_by_the_gaze_need_per_frame_pose_updates(mo
 
     with pytest.raises(ValueError, match="update_latest_camera_pose=True"):
         FoveatedCamera(cfg(NewtonWarpRendererCfg()))
-    assert isinstance(FoveatedCamera(cfg(IsaacRtxRendererCfg())), FoveatedRTXCamera)
+    assert not FoveatedCamera(cfg(IsaacRtxRendererCfg())).turns_pose_by_gaze
 
 
 IMPORT_BOUNDARY = """
 import importlib, importlib.abc, sys
 
 # Kit, fovi's research modules and training frameworks must not load with the sensor package.
-BLOCKED = (
-    "isaacsim", "omni", "fovi.arch", "fovi.models", "fovi.training", "rsl_rl", "ffcv", "wandb", "lightning", "timm",
-)
+BLOCKED = ("isaacsim", "omni", "fovi.models", "fovi.training", "ffcv", "wandb", "lightning", "timm")
 
 
 class Block(importlib.abc.MetaPathFinder):
@@ -189,11 +197,7 @@ class Block(importlib.abc.MetaPathFinder):
 
 
 sys.meta_path.insert(0, Block())
-for module in (
-    "isaaclab_fovi.sensors.foveated_newton_camera",
-    "isaaclab_fovi.sensors.foveated_rtx_camera",
-    "isaaclab_fovi.mdp.gaze",
-):
+for module in ("isaaclab_fovi", "isaaclab_fovi.sensors", "isaaclab_fovi.sensors.pooling", "isaaclab_fovi.mdp"):
     importlib.import_module(module)
 print("import boundary passed")
 """

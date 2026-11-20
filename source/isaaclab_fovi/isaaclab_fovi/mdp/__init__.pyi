@@ -7,7 +7,12 @@ __all__ = [
     "GazeAction",
     "GazeActionCfg",
     "gaze_state",
+    "gaze_teacher_labels",
 ]
 
-from .gaze import GazeAction, gaze_state
+from .gaze import (
+    GazeAction,
+    gaze_state,
+    gaze_teacher_labels,
+)
 from .gaze_cfg import GazeActionCfg

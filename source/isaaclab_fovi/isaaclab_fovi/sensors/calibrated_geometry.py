@@ -8,12 +8,12 @@
 from __future__ import annotations
 
 import math
+from typing import Protocol
 
-from fovi.sensing.projection import CameraCalibration, CameraModel
+import torch
+from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
 
 from isaaclab.sim import PinholeCameraCfg
-
-from .foveated_camera_cfg import FoveatedCameraCfg
 
 IDEAL_IMAGE_WIDTH = 1024
 """Pixel width [px] of the image assigned to a camera derived from ideal spawn optics.
@@ -79,7 +79,7 @@ def camera_model_from_spawn(spawn: PinholeCameraCfg) -> CameraCalibration:
     )
 
 
-def resolve_camera_model(cfg: FoveatedCameraCfg) -> CameraModel:
+def resolve_camera_model(cfg: SamplingGeometryConfig) -> CameraModel:
     """Return the physical camera the retina looks through.
 
     This is ``cfg.camera_model`` when set, otherwise the camera that ``cfg.spawn``
@@ -93,3 +93,41 @@ def resolve_camera_model(cfg: FoveatedCameraCfg) -> CameraModel:
     if cfg.spawn is None:
         raise ValueError("A foveated camera on an existing prim needs camera_model.")
     return CameraModel(**camera_model_from_spawn(cfg.spawn))
+
+
+def sampling_geometry(cfg: SamplingGeometryConfig) -> tuple[float, float]:
+    """Return the retinal field of view and the CMF constant, both in degrees.
+
+    The field of view is the angular span of the retinal window in the physical
+    camera. Both values are in the units :class:`fovi.sensing.coords.SamplingCoords` takes.
+    """
+    fov = resolve_camera_model(cfg).field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_fraction)
+    return fov, cfg.cmf_a_deg
+
+
+def retinal_directions(cartesian: torch.Tensor, fov_deg: float, image_rotation_deg: float = 0.0) -> torch.Tensor:
+    """Return OpenGL-frame angular rays, including the sensor mount roll."""
+    rays = angular_directions(cartesian, fov_deg)
+    rays = rays * rays.new_tensor((1, -1, -1))
+    angle = rays.new_tensor(image_rotation_deg * torch.pi / 180)
+    x, y, z = rays.unbind(-1)
+    return torch.stack((angle.cos() * x - angle.sin() * y, angle.sin() * x + angle.cos() * y, z), -1)
+
+
+def compose_rotations(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
+    """Compose small rotation matrices without TF32 tensor-core rounding.
+
+    Camera transforms need orthonormal rotations even when the surrounding
+    training process enables reduced-precision matrix multiplication.
+    """
+    return (left[..., :, :, None] * right[..., None, :, :]).sum(dim=-2)
+
+
+class SamplingGeometryConfig(Protocol):
+    """The configuration fields that place the retina in the physical camera."""
+
+    camera_model: CameraCalibration | None
+    cmf_a_deg: float
+    retinal_window_reference_side: str
+    retinal_window_fraction: float
+    spawn: PinholeCameraCfg | None

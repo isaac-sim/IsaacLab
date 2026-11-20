@@ -1,2 +1,3 @@
-* Added the ``IsaacContrib-Cartpole-Camera-Fovi`` task with foveated RGB and depth presets, policy-controlled
-  gaze, and the stock RSL-RL PPO runner. The task is available with the ``fovi`` extra.
+* Added the ``IsaacContrib-Cartpole-Camera-Fovi`` task in :mod:`isaaclab_tasks.contrib.active_gaze`: the Cartpole
+  camera task with a foveated camera whose gaze the policy moves, trained with gaze-supervised PPO and a fixed gaze
+  action noise. It is registered when the ``fovi`` extra is installed.
