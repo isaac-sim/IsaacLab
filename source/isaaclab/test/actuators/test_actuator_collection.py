@@ -910,6 +910,30 @@ def test_write_command_mask_uses_full_sized_value(command_name):
         setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
+def test_masked_resets_of_delayed_actuators_draw_new_delays_when_a_graph_replays_them():
+    """Delayed actuators are capturable: a mask reset draws its delays on the device, so each replay draws anew."""
+    device = "cuda:0"
+    control = FakeActuatorControl(num_envs=64, device=device)
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=0, max_delay=3)
+    collection = ActuatorCollection({"delayed": cfg}, control)
+    actuator = collection["delayed"]
+    assert type(actuator).capturable
+    env_mask = wp.ones(64, dtype=wp.bool, device=device)
+    collection.reset(env_mask=env_mask)  # Loads the kernels
+    # Torch joins the capture on Warp's stream, with memory of its own, as environments that replay steps do.
+    pool = torch.cuda.MemPool()
+    with wp.ScopedCapture(device=device) as capture:
+        with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))), torch.cuda.use_mem_pool(pool):
+            collection.reset(env_mask=env_mask)
+    draws = []
+    for _ in range(2):
+        wp.capture_launch(capture.graph)
+        draws.append(actuator.positions_delay_buffer.time_lags.clone())
+    assert not torch.equal(draws[0], draws[1])
+    assert all(((draw >= 0) & (draw <= 3)).all() for draw in draws)
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_masked_reset_leaves_unselected_envs_untouched(device):
     """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""

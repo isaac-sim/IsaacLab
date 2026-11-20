@@ -13,7 +13,7 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ActuatorBase
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import BaseContactSensor, Camera
 from isaaclab.sim import SimulationContext
@@ -21,7 +21,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
 
-CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 """Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
 delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
 
@@ -117,16 +116,12 @@ class InteractiveSceneData:
                     raise ValueError(
                         f"MDP2 needs the solver's joint and body order, but '{name}' sets a joint or body ordering."
                     )
-                # Captured steps replay the actuators' masked resets, so they must not draw from Torch's random
-                # generators, as delayed actuators do for their delays: a graph would repeat the same draws.
-                unsupported = sorted(
-                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in CAPTURED_ACTUATORS
-                )
+                # Captured steps replay the actuators' computes and masked resets.
+                unsupported = sorted(group for group, actuator in asset.actuators.items() if not _capturable(actuator))
                 if unsupported:
                     raise ValueError(
-                        f"MDP2 replays actuator resets inside CUDA graphs, so it supports"
-                        f" {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)} only, but '{name}' has the"
-                        f" actuator groups {unsupported}."
+                        f"MDP2 replays actuators inside CUDA graphs, so it supports capturable actuators only"
+                        f" (ActuatorBase.capturable), but '{name}' has the actuator groups {unsupported}."
                     )
                 views |= {
                     "joint_pos": data.joint_pos,
@@ -321,3 +316,11 @@ def _newton_backend(sim: SimulationContext) -> _NewtonBackend | None:
     if type(sim.backend_manager).__module__.split(".")[0] != "isaaclab_newton":
         return None
     return _NewtonBackend()
+
+
+def _capturable(actuator: Any) -> bool:
+    """Return whether a CUDA graph can replay an actuator: an Isaac Lab model that is capturable, or a backend-native
+    actuator that is graphable, such as a delayed one that Newton runs."""
+    if isinstance(actuator, ActuatorBase):
+        return type(actuator).capturable
+    return actuator.is_graphable()

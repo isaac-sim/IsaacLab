@@ -14,3 +14,6 @@
 * **Breaking:** Changed ``Quantity(log=True)`` to ``Quantity(record=True)``: a recorded quantity is reduced per episode,
   logged as ``Metrics/<name>`` and recorded in the episode records of an episode budget. With an episode budget,
   ``done`` stays whether an episode ended, and the environment resets only the worlds that restart.
+* Changed the actuators that MDP2 environments accept: any capturable Isaac Lab actuator
+  (:attr:`~isaaclab.actuators.ActuatorBase.capturable`) or graphable backend-native actuator, such as the delayed
+  actuators that Newton runs, instead of a fixed list of actuator types.
