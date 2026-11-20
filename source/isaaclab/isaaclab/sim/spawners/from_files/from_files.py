@@ -26,6 +26,7 @@ from ...utils import (
     get_first_matching_child_prim,
     has_deformable_body_api,
     make_uninstanceable,
+    move_rigid_body_to_root,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -708,6 +709,9 @@ def spawn_from_usd_file(
         # make instance proxies editable before any override tries to author properties on them
         if cfg.make_uninstanceable:
             make_uninstanceable(prim_path, stage=stage)
+        # TODO: Consider a generic asset reorganization mechanism for ill-formed assets in place of this option.
+        if cfg.move_rigid_body_to_root:
+            move_rigid_body_to_root(prim_path, stage=stage)
 
     # author the deformable dict slot first so any collision_props keyed to the created sim mesh
     # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
@@ -829,7 +833,7 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
-        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+        from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
 
         material_kwargs = {}
         if stiff is not None:

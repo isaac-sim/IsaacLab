@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
+    from isaaclab_isaacsim.assets import SurfaceGripper
 
     from ..terrains.terrain_importer import TerrainImporter
 
@@ -795,7 +795,7 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
+        from isaaclab_isaacsim.assets import SurfaceGripperCfg  # noqa: PLC0415
 
         from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 

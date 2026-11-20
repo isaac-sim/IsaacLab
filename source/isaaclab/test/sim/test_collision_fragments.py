@@ -107,8 +107,8 @@ def test_mujoco_collision_fragment_rejects_invalid_values(cfg, message):
 
 
 def test_apply_collision_properties_composes_namespaces():
+    from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
     from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
     from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, apply_collision_properties
 
@@ -173,7 +173,7 @@ def test_mesh_collision_fragments_author_on_every_matched_collider():
 
 
 def test_spawn_shape_with_collision_fragment_list():
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
 
     from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
 

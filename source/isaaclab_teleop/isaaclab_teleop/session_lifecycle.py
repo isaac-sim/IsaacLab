@@ -1548,7 +1548,7 @@ class TeleopSessionLifecycle:
         tick, which is why handle acquisition may be deferred by one frame.
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
-        setting which the :class:`~isaaclab_physx.app.KitLauncher` stores after
+        setting which the :class:`~isaaclab_isaacsim.app.KitLauncher` stores after
         resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.

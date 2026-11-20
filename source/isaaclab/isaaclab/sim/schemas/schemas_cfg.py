@@ -13,9 +13,9 @@ from typing_extensions import deprecated
 
 from ...utils import configclass
 
-# Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
+# Names that moved out of this submodule into ``isaaclab_isaacsim.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
-# RigidBodyPropertiesCfg`` continue to work without importing ``isaaclab_physx`` at module
+# RigidBodyPropertiesCfg`` continue to work without importing ``isaaclab_isaacsim`` at module
 # load time.
 _PHYSX_FORWARDS = frozenset(
     {
@@ -65,11 +65,11 @@ _NEWTON_FORWARDS = frozenset(
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+            from isaaclab_isaacsim.sim.schemas import schemas_cfg as _physx_cfg
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
-                " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
+                " 'isaaclab_isaacsim.sim.schemas.schemas_cfg'. Install the isaaclab_isaacsim"
                 " extension or update your import. This forwarding shim is scheduled for"
                 " removal in 4.0."
             ) from e
@@ -437,7 +437,7 @@ class ArticulationRootBaseCfg:
     ``PhysxArticulationAPI`` only when the user authored that one field.
     For PhysX-only articulation-root properties (self-collisions, TGS solver
     iterations, sleep / stabilization thresholds), use
-    :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`.
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationRootPropertiesCfg`.
 
     See :meth:`modify_articulation_root_properties` for more information.
 
@@ -447,7 +447,7 @@ class ArticulationRootBaseCfg:
 
     .. deprecated:: 3.1
         Use the articulation-root fragments instead:
-        :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` (which also carries
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg` (which also carries
         :attr:`articulation_enabled`) and
         :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`. The non-USD
         :attr:`fix_root_link` flag is now the ``fix_root_link`` argument of
@@ -520,7 +520,7 @@ class RigidBodyBaseCfg:
 
     .. deprecated:: 3.1
         Use :class:`UsdPhysicsRigidBodyCfg` for the ``physics:*`` fields and
-        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` for :attr:`disable_gravity`,
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyCfg` for :attr:`disable_gravity`,
         passing both in the spawner's ``rigid_props`` slot. This class will be removed in 3.2.
 
     .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
@@ -588,7 +588,7 @@ class CollisionBaseCfg:
     via the PhysX bridge resolver and populates ``Model.shape_collision_radius`` /
     ``Model.shape_collision_thickness`` from the ``gap`` and ``margin`` keys (see
     ``import_usd.py:2104, 2111``). For PhysX-only collision properties (e.g. torsional
-    patch friction), use :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`.
+    patch friction), use :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionPropertiesCfg`.
 
     See :meth:`modify_collision_properties` for more information.
 
@@ -598,7 +598,7 @@ class CollisionBaseCfg:
 
     .. deprecated:: 3.1
         Use :class:`UsdPhysicsCollisionCfg` for :attr:`collision_enabled` and
-        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` for :attr:`contact_offset` /
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg` for :attr:`contact_offset` /
         :attr:`rest_offset`, passing both in the spawner's ``collision_props`` slot. The nested
         :attr:`mesh_collision_property` is replaced by placing a mesh-collision fragment in the
         ``mesh_collision_props`` slot. This class will be removed in 3.2.
@@ -755,7 +755,7 @@ class JointDriveBaseCfg:
 
     .. deprecated:: 3.1
         Use :class:`UsdPhysicsDriveCfg` for the ``UsdPhysics.DriveAPI`` fields and
-        :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` for :attr:`max_joint_velocity`,
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg` for :attr:`max_joint_velocity`,
         passing both in the spawner's ``joint_drive_props`` slot. The non-USD
         :attr:`ensure_drives_exist` flag is now the ``ensure_drives_exist`` argument of
         :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. This class will be removed
@@ -868,7 +868,7 @@ class MeshCollisionBaseCfg:
     Carries only the standard ``UsdPhysics:MeshCollisionAPI`` token
     (:attr:`mesh_approximation_name` -> ``physics:approximation``). For PhysX-cooking
     tunables (convex hull / decomposition / triangle mesh / SDF), use the
-    ``Physx*PropertiesCfg`` subclasses in :mod:`isaaclab_physx.sim.schemas`.
+    ``Physx*PropertiesCfg`` subclasses in :mod:`isaaclab_isaacsim.sim.schemas`.
 
     See :meth:`modify_mesh_collision_properties` for more information.
 
@@ -879,7 +879,7 @@ class MeshCollisionBaseCfg:
     .. deprecated:: 3.1
         Use :class:`UsdPhysicsMeshCollisionCfg` instead, passed in the spawner's
         ``mesh_collision_props`` slot. For backend cooking tunables, add the matching cooking
-        fragment (``Physx*Cfg`` in :mod:`isaaclab_physx.sim.schemas`, ``Newton*Cfg`` in
+        fragment (``Physx*Cfg`` in :mod:`isaaclab_isaacsim.sim.schemas`, ``Newton*Cfg`` in
         :mod:`isaaclab_newton.sim.schemas`), whose default approximation token replaces the
         :attr:`mesh_approximation_name` string. This class will be removed in 3.2.
     """
