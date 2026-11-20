@@ -8,13 +8,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
-from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.warp import ProxyArray
 
 from .foveated_camera import OPENGL_TO_ROS_AXES, FoveatedCamera
@@ -69,8 +67,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
     cfg: FoveatedCameraCfg
 
     def __init__(self, cfg: FoveatedCameraCfg):
-        # The parent's initialisation updates poses before the rays exist.
-        self._foveated_rays: wp.array | None = None
         super().__init__(cfg, turns_pose_by_gaze=True)
 
     def _initialize_impl(self):
@@ -107,17 +103,18 @@ class FoveatedNewtonCamera(FoveatedCamera):
         super()._initialize_impl()
 
         self._initialize_sampling()
-        self._pooler, self._pool_k = build_pooler(
+        self._pooler, pool_k = build_pooler(
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )
 
         # The gaze geometry's rendered rays, in canonical sample order and rolled by image_rotation_deg, back in the
         # OpenGL frame Newton traces.
-        self._ray_directions = self._gaze_rays * self._gaze_rays.new_tensor(OPENGL_TO_ROS_AXES)
-        self._foveated_rays = explicit_rays(self._ray_directions, self.cfg.height, self.cfg.width)
+        ray_directions = self._gaze_rays * self._gaze_rays.new_tensor(OPENGL_TO_ROS_AXES)
+        self._render_data.camera_rays = explicit_rays(ray_directions, self.cfg.height, self.cfg.width)
         render_samples = self.cfg.height * self.cfg.width
         # Renderer buffers remain whole tiles; zero-copy canonical views hide
         # trailing padding and preserve every output's dtype and sample order.
+        # Keep the backing buffers alive for the renderer's non-owning views.
         self._render_output = dict(self._data.output)
         self._flat_render_output = {}
         for name, value in self._render_output.items():
@@ -133,7 +130,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 "FoveatedNewtonCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d) outputs=%s",
                 type(self._pooler).__name__,
                 self.cfg.pool_mode,
-                self._pool_k,
+                pool_k,
                 self.cfg.pool_sample_cortex,
                 self._num_ray_samples,
                 self._num_valid_samples,
@@ -156,15 +153,13 @@ class FoveatedNewtonCamera(FoveatedCamera):
             self._grid_indices = grid_sample_indices(self._sampling_coords)
             source = self._grid_output
         # The buffers the camera publishes: stable for the camera's lifetime and refilled each frame.
-        self._public_output = proxy_outputs(source)
         self._data.output.clear()
-        self._data.output.update(self._public_output)
-        self._set_published_shape(self._public_output)
+        self._data.output.update(proxy_outputs(source))
+        self._set_published_shape(self._data.output)
         if self._native_grid and self._pooler is None:
             self._prepare_grid_publish(
                 {name: value.torch.squeeze(2) for name, value in self._flat_render_output.items()}
             )
-        self._render_data.camera_rays = self._foveated_rays
 
     def _validate_native_render_layout(self, tile_width: int, tile_height: int) -> None:
         """Reject a native grid that Newton's tiles cannot cover, before the parent allocates render buffers."""
@@ -176,22 +171,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
                 "these dimensions, or select a non-tiled Newton render_order."
             )
 
-    def _update_poses(
-        self,
-        env_ids: Sequence[int] | wp.array | None = None,
-        env_mask: wp.array | None = None,
-        frame_op: int = 0,
-    ) -> None:
-        """Read base poses, turn them by the gaze, update the renderer once, and inject the foveated rays.
-
-        The scene pose is read even without a gaze: the camera may inherit
-        motion from a parent body.
-        """
-        # The base update turns the poses by the gaze in _update_camera_state, then hands them to the renderer.
-        Camera._update_poses(self, env_ids, env_mask=env_mask, frame_op=frame_op)
-        if self._foveated_rays is not None:
-            self._render_data.camera_rays = self._foveated_rays
-
     def _update_buffers_impl(self, env_mask: wp.array):
         """Render, then mask and publish the updated environments, pooling high-resolution samples if enabled.
 
@@ -199,13 +178,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
         its visibility record and the published buffers, which the camera owns, change only for the updated
         environments.
         """
-        self._data.output.clear()
-        self._data.output.update(self._render_output)
-        try:
-            super()._update_buffers_impl(env_mask)
-        finally:
-            self._data.output.clear()
-            self._data.output.update(self._public_output)
+        super()._update_buffers_impl(env_mask)
         if not self._env_mask_has_any(env_mask):
             return
         if self._pooler is None:

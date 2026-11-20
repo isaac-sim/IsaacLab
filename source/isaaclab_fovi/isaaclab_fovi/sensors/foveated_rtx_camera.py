@@ -206,11 +206,8 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def _initialize_impl(self) -> None:
         # OVRTX measures distance_to_camera from each camera's near-clipped ray origin, so it needs the near clips.
-        self._offset_distance = (
-            self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in self.cfg.data_types
-        )
         near_clips = None
-        if self._offset_distance:
+        if self.cfg.renderer_cfg.renderer_type == "ovrtx" and "distance_to_camera" in self.cfg.data_types:
             prims = sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)
             near_clips = [self._near_clipping_distance(prim) for prim in prims]
 
@@ -230,9 +227,10 @@ class FoveatedRTXCamera(FoveatedCamera):
                     logger.warning("Could not enable Kit extension '%s'; the lens lookup may not render.", ext_name)
 
         self._initialize_sampling()
-        _, local_orientation = self._view.get_local_poses()
-        self._base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
-        self._pooler, self._pool_k = build_pooler(
+        if not self._gaze_pose_reads_angles:
+            _, local_orientation = self._view.get_local_poses()
+            self._base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
+        self._pooler, pool_k = build_pooler(
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )
 
@@ -241,7 +239,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         textures = {name: tex.torch for name, tex in self._texture_output.items()}
         # A native grid texture already holds the samples in order, so one kernel per output masks it and lays it
         # out. OVRTX's camera distance needs its near-plane offset first, and keeps the step-by-step path.
-        fused = self._native_grid and self._pooler is None and not self._offset_distance
+        fused = self._native_grid and self._pooler is None and self._near_clip is None
         if fused:
             count = self._num_ray_samples
             samples = {name: tex.reshape(tex.shape[0], count, tex.shape[-1]) for name, tex in textures.items()}
@@ -265,7 +263,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                     "FoveatedRTXCamera: %s pooling (mode=%s k=%s sample_cortex=%s N_hi=%d -> N_lo=%d)",
                     type(self._pooler).__name__,
                     self.cfg.pool_mode,
-                    self._pool_k,
+                    pool_k,
                     self.cfg.pool_sample_cortex,
                     self._num_ray_samples,
                     self._num_valid_samples,
@@ -317,17 +315,16 @@ class FoveatedRTXCamera(FoveatedCamera):
     def _extract_foveated_samples(self, env_mask: wp.array):
         """Extract the updated environments' per-sample values from the rendered 2D textures into the (B, N, 1, C)
         buffers; the other environments keep their last samples."""
-        for name in self._texture_output:
+        for name, tex in self._texture_output.items():
             if name == "rgb" and "rgba" in self._texture_output:
                 continue  # rgba alias
-            tex = self._texture_output[name]  # (B, th, tw, C)
             fov = self._foveated_output[name]  # (B, N, 1, C)
             tensor = tex.torch
             if self._native_grid:
                 samples = tensor.reshape_as(fov)
             else:
                 samples = tensor[:, self._extract_py, self._extract_px, :].unsqueeze(2)
-            if self._offset_distance and name == "distance_to_camera":
+            if name == "distance_to_camera" and self._near_clip is not None:
                 # OVRTX measures the distance from the near-clipped ray origin.
                 samples = samples + self._near_clip.to(samples.dtype)
             copy_updated_rows(samples, fov, env_mask)

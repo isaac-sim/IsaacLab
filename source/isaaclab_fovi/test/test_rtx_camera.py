@@ -60,7 +60,6 @@ def test_partial_capture_extracts_only_the_updated_environments(native_grid) -> 
     camera = SimpleNamespace(
         cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx")),
         # An OVRTX camera with distance_to_camera output adds each camera's near clip.
-        _offset_distance=True,
         _native_grid=native_grid,
         _near_clip=torch.tensor([0.25, 0.5, 0.75]).view(-1, 1, 1, 1),
         # The renderer-bound texture buffers are ProxyArrays, as the parent camera allocates them.

@@ -18,6 +18,7 @@ from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera, explicit_rays
 from isaaclab_fovi.sensors.native_grid import native_grid_directions
 
+from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
@@ -64,12 +65,12 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
         camera.renderer_rgba = rgba
 
     def render(camera, env_mask):
-        assert camera._data.output["rgba"].torch.shape == camera.renderer_rgba.shape
+        assert camera._data.output["rgba"] is public_rgba
         values = torch.arange(camera.renderer_rgba.numel()).reshape(camera.renderer_rgba.shape) + camera.frame_offset
         camera.renderer_rgba.copy_(values.to(torch.uint8))
 
-    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
-    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    monkeypatch.setattr(Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
         camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
@@ -86,7 +87,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     )
     camera._initialize_impl()
 
-    rays = wp.to_torch(camera._foveated_rays)
+    rays = wp.to_torch(camera._render_data.camera_rays)
     assert rays.shape == (ray_coords.resolution, ray_coords.resolution, 1, 2, 3)
     expected_rays = native_grid_directions(ray_coords, image_rotation_deg=0).float()
     torch.testing.assert_close(rays.reshape(-1, 2, 3)[:, 1], expected_rays)
@@ -129,8 +130,8 @@ def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeyp
     def render(camera, env_mask):
         camera.renderer_depth.fill_(camera.frame_value)
 
-    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
-    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    monkeypatch.setattr(Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
         camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
@@ -166,8 +167,8 @@ def test_sample_set_sensor_mask_follows_the_published_frame(monkeypatch) -> None
         camera._data = SimpleNamespace(output={"distance_to_camera": ProxyArray(wp.from_torch(camera.renderer_depth))})
         camera._render_data = SimpleNamespace(camera_rays=None)
 
-    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
-    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", lambda camera, env_mask: None)
+    monkeypatch.setattr(Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(Camera, "_update_buffers_impl", lambda camera, env_mask: None)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
         camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
@@ -231,8 +232,8 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     def render(camera, env_mask):
         camera.renderer_labels.copy_(labels.to(torch.int32).reshape(camera.renderer_labels.shape))
 
-    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
-    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    monkeypatch.setattr(Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
         camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
@@ -312,8 +313,8 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch) -> None:
     def render(camera, env_mask):
         camera.renderer_rgba.copy_(torch.tensor([10, 20, 30, 255], dtype=torch.uint8))
 
-    monkeypatch.setattr(newton_camera.Camera, "_initialize_impl", initialize_renderer)
-    monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
+    monkeypatch.setattr(Camera, "_initialize_impl", initialize_renderer)
+    monkeypatch.setattr(Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
         camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
@@ -347,7 +348,7 @@ def test_runtime_intrinsics_leave_the_retinas_rays_alone(monkeypatch) -> None:
     def replace_rays(*args, **kwargs):
         raise AssertionError("the stock setter replaces the renderer's rays")
 
-    monkeypatch.setattr(newton_camera.Camera, "set_intrinsic_matrices", replace_rays)
+    monkeypatch.setattr(Camera, "set_intrinsic_matrices", replace_rays)
     camera = new_camera()
     with pytest.warns(UserWarning, match="leaves a foveated camera as configured") as caught:
         camera.set_intrinsic_matrices(torch.eye(3).repeat(2, 1, 1))

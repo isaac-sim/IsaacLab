@@ -479,9 +479,9 @@ class FoveatedCamera(Camera):
 
     def _prepare_segmentation_pooling(self, names) -> None:
         """Take the modal-label neighbourhoods of pooled segmentation outputs among ``names`` from the main pooler."""
-        self._segmentation_neighbors = None
-        if self._pooler is not None and any(is_segmentation_output(name) for name in names):
-            self._segmentation_neighbors = segmentation_neighbor_indices(self._pooler)
+        self._segmentation_neighbors = (
+            segmentation_neighbor_indices(self._pooler) if any(is_segmentation_output(name) for name in names) else None
+        )
 
     def _pool_output(self, name: str, samples: torch.Tensor) -> torch.Tensor:
         """Pool one output's high-resolution samples (B, N_hi, 1, C) to the retina's (B, N_lo, 1, C), in its dtype.
