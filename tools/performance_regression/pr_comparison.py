@@ -299,6 +299,13 @@ def read_evidence(
     return Evidence(identity, context, samples, statuses, issues, files)
 
 
+def _named_artifact(artifacts: list[dict], name: str) -> dict | None:
+    matches = [artifact for artifact in artifacts if artifact.get("name") == name]
+    if len(matches) > 1:
+        raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
+    return matches[0] if matches else None
+
+
 def resolve_candidate(
     client: GitHubClient,
     run_id: int,
@@ -311,13 +318,9 @@ def resolve_candidate(
     for attempt in range(report_attempt, 0, -1):
         run = client.run_attempt(run_id, attempt)
         name = f"performance-regression-{run_id}-{attempt}"
-        matches = [artifact for artifact in artifacts if artifact.get("name") == name]
-        if len(matches) > 1:
-            raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
-        if matches:
-            return read_evidence(
-                client, run, matches[0], attempt, comparison_dir=comparison_dir, history_dir=history_dir
-            )
+        artifact = _named_artifact(artifacts, name)
+        if artifact:
+            return read_evidence(client, run, artifact, attempt, comparison_dir=comparison_dir, history_dir=history_dir)
         started = parse_timestamp(run.get("run_started_at"))
         for job in client.jobs(run_id, attempt):
             if job.get("name") != "performance-regression-benchmarks" or job.get("conclusion") == "skipped":
@@ -655,7 +658,12 @@ def capture_context(args: argparse.Namespace, event: dict, measurement_manifest:
 
 
 def bind_baseline(args: argparse.Namespace, event: dict) -> None:
-    """Pin the uploaded baseline before the current PR is measured."""
+    """Identify the baseline for this PR measurement."""
+    if args.parallel:
+        selection = _initial_selection(event, _resolved_base())
+        selection.update(parallel=True, tested_commit=os.environ["GITHUB_SHA"])
+        _write(args.output_dir / "pr-comparison.json", selection)
+        return
     if not args.selection.exists():
         _write(args.selection, _initial_selection(event, _resolved_base()))
         if not args.baseline_issue:
@@ -718,16 +726,34 @@ def select_pr_baseline(client: GitHubClient, candidate: Evidence) -> tuple[Evide
         or selection.get("requested_head_commit") != source.get("requested_head_commit")
     ):
         raise EvidenceError("identity_mismatch", "The pinned comparison does not identify this tested PR revision.")
-    origin = selection.get("baseline_origin")
-    if not origin:
-        return None, selection
+    parallel = selection.get("parallel") is True
+    origin = selection.get("baseline_origin") or {}
     try:
-        artifact = client.get(f"/repos/{client.repository}/actions/artifacts/{origin['artifact_id']}")
+        if parallel:
+            run_id, attempt = candidate.identity["run_id"], candidate.identity["run_attempt"]
+            name = baseline_name(pr_number, base_commit, attempt)
+            origin = {"run_id": run_id, "run_attempt": attempt, "artifact_name": name}
+            artifact = _named_artifact(client.artifacts(run_id), name)
+            if artifact is None:
+                raise EvidenceError("missing_baseline", "The parallel base job has no results for this attempt.")
+        elif origin:
+            artifact = client.get(f"/repos/{client.repository}/actions/artifacts/{origin['artifact_id']}")
+        else:
+            return None, selection
         baseline = _read_baseline(client, artifact, pr_number, base_commit)
         for field in ("artifact_id", "run_id", "run_attempt", "source_commit", "sha256"):
             if field in origin and origin[field] != baseline.identity[field]:
                 raise EvidenceError("identity_mismatch", "Pinned baseline identity or bytes changed.")
-        if not selection.get("baseline_reused"):
+        if parallel:
+            tested = candidate.identity["source_commit"]
+            if (
+                baseline.identity["requested_head_commit"] != source.get("requested_head_commit")
+                or _object(baseline.context.get("measurement")).get("commit") != tested
+                or _object(candidate.context.get("measurement")).get("commit") != tested
+            ):
+                raise EvidenceError("identity_mismatch", "The parallel measurements identify different PR revisions.")
+            selection["reason"] = "Measured the exact PR base and tested revision in separate GPU jobs."
+        elif not selection.get("baseline_reused"):
             left, right = baseline.context["execution"], candidate.context["execution"]
             for field in ("run_id", "run_attempt", "job", "runner_name", "hostname"):
                 if not left.get(field) or left.get(field) != right.get(field):
@@ -1281,6 +1307,7 @@ def main(argv: list[str] | None = None) -> int:
         if name == "capture":
             command.add_argument("--role", choices=("baseline", "current"), required=True)
         if name == "bind":
+            command.add_argument("--parallel", action="store_true")
             command.add_argument("--artifact-id")
             command.add_argument("--baseline-issue", default="")
     report = commands.add_parser("report", help="compare PR measurements and collect rolling-history results")
@@ -2480,6 +2507,44 @@ if "pytest" in sys.modules:
         monkeypatch.setenv("PERF_BASE_COMMIT", HEAD)
         assert pair.invoke("bind", output_dir=pair.tmp / "wrong-base") == 1
         assert not (pair.tmp / "wrong-base" / "pr-comparison.json").exists()
+
+    def test_parallel_report_binds_the_candidate_attempt(pair):
+        assert pair.invoke("bind", parallel=True) == 0
+        files = artifact_files(pair, "current", 20)
+        files["pr-comparison.json"] = (pair.output / "pr-comparison.json").read_bytes()
+        pair.client.publish(20, "performance-regression-20-1", files)
+        pair.client.add_run(20, 2)
+        pair.client.run_jobs[20, 2] = []
+        pair.client.publish(20, baseline_name(42, pair.base, 2), artifact_files(pair, run_id=20, attempt=2))
+        pair.client.publish(10, baseline_name(42, pair.base), artifact_files(pair))
+
+        def report():
+            assert pair.invoke("report", run_attempt=2) == 0
+            return json.loads((pair.output / "build-comparison.json").read_text())
+
+        missing = report()
+        assert missing["selection"]["reason_code"] == "missing_baseline"
+        assert all(row["change_pct"] is None and row["candidate"]["median"] == 100 for row in missing["rows"])
+
+        files = artifact_files(pair, run_id=20)
+        files["build-context.json"]["execution"].update(hostname="base-host", runner_name="base-runner")
+        for path, sample in files.items():
+            if path.startswith("second/") and path.endswith("benchmark_runtime_fixture.json"):
+                sample["hardware"]["gpu_devices"] = [{"name": "A100"}]
+                result = json.dumps(sample).encode()
+                output = files[path.rsplit("/", 1)[0] + "/source-revision.json"]["outputs"][0]
+                output.update(bytes=len(result), sha256=hashlib.sha256(result).hexdigest())
+        artifact = pair.client.publish(20, baseline_name(42, pair.base), files)
+        paired = report()
+        assert_fields(paired["baseline"], artifact_id=artifact["id"], run_id=20, run_attempt=1, source_commit=pair.base)
+        rows = {row["legs"]["candidate"][0]: row for row in paired["rows"]}
+        assert_fields(rows["first"], status="compared", change_pct=0)
+        assert_fields(rows["second"], status="incompatible", change_pct=None)
+        assert rows["second"]["baseline"]["median"] == rows["second"]["candidate"]["median"] == 100
+        files["build-context.json"]["measurement"]["commit"] = pair.old
+        del pair.client.items[artifact["id"]]
+        pair.client.publish(20, baseline_name(42, pair.base), files)
+        assert report()["selection"]["reason_code"] == "identity_mismatch"
 
     def test_workflow_and_baseline_attempt_lifecycle(pair, monkeypatch):
         pair.client.runs[20, 1]["workflow_id"] = 812345

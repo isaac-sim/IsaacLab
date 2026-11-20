@@ -205,6 +205,42 @@ jobs:
         echo "name=$name" >> "$GITHUB_OUTPUT"
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
+  performance-regression-route:
+    name: Check for a reusable performance baseline
+    needs: [changes, config]
+    if: >-
+      github.event_name == 'pull_request' && github.run_attempt == '1' &&
+      needs.changes.outputs.activated == 'true' && needs.changes.outputs.should_run == 'true' &&
+      needs.config.outputs.paired_base_commit != '' && needs.config.outputs.base_image_config_outcome == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      parallel_base: ${{ steps.route.outputs.result }}
+    steps:
+    - id: route
+      uses: actions/github-script@v9
+      continue-on-error: true
+      env:
+        BASE_COMMIT: ${{ needs.config.outputs.paired_base_commit }}
+      with:
+        script: |
+          const query = {...context.repo, per_page: 100, request: {timeout: 60000}};
+          const pr = context.payload.pull_request;
+          const {data: runs} = await github.rest.actions.listWorkflowRuns({
+            ...query, workflow_id: 'build.yaml', branch: pr.head.ref, event: 'pull_request',
+          });
+          // An incomplete listing leaves the reuse decision to the PR runner.
+          if (runs.workflow_runs.length !== runs.total_count) return false;
+          const attempts = Math.max(1, ...runs.workflow_runs.map(run => run.run_attempt));
+          if (!Number.isSafeInteger(attempts)) return false;
+          for (let attempt = 1; attempt <= attempts; attempt++) {
+            const name = `performance-pr-baseline-${pr.number}-${process.env.BASE_COMMIT}-${attempt}`;
+            const {data} = await github.rest.actions.listArtifactsForRepo({...query, name});
+            if (data.artifacts.length !== data.total_count || data.artifacts.some(a => !a.expired)) return false;
+          }
+          return true;
+
   test-dockerfile-contract:
     name: dockerfile-contract
     runs-on: ubuntu-latest
@@ -953,18 +989,23 @@ jobs:
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
   performance-regression:
-    name: performance-regression-benchmarks
+    name: ${{ matrix.role == 'baseline' && 'performance-regression-baseline' || 'performance-regression-benchmarks' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        role: ${{ fromJSON(needs.performance-regression-route.outputs.parallel_base == 'true' && github.run_attempt == '1' && '["baseline","pr"]' || '["combined"]') }}
+    continue-on-error: ${{ matrix.role == 'baseline' }}
     runs-on: [self-hosted, gpu]
-    # Configured paired attempts total 372 minutes, leaving 78 minutes for setup and reporting.
     timeout-minutes: 450
-    needs: [build, config]
+    needs: [build, config, performance-regression-route]
     env:
+      PERF_ROLE: ${{ matrix.role }}
       PERF_BASE_COMMIT: ${{ needs.config.outputs.paired_base_commit }}
       PERF_PAIR_ERROR: ${{ needs.config.outputs.paired_base_error }}
     # PRs and manual runs read history; only default-branch pushes record it.
     if: >-
-      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch) &&
-      needs.build.result == 'success'
+      !cancelled() && needs.build.result == 'success' && needs.config.result == 'success' &&
+      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch)
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1003,7 +1044,7 @@ jobs:
     - name: Preserve benchmark controller and restored JIT cache
       run: |
         set -euo pipefail
-        controller="${RUNNER_TEMP}/performance-regression-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        controller="${RUNNER_TEMP}/performance-regression-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$PERF_ROLE"
         mkdir -p "$controller/tools" "$controller/baseline-output"
         cp -a tools/performance_regression "$controller/tools/"
         cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
@@ -1026,7 +1067,7 @@ jobs:
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_MEASUREMENT_ROOT"
 
     - name: Pull pull-request image
-      if: ${{ !cancelled() }}
+      if: ${{ !cancelled() && matrix.role != 'baseline' }}
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
@@ -1039,7 +1080,7 @@ jobs:
     - name: Check out the PR base revision
       id: base_checkout
       continue-on-error: true
-      if: github.event_name == 'pull_request' && needs.config.outputs.paired_base_commit != ''
+      if: matrix.role != 'pr' && github.event_name == 'pull_request' && needs.config.outputs.paired_base_commit != ''
       uses: actions/checkout@v6
       with:
         ref: ${{ needs.config.outputs.paired_base_commit }}
@@ -1049,7 +1090,7 @@ jobs:
     - name: Restore this PR's verified base measurement
       id: pr_baseline
       timeout-minutes: 5
-      if: steps.base_checkout.outcome == 'success'
+      if: matrix.role == 'combined' && steps.base_checkout.outcome == 'success'
       continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -1074,7 +1115,7 @@ jobs:
         cache-tag: cache-base
         pull-on-deps-hit: 'true'
 
-    - name: Benchmark the PR base on this runner
+    - name: Benchmark the PR base
       id: measure_base
       if: steps.base_dependencies.outcome == 'success'
       continue-on-error: true
@@ -1097,16 +1138,16 @@ jobs:
 
     - name: Archive the PR base measurement
       id: base_artifact
-      if: always() && github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused != 'true'
+      if: always() && matrix.role != 'pr' && github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused != 'true'
       continue-on-error: true
       uses: actions/upload-artifact@v7
       with:
         name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ needs.config.outputs.paired_base_commit }}-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/performance-regression-${{ github.run_id }}-${{ github.run_attempt }}/baseline-output/
+        path: ${{ env.PERF_BASELINE_OUTPUT }}
         if-no-files-found: warn
 
     - name: Restore the tested PR revision
-      if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+      if: ${{ !cancelled() && matrix.role == 'combined' && github.event_name == 'pull_request' }}
       uses: actions/checkout@v6
       with:
         ref: ${{ github.sha }}
@@ -1114,7 +1155,7 @@ jobs:
         lfs: true
 
     - name: Pin the base comparison for this tested PR revision
-      if: always() && github.event_name == 'pull_request'
+      if: always() && matrix.role != 'baseline' && github.event_name == 'pull_request'
       continue-on-error: true
       env:
         BASE_ARTIFACT_ID: ${{ steps.base_artifact.outputs.artifact-id }}
@@ -1126,6 +1167,11 @@ jobs:
         BASE_MEASUREMENT: ${{ steps.measure_base.outcome }}
         BASE_ARCHIVE: ${{ steps.base_artifact.outcome }}
       run: |
+        cd "$PERF_CONTROLLER"
+        if [ "$PERF_ROLE" = pr ]; then
+          exec python3 -m tools.performance_regression.pr_comparison bind --parallel \
+            --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output"
+        fi
         baseline_issue=""
         if { [ "$BASE_RESTORE" = failure ] || [ "$BASE_MEASUREMENT" = failure ]; } && \
            [ -f "$PERF_BASELINE_OUTPUT/paired-failure.json" ]; then
@@ -1145,14 +1191,13 @@ jobs:
         elif [ "$BASE_RESTORE" != success ] && [ "$BASE_MEASUREMENT" != success ]; then
           baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
         fi
-        cd "$PERF_CONTROLLER"
         python3 -m tools.performance_regression.pr_comparison bind \
           --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
 
     - name: Capture performance build provenance and source evidence
       id: source_capture
-      if: always()
+      if: always() && matrix.role != 'baseline'
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
@@ -1184,13 +1229,13 @@ jobs:
         key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ github.run_id }}
 
     - name: Set up uv for performance comparisons
-      if: always()
+      if: always() && matrix.role != 'baseline'
       uses: astral-sh/setup-uv@v6
       with:
         enable-cache: false
 
     - name: Set up ASV and the baseline store client
-      if: always()
+      if: always() && matrix.role != 'baseline'
       # Dependency failures report a gate ERROR without failing a successful benchmark job.
       continue-on-error: true
       id: store_venv
@@ -1205,7 +1250,7 @@ jobs:
     # This step runs PR code, so it receives only read access to stored baselines.
     - name: Compare against baseline history
       continue-on-error: true
-      if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.id == github.event.repository.id)
+      if: always() && matrix.role != 'baseline' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.id == github.event.repository.id)
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
@@ -1262,7 +1307,7 @@ jobs:
           done
         done < "$PERF_CONTROLLER/benchmark-legs.tsv"
     - name: Upload performance results
-      if: always()
+      if: always() && matrix.role != 'baseline'
       uses: actions/upload-artifact@v7
       with:
         name: performance-regression-${{ github.run_id }}-${{ github.run_attempt }}

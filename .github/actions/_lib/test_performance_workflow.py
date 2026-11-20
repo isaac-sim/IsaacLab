@@ -95,6 +95,37 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     assert stopped.returncode != 0, "Unactivated PR explanation step exited successfully"
 
 
+def test_parallel_baseline_route() -> None:
+    route = yaml.safe_load(_WORKFLOW.read_text())["jobs"]["performance-regression-route"]["steps"][0]
+    script = """
+const source = require('node:fs').readFileSync(0, 'utf8');
+const assert = require('node:assert/strict');
+const run = new (Object.getPrototypeOf(async function() {}).constructor)('github', 'context', source);
+const context = {repo: {owner: 'owner', repo: 'lab'}, payload: {pull_request: {number: 42, head: {ref: 'feature'}}}};
+process.env.BASE_COMMIT = 'base';
+(async () => {
+  for (const [label, runCount, artifacts, artifactCount, expected] of [
+    ['fresh', 1, [], 0, true], ['reusable on retry', 1, [{expired: false}], 1, false],
+    ['expired', 1, [{expired: true}], 1, true], ['partial run list', 2, [], 0, false],
+    ['partial artifact list', 1, [], 1, false],
+  ]) {
+    const actions = {
+      listWorkflowRuns: async ({branch}) => {
+        assert.equal(branch, 'feature');
+        return {data: {workflow_runs: [{run_attempt: 2}], total_count: runCount}};
+      },
+      listArtifactsForRepo: async ({name}) => {
+        assert.match(name, /^performance-pr-baseline-42-base-[12]$/);
+        return {data: name.endsWith('-2') ? {artifacts, total_count: artifactCount} : {artifacts: [], total_count: 0}};
+      },
+    };
+    assert.equal(await run({rest: {actions}}, context), expected, label);
+  }
+})();
+"""
+    subprocess.run(["node", "-e", script], input=route["with"]["script"], text=True, check=True)
+
+
 def test_run_docker_ci_command_options(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_RUN_CI_WORKFLOW.read_text(encoding="utf-8"))
     job = workflow["jobs"]["request-docker-ci"]
