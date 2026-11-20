@@ -19,6 +19,8 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import DeformableObject as OvPhysxDeformableObject  # noqa: E402
 from isaaclab_ov.assets.deformable_object.deformable_object_data import DeformableObjectData  # noqa: E402
@@ -26,8 +28,6 @@ from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
 from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
-from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 
@@ -584,7 +584,7 @@ def test_initialization_with_shared_material():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_mesh_spawner_deformable_fragment_slots(deformable_type: str):
     """The mesh spawner's deformable fragment slots author a deformable that OVPhysX simulates."""
-    from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 

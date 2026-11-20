@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -17,9 +20,6 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
-from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -289,3 +289,8 @@ class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
+
+    def validate_config(self):
+        """Reject the Newton OptiX renderer, which does not trace deformable objects."""
+        if self.scene.base_camera.renderer_cfg.renderer_type == "newton_optix":
+            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")

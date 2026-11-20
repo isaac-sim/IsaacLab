@@ -62,7 +62,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 if args_cli.physics == "isaacsim_physx":
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
     camera_renderer_cfg = IsaacRtxRendererCfg()
 else:

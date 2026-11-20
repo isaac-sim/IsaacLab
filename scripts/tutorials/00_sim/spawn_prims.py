@@ -28,7 +28,7 @@ args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
-from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

@@ -13,7 +13,7 @@ from unittest.mock import Mock, call
 import isaaclab_teleop.camera_feed as camera_feed
 import pytest
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg, XrCameraFeedSession
 
 from isaaclab.sensors import CameraCfg

@@ -116,7 +116,7 @@ a Newton contact margin of 1 mm. They describe the same collision shape, so they
 belong together in ``collision_props``.
 
 Import shared fragments from ``isaaclab.sim.schemas``, PhysX fragments from
-``isaaclab_physx.sim.schemas``, and Newton or MuJoCo fragments from
+``isaaclab_isaacsim.sim.schemas``, and Newton or MuJoCo fragments from
 ``isaaclab_newton.sim.schemas``. Material fragments live in the corresponding
 ``sim.spawners.materials`` modules.
 
@@ -138,7 +138,7 @@ asset. Use a dictionary when different parts need different settings:
    import isaaclab.sim as sim_utils
    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, UsdPhysicsRigidBodyCfg
    from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-   from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
    from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
    spawn = sim_utils.UsdFileCfg(
@@ -260,7 +260,7 @@ collider of a USD asset as a convex hull with a PhysX vertex limit:
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxConvexHullCfg
 
    spawn = sim_utils.UsdFileCfg(
        usd_path="/path/to/asset.usd",
@@ -291,7 +291,7 @@ its simulation mesh, and material settings for both PhysX and Newton:
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
    from isaaclab.sim.spawners.materials import OmniPhysicsDeformableMaterialCfg
    from isaaclab_newton.sim.spawners.materials import NewtonVolumeDeformableMaterialCfg
 
@@ -341,7 +341,7 @@ examples.
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+   from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyPropertiesCfg
    from isaaclab_newton.sim.schemas import MujocoJointDrivePropertiesCfg
 
    spawn = sim_utils.UsdFileCfg(
@@ -377,33 +377,33 @@ not need these details for the examples above.
 
        isaaclab.sim.schemas
        ├── RigidBodyBaseCfg
-       │   ├── isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg
+       │   ├── isaaclab_isaacsim.sim.schemas.PhysxRigidBodyPropertiesCfg
        │   └── isaaclab_newton.sim.schemas.NewtonRigidBodyPropertiesCfg
        │       └── isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg
        │
        ├── JointDriveBaseCfg
-       │   ├── isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg
+       │   ├── isaaclab_isaacsim.sim.schemas.PhysxJointDrivePropertiesCfg
        │   └── isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg
        │       └── isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg
        │
        ├── CollisionBaseCfg
-       │   ├── isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg
+       │   ├── isaaclab_isaacsim.sim.schemas.PhysxCollisionPropertiesCfg
        │   └── isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg
        │       ├── isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg
        │       └── isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg
        │
        ├── ArticulationRootBaseCfg
-       │   ├── isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg
+       │   ├── isaaclab_isaacsim.sim.schemas.PhysxArticulationRootPropertiesCfg
        │   └── isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg
        │
        ├── MeshCollisionBaseCfg
-       │   ├── isaaclab_physx.sim.schemas.{PhysxConvexHull, PhysxConvexDecomposition,
+       │   ├── isaaclab_isaacsim.sim.schemas.{PhysxConvexHull, PhysxConvexDecomposition,
        │   │                                PhysxTriangleMesh, PhysxSDFMesh, ...}PropertiesCfg
        │   └── isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg
        │       (also inherits NewtonCollisionPropertiesCfg — multi-namespace)
        │
        └── isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg
-           ├── isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg
+           ├── isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg
            └── isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg
 
     :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` uses
@@ -426,7 +426,7 @@ not need these details for the examples above.
 
        These tables summarize common fields. For the full field lists and defaults, see
        :doc:`/source/api/lab/isaaclab.sim.schemas`,
-       :doc:`/source/api/lab_physx/isaaclab_physx.sim.schemas`, and
+       :doc:`/source/api/lab_isaacsim/isaaclab_isaacsim.sim.schemas`, and
        :doc:`/source/api/lab_newton/isaaclab_newton.sim.schemas`, which are generated
        from the configuration classes.
 
@@ -648,7 +648,7 @@ not need these details for the examples above.
 
     .. code-block:: python
 
-       from isaaclab_physx.sim.schemas import PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
+       from isaaclab_isaacsim.sim.schemas import PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
 
        fixed_tendons_props = {
            "/joints/index_root": [
@@ -727,5 +727,5 @@ Where to go next
 * :doc:`actuators` — understand how actuators resolve joint drive properties.
 * :ref:`schemas-cfg-refactor` — migrate older schema configurations to 3.0.
 * :doc:`/source/api/lab/isaaclab.sim.schemas` — shared configurations and writers.
-* :doc:`/source/api/lab_physx/isaaclab_physx.sim.schemas` — PhysX configurations.
+* :doc:`/source/api/lab_isaacsim/isaaclab_isaacsim.sim.schemas` — PhysX configurations.
 * :doc:`/source/api/lab_newton/isaaclab_newton.sim.schemas` — Newton and MuJoCo configurations.
