@@ -3,4 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MDP utilities for the pick_and_place_apple task."""
+"""MDP terms for the pick_and_place_apple task."""
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

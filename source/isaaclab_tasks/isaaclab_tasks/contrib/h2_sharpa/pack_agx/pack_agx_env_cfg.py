@@ -10,7 +10,6 @@ import os
 
 from isaaclab_isaacsim.physics import PhysxCfg
 
-import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
@@ -24,7 +23,6 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
-from isaaclab_tasks.contrib.h2_sharpa.mdp import apply_camera_response, phase_reward
 from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import (
     H2_TABLETOP_ROBOT_CFG,
     LEFT_WRIST_CAMERA_CFG,
@@ -35,7 +33,7 @@ from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import (
 
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
-from .mdp import terminations
+from . import mdp
 
 TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256.usd"
 AGX_ORIN_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/MiniPc001/MiniPc001.usd"
@@ -238,7 +236,7 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=apply_camera_response,
+                    func=mdp.apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.879, 0.824, 0.848)},
                 )
             ],
@@ -248,7 +246,7 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=apply_camera_response,
+                    func=mdp.apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.732, 0.745, 0.735)},
                 )
             ],
@@ -258,7 +256,7 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
             tensor_processors=[
                 TensorProcessorCfg(
-                    func=apply_camera_response,
+                    func=mdp.apply_camera_response,
                     params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.815, 0.814, 0.826)},
                 )
             ],
@@ -306,7 +304,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
-        func=terminations.task_success,
+        func=mdp.task_success,
         time_out=False,
         params={
             "agx_orin_cfg": SceneEntityCfg("agx_orin"),
@@ -327,10 +325,10 @@ class TerminationsCfg:
 class RewardsCfg:
     """Sparse phase rewards: lift, align, seat, then release."""
 
-    lift_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 0})
-    align_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 1})
-    seat_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 2})
-    release_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 3})
+    lift_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 0})
+    align_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 1})
+    seat_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 2})
+    release_agx = RewTerm(func=mdp.phase_reward, weight=1.0, params={"from_phase": 3})
 
 
 @configclass
