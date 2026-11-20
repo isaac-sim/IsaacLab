@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -166,6 +167,10 @@ def _visualizer(visualizer_type: str) -> mock.Mock:
     """Return a visualizer stand-in of the given type."""
     visualizer = mock.Mock()
     visualizer.cfg.backend.visualizer_type = visualizer_type
+    visualizer.is_reset_requested.return_value = False
+    window_session = mock.Mock()
+    window_session.loading.return_value = nullcontext()
+    visualizer.window_session.return_value = nullcontext(window_session)
     return visualizer
 
 
@@ -182,11 +187,12 @@ def test_newton_gl_selector_omits_incompatible_programs():
     program_browser = browser.ProgramBrowser({"demo": programs.DEMOS, "example": programs.EXAMPLES})
     program_browser.attach(sim)
     program_browser.attach(sim)
-    gl_visualizer.register_ui_callback.call_args.args[0](imgui)
+    callbacks = {call.kwargs["position"]: call.args[0] for call in gl_visualizer.register_ui_callback.call_args_list}
+    callbacks["panel"](imgui)
 
     labels = {call.args[0] for call in imgui.selectable.call_args_list}
-    gl_visualizer.register_ui_callback.assert_called_once()
-    assert gl_visualizer.register_ui_callback.call_args.kwargs == {"position": "panel"}
+    assert gl_visualizer.register_ui_callback.call_count == 2
+    assert set(callbacks) == {"panel", "free"}
     kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
@@ -214,29 +220,91 @@ def test_programs_run_without_warp_backward_kernels(monkeypatch):
 
 
 def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
-    """A GL selection must restart with GL after the current program finishes."""
-    visualizer = _visualizer("newton_gl")
+    """Repeated selections run in-process after cleanup and keep native windows open."""
+    visualizers = [_visualizer("newton_gl") for _ in range(3)]
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = True
     imgui.tree_node.return_value = True
-    imgui.selectable.side_effect = lambda label, _selected: (label == "Cables##example:cables", False)
     imgui.is_item_hovered.return_value = False
+    events = []
+    launch_args = []
+    original_argv = sys.argv
 
-    def run_script(_path):
+    def run_script(path):
+        index = len(launch_args)
+        assert index < len(visualizers), "A completed selection must not launch again."
+        launch_args.append(tuple(sys.argv))
+        events.append(("run", path.name))
+        visualizer = visualizers[index]
+        selected = ("Cables##example:cables", "G1 Terrain##example:g1-terrain", None)[index]
+        imgui.selectable.side_effect = lambda label, _selected: (label == selected, False)
         # Stand in for the program's simulation reset, which fires the launcher's callback.
         for callback in tuple(SimulationContext._reset_callbacks.values()):
             callback(mock.Mock(visualizers=[visualizer]))
-        visualizer.register_ui_callback.call_args.args[0](imgui)
+        callbacks = {call.kwargs["position"]: call.args[0] for call in visualizer.register_ui_callback.call_args_list}
+        callbacks["panel"](imgui)
+        events.append(("cleanup", path.name))
+        if index == 1:
+            raise SystemExit(0)
 
     monkeypatch.setattr(programs, "_run_script", run_script)
-    with mock.patch.object(programs.os, "execv") as execv:
+    with mock.patch("os.execv", side_effect=AssertionError("Program selection must preserve the Python process.")):
         cli.demo(["zoo", "--viz", "newton_gl"])
 
-    visualizer.request_close.assert_called_once_with()
+    assert events == [
+        ("run", "zoo.py"),
+        ("cleanup", "zoo.py"),
+        ("run", "cables.py"),
+        ("cleanup", "cables.py"),
+        ("run", "g1_terrain.py"),
+        ("cleanup", "g1_terrain.py"),
+    ]
+    assert launch_args == [
+        ("isaaclab demo zoo", "--viz", "newton_gl"),
+        ("isaaclab example cables", "--viz", "newton_gl"),
+        ("isaaclab example g1-terrain", "--task", "platforms", "--viz", "newton_gl"),
+    ]
+    for visualizer in visualizers:
+        visualizer.request_close.assert_not_called()
+    assert sys.argv is original_argv
     assert not SimulationContext._reset_callbacks
-    execv.assert_called_once_with(
-        sys.executable, [sys.executable, "-m", "isaaclab", "example", "cables", "--viz", "newton_gl"]
-    )
+
+
+def test_newton_gl_reset_restarts_current_program_after_cleanup(monkeypatch):
+    """Toolbar reset reruns the program in-process with its arguments after cleanup."""
+    visualizer = _visualizer("newton_gl")
+    other_visualizer = _visualizer("newton_gl")
+    kit_visualizer = _visualizer("kit")
+    imgui = mock.Mock()
+    imgui.collapsing_header.return_value = False
+    sim = mock.Mock(visualizers=[visualizer, other_visualizer, kit_visualizer])
+    events = []
+    launch_args = []
+
+    def run_script(_path):
+        assert len(launch_args) < 2, "A consumed reset request must not restart again."
+        launch_args.append(tuple(sys.argv))
+        events.append("run")
+        for callback in tuple(SimulationContext._reset_callbacks.values()):
+            callback(sim)
+        visualizer.is_reset_requested.return_value = len(launch_args) == 1
+        for call in visualizer.register_ui_callback.call_args_list:
+            call.args[0](imgui)
+        events.append("cleanup")
+
+    forwarded_args = ["--viz", "newton_gl", "--device", "cuda:1", "--max_steps", "23", "physics=newton_xpbd"]
+    monkeypatch.setattr(programs, "_run_script", run_script)
+    with mock.patch("os.execv", side_effect=AssertionError("Toolbar reset must preserve the Python process.")):
+        cli.demo(["zoo", *forwarded_args])
+
+    assert events == ["run", "cleanup", "run", "cleanup"]
+    assert launch_args == [("isaaclab demo zoo", *forwarded_args)] * 2
+    sim.consume_reset_request.assert_called_once_with()
+    sim.stop.assert_called_once_with()
+    visualizer.request_close.assert_not_called()
+    other_visualizer.request_close.assert_not_called()
+    kit_visualizer.request_close.assert_not_called()
+    assert not SimulationContext._reset_callbacks
 
 
 @pytest.mark.parametrize(

@@ -158,6 +158,8 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
     ctx._physics_step_count = 0
+    ctx._is_stopped = False
+    ctx._reset_requested = False
     ctx.backend_manager = _FakePhysicsManager()
     ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
@@ -219,6 +221,10 @@ def test_is_running_until_the_last_visualizer_closes():
     assert ctx._visualizers == []
     assert not ctx.is_running()
 
+    headless = _make_context([])
+    headless._is_stopped = True
+    assert not headless.is_running()
+
 
 def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():
     provider = _FakeProvider()
@@ -240,6 +246,43 @@ def test_step_waits_for_visualizer_training_pause_before_physics():
     assert ctx.backend_manager.wait_for_playing_calls == 1
     assert ctx.backend_manager.step_calls == 1
     assert ctx._physics_step_count == 1
+
+
+@pytest.mark.parametrize(
+    ("control", "request_view"), [("step", 0), ("step", 1), ("reset", 0), ("close", 0), ("stop", 0)]
+)
+def test_paused_simulation_handles_transport_requests(control, request_view):
+    """Each window can generate transport requests while another window keeps simulation paused."""
+    views = [_FakeVisualizer() for _ in range(request_view + 1)]
+    ctx = _make_context(views)
+    events = []
+
+    def update(index, dt):
+        events.append((index, dt))
+        # Stop a starved window on its second frame so a broken scheduler cannot hang the test.
+        if events.count((index, dt)) > 1:
+            views[index]._running = False
+        elif index != request_view:
+            return
+        elif control == "close":
+            views[index]._running = False
+        elif control == "stop":
+            ctx._is_stopped = True
+        elif control == "reset":
+            views[index]._reset_requested = True
+        else:
+            views[request_view].consume_step_request = lambda: True
+
+    for index, viz in enumerate(views):
+        viz.is_training_paused = lambda: True
+        viz.step = lambda dt, index=index: update(index, dt)
+    ctx.step(render=False)
+
+    assert sorted(events) == [(index, 0.0) for index in range(len(views))]
+    assert ctx.backend_manager.step_calls == (0 if control in ("close", "stop") else 1)
+    if control == "reset":
+        assert ctx.consume_reset_request()
+        assert not ctx.consume_reset_request()
 
 
 class _LivePlotVisualizer(_FakeVisualizer):

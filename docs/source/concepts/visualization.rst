@@ -145,6 +145,58 @@ alias.
 
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
+.. _newton-viewer-workspace:
+
+Newton viewer workspace preview
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab also supports the experimental
+`Newton viewer workspace <https://github.com/newton-physics/newton/pull/4880>`_.
+It opens an Isaac Lab window with dockable viewport, scene tree, inspector, console,
+plots, and a bounded display-history timeline. The regular Newton dependency remains
+the default. To try the workspace at a tested revision, override Newton and its GUI
+binding for the command:
+
+.. code-block:: bash
+
+   uv run \
+       --with "newton[sim] @ git+https://github.com/eric-heiden/newton.git@b798e43d122cb3aa9c2723ee6b3aa5473b93c3b6" \
+       --with "imgui-bundle==1.92.900" \
+       isaaclab demo newton-block-and-tackle
+
+Use the same ``--with`` options with other ``isaaclab demo``, ``example``, ``train``,
+and ``play`` commands. Select ``--viz newton_gl`` for task training or playback.
+The packaged demo and example browser remains available in the workspace's Examples tab.
+Selecting a program replaces the simulation in the same viewer window. The window's position,
+size, and workspace layout are retained while the previous scene and solver are released.
+The viewer uses Isaac Lab's green accent colors and CLI robot logo. Startup progress reports
+redraw an Isaac Lab loading splash and elapsed timer in the retained window. Long operations
+can temporarily pause the animation.
+Python imports and compiled Warp kernels stay available across switches. A program's first
+launch can take longer while Newton initializes its solver and compiles new kernels; later
+launches still construct a fresh scene and solver.
+
+The workspace's Play/Pause controls stop simulation while keeping the UI responsive.
+Step advances one physics step, including when simulation is paused. Tasks with action
+decimation need multiple physics steps to complete one policy action. Restart resets
+RL episodes and reports episode boundaries to policies, including recurrent policies.
+Packaged programs restart in the same window after releasing their simulation resources,
+preserving their original command arguments.
+
+Training starts with history recording disabled to avoid copying simulation arrays from the GPU
+to the host on every displayed frame. Enable **Record history** in the timeline when needed,
+or set :attr:`~isaaclab_visualizers.newton.NewtonGLBackendCfg.record_history` explicitly in the
+visualizer configuration. Demos, examples, and playback record history by default. The recording
+choice is retained across camera changes and episode resets. Paused single-steps record the new
+physics state while UI-only redraws leave the history unchanged. All viewer windows remain
+responsive while simulation is paused.
+
+Scrubbing history changes the displayed geometry while retaining the live solver state.
+Resume from the live end of the timeline to continue simulation. History does not rewind
+policy memory, task managers, camera images, or visualization markers. The native state
+and control inspectors are read-only because direct Newton writes bypass Isaac Lab's
+asset caches and episode lifecycle. Newton RTX continues to use its camera-view controls.
+
 Visualizer presets
 ~~~~~~~~~~~~~~~~~~
 
