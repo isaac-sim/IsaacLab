@@ -693,6 +693,38 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         """
         return False
 
+    def after_replay(self, num_steps: int) -> None:
+        """Do the host work of :meth:`step` for steps whose device work a CUDA graph replayed, such as advancing the
+        simulation time. The default does nothing.
+
+        Args:
+            num_steps: Calls of :meth:`step` that the graph recorded.
+        """
+
+    def supports_step_capture(self) -> bool:
+        """Whether :meth:`step` can be recorded into a CUDA graph by :meth:`capture`, as part of a step of an
+        environment that replays the graph. The default is ``False``: such environments step the physics eagerly."""
+        return False
+
+    def capture(self, fn: Callable[[], None]) -> Any:
+        """Record ``fn`` into a Warp graph, without running it, for :func:`warp.capture_launch` to replay.
+
+        ``fn`` may call :meth:`step` if :meth:`supports_step_capture` is ``True``. The backend chooses how to capture,
+        such as on a stream of its own while a renderer shares the device; the default records on Warp's current
+        stream of the device.
+
+        Args:
+            fn: Work to record. Perform lazy initialization before capture.
+
+        Returns:
+            The captured graph.
+        """
+        import warp as wp
+
+        with wp.ScopedCapture(device=self._device) as capture:
+            fn()
+        return capture.graph
+
     def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
         """Run the environment's actions and asset writes inside :meth:`step`, before every physics step.
 

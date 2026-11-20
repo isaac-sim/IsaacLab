@@ -5,6 +5,7 @@
 
 """Tests for MDP2RLEnv on a headless Newton Cartpole, built from a local USD file."""
 
+import importlib.util
 import math
 import weakref
 from dataclasses import replace
@@ -17,12 +18,15 @@ import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
+from isaaclab_experimental.mdp2.config import group_terms
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
@@ -213,7 +217,7 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
 
         observations, extras = env.reset()
 
-        assert observations["policy"].shape == (NUM_ENVS, 4) and "log" not in extras
+        assert observations["policy"].shape == (NUM_ENVS, 4)
         assert (robot_data.joint_pos.torch[:, 0].abs() <= 1.0).all() and robot_data.joint_pos.torch.std(0).min() > 0
         with pytest.raises(ValueError, match=r"Expected actions of shape \(16, 1\), got \(1, 1\)"):
             env.step(torch.ones(1, 1, device=env.device))
@@ -257,9 +261,21 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
         env.close()
 
 
-def delayed_cart(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+def delayed_cart(cfg: MDP2RLEnvCfg, tmp_path: Path | None = None) -> None:
     cfg.scene.robot.actuators["cart"] = DelayedPDActuatorCfg(
         joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0, max_delay=2
+    )
+
+
+def remotized_cart(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
+    """A remotized actuator, which runs as an Isaac Lab model without Newton's own actuators."""
+    cfg.sim.use_newton_actuators = False
+    cfg.scene.robot.actuators["cart"] = RemotizedPDActuatorCfg(
+        joint_names_expr=["slider_to_cart"],
+        joint_parameter_lookup=[[-2.0, 1.0, 400.0], [2.0, 1.0, 400.0]],
+        joint_effort_limit=400.0,
+        stiffness=0.0,
+        damping=10.0,
     )
 
 
@@ -294,14 +310,14 @@ def ball_joint_tip(cfg: MDP2RLEnvCfg, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        (delayed_cart, r"'robot' has the actuator groups \['cart'\]"),
+        (remotized_cart, r"'robot' has the actuator groups \['cart'\]"),
         (reordered_bodies, r"'robot' sets a joint or body ordering"),
     ],
     ids=("actuator-with-state", "body-ordering"),
 )
 def test_env_rejects_assets_it_cannot_reset_or_write_in_place(change, message, tmp_path):
-    """Captured steps replay the actuators' resets, so delayed actuators, which draw their delays from Torch on reset,
-    are refused; and so are body orderings, whose poses are copies that the asset refreshes outside the graphs."""
+    """Captured steps replay the actuators, so actuators that are not capturable are refused; and so are body
+    orderings, whose poses are copies that the asset refreshes outside the graphs."""
     cfg = cartpole_cfg()
     change(cfg, tmp_path)
     with pytest.raises(ValueError, match=message):
@@ -366,15 +382,15 @@ def test_captured_steps_match_eager_steps_and_the_torch_backend():
 def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_worlds):
     cfg = cartpole_cfg()
     # A logged quantity that a reset restarts and the observations of the new episode read again.
-    cfg.task.quantities = {"steps": mdp2.Quantity(step_count, log=True)}
+    cfg.task.quantities = {"steps": mdp2.Quantity(step_count, record=True)}
     observation = mdp2.Observation(mdp.value, inputs={"value": mdp2.quantities.steps})
     cfg.task.observations["policy"] = {
         **cfg.task.observations["policy"],
         "steps": observation,
     }
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
-    cfg.task = [cfg.task, without_alive]
-    cfg.task_worlds = task_worlds
+    worlds = None if task_worlds is None else dict(zip(("alive", "still"), task_worlds))
+    cfg.task = mdp2.split(alive=cfg.task, still=without_alive, worlds=worlds)
     env = MDP2RLEnv(cfg)
     try:
         # Even shares, or the given number of worlds per task.
@@ -539,6 +555,39 @@ def test_built_in_steps_must_run_once_in_order():
         MDP2RLEnv(cfg)
 
 
+after_steps = mdp2.Term(torch=lambda episode_length, *, steps: (episode_length >= steps).float())
+"""One from the step ``steps`` of the episode on."""
+
+
+def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
+    """A sequence of two tasks, each with its own quantity and reward, steps the same captured and uncaptured, and
+    the environment logs how often each task was done in the last episodes."""
+
+    def stage(steps: int, weight: float) -> mdp2.TaskCfg:
+        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
+        # The weights differ, so that the bonus is a use of each task rather than one of both.
+        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}, weight=weight)
+        return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
+
+    cfg = cartpole_cfg()
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3, 1.0), hold=stage(6, 2.0)))
+    cfg.verify_capture = 10
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(env.max_episode_length):
+            _, _, _, _, extras = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        log = extras["log"]
+        assert log["Progress/warm"] == 1.0 and log["Progress/hold"] == 1.0 and log["Progress/task"] == 1.0
+        # The bonus of each task, per second of the episode: warm ran 3 steps, hold the others.
+        steps = env.max_episode_length
+        assert log["Episode_Reward/warm.bonus"].item() == pytest.approx(3 / steps)
+        assert log["Episode_Reward/hold.bonus"].item() == pytest.approx(2 * (steps - 3) / steps)
+    finally:
+        env.close()
+
+
 def test_verify_capture_finds_python_state_that_the_graph_freezes():
     """The debug check passes a task whose captured steps are exact, and names a stage whose Python-side state the
     graph froze at capture."""
@@ -631,5 +680,299 @@ def test_stages_that_write_the_scene_are_seen_by_later_work():
             )
             restarted += int(ended.sum())
         assert env.is_captured and restarted > 0
+    finally:
+        env.close()
+
+
+def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
+    """Camera images are observed as uint8 terms and rendered by every replayed step, also with two cameras, and an
+    episode budget records each episode, then stops the worlds."""
+    cfg = cartpole_cfg()
+    # The Cartpole has no geometry to render, so the camera watches a cube fall in front of it.
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+    # A second camera, watching from the other side; cameras share their renderer.
+    cfg.scene.camera_back = cfg.scene.camera.replace(
+        prim_path="{ENV_REGEX_NS}/CameraBack",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 1.0, 1.0), rot=(0.0, 0.0, -0.7071, 0.7071), convention="world"),
+    )
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(
+        terms={
+            name: mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity(camera).rgb})
+            for name, camera in (("rgb", "camera"), ("rgb_back", "camera_back"))
+        },
+        concatenate=False,
+    )
+    # Indexing with a 1-dimensional tensor, as a 0-dimensional one would be read on the host in the graph.
+    cart_x = mdp2.Term(torch=lambda joint_pos, joint_ids: joint_pos[:, joint_ids][:, 0])
+    cfg.task.quantities["cart_x"] = mdp2.Quantity(
+        cart_x, inputs={"joint_pos": robot.joint_pos, "joint_ids": cart}, record=True
+    )
+    # Cameras that never render would observe stale images. Cameras that no term reads do not render.
+    cfg.step = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+    with pytest.raises(ValueError, match="must hold Step.RENDER"):
+        MDP2RLEnv(cfg)
+    unread = replace(cfg, task=replace(cfg.task, observations={"policy": cfg.task.observations["policy"]}))
+    MDP2RLEnv(unread).close()
+    cfg.step = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
+    budget = NUM_ENVS + 4
+    cfg.episode_budget = budget
+    env = MDP2RLEnv(cfg)
+    try:
+        assert env.single_observation_space["cameras"]["rgb"].shape == (64, 96, 3)
+        observations, _ = env.reset()
+        assert observations["cameras"]["rgb"].shape == (NUM_ENVS, 64, 96, 3)
+        assert observations["cameras"]["rgb"].dtype == torch.uint8
+        images = []
+        for step in range(13):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 9:
+                images.append({name: image.clone() for name, image in observations["cameras"].items()})
+        assert env.is_captured and env.num_graphs == 1
+        for name in ("rgb", "rgb_back"):
+            # The cube falls by pixels per step by then, so every replayed step renders a new image.
+            assert all(not torch.equal(before[name], after[name]) for before, after in zip(images, images[1:]))
+            # Lit: a stale render graph draws the geometry black.
+            assert images[-1][name].amax(dim=-1).min() > 0
+
+        # Push every cart out of its bounds until the budget is spent.
+        ended = []
+        while env.episodes_completed < budget:
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            ended.append(int((terminated | truncated).sum()))
+        records = env.episode_records()
+        assert sum(ended) == budget and len(records["world"]) == budget
+        # Every world ran an episode, the first worlds to end a second one, and none ended a third.
+        episodes = torch.bincount(records["world"].long(), minlength=NUM_ENVS)
+        assert episodes.min() == 1 and episodes.sum() == budget
+        assert records["termination/cart_out_of_bounds"].sum() + records["truncated"].sum() == budget
+        # Recorded values are those of the episode's last step, before its reset: out of bounds where it terminated.
+        out_of_bounds = records["cart_x"].abs() > 1.5
+        assert torch.equal(out_of_bounds, records["terminated"].bool())
+        for _ in range(env.max_episode_length):
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            assert not (terminated | truncated).any()
+        assert env.episodes_completed == budget
+    finally:
+        env.close()
+
+
+def test_play_mode_removes_observation_noise_and_keeps_each_group():
+    """Play mode drops observation noise, in concatenated groups and in groups of a tensor per term alike."""
+    cfg = cartpole_cfg()
+    noisy = mdp2.Observation(mdp.joint_pos, inputs={"joint_pos": robot.joint_pos}, noise=mdp2.UniformNoise(-0.1, 0.1))
+    cfg.task.observations["separate"] = mdp2.ObservationGroup(terms={"joint_pos": noisy}, concatenate=False)
+    cfg.play_mode()
+    for group, concatenate in (("policy", True), ("separate", False)):
+        terms, concatenated = group_terms(cfg.task.observations[group])
+        assert concatenated is concatenate
+        assert all(use.noise is None for use in terms.values() if use is not None)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("optix") is None, reason="needs the optix extra")
+def test_optix_cameras_render_between_the_graphs_of_a_step():
+    """OptiX refits its acceleration structures on the host, so its cameras render between two graphs, and every
+    replayed step still renders a new image."""
+    cfg = cartpole_cfg()
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonOptixRendererCfg(),
+    )
+    image = mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity("camera").rgb})
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(terms={"rgb": image}, concatenate=False)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        images = []
+        for step in range(10):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 6:
+                images.append(observations["cameras"]["rgb"].clone())
+        assert env.is_captured and env.num_graphs == 2
+        assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
+    finally:
+        env.close()
+
+
+lifetime_steps = mdp2.Term(
+    torch=mdp2.Implementation(compute=lambda steps: steps.clone(), update=lambda steps: steps.add_(1.0)),
+    state={"steps": mdp2.State(persistent=True)},
+)
+"""Steps since the start, across episodes."""
+
+
+def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
+    """Replacing the task on a running environment keeps the state, random streams, and reward weights of the uses
+    that both tasks have, truncates the episodes, and replays the new task's step as a graph."""
+    cfg = cartpole_cfg()
+    cfg.task.quantities = {"lifetime": mdp2.Quantity(lifetime_steps)}
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        for _ in range(3):
+            env.step(actions)
+        assert env.is_captured and env.num_graphs == 1
+        env.state.reward_weights.torch[:, 0] = 7.0  # Changed at runtime: kept
+        streams = {name: env.state.rng.torch[row].clone() for row, name in enumerate(env.mdp.streams)}
+
+        task = replace(
+            cfg.task,
+            rewards={**cfg.task.rewards, "upright": mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})},
+        )
+        env.update_task(task)
+        lifetime = env.state.arrays[mdp2.term_state("quantities.lifetime", "steps")].torch
+        assert (lifetime == 3.0).all() and (env.episode_length_buf == 0).all()
+        assert (env.state.reward_weights.torch[:, 0] == 7.0).all()
+        assert env.state.reward_weights.torch[:, -1].tolist() == [1.0] * NUM_ENVS
+        for name, values in streams.items():
+            # The reset that truncated the episodes advanced every stream once.
+            rng.advance(values[None])
+            assert torch.equal(env.state.rng.torch[env.mdp.streams.index(name)], values), name
+
+        _, _, _, _, extras = env.step(actions)
+        env.step(actions)
+        assert env.is_captured and env.num_graphs == 1 and "Episode_Reward/upright" in extras["log"]
+        assert (lifetime == 5.0).all()
+    finally:
+        env.close()
+
+
+def test_delayed_actuators_run_in_captured_steps():
+    """Delayed actuators, which Newton runs natively, replay in the step's graph."""
+    cfg = cartpole_cfg()
+    delayed_cart(cfg)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(3):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.is_captured and env.num_graphs == 1
+    finally:
+        env.close()
+
+
+def test_physics_that_cannot_capture_its_step_steps_between_the_graphs(monkeypatch):
+    """A physics backend that cannot capture its step steps eagerly, between the graphs of the MDP, which the backend
+    still records with its own capture."""
+    cfg = cartpole_cfg()
+    env = MDP2RLEnv(cfg)
+    try:
+        manager = env.sim.backend_manager
+        captures = []
+        capture = manager.capture
+        monkeypatch.setattr(manager, "supports_step_capture", lambda: False)
+        monkeypatch.setattr(manager, "capture", lambda fn: captures.append(fn) or capture(fn))
+        env._work = env._step_work()
+        env.reset()
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        for _ in range(3):
+            env.step(actions)
+        # The physics steps eagerly, and the rest of the step replays as one graph after it.
+        assert env.is_captured and env.num_graphs == 1 and len(captures) == 1
+    finally:
+        env.close()
+
+
+def test_replayed_steps_do_the_host_work_of_their_physics_steps():
+    """Replayed steps count their physics steps and advance the simulation time, as stepping eagerly does."""
+    env = MDP2RLEnv(cartpole_cfg())
+    try:
+        env.reset()
+        steps, time = env.sim.get_physics_step_count(), env.sim.backend_manager.get_simulation_time()
+        for _ in range(5):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        assert env.is_captured
+        assert env.sim.get_physics_step_count() - steps == 5 * env.cfg.decimation
+        assert env.sim.backend_manager.get_simulation_time() - time == pytest.approx(5 * env.step_dt)
+    finally:
+        env.close()
+
+
+def push_pole_torch(mask, joint_vel, joint_ids):
+    joint_vel[:, joint_ids.long()] += 5.0 * mask[:, None]
+
+
+def test_tunables_switches_stages_variations_and_control_actions_run_in_the_captured_step():
+    """A task with a tunable weight, a switched reward, a variation, an action at the control rate, and a sequence
+    whose second task pushes the pole when it starts, steps alike captured and uncaptured; the solver sees the push,
+    and tunings change replayed steps."""
+    cfg = cartpole_cfg()
+    task = cfg.task
+    task = replace(
+        task,
+        actions={"joint_effort": replace(task.actions["joint_effort"], rate=mdp2.ActionRate.CONTROL)},
+        rewards={
+            **task.rewards,
+            "alive": replace(task.rewards["alive"], weight=mdp2.Tunable(1.0)),
+            "pole_vel": replace(task.rewards["pole_vel"], when=mdp2.Tunable(True)),
+        },
+    )
+    ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": 3})
+    push = mdp2.Event(
+        mdp2.Term(torch=push_pole_torch),
+        inputs={"joint_ids": pole},
+        outputs={"joint_vel": robot.joint_vel},
+        mode=mdp2.EventMode.START,
+    )
+    cfg.task = mdp2.compose(
+        task,
+        mdp.variation("cart_start", robot.joint_pos, cart, mdp.Uniform(-0.1, 0.1)),
+        mdp2.TaskCfg(quantities={"ready": ready}),
+        mdp2.sequence(
+            warm=mdp2.Milestone(mdp2.quantities.ready),
+            push=mdp2.TaskCfg(events={"push": push}, done=mdp2.terminated),
+        ),
+    )
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.verify_capture = 10
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        cart_start = env.state.arrays[mdp2.quantities.cart_start].torch
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        pole_vel = env.scene["robot"].data.joint_vel.torch[:, 1]
+        for step in range(1, 6):
+            _, _, _, _, extras = env.step(actions)
+            if step == 2:
+                still = pole_vel.abs().max().item()
+        # The push task started at the end of step 3, and the solver stepped the pushed pole from step 4.
+        assert env.is_captured and still < 2.0 and (pole_vel.abs() > 3.0).all()
+        assert ((cart_start >= -0.1) & (cart_start < 0.1)).all() and cart_start.std() > 0
+        rewards = [op.name for op in env.mdp.ops[mdp2.Phase.REWARDS]]
+        alive, pole_vel_term = rewards.index("rewards.alive"), rewards.index("rewards.pole_vel")
+        env.tune("rewards.alive.weight", 0.0, at="step")
+        env.tune("rewards.pole_vel.when", False, at="step")
+        env.step(actions)
+        assert (env.transition.reward_terms.torch[:, alive] == 0.0).all()
+        env.step(actions)  # The switch turned off at the end of the step before
+        assert (env.transition.reward_terms.torch[:, pole_vel_term] == 0.0).all()
+        assert env.state.revision.torch.tolist() == [2] * NUM_ENVS
     finally:
         env.close()

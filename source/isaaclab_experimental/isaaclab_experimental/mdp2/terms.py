@@ -85,6 +85,7 @@ class Term:
     # False for Python hooks that cannot run inside a CUDA graph, such as hooks that read values on the host. They run
     # between the graphs, which splits them.
     capturable: bool = True
+    dtype: type | None = None  # Output element type of an observation, such as wp.uint8; float32 if None
 
     def __post_init__(self) -> None:
         if self.torch is not None and not isinstance(self.torch, Implementation):

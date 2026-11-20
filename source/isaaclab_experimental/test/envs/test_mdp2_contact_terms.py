@@ -184,13 +184,14 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
         sensor_cfg.resolve(env.scene)
 
         env.reset()
-        rewarded = False
+        rewarded = ended = False
         for _ in range(40):
             env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
             undesired_contacts = mdp1.undesired_contacts(mdp1_env, 1.0, sensor_cfg).float()
             feet_air_time = velocity_mdp1.feet_air_time(mdp1_env, "forward", sensor_cfg, 0.1)
             illegal_contact = mdp1.illegal_contact(mdp1_env, 50.0, sensor_cfg)
             rewarded |= bool(feet_air_time.abs().sum() > 0.0)
+            ended |= bool(illegal_contact.any())
 
             for model, state, transition in models.values():
                 mdp2.evaluate(model, state, transition)
@@ -199,7 +200,7 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
                 torch.testing.assert_close(observations["feet_air_time"].torch[:, 0], feet_air_time)
                 assert torch.equal(transition.termination_terms.torch[:, 0], illegal_contact)
 
-        assert rewarded  # The feet landed during the rollout.
+        assert rewarded and ended  # The feet landed during the rollout, hard enough to end an episode.
 
         # A reset clears the contacts that ended the last episode.
         env.reset()

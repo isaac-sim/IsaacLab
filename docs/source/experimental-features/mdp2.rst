@@ -95,7 +95,75 @@ each runtime function's steps.
    print(mdp.describe())
 
 :class:`~isaaclab_experimental.mdp2.MDPBuilder.replicate` runs different task configs, with their own rewards and
-weights, in different worlds of one scene.
+weights, in different worlds of one scene; :func:`~isaaclab_experimental.mdp2.split` does it from a task config.
+
+
+Subtasks and progress
+---------------------
+
+A task may say when it is ``done``, and hold named subtasks, which are tasks too. Three functions combine tasks into
+one:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Function
+     - Subtasks run
+     - The task is done
+   * - :func:`~isaaclab_experimental.mdp2.compose`
+     - in the same worlds, at the same steps
+     - once ``require`` of them are (all by default)
+   * - :func:`~isaaclab_experimental.mdp2.sequence`
+     - in the same worlds, one after another
+     - once the last one is
+   * - :func:`~isaaclab_experimental.mdp2.split`
+     - each in its own worlds
+     - once the one of the world is
+   * - :func:`~isaaclab_experimental.mdp2.choice`
+     - one per episode and world, drawn at the reset
+     - once the drawn one is
+
+.. code-block:: python
+
+   q = mdp2.quantities
+   TASK = mdp2.compose(
+       BASE,  # Uses of every step: observations, the action rate, the time limit
+       mdp2.sequence(
+           reach=mdp2.TaskCfg(rewards={"reach": ...}, done=q.near_object),
+           grasp=mdp2.TaskCfg(rewards={"grasp": ...}, done=q.grasped, hold=3),
+           lift=mdp2.Milestone(q.lifted),
+       ),
+   )
+   terminations = {"success": mdp2.Termination(mdp.is_true, inputs={"value": mdp2.progress.done})}
+
+- **Completion.** ``done`` is a field of one value per world, true where positive, that must hold for ``hold`` steps
+  in a row, counted from the step after the task starts. A :class:`~isaaclab_experimental.mdp2.Milestone` is a task
+  with only a completion. ``final=True`` (or ``False``) makes the parent done only while the subtask's completion
+  still holds (or does not), and ``score`` weighs the subtask in the parent's score.
+- **Stages.** A subtask of a sequence starts at the step after the previous one is done, and the last one keeps
+  running. Its uses run only while it does: its rewards, terminations, commands, and events follow the subtask that
+  ran when the step started, and its observations the one that runs after it. Starting restarts their state, timers,
+  commands, and observation histories. Quantities are measurements: they run in every step, and only restart. Reset
+  and startup events set up whole episodes, so they run at every reset; ``EventMode.START`` events run when their
+  task starts, at the reset or during the episode. Uses that the tasks define alike, but for their names, run as one
+  while any of these tasks runs, so their state and histories carry on; a use of all of them is one of the sequence.
+- **Repeats.** ``repeat=True`` counts a task's completions as ``mdp2.progress.<task>.count``, such as the drops of an
+  object: once done, it restarts, with its subtasks and uses, when its completion no longer holds.
+- **Names.** The uses of a subtask get its name as a prefix, as in ``rewards.grasp.grasp``, except in a split, whose
+  subtasks run apart. A subtask reads its own fields by their names, as a task alone does, so each stage of a
+  sequence can have its own ``reached``: its commands and quantities, the ``term_state`` and ``tunable`` values of its
+  uses, and its ``mdp2.progress``; inner names win. Observations and actions of subtasks that take turns (a sequence,
+  a choice, or a split) share the columns of their name, as wide as the widest, so a ``goal`` of each stage, or the
+  ``joint_pos`` of two robots in two world configs, is one input of the policy. Those of subtasks that run together
+  get columns of their own, named with the subtask's name, as in ``left.joint_pos``;
+  :func:`~isaaclab_experimental.mdp2.rename` binds a part to other entities, so that it can run twice.
+  :meth:`~isaaclab_experimental.mdp2.MDP.spec` names the columns, with joint and body names, and
+  :meth:`~isaaclab_experimental.mdp2.MDP.action_mask` and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask`
+  give those each world takes and writes.
+- **Progress.** Every task's progress is a set of fields that terms read: ``mdp2.progress.done``,
+  ``mdp2.progress.grasp.done``, and also ``holding``, ``active``, ``score``, ``done_at``, ``started_at``, and a
+  sequence's ``stage`` (observed with :data:`~isaaclab_experimental.mdp2.mdp.one_hot`). ``MDP2RLEnv`` logs whether each
+  task was done as ``Progress/<task>``.
 
 
 Backends and capture
@@ -124,14 +192,15 @@ in them; it calls ``fn(env)`` with full access to the environment, inside the st
 
 .. code-block:: python
 
-   cfg.step                # [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+   cfg.step                # [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
    cfg.reset_step          # [ResetStep.EVENTS, ResetStep.COMMIT, ResetStep.OBSERVE]
 
    cfg.step.insert(cfg.step.index(Step.PHYSICS) + 1, Stage(update_height_map))         # after the physics
    cfg.reset_step.insert(cfg.reset_step.index(ResetStep.OBSERVE), Stage(move_objects))  # after the commit
    cfg.step.append(Stage(log_episode_length, capturable=False))                         # at the end, on the host
 
-The built-in steps must each appear once, in this order; the environment raises otherwise.
+The built-in steps must each appear once, in this order, except the optional ``Step.RENDER`` and
+``ResetStep.RENDER``; the environment raises otherwise.
 
 The fused ``wp.func`` path is what makes MDP2 fast: one kernel per statement instead of fused kernels costs Go2
 78 → 121 µs and Lift 234 → 293 µs per step at 4096 worlds, also inside a graph. Library terms use it; Python hooks and
@@ -158,24 +227,133 @@ solver's model: about 250 µs per step for 4096 Cartpole worlds on MJWarp. Rando
 can.
 
 
+Cameras, composition, and evaluation
+------------------------------------
+
+These features let an evaluation framework, such as Isaac Lab Arena, build its environments on MDP2: a policy such as
+a vision-language-action model reads camera images and named observation terms, and the environment reports how each
+episode ended.
+
+- **Cameras** are scene entities whose data types are fields, such as ``external_camera.rgb``. ``MDP2Env`` renders
+  the cameras that terms read once per control step at ``Step.RENDER``, after the physics, inside the step's CUDA
+  graph; a step without ``Step.RENDER`` is an error when terms read cameras. Insert ``ResetStep.RENDER`` before
+  ``ResetStep.OBSERVE`` in ``reset_step`` to render them again after the resets, so that new episodes start with
+  their own images.
+- **Observation groups.** A group in :attr:`~isaaclab_experimental.mdp2.TaskCfg.observations` is a dict of uses,
+  concatenated into one ``float32`` tensor, or an :class:`~isaaclab_experimental.mdp2.ObservationGroup`. With
+  ``concatenate=False``, the group is observed as a dict of tensors with each term's own shape and type, such as
+  ``uint8`` images from :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
+- **Action terms.** A :class:`~isaaclab_experimental.mdp2.DirectAction` scales its columns of the action into a
+  field. An :class:`~isaaclab_experimental.mdp2.Action` runs a term's hook on its columns instead, such as
+  :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position` for a gripper, which closes on either side of a
+  threshold, as MDP1's binary joint actions do.
+- **Composition.** :func:`~isaaclab_experimental.mdp2.compose` merges partial task configs term by term, such as
+  those of a scene, an embodiment, and a task, and reports uses that two of them define; a later part removes a use
+  by setting it to ``None``. Uses keep the order of the parts.
+- **Success** is the completion of the task, built from milestones and subtasks (see `Subtasks and progress`_),
+  which a :class:`~isaaclab_experimental.mdp2.Termination` ends the episode on.
+- **Episode budget.** With ``episode_budget``, ``MDP2RLEnv`` runs that many episodes over its worlds, then stops them,
+  and records each episode on the device: its world, length, how it ended, its ``Quantity(record=True)`` values, and
+  the step at which each task was done. :meth:`~isaaclab_experimental.envs.MDP2RLEnv.episode_records` returns them.
+
+.. code-block:: python
+
+   cfg.episode_budget = 50
+   env = MDP2RLEnv(cfg)
+   obs, _ = env.reset()
+   while env.episodes_completed < cfg.episode_budget:
+       obs, *_ = env.step(policy(obs["policy"], obs["camera_obs"]))
+   success_rate = env.episode_records()["termination/success"].mean()
+
+
+Changing a task while it trains
+-------------------------------
+
+The values and structure of a task can change while it runs, at the cost of what they invalidate.
+
+.. code-block:: python
+
+   track = mdp2.Reward(mdp.track_lin_vel_xy_exp, ..., params={"std": mdp2.Tunable(0.5)}, weight=mdp2.Tunable(1.5))
+   rewards = {"track": track}
+   env.tune("rewards.track.weight", 3.0)                              # In each world at its next reset
+   env.tune("rewards.track.std", 0.25, worlds=slice(0, 2048), at="step")  # From the next step
+
+   rewards = {"stand_still": mdp2.Reward(..., when=mdp2.commands.standing)}  # Only where the mode command says so
+   env.update_task(new_task)                                           # Recompile on the same scene, keep the state
+
+- **Runtime values.** A param or reward weight declared :class:`~isaaclab_experimental.mdp2.Tunable` is a field of
+  one value per world, ``mdp2.tunable(use, name)``, which ``wp.func`` s take as their world's value and other terms
+  and events may read and write, such as a curriculum. :meth:`~isaaclab_experimental.envs.MDP2Env.tune` changes it
+  in place while graphs replay, at each world's next reset by default, so that no episode mixes two values; each
+  world counts its tunings in ``state.revision``, which episode records hold. Tasks without tunable values compile
+  to the same kernels.
+- **Switches.** ``when`` on a reward, termination, observation, command, or interval event runs it where a field was
+  positive at the start of the step, and restarts it where it turns on; ``when=mdp2.Tunable(True)`` is a switch per
+  world that ``tune`` flips.
+- **Multi-task learning.** :func:`~isaaclab_experimental.mdp2.choice` draws one subtask per episode and world, by
+  weights; ``Progress/<task>`` logs each over the worlds that drew it.
+- **Variations.** :func:`~isaaclab_experimental.mdp2.mdp.variation` draws a value per world at every reset, writes it
+  to the scene, and records it per episode: :class:`~isaaclab_experimental.mdp2.mdp.Uniform` in a tunable range,
+  :class:`~isaaclab_experimental.mdp2.mdp.Choice`, or :class:`~isaaclab_experimental.mdp2.mdp.Replay` of recorded
+  values in the order of the resets, which does not depend on the number of worlds.
+- **Actions at two rates.** ``rate=ActionRate.CONTROL`` applies an action once per control step, before the physics
+  steps, such as an embedded whole-body controller that writes joint targets; the default applies it before every
+  physics step. Tasks of a sequence may take actions of their own.
+- **New structure.** :meth:`~isaaclab_experimental.envs.MDP2Env.update_task` builds another task on the same scene
+  and carries over, with :func:`~isaaclab_experimental.mdp2.migrate`, the state, random streams, and reward weights
+  of the uses that both have; it truncates the episodes by default, and the next step compiles and captures anew.
+
+Measured on Go2 at 4096 worlds (MDP time per step, physics replaced by nothing): the plain task 81 µs, every reward
+weight and tracking width tunable 81 µs, all rewards switched 86 µs, the rewards in two stages of a sequence 103 µs.
+
+
+Porting from Arena
+------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Arena
+     - MDP2
+   * - ``CompletionCriteria`` with subtasks
+     - a task with ``done`` or milestones, combined with ``compose`` or ``sequence``
+   * - ``subtasks_are_sequential``
+     - :func:`~isaaclab_experimental.mdp2.sequence` rather than :func:`~isaaclab_experimental.mdp2.compose`
+   * - ``K`` of the subtasks
+     - ``compose(..., require=K)``
+   * - ``desired_subtask_success_state``
+     - ``final=True`` or ``False`` on the subtask
+   * - ``TrueForConsecutiveSteps``
+     - ``hold=n``
+   * - ``object_on_destination``
+     - :data:`~isaaclab_experimental.mdp2.mdp.resting_on`, held with ``hold``
+   * - tracked events
+     - ``repeat=True``, counted as ``progress.<task>.count``
+   * - run-time variations and their JSONL records
+     - :func:`~isaaclab_experimental.mdp2.mdp.variation`, with ``episode_budget`` records
+   * - per-episode results
+     - ``env.episode_records()``: ``progress/<task>`` (the step it was done), ``progress/score``, recorded quantities
+   * - configclass merging of scene, embodiment, and task
+     - :func:`~isaaclab_experimental.mdp2.compose`, and :func:`~isaaclab_experimental.mdp2.rename` for a part twice
+
+
 Limitations
 -----------
 
 - Newton only. Different robots in different worlds are not supported, since Newton's articulation views need
   homogeneous worlds; different task configs on the same robot are.
-- The environments support implicit, ideal PD, and DC motor actuators only. Captured steps replay the actuators'
-  masked resets, and delayed actuators draw their delays from Torch's random generator on reset, which a replayed
-  graph would repeat. Actuator-network and BAM actuators are not supported yet either.
+- The environments support actuators that CUDA graphs can replay: Isaac Lab actuators with
+  :attr:`~isaaclab.actuators.ActuatorBase.capturable`, and Newton's own actuators, which run delayed and BAM ones.
+  Actuator networks are not supported.
 - Joint and body orderings (``ArticulationCfg.joint_ordering`` and ``body_ordering``) are not supported: terms read
   the asset's data in kernels, and orderings make the asset keep reordered copies that it refreshes outside the
   graphs.
 - Rendering runs on the host after each control step, outside the CUDA graphs: at most once per control step, when
   one of its physics steps reaches ``sim.render_interval``, and after the step's resets (MDP1 renders inside the
   decimation loop, before resets). ``render_enabled`` and ``num_rerenders_on_reset`` are not supported.
-- A step that replays as a CUDA graph skips the host bookkeeping of ``SimulationContext.step``: the physics step
-  count and the simulation time stop advancing after the first steps, a visualizer that pauses training does not
-  block the training loop, and the solver's post-step host checks do not run. Consumers that key frames by the
-  physics step count, such as video recorders, are not supported.
+- A step that replays as a CUDA graph does the host work of its physics steps once, after the replay
+  (:meth:`~isaaclab.sim.SimulationContext.after_replay`): it counts them, advances the simulation time, and waits
+  while a visualizer pauses training. The solver's post-step host checks do not run.
 - Asset data that is derived on demand, such as ``root_lin_vel_b``, is not refreshed by a captured step. Terms read
   the fields of the scene data, which alias the solver state; code outside the MDP that reads asset data between
   steps should use those too, for example ``root_com_vel_w`` rotated by ``root_link_pose_w``.

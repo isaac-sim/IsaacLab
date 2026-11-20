@@ -11,13 +11,16 @@ Each function runs its launches eagerly. To replay them as CUDA graphs, bind fix
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import Any, Literal
 
+import torch
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
+from .config import FieldSelector, Phase
 from .eager import call_init
 from .plan import Call
 
@@ -34,8 +37,17 @@ def startup(mdp: MDP, state: MDPState) -> None:
         launch(call)
 
 
+def process_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
+    """Store the actions, shape ``(num_worlds, action_dim)``, and apply those that apply once per control step, see
+    :class:`~.config.ActionRate`. Call it once per control step, before :func:`apply_actions`. Without such actions it
+    does nothing, and :func:`apply_actions` stores the actions."""
+    call = Call(state, actions=actions)
+    for launch in mdp.launches.process_actions:
+        launch(call)
+
+
 def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
-    """Store the actions, shape ``(num_worlds, action_dim)``, and write them to their target fields."""
+    """Write the actions that apply before every physics step to their target fields; call it before each."""
     call = Call(state, actions=actions)
     for launch in mdp.launches.apply_actions:
         launch(call)
@@ -68,3 +80,79 @@ def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask
     call = Call(state, mask=mask, observations=observations)
     for launch in mdp.launches.observe:
         launch(call)
+
+
+def tune(
+    mdp: MDP,
+    state: MDPState,
+    path: str,
+    value: Any,
+    worlds: slice | Sequence[int] | torch.Tensor | None = None,
+    at: Literal["reset", "step"] = "reset",
+) -> None:
+    """Change a value declared :class:`~.config.Tunable`, such as ``"rewards.track.std"`` or ``"rewards.track.weight"``.
+
+    ``value`` is one value, or one per selected world. ``worlds`` selects worlds by index, slice, or ``bool`` mask, all
+    of them if None. At ``"reset"``, each world takes the value when its episode next resets, so that no episode mixes
+    two values; at ``"step"``, from the next step on, except a ``when``, which uses take at the end of a step and so
+    switch one step later. Each world counts the tunings it applied in
+    :attr:`MDPState.revision`. Writes in place, so captured steps keep replaying. Raises ``KeyError`` for a value that
+    is not tunable.
+    """
+    tuned = {value.path: value for value in mdp.tuned}
+    if path not in tuned:
+        raise KeyError(f"{path!r} is not tunable: declare it with mdp2.Tunable. Tunable values: {sorted(tuned)}.")
+    if at not in ("reset", "step"):
+        raise ValueError(f"Tunings apply at 'reset' or 'step', got {at!r}.")
+    target = tuned[path]
+    selected = torch.zeros(mdp.num_worlds, dtype=torch.bool, device=mdp.device)
+    selected[slice(None) if worlds is None else worlds] = True
+
+    # The value waits in the pending copy; a tuning for this step also writes it in place, and keeps the copy equal.
+    destinations = [state.arrays["pending", target.key].torch]
+    destinations += [state.arrays[target.key].torch] if at == "step" else []
+    for destination in destinations:
+        values = destination if target.column is None else destination[:, target.column]
+        values[selected] = torch.as_tensor(value, dtype=values.dtype, device=mdp.device)
+    if at == "step":
+        state.arrays["revision"].torch.add_(selected.int())
+    else:
+        state.arrays["pending"].torch.logical_or_(selected)
+
+
+_CARRIED = ("timer", "history", "on", "entered", "pending")
+"""Kinds of the arrays of single ops that :func:`migrate` carries over, by the first part of their keys."""
+
+
+def migrate(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) -> None:
+    """Carry the state of an MDP over to another built on the same scene, such as for an edited task.
+
+    Every array of the MDP that both key alike and shape alike carries over: the state, timers, histories, and
+    tunable values of the uses that both have, the commands, quantities, and progress, the episode lengths, and the
+    last actions. So do the random streams of the uses that both have, and the reward weights of the rewards. The init
+    hooks of the uses that the previous MDP did not have run, as at startup.
+    """
+    for key, array in state.arrays.items():
+        carried = isinstance(key, FieldSelector) and not key.scene
+        carried |= key in ("revision", "pending") or isinstance(key, tuple) and key[0] in _CARRIED
+        old = previous_state.arrays.get(key)
+        if (
+            carried
+            and old is not None
+            and old.torch.shape == array.torch.shape
+            and old.torch.dtype == array.torch.dtype
+        ):
+            array.torch.copy_(old.torch)
+
+    for row, name in enumerate(mdp.streams):
+        if name in previous.streams:
+            state.rng.torch[row] = previous_state.rng.torch[previous.streams.index(name)]
+    rewards = [op.name for op in previous.ops[Phase.REWARDS]]
+    for column, op in enumerate(mdp.ops[Phase.REWARDS]):
+        if op.name in rewards:
+            state.reward_weights.torch[:, column] = previous_state.reward_weights.torch[:, rewards.index(op.name)]
+
+    uses = {op.use for op in previous.term_ops}
+    for op in mdp.term_ops:
+        if op.init is not None and op.use not in uses:
+            call_init(mdp, op, state, op.init)

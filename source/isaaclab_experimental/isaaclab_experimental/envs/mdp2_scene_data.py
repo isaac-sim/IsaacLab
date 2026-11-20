@@ -13,15 +13,14 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ActuatorBase
 from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import BaseContactSensor
+from isaaclab.sensors import BaseContactSensor, Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
 
-CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 """Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
 delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
 
@@ -49,6 +48,10 @@ class InteractiveSceneData:
     ``current_air_time``, ``last_air_time``, ``current_contact_time``, and ``last_contact_time``, per world and body.
     Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) [N] per world, body, and
     filter.
+
+    Cameras provide each of their data types, such as ``rgb`` (``uint8``) or ``depth`` [m], per world, pixel row,
+    pixel column, and channel, with the dimensions ``height``, ``width``, and ``<data type>_channels``. The
+    environment renders them once per control step, after the physics. Their fields are read-only.
 
     Events and actions write fields in place, and :meth:`commit` makes the simulation see the writes to the joint and
     root state. Where the asset's data is the solver's own state, as Newton's joint positions and root state usually
@@ -113,16 +116,12 @@ class InteractiveSceneData:
                     raise ValueError(
                         f"MDP2 needs the solver's joint and body order, but '{name}' sets a joint or body ordering."
                     )
-                # Captured steps replay the actuators' masked resets, so they must not draw from Torch's random
-                # generators, as delayed actuators do for their delays: a graph would repeat the same draws.
-                unsupported = sorted(
-                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in CAPTURED_ACTUATORS
-                )
+                # Captured steps replay the actuators' computes and masked resets.
+                unsupported = sorted(group for group, actuator in asset.actuators.items() if not _capturable(actuator))
                 if unsupported:
                     raise ValueError(
-                        f"MDP2 replays actuator resets inside CUDA graphs, so it supports"
-                        f" {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)} only, but '{name}' has the"
-                        f" actuator groups {unsupported}."
+                        f"MDP2 replays actuators inside CUDA graphs, so it supports capturable actuators only"
+                        f" (ActuatorBase.capturable), but '{name}' has the actuator groups {unsupported}."
                     )
                 views |= {
                     "joint_pos": data.joint_pos,
@@ -215,6 +214,28 @@ class InteractiveSceneData:
             )
             self._views[name] = views
 
+        # Cameras.
+        for name, sensor in scene.sensors.items():
+            if not isinstance(sensor, Camera):
+                continue
+            if sensor.cfg.update_period > 0.0:
+                raise ValueError(
+                    f"MDP2 renders cameras once per control step, so camera '{name}' must have an update_period of 0."
+                )
+            # Data types have their own number of channels, such as rgb_channels.
+            views = dict(sensor.data.output)
+            _, height, width, _ = next(iter(views.values())).shape
+            names = {"height": tuple(map(str, range(height))), "width": tuple(map(str, range(width)))}
+            names |= {f"{field}_channels": tuple(map(str, range(view.shape[3]))) for field, view in views.items()}
+            entities[name] = EntitySchema(
+                names=names,
+                fields={
+                    field: FieldSchema(("height", "width", f"{field}_channels"), view.warp.dtype)
+                    for field, view in views.items()
+                },
+            )
+            self._views[name] = views
+
         # Scene-wide fields.
         self._views["scene"] = {
             "env_origins": ProxyArray(wp.from_torch(scene.env_origins.contiguous(), dtype=wp.vec3f))
@@ -295,3 +316,11 @@ def _newton_backend(sim: SimulationContext) -> _NewtonBackend | None:
     if type(sim.backend_manager).__module__.split(".")[0] != "isaaclab_newton":
         return None
     return _NewtonBackend()
+
+
+def _capturable(actuator: Any) -> bool:
+    """Return whether a CUDA graph can replay an actuator: an Isaac Lab model that is capturable, or a backend-native
+    actuator that is graphable, such as a delayed one that Newton runs."""
+    if isinstance(actuator, ActuatorBase):
+        return type(actuator).capturable
+    return actuator.is_graphable()
