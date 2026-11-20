@@ -1,0 +1,56 @@
+#usda 1.0
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+(
+    defaultPrim = "Workcell"
+    doc = "Visual warehouse composition in the trained policy workspace. Physics and dynamic parcel inventory are task-owned."
+    endTimeCode = 3961.839363238777
+    framesPerSecond = 60
+    metersPerUnit = 1
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def Xform "Workcell"
+{
+    # Align the A12 crown with the unchanged 40 mm-high manipulation surface.
+    def Xform "Warehouse" (
+        prepend references = @warehouse.usda@
+    )
+    {
+        float3 xformOp:translate = (0, 0, -0.7956274313214358)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    # The Thor tabletop is at z=0 and its uniformly scaled feet reach the floor.
+    def Xform "RobotThorTableVisual" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Props/Mounts/thor_table.usd@
+    )
+    {
+        float3 xformOp:scale = (1.0007892217879695, 1.0007892217879695, 1.0007892217879695)
+        uniform token[] xformOpOrder = ["xformOp:scale"]
+    }
+
+    # A09 modules dress the manipulation straights. The referenced layer owns
+    # support dimensions independently of the unchanged physical belt surfaces.
+    def Xform "ConveyorLeftBottomA09Visual" (
+        prepend references = @conveyor_straight_supported.usda@
+    )
+    {
+        float3 xformOp:translate = (1.02, 0.27, -0.24562743132143575)
+        float3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Xform "ConveyorRightTopA09Visual" (
+        prepend references = @conveyor_straight_supported.usda@
+    )
+    {
+        float3 xformOp:translate = (1.02, -0.27, -0.24562743132143575)
+        float3 xformOp:scale = (0.22, 0.16041708441949068, 0.16041708441949068)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+}
