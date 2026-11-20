@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import functools
+import itertools
 import math
 
 import torch
@@ -376,6 +377,14 @@ def _update_progress(trees: tuple[TaskTree, ...], state: MDPState) -> None:
                     stage.add_((active & ~finished & (stage < len(counted)) & current).int())
                     complete = (stage == len(counted)) & finals
                     holding.copy_(held[:, -1])
+                elif node.mode is TaskMode.CHOICE:
+                    # Done once the drawn subtask is.
+                    stage, complete = field("stage"), torch.zeros_like(active)
+                    holding.zero_()
+                    for k, child in enumerate(counted):
+                        chosen = stage == node.children.index(child.path)
+                        complete = torch.where(chosen, done_children[:, k], complete)
+                        holding.copy_(torch.where(chosen, held[:, k], holding))
                 else:
                     required = node.require or len(counted)
                     complete = (done_children.sum(1) >= required) & finals
@@ -414,7 +423,8 @@ def _repeat(state: MDPState, tree: TaskTree, node, complete: torch.Tensor, lengt
     for child in tree.descendants(node):
         for name, value in initial.items():
             key = progress_field(child.path, name)
-            if key in state.arrays:
+            # A choice keeps the subtask it drew.
+            if key in state.arrays and not (name == "stage" and child.mode is TaskMode.CHOICE):
                 state.arrays[key].torch[tree.worlds.start : tree.worlds.stop].masked_fill_(restarted, value)
 
 
@@ -422,6 +432,12 @@ def _score(state: MDPState, tree: TaskTree, node) -> torch.Tensor:
     """Return a task's score from its subtasks': their weighted mean, or the mean of the best ``require`` of them."""
     counted = tree.counted(node)
     scores = torch.stack([_progress(state, tree, child.path, "score") for child in counted], 1)
+    if node.mode is TaskMode.CHOICE:
+        # The score of the drawn subtask.
+        stage, score = _progress(state, tree, node.path, "stage"), torch.zeros_like(scores[:, 0])
+        for k, child in enumerate(counted):
+            score = torch.where(stage == node.children.index(child.path), scores[:, k], score)
+        return score
     if node.mode is TaskMode.TOGETHER and node.require is not None:
         return scores.topk(node.require, dim=1).values.mean(1)
     total = sum(child.score for child in counted)
@@ -442,6 +458,8 @@ def _start_tasks(trees: tuple[TaskTree, ...], state: MDPState) -> None:
                 # The last task keeps running once it is done.
                 stage = _progress(state, tree, parent.path, "stage").clamp(max=len(parent.children) - 1)
                 runs &= stage == parent.children.index(node.path)
+            elif parent is not None and parent.mode is TaskMode.CHOICE:
+                runs &= _progress(state, tree, parent.path, "stage") == parent.children.index(node.path)
             # A task starts where it did not run, and restarts with a parent that started or a repeat.
             fresh = ~active
             if parent is not None and tree.restarts(parent):
@@ -455,7 +473,8 @@ def _start_tasks(trees: tuple[TaskTree, ...], state: MDPState) -> None:
 
 
 def _reset_progress(trees: tuple[TaskTree, ...], state: MDPState, mask: torch.Tensor) -> None:
-    """Restart the progress of every task in the masked worlds, as at the start of an episode."""
+    """Restart the progress of every task in the masked worlds, as at the start of an episode, parents first: a choice
+    draws its subtask."""
     for tree in trees:
         selected = mask[tree.worlds.start : tree.worlds.stop]
         for node in tree.nodes:
@@ -466,3 +485,17 @@ def _reset_progress(trees: tuple[TaskTree, ...], state: MDPState, mask: torch.Te
                 key = progress_field(node.path, name)
                 if key in state.arrays:
                     state.arrays[key].torch[tree.worlds.start : tree.worlds.stop].masked_fill_(selected, value)
+            if node.mode is TaskMode.CHOICE:
+                draw = rng.uniform(state.rng.torch[node.stream], 0.0, 1.0)[tree.worlds.start : tree.worlds.stop]
+                drawn = sum((draw >= bound).int() for bound in itertools.accumulate(node.weights[:-1]))
+                stage = _progress(state, tree, node.path, "stage")
+                stage.copy_(torch.where(selected, drawn, stage))
+            if tree.drawn(node):
+                parent, index = tree.parent(node), tree.parent(node).children.index(node.path)
+                runs = _progress(state, tree, parent.path, "active")
+                if parent.mode is TaskMode.CHOICE:
+                    runs = runs & (_progress(state, tree, parent.path, "stage") == index)
+                elif parent.mode is TaskMode.SEQUENCE and index > 0:
+                    runs = torch.zeros_like(runs)
+                active = _progress(state, tree, node.path, "active")
+                active.copy_(torch.where(selected, runs, active))

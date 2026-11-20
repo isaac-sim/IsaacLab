@@ -15,6 +15,7 @@ Torch hooks the same way.
 from __future__ import annotations
 
 import functools
+import itertools
 import math
 from collections.abc import Callable, Hashable, Iterable, Sequence
 
@@ -728,6 +729,14 @@ def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) ->
                 f"complete = {stage} == {len(counted)} and ({finals})",
                 f"{holding} = {children[-1]('holding')}",
             ]
+        elif node.mode is TaskMode.CHOICE:
+            # Done once the drawn subtask is.
+            lines = ["complete = False", f"{holding} = False"]
+            for k, child_path in enumerate(node.children):
+                if child_path in tree.completes:
+                    child = functools.partial(_progress, code, child_path)
+                    lines += _under([f"if {field('stage')} == {k}:"], f"complete = {child('done')}")
+                    lines += _under([f"if {field('stage')} == {k}:"], f"{holding} = {child('holding')}")
         else:
             required = node.require or len(counted)
             lines = [
@@ -754,6 +763,13 @@ def _node_progress(code: Fusion, tree: TaskTree, node: TaskNode, length: str) ->
 
     counted = tree.counted(node)
     scores = [_progress(code, child.path, "score") for child in counted]
+    if node.mode is TaskMode.CHOICE:
+        # The score of the drawn subtask.
+        lines.append(f"{score} = 0.0")
+        for child in counted:
+            k = node.children.index(child.path)
+            lines += _under([f"if {field('stage')} == {k}:"], f"{score} = {_progress(code, child.path, 'score')}")
+        return [*lines, *kept]
     if node.mode is TaskMode.TOGETHER and node.require is not None:
         # The mean of the best ``require`` scores, picked one at a time.
         lines += ["taken = int(0)", "total = float(0.0)"]
@@ -822,6 +838,8 @@ def _start_tasks(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
                 # The last task keeps running once it is done.
                 stage = f"wp.min({_progress(code, parent.path, 'stage')}, {len(parent.children) - 1})"
                 runs = f"{runs} and {stage} == {parent.children.index(node.path)}"
+            elif parent is not None and parent.mode is TaskMode.CHOICE:
+                runs = f"{runs} and {_progress(code, parent.path, 'stage')} == {parent.children.index(node.path)}"
             field = functools.partial(_progress, code, node.path)
             # A task starts where it did not run, and restarts with a parent that started or a repeat.
             fresh = [f"not {field('active')}"]
@@ -840,7 +858,8 @@ def _start_tasks(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
 
 
 def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
-    """Restart the progress of every task in the masked worlds, as at the start of an episode."""
+    """Restart the progress of every task in the masked worlds, as at the start of an episode, parents first: a choice
+    draws its subtask."""
     for tree in trees:
         lines = []
         for node in tree.nodes:
@@ -851,8 +870,9 @@ def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
                 f"{field('done_at')} = -1",
                 f"{field('started_at')} = 0",
                 f"{field('score')} = 0.0",
-                f"{field('active')} = {tree.runs_at_start(node)}",
-                *([f"{field('stage')} = 0"] if node.mode is TaskMode.SEQUENCE else []),
+                f"{field('active')} = {_runs_at_start(code, tree, node)}",
+                *([f"{field('stage')} = 0"] if node.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE) else []),
+                *(_draw(code, node) if node.mode is TaskMode.CHOICE else []),
                 *([f"{field('streak')} = 0"] if node.done is not None else []),
                 *([f"{field('entered')} = False"] if node.staged else []),
                 *([f"{field('count')} = 0", f"{field('spent')} = False"] if node.repeat else []),
@@ -861,6 +881,27 @@ def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
         names = ("done", "holding", "done_at", "started_at", "score", "active", "stage", "streak", "entered")
         names += ("count", "spent", "restarted")
         code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
+
+
+def _runs_at_start(code: Fusion, tree: TaskTree, node: TaskNode) -> str:
+    """Return source for whether a task runs at the start of an episode, after its parent's start: below a choice,
+    where the choice drew it."""
+    if not tree.drawn(node):
+        return str(tree.runs_at_start(node))
+    parent = tree.parent(node)
+    runs = _progress(code, parent.path, "active")
+    index = parent.children.index(node.path)
+    if parent.mode is TaskMode.CHOICE:
+        return f"{runs} and {_progress(code, parent.path, 'stage')} == {index}"
+    return "False" if parent.mode is TaskMode.SEQUENCE and index > 0 else runs
+
+
+def _draw(code: Fusion, node: TaskNode) -> list[str]:
+    """Return the statements that draw the subtask of a choice by its chances."""
+    lines = [f"draw = wp.randf(wp.rand_init({_rng(code)}[{node.stream}, world], 0), 0.0, 1.0)"]
+    for k, bound in enumerate(itertools.accumulate(node.weights[:-1]), start=1):
+        lines += [f"if draw >= {bound!r}:", f"    {_progress(code, node.path, 'stage')} = {k}"]
+    return lines
 
 
 def _switch(code: Fusion, ops: tuple[TermOp, ...], stepping: bool) -> None:

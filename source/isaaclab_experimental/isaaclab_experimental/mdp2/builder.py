@@ -268,7 +268,7 @@ class MDPBuilder:
 
         for name, subtask in task.subtasks.items():
             subtask_names = names if task.mode is TaskMode.SPLIT else (*names, name)
-            in_sequence = staged or task.mode is TaskMode.SEQUENCE
+            in_sequence = staged or task.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE)
             self._add_task(subtask, (*path, name), subtask_names, in_sequence, scope, restarts)
 
     def add_action(self, name: str, action: DirectAction | Action) -> ScheduleEntry:
@@ -415,7 +415,7 @@ class MDPBuilder:
             errors.append(f"The world configs cover {world_ranges[-1].stop} of {self.schema.num_worlds} worlds.")
         # Progress is tracked if any task has a completion or a sequence.
         tracked = any(
-            task.done is not None or task.mode is TaskMode.SEQUENCE
+            task.done is not None or task.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE)
             for _, tasks, _ in configs
             for task, _ in tasks.values()
         )
@@ -484,6 +484,19 @@ class MDPBuilder:
             else op
             for op in ops[Phase.OBSERVATIONS]
         )
+        # A choice draws its subtask from a stream of its own.
+        trees = tuple(
+            replace(
+                tree,
+                nodes=tuple(
+                    replace(node, stream=streams.setdefault(f"choice/{node.path}", len(streams)))
+                    if node.mode is TaskMode.CHOICE
+                    else node
+                    for node in tree.nodes
+                ),
+            )
+            for tree in trees
+        )
         ops = MappingProxyType(ops)
         tuned = _tuned_values(ops, errors)
 
@@ -536,7 +549,8 @@ class MDPBuilder:
         for path, (task, _) in tasks.items():
             for name in ("done", "holding", "active"):
                 context.mdp_fields[progress_field(path, name)] = ArrayLayout(wp.bool, 1, {})
-            sequence, repeat = ["stage"] if task.mode is TaskMode.SEQUENCE else [], ["count"] if task.repeat else []
+            staged = ["stage"] if task.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE) else []
+            sequence, repeat = staged, ["count"] if task.repeat else []
             for name in ("done_at", "started_at", *sequence, *repeat):
                 context.mdp_fields[progress_field(path, name)] = ArrayLayout(wp.int32, 1, {})
             context.mdp_fields[progress_field(path, "score")] = ArrayLayout(wp.float32, 1, {})
@@ -616,6 +630,13 @@ class MDPBuilder:
         if task.mode is TaskMode.SEQUENCE and len(completes) != len(children):
             missing = sorted(set(task.subtasks) - set(completes))
             errors.append(f"{name}: every task of a sequence needs a completion, {missing} have none.")
+        weights = ()
+        if task.mode is TaskMode.CHOICE:
+            chances = task.weights or dict.fromkeys(task.subtasks, 1.0)
+            if set(chances) != set(task.subtasks) or not all(chance >= 0 for chance in chances.values()):
+                errors.append(f"{name}: a choice needs a weight of at least 0 for each of {list(task.subtasks)}.")
+            elif sum(chances.values()) > 0:
+                weights = tuple(chances[child] / sum(chances.values()) for child in task.subtasks)
         if task.require is not None and not 1 <= task.require <= len(completes):
             errors.append(f"{name}: require must be between 1 and {len(completes)}, the subtasks with a completion.")
         return TaskNode(
@@ -630,6 +651,7 @@ class MDPBuilder:
             require=task.require,
             staged=staged,
             repeat=task.repeat,
+            weights=weights,
         )
 
     def _compile_action(self, entry: ScheduleEntry, context: CompileContext) -> None:
@@ -1405,7 +1427,7 @@ def _exclusive(first: TermOp, second: TermOp, modes: Mapping[str, TaskMode]) -> 
     common = list(itertools.takewhile(lambda pair: pair[0] == pair[1], zip(a, b)))
     if len(common) in (len(a), len(b)):
         return False
-    return modes.get(".".join(part for part, _ in common)) is TaskMode.SEQUENCE
+    return modes.get(".".join(part for part, _ in common)) in (TaskMode.SEQUENCE, TaskMode.CHOICE)
 
 
 def _used_columns(ops: tuple[TermOp, ...], worlds: range) -> dict[str, int]:

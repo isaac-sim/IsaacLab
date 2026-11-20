@@ -52,3 +52,6 @@
 * Added nested splits to MDP2: a :func:`~isaaclab_experimental.mdp2.split` may be a step of a sequence, and several
   subtasks that split divide the same worlds, such as robots and terrains, each world running the subtask of its
   share of each.
+* Added :func:`~isaaclab_experimental.mdp2.choice`, which draws one subtask per episode and world at the reset, by
+  weights, for multi-task learning: only the drawn subtask's uses run, and ``Progress/<task>`` logs its success over
+  the worlds that drew it.

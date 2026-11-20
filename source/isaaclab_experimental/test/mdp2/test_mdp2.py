@@ -2293,3 +2293,31 @@ def test_actions_apply_once_per_control_step_or_before_every_physics_step():
             target = scene.data("robot", "joint_effort_target").torch
             assert target.tolist() == [[3.0, 1.0], [6.0, 0.5]] and torch.equal(state.actions.torch, actions.torch)
             assert len(mdp.launches.process_actions) == 1 and len(mdp.plan.apply_actions) == 1
+
+
+def test_choice_draws_one_subtask_per_episode_and_world():
+    """A choice draws one subtask per world at each reset, by its weights: only that subtask's uses run, the task is
+    done once it is, and its ``stage`` is the drawn subtask."""
+
+    def skill(joint: str, reward: float) -> mdp2.TaskCfg:
+        alive = mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}, weight=reward)
+        return mdp2.TaskCfg(rewards={"alive": alive}, done=getattr(mdp2.quantities, joint))
+
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")),
+        skills=mdp2.choice(weights={"left": 3.0, "right": 1.0}, left=skill("a", 1.0), right=skill("b", 2.0)),
+    )
+    runs = []
+    for backend in ("torch", "warp"):
+        for capture in (False, True) if torch.cuda.is_available() else (False,):
+            runs.append(run_progress(task, [[1.0, 0.0]], backend, capture, num_worlds=256)[2][0])
+    for run in runs[1:]:
+        for name, value in runs[0].items():
+            assert torch.equal(value, run[name]), name
+
+    step = runs[0]
+    left = step["skills.stage"] == 0
+    assert 0.65 < left.float().mean().item() < 0.85
+    assert torch.equal(step["skills.left.active"], left) and torch.equal(step["skills.right.active"], ~left)
+    assert torch.equal(step["done"], left)  # Joint "a" is up, "b" is down
+    torch.testing.assert_close(step["rewards"] / 0.02, torch.where(left, 1.0, 2.0))

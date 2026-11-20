@@ -505,7 +505,7 @@ class MDP:
                 array(node.path, "done_at", np.int32, -1)
                 array(node.path, "started_at", np.int32)
                 array(node.path, "score", np.float32)
-                if node.mode is TaskMode.SEQUENCE:
+                if node.mode in (TaskMode.SEQUENCE, TaskMode.CHOICE):
                     array(node.path, "stage", np.int32)
                 if node.done is not None:
                     array(node.path, "streak", np.int32)

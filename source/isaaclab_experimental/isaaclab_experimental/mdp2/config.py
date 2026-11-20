@@ -335,6 +335,7 @@ class TaskMode(enum.Enum):
     TOGETHER = enum.auto()  # In the same worlds and steps
     SEQUENCE = enum.auto()  # In the same worlds, one after another
     SPLIT = enum.auto()  # Each in its own worlds
+    CHOICE = enum.auto()  # One per episode and world, drawn at the reset
 
 
 @dataclass
@@ -372,6 +373,7 @@ class TaskCfg:
     mode: TaskMode = TaskMode.TOGETHER
     require: int | None = None  # Together: the subtasks that must be done, None for all of those with a completion
     worlds: dict[str, int] | None = None  # Split: the worlds of each subtask, None for even shares
+    weights: dict[str, float] | None = None  # Choice: the relative chance of each subtask, None for even chances
 
 
 @dataclass(init=False)
@@ -394,7 +396,8 @@ class Milestone(TaskCfg):
 PROGRESS_FIELDS = ("done", "holding", "active", "score", "done_at", "started_at", "stage", "count")
 """Fields of the progress of a task: whether it is done (once done, until the episode ends), whether its completion
 holds at this step, whether it runs, its score in ``[0, 1]``, the episode step at which it was first done (-1 before)
-and at which it last started, the subtask that a sequence runs, and how often a task that repeats was done."""
+and at which it last started, the subtask that a sequence or a choice runs, and how often a task that repeats was
+done."""
 
 
 @dataclass(frozen=True)
@@ -465,7 +468,7 @@ def compose(*tasks: TaskCfg, require: int | None = None, **subtasks: TaskCfg) ->
         composed.done, composed.hold, composed.score, composed.final = core.done, core.hold, core.score, core.final
         composed.repeat = core.repeat
         composed.subtasks, composed.mode = dict(core.subtasks), core.mode
-        composed.require, composed.worlds = core.require, core.worlds
+        composed.require, composed.worlds, composed.weights = core.require, core.worlds, core.weights
     if subtasks:
         if cores:
             errors.append("Tasks with a completion or subtasks cannot also get named subtasks; name them as well.")
@@ -480,6 +483,13 @@ def sequence(**subtasks: TaskCfg) -> TaskCfg:
     """Run subtasks one after another, in the same worlds. A subtask starts at the step after the previous one is
     done, and the task is done once the last one is, which keeps running until the episode ends."""
     return TaskCfg(subtasks=dict(subtasks), mode=TaskMode.SEQUENCE)
+
+
+def choice(weights: dict[str, float] | None = None, **subtasks: TaskCfg) -> TaskCfg:
+    """Run one of the subtasks in each episode and world, drawn at the reset with the relative chances ``weights``,
+    even ones if None, such as one skill of several for a policy to learn. The task is done once the drawn subtask is,
+    and ``mdp2.progress.<task>.stage`` is the index of the drawn subtask."""
+    return TaskCfg(subtasks=dict(subtasks), mode=TaskMode.CHOICE, weights=weights)
 
 
 def split(worlds: dict[str, int] | None = None, **subtasks: TaskCfg) -> TaskCfg:

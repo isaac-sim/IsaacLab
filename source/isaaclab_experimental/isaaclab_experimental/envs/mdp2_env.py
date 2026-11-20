@@ -506,8 +506,15 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         time_limits = [name for name, term in _terminations(cfg.task) if isinstance(term, mdp2.TimeLimit)]
         self._time_limit = time_limits[0] if time_limits else None
         # Progress: whether each task with a completion was done in each world's last finished episode, logged over
-        # the worlds of the world configs that have it.
+        # the worlds of the world configs that have it, and for a task of a choice over those that drew it.
         paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
+        drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
+        everywhere = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        self._task_runs = [
+            self.state.arrays[mdp2.progress_field(path, "active")].torch if path in drawn else everywhere
+            for path in paths
+        ]
+        self._last_runs = torch.ones(self.num_envs, len(paths), device=self.device)
         self._tasks = {
             f"Progress/{path or 'task'}": self.state.arrays[mdp2.progress_field(path, "done")].torch for path in paths
         }
@@ -673,6 +680,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         if self._tasks:
             done_tasks = torch.stack(list(self._tasks.values()), 1).float()
             torch.where(done[:, None], done_tasks, self._last_done, out=self._last_done)
+            runs = torch.stack(self._task_runs, 1).float()
+            torch.where(done[:, None], runs, self._last_runs, out=self._last_runs)
         if self._time_limit is not None:
             timed_out = self.state.episode_length.torch >= self.max_episode_length
             torch.where(done, timed_out, self._last_time_outs, out=self._last_time_outs)
@@ -700,7 +709,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             log[f"Metrics/{name}"] = last[worlds].mean()
         # A task is averaged over the worlds of its world config.
         for k, (name, worlds) in enumerate(zip(self._tasks, self._task_worlds)):
-            log[name] = self._last_done[worlds, k].mean()
+            runs = self._last_runs[worlds, k]
+            log[name] = (self._last_done[worlds, k] * runs).sum() / runs.sum().clamp(min=1.0)
         self.extras["log"] = log
 
 

@@ -196,6 +196,8 @@ class TaskNode:
     # ancestors repeats
     staged: bool
     repeat: bool = False
+    weights: tuple[float, ...] = ()  # Choice: the chance of each subtask
+    stream: int | None = None  # Choice: row of MDPState.rng that draws the subtask
 
 
 @dataclass(frozen=True)
@@ -213,12 +215,20 @@ class TaskTree:
         return None if not node.path else self.node(node.path.rpartition(".")[0])
 
     def runs_at_start(self, node: TaskNode) -> bool:
-        """Return whether a task runs at the start of an episode: all but the later tasks of a sequence do."""
+        """Return whether a task runs at the start of every episode: all but the later tasks of a sequence and the
+        tasks of a choice, which the reset draws, do."""
         parent = self.parent(node)
         if parent is None:
             return True
+        if parent.mode is TaskMode.CHOICE:
+            return False  # Until the reset draws it
         first = parent.mode is not TaskMode.SEQUENCE or parent.children[0] == node.path
         return first and self.runs_at_start(parent)
+
+    def drawn(self, node: TaskNode) -> bool:
+        """Return whether the reset draws whether a task runs: it or one of its ancestors is a subtask of a choice."""
+        parent = self.parent(node)
+        return parent is not None and (parent.mode is TaskMode.CHOICE or self.drawn(parent))
 
     def restarts(self, node: TaskNode) -> bool:
         """Return whether a task restarts while it runs: it or one of its ancestors repeats."""
