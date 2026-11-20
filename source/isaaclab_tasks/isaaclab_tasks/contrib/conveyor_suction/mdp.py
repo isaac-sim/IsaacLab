@@ -439,8 +439,6 @@ class SizeSortCommand(CommandTerm):
         else:
             self.destination_ids[selected] = self._env.parcel_classes[self._env.active_ids[selected]]
         offsets = torch.rand((len(selected), 2), device=self.device)
-        for axis, bounds in enumerate((self.cfg.goal_radial_range, self.cfg.goal_lateral_range)):
-            offsets[:, axis] = bounds[0] + offsets[:, axis] * (bounds[1] - bounds[0])
         self.goal_positions[selected] = self._reset_term._placement_goals(
             self._env.active_ids[selected], self.destination_ids[selected], offsets, env.layout_ids[selected]
         )
@@ -515,13 +513,10 @@ class ResetParcels(ManagerTermBase):
         sizes = env.parcel_sizes[parcel_ids]
         pick = torch.zeros((self.row_count, 3), device=self.device)
         pick[:, 0], pick[:, 1], pick[:, 2] = 0.54 + 0.10 * anchor, -0.19, BELT_TOP_Z + sizes[:, 2] + 0.004
-        cfg = env.cfg.commands.sort
         # Sample both pad axes independently of path progress, without multiplying catalog dimensions.
         offsets = (
             torch.quasirandom.SobolEngine(2, scramble=True, seed=env.cfg.seed).draw(self.row_count).to(self.device)
         )
-        for axis, bounds in enumerate((cfg.goal_radial_range, cfg.goal_lateral_range)):
-            offsets[:, axis] = bounds[0] + offsets[:, axis] * (bounds[1] - bounds[0])
         goal_positions = self._placement_goals(parcel_ids, destination_ids, offsets, layout_ids)
         goal = goal_positions.clone()
         goal[:, 2] += sizes[:, 2] / 2.0 + 0.010
@@ -615,7 +610,10 @@ class ResetParcels(ManagerTermBase):
         offsets: torch.Tensor,
         layout_ids: torch.Tensor,
     ) -> torch.Tensor:
-        """Keep goals reachable and yaw-independent parcel footprints on their physical pads."""
+        """Map unit-square samples to supported, reachable goals for yaw-independent parcel footprints."""
+        cfg = self._env.cfg.commands.sort
+        for axis, bounds in enumerate((cfg.goal_radial_range, cfg.goal_lateral_range)):
+            offsets[:, axis] = bounds[0] + offsets[:, axis] * (bounds[1] - bounds[0])
         sizes = self._env.parcel_sizes[parcel_ids]
         positions = self._env.layout_goal_positions[layout_ids, destination_ids].clone()
         directions = self._env.layout_directions[layout_ids, destination_ids]

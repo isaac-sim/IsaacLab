@@ -378,28 +378,8 @@ def _arc(
 
 def _flat_deck(name: str, start: float, end: float) -> MeshSpec:
     """Build a flat 24 cm-wide receiving deck or outfeed in lane coordinates."""
-    corners = (
-        (start, -0.12),
-        (end, -0.12),
-        (end, 0.12),
-        (start, 0.12),
-    )
-    vertices = tuple((x, y, BELT_TOP_Z - depth) for depth in (0.0, 0.025) for x, y in corners)
-    faces = (
-        (0, 1, 2),
-        (0, 2, 3),
-        (4, 6, 5),
-        (4, 7, 6),
-        (0, 4, 5),
-        (0, 5, 1),
-        (1, 5, 6),
-        (1, 6, 2),
-        (2, 6, 7),
-        (2, 7, 3),
-        (3, 7, 4),
-        (3, 4, 0),
-    )
-    return MeshSpec(name, vertices, faces)
+    vertices = tuple((x, y, BELT_TOP_Z - depth) for depth in (0.0, 0.025) for y in (0.12, -0.12) for x in (start, end))
+    return MeshSpec(name, vertices, _prism_faces(2, closed=False))
 
 
 def _add_box(

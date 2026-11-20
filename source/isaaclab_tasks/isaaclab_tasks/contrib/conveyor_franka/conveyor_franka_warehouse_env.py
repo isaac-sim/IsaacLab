@@ -56,9 +56,11 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         self._warehouse_period = self._warehouse_source.GetEndTimeCode()
         self._warehouse_fps = self._warehouse_source.GetTimeCodesPerSecond()
         for env_path in self.scene.env_prim_paths:
-            group = self._warehouse_source.GetPrimAtPath("/Warehouse/Parcels")
+            group = self._warehouse_source.GetPrimAtPath("/Workcell/Warehouse/Parcels")
             for source in group.GetChildren():
-                target = self.sim.stage.GetPrimAtPath(f"{env_path}/WarehouseVisual/Parcels/{source.GetName()}")
+                target = self.sim.stage.GetPrimAtPath(
+                    f"{env_path}/WarehouseVisual/Warehouse/Parcels/{source.GetName()}"
+                )
                 for name in ("xformOp:translate", "xformOp:rotateXYZ"):
                     self._warehouse_animation.append((source.GetAttribute(name), target.GetAttribute(name)))
 

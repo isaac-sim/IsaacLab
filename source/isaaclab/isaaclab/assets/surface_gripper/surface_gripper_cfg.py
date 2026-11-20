@@ -19,7 +19,8 @@ class SurfaceGripperCfg(AssetBaseCfg):
     """Configure a surface gripper using the active physics backend.
 
     On Newton, ``prim_path`` selects the rigid tool body and the tool geometry below
-    defines four compliant pads. Payloads must have exactly one collider, of box type.
+    defines four compliant pads with fixed force and seal thresholds. Payloads must
+    have exactly one collider, of box type.
     PhysX uses a surface-gripper prim and the four optional PhysX properties below.
     """
 
@@ -41,7 +42,7 @@ class SurfaceGripperCfg(AssetBaseCfg):
     target_prim_path: str = ".*"
     """Newton payload-body expression. All eligible boxes are candidates by default."""
 
-    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.105)
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Newton pad-center translation in the tool frame [m]; local +Z points toward payloads."""
 
     pad_spacing: float = 0.007
@@ -49,12 +50,3 @@ class SurfaceGripperCfg(AssetBaseCfg):
 
     pad_radius: float = 0.004
     """Newton pad radius [m]."""
-
-    contact_gap: float = 0.006
-    """Maximum Newton seal-to-face gap at acquisition [m]."""
-
-    break_distance: float = 0.025
-    """Maximum Newton seal-anchor separation before detachment [m]."""
-
-    force_per_pad: float = 4.0
-    """Newton force limit per pad [N]."""

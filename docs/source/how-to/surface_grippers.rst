@@ -25,6 +25,9 @@ payloads:
 On Newton, ``prim_path`` selects a rigid tool body; local +Z points from the pads toward the
 payload. Matching bodies with a single box collision shape are acquisition candidates. Closing
 acquires an eligible payload from its physical pose; it does not attach distant objects.
+The four-pad Newton model uses a fixed 4 N force limit per pad, a 6 mm acquisition gap
+and a 25 mm break distance. Tool offset defaults to the body origin; pad spacing and pad radius
+describe its hardware.
 On PhysX, ``prim_path`` selects an authored Isaac Sim surface-gripper prim, and the existing
 CPU-only limitation applies. PhysX-specific configuration imports remain supported;
 nondefault Newton target and pad settings are rejected by PhysX.
