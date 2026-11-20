@@ -210,14 +210,19 @@ def test_masked_joint_writes_preserve_other_entries_without_host_sync(tmp_path, 
             robot.set_joint_position_target_mask(target=values, env_mask=empty_mask)
             targets = robot.data.joint_pos_target.torch.clone()
             robot.set_joint_position_target_mask(target=values)
+            robot.reset(env_mask=env_mask)
+            reset_targets = robot.data.joint_pos_target.torch.clone()
             sim.step(render=False)
         finally:
             torch.cuda.set_sync_debug_mode(previous_mode)
         expected = torch.tensor([[0.1, 2.0], [0.1, 0.2]], device=device)
         torch.testing.assert_close(state, expected)
         torch.testing.assert_close(targets, expected)
-        # Unmasked writes reach the shared manager target and are applied on the next backend step.
-        torch.testing.assert_close(robot.data.joint_pos.torch, values)
+        # Reset clears selected targets to the current state, without resetting the recorded episode or defaults.
+        expected_reset = torch.tensor([[0.1, 2.0], [3.0, 4.0]], device=device)
+        torch.testing.assert_close(reset_targets, expected_reset)
+        torch.testing.assert_close(robot.data.joint_pos.torch, expected_reset)
+        torch.testing.assert_close(robot.data.default_joint_pos.torch, torch.tensor([[0.0, 0.5]] * N, device=device))
 
 
 def test_the_reset_event_checks_the_timing_when_the_environment_is_created(world):

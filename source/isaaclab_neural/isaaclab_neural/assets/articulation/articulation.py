@@ -151,8 +151,11 @@ class Articulation(BaseArticulation):
 
     def reset(self, env_ids=None, env_mask=None) -> None:
         """Clear the command buffers, as a physics backend does. The reset event sets the new joint state."""
-        ids = self._env_indices(env_ids, env_mask)
-        self._data.joint_pos_target.torch[ids] = self._data.joint_pos.torch[ids]
+        if env_mask is not None:
+            self._set_mask(self._data.joint_pos_target.torch, self._data.joint_pos.torch, None, env_mask)
+        else:
+            ids = self._indices(env_ids, self._num_instances)
+            self._data.joint_pos_target.torch[ids] = self._data.joint_pos.torch[ids]
 
     def write_data_to_sim(self) -> None:
         """No-op: the joint targets are the manager's buffer, applied on the next step."""
@@ -215,11 +218,6 @@ class Articulation(BaseArticulation):
         self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
 
     # ----------------------------------------------------------------- helpers
-
-    def _env_indices(self, env_ids, env_mask) -> torch.Tensor:
-        if env_mask is not None:
-            return torch.nonzero(wp.to_torch(env_mask).bool()).flatten().to(self._device)
-        return self._indices(env_ids, self._num_instances)
 
     def _indices(self, ids, size: int) -> torch.Tensor:
         if ids is None or isinstance(ids, slice):
