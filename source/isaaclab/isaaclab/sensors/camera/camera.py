@@ -830,7 +830,7 @@ class Camera(SensorBase):
     """
 
     def _push_frame_history(self, env_mask: wp.array) -> None:
-        """Append the latest RGB capture of the updated environments to the frame history.
+        """Append the latest capture of each output of the updated environments to the frame history.
 
         Renderers whose configuration sets ``provides_frame_history`` fill the whole history themselves and are
         skipped.
@@ -843,18 +843,20 @@ class Camera(SensorBase):
             updated = self._history_all
         else:
             updated = wp.to_torch(env_mask).bool()
-        selected = updated[:, None, None, None]
-        frames = self._data.frame_history.torch
-        capture = wp.to_torch(self._data.output["rgb"].warp)
-        # Shift the updated environments one frame towards the oldest, in place and without reading the mask on the
-        # host: each slot takes the next one's frame, then the newest slot takes the capture.
-        for t in range(frames.shape[1] - 1):
-            torch.where(selected, frames[:, t + 1], frames[:, t], out=frames[:, t])
-        torch.where(selected, capture, frames[:, -1], out=frames[:, -1])
         # The first capture of an environment, and its first after a reset, fills every slot, so the history never
         # holds frames of an ended episode.
         torch.logical_and(self._history_restart, updated, out=self._history_fill)
-        torch.where(self._history_fill[:, None, None, None, None], capture[:, None], frames, out=frames)
+        for name, history in self._data.frame_history.items():
+            frames = history.torch
+            capture = wp.to_torch(self._data.output[name].warp)
+            selected = updated.view(-1, *[1] * (capture.dim() - 1))
+            # Shift the updated environments one frame towards the oldest, in place and without reading the mask on
+            # the host: each slot takes the next one's frame, then the newest slot takes the capture.
+            for t in range(frames.shape[1] - 1):
+                torch.where(selected, frames[:, t + 1], frames[:, t], out=frames[:, t])
+            torch.where(selected, capture, frames[:, -1], out=frames[:, -1])
+            fill = self._history_fill.view(-1, *[1] * (frames.dim() - 1))
+            torch.where(fill, capture[:, None], frames, out=frames)
         self._history_restart.masked_fill_(updated, False)
         wp.to_torch(self._data.frame_history_mask.warp).copy_(updated)
 
@@ -862,11 +864,10 @@ class Camera(SensorBase):
         """Allocate the masks of the default history push; they stay ``None`` when the history is off or the renderer
         fills it."""
         self._history_restart = self._history_fill = self._history_all = None
-        history = self._data.frame_history
-        if history is None or getattr(self.cfg.renderer_cfg, "provides_frame_history", False):
+        mask = self._data.frame_history_mask
+        if mask is None or getattr(self.cfg.renderer_cfg, "provides_frame_history", False):
             return
-        num_views = history.torch.shape[0]
-        self._history_restart = torch.ones(num_views, dtype=torch.bool, device=history.torch.device)
+        self._history_restart = torch.ones_like(mask.torch, dtype=torch.bool)
         self._history_fill = torch.zeros_like(self._history_restart)
         self._history_all = torch.ones_like(self._history_restart)
 

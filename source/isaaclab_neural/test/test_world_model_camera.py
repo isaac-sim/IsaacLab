@@ -9,7 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
+from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
@@ -58,15 +60,15 @@ def test_the_start_frame_reaches_the_camera(world):
     scene.update(DT)
     data = scene["camera"].data
     assert data.output["rgb"].torch[:, 0, 0, 0].tolist() == [200, 201]
-    assert (data.frame_history.torch[1] == 201).all()
+    assert (data.frame_history["rgb"].torch[1] == 201).all()
 
 
 def test_a_chunk_fills_the_history_and_rgb_is_its_last_frame(world):
     sim, scene = world
     advance(sim, scene, T)
     data = scene["camera"].data
-    assert data.frame_history.torch[:, :, 0, 0, 0].tolist() == [[10, 11, 12, 13]] * N
-    assert torch.equal(data.output["rgb"].torch, data.frame_history.torch[:, -1])
+    assert data.frame_history["rgb"].torch[:, :, 0, 0, 0].tolist() == [[10, 11, 12, 13]] * N
+    assert torch.equal(data.output["rgb"].torch, data.frame_history["rgb"].torch[:, -1])
     assert (data.output["rgba"].torch[..., 3] == 255).all()
     assert data.frame_history_mask.torch.all()
 
@@ -87,15 +89,22 @@ def test_a_camera_is_bound_to_the_world_model_backend_and_must_match_the_model(t
         assert not scene["camera"].is_initialized
 
 
-def test_each_camera_shows_the_view_it_selects(tmp_path):
-    camera = SceneCfg().camera
+def test_each_camera_shows_the_view_it_selects_with_each_output(tmp_path):
+    outputs = {**NeuralRendererCfg().outputs, RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32)}
+    camera = SceneCfg().camera.replace(data_types=["rgb", "depth"])
 
     @configclass
     class TwoViewSceneCfg(InteractiveSceneCfg):
-        left = camera.replace(prim_path="{ENV_REGEX_NS}/Left", renderer_cfg=NeuralRendererCfg(view="left"))
-        right = camera.replace(prim_path="{ENV_REGEX_NS}/Right", renderer_cfg=NeuralRendererCfg(view="right"))
+        left = camera.replace(
+            prim_path="{ENV_REGEX_NS}/Left", renderer_cfg=NeuralRendererCfg(view="left", outputs=outputs)
+        )
+        right = camera.replace(
+            prim_path="{ENV_REGEX_NS}/Right", renderer_cfg=NeuralRendererCfg(view="right", outputs=outputs)
+        )
 
-    with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation", views=("left", "right")) as sim:
+    with world_model_sim(
+        tmp_path, envs_per_reset_record=1, split="validation", views=("left", "right"), outputs=("rgb", "depth")
+    ) as sim:
         scene = InteractiveScene(TwoViewSceneCfg(num_envs=N, env_spacing=1.0))
         sim.backend_manager.bind(N, J)
         sim.reset()
@@ -109,6 +118,9 @@ def test_each_camera_shows_the_view_it_selects(tmp_path):
             scene.update(DT)
         assert (scene["left"].data.output["rgb"].torch == 13).all()
         assert (scene["right"].data.output["rgb"].torch == 113).all()
+        right = scene["right"].data
+        assert torch.allclose(right.output["depth"].torch, torch.tensor(11.3))
+        assert torch.equal(right.frame_history["depth"].torch[:, -1], right.output["depth"].torch)
 
 
 def test_the_mask_is_clear_between_chunks(world):
@@ -116,4 +128,4 @@ def test_the_mask_is_clear_between_chunks(world):
     advance(sim, scene, T + 1)
     data = scene["camera"].data
     assert not data.frame_history_mask.torch.any()
-    assert data.frame_history.torch[0, -1, 0, 0, 0] == 13
+    assert data.frame_history["rgb"].torch[0, -1, 0, 0, 0] == 13
