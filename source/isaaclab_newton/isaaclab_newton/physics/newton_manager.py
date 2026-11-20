@@ -601,7 +601,7 @@ class NewtonManager(PhysicsManager):
             self.backend.invalidate_graph()
 
     def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
-        """Detach a force callback and recapture an active graph without it."""
+        """Remove a force callback and invalidate Newton's cached step graphs."""
         backend = self.backend
         if backend is not None and callback in backend.state_force_callbacks:
             backend.state_force_callbacks.remove(callback)

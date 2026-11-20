@@ -172,10 +172,10 @@ class MDP2Env:
 
     def close(self) -> None:
         if not self._is_closed:
+            # The captured steps reference scene buffers and solver hooks.
+            self._runs = None
             self.scene.close()
             self.sim.stop()
-            # The captured graphs, the MDP state, and the scene data all reference the scene's buffers.
-            self._runs = None
             del self.state, self.transition, self.scene_data, self.scene
             self.sim.clear_instance()
             self._is_closed = True
