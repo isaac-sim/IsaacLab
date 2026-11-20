@@ -132,7 +132,6 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             data_types=["rgb"],
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -248,7 +247,6 @@ def test_simple_shading_configures_its_render_product(
             data_types=data_types,
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -283,7 +281,7 @@ def test_simple_shading_configures_its_render_product(
         gaussian_attribute = authored_attributes["omni:rtx:gaussian:skipTonemapping:enabled"]
         assert gaussian_attribute.value_type == Sdf.ValueTypeNames.Bool
         assert gaussian_attribute.Set.call_args == call(False)
-    elif data_types == ["simple_shading_constant_diffuse"]:
+    else:
         assert "omni:rtx:gaussian:skipTonemapping:enabled" not in authored_attributes
         assert call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) not in settings.set.call_args_list
 
@@ -476,8 +474,6 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
             cfg=SimpleNamespace(width=64, height=64),
         ),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -517,8 +513,6 @@ def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, da
         output_data={data_type: SimpleNamespace(warp=output_buffer)},
         spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -570,8 +564,6 @@ def test_render_batch_updates_once_before_extracting_ready_cameras(monkeypatch, 
                     else SimpleNamespace(view_count=1, device="cpu", cfg=SimpleNamespace(width=1, height=1))
                 ),
                 renderer_info={},
-                ppisp_pipeline=None,
-                _hdr_scratch_wp=None,
             )
         )
         if state == "ready":

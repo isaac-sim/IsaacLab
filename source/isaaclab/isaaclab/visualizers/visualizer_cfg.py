@@ -31,29 +31,6 @@ VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
 VISUALIZER_ALIAS_OPTIONS = {"newton_rtx": {"initial_renderer": "rtx"}}
 """Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
 
-DEPRECATED_VISUALIZER_ALIASES = {
-    "newton_rtx": (
-        "The 'newton_rtx' visualizer option is deprecated and will be removed in the next release; launching the"
-        " 'newton' visualizer instead, started with RTX rendering. Use 'newton' and switch the Renderer to RTX in its"
-        " window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
-    )
-}
-"""Names in :data:`VISUALIZER_ALIASES` that are deprecated, each with the warning that says what happens instead."""
-
-
-def warn_deprecated_visualizer(name: str, stacklevel: int = 2) -> None:
-    """Warn that a ``--visualizer`` name is deprecated, saying which visualizer launches instead.
-
-    Names that are not deprecated are ignored.
-
-    Args:
-        name: Visualizer identifier supplied by the user.
-        stacklevel: Stack level of the warning, relative to the caller of this function.
-    """
-    message = DEPRECATED_VISUALIZER_ALIASES.get(name)
-    if message is not None:
-        warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)
-
 
 @configclass
 class PerspectiveCameraCfg:
