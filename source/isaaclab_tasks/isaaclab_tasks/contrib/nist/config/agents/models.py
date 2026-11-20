@@ -99,7 +99,7 @@ class SimBaNetwork(nn.Sequential):
     def __init__(
         self,
         input_dim: int,
-        output_dim: int,
+        output_dim: int | list[int],
         hidden_dim: int,
         num_blocks: int = 2,
         expansion_factor: int = 4,
@@ -108,7 +108,10 @@ class SimBaNetwork(nn.Sequential):
     ) -> None:
         layers: list[nn.Module] = [nn.Linear(input_dim, hidden_dim)]
         layers.extend(SimBaBlock(hidden_dim, expansion_factor, activation, norm) for _ in range(num_blocks))
-        layers.extend((nn.LayerNorm(hidden_dim) if norm else nn.Identity(), nn.Linear(hidden_dim, output_dim)))
+        output_width = output_dim if isinstance(output_dim, int) else math.prod(output_dim)
+        layers.extend((nn.LayerNorm(hidden_dim) if norm else nn.Identity(), nn.Linear(hidden_dim, output_width)))
+        if not isinstance(output_dim, int):
+            layers.append(nn.Unflatten(-1, output_dim))
         super().__init__(*layers)
         self._init_weights()
 
