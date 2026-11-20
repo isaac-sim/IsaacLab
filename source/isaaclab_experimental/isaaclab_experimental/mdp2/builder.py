@@ -758,8 +758,8 @@ class MDPBuilder:
                 state_shapes[name] = dims if name in shared else (self.schema.num_worlds, *dims)
         if isinstance(cfg, Event):
             _check_event(entry, errors)
-        if isinstance(cfg, Quantity) and (cfg.log or cfg.record) and output_shape:
-            errors.append(f"{entry}: a logged or recorded quantity must have shape ('worlds',), got {output_shape}.")
+        if isinstance(cfg, Quantity) and cfg.record and output_shape:
+            errors.append(f"{entry}: a recorded quantity must have shape ('worlds',), got {output_shape}.")
         if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
             errors.append(f"{entry}: commands write their state when they resample, so they have no reset hook.")
         if isinstance(cfg, Observation) and cfg.noise is not None and cfg.noise.scale is not None:
@@ -859,7 +859,6 @@ class MDPBuilder:
                 torch_hooks=context.backend is Backend.WARP and implementation is term.torch,
                 init=term.init,
                 commit=cfg.commit if isinstance(cfg, Event) else False,
-                log=isinstance(cfg, Quantity) and cfg.log,
                 record=isinstance(cfg, Quantity) and cfg.record,
                 columns=columns,
                 slot=(entry.name or entry.path[-1]) if isinstance(cfg, Action) else "",

@@ -108,7 +108,6 @@ class TermOp:
     init: Callable | None = None  # Eager ``fn(ctx, **params)`` that fills the state once, before the startup events
     # Reset events: whether the scene commits the earlier events' writes before it runs, None to infer it
     commit: bool | None = False
-    log: bool = False  # Quantities: whether the environment logs it as a metric
     record: bool = False  # Quantities: whether the environment records it at the end of every episode
     columns: slice | None = None  # Actions: the columns of the action that the term takes
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world

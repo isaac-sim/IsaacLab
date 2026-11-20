@@ -195,8 +195,8 @@ class Quantity(TermCfg):
 
     phase: ClassVar[Phase] = Phase.QUANTITIES
 
-    log: bool = False  # Log its average over the worlds' last finished episodes, taken at their end, as a metric
-    # Record its value at the end of every episode, in the episode records of an environment with an episode budget
+    # Reduce it per episode, taking its value at the end of each: the environment logs its average over the worlds'
+    # last finished episodes as a metric, and records it in the episode records of an episode budget
     record: bool = False
 
 

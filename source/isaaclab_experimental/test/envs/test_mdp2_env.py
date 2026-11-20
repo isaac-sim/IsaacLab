@@ -370,7 +370,7 @@ def test_captured_steps_match_eager_steps_and_the_torch_backend():
 def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_worlds):
     cfg = cartpole_cfg()
     # A logged quantity that a reset restarts and the observations of the new episode read again.
-    cfg.task.quantities = {"steps": mdp2.Quantity(step_count, log=True)}
+    cfg.task.quantities = {"steps": mdp2.Quantity(step_count, record=True)}
     observation = mdp2.Observation(mdp.value, inputs={"value": mdp2.quantities.steps})
     cfg.task.observations["policy"] = {
         **cfg.task.observations["policy"],

@@ -55,6 +55,7 @@ class MDP2Env:
 
     diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
     final_observations: bool = False  # Whether evaluate writes the observations of the worlds that ended
+    _budgeted: bool = False  # Whether an episode budget, rather than the ended episodes, decides the worlds to reset
 
     def __init__(self, cfg: MDP2EnvCfg) -> None:
         _check_step(cfg)
@@ -139,6 +140,8 @@ class MDP2Env:
             self.scene_data.commit(self._all_envs.warp, self.mdp.startup_writes)
         self.transition = self.mdp.transition()
         self._observations = self._views(self.transition.observations)
+        # The worlds that a step resets: those whose episodes ended, unless an episode budget restarts only some.
+        self._resets = ProxyArray(wp.zeros_like(self.transition.done.warp)) if self._budgeted else self.transition.done
 
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
         # The worlds whose scene writes a step commits: those reset, and those where an interval event wrote.
@@ -260,7 +263,7 @@ class MDP2Env:
                 ]
                 work.append((True, self._after_evaluate))
             elif item is Step.RESET:
-                work += self._reset_work(transition.done)
+                work += self._reset_work(self._resets)
             else:
                 work.append(self._stage_work(item))
         return work
@@ -441,7 +444,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     :meth:`step` returns copies of the observations after resets, and the rewards and the terminated and truncated
     flags of the step as Torch views of buffers that the next step overwrites. A world is truncated only if it did not
     terminate. ``extras["log"]`` holds, per term, the average over worlds of their last finished episode: the reward
-    sum per second, whether the term ended it, and the value that each logged quantity had at its end. With
+    sum per second, whether the term ended it, and the value that each recorded quantity had at its end. With
     :attr:`~MDP2RLEnvCfg.compute_final_obs`, ``extras["final_obs"]`` holds the observations that the worlds that
     ended had before their reset, also as views; only the rows of the worlds that ended are of this step.
     """
@@ -454,6 +457,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
 
     def __init__(self, cfg: MDP2RLEnvCfg, render_mode: str | None = None, **kwargs: Any) -> None:
         self.final_observations = cfg.compute_final_obs
+        self._budgeted = cfg.episode_budget is not None
         super().__init__(cfg)
         if cfg.compute_final_obs:
             self.extras["final_obs"] = self._views(self.transition.final_observations)
@@ -500,7 +504,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 slice(None) if op.worlds is None else list(op.worlds),
             )
             for op in self.mdp.ops[mdp2.Phase.QUANTITIES]
-            if op.log
+            if op.record
         }
         # The time limit is not an op: whether it ended the last episode of each world is kept apart, under its name.
         time_limits = [name for name, term in _terminations(cfg.task) if isinstance(term, mdp2.TimeLimit)]
@@ -638,7 +642,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         """Record the episodes of active worlds that ended, and restart only as many as the budget has left.
 
         Worlds that do not restart become inactive: they keep stepping, but their episodes no longer end or reset.
-        Part of the captured step, so it works on device tensors only.
+        ``done`` stays whether an active world's episode ended; the worlds to reset are those that restart. Part of the
+        captured step, so it works on device tensors only.
         """
         transition, ended = self.transition, self._ended
         torch.logical_and(transition.done.torch, self._active, out=ended)
@@ -667,10 +672,11 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         reported = ended | self._active
         transition.terminated.torch.logical_and_(reported)
         transition.truncated.torch.logical_and_(reported)
-        transition.done.torch.copy_(restarted)
+        transition.done.torch.logical_and_(reported)
+        self._resets.torch.copy_(restarted)
 
     def _after_evaluate(self) -> None:
-        """Keep the logged quantities of the worlds that ended, and whether they timed out, before their reset."""
+        """Keep the recorded quantities of the worlds that ended, and whether they timed out, before their reset."""
         # With an episode budget, only the episodes of active worlds count, and only some of them restart.
         if self.cfg.episode_budget is not None:
             self._spend_episode_budget()

@@ -11,3 +11,6 @@
 * Changed the order of an MDP2 reset: reset events run before the progress of the tasks restarts, so that they read
   the progress of the episode that ended, such as a curriculum over milestones. ``MDP.interval_writes`` is now
   :attr:`~isaaclab_experimental.mdp2.MDP.step_writes`, which also holds the writes of start events.
+* **Breaking:** Changed ``Quantity(log=True)`` to ``Quantity(record=True)``: a recorded quantity is reduced per episode,
+  logged as ``Metrics/<name>`` and recorded in the episode records of an episode budget. With an episode budget,
+  ``done`` stays whether an episode ended, and the environment resets only the worlds that restart.
