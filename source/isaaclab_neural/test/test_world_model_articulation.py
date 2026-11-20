@@ -26,7 +26,7 @@ from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
 
 from isaaclab_neural.mdp import at_chunk_boundary, is_chunk_boundary
-from isaaclab_neural.renderers import WorldModelRendererCfg
+from isaaclab_neural.renderers import NeuralRendererCfg
 
 from .conftest import DT, FakeModel, H, N, T, W, world_model_sim
 
@@ -90,7 +90,7 @@ def robot_world(tmp_path, joint_ordering=None, device="cpu"):
             data_types=["rgb"],
             frame_history_length=T,
             spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
-            renderer_cfg=WorldModelRendererCfg(),
+            renderer_cfg=NeuralRendererCfg(),
         )
 
     ordered = joint_ordering or JOINTS

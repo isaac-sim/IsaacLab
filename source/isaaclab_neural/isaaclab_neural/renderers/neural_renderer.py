@@ -15,7 +15,7 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 
-from ..physics.world_model_manager import WorldModelManager
+from ..physics.neural_manager import NeuralManager
 
 if TYPE_CHECKING:
     from isaaclab.renderers import CameraRenderSpec
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
     from ..physics.frame_buffer import FrameReader
-    from .world_model_renderer_cfg import WorldModelRendererCfg
+    from .neural_renderer_cfg import NeuralRendererCfg
 
 
 @dataclass
@@ -35,14 +35,14 @@ class _RenderData:
     """The camera's binding to the world model's frames, made when its render data is created."""
 
 
-class WorldModelRenderer(BaseRenderer):
-    """Copy the frames of the :class:`~isaaclab_neural.physics.WorldModelManager` into a camera.
+class NeuralRenderer(BaseRenderer):
+    """Copy the frames of the :class:`~isaaclab_neural.physics.NeuralManager` into a camera.
 
     Every other renderer hook is a no-op. The model predicts a whole chunk per update, so this renderer fills the
-    camera's frame history itself (:attr:`~.WorldModelRendererCfg.provides_frame_history`).
+    camera's frame history itself (:attr:`~.NeuralRendererCfg.provides_frame_history`).
     """
 
-    cfg: WorldModelRendererCfg
+    cfg: NeuralRendererCfg
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         return self.cfg.supported_output_types()
@@ -55,12 +55,12 @@ class WorldModelRenderer(BaseRenderer):
 
         Raises:
             ValueError: If the simulation does not run the world-model backend, the camera does not match the model,
-                or :attr:`~.WorldModelRendererCfg.view` names no view of the model.
+                or :attr:`~.NeuralRendererCfg.view` names no view of the model.
         """
         manager = self._sim.backend_manager
-        if not isinstance(manager, WorldModelManager):
+        if not isinstance(manager, NeuralManager):
             raise ValueError(
-                "WorldModelRenderer publishes the frames of the world-model physics backend (WorldModelCfg), but the"
+                "NeuralRenderer publishes the frames of the neural physics backend (NeuralCfg), but the"
                 f" simulation runs {type(manager).__name__}."
             )
         _check_camera(spec.cfg, manager)
@@ -96,7 +96,7 @@ class WorldModelRenderer(BaseRenderer):
         pass
 
 
-def _check_camera(cfg: CameraCfg, manager: WorldModelManager) -> None:
+def _check_camera(cfg: CameraCfg, manager: NeuralManager) -> None:
     """Check that the camera keeps one chunk of frames at the model's image size.
 
     Raises:

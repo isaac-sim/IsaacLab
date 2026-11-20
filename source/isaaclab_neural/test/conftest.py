@@ -15,7 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_neural.physics import WorldModelCfg
+from isaaclab_neural.physics import NeuralCfg
 from isaaclab_neural.world_model import ModelCfg, WorldModel, WorldModelSpec
 
 N, J, T, H, W = 2, 3, 4, 6, 8
@@ -88,8 +88,8 @@ def world_model_sim(
     simulation."""
     FakeModel.chunks, FakeModel.steps, FakeModel.resets, FakeModel.closed = 0, [], [], 0
     FakeModel.views = ("camera",) if views is None else tuple(views)
-    physics = WorldModelCfg(
-        model=FakeModelCfg(),
+    physics = NeuralCfg(
+        model_cfg=FakeModelCfg(),
         reset_manifest=write_manifest(directory, states, split, views),
         split=split,
         envs_per_reset_record=envs_per_reset_record,
