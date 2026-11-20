@@ -203,7 +203,6 @@ integrations, policy wrappers and checkpoint quality need their own validation a
 
 ## Cosmos3 inference service
 
-The Cosmos3 adapter follows Alex's [world-model service implementation (#9110)](https://github.com/isaac-sim/IsaacLab/pull/9110).
 Isaac Lab runs `Cosmos3Model`, a client of a separate process in the Cosmos Framework environment. The service owns
 weights and generation history. Closing a client releases its session, while the service keeps the weights loaded.
 Only one client session can own the model at a time; that session may contain several vectorized environments.
@@ -216,15 +215,13 @@ Cosmos environment: resident model <- service -> generated RGB chunk
 Isaac Lab: manager frame buffers <--- client device tensors
 ```
 
-The transport protocol, CUDA IPC primitives and endpoint lifecycle were extracted from the shared Cosmos service
-code. This branch includes no Cosmos Transfer model, image-transfer camera processor or Transfer task dependency.
-It keeps the same world-model request protocol and tensor contract as Alex's implementation.
+The standalone service package provides the socket protocol, CUDA IPC primitives and endpoint lifecycle used by
+the client.
 
 ### Start the service
 
-Use a Cosmos Framework environment compatible with your checkpoint. Alex's reference uses Framework commit
-`3a84cd3b67f60520f523e184fa7b82011bc75cb4`. In that environment, install only the lightweight service package from
-this checkout; do not install the whole Isaac Lab workspace there:
+Use Cosmos Framework revision `3a84cd3b67f60520f523e184fa7b82011bc75cb4` with a compatible checkpoint. In the
+Framework environment, install the lightweight service package from this checkout:
 
 ```bash
 cd "$COSMOS_FRAMEWORK_ROOT"
@@ -258,7 +255,6 @@ physics = WorldModelCfg(
 and implements `encode(joint_targets, start_joint_state)`: `(T, J)` targets and `(J,)` starting joint positions in
 meters/radians become `(T, 59)` normalized `unified_v1` controls. Robot kinematics and normalization remain with the
 task. Recorded normalized controls can instead be replayed through `Cosmos3Model.step_controls()` after reset.
-This branch does not provide a robot-specific mapping or training task.
 
 | Configuration location | Settings |
 | --- | --- |
@@ -271,7 +267,7 @@ The client reads dimensions and environment limits from the running service. Def
 support does not make this adapter a multi-view model.
 
 - `window` conditions on the reset image, then on the previous generated chunk's last frame. It serves environments
-  sequentially within each chunk. It is the mode for the Stage 0 checkpoint discussed here.
+  sequentially within each chunk. Use this mode with Stage 0 checkpoints.
 - `session` uses Cosmos's native causal session and requires a compatible distilled checkpoint. It serves one
   environment and preserves the native session's internal history.
 
@@ -282,7 +278,7 @@ returned image chunks, which the client copies into its own device tensors befor
 Socket payloads are capped at 256 MiB per message (about 18 environments at the default output size; allow headroom).
 Each step waits for the generated chunk; running a service does not add asynchronous policy execution.
 
-The backend still publishes the record's original image immediately on reset and defers the model reset to the
+The backend publishes the record's original image immediately on reset and defers the model reset to the
 next chunk boundary. The client reset returns no replacement image. In native `session` mode the model's internal
 conditioning comes from its initial decoded observation, following the Framework API.
 
