@@ -32,6 +32,10 @@ episode and hard resets. Call ``reset(env_ids)``
 after restoring bodies to clear stale forces for those environments, and ``close()`` before
 destroying the simulation.
 
+Removing solver hooks invalidates Newton's cached step graphs. Newton rebuilds them on a
+subsequent step when capture is enabled. If you capture the simulation in an enclosing CUDA
+graph, discard that graph before changing the hooks and capture again before replaying.
+
 For device-side selection, use ``set_speed_scale(..., env_mask=mask)`` and
 ``reset(env_mask=mask)`` with a full-environment boolean Warp or Torch mask.
 Same-device masks and contiguous int32 indices reuse native storage without a host round trip.
