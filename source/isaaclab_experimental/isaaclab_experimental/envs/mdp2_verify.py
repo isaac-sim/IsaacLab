@@ -36,9 +36,9 @@ def verify_capture(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> 
     observations, and every quantity and term state, which are named in the error in schedule order, with the Python
     hooks and stages that run inside the graphs, where the cause usually is. The worlds start at staggered episode
     lengths, so that, with a time limit, every world times out and resets during the checked steps, also in the
-    captured ones. Contact-rich physics is not reproducible
-    run to run on GPUs, so the runs use the backend's reproducible mode where it has one (Newton's
-    ``deterministic_mode``) and compare bitwise; otherwise they compare to a relative 1e-3 and should be short.
+    captured ones. Contact-rich physics is not reproducible run to run on GPUs, so the runs use the backend's
+    reproducible mode where it has one (Newton's ``deterministic_mode``); otherwise they replace the physics step by
+    nothing and check the MDP alone. Either way they compare bitwise.
     """
     # One seed for both runs, also when the config asks for a random one.
     seed = 0 if cfg.seed in (None, -1) else cfg.seed
@@ -47,14 +47,13 @@ def verify_capture(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> 
         # A shallow copy keeps the entities that were added to the scene config as attributes.
         cfg.scene = copy.copy(cfg.scene)
         cfg.scene.num_envs = min(cfg.scene.num_envs, 8)
-    reproducible = _with_reproducible_physics(cfg)
-    runs = [_rollout(env_type, cfg, num_steps), _rollout(env_type, dataclasses.replace(cfg, capture=True), num_steps)]
-    (eager, _), (captured, suspects) = runs
+    physics = _with_reproducible_physics(cfg)
+    captured_cfg = dataclasses.replace(cfg, capture=True)
+    (eager, _), (captured, suspects) = (_rollout(env_type, run, num_steps, physics) for run in (cfg, captured_cfg))
     for step, (expected, actual) in enumerate(zip(eager, captured)):
         for name, value in expected.items():
             # NaN marks values such as an absent heading target, so it matches NaN.
-            tolerance = {"rtol": 0.0, "atol": 0.0} if reproducible else {"rtol": 1e-3, "atol": 1e-5}
-            if not torch.allclose(value.double(), actual[name].double(), equal_nan=True, **tolerance):
+            if not torch.allclose(value.double(), actual[name].double(), rtol=0.0, atol=0.0, equal_nan=True):
                 raise RuntimeError(
                     f"Captured step {step} differs from the uncaptured step at '{name}'. A capturable Python hook or"
                     " stage may read a value on the host or keep Python-side state, which a CUDA graph freezes at"
@@ -73,12 +72,16 @@ def _with_reproducible_physics(cfg: MDP2EnvCfg) -> bool:
     return True
 
 
-def _rollout(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int) -> tuple[list[dict], list[str]]:
-    """Reset and step a copy of the task, and return each step's results by name, and its capturable Python code."""
+def _rollout(env_type: type[MDP2Env], cfg: MDP2EnvCfg, num_steps: int, physics: bool) -> tuple[list[dict], list[str]]:
+    """Reset and step a copy of the task, with or without the physics, and return each step's results by name, and
+    its capturable Python code."""
     env = env_type(cfg)
     try:
         generator = torch.Generator(device=env.device).manual_seed(0)
         env.reset()
+        if not physics:
+            # Before the first step, so that the capture records no physics either.
+            env.sim.step = lambda render=False: None
         if env.mdp.max_episode_length is not None:
             # World k times out at step k + 1, cycling over the checked steps after the first, uncaptured, one.
             worlds = torch.arange(env.num_envs, device=env.device)
