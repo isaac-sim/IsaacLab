@@ -5,6 +5,8 @@
 
 """The world-model backend: chunked prediction, joint state and resets."""
 
+import dataclasses
+
 import numpy as np
 import pytest
 import torch
@@ -78,7 +80,7 @@ def test_a_partial_reset_keeps_the_chunk_boundary_of_the_step(tmp_path):
         assert manager.new_frames and manager.chunk_boundary.all()
 
 
-def test_a_new_initialization_replaces_the_model_and_one_articulation_binds(tmp_path):
+def test_a_new_initialization_replaces_the_model_and_one_articulation_binds(tmp_path, monkeypatch):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)
         with pytest.raises(ValueError, match="one articulation"):
@@ -86,6 +88,12 @@ def test_a_new_initialization_replaces_the_model_and_one_articulation_binds(tmp_
         manager.reset()  # a full simulation reset, after which the articulation initializes again
         manager.bind(N, J)
         assert FakeModel.closed == 1
+        # A model that needs an input the backend does not provide is rejected when it binds.
+        spec = FakeModel.spec
+        monkeypatch.setattr(FakeModel, "spec", lambda self: dataclasses.replace(spec(self), inputs=("joint_velocity",)))
+        manager.reset()
+        with pytest.raises(ValueError, match="provides the inputs"):
+            manager.bind(N, J)
 
 
 def test_the_reset_records_must_match_the_split_and_the_joints(tmp_path):

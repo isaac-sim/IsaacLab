@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,16 @@ class ModelCfg:
 
     class_type: type[WorldModel] | str = "{DIR}.world_model:WorldModel"
     """The :class:`WorldModel` implementation, built as ``class_type(cfg, num_envs, device)``."""
+
+
+class WorldModelAttribute(StrEnum):
+    """Inputs the neural backend can write to a world model before each :meth:`WorldModel.step`."""
+
+    JOINT_TARGETS = "joint_targets"
+    """Joint position targets of the chunk [m or rad], shape ``(N, chunk_length, num_joints)``."""
+
+    START_JOINT_STATE = "start_joint_state"
+    """Joint positions before the chunk [m or rad], shape ``(N, num_joints)``."""
 
 
 @dataclass(frozen=True)
@@ -45,6 +56,10 @@ class WorldModelSpec:
     views: tuple[str, ...] = ("camera",)
     """Names of the camera views the model predicts. Each world-model camera shows one of them, selected with
     :attr:`~isaaclab_neural.renderers.NeuralRendererCfg.view`."""
+
+    inputs: tuple[str, ...] = (WorldModelAttribute.JOINT_TARGETS, WorldModelAttribute.START_JOINT_STATE)
+    """Inputs the model needs, from :class:`WorldModelAttribute`. The manager writes each with
+    :meth:`WorldModel.write` before every step, and rejects a model that needs an input the backend does not provide."""
 
     outputs: tuple[str, ...] = ("rgb",)
     """Camera outputs the model predicts for each view, named as camera data types
@@ -127,12 +142,18 @@ class WorldModel(ABC):
         """
 
     @abstractmethod
-    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, dict[str, torch.Tensor]]:
-        """Predict the next chunk of frames for all environments.
+    def write(self, name: str, value: torch.Tensor) -> None:
+        """Set one of the model's :attr:`~WorldModelSpec.inputs` for the next :meth:`step`.
 
         Args:
-            joint_targets: Joint position targets [m or rad], shape ``(N, chunk_length, num_joints)``.
-            start_joint_state: Joint positions before the chunk, shape ``(N, num_joints)``.
+            name: A :class:`WorldModelAttribute` the model lists in its spec.
+            value: The input of every environment, on the simulation device. It is the manager's buffer, valid until
+                the step returns.
+        """
+
+    @abstractmethod
+    def step(self) -> dict[str, dict[str, torch.Tensor]]:
+        """Predict the next chunk of frames for all environments from the inputs written since the last step.
 
         Returns:
             For each of the model's views and outputs, frames of shape ``(N, chunk_length, H, W, C)`` with the layout
