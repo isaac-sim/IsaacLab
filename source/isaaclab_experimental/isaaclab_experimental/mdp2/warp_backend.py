@@ -192,9 +192,9 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     if mdp.max_episode_length is not None:
         time_out = f"{length}[world] >= {code.constant(int, mdp.max_episode_length)}"
     lines, writes = [], []
-    if mdp.interval_writes:
-        lines.append(f"{_array(code, 'interval_worlds', wp.array(dtype=wp.bool))}[world] = False")
-        writes.append("interval_worlds")
+    if mdp.step_writes:
+        lines.append(f"{_array(code, 'event_worlds', wp.array(dtype=wp.bool))}[world] = False")
+        writes.append("event_worlds")
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = {length}[world] + 1",
@@ -268,6 +268,10 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                     code.world(*_under(conditions, restart), writes=[("timer", op.name)])
                 case StepKind.COMPUTE:
                     _run(code, mdp, op, op.compute, [*op.writes, *state], conditions, mask=started)
+                    if op.phase is Phase.RESET_EVENTS and _writes_scene(op):
+                        # The scene commits a start event's writes in the worlds where it ran.
+                        ran = _array(code, "event_worlds", wp.array(dtype=wp.bool))
+                        code.world(*_under(conditions, f"{ran}[world] = True"), writes=["event_worlds"])
                 case StepKind.RESET_STATE if op.reset is not None:
                     _run(code, mdp, op, op.reset, state, conditions, mask=started)
                 case StepKind.RESET_STATE:
@@ -281,8 +285,8 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                 _compute(code, mdp, op, due, stepping)
                 if _writes_scene(op):
                     # The scene commits the event's writes in the worlds where it ran.
-                    ran = _array(code, "interval_worlds", wp.array(dtype=wp.bool))
-                    code.world(*_under(due, f"{ran}[world] = True"), writes=["interval_worlds"])
+                    ran = _array(code, "event_worlds", wp.array(dtype=wp.bool))
+                    code.world(*_under(due, f"{ran}[world] = True"), writes=["event_worlds"])
             case StepKind.UPDATE_STATE:
                 # A function hook gets the worlds where the op runs, None for every world.
                 running = None if op.active_key is None else lambda call, op=op: call.state.arrays[op.active_key].warp

@@ -142,8 +142,8 @@ class MDP2Env:
 
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
         # The worlds whose scene writes a step commits: those reset, and those where an interval event wrote.
-        self._interval_worlds = self.state.arrays.get("interval_worlds")
-        if self._interval_worlds is not None:
+        self._event_worlds = self.state.arrays.get("event_worlds")
+        if self._event_worlds is not None:
             self._commit_mask = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
         self.common_step_counter = 0
         self.extras: dict[str, Any] = {}
@@ -373,11 +373,11 @@ class MDP2Env:
     def _commit(self, mask: ProxyArray) -> None:
         """Commit the writes of the reset events in the masked worlds, and of the interval events of the last step in
         the worlds where they ran. Part of the captured step."""
-        if self._interval_worlds is None:
+        if self._event_worlds is None:
             self.scene_data.commit(mask.warp, self.mdp.reset_writes)
             return
-        torch.logical_or(mask.torch, self._interval_worlds.torch, out=self._commit_mask.torch)
-        self.scene_data.commit(self._commit_mask.warp, self.mdp.reset_writes | self.mdp.interval_writes)
+        torch.logical_or(mask.torch, self._event_worlds.torch, out=self._commit_mask.torch)
+        self.scene_data.commit(self._commit_mask.warp, self.mdp.reset_writes | self.mdp.step_writes)
 
     def _reset_scene(self, mask: ProxyArray) -> None:
         """Reset the assets and sensors of the masked worlds, before the MDP's reset events."""

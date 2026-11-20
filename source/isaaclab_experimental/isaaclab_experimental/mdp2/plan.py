@@ -328,8 +328,9 @@ def build_plan(
     rewards see this step's progress, and starts the tasks that sequences advanced to after the events, so that the
     successor observations see them. The terminations, rewards, commands, and events of the step run in the tasks that
     ran when it started. Ops with ``when`` switch on or off at the same point, and in ``observe`` for new episodes;
-    ``reset`` prepares them in all the worlds of their task. With tunable values, ``reset`` first applies the values
-    tuned for it.
+    ``reset`` prepares them in all the worlds of their task. ``reset`` runs the reset events, which see the progress of
+    the episode that ended, before the tasks restart, and then the start events of the tasks that run from the start.
+    With tunable values, it first applies the values tuned for it.
     """
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
@@ -369,24 +370,31 @@ def build_plan(
     # A task that starts restarts the timers, commands, and state of its ops, as a new episode does.
     starts = [Step(StepKind.START_TASKS, trees)] if any(node.staged for tree in trees for node in tree.nodes) else []
     starts += [Step(StepKind.SWITCH, switched)] if switched else []
+    # Start events write the scene where their task starts; the others set up whole episodes.
+    start_events = [op for op in ops[Phase.RESET_EVENTS] if op.entry_key is not None]
+    reset_events = [op for op in ops[Phase.RESET_EVENTS] if op.entry_key is None]
     if starts:
         scoped = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.entry_key]
         starts += [
             *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.entry_key),
+            *(Step(StepKind.COMPUTE, op, entry=True) for op in start_events),
             *(Step(StepKind.COMPUTE, op, entry=True) for op in scoped if op.phase is Phase.COMMANDS),
             *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.entry_key),
         ]
 
     # A reset prepares the ops with ``when`` in every world of their task.
     unswitched = {op.name: replace(op, when=None) for op in switched}
-    reset_events = []
+    # The reset events see the progress of the episode that ended; the start events of the tasks that run from the
+    # start of the new one, after the progress restarts.
+    events = {"reset": [], "start": []}
     pending: set[FieldSelector] = set()  # Scene fields written since the last commit
-    for op in ops[Phase.RESET_EVENTS]:
-        if op.commit or op.commit is None and pending and _reads_stale(op, pending, schema):
-            reset_events.append(Step(StepKind.COMMIT, op))
-            pending.clear()
-        reset_events.append(Step(StepKind.COMPUTE, op))
-        pending.update(selector for selector in op.writes if selector.scene)
+    for kind, event_ops in (("reset", reset_events), ("start", start_events)):
+        for op in event_ops:
+            if op.commit or op.commit is None and pending and _reads_stale(op, pending, schema):
+                events[kind].append(Step(StepKind.COMMIT, op))
+                pending.clear()
+            events[kind].append(Step(StepKind.COMPUTE, op))
+            pending.update(selector for selector in op.writes if selector.scene)
 
     return ExecutionPlan(
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
@@ -410,9 +418,12 @@ def build_plan(
         ),
         reset=(
             *([Step(StepKind.APPLY_TUNED, tuned)] if tuned else []),
+            *(Step(StepKind.RESET_TIMER, unswitched.get(op.name, op)) for op in timed if not op.entry_key),
+            *events["reset"],
+            # Then the tasks restart, and with them the timers and start events of those that run.
             *([Step(StepKind.RESET_PROGRESS, trees)] if trees else []),
-            *(Step(StepKind.RESET_TIMER, unswitched.get(op.name, op)) for op in timed),
-            *reset_events,
+            *(Step(StepKind.RESET_TIMER, unswitched.get(op.name, op)) for op in timed if op.entry_key),
+            *events["start"],
             *(Step(StepKind.COMPUTE, unswitched.get(op.name, op)) for op in ops[Phase.COMMANDS]),
             # State restarts last, from the fields and commands of the new episode.
             *(Step(StepKind.RESET_STATE, unswitched.get(op.name, op)) for op in stateful),

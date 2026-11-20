@@ -73,7 +73,7 @@ class MDPState:
     - ``("active", op)``: the worlds where an op is active, for an op that is active in only some;
     - ``("on", op)`` and ``("entered", op)``: for an op with ``when``, the worlds where it runs at this step, and
       those where it turned on at this step;
-    - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
+    - ``"event_worlds"``: the worlds where an interval or start event that writes scene fields ran in the last
       ``evaluate``, for an MDP with such events;
     - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
       task's ``done`` held), ``entered`` (whether a task of a sequence started at this step), and, for a task that
@@ -225,13 +225,17 @@ class MDP:
 
     @property
     def reset_writes(self) -> frozenset[FieldSelector]:
-        """Scene fields that the reset events write, which the scene commits after a reset."""
+        """Scene fields that the reset and start events write, which the scene commits after a reset."""
         return self._scene_writes(Phase.RESET_EVENTS)
 
     @property
-    def interval_writes(self) -> frozenset[FieldSelector]:
-        """Scene fields that the interval events write, which the scene commits in the worlds where one ran."""
-        return self._scene_writes(Phase.INTERVAL_EVENTS)
+    def step_writes(self) -> frozenset[FieldSelector]:
+        """Scene fields that events write during a step, the interval events and the start events of tasks that start
+        during an episode, which the scene commits in the worlds where one ran."""
+        starts = [op for op in self.ops[Phase.RESET_EVENTS] if op.entry_key is not None]
+        return self._scene_writes(Phase.INTERVAL_EVENTS) | frozenset(
+            selector for op in starts for selector in op.writes if selector.scene
+        )
 
     def _scene_writes(self, phase: Phase) -> frozenset[FieldSelector]:
         return frozenset(selector for op in self.ops[phase] for selector in op.writes if selector.scene)
@@ -438,8 +442,8 @@ class MDP:
             arrays["revision"] = self._zeros(self.num_worlds, dtype=wp.int32)
             for key in dict.fromkeys(value.key for value in self.tuned):
                 arrays["pending", key] = ProxyArray(wp.clone(arrays[key].warp))
-        if self.interval_writes:
-            arrays["interval_worlds"] = self._zeros(self.num_worlds, dtype=wp.bool)
+        if self.step_writes:
+            arrays["event_worlds"] = self._zeros(self.num_worlds, dtype=wp.bool)
 
         # Buffers of single ops.
         events = (Phase.STARTUP_EVENTS, Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)

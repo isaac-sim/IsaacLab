@@ -2344,3 +2344,58 @@ def test_parts_renamed_to_other_entities_run_together_in_columns_of_their_own():
     mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
     assert scene.data("left", "joint_effort_target").torch.tolist() == [[1.0, 2.0]] * 2
     assert scene.data("right", "joint_effort_target").torch.tolist() == [[3.0, 4.0]] * 2
+
+
+@wp.func
+def count_successes_warp(world: int, done: wp.array(dtype=wp.bool), total: wp.array(dtype=float)):
+    if done[world]:
+        total[world] = total[world] + 1.0
+
+
+count_successes = mdp2.Term(
+    torch=lambda mask, done, total: total.add_((mask & done).float()),
+    warp=count_successes_warp,
+    state={"total": mdp2.State(persistent=True)},
+)
+"""Count the episodes that ended done, such as a curriculum over milestones."""
+
+
+def test_start_events_write_the_scene_when_their_task_starts():
+    """A start event writes the scene when its task starts: at the reset for the first task of a sequence, at the step
+    the next one starts for the others, whose worlds the scene then commits. Reset events see the progress of the
+    episode that ended."""
+    push = mdp2.Event(push_by_adding_velocity, outputs={"joint_vel": robot.joint_vel}, mode=mdp2.EventMode.START)
+    velocity = mdp2.Observation(joint_vel, inputs={"joint_vel": robot.joint_vel})
+    task = mdp2.compose(
+        mdp2.TaskCfg(
+            quantities=above("a", "b"),
+            observations={"policy": {"velocity": velocity}},
+            events={"successes": mdp2.Event(count_successes, inputs={"done": mdp2.progress.done})},
+        ),
+        mdp2.sequence(
+            first=mdp2.TaskCfg(events={"push": push}, done=mdp2.quantities.a),
+            second=mdp2.TaskCfg(events={"push": push}, done=mdp2.quantities.b),
+        ),
+    )
+    history = check_progress(task, [[0.0, 0.0], [1.0, 0.0], [1.0, 0.0], [1.0, 1.0]])
+    # Pushed at the reset by the first task, then when the second starts, after step 2.
+    assert [step["policy"][0].tolist() for step in history] == [[1.0, 1.0], [2.0, 2.0], [2.0, 2.0], [2.0, 2.0]]
+
+    scene = PointMassScene(num_worlds=2, joint_names=("a", "b"), device=DEVICE)
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_task(task)
+    mdp = builder.finalize(device=DEVICE, backend="warp")
+    assert mdp.step_writes == {robot.joint_vel} and robot.joint_vel in mdp.reset_writes
+    state, transition = mdp.state(scene), mdp.transition()
+    everywhere = torch.ones(2, dtype=torch.bool, device=DEVICE)
+    env_reset(mdp, state, scene, transition.observations, everywhere)
+    scene.data("robot", "joint_pos").torch.copy_(torch.tensor([[1.0, 1.0], [0.0, 0.0]], device=DEVICE))
+    for _ in range(2):  # The first world finishes both tasks
+        mdp2.evaluate(mdp, state, transition)
+    env_reset(mdp, state, scene, transition.observations, everywhere)
+    assert state.arrays[mdp2.term_state("events.successes", "total")].torch.tolist() == [1.0, 0.0]
+
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_task(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), mdp2.TaskCfg(events={"push": push})))
+    with pytest.raises(ValueError, match="a start event runs when its task starts"):
+        builder.validate()

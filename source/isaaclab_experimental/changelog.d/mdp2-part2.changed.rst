@@ -8,3 +8,6 @@
   as the widest, as observations do, and the last actions hold zero in the columns a world does not take, which
   :meth:`~isaaclab_experimental.mdp2.MDP.action_mask` gives. This replaces the narrow copies of the last actions and
   ``MDP.narrow_action_dims``.
+* Changed the order of an MDP2 reset: reset events run before the progress of the tasks restarts, so that they read
+  the progress of the episode that ended, such as a curriculum over milestones. ``MDP.interval_writes`` is now
+  :attr:`~isaaclab_experimental.mdp2.MDP.step_writes`, which also holds the writes of start events.

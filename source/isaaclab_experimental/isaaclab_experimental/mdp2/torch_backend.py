@@ -100,8 +100,8 @@ def _begin_evaluate(mdp: MDP, call: Call) -> None:
     transition.done.torch.copy_(transition.truncated.torch)
     state.arrays[terminated].torch.zero_()
     transition.rewards.torch.zero_()
-    if "interval_worlds" in state.arrays:
-        state.arrays["interval_worlds"].torch.zero_()
+    if "event_worlds" in state.arrays:
+        state.arrays["event_worlds"].torch.zero_()
 
 
 def _begin_reset(mdp: MDP, call: Call) -> None:
@@ -163,13 +163,16 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             for values, kept in zip(states, before):
                 own = active.torch.view(-1, *[1] * (values.ndim - 1))
                 values.copy_(torch.where(own, values, kept))
+            if step.entry and op.phase is Phase.RESET_EVENTS and any(selector.scene for selector in op.writes):
+                # The scene commits a start event's writes in the worlds where it ran.
+                state.arrays["event_worlds"].torch.logical_or_(mask)
         case StepKind.COMPUTE_IF_DUE:
             due = _tick(mdp, op, state)
             due = due if active is None else due & active.torch
             _compute(mdp, op, call, due, stepping)
             if any(selector.scene for selector in op.writes):
                 # The scene commits the event's writes in the worlds where it ran.
-                state.arrays["interval_worlds"].torch.logical_or_(due)
+                state.arrays["event_worlds"].torch.logical_or_(due)
         case StepKind.UPDATE_STATE:
             op.update(**hook_arguments(op.update, {**state.arguments[op.name], "mask": mask}))
         case StepKind.RESET_TIMER:

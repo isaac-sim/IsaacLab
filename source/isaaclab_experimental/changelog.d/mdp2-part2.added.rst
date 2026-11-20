@@ -58,3 +58,5 @@
 * Added :func:`~isaaclab_experimental.mdp2.rename`, which binds a part of a task to other scene entities, so that a
   part can run twice, such as two arms. Uses of subtasks that run together get columns of their own, named with the
   subtask's name, as in ``left.joint_pos``; uses of subtasks that take turns share the columns of their name.
+* Added start events to MDP2, ``EventMode.START``: an event of a task of a sequence or a choice, or of a task that
+  repeats, writes the scene when its task starts, at the reset or during the episode, where the scene commits it.

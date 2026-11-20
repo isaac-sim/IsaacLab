@@ -250,7 +250,7 @@ class MDPBuilder:
             if isinstance(cfg, TimeLimit) and staged:
                 raise ValueError(f"Task '{task_path}': the tasks of a sequence cannot have a time limit.")
             # Reset and startup events set up whole episodes, so they run in every world of their task.
-            setup = isinstance(cfg, Event) and cfg.mode is not EventMode.INTERVAL
+            setup = isinstance(cfg, Event) and cfg.mode in (EventMode.STARTUP, EventMode.RESET)
             full = f"{prefix}.{name}" if prefix else name
             entry_path = (kind, full) if group is None else (kind, group, full)
             slot = ".".join((*columns, name))
@@ -756,12 +756,10 @@ class MDPBuilder:
             dims = _resolve_shape(entry, f"state {name!r}", shape, sizes, errors)
             if dims is not None:
                 state_shapes[name] = dims if name in shared else (self.schema.num_worlds, *dims)
-        if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
-            errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
+        if isinstance(cfg, Event):
+            _check_event(entry, errors)
         if isinstance(cfg, Quantity) and (cfg.log or cfg.record) and output_shape:
             errors.append(f"{entry}: a logged or recorded quantity must have shape ('worlds',), got {output_shape}.")
-        if isinstance(cfg, Event) and cfg.commit is True and cfg.mode is not EventMode.RESET:
-            errors.append(f"{entry}: only reset events can ask for a commit.")
         if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
             errors.append(f"{entry}: commands write their state when they resample, so they have no reset hook.")
         if isinstance(cfg, Observation) and cfg.noise is not None and cfg.noise.scale is not None:
@@ -1006,6 +1004,21 @@ def _allocate_columns(
         # Its columns of the action are given with those of every world config, by name.
         return None, slice(0, output_shape[0])
     return None, None
+
+
+def _check_event(entry: ScheduleEntry, errors: list[str]) -> None:
+    """Record why an event cannot be compiled: its interval, its commit, or a start event of a task that never
+    starts during an episode."""
+    cfg = entry.cfg
+    if (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
+        errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
+    if cfg.commit is True and cfg.mode not in (EventMode.RESET, EventMode.START):
+        errors.append(f"{entry}: only reset and start events can ask for a commit.")
+    if cfg.mode is EventMode.START and entry.stage is None:
+        errors.append(
+            f"{entry}: a start event runs when its task starts, so it belongs to a task of a sequence or a choice,"
+            " or to one that repeats."
+        )
 
 
 def _check_action(entry: ScheduleEntry, output_shape: tuple[int, ...] | None, errors: list[str]) -> None:

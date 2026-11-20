@@ -44,11 +44,14 @@ step_dt = Constant.STEP_DT
 
 
 class EventMode(enum.Enum):
-    """When an event runs: once at startup, on reset, or at random intervals."""
+    """When an event runs: once at startup, on reset, at random intervals, or when its task starts."""
 
     STARTUP = enum.auto()
     RESET = enum.auto()
     INTERVAL = enum.auto()
+    # When its task starts: at the reset for a task that runs from the start of an episode, and at the step it starts
+    # otherwise, for a task of a sequence or a choice, or one that repeats
+    START = enum.auto()
 
 
 @dataclass(frozen=True)
@@ -269,9 +272,9 @@ class Event(TermCfg):
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the event writes them
     mode: EventMode = EventMode.RESET
     interval_range_s: tuple[float, float] | None = None  # Seconds between interval events
-    # Reset events: whether the scene commits the writes of the earlier reset events before it runs, so that it reads
-    # what they changed. None infers it: before an event that reads a field derived from written ones, such as the
-    # body poses after joint writes. True always commits first, and False never does.
+    # Reset and start events: whether the scene commits the writes of the earlier events of the reset before it runs,
+    # so that it reads what they changed. None infers it: before an event that reads a field derived from written
+    # ones, such as the body poses after joint writes. True always commits first, and False never does.
     commit: bool | None = None
 
     @property
@@ -280,6 +283,7 @@ class Event(TermCfg):
             EventMode.STARTUP: Phase.STARTUP_EVENTS,
             EventMode.RESET: Phase.RESET_EVENTS,
             EventMode.INTERVAL: Phase.INTERVAL_EVENTS,
+            EventMode.START: Phase.RESET_EVENTS,
         }
         return phases[self.mode]
 
