@@ -64,7 +64,9 @@ class Implementation:
 
     Event and command terms are ``compute(mask, **args)``, or a func ``compute(world, **args)`` run for the selected
     worlds, and write their outputs in place. A command gets its value as ``command``: ``compute`` resamples it and
-    writes the command's state, ``update`` may change it every step, and commands have no ``reset`` hook.
+    writes the command's state, ``update`` may change it every step, and commands have no ``reset`` hook. A reset
+    event's ``update`` runs once per step after the rewards, to observe the step without writing its outputs, such as
+    recording states to restart from.
     """
 
     compute: Callable

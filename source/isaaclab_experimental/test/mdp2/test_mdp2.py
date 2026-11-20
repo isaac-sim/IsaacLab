@@ -1269,6 +1269,44 @@ def test_command_updates_change_only_their_worlds():
         assert torch.equal(state.arrays[mdp2.commands.count].torch, expected)
 
 
+@wp.func
+def pin_command_warp(world: int, command: wp.array(dtype=float)):
+    command[world] = 7.0
+
+
+@wp.func
+def count_steps_warp(world: int, steps: wp.array(dtype=float)):
+    steps[world] = steps[world] + 1.0
+
+
+def count_steps_torch(steps):
+    steps.add_(1.0)
+
+
+pin_command = mdp2.Term(
+    torch=mdp2.Implementation(compute=lambda mask, command: command.masked_fill_(mask, 7.0), update=count_steps_torch),
+    warp=mdp2.Implementation(compute=pin_command_warp, update=count_steps_warp),
+    state={"steps": mdp2.State(persistent=True)},
+)
+"""A reset event that sets a command to 7 and counts the steps it observes."""
+
+
+def test_reset_events_that_write_commands_override_the_resample_and_observe_every_step():
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=2, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_command("count", mdp2.Command(drifting_count, params={"step": 0.0}))
+        builder.add_event("pin", mdp2.Event(pin_command, outputs={"command": mdp2.commands.count}))
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+
+        mdp2.reset(mdp, state, ProxyArray(wp.array([True, False], dtype=wp.bool, device=DEVICE)))
+        assert state.arrays[mdp2.commands.count].torch.tolist() == [7.0, 0.0]
+        for _ in range(3):
+            mdp2.evaluate(mdp, state, transition)
+        assert state.arrays[mdp2.term_state("events.pin", "steps")].torch.tolist() == [3.0, 3.0]
+
+
 def test_library_commands():
     """Commands stay in their ranges, agree across backends, and generated_commands observes them."""
     pose_range = ((0.4, 0.6), (-0.2, 0.2), (0.1, 0.3), (-0.5, 0.5), (-0.5, 0.5), (-math.pi, math.pi))

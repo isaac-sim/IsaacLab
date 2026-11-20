@@ -275,7 +275,11 @@ class Command(TermCfg):
 
 @dataclass
 class Event(TermCfg):
-    """Configuration for an event term, which writes its ``outputs`` for the worlds selected by ``mask``."""
+    """Configuration for an event term, which writes its ``outputs`` for the worlds selected by ``mask``.
+
+    A reset event that writes a command, such as one that restores a goal, runs after the commands resample, so that
+    its value stands. The other reset events run before them.
+    """
 
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the event writes them
     mode: EventMode = EventMode.RESET
