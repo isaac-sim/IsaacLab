@@ -1914,14 +1914,32 @@ def test_split_runs_a_sequence_beside_a_plain_task():
     assert history[1]["staged.done"].tolist() == [True] * 3 + [False]
 
 
+def test_splits_divide_the_same_worlds_and_may_be_steps_of_a_sequence():
+    """Two subtasks that split divide the same worlds, each world running the subtask of its share of each, and a step
+    of a sequence may split the worlds."""
+    a, b = mdp2.Milestone(mdp2.quantities.a), mdp2.Milestone(mdp2.quantities.b)
+    task = mdp2.compose(
+        mdp2.TaskCfg(quantities=above("a", "b")),
+        x=mdp2.split(p=a, r=b),
+        y=mdp2.split(worlds={"s": 1, "t": 3}, s=a, t=b),
+        z=mdp2.sequence(first=a, second=mdp2.split(p=a, r=b)),
+    )
+    mdp, _, history = run_progress(task, [[1.0, 0.0], [1.0, 0.0]], "warp", capture=False, num_worlds=4)
+    assert [config.worlds for config in mdp.world_configs] == [range(0, 1), range(1, 2), range(2, 4)]
+    assert history[0]["x.done"].tolist() == [True, True, False, False]
+    assert history[0]["y.done"].tolist() == [True, False, False, False]
+    # The sequence's second step runs from step 2: on "a" in the first two worlds, on "b" in the others.
+    assert history[0]["z.done"].tolist() == [False] * 4
+    assert history[1]["z.done"].tolist() == [True, True, False, False]
+
+
 def test_task_trees_report_errors():
-    """A split in a sequence, a sequence task without a completion, a task with subtasks and a done, and two uses of
+    """A sequence task without a completion, a task with subtasks and a done, and two uses of
     one name that may run together are errors."""
     schema = PointMassScene(num_worlds=2, joint_names=("a",)).schema
     quantities = mdp2.TaskCfg(quantities=above("a"))
     milestone = mdp2.Milestone(mdp2.quantities.a)
     cases = [
-        (mdp2.sequence(first=mdp2.split(x=milestone, y=milestone)), "a sequence cannot"),
         (mdp2.sequence(first=milestone, second=mdp2.TaskCfg()), "needs a completion"),
         (mdp2.TaskCfg(done=mdp2.quantities.a, subtasks={"first": milestone}), "cannot have a done"),
     ]

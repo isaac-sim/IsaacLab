@@ -484,5 +484,7 @@ def sequence(**subtasks: TaskCfg) -> TaskCfg:
 
 def split(worlds: dict[str, int] | None = None, **subtasks: TaskCfg) -> TaskCfg:
     """Run each subtask in its own worlds, ``worlds[name]`` of them, or an even share if ``worlds`` is None; the first
-    subtasks get one more world when the worlds do not split evenly. A split cannot be part of a sequence."""
+    subtasks get one more world when the worlds do not split evenly. A split may be anywhere in a task, such as a step
+    of a sequence, and several subtasks that split divide the same worlds: a world runs, of each, the subtask of its
+    share."""
     return TaskCfg(subtasks=dict(subtasks), mode=TaskMode.SPLIT, worlds=worlds)

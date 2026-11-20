@@ -49,3 +49,6 @@
   once per control step, before the physics steps, such as an embedded whole-body controller or inverse kinematics,
   and one at ``ActionRate.PHYSICS``, the default, before every physics step.
   :func:`~isaaclab_experimental.mdp2.process_actions` runs the former.
+* Added nested splits to MDP2: a :func:`~isaaclab_experimental.mdp2.split` may be a step of a sequence, and several
+  subtasks that split divide the same worlds, such as robots and terrains, each world running the subtask of its
+  share of each.

@@ -1207,10 +1207,10 @@ def _merge_ops(
 
 
 def _expand(task: TaskCfg, num_worlds: int) -> list[tuple[TaskCfg, int]]:
-    """Return the tasks without splits that a task runs, each with its number of worlds.
+    """Return the tasks without splits that a task runs, in order, each with its number of worlds.
 
-    A split becomes, in each of its shares of the worlds, a split with only that subtask. A split may be part of a
-    task that runs its subtasks together, but not of a sequence, and not of more than one subtask of a task.
+    A split becomes, in each of its shares of the worlds, a split with only that subtask. Subtasks that split divide
+    the same worlds: a world runs, of each, the subtask of its share.
     """
     if task.mode is TaskMode.SPLIT:
         names = list(task.subtasks)
@@ -1228,15 +1228,19 @@ def _expand(task: TaskCfg, num_worlds: int) -> list[tuple[TaskCfg, int]]:
         ]
 
     variants = {name: _expand(subtask, num_worlds) for name, subtask in task.subtasks.items()}
-    splits = [name for name, expanded in variants.items() if len(expanded) > 1]
-    if splits and task.mode is TaskMode.SEQUENCE:
-        raise ValueError(f"The subtasks {splits} of a sequence split the worlds, which a sequence cannot do.")
-    if len(splits) > 1:
-        raise ValueError(f"Only one subtask of a task may split the worlds, found {splits}.")
-    single = {name: expanded[0][0] for name, expanded in variants.items()}
-    if not splits:
-        return [(replace(task, subtasks=single), num_worlds)]
-    return [(replace(task, subtasks={**single, splits[0]: subtask}), count) for subtask, count in variants[splits[0]]]
+    # The worlds where every subtask runs one variant: between the boundaries of the shares of all of them.
+    ends = sorted({end for expanded in variants.values() for end in itertools.accumulate(n for _, n in expanded)})
+    expanded = []
+    for start, stop in itertools.pairwise([0, *ends]):
+        subtasks = {name: _variant_at(variants[name], start) for name in task.subtasks}
+        expanded.append((replace(task, subtasks=subtasks), stop - start))
+    return expanded or [(task, num_worlds)]
+
+
+def _variant_at(variants: list[tuple[TaskCfg, int]], world: int) -> TaskCfg:
+    """Return the variant of a task, of those that run in consecutive shares of the worlds, that runs in ``world``."""
+    stops = list(itertools.accumulate(count for _, count in variants))
+    return variants[next(k for k, stop in enumerate(stops) if world < stop)][0]
 
 
 def _local_names(task: TaskCfg, path: str, prefix: str) -> dict[FieldSelector, FieldSelector]:
