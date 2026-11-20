@@ -203,7 +203,13 @@ def test_teacher_gaze_fixates_the_target_through_a_rolled_mount():
 def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():
     GazeActionCfg(asset_name="camera").validate_config()
     GazeActionCfg(asset_name="camera", mount="tracked").validate_config()
-    for field, value in (("step_size", 0.0), ("step_size", float("nan")), ("gaze_limit", math.inf), ("mount", "head")):
+    for field, value in (
+        ("step_size", 0.0),
+        ("step_size", float("nan")),
+        ("gaze_limit", math.inf),
+        ("gaze_limit", "1.0"),
+        ("mount", "head"),
+    ):
         cfg = GazeActionCfg(asset_name="camera")
         setattr(cfg, field, value)
         with pytest.raises(ValueError, match=field):

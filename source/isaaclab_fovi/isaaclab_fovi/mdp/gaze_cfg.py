@@ -36,13 +36,8 @@ class GazeActionCfg(ActionTermCfg):
 
     def validate_config(self):
         """Reject gaze bounds that would divide by zero and unknown mounts."""
-        if not _positive_finite(self.step_size):
-            raise ValueError(f"GazeActionCfg.step_size must be positive and finite, got {self.step_size!r}.")
-        if not _positive_finite(self.gaze_limit):
-            raise ValueError(f"GazeActionCfg.gaze_limit must be positive and finite, got {self.gaze_limit!r}.")
+        for name, value in (("step_size", self.step_size), ("gaze_limit", self.gaze_limit)):
+            if not (isinstance(value, (int, float)) and math.isfinite(value) and value > 0):
+                raise ValueError(f"GazeActionCfg.{name} must be positive and finite, got {value!r}.")
         if self.mount not in ("fixed", "tracked"):
             raise ValueError(f"GazeActionCfg.mount must be 'fixed' or 'tracked', got {self.mount!r}.")
-
-
-def _positive_finite(value) -> bool:
-    return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
