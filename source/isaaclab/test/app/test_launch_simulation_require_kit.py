@@ -105,9 +105,10 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     assert calls == ["register", "user"]
 
 
-def test_newton_rtx_selection_launches_newton_with_a_deprecation_warning():
+def test_newton_rtx_selection_launches_newton_in_rtx_without_a_warning():
     cfg = SimulationCfg(physics=sim_launcher.NewtonCfg())
-    with pytest.warns(FutureWarning, match="'newton_rtx' visualizer option is deprecated.*next release"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
     assert [viz.backend.visualizer_type for viz in cfg.visualizer_cfgs] == ["newton"]
     assert [viz.backend.initial_renderer for viz in cfg.visualizer_cfgs] == ["rtx"]

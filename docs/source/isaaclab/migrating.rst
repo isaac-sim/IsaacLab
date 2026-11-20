@@ -2606,8 +2606,8 @@ The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
-  ``"newton_gl"`` is an alias for ``"newton"``. ``"newton_rtx"`` is a deprecated alias that launches ``"newton"`` with a warning and is removed
-  in the next release; ``"newton"`` renders with OpenGL or RTX.
+  ``"newton_gl"`` is an alias for ``"newton"``. ``"newton_rtx"`` launches ``"newton"`` started in RTX, which adds the viewer camera the Renderer
+  selector needs; plain ``"newton"`` opens in OpenGL with the selector greyed out.
 - ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``. A concrete backend
   runs as declared; ``--viz`` selects backends while preserving the common view and window settings.
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
@@ -2862,33 +2862,25 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
 
 .. rubric:: Newton Visualizer Type (``newton_rtx`` → ``newton`` with RTX rendering)
 
-The Newton visualizer is one window that renders with OpenGL or RTX (OVRTX path tracer). There is no separate
-``newton_rtx`` visualizer:
+The Newton visualizer is one window that renders with OpenGL or RTX (OVRTX path tracer). ``--viz newton_rtx`` still
+works and launches that window started in RTX, with the **Renderer** selector available to switch back:
 
 .. list-table::
    :header-rows: 1
    :widths: 30 30 40
 
-   * - Old (removed / deprecated)
+   * - Old
      - New
      - Notes
    * - ``NewtonVisualizerCfg``, ``--viz newton_gl``
      - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (``visualizer_type="newton"``)
      - OpenGL rasterizer; ``newton_gl`` stays an alias of ``newton``
    * - ``NewtonRTXBackendCfg``, ``--viz newton_rtx``
-     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` with ``initial_renderer="rtx"``
+     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` with ``initial_renderer="rtx"``, or ``--viz newton_rtx``
      - OVRTX path tracer; the HUD **Renderer** selector switches at runtime
 
-``--viz newton_rtx`` launches the ``newton`` visualizer with a ``FutureWarning`` that says the option is deprecated and
-is removed in the next release. Update scripts and config files:
-
-.. code-block:: bash
-
-   # Before
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_rtx
-
-   # After: switch the Renderer to RTX in the window
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+The RTX camera is off for plain ``--viz newton`` because it adds startup time and some frame time, so the selector is
+greyed out there. Use ``--viz newton_rtx`` or ``NewtonGLBackendCfg(rtx_camera=True)`` to enable it:
 
 .. code-block:: python
 
@@ -2896,8 +2888,8 @@ is removed in the next release. Update scripts and config files:
    VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
 
 The RTX view needs the ``ovrtx`` package, a physics backend other than PhysX, and no Kit in the process. A
-:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source of ``"viz:newton_rtx"`` warns
-the same way and records the ``newton`` visualizer; use ``"viz:newton"``. ``"viz:newton_gl"`` and ``"visualizer:newton_gl"`` remain accepted aliases.
+:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source of ``"viz:newton_rtx"`` records the ``newton``
+visualizer. ``"viz:newton_gl"`` and ``"visualizer:newton_gl"`` remain accepted aliases.
 
 
 .. rubric:: Window settings and RTX scene ownership

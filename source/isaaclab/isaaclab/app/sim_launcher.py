@@ -46,7 +46,6 @@ from ..visualizers.visualizer_cfg import (
     VISUALIZER_ALIAS_OPTIONS,
     VISUALIZER_ALIASES,
     migrate_visualizer_cfgs,
-    warn_deprecated_visualizer,
 )
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
@@ -259,8 +258,6 @@ def validate_launch(  # noqa: C901
     if isinstance(selection, str):
         selection = selection.split(",")
     if selection is not None:
-        for name in selection:
-            warn_deprecated_visualizer(name, stacklevel=3)
         alias_options = {}
         for name in selection:
             alias_options.update(VISUALIZER_ALIAS_OPTIONS.get(name, {}))
@@ -306,7 +303,7 @@ def validate_launch(  # noqa: C901
                     or [viewer.replace(backend=visualizer_types[name]()) for viewer in declarations]
                 )
             node.visualizer_cfgs = viewers
-            if alias_options:  # a deprecated name that also chose how the window starts, such as newton_rtx
+            if alias_options:  # a name that also chose how the window starts, such as newton_rtx
                 for viewer in node.visualizer_cfgs:
                     if isinstance(viewer.backend, NewtonGLBackendCfg):
                         for option, value in alias_options.items():
@@ -368,9 +365,6 @@ def validate_launch(  # noqa: C901
     # A Newton window can switch its main view to an OVRTX camera, which must already exist in the scene.
     implicit_viewer_cameras: list[tuple[str, VisualizerCfg, tuple[int, int], bool]] = []
     for viewer_index, visualizer in enumerate(viewers):
-        backend = visualizer.backend
-        if launcher_args.get("rtx_viewer") and isinstance(backend, NewtonGLBackendCfg) and backend.rtx_camera is None:
-            backend.rtx_camera = True  # --rtx_viewer opts every Newton window in, unless its cfg says False
         if scene_cfg is not None and _wants_rtx_viewer_camera(visualizer):
             implicit_viewer_cameras.append(_declare_viewer_camera(scene_cfg, viewer_index, visualizer))
     configs = _walk_runtime_configs(cfg)
