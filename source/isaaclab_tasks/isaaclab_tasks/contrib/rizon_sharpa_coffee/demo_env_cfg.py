@@ -18,7 +18,7 @@ from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -101,10 +101,13 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
 
 
 @configclass
-class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
-    """Coffee presentation with an optional render-only public kitchen."""
+class CoffeeVisualizerCfg(NewtonGLBackendCfg):
+    """Coffee presentation in the Newton visualizer, with an optional render-only public kitchen.
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer"
+    The window starts in OpenGL; set ``initial_renderer="rtx"`` to start in the RTX view, such as to record a video.
+    """
+
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer"
     backdrop: Literal["kitchen", "studio"] = "kitchen"
     """Presentation backdrop: ``kitchen`` or the original ``studio``."""
 
@@ -250,7 +253,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     backdrops = {
         visualizer.backend.backdrop
         for visualizer in cfg.sim.visualizer_cfgs
-        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
+        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeVisualizerCfg))
     }
     if len(backdrops) > 1:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")

@@ -63,7 +63,7 @@ class VideoRecorder:
                 active = [viz.cfg.backend.visualizer_type for viz in env.sim.visualizers]
                 raise RuntimeError(
                     f"Source {cfg.source!r} has no recording-capable visualizer (active: {active}). "
-                    "Use --viz kit, --viz newton_gl, --viz newton_rtx, or source='sensor:<name>'."
+                    "Use --viz kit, --viz newton, or source='sensor:<name>'."
                 )
             if channel == "streaming_view" and not viz.cfg.streaming_view:
                 raise RuntimeError(

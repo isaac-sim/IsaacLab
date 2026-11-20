@@ -23,8 +23,6 @@ from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizer,
     ParticleSurfaceRenderer,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
@@ -963,7 +961,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             backend=NewtonGLBackendCfg(),
         )
     ]
-    with launch_simulation(cfg, {"visualizer": ["newton_gl"], "device": device}):
+    with launch_simulation(cfg, {"visualizer": ["newton"], "device": device}):
         env = gym.make("Isaac-Cartpole", cfg=cfg)
         try:
             env.reset()
@@ -1153,7 +1151,7 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     sim._visualizers = [visualizer]
     BaseVisualizer.initialize(visualizer, sim, cameras=[camera])
     recorder = VideoRecorder(
-        VideoRecorderCfg(source="viz:newton_gl:streaming_view", video_length=3, fps=30, output_dir=str(tmp_path)),
+        VideoRecorderCfg(source="viz:newton:streaming_view", video_length=3, fps=30, output_dir=str(tmp_path)),
         SimpleNamespace(sim=sim),
     )
 
@@ -1377,20 +1375,15 @@ def test_marker_batches_preserve_selected_instances(device, marker_registry, mon
 
 
 # ---------------------------------------------------------------------------
-# RTX backend tests
+# Config tests
 # ---------------------------------------------------------------------------
 
 
 def test_newton_visualizer_cfg():
-    assert VisualizerCfg(backend=NewtonGLBackendCfg()).backend.visualizer_type == "newton_gl"
-    assert VisualizerCfg(backend=NewtonRTXBackendCfg()).backend.visualizer_type == "newton_rtx"
-    assert not issubclass(NewtonRTXVisualizer, NewtonGLVisualizer)
-    for option in ("rtx_environment", "world_spacing", "enable_picking"):
-        with pytest.raises(TypeError, match=option):
-            VisualizerCfg(backend=NewtonRTXBackendCfg(**{option: None}))
+    assert VisualizerCfg(backend=NewtonGLBackendCfg()).backend.visualizer_type == "newton"
     # Public viewer options are accepted as cfg fields.
     VisualizerCfg(backend=NewtonGLBackendCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3)))
-    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="/Camera")], backend=NewtonRTXBackendCfg())
+    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="/Camera")], backend=NewtonGLBackendCfg())
     validate(cfg)
 
 
@@ -1409,15 +1402,6 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     expected_lower = cfg.backend.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
-
-
-def test_newton_rtx_visualizer_rejects_kit_physics_backend():
-    """Reject Kit physics before constructing the incompatible kitless RTX resources."""
-    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
-    sim = SimpleNamespace(backend_manager=SimpleNamespace(backend_name="physx"))
-
-    with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(sim, cameras=[])
 
 
 def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
@@ -1463,7 +1447,77 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
     )
     rtx = SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx")))
     visualizer._image_views = [free, sensor, rtx]
-    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_0_rtx"))
+    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_path="/World/viewer_camera_0_rtx"))
     for view, selected in ((free, False), (sensor, True), (rtx, False)):
         visualizer.current_image_view = view
         assert visualizer.sensor_view_selected is selected
+
+
+def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    visualizer = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    camera = Mock()
+    camera.cfg = SimpleNamespace(prim_path="/World/viewer_camera_0_rtx", renderer_cfg="ovrtx")
+    view = Mock(camera=camera)
+    renderer = Mock()
+    visualizer._is_initialized, visualizer._viewer = True, object()
+    visualizer._pending_mesh_submissions = {}
+    visualizer._image_views, visualizer._sim = [view], SimpleNamespace(get_or_create_backend=lambda cfg: renderer)
+    visualizer.current_image_view = object()
+
+    visualizer.log_mesh("/m", points=None, indices=None)  # OpenGL is shown: publish, but do not render RTX
+
+    renderer.log_mesh.assert_called_once()
+    camera._invalidate_buffers.assert_not_called()
+
+    visualizer.current_image_view = view
+    visualizer.log_mesh("/m", points=None, indices=None)
+
+    camera._invalidate_buffers.assert_called_once_with()
+    view.invalidate.assert_called_once_with()
+
+
+def test_a_window_with_an_explicit_view_still_gets_the_launch_declared_viewer_camera():
+    visualizer = _make_newton_visualizer(_Viewer())
+    visualizer.cfg.window.size = (960, 540)
+    visualizer.cfg.streaming_gt_types = ("depth",)  # The scene cameras' channels do not apply to the viewer camera.
+    sensor = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx"))
+    other = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera"))
+    provider = SimpleNamespace(get_camera_sensors=lambda: {s.cfg.prim_path: s for s in (other, sensor)})
+    created = []
+
+    def get_or_create_backend(cfg, camera=None):
+        created.append(cfg)
+        return SimpleNamespace(camera=camera, aspect=None)
+
+    sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_or_create_backend=get_or_create_backend)
+    visualizer._image_views = [SimpleNamespace(camera=None)]
+
+    visualizer._add_viewer_camera(sim)
+
+    assert [cfg.source for cfg in created] == ["/World/viewer_camera_0_rtx"]
+    assert created[0].channels == ("rgb",)  # Launch declares the viewer camera with RGBA only.
+    assert visualizer.rtx_view_index == 1 and visualizer._image_views[1].aspect == pytest.approx(960 / 540)
+
+
+def test_each_window_binds_the_viewer_camera_launch_declared_for_it():
+    visualizer = _make_newton_visualizer(_Viewer())
+    visualizer._rtx_camera_path = "/World/viewer_camera_1_rtx"
+    first = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx"))
+    second = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_1_rtx"))
+    provider = SimpleNamespace(get_camera_sensors=lambda: {s.cfg.prim_path: s for s in (first, second)})
+    created = []
+
+    def get_or_create_backend(cfg, camera=None):
+        created.append(cfg)
+        return SimpleNamespace(camera=camera, aspect=None)
+
+    sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_or_create_backend=get_or_create_backend)
+    visualizer._image_views = [SimpleNamespace(camera=first)]  # Another window's camera is not this window's view.
+
+    assert visualizer.rtx_view_index is None
+    visualizer._add_viewer_camera(sim)
+
+    assert [cfg.source for cfg in created] == ["/World/viewer_camera_1_rtx"]
+    assert visualizer.rtx_view_index == 1

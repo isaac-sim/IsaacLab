@@ -22,7 +22,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import ImageViewCfg, VisualizerCfg
 
 # Pyglet must choose EGL before Newton imports its window class.
 if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
@@ -46,7 +46,6 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
@@ -750,10 +749,17 @@ class NewtonViewerGL(ViewerGL):
         )
 
 
+def _is_ovrtx(renderer_cfg) -> bool:
+    """Whether a camera's renderer config selects the OVRTX renderer."""
+    return getattr(renderer_cfg, "renderer_type", None) == "ovrtx"
+
+
 class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
     _overlay_publisher: OverlayMeshPublisher | None = None
+    _rtx_camera_path: str | None = None
+    """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
@@ -861,6 +867,38 @@ class NewtonVisualizerBase(BaseVisualizer):
             hidden=hidden, backface_culling=backface_culling, color=color,
             roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
         )  # fmt: skip
+        renderers = self._rtx_renderers
+        for renderer in renderers:
+            # The OVRTX viewer camera draws its own scene, so the mesh is published there as well.
+            renderer.log_mesh(
+                f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
+                backface_culling, color, roughness, metallic, dynamic, opacity,
+            )  # fmt: skip
+        view = self.current_image_view
+        camera = getattr(view, "camera", None)
+        if renderers and camera is not None and (self.rtx_rendering or _is_ovrtx(camera.cfg.renderer_cfg)):
+            # The cached RTX image predates the mesh, which matters while paused or between renders.
+            view.camera._invalidate_buffers()
+            view.invalidate()
+
+    @property
+    def _rtx_renderers(self) -> tuple:
+        """OVRTX renderers of the viewer camera and of the scene camera the window displays; empty when neither is."""
+        if self._sim is None:
+            return ()
+        index = getattr(self, "rtx_view_index", None)
+        views = [] if index is None else [self._image_views[index]]
+        current = getattr(self, "current_image_view", None)
+        if current is not None and all(current is not view for view in views):
+            views.append(current)
+        renderers = {}
+        for view in views:
+            camera = getattr(view, "camera", None)
+            cfg = None if camera is None else camera.cfg.renderer_cfg
+            if cfg is not None and (index is not None and view is self._image_views[index] or _is_ovrtx(cfg)):
+                renderer = self._sim.get_or_create_backend(cfg)
+                renderers[id(renderer)] = renderer
+        return tuple(renderers.values())
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -903,7 +941,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
         if current == rtx_index:  # RTX renders the free perspective source.
-            current = next(i for i in indices if self._image_views[i].camera is None)
+            current = next(
+                (i for i in indices if self._image_views[i].camera is None),
+                indices[0],  # No free perspective view: show the first source
+            )
         position = indices.index(current)
         changed, chosen = imgui.combo("Camera Source", position, labels)
         if changed:
@@ -1360,7 +1401,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        if view is current:
+        # a free view records what an RTX window shows
+        if view is current or self.rtx_rendering:
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
@@ -1588,7 +1630,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
+        self._rtx_camera_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         super().initialize(sim, cameras=cameras)
+        if self.rtx_view_index is None:
+            self._add_viewer_camera(sim)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
@@ -1636,6 +1681,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
         if self.rtx_view_index is not None:
             self._overlay_publisher = OverlayMeshPublisher(f"Viewer_{id(self)}")
+        if self.cfg.backend.initial_renderer == "rtx":
+            if self.rtx_view_index is None:
+                raise RuntimeError(
+                    "NewtonGLBackendCfg.initial_renderer='rtx' needs the OVRTX viewer camera. Launch declares it for"
+                    " a run with an InteractiveSceneCfg (see NewtonGLBackendCfg.rtx_camera); a script that builds its"
+                    " scene itself must add an OVRTX Camera whose prim_path starts with '/World/viewer_camera_'."
+                )
+            self.set_rtx_rendering(True)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -1807,24 +1860,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     @property
     def rtx_view_index(self) -> int | None:
-        """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
-        declared = getattr(getattr(getattr(self, "cfg", None), "backend", None), "rtx_camera_prim_path", None)
-        if (
-            declared is None
-        ):  # another visualizer's cameras share the viewer_camera_ prefix, so only a declared one counts
-            return None
+        """Index of this window's OVRTX viewer camera among the image views, or None when the scene has none."""
         for index, view in enumerate(self._image_views):
-            if view.camera is not None and getattr(view.camera.cfg, "prim_path", "") == declared:
+            if view.camera is not None and self._is_viewer_camera(getattr(view.camera.cfg, "prim_path", "")):
                 return index
         return None
 
-    @property
-    def _rtx_renderers(self) -> tuple:
-        """OVRTX renderers of the viewer camera; empty when the scene has none."""
-        index = self.rtx_view_index
-        if index is None or self._sim is None:
-            return ()
-        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
+    def _is_viewer_camera(self, prim_path: str) -> bool:
+        """Whether *prim_path* is the viewer camera launch declared for this window, or any viewer camera if none."""
+        declared = self._rtx_camera_path
+        return prim_path == declared if declared else prim_path.startswith("/World/viewer_camera_")
 
     @property
     def sensor_view_selected(self) -> bool:
@@ -1848,13 +1893,18 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
         free = [i for i, view in enumerate(self._image_views) if view.camera is None]
+        # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
+        # camera product a second time; otherwise it renders only on demand.
+        self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
         if enabled:
             self._select_camera(rtx_index, keep_pose=True)
             self._apply_rtx_visible_envs()
             if self._rtx_appearance is not None and self._rtx_appearance.available:
                 self._rtx_appearance.apply_lights()
         else:
-            self._select_camera(free[0], keep_pose=True)
+            target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
+            self._select_camera(target, keep_pose=self._image_views[target].camera is None)
 
     @property
     def visible_env_limit(self) -> int:
@@ -1896,6 +1946,18 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         prefix = self._viewer._qualify("/model/shapes/")
         for key in [k for k in objects if k.startswith(prefix) and hasattr(objects[k], "num_instances")]:
             del objects[key]
+
+    def _add_viewer_camera(self, sim: SimulationContext) -> None:
+        """Add the OVRTX viewer camera launch declared for this window when its explicit view or cameras omit it."""
+        sensors = sim.get_scene_data_provider().get_camera_sensors()
+        camera = next((sensor for sensor in sensors.values() if self._is_viewer_camera(sensor.cfg.prim_path)), None)
+        if camera is None:
+            return
+        # Launch declares this camera with RGBA only, whatever channels the window's scene cameras show.
+        view_cfg = ImageViewCfg(source=camera.cfg.prim_path, envs=(0,), channels=("rgb",))
+        view = sim.get_or_create_backend(view_cfg, camera=camera)
+        view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
+        self._image_views.append(view)
 
     def _apply_visible_worlds(self) -> None:
         """Apply the visible environments."""
@@ -2171,79 +2233,3 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.backend.light_color)
-
-
-class NewtonRTXVisualizer(NewtonVisualizerBase):
-    """Display simulation-owned RTX images in a Newton GL window.
-
-    Scene cameras and the perspective product share the configured OVRTX renderer. Window resizing
-    only scales presentation; sensor and perspective output storage keeps its initial resolution.
-    """
-
-    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Bind existing scene cameras to the window; cameras retain renderer ownership."""
-        if self._is_initialized:
-            return
-        if FactoryBase._get_backend(sim=sim) == "physx":
-            raise RuntimeError(
-                "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
-            )
-        if any(isinstance(camera, PerspectiveCameraCfg) for camera in cameras) or (
-            self.cfg.view is not None and isinstance(self.cfg.view.source, PerspectiveCameraCfg)
-        ):
-            raise ValueError(
-                "RTX perspective cameras must be declared before scene construction. Pass the environment config "
-                "to launch_simulation, or use instantiate(camera_cfg) within ReplicateSession and select it with "
-                "SceneCameraCfg."
-            )
-        super().initialize(sim, cameras=cameras)
-        self._viewer.renderer.set_title("Isaac Lab RTX")
-        self._viewer.picking_enabled = False
-        self._select_camera(0)
-        self._renderers = tuple(dict.fromkeys(
-            sim.get_or_create_backend(view.camera.cfg.renderer_cfg) for view in self._image_views
-            if view.camera.cfg.renderer_cfg.renderer_type == "ovrtx"
-        ))  # fmt: skip
-        if self.cfg.enable_markers:
-            for renderer in self._renderers:
-                renderer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._marker_revision = -1
-        self._is_initialized = True
-
-    def log_mesh(self, name: str, *args, **kwargs) -> None:
-        """Publish geometry to the shared scene, including cameras captured without a window."""
-        if not self._is_initialized:
-            raise RuntimeError("The visualizer must be initialized before logging a mesh.")
-        for renderer in self._renderers:
-            renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
-        for view in self._image_views:
-            view.camera._invalidate_buffers()
-            view.invalidate()
-
-    def _render_frame(self) -> None:
-        """Update navigation and scene overlays, then display the selected camera's GPU image."""
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            if not self._viewer.is_paused():
-                self._navigate_scene_camera()
-                if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
-                    for view in self._image_views:
-                        view.camera._invalidate_buffers()
-                        view.invalidate()
-                    self._marker_revision = self._sim.vis_marker_registry.revision
-            self._log_streaming_image()
-            self._last_render_step = self._sim.get_physics_step_count()
-        finally:
-            self._viewer.end_frame()
-
-    def close(self) -> None:
-        """Close the window; scene cameras retain their render products and shared renderer."""
-        if self._is_closed:
-            return
-        self._close_key_event_source()
-        try:
-            if self._viewer is not None:
-                self._viewer.close()
-        finally:
-            self._viewer = None
-            super().close()

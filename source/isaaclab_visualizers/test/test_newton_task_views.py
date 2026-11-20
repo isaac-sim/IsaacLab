@@ -124,12 +124,15 @@ def _switchable(views):
     base = _visualizer(views)
     viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
     viz.__dict__.update(base.__dict__)
-    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_0"))
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_path="/World/viewer_camera_0"))
     viz._overlay_publisher = SimpleNamespace(hide_all=lambda renderers: viz.hidden.append(renderers))
     viz._sim.get_or_create_backend = lambda cfg: cfg
     viz.hidden, viz.current_image_view = [], views[0]
 
+    viz.keep_pose = []
+
     def select(index, keep_pose=False):
+        viz.keep_pose.append(keep_pose)
         viz.current_image_view = viz._image_views[index]
 
     viz._select_camera = select
@@ -158,22 +161,34 @@ def test_leaving_rtx_hides_the_overlays_and_suspends_the_viewer_lights():
     assert viz.hidden == [("ovrtx",)] and suspended == [True]
 
 
+def test_leaving_rtx_without_a_free_perspective_view_shows_the_first_other_source():
+    sensor = _View("sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera")))
+    rtx = _rtx_view()
+    viz = _switchable([sensor, rtx])
+    viz.current_image_view = rtx
+
+    viz.set_rtx_rendering(False)
+
+    assert viz.current_image_view is sensor
+    assert viz.keep_pose == [False]  # A scene sensor is not moved to the viewer's pose.
+
+
+def test_meshes_reach_the_ovrtx_scene_camera_a_standalone_window_displays():
+    ovrtx = SimpleNamespace(renderer_type="ovrtx")
+    sensor = _View("sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Camera", renderer_cfg=ovrtx)))
+    other = _View("other", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Other", renderer_cfg=ovrtx)))
+    viz = _switchable([sensor, other])
+    viz._sim.get_or_create_backend = lambda cfg: cfg
+
+    assert viz.rtx_view_index is None
+    assert viz._rtx_renderers == (ovrtx,)  # only the displayed sensor, not every scene camera
+
+
 def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
     viz = _switchable([_view(PerspectiveCameraCfg())])
 
     with pytest.raises(RuntimeError, match="no OVRTX viewer camera"):
         viz.set_rtx_rendering(True)
-
-
-def test_each_window_selects_the_rtx_camera_declared_for_it():
-    cams = [
-        _View("a", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path=f"/World/viewer_camera_{i}_rtx")))
-        for i in range(2)
-    ]
-    viz = _switchable([_view(PerspectiveCameraCfg()), *cams])
-    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_1_rtx"))
-
-    assert viz.rtx_view_index == 2
 
 
 def test_the_shared_renderer_hides_environments_only_while_the_rtx_view_is_shown():
@@ -202,3 +217,13 @@ def test_the_standalone_rtx_window_has_no_opengl_view_state():
     viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
 
     assert viz.rtx_view_index is None and not viz.rtx_rendering and not viz.sensor_view_selected
+
+
+def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
+    free, rtx = _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([free, rtx])
+    viz.current_image_view = rtx
+    viz._capture_frame = lambda output: "window frame"
+
+    assert viz._capture_view(free, None) == "window frame"
+    assert viz.current_image_view is rtx
