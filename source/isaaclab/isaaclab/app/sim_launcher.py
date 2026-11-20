@@ -42,14 +42,7 @@ from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
-from ..visualizers import (
-    ImageViewCfg,
-    PerspectiveCameraCfg,
-    SceneCameraCfg,
-    TrackingCameraCfg,
-    VisualizerBackendCfg,
-    VisualizerCfg,
-)
+from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerBackendCfg, VisualizerCfg
 from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
@@ -373,19 +366,11 @@ def validate_launch(  # noqa: C901
     for viewer_index, visualizer in enumerate(viewers):
         if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
             continue
-        if visualizer.view is not None:
-            if isinstance(visualizer.view.source, TrackingCameraCfg):
-                raise ValueError("A tracking camera cannot be the image source of an RTX viewer.")
-            sources = [visualizer.view.source]
-        else:
-            # The Newton RTX visualizer does not support tracking cameras.
-            sources = [camera for camera in visualizer.cameras or [] if not (isinstance(camera, TrackingCameraCfg))]
-            if not sources:
-                sources = [
-                    PerspectiveCameraCfg(
-                        eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length
-                    )
-                ]
+        sources = (
+            [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
+                PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
+            ])
+        )  # fmt: skip
         for camera_index, source in enumerate(sources):
             if not isinstance(source, PerspectiveCameraCfg):
                 continue

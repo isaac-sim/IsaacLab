@@ -58,7 +58,6 @@ class _FakeViz:
         self.cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type=viz_type))
         self._frame = frame if frame is not None else _FRAME.copy()
         self.render_calls = 0
-        self.has_tracking_view = True
 
     def render_rgb_array(self) -> np.ndarray:
         self.render_calls += 1
@@ -66,11 +65,6 @@ class _FakeViz:
 
     def supports_markers(self) -> bool:
         return True
-
-
-def _without_tracking_view(viz: _FakeViz) -> _FakeViz:
-    viz.has_tracking_view = False
-    return viz
 
 
 def _make_env(visualizers=(), sensors: dict | None = None):
@@ -103,7 +97,6 @@ def _make_env(visualizers=(), sensors: dict | None = None):
         ("viser", ("viz", "viser", "")),
         ("rerun", ("viz", "rerun", "")),
         ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
-        ("viz:newton_gl:tracking", ("viz", "newton_gl", "tracking")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
         # ``visualizer`` is the long form of ``viz``
@@ -265,15 +258,6 @@ def test_source_resolves_frame(source, make_env, caplog):
     assert not caplog.records
 
 
-def test_a_tracking_source_records_the_tracking_camera_not_the_selected_one():
-    viz = _FakeViz("newton_gl")
-    task_frame = np.full_like(_FRAME, 7)
-    viz.render_tracking_rgb_array = lambda: task_frame
-    recorder = VideoRecorder(_cfg(source="viz:newton_gl:tracking"), _make_env(visualizers=[viz]))
-    assert recorder._capture() is task_frame
-    assert viz.render_calls == 0
-
-
 @pytest.mark.parametrize(
     "source,make_env,error,message",
     [
@@ -284,18 +268,6 @@ def test_a_tracking_source_records_the_tracking_camera_not_the_selected_one():
             lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
             RuntimeError,
             "Enable streaming_view",
-        ),
-        (
-            "viz:newton_gl:tracking",
-            lambda: _make_env(visualizers=[_without_tracking_view(_FakeViz("newton_gl"))]),
-            RuntimeError,
-            "declares no tracking camera",
-        ),
-        (
-            "viz:kit:tracking",
-            lambda: _make_env(visualizers=[_FakeViz("kit")]),
-            RuntimeError,
-            "cannot record a tracking view",
         ),
         ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), ValueError, "missing"),
         ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), KeyError, "depth"),

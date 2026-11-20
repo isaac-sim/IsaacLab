@@ -36,14 +36,7 @@ from ..utils.string import clear_resolve_matching_names_cache, string_to_callabl
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import (
-    PerspectiveCameraCfg,
-    SceneCameraCfg,
-    TrackingCameraCfg,
-    VisualizerCfg,
-    migrate_visualizer_cfgs,
-    with_free_view,
-)
+from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, migrate_visualizer_cfgs
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -433,21 +426,12 @@ class SimulationContext:
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
                 ])  # fmt: skip
-            if visualizer.cfg.backend.visualizer_type == "newton_rtx":
-                # The Newton RTX visualizer does not support tracking cameras.
-                cameras = [camera for camera in cameras if not (isinstance(camera, TrackingCameraCfg))]
-            else:
-                cameras = with_free_view(
-                    cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length
-                )
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
-                # tracking cameras only add to the scene cameras the visualizer would find on its own
-                discovered = visualizer.cfg.cameras is None or visualizer.cfg.tracking_cameras_only()
-                if discovered:
+                if visualizer.cfg.cameras is None:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
@@ -456,7 +440,8 @@ class SimulationContext:
                             if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 rtx_path = getattr(visualizer.cfg.backend, "rtx_camera_prim_path", None)
-                if rtx_path is not None and (not discovered or visualizer.cfg.streaming_sensor_prim_path is not None):
+                explicit = visualizer.cfg.cameras is not None or visualizer.cfg.streaming_sensor_prim_path is not None
+                if rtx_path is not None and explicit:
                     # Explicit cameras skip discovery; the Renderer switch still needs this window's RTX camera.
                     cameras.append(SceneCameraCfg(prim_path=rtx_path))
                 for index, source in enumerate(cameras):

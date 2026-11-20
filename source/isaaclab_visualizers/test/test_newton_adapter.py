@@ -12,7 +12,6 @@ import subprocess
 import sys
 import textwrap
 from contextlib import nullcontext
-from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -42,7 +41,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, TrackingCameraCfg, VisualizerCfg, WindowCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -683,7 +682,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     from isaaclab.visualizers import ImageView, ImageViewCfg
 
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
-    view.render = partial(visualizer._capture_view, view)
+    view.render = visualizer._capture_frame
     visualizer.current_image_view, visualizer._image_views = view, [view]
     if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
@@ -1444,46 +1443,6 @@ def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
     assert term_summary(manager, "plain") == ""
     assert term_summary(manager, "missing") == ""
     assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
-
-
-def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
-    from isaaclab.visualizers import PerspectiveCameraCfg
-
-    def view(source, camera=None):
-        return SimpleNamespace(camera=camera, cfg=SimpleNamespace(source=source), invalidate=Mock())
-
-    rtx_camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0"))
-    free, rtx, tracking = (
-        view(PerspectiveCameraCfg()),
-        view(PerspectiveCameraCfg(), rtx_camera),
-        view(TrackingCameraCfg(env_index=0)),
-    )
-    visualizer = object.__new__(NewtonGLVisualizer)
-    visualizer._image_views = [free, rtx, tracking]
-    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera_prim_path="/World/viewer_camera_0"))
-    visualizer.current_image_view = tracking
-    visualizer._rtx_pose_view = None
-
-    pose_view_when_selecting = []
-
-    def select(index, keep_pose=False):
-        pose_view_when_selecting.append(visualizer._rtx_pose_view)
-        visualizer.current_image_view = visualizer._image_views[index]
-        if index != visualizer.rtx_view_index:
-            visualizer._rtx_pose_view = None
-
-    visualizer._select_camera = select
-    visualizer._apply_rtx_visible_envs = lambda: None
-
-    visualizer.set_rtx_rendering(True)
-
-    assert visualizer.rtx_rendering and visualizer._pose_source_view() is tracking
-
-    visualizer.set_rtx_rendering(False)
-
-    assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None
-    # Selecting away saves the outgoing pose first, which must still see the Tracking Camera driving the viewer.
-    assert pose_view_when_selecting[-1] is tracking
 
 
 def test_sensor_labels_name_the_outputs_of_the_sensor():
