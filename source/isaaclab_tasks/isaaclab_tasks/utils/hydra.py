@@ -601,7 +601,9 @@ def register_task(
         if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
         elif token == PresetTarget.VISUALIZER.value:
-            names = [name.strip() for name in val.split(",") if name.strip()]
+            from .presets import VISUALIZER_PRESET_FIELDS
+
+            names = [VISUALIZER_PRESET_FIELDS.get(name, name) for name in (v.strip() for v in val.split(",")) if name]
             if not names:
                 raise ValueError("visualizer= requires a preset name; use visualizer=none to disable viewers.")
             selectors[PresetTarget.VISUALIZER.matches] = names if len(names) > 1 else names[0]
@@ -690,7 +692,7 @@ def register_task(
             "configuration."
         )
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
         env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
             env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
@@ -703,7 +705,7 @@ def register_task(
             choices = MultiBackendVisualizerCfg()
             backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
             for backend in backends:
-                vars(choices)[backend.visualizer_type] = backend
+                vars(choices)[VISUALIZER_PRESET_FIELDS.get(backend.visualizer_type, backend.visualizer_type)] = backend
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
 
@@ -940,10 +942,11 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
                 matched = next(iter(families))
             result[matched].add(name)
     if not result[PresetTarget.VISUALIZER]:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
+        spelling = {field: name for name, field in VISUALIZER_PRESET_FIELDS.items()}
         result[PresetTarget.VISUALIZER].update(
-            name for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+            spelling.get(name, name) for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
         )
     return {target: sorted(names) for target, names in result.items()}
 

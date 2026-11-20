@@ -85,7 +85,7 @@ def test_window_controls_do_not_need_a_capture_to_have_run():
 
 
 def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
-    """Without the OVRTX viewer camera the RTX choice is shown greyed out, with the way to enable it."""
+    """Without the OVRTX viewer camera the RTX choice is greyed out, with why it is opt-in and how to enable it."""
     visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
     imgui = Mock()
     imgui.is_item_hovered.return_value = True
@@ -95,5 +95,5 @@ def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
     imgui.begin_disabled.assert_called_once()
     imgui.end_disabled.assert_called_once()
     assert [call.args[0] for call in imgui.radio_button.call_args_list] == ["OpenGL", "RTX"]
-    assert "--viz newton_rtx" in imgui.set_tooltip.call_args.args[0]
+    assert "opt-in" in imgui.set_tooltip.call_args.args[0]
     assert any("--viz newton_rtx" in str(call.args) for call in imgui.text_wrapped.call_args_list)
