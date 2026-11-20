@@ -122,7 +122,7 @@ def make_env(tmp_path, monkeypatch):
         cfg.scene.robot.spawn = sim_utils.UsdFileCfg(usd_path=str(robot))
         cfg.scene.camera.height, cfg.scene.camera.width = H, W
         cfg.sim.device = "cpu"
-        cfg.sim.physics.model = BrightnessModelCfg()
+        cfg.sim.physics.model_cfg = BrightnessModelCfg()
         cfg.sim.physics.reset_manifest = str(manifest)
         classifier = {
             **CLASSIFIER,

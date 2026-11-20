@@ -29,8 +29,8 @@ from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_neural.models.cosmos3 import Cosmos3Cfg
-from isaaclab_neural.physics import WorldModelCfg
-from isaaclab_neural.renderers import WorldModelRendererCfg
+from isaaclab_neural.physics import NeuralCfg
+from isaaclab_neural.renderers import NeuralRendererCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -70,8 +70,8 @@ class MedicalPadPhysicsCfg(PresetCfg):
     serves :data:`CHUNK` frames of :data:`IMAGE_SIZE` at :data:`FPS` per step.
     """
 
-    default: WorldModelCfg = WorldModelCfg(
-        model=Cosmos3Cfg(
+    default: NeuralCfg = NeuralCfg(
+        model_cfg=Cosmos3Cfg(
             joint_mapping=H2JointMappingCfg(
                 global_stats_path=f"{MODEL_DIR}/world_model/resources/global_asinh_v1_backward_anchored_gripper_metric.json"
             )
@@ -98,7 +98,7 @@ class MedicalPadSceneCfg(InteractiveSceneCfg):
         data_types=["rgb"],
         frame_history_length=CHUNK,
         spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
-        renderer_cfg=WorldModelRendererCfg(),
+        renderer_cfg=NeuralRendererCfg(),
     )
 
 
