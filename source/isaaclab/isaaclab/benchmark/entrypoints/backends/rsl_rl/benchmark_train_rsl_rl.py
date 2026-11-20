@@ -163,7 +163,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
-    from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
