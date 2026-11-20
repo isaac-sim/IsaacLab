@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
 from typing import Literal
 
 import torch
@@ -35,7 +34,7 @@ from ...motion_tracking_env_cfg import (
     RewardsCfg,
     TerminationsCfg,
 )
-from .rewards import motion_feet_position_error_exp, motion_head_position_error_exp
+from .rewards import motion_body_position_error_exp
 
 
 class MicroDuckMotionCommand(MotionCommand):
@@ -64,11 +63,49 @@ class MicroDuckMotionCommand(MotionCommand):
 
 @configclass
 class MicroDuckMotionCommandCfg(MotionCommandCfg):
-    """Reference velocity convention for the native MicroDuck asset."""
+    """MicroDuck reference bodies, velocity convention and reset perturbations."""
 
     class_type: type = MicroDuckMotionCommand
     input_velocity_point: Literal["link", "com"] = "link"
     """Input world linear velocities refer to link origins or the target asset's body COMs."""
+
+    asset_name: str = "robot"
+    resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
+    anchor_body_name: str = "trunk_base"
+    body_names: list[str] = [
+        "trunk_base",
+        "yaw2roll",
+        "hip_l",
+        "upper_leg_left",
+        "leg",
+        "ankle_left",
+        "neck",
+        "neck_pitch_1",
+        "yaw_roll_motion",
+        "jaw_soft",
+        "bearing_roll",
+        "hip_l_2",
+        "upper_leg_right",
+        "leg_2",
+        "ankle_right",
+    ]
+    pose_range: dict[str, tuple[float, float]] = {
+        "x": (-0.02, 0.02),
+        "y": (-0.02, 0.02),
+        "z": (-0.003, 0.003),
+        "roll": (-0.05, 0.05),
+        "pitch": (-0.05, 0.05),
+        "yaw": (-0.1, 0.1),
+    }
+    velocity_range: dict[str, tuple[float, float]] = {
+        "x": (-0.05, 0.05),
+        "y": (-0.05, 0.05),
+        "z": (-0.02, 0.02),
+        "roll": (-0.2, 0.2),
+        "pitch": (-0.2, 0.2),
+        "yaw": (-0.2, 0.2),
+    }
+    joint_position_range: tuple[float, float] = (-0.03, 0.03)
 
 
 @configclass
@@ -88,64 +125,18 @@ class MicroDuckTrackingActionsCfg(ActionsCfg):
 
 
 @configclass
-class MicroDuckTrackingCommandsCfg(CommandsCfg):
-    """Load external named NPZ references through the shared motion loader."""
-
-    motion = MicroDuckMotionCommandCfg(
-        asset_name="robot",
-        resampling_time_range=(1.0e9, 1.0e9),
-        motion_file=MISSING,
-        anchor_body_name="trunk_base",
-        body_names=[
-            "trunk_base",
-            "yaw2roll",
-            "hip_l",
-            "upper_leg_left",
-            "leg",
-            "ankle_left",
-            "neck",
-            "neck_pitch_1",
-            "yaw_roll_motion",
-            "jaw_soft",
-            "bearing_roll",
-            "hip_l_2",
-            "upper_leg_right",
-            "leg_2",
-            "ankle_right",
-        ],
-        pose_range={
-            "x": (-0.02, 0.02),
-            "y": (-0.02, 0.02),
-            "z": (-0.003, 0.003),
-            "roll": (-0.05, 0.05),
-            "pitch": (-0.05, 0.05),
-            "yaw": (-0.1, 0.1),
-        },
-        velocity_range={
-            "x": (-0.05, 0.05),
-            "y": (-0.05, 0.05),
-            "z": (-0.02, 0.02),
-            "roll": (-0.2, 0.2),
-            "pitch": (-0.2, 0.2),
-            "yaw": (-0.2, 0.2),
-        },
-        joint_position_range=(-0.03, 0.03),
-    )
-
-
-@configclass
 class MicroDuckTrackingRewardsCfg(RewardsCfg):
     """Track each foot and the head in addition to the shared whole-body rewards."""
 
     motion_feet_pos = RewTerm(
-        func=motion_feet_position_error_exp,
+        func=motion_body_position_error_exp,
         weight=4.0,
         params={"command_name": "motion", "body_names": ["ankle_left", "ankle_right"], "std": 0.02},
     )
     motion_head_pos = RewTerm(
-        func=motion_head_position_error_exp,
+        func=motion_body_position_error_exp,
         weight=4.0,
-        params={"command_name": "motion", "body_name": "jaw_soft", "std": 0.02},
+        params={"command_name": "motion", "body_names": ["jaw_soft"], "std": 0.02},
     )
 
 
@@ -165,7 +156,7 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
 
     scene: MicroDuckTrackingSceneCfg = MicroDuckTrackingSceneCfg(num_envs=4096, env_spacing=1.0)
     actions: MicroDuckTrackingActionsCfg = MicroDuckTrackingActionsCfg()
-    commands: MicroDuckTrackingCommandsCfg = MicroDuckTrackingCommandsCfg()
+    commands: CommandsCfg = CommandsCfg(motion=MicroDuckMotionCommandCfg())
     rewards: MicroDuckTrackingRewardsCfg = MicroDuckTrackingRewardsCfg()
     terminations: MicroDuckTrackingTerminationsCfg = MicroDuckTrackingTerminationsCfg()
     sim = MicroDuckVelocityFlatEnvCfg().sim
