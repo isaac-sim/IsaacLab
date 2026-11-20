@@ -65,6 +65,7 @@ def test_a_chunk_fills_the_history_and_rgb_is_its_last_frame(world):
     data = scene["camera"].data
     assert data.frame_history.torch[:, :, 0, 0, 0].tolist() == [[10, 11, 12, 13]] * N
     assert torch.equal(data.output["rgb"].torch, data.frame_history.torch[:, -1])
+    assert (data.output["rgba"].torch[..., 3] == 255).all()
     assert data.frame_history_mask.torch.all()
 
 

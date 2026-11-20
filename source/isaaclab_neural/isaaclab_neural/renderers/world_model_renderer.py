@@ -82,9 +82,10 @@ class WorldModelRenderer(BaseRenderer):
         render_data.seen.copy_(manager.frame_serial)
         history = wp.to_torch(camera_data.frame_history.warp)
         torch.where(mask[:, None, None, None, None], manager.frame_history, history, out=history)
+        # The newest frame becomes the camera's image, written in place: RGB from the frame, alpha opaque.
         rgba = wp.to_torch(camera_data.output["rgba"].warp)
-        last = torch.cat((history[:, -1], torch.full_like(history[:, -1, ..., :1], 255)), dim=-1)
-        torch.where(mask[:, None, None, None], last, rgba, out=rgba)
+        torch.where(mask[:, None, None, None], history[:, -1], rgba[..., :3], out=rgba[..., :3])
+        rgba[..., 3].masked_fill_(mask[:, None, None], 255)
 
     def cleanup(self, render_data: Any) -> None:
         pass
