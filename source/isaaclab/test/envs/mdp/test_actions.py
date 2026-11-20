@@ -19,11 +19,12 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
     JointEffortActionCfg,
+    JointPositionChunkActionCfg,
     JointPositionToLimitsActionCfg,
     OperationalSpaceControllerActionCfg,
 )
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
-from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
+from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction, JointPositionChunkAction
 from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.envs.mdp.actions.rmpflow_task_space_actions import RMPFlowAction
@@ -49,7 +50,7 @@ class _JointIds:
         return len(self.warp)
 
 
-def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) -> SimpleNamespace:
+def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS, decimation: int = 1) -> SimpleNamespace:
     """Create a minimal environment whose robot resolves every joint query to ``joint_names``."""
     if joint_names is None:
         joint_names = JOINT_NAMES
@@ -66,7 +67,8 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
         is_fixed_base=True,
     )
     sim = SimpleNamespace(get_physics_dt=lambda: 0.01)
-    return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim)
+    cfg = SimpleNamespace(decimation=decimation)
+    return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim, cfg=cfg)
 
 
 def _diff_ik_cfg(
@@ -295,6 +297,7 @@ def test_osc_controller_limits_bound_clip() -> None:
         ),
         (JointEffortAction, JointEffortActionCfg(scale=2.0, clip={".*": (-1.0, 1.0)})),
         (JointPositionToLimitsAction, JointPositionToLimitsActionCfg(scale=2.0, rescale_to_limits=False)),
+        (JointPositionChunkAction, JointPositionChunkActionCfg(scale=2.0, use_default_offset=False)),
     ],
 )
 def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) -> None:
@@ -307,6 +310,36 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
 
     assert action.processed_actions is processed
     assert torch.all(processed < 0.0)
+
+
+@pytest.mark.parametrize("interpolate", [False, True])
+def test_chunk_action_applies_its_targets_in_order_over_the_physics_steps(interpolate: bool) -> None:
+    """Each of a chunk's targets holds for ``decimation / chunk_length`` physics steps; the next action restarts it."""
+    env = _make_env(["a", "b"], decimation=4)
+    robot = env.scene["robot"]
+    applied = []
+    robot.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.full((NUM_ENVS, 2), 1.0)))
+    robot.set_joint_position_target_index = lambda *, target, joint_ids: applied.append(target.clone())
+    cfg = JointPositionChunkActionCfg(
+        asset_name="robot", joint_names=[".*"], use_default_offset=False, chunk_length=2, interpolate=interpolate
+    )
+    action = JointPositionChunkAction(cfg, env)
+
+    # A chunk of targets 2 then 4, or the one target 3 that the interpolation reaches from 1 in two increments.
+    chunk = torch.tensor([[2.0, 2.0, 4.0, 4.0]] if not interpolate else [[3.0, 3.0]]).repeat(NUM_ENVS, 1)
+    assert action.action_dim == chunk.shape[1]
+    for _ in range(2):
+        applied.clear()
+        action.process_actions(chunk)
+        for _ in range(env.cfg.decimation):
+            action.apply_actions()
+        torch.testing.assert_close(
+            torch.stack(applied)[:, 0, 0],
+            torch.tensor([2.0, 2.0, 4.0, 4.0] if not interpolate else [2.0, 2.0, 3.0, 3.0]),
+        )
+
+    with pytest.raises(ValueError, match="must divide"):
+        JointPositionChunkAction(cfg.replace(chunk_length=3), env)
 
 
 def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:

@@ -200,6 +200,76 @@ class JointPositionAction(JointAction):
         self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
 
+class JointPositionChunkAction(JointPositionAction):
+    """Joint position action that applies a chunk of position targets in order over the environment step.
+
+    :class:`JointPositionAction` applies one target on all ``decimation`` physics steps of an environment step. This
+    term instead takes a chunk of :attr:`~JointPositionChunkActionCfg.chunk_length` targets and applies them in order,
+    each for ``decimation / chunk_length`` physics steps, so a policy that plans a chunk of future targets acts once
+    per chunk. With :attr:`~JointPositionChunkActionCfg.interpolate`, the action is one target per joint instead,
+    reached in equal increments from the joint positions at the start of the environment step.
+
+    The action is ordered by target, then by joint. Scale, offset and clip apply to each target. The physics-step
+    counter stays on the device, so a physics backend that records :meth:`apply_actions` once and replays it on every
+    physics step applies the right target each time.
+    """
+
+    is_graphable = True
+
+    cfg: actions_cfg.JointPositionChunkActionCfg
+    """The configuration of the action term."""
+
+    _steps = 1
+    """Targets per environment step; one while :class:`JointAction` sizes the per-joint scale, offset and clip."""
+
+    def __init__(self, cfg: actions_cfg.JointPositionChunkActionCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        decimation = env.cfg.decimation
+        steps = cfg.chunk_length or decimation
+        if decimation % steps:
+            raise ValueError(
+                f"The chunk's {steps} targets must divide the environment step's {decimation} physics steps"
+                " (decimation), so that each target holds for the same number of physics steps."
+            )
+        self._steps, self._hold = steps, decimation // steps
+        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
+        # The chunk's targets, the physics step since the action, and the target that step applies.
+        self._processed_actions = torch.zeros(self.num_envs, steps, self._num_joints, device=self.device)
+        self._physics_step = torch.zeros(1, dtype=torch.long, device=self.device)
+        self._index = torch.zeros_like(self._physics_step)
+        self._target = torch.zeros(self.num_envs, 1, self._num_joints, device=self.device)
+        self._fractions = (torch.arange(1, steps + 1, device=self.device) / steps).view(1, -1, 1)
+
+    @property
+    def action_dim(self) -> int:
+        return self._num_joints * (1 if self.cfg.interpolate else self._steps)
+
+    def process_actions(self, actions: torch.Tensor):
+        self._raw_actions[:] = actions
+        targets = self._raw_actions.view(self.num_envs, -1, self._num_joints)
+        targets = targets * _per_target(self._scale) + _per_target(self._offset)
+        if self.cfg.clip is not None:
+            targets = targets.clamp(min=self._clip[:, None, :, 0], max=self._clip[:, None, :, 1])
+        if self.cfg.interpolate:
+            start = self._asset.data.joint_pos.torch[:, self._joint_ids].unsqueeze(1)
+            targets = start + self._fractions * (targets - start)
+        # in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = targets
+        self._physics_step.zero_()
+
+    def apply_actions(self):
+        torch.div(self._physics_step, self._hold, rounding_mode="floor", out=self._index)
+        self._index.clamp_(max=self._steps - 1)
+        torch.index_select(self._processed_actions, 1, self._index, out=self._target)
+        self._physics_step.add_(1)
+        self._asset.set_joint_position_target_index(target=self._target[:, 0], joint_ids=self._joint_ids)
+
+
+def _per_target(value: torch.Tensor | float) -> torch.Tensor | float:
+    """Broadcast a per-joint scale or offset ``(N, J)`` over the targets of a chunk ``(N, K, J)``."""
+    return value.unsqueeze(1) if isinstance(value, torch.Tensor) else value
+
+
 class RelativeJointPositionAction(JointAction):
     r"""Joint action term that applies the processed actions to the articulation's joints as relative position commands.
 

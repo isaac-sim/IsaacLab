@@ -14,7 +14,13 @@ from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
-    from .joint_actions import JointEffortAction, JointPositionAction, JointVelocityAction, RelativeJointPositionAction
+    from .joint_actions import (
+        JointEffortAction,
+        JointPositionAction,
+        JointPositionChunkAction,
+        JointVelocityAction,
+        RelativeJointPositionAction,
+    )
     from .joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
     from .non_holonomic_actions import NonHolonomicAction
     from .surface_gripper_actions import SurfaceGripperBinaryAction
@@ -86,6 +92,24 @@ class JointPositionActionCfg(JointActionCfg):
     If True, this flag results in overwriting the values of :attr:`offset` to the default joint positions
     from the articulation asset.
     """
+
+
+@configclass
+class JointPositionChunkActionCfg(JointPositionActionCfg):
+    """Configuration for the joint position chunk action term.
+
+    See :class:`JointPositionChunkAction` for more details.
+    """
+
+    class_type: type[JointPositionChunkAction] | str = "{DIR}.joint_actions:JointPositionChunkAction"
+
+    chunk_length: int | None = None
+    """Number of targets in a chunk, which must divide the environment's ``decimation``. Defaults to None, one target
+    per physics step."""
+
+    interpolate: bool = False
+    """Whether the action is one target per joint, reached in :attr:`chunk_length` equal increments, instead of a
+    chunk of targets. Defaults to False."""
 
 
 @configclass
