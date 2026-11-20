@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 name = "isaaclab_newton"
 version = "18.1.0"
 description = "Extension providing IsaacLab with Newton specific abstractions."
-license = {text = "BSD-3-Clause"}
+license = {text = "BSD-3-Clause AND Apache-2.0"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "newton"]
@@ -37,3 +37,4 @@ include = ["isaaclab_newton", "isaaclab_newton.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_newton.controllers" = ["LICENSE.newton"]
