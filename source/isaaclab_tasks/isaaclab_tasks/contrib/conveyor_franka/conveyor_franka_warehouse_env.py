@@ -34,6 +34,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
     cfg: ConveyorFrankaA09A12EnvCfg
 
     def __init__(self, cfg: ConveyorFrankaA09A12EnvCfg, render_mode: str | None = None, **kwargs) -> None:
+        self._warehouse_source: Usd.Stage | None = None
         self._warehouse_animation: list[tuple[Usd.Attribute, Usd.Attribute]] = []
         cfg.scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
         super().__init__(cfg, render_mode=render_mode, **kwargs)
@@ -93,8 +94,9 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         return super().step(torch.where(use_policy[:, None], action, parked))
 
     def close(self) -> None:
-        """Release presentation attributes before closing the shared task resources."""
+        """Release the animation stage before closing the shared task resources."""
         self._warehouse_animation.clear()
+        self._warehouse_source = None
         super().close()
 
     def _adapt_policy_cube_values(self, attribute: str, values: torch.Tensor) -> torch.Tensor:
