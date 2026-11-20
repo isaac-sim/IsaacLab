@@ -175,10 +175,10 @@ def _check_render_product_split(cfg: CameraCfg, renderer_cfg: RendererCfg) -> No
         ValueError: If ``cfg.max_envs_per_render_product`` is an integer and the renderer cannot split.
     """
     max_envs = cfg.max_envs_per_render_product
-    if max_envs != "all" and not renderer_cfg.supports_render_product_split:
+    if max_envs not in ("auto", "all") and not renderer_cfg.supports_render_product_split:
         raise ValueError(
             f"Renderer {type(renderer_cfg).__name__} renders every environment through one render product,"
-            f' so CameraCfg.max_envs_per_render_product must be "all", got {max_envs!r}.'
+            f' so CameraCfg.max_envs_per_render_product must be "auto" or "all", got {max_envs!r}.'
         )
 
 

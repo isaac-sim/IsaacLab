@@ -357,15 +357,15 @@ def test_camera_processors_allow_async_rendering():
 
 @pytest.mark.parametrize(
     "max_envs, valid",
-    [("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
+    [("auto", True), ("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
 )
 def test_camera_cfg_validates_render_product_split(max_envs, valid):
-    """The split is "all" or an integer >= 1. Other values are rejected before any renderer runs."""
+    """The split is "auto", "all" or an integer >= 1. Other values are rejected before any renderer runs."""
     cfg = replace(_make_camera_cfg(["rgb"]), max_envs_per_render_product=max_envs)
     if valid:
         validate(cfg)
     else:
-        with pytest.raises(ValueError, match='max_envs_per_render_product must be "all" or an integer >= 1'):
+        with pytest.raises(ValueError, match='max_envs_per_render_product must be "auto", "all" or an integer >= 1'):
             validate(cfg)
 
 
@@ -378,17 +378,18 @@ def test_camera_cfg_validates_render_product_split(max_envs, valid):
     ],
 )
 def test_render_product_split_check_follows_renderer_support(module_name, cfg_name, supports_split):
-    """Every renderer accepts "all". Only a renderer with split support accepts an integer."""
+    """Every renderer accepts "auto" and "all". Only a renderer with split support accepts an integer."""
     from isaaclab.sensors.camera.camera import _check_render_product_split
 
     renderer_cfg = getattr(pytest.importorskip(module_name), cfg_name)()
     cfg = _make_camera_cfg(["rgb"])
-    _check_render_product_split(replace(cfg, max_envs_per_render_product="all"), renderer_cfg)
+    for max_envs in ("auto", "all"):
+        _check_render_product_split(replace(cfg, max_envs_per_render_product=max_envs), renderer_cfg)
     split = replace(cfg, max_envs_per_render_product=3)
     if supports_split:
         _check_render_product_split(split, renderer_cfg)
     else:
-        with pytest.raises(ValueError, match=f'{cfg_name} .* must be "all", got 3'):
+        with pytest.raises(ValueError, match=f'{cfg_name} .* must be "auto" or "all", got 3'):
             _check_render_product_split(split, renderer_cfg)
 
 

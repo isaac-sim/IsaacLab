@@ -122,7 +122,7 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.backend = SimpleNamespace(render_products=set())
+    renderer.backend = SimpleNamespace(render_products=set(), unrendered={})
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
     renderer._needs_transform_initialization = False
@@ -223,7 +223,8 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
     renderer, events = _renderer(use_ovstage=use_ovstage)
     paths = ("/Render/Product0", "/Render/Product1")
     renderer._camera_render_data = [
-        SimpleNamespace(render_product_paths=(path,), ppisp_pipeline=None, warp_buffers={}) for path in paths
+        SimpleNamespace(render_product_paths=(path,), ppisp_pipeline=None, warp_buffers={}, first_frame_error=None)
+        for path in paths
     ]
     renderer.backend.render_products = set(paths)
     renderer._process_render_frames = lambda *args: None
@@ -248,7 +249,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 )
 def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_events):
     renderer, events = _renderer(use_ovstage=True)
-    renderer._camera_render_data = [SimpleNamespace(ppisp_pipeline=None)]
+    renderer._camera_render_data = [SimpleNamespace(ppisp_pipeline=None, first_frame_error=None)]
 
     class Writer:
         def publish(self):
