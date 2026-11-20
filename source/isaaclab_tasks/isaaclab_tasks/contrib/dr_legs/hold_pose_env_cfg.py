@@ -10,8 +10,8 @@ The robot must keep its pelvis upright at a target height.
 
 import math
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg

@@ -42,6 +42,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 from isaaclab_newton.assets import Articulation, RigidObject
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
@@ -49,7 +50,6 @@ from isaaclab_newton.assets.articulation.articulation_data import ArticulationDa
 from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
 from newton.solvers import SolverMuJoCo
@@ -1550,7 +1550,7 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
 def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) -> None:
     """Resolve the documented Newton ``joint_ordering="physx"`` sim-to-sim workflow on a branching asset.
 
-    Mirrors :func:`isaaclab_physx.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
+    Mirrors :func:`isaaclab_isaacsim.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
     with the backend roles swapped: here the live backend is Newton (depth-first, so its native view is
     the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
     resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline

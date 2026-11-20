@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_physx.sim.spawners.materials import (
+from isaaclab_isaacsim.sim.spawners.materials import (
     PhysxDeformableBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
 )

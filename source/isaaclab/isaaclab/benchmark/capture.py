@@ -160,7 +160,8 @@ def capture_versions(bm: Any) -> Versions:
         git_dirty=dev.get("dirty", False),
         numpy=md.get("numpy_version"),
         isaaclab_newton=md.get("isaaclab_newton_version"),
-        isaaclab_physx=md.get("isaaclab_physx_version"),
+        # The record field keeps its name; the package that fills it was renamed from isaaclab_physx.
+        isaaclab_physx=md.get("isaaclab_isaacsim_version") or md.get("isaaclab_physx_version"),
         isaaclab_ov=md.get("isaaclab_ov_version"),
         isaaclab_tasks=md.get("isaaclab_tasks_version"),
         isaaclab_rl=md.get("isaaclab_rl_version"),
@@ -272,7 +273,7 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     physics_names = {
         "isaaclab_newton.physics.kamino_solver_cfg._KaminoSolverCfgBase": "newton_kamino",
         "isaaclab_newton.physics.mjwarp_solver_cfg.MJWarpSolverCfg": "newton_mjwarp",
-        "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
+        "isaaclab_isaacsim.physics.physx_manager_cfg.PhysxCfg": "physx",
         "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
         "isaaclab_newton.physics.featherstone_solver_cfg.FeatherstoneSolverCfg": "newton_featherstone",
         "isaaclab_newton.physics.steel_solver_cfg.SteelSolverCfg": "newton_steel",

@@ -24,7 +24,7 @@ from contextlib import ExitStack
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.cli import load_external_tasks
@@ -233,7 +233,7 @@ def run_teleoperation(
     # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
     # external cameras, or XR).
     if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+        from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(

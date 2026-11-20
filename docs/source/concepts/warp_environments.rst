@@ -237,7 +237,7 @@ specific to warp envs; for Newton physics features and related guides see
 **Physics backend**
 
 - **Newton only.** PhysX is not supported under the warp env path. Asset and sensor
-  ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
+  ``class_type`` fields resolve to ``isaaclab_isaacsim.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
   the cfg with a Newton physics block (or the typed selector ``physics=newton_mjwarp``,

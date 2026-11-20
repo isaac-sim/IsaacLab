@@ -16,7 +16,7 @@ Use these checks to route investigation, not as standalone migration docs:
 | Visualizer launch behavior changed | `docs/source/isaaclab/migrating.rst` and `source/isaaclab/isaaclab/app/sim_launcher.py` |
 | Camera examples include obsolete launch options | Current sensor, renderer, and visualization docs; camera support is automatic |
 | Backend-specific physics or schema cfgs | `docs/source/concepts/backends_and_presets.rst` and `docs/source/concepts/schema_cfgs.rst` |
-| Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |
+| Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_isaacsim.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |
 | Spawner schema overrides that need multiple namespaces in one slot | Prefer schema fragments such as `UsdPhysicsDriveCfg`, `PhysxJointCfg`, `NewtonCollisionCfg`, or `MujocoJointCfg` instead of forcing one legacy property cfg to carry every backend attribute |
 | Quaternion order changed from WXYZ to XYZW | `docs/source/isaaclab/migrating.rst` and `scripts/tools/find_quaternions.py` |
 | Asset or sensor data no longer behaves like plain tensors | `ProxyArray` sections in `docs/source/isaaclab/migrating.rst` |

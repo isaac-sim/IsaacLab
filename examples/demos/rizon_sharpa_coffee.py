@@ -153,7 +153,7 @@ def _parse_args():
 
 
 def _make_env_cfg(args, video_stride):
-    from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.visualizers import VisualizerCfg, WindowCfg

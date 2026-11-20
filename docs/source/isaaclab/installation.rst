@@ -432,6 +432,8 @@ have dedicated commands below.
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
+   * - ``optix``
+     - The Newton OptiX renderer runtime for RTX GPUs.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``skrl-jax``
@@ -453,8 +455,8 @@ have dedicated commands below.
      - Developer test tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
-the developer ``test`` tooling remain opt-in.
+(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
+``leapp``), and the developer ``test`` tooling remain opt-in.
 
 .. note::
 

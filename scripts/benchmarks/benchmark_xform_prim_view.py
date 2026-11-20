@@ -38,8 +38,8 @@ from typing import Literal
 
 import torch
 import warp as wp
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -74,8 +74,8 @@ def benchmark_frame_view(  # noqa: C901
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
     """Benchmark get/set world/local poses for the given FrameView backend."""
     # the view runtime classes import USD, which must load after Kit starts
+    from isaaclab_isaacsim.sim.views import FabricFrameView
     from isaaclab_newton.sim.views import NewtonSiteFrameView
-    from isaaclab_physx.sim.views import FabricFrameView
 
     from pxr import Gf
 
