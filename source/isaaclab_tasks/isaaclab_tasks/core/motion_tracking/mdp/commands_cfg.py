@@ -9,7 +9,7 @@
 """Configuration for reference motion commands."""
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
@@ -31,6 +31,10 @@ class MotionCommandCfg(CommandTermCfg):
     """Body defining the reference alignment frame."""
     body_names: list[str] = MISSING
     """Tracked bodies in order, starting with the articulation root."""
+    body_name_map: dict[str, str] = {}
+    """Articulation body names mapped to source motion names; unmapped names are unchanged."""
+    input_velocity_point: Literal["link", "com"] = "com"
+    """Input world linear velocities refer to link origins or the target asset's body COMs."""
     pose_range: dict[str, tuple[float, float]] = {}
     """Reset offsets: x/y/z [m] and roll/pitch/yaw [rad]."""
     velocity_range: dict[str, tuple[float, float]] = {}

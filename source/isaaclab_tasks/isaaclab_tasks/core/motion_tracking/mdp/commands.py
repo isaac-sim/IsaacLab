@@ -78,10 +78,24 @@ class MotionCommand(CommandTerm):
         }
 
     def _load_motion(self) -> MotionLoader:
-        """Load the reference in tracked-body and articulation-joint order."""
-        return MotionLoader(
-            self.cfg.motion_file, body_names=self.cfg.body_names, joint_names=self.robot.joint_names, device=self.device
+        """Load the named reference and convert link-origin velocities to body COM velocities if needed."""
+        if self.cfg.input_velocity_point not in ("link", "com"):
+            raise ValueError(
+                f"Unknown input velocity point: {self.cfg.input_velocity_point!r}; expected 'link' or 'com'."
+            )
+        if self.cfg.input_velocity_point == "link":
+            body_com_pos_b = self.robot.data.body_com_pos_b.torch[0, self.body_indices]
+            if body_com_pos_b.shape != (len(self.cfg.body_names), 3) or not torch.isfinite(body_com_pos_b).all():
+                raise ValueError("Expected finite body COM offsets with shape (tracked bodies, 3).")
+        source_body_names = [self.cfg.body_name_map.get(name, name) for name in self.cfg.body_names]
+        motion = MotionLoader(
+            self.cfg.motion_file, body_names=source_body_names, joint_names=self.robot.joint_names, device=self.device
         )
+        if self.cfg.input_velocity_point == "link":
+            offsets = body_com_pos_b.to(device=self.device, dtype=motion.body_pos_w.dtype)
+            offsets_w = quat_apply(motion.body_quat_w, offsets.expand_as(motion.body_pos_w))
+            motion.body_lin_vel_w = motion.body_lin_vel_w + torch.cross(motion.body_ang_vel_w, offsets_w, dim=-1)
+        return motion
 
     def __str__(self) -> str:
         msg = "MotionCommand:\n"

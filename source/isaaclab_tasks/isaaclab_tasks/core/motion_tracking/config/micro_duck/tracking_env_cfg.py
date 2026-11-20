@@ -9,14 +9,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-import torch
-
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.datasets import MotionLoader
-from isaaclab.utils.math import quat_apply
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.microduck.flat_env_cfg import MicroDuckSceneCfg, MicroDuckVelocityFlatEnvCfg
@@ -24,7 +20,6 @@ from isaaclab_tasks.contrib.microduck.flat_env_cfg import MicroDuckSceneCfg, Mic
 from isaaclab_assets.robots.microduck import MICRODUCK_CFG
 
 from ... import mdp
-from ...mdp.commands import MotionCommand
 from ...mdp.commands_cfg import MotionCommandCfg
 from ...motion_tracking_env_cfg import (
     ActionsCfg,
@@ -37,37 +32,12 @@ from ...motion_tracking_env_cfg import (
 from .rewards import motion_body_position_error_exp
 
 
-class MicroDuckMotionCommand(MotionCommand):
-    """Load source body names and convert link-origin velocities to body COM velocities."""
-
-    cfg: MicroDuckMotionCommandCfg
-
-    def _load_motion(self) -> MotionLoader:
-        if self.cfg.input_velocity_point not in ("link", "com"):
-            raise ValueError(
-                f"Unknown input velocity point: {self.cfg.input_velocity_point!r}; expected 'link' or 'com'."
-            )
-        body_com_pos_b = self.robot.data.body_com_pos_b.torch[0, self.body_indices]
-        if body_com_pos_b.shape != (len(self.cfg.body_names), 3) or not torch.isfinite(body_com_pos_b).all():
-            raise ValueError("Expected finite body COM offsets with shape (tracked bodies, 3).")
-        source_body_names = ["neck_pitch" if name == "neck_pitch_1" else name for name in self.cfg.body_names]
-        motion = MotionLoader(
-            self.cfg.motion_file, body_names=source_body_names, joint_names=self.robot.joint_names, device=self.device
-        )
-        if self.cfg.input_velocity_point == "link":
-            offsets = body_com_pos_b.to(device=self.device, dtype=motion.body_pos_w.dtype)
-            offsets_w = quat_apply(motion.body_quat_w, offsets.expand_as(motion.body_pos_w))
-            motion.body_lin_vel_w = motion.body_lin_vel_w + torch.cross(motion.body_ang_vel_w, offsets_w, dim=-1)
-        return motion
-
-
 @configclass
 class MicroDuckMotionCommandCfg(MotionCommandCfg):
     """MicroDuck reference bodies, velocity convention and reset perturbations."""
 
-    class_type: type = MicroDuckMotionCommand
+    body_name_map: dict[str, str] = {"neck_pitch_1": "neck_pitch"}
     input_velocity_point: Literal["link", "com"] = "link"
-    """Input world linear velocities refer to link origins or the target asset's body COMs."""
 
     asset_name: str = "robot"
     resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
