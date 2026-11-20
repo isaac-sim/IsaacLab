@@ -906,6 +906,17 @@ class NewtonVisualizerBase(BaseVisualizer):
                 renderers[id(renderer)] = renderer
         return tuple(renderers.values())
 
+    def _draw_rtx_unavailable(self, imgui) -> None:
+        """Show the Renderer choice greyed out, since without the OVRTX viewer camera it cannot be made at runtime."""
+        imgui.begin_disabled()
+        imgui.text("Renderer")
+        imgui.same_line()
+        imgui.radio_button("OpenGL", True)
+        imgui.same_line()
+        imgui.radio_button("RTX", False)
+        imgui.end_disabled()
+        hover_tooltip(imgui, "RTX is not enabled for this window. Launch with NewtonGLBackendCfg(rtx_camera=True)")
+
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
         if self._borrowing_view:  # an off-screen capture swapped the view; the window controls must not act on it
@@ -937,6 +948,8 @@ class NewtonVisualizerBase(BaseVisualizer):
                 )
             if sensor:
                 imgui.end_disabled()
+        elif isinstance(self, NewtonGLVisualizer):
+            self._draw_rtx_unavailable(imgui)
         self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.

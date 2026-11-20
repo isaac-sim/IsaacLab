@@ -82,3 +82,17 @@ def test_close_unbinds_the_perspective_views_it_rendered():
 def test_window_controls_do_not_need_a_capture_to_have_run():
     """A fresh visualizer is not borrowing a view, so its window controls draw before the first capture."""
     assert NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))._borrowing_view is False
+
+
+def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
+    """Without the OVRTX viewer camera the RTX choice is shown greyed out, with the way to enable it."""
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = True
+
+    visualizer._draw_rtx_unavailable(imgui)
+
+    imgui.begin_disabled.assert_called_once()
+    imgui.end_disabled.assert_called_once()
+    assert [call.args[0] for call in imgui.radio_button.call_args_list] == ["OpenGL", "RTX"]
+    assert "rtx_camera=True" in imgui.set_tooltip.call_args.args[0]

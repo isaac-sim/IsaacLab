@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import logging
 import os
 import sys
@@ -163,7 +162,7 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
     return tuple(configs)
 
 
-def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[SimulationCfg]) -> bool:
+def _wants_rtx_viewer_camera(visualizer: VisualizerCfg) -> bool:
     """Return whether a Newton GL window should get an OVRTX viewer camera in its scene."""
     backend = visualizer.backend
     if not isinstance(backend, NewtonGLBackendCfg):
@@ -174,14 +173,8 @@ def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[Simula
         return True  # Starting in RTX needs the camera for a recording-only window or one with a view as well.
     if visualizer.headless or visualizer.view is not None:
         return False
-    if backend.rtx_camera is not None:
-        return backend.rtx_camera
-    # an automatic PhysX selection with OVPhysX available resolves to kitless OVPhysX, like the Kit check below
-    on_kit_physx = any(
-        isinstance(sim.physics, PhysxCfg) or (isinstance(sim.physics, PhysxAutoCfg) and sim.physics.ovphysx is None)
-        for sim in simulations
-    )
-    return importlib.util.find_spec("ovrtx") is not None and not on_kit_physx
+    # opt-in: the camera costs startup time and frame rate even while OpenGL is shown
+    return bool(backend.rtx_camera)
 
 
 def _declare_viewer_camera(
@@ -375,7 +368,7 @@ def validate_launch(  # noqa: C901
     # A Newton window can switch its main view to an OVRTX camera, which must already exist in the scene.
     implicit_viewer_cameras: list[tuple[str, VisualizerCfg, tuple[int, int], bool]] = []
     for viewer_index, visualizer in enumerate(viewers):
-        if scene_cfg is not None and _wants_rtx_viewer_camera(visualizer, simulations):
+        if scene_cfg is not None and _wants_rtx_viewer_camera(visualizer):
             implicit_viewer_cameras.append(_declare_viewer_camera(scene_cfg, viewer_index, visualizer))
     configs = _walk_runtime_configs(cfg)
     replacements = {id(node): physics for node in configs if isinstance(node, PhysicsCfg) and physics is not None}

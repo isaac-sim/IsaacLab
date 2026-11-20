@@ -294,8 +294,9 @@ Visualizer Overview
       **RTX rendering**
 
       The **Renderer** selector in the Rendering Options section switches the main view to the OVRTX path tracer for
-      photorealistic rendering without a Kit process. It appears when the scene has the OVRTX viewer camera, which launch
-      declares when ``ovrtx`` is installed and the physics is not Kit-based PhysX. Set
+      photorealistic rendering without a Kit process. It is available when the scene has the OVRTX viewer camera, which
+      is off by default because it adds startup time and some frame time. Set ``NewtonGLBackendCfg(rtx_camera=True)``
+      to add it (``ovrtx`` installed, physics not Kit-based PhysX); without it the selector is greyed out. Set
       ``NewtonGLBackendCfg(initial_renderer="rtx")`` to start in RTX. RTX rendering is slightly slower than OpenGL.
 
       .. raw:: html
