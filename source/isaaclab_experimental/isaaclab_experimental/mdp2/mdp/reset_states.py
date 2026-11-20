@@ -287,6 +287,11 @@ class ResetStates:
         }
 
     @property
+    def filled(self) -> int:
+        """Slots that the fill wrote, first in each bank; the others record."""
+        return self._filled
+
+    @property
     def states(self) -> dict[str, torch.Tensor]:
         """Copies of the stored states, ``(num_groups, size, ...)`` per output, ``(num_worlds, size, ...)`` for states
         per world, or ``(size, ...)`` if shared. Poses are relative to the environment origins when the use binds
