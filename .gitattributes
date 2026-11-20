@@ -17,5 +17,9 @@ source/_isaaclab_testing/test/rendering/golden_images/**/*.png filter=lfs diff=l
 # Generated actuator plots are reviewed as rendered images rather than XML.
 docs/source/_static/actuators/*.png binary linguist-generated
 
+# The docs builds check out these small animations without Git LFS.
+docs/source/_static/how-to/reset_states/sgs-method-dark.gif binary -filter
+docs/source/_static/how-to/reset_states/sgs-method-light.gif binary -filter
+
 *.bat text eol=crlf
 *.sh text eol=lf

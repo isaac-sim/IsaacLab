@@ -75,13 +75,13 @@ SemanticPrimPath: TypeAlias = str
 # ------------------------------------------------------------------------------------------------
 # Semantic-filter predicate — RTX parity.
 #
-# The Isaac RTX renderer evaluates :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`
+# The Isaac RTX renderer evaluates :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`
 # inside Replicator's C++ ``SyntheticData`` instance-mapping filter (see
-# :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
+# :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
 # Newton path has no Replicator, so the three functions below re-implement the *same* predicate grammar
 # on the host so :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.semantic_filter` selects
 # exactly the labels the RTX renderer would. The grammar is documented on
-# :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`.
+# :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`.
 # ------------------------------------------------------------------------------------------------
 
 
@@ -117,8 +117,8 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
     """Normalize a semantic filter into a list of ``(type, label_expr)`` clauses (RTX parity).
 
     Reproduces the normalization in
-    :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
-    :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
+    :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
+    :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
     the Newton Warp backend: a list is treated as bare semantic types (``["class"] -> "class:*"``); a
     string is a ``;``-separated disjunction of ``type:label_expr`` clauses (e.g.
     ``"class:* ; *:shelf"``).  Within each ``;``-separated segment, commas that precede an

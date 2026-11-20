@@ -345,7 +345,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
                     "isaaclab.assets",
                     "isaaclab.sensors",
                     "isaaclab_newton",
-                    "isaaclab_physx",
+                    "isaaclab_isaacsim",
                     "isaaclab_ov",
                     "newton",
                     "isaacsim",
@@ -372,7 +372,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
         "scatter_rows_partial",
         "copy_first_body",
     )
-    for backend in ("ov", "physx", "newton"):
+    for backend in ("ov", "isaacsim", "newton"):
         for relative in ("assets/kernels.py", "assets/articulation/kernels.py"):
             file = source / f"isaaclab_{backend}/isaaclab_{backend}" / relative
             definitions = {n.name for n in ast.parse(file.read_text()).body if isinstance(n, ast.FunctionDef)}
