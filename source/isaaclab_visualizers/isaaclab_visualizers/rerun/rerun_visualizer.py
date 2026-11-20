@@ -31,7 +31,6 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
-from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
@@ -300,7 +299,6 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         backend = self.physics_backend or "unknown"
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-        frame_visualizer_closeup(self, cameras)
         self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
@@ -359,7 +357,6 @@ class RerunVisualizer(BaseVisualizer):
                     self._viewer.log_state(backend.state_0)
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
-                self._log_lidar_points()
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -517,14 +514,6 @@ class RerunVisualizer(BaseVisualizer):
             else:
                 names.append(source.manager_name)
         self._viewer._live_plot_manager_names = names
-
-    def _log_lidar_points(self) -> None:
-        """Log one lidar environment's finite world hits into the current Rerun frame."""
-        if self._viewer is None:
-            return
-        hits = collect_lidar_hits(self._sim, self._env_ids, self._step_counter)
-        if hits is not None:
-            log_lidar_hits(self._viewer, hits)
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to Rerun as time-series scalars."""
