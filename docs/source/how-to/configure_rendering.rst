@@ -27,6 +27,10 @@ is task-specific.
      - Lightweight ray tracing; it has a smaller output set and does not provide motion vectors
        or full RTX material transport.
      - ``physics=newton_mjwarp renderer=newton_warp presets=rgb``
+   * - Newton OptiX
+     - You want Newton Warp's outputs traced with hardware ray tracing on an RTX GPU.
+     - Requires the ``optix`` extra; it does not render particles or deformable surfaces.
+     - ``physics=newton_mjwarp renderer=newton_optix presets=rgb``
    * - OVRTX
      - You need scalable kit-less RTX rendering and higher visual fidelity.
      - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more

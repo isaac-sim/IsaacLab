@@ -11,7 +11,7 @@ from typing import Literal, cast
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -113,6 +113,7 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
         height: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
             newton_warp=NewtonWarpRendererCfg(enable_shadows=True),
+            newton_optix=NewtonOptixRendererCfg(enable_shadows=True),
         )
 
     default = BaseRenderBenchmarkCameraCfg(data_types=["rgb"])

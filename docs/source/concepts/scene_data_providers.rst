@@ -244,7 +244,7 @@ consumer construction time, before the shared clone plan is built:
    * - Isaac RTX renderer
      - No
      - Yes
-   * - Newton Warp renderer
+   * - Newton Warp and Newton OptiX renderers
      - Yes
      - No
    * - OVRTX renderer
