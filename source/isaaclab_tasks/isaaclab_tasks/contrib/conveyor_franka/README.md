@@ -36,10 +36,9 @@ uv run isaaclab train --rl_library rsl_rl \
 
 ### Curriculum and evaluation
 
-Racetrack training uses the shared [reset-buffer API](../../../../../docs/source/how-to/reset_state_buffers.rst)
-from [#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). `ResetStateBuffer` stores
-task-prepared procedural recipes. The reset event constructs and validates those recipes
-once, then restores robot, cube and command state through public mask writers.
+Racetrack training uses Isaac Lab's [reset-buffer API](../../../../../docs/source/how-to/reset_state_buffers.rst).
+`ResetStateBuffer` stores task-prepared procedural recipes. The reset event constructs and validates
+those recipes once, then restores robot, cube and command state through public mask writers.
 The core `ResetStateSampler` favors entries near 50% transfer success while retaining
 uniform coverage. Completed outcomes credit the previous assignment before selecting its replacement;
 unfinished manual resets do not count as failures.
