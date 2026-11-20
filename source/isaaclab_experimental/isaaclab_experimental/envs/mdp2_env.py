@@ -762,7 +762,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             values.append(self._last_time_outs.float().mean()[None])
         # A quantity that only some worlds compute is averaged over them.
         values += [last[worlds].mean()[None] for _, last, worlds in self._metrics.values()]
-        if self._tasks:
+        if self._tasks and self._task_runs is None and self._task_members is None:
+            values.append(self._last_done.mean(dim=0))  # Every world ran every task
+        elif self._tasks:
             # Each task is averaged over the worlds that ran it: of the world configs that have it, that drew it.
             runs = self._last_runs if self._task_members is None else self._last_runs * self._task_members
             values.append((self._last_done * runs).sum(dim=0) / runs.sum(dim=0).clamp(min=1.0))
