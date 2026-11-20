@@ -73,6 +73,27 @@ def test_record_images_must_match_the_model_size(tmp_path):
             bound_manager(sim)
 
 
+def test_duplicate_binding_is_rejected_and_full_reset_replaces_the_model(tmp_path):
+    with world_model_sim(tmp_path) as sim:
+        manager = bound_manager(sim)
+        first = manager.model
+        with pytest.raises(ValueError, match="one articulation"):
+            manager.bind(N, J)
+        assert manager.model is first and not first.closed
+        manager.reset(soft=True)
+        with pytest.raises(ValueError, match="one articulation"):
+            manager.bind(N, J)
+        manager.reset()
+        manager.bind(N, J)
+        assert first.closed and manager.model is not first
+        assert not manager.model.closed
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
+        for _ in range(T):
+            step(manager, 2.0)
+        assert FakeModel.calls == ["reset", "step"]
+        assert (manager.frames().frames == torch.arange(10, 10 + T)[None, :, None, None, None]).all()
+
+
 def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_target(tmp_path):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)

@@ -64,6 +64,7 @@ class WorldModelManager(PhysicsManager):
         read-only for callers."""
         self._records = load_reset_records(cfg.reset_manifest)
         self._split_records = [r for r in self._records if r.split == cfg.split]
+        self._bound = False
         self._record_images: dict[str, torch.Tensor] = {}
         self._record_states: torch.Tensor
         self._env_record: torch.Tensor
@@ -79,9 +80,19 @@ class WorldModelManager(PhysicsManager):
         self._scene_data: SceneDataBackend
 
     def bind(self, num_envs: int, num_joints: int) -> None:
-        """Size the manager for a scene. Called by the articulation when it initializes."""
+        """Size the manager for a scene. Called by the articulation when it initializes.
+
+        Raises:
+            ValueError: If a second articulation binds in the same initialization.
+        """
+        if self._bound:
+            raise ValueError("The world-model backend drives one articulation, but the scene has more than one.")
         if num_envs % self._cfg.envs_per_reset_record:
             raise ValueError(f"envs_per_reset_record={self._cfg.envs_per_reset_record} must divide num_envs={num_envs}")
+        self._bound = True
+        # A new initialization, after a full simulation reset, replaces the model of the previous one.
+        if self.model is not None:
+            self.model.close()
         self.model = instantiate(self._cfg.model, num_envs, self._device)
         self.spec = self.model.spec()
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
@@ -130,6 +141,8 @@ class WorldModelManager(PhysicsManager):
     def reset(self, soft: bool = False) -> None:
         """Dispatch the lifecycle events. Episodes start with :meth:`reset_envs`, called by a reset event."""
         if not soft:
+            # The articulation binds again while it initializes.
+            self._bound = False
             self.dispatch_event(PhysicsEvent.MODEL_INIT)
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
 

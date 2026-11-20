@@ -36,6 +36,7 @@ class FakeModel(WorldModel):
 
     def __init__(self, cfg, num_envs, device):
         self.cfg, self.num_envs, self.device = cfg, num_envs, device
+        self.closed = False
 
     def spec(self):
         return WorldModelSpec(chunk_length=T, fps=30, image_size=(H, W), views=self.views)
@@ -63,7 +64,7 @@ class FakeModel(WorldModel):
         return {view: out + 100 * v for v, view in enumerate(self.views)}
 
     def close(self):
-        pass
+        self.closed = True
 
 
 @configclass
