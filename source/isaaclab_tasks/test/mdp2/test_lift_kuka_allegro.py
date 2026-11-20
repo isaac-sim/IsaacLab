@@ -78,8 +78,8 @@ def scenario() -> Iterator[SimpleNamespace]:
 
 def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
     """Return, per banked field, the banked state that each world plays and the field's value in the scene."""
-    cache = state.caches["events.reset"]
-    banked = cache["bank"].get_state(cache["sampler"].indices)
+    bank = mdp2.mdp.reset_bank(state)
+    banked = bank.buffer.get_state(bank.sampler.indices)
     robot, target = env.scene["robot"].data, env.scene["object"].data
     fields = {
         "joint_pos": robot.joint_pos,
@@ -91,9 +91,15 @@ def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tupl
 
 
 def sampler_arrays(state: mdp2.MDPState) -> dict[str, torch.Tensor]:
-    """Return copies of the reset sampler's device state: its assignments, outcome history, and draw weights."""
-    sampler = state.caches["events.reset"]["sampler"]
-    arrays = {name: value for name, value in vars(sampler).items() if isinstance(value, (wp.array, ProxyArray))}
+    """Return views of the reset bank's device state: its sampler's assignments, outcome history, and draw weights,
+    and the bank's own flags."""
+    bank = mdp2.mdp.reset_bank(state)
+    arrays = {
+        f"{owner}.{name}": value
+        for owner, holder in (("sampler", bank.sampler), ("bank", bank))
+        for name, value in vars(holder).items()
+        if isinstance(value, (wp.array, ProxyArray))
+    }
     return {name: wp.to_torch(value.warp if isinstance(value, ProxyArray) else value) for name, value in arrays.items()}
 
 
@@ -252,7 +258,7 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
         for name, value in sampler_arrays(state).items():
             value.copy_(before[name])
         mdp2.reset(mdp, state, mask)
-        playing[backend] = state.caches["events.reset"]["sampler"].indices.torch.clone()
+        playing[backend] = mdp2.mdp.reset_bank(state).sampler.indices.torch.clone()
         for name, (banked, restored) in bank_and_scene_state(env, state).items():
             torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
     assert torch.equal(playing["torch"], playing["warp"])
@@ -281,3 +287,40 @@ def test_play_mode_starts_the_curriculum_at_its_end():
     params = cfg.task.events["adr"].params
     assert cfg.scene.num_envs == 50 and all(use.noise is None for use in uses)
     assert params["init_difficulty"] == params["max_difficulty"] and params["promotion_only"]
+
+
+def test_recorded_states_restore_through_the_simulation(scenario: SimpleNamespace):
+    """A state recorded during a step is restored, through the scene's writers, when its slot is replayed."""
+    env = scenario.env
+    task = dataclasses.replace(scenario.cfg.task, events=dict(scenario.cfg.task.events))
+    event = task.events["reset"]
+    task.events["reset"] = dataclasses.replace(
+        event,
+        inputs={**event.inputs, "terminated": mdp2.terminated},
+        params={**event.params, "record": mdp2.mdp.RecordStates(slots=1, probability=1.0)},
+    )
+    builder = mdp2.MDPBuilder(env.scene_data.schema)
+    builder.add_task(task)
+    mdp = builder.finalize(device=env.device, backend="warp")
+    state, transition = mdp.state(env.scene_data), mdp.transition()
+    mdp2.startup(mdp, state)  # fills a new bank from the candidates
+    bank = mdp2.mdp.reset_bank(state)
+
+    for _ in range(3):
+        env.sim.step(render=False)
+    env.scene.update(dt=env.physics_dt)
+    visited = {name: scene for name, (_, scene) in bank_and_scene_state(env, state).items()}
+    mdp2.evaluate(mdp, state, transition)
+    recorded = ~transition.terminated.torch
+    assert recorded.any()
+
+    mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
+    bank.replay(torch.full((NUM_ENVS,), bank.size - 1, device=env.device))
+    commit = lambda: env.scene_data.commit(mask.warp, mdp.reset_writes)  # noqa: E731
+    mdp2.reset(mdp, state, mask, commit)
+    commit()
+    env.scene.update(dt=0.0)
+    for name, (_, restored) in bank_and_scene_state(env, state).items():
+        torch.testing.assert_close(
+            restored[recorded], visited[name][recorded], atol=1e-5, rtol=0.0, msg=lambda message, name=name: name
+        )
