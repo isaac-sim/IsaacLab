@@ -47,9 +47,8 @@ from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
-from . import ovphysx_compat
-from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
+from .schemas import physx_schema_paths
 
 if TYPE_CHECKING:
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -156,19 +155,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
             kinds = (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK)
             body_paths = []
-            if ovphysx_compat.OVPHYSX_USES_TASKS:
-                for kind in kinds:
-                    with backend.physx.read_sync(kind, ["mass"]) as bodies:
-                        for group in bodies.groups:
-                            body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
-            else:
-                from ovstage import PathDictionary
-
-                with PathDictionary() as paths:
-                    for kind in kinds:
-                        with backend.physx.read(kind, ["mass"]) as bodies:
-                            for group in bodies.groups:
-                                body_paths.extend(paths.get_path_strings(group.prim_list))
+            for kind in kinds:
+                with backend.physx.read_sync(kind, ["mass"]) as bodies:
+                    for group in bodies.groups:
+                        body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
             if body_paths:
                 backend.rigid_body_view = backend.physx.create_tensor_binding(prim_paths=body_paths)
             self.setup(backend, device, entries)
@@ -345,7 +335,7 @@ class OvPhysxBackend:
                 self.rigid_body_view.destroy()
                 self.rigid_body_view = None
             OvPhysxView._close_all_for(self.physx)
-            ovphysx_compat.detach_stage(self.physx)
+            self.physx.wait_task(self.physx.detach_ovstage())
             self.scene.reset()
             self.stage = None
         if self.scene is None:
@@ -361,7 +351,7 @@ class OvPhysxBackend:
             raise
         self.stage = self.scene.stage
         # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
-        ovphysx_compat.finish_stage_operation(self.physx, operation)
+        self.physx.wait_task(operation)
 
     def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
@@ -372,9 +362,8 @@ class OvPhysxBackend:
             self.stage = None
             return
 
-        # Legacy release errors are terminal; current destroy errors may be retryable.
-        destroy_entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
-        release_owners = destroy_entry_point == "release"
+        # Destroy errors may retain native ownership and require another close.
+        release_owners = False
         try:
             try:
                 if self.rigid_body_view is not None:
@@ -383,19 +372,18 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    ovphysx_compat.detach_stage(physx)
+                    physx.wait_task(physx.detach_ovstage())
                 finally:
                     try:
-                        getattr(physx, destroy_entry_point)()
+                        physx.destroy()
                     except Exception:
-                        if destroy_entry_point == "destroy":
-                            # Keep both owners if native teardown did not reach its terminal state.
-                            try:
-                                physx.handle
-                            except RuntimeError:
-                                release_owners = True
-                            except Exception:
-                                release_owners = False
+                        # Keep both owners if native teardown did not reach its terminal state.
+                        try:
+                            physx.handle
+                        except RuntimeError:
+                            release_owners = True
+                        except Exception:
+                            release_owners = False
                         raise
                     else:
                         release_owners = True
@@ -440,6 +428,7 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend: OvPhysxSceneDataBackend | None = None
         self.kinematics_dirty: bool = False
         self._gravity: tuple[float, float, float] | None = None
+        self._gravity_stage: ovstage.Stage | None = None
 
     # USD plugin registries are process-wide; simulation state remains instance-owned.
     _physx_schemas_registered = False
@@ -525,7 +514,7 @@ class OvPhysxManager(PhysicsManager):
         """
         if cls._physx_schemas_registered:
             return
-        schema_paths = ovphysx_compat.physx_schema_paths(ovphysx)
+        schema_paths = physx_schema_paths()
         ovstage.population.register_usd_schemas([str(path) for path in schema_paths])
         # Locate the required schema package without importing it into the host USD registry.
         ovstage.population.register_usd_schemas(os.path.dirname(importlib.util.find_spec("newton_usd_schemas").origin))
@@ -550,6 +539,7 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         self._ensure_physx_schemas_registered()
         self._gravity = tuple(sim_context.cfg.gravity)
+        self._gravity_stage = None
         self._warmup_done = False
         self._requires_full_stage = False
         self._stage_usda = None
@@ -638,6 +628,7 @@ class OvPhysxManager(PhysicsManager):
                         self._atexit_registered = False
             finally:
                 self._stage_usda = None
+                self._gravity_stage = None
                 self._warmup_done = False
                 self._requires_full_stage = False
                 self._clone_recipes = []
@@ -673,7 +664,8 @@ class OvPhysxManager(PhysicsManager):
         The OvPhysX runtime accepts live scene changes only as sealed OvStage
         control updates. This method authors the scene's gravity direction and
         magnitude at the next control ordinal, seals it, and applies that
-        single ordinal to the running simulation.
+        single ordinal to the running simulation. Repeated values already
+        applied successfully to the current stage do not create control updates.
 
         Args:
             gravity: World-frame gravity vector [m/s^2].
@@ -689,12 +681,21 @@ class OvPhysxManager(PhysicsManager):
         if gravity_array.shape != (3,) or not np.all(np.isfinite(gravity_array)):
             raise ValueError("Gravity must contain three finite values.")
 
+        gravity_value = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
+        # Reset events may sample the same vector repeatedly. Only skip values
+        # successfully applied to this exact stage; the first request always runs.
+        if self._gravity_stage is self.backend.stage and self._gravity == gravity_value:
+            return
+
         magnitude = float(np.linalg.norm(gravity_array))
         if math.isclose(magnitude, 0.0):
             direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
         else:
             direction = (gravity_array / magnitude).reshape(1, 3)
         scene = self.backend.scene
+        # A failed native update may partially apply the change. Force a retry
+        # even if the next request matches the previously successful vector.
+        self._gravity_stage = None
         # Physics must consume only this control edit, not pending rendering/output writes.
         scene.commit()
         ordinal = scene.ordinal
@@ -705,10 +706,11 @@ class OvPhysxManager(PhysicsManager):
             ).wait()
             scene.commit()
             operation = self.backend.physx.update_from_ovstage(ordinal, ordinal)
-            ovphysx_compat.finish_stage_operation(self.backend.physx, operation)
+            self.backend.physx.wait_task(operation)
 
         # Publish only after successful completion; a failed native update need not be atomic.
-        self._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
+        self._gravity = gravity_value
+        self._gravity_stage = self.backend.stage
 
     def get_scene_data_backend(self) -> SceneDataBackend:
         """Return the SDP backend created during initialization; native bindings are acquired lazily."""
@@ -742,6 +744,7 @@ class OvPhysxManager(PhysicsManager):
                 "Shared OVStage cloning does not support full-stage physics imports. "
                 "Disable ISAAC_LAB_SHARE_OVSTAGE for this scene."
             )
+        self._gravity_stage = None
         plan = sim.get_clone_plan()
         entries = None
         if plan is not None:
@@ -778,12 +781,10 @@ class OvPhysxManager(PhysicsManager):
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
-            ovphysx_compat.wait_for_operation(
-                self.backend.physx, self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
-            )
+            self.backend.physx.wait_task(self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
-        getattr(self.backend.physx, OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"])()
+        self.backend.physx.warmup()
 
         # The central SceneDataProvider can request these bindings later. Headless
         # training never consumes them, so avoid binding every rigid link here.

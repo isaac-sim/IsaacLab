@@ -362,6 +362,8 @@ class NewtonManager(PhysicsManager):
                 backend.model_changes = queued
         else:
             backend.model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
@@ -463,8 +465,14 @@ class NewtonManager(PhysicsManager):
         device = self._device
         logger.info(f"Finalizing model on device: {device}")
         builder.up_axis = Axis.Z
+        clone = self._clone
+        cable_bindings = {} if clone is None else clone.cable_bindings
         if (solver_cfg := self._cfg.solver_cfg) is not None:
             solver_cfg.class_type.prepare_builder(solver_cfg, builder)
+        collision_cfg = self._cfg.collision_cfg
+        cable_scales = None
+        if clone is not None and collision_cfg is not None and collision_cfg.sdf_all_shapes is not None:
+            cable_scales = clone.cable_scales
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -477,11 +485,10 @@ class NewtonManager(PhysicsManager):
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation
-        clone = self._clone
         if clone is not None:
             self.backend.particle_ranges = clone.particle_ranges
         self._scene_data_backend.initialize_geometry(
-            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
+            [] if clone is None else clone.geometry_batches, cable_bindings, cable_scales
         )
         logger.info("Dispatching PHYSICS_READY callbacks")
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -504,7 +511,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+            backend.init_solver(
+                None if plan is None else plan.env_template,
+                relaxed_capture=self._relaxed_capture,
+                initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
+            )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()

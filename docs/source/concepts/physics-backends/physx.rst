@@ -8,7 +8,7 @@
 Isaac Sim PhysX
 ===============
 
-The PhysX backend runs inside Isaac Sim through the ``isaaclab_physx`` package.
+The PhysX backend runs inside Isaac Sim through the ``isaaclab_isaacsim`` package.
 See :ref:`physx-solver-tuning` for solver settings and tuning, or
 :ref:`ovphysx-backend` for PhysX without Kit.
 
@@ -16,14 +16,14 @@ See :ref:`physx-solver-tuning` for solver settings and tuning, or
 Selecting the backend
 ---------------------
 
-Configure the backend with :class:`~isaaclab_physx.physics.PhysxCfg` on
+Configure the backend with :class:`~isaaclab_isaacsim.physics.PhysxCfg` on
 :attr:`isaaclab.sim.SimulationCfg.physics`, or select it from the command line
 with ``physics=isaacsim_physx`` when the task exposes that preset:
 
 .. code-block:: python
 
    from isaaclab.sim import SimulationCfg
-   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_isaacsim.physics import PhysxCfg
 
    sim_cfg = SimulationCfg(physics=PhysxCfg())
 
@@ -60,8 +60,8 @@ copied:
 Per-prim physics properties are not part of ``PhysxCfg``. They are authored
 through the USD schema configurations described in
 :doc:`/source/concepts/schema_cfgs`. PhysX-only schema configurations, such as
-:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`, live in
-:mod:`isaaclab_physx.sim.schemas`.
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyPropertiesCfg`, live in
+:mod:`isaaclab_isaacsim.sim.schemas`.
 
 Fabric
 ^^^^^^
@@ -81,20 +81,20 @@ Launch
 ^^^^^^
 
 ``PhysxCfg`` names its launcher through the ``launcher_type`` class attribute,
-which is ``isaaclab_physx.app:KitLauncher``.
+which is ``isaaclab_isaacsim.app:KitLauncher``.
 :func:`~isaaclab.app.launch_simulation` scans the resolved configuration,
 collects the launchers that the physics and renderer configurations name, and
 starts them. Kit starts first. Scripts do not construct the launcher
 themselves.
 
-:class:`~isaaclab_physx.app.KitLauncher` creates the Isaac Sim
+:class:`~isaaclab_isaacsim.app.KitLauncher` creates the Isaac Sim
 ``SimulationApp``. Unless ``--experience`` is passed, it selects an Isaac Lab
 experience file from the repository ``apps/`` directory based on the headless,
 camera-rendering, livestream, and XR settings, for example
 ``isaaclab.python.headless.kit`` or ``isaaclab.python.rendering.kit``. After
 startup it publishes Isaac Lab settings such as ``/isaaclab/has_gui`` that the
 simulation context and renderers read. The launcher's environment variables
-and arguments are documented in :mod:`isaaclab_physx.app`.
+and arguments are documented in :mod:`isaaclab_isaacsim.app`.
 
 Stage
 ^^^^^
@@ -102,15 +102,15 @@ Stage
 Isaac Lab owns the USD stage. Kit extensions, including PhysX, its tensor
 views, and the viewport, read the stage from Kit's USD context instead. When
 Kit is running, :class:`~isaaclab.sim.SimulationContext` registers a
-:class:`~isaaclab_physx.app.KitStageBackendCfg`, and
-:class:`~isaaclab_physx.app.KitStageBackend` attaches the simulation stage to
+:class:`~isaaclab_isaacsim.app.KitStageBackendCfg`, and
+:class:`~isaaclab_isaacsim.app.KitStageBackend` attaches the simulation stage to
 ``omni.usd``'s context. Closing that backend closes the Kit stage before the
 simulation clears its stage cache.
 
 Interaction with Isaac Sim's simulation manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:class:`~isaaclab_physx.physics.PhysxManager` is the single owner of the
+:class:`~isaaclab_isaacsim.physics.PhysxManager` is the single owner of the
 simulation lifecycle. Isaac Sim's own
 ``isaacsim.core.simulation_manager.SimulationManager`` registers default
 timeline and stage callbacks. Its stop callback invalidates the shared
@@ -153,7 +153,7 @@ First reset
    Attaches the stage to PhysX (on CPU, PhysX instead loads the scene
    directly from USD), runs one warm-start update, and dispatches the
    warm-up event. It then registers a
-   :class:`~isaaclab_physx.physics.PhysxBackendCfg` with the simulation
+   :class:`~isaaclab_isaacsim.physics.PhysxBackendCfg` with the simulation
    context. The resulting ``PhysxBackend`` owns the
    ``omni.physics.tensors`` simulation view, created with the Warp frontend for
    the current stage. Finally, the manager dispatches
@@ -179,7 +179,7 @@ Lifecycle events
 
 Backend-agnostic code registers callbacks with
 :class:`~isaaclab.physics.PhysicsEvent`. ``PhysxManager`` maps those events to
-its PhysX-specific :class:`~isaaclab_physx.physics.IsaacEvents`, which remain
+its PhysX-specific :class:`~isaaclab_isaacsim.physics.IsaacEvents`, which remain
 available for backward compatibility:
 
 .. list-table::
@@ -207,7 +207,7 @@ teardown. New code should prefer ``PhysicsEvent``.
 Tensor views
 ------------
 
-Every PhysX asset and sensor in ``isaaclab_physx``, except ``SurfaceGripper``,
+Every PhysX asset and sensor in ``isaaclab_isaacsim``, except ``SurfaceGripper``,
 is built on typed views created from the shared ``omni.physics.tensors``
 simulation view:
 
@@ -230,12 +230,12 @@ simulation view:
 
 Assets expose their view through ``root_view``. The contact sensor exposes its
 rigid-contact view through ``contact_view``. Use
-:meth:`~isaaclab_physx.physics.PhysxManager.get_physics_sim_view` to reach the
+:meth:`~isaaclab_isaacsim.physics.PhysxManager.get_physics_sim_view` to reach the
 simulation view itself after the first reset. For read and write semantics,
 see :ref:`physx-native-access`.
 
 Environment cloning uses
-:class:`~isaaclab_physx.cloner.PhysxReplicateContext`, which applies the
+:class:`~isaaclab_isaacsim.cloner.PhysxReplicateContext`, which applies the
 clone plan through the ``omni.physx`` replicator interface.
 
 
@@ -248,7 +248,7 @@ PhysX-specific and shared components
 
    * - Area
      - Shared (``isaaclab``)
-     - PhysX-specific (``isaaclab_physx``)
+     - PhysX-specific (``isaaclab_isaacsim``)
    * - Configuration
      - :class:`~isaaclab.sim.SimulationCfg`, ``PhysicsCfg``, and
        :class:`~isaaclab.physics.PhysxAutoCfg`
@@ -268,14 +268,14 @@ PhysX-specific and shared components
      - ``PhysxReplicateContext``
    * - USD schemas
      - Shared schema configurations
-     - ``Physx*`` schema configurations in :mod:`isaaclab_physx.sim.schemas`
+     - ``Physx*`` schema configurations in :mod:`isaaclab_isaacsim.sim.schemas`
    * - Scene data
      - :class:`~isaaclab.scene_data.SceneDataProvider`
      - A scene-data backend that reads poses from the tensor view or Fabric
 
 Kit-hosted rendering, such as the
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` renderer, also ships in
-``isaaclab_physx`` because it requires Kit. Renderer selection is
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg` renderer, also ships in
+``isaaclab_isaacsim`` because it requires Kit. Renderer selection is
 configured separately from the physics backend, but the kit-less OVRTX renderer
 cannot share a process with Isaac Sim PhysX. See :ref:`backend-architecture` for the
 factory and registry design that all backends share.
@@ -306,7 +306,7 @@ views select objects with PhysX Tensor API wildcard patterns.
 Lifecycle prerequisite
 ^^^^^^^^^^^^^^^^^^^^^^
 
-:class:`~isaaclab_physx.physics.PhysxManager` creates its
+:class:`~isaaclab_isaacsim.physics.PhysxManager` creates its
 ``SimulationView`` with the Warp frontend. Low-level
 code must run only after physics initialization and simulation reset, when the
 PhysX Tensor API view has been created:
@@ -321,7 +321,7 @@ Reuse Isaac Lab-owned access
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When an Isaac Lab asset already has the desired selection, reuse its
-:attr:`~isaaclab_physx.assets.Articulation.root_view` rather than creating a
+:attr:`~isaaclab_isaacsim.assets.Articulation.root_view` rather than creating a
 second view:
 
 .. code-block:: python
@@ -330,7 +330,7 @@ second view:
    articulation_view = robot.root_view
    joint_positions = articulation_view.get_dof_positions()
 
-:attr:`~isaaclab_physx.assets.Articulation.root_view` is backend-specific and
+:attr:`~isaaclab_isaacsim.assets.Articulation.root_view` is backend-specific and
 typed. An articulation, rigid object, rigid-object collection, or deformable
 can expose a different native PhysX view type, so choose methods that match the
 returned view rather than assuming one common interface.
@@ -379,7 +379,7 @@ Access the contact view
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 The PhysX contact sensor exposes its native ``RigidContactView`` through
-:attr:`~isaaclab_physx.sensors.ContactSensor.contact_view`. Use it when the
+:attr:`~isaaclab_isaacsim.sensors.ContactSensor.contact_view`. Use it when the
 public sensor data does not expose the required contact details:
 
 .. code-block:: python

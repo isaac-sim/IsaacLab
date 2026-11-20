@@ -3,6 +3,40 @@ Changelog
 
 .. towncrier release notes start
 
+5.4.1 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_experimental.envs.MDP2RLEnv` to the environment types that the RL wrappers accept.
+
+Changed
+^^^^^^^
+
+* Changed pretrained checkpoint lookup to resolve the ``newton_optix`` renderer like ``newton_warp``.
+
+
+5.4.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--export_deployment_usd`` to the training entry points, exporting environment 0 to
+  ``deployment.usda`` in the run's log directory before startup events.
+
+
+5.3.3 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added trailing ``KEY=VALUE`` environment config overrides, such as ``physics=newton_mjwarp``, to the RLinf
+  ``train`` and ``play`` commands. They are applied in every RLinf train and eval environment worker.
+
+
 5.3.2 (2026-11-14)
 ~~~~~~~~~~~~~~~~~~
 

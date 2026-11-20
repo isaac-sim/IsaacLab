@@ -57,10 +57,13 @@ def test_curobo_compiler_matches_torch_without_replacing_runtime_libraries():
     with (REPO_ROOT / "uv.lock").open("rb") as file:
         torch_versions = {package["version"] for package in tomllib.load(file)["package"] if package["name"] == "torch"}
 
-    toolkit = re.search(r"\bcuda-toolkit-(\d+)-(\d+)\b", text)
+    toolkit = re.search(
+        r"^FROM nvidia/cuda:(\d+)\.(\d+)\.\d+-devel-\S+@sha256:[0-9a-f]{64} AS cuda$", text, re.MULTILINE
+    )
     assert toolkit is not None
     major, minor = toolkit.groups()
     assert {version.partition("+cu")[2] for version in torch_versions} == {f"{major}{minor}"}
+    assert f"COPY --from=cuda /usr/local/cuda-{major}.{minor}/ /usr/local/cuda-{major}.{minor}/" in text
     assert f"ENV CUDA_HOME=/usr/local/cuda-{major}.{minor}" in text
     assert "ENV PATH=${CUDA_HOME}/bin:${PATH}" in text
     # System CUDA libraries must not replace Kit's libraries or shadow the locked wheels.

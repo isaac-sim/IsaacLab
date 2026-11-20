@@ -253,8 +253,9 @@ images from all cameras before training. Reducing the camera count may leave the
 unchanged because of tile padding. Path-tracing SPP is distinct from the direct-lighting
 ``samples_per_pixel`` setting.
 
-If RTX image quality is not required, the Newton Warp renderer (``renderer=newton_renderer``) does
-not render through Vulkan and is not subject to this limit.
+If RTX image quality is not required, the Newton Warp and Newton OptiX renderers
+(``renderer=newton_warp`` or ``renderer=newton_optix``) do not render through Vulkan and are not
+subject to this limit.
 
 Using instanceable assets for markers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
