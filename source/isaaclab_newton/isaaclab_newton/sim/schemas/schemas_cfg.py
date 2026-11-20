@@ -46,7 +46,7 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     .. deprecated:: 3.1
         Use rigid-body fragments in the spawner's ``rigid_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` for the ``physics:*`` fields and
-        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` for the inherited
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyCfg` for the inherited
         ``disable_gravity``, whose only USD home is ``physxRigidBody:disableGravity`` (Newton's
         importer reads it). This class carries no ``mjc:*`` field; add
         :class:`MujocoRigidBodyCfg` only for ``gravcomp``. This class will be removed in 3.2.
@@ -104,7 +104,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
         the spawner's ``rigid_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` carries the inherited
         ``rigid_body_enabled`` / ``kinematic_enabled``,
-        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` the inherited ``disable_gravity``,
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxRigidBodyCfg` the inherited ``disable_gravity``,
         and :class:`MujocoRigidBodyCfg` the ``mjc:gravcomp`` field defined here. Naming only
         :class:`MujocoRigidBodyCfg` would silently drop the inherited fields. This class will be
         removed in 3.2.
@@ -196,7 +196,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
         Use joint-drive fragments in the spawner's ``joint_drive_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the ``UsdPhysics.DriveAPI`` fields
         (``drive_type``, ``stiffness``, ``damping``, ``max_force``) and
-        :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` for ``max_joint_velocity``, whose only
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg` for ``max_joint_velocity``, whose only
         USD home is ``physxJoint:maxJointVelocity``. This class carries no ``mjc:*`` field; add
         :class:`MujocoJointCfg` only for ``actuatorgravcomp``. ``ensure_drives_exist`` has no
         fragment: it is a field on the spawner cfg. This class will be removed in 3.2.
@@ -226,7 +226,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
         Pass ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...), MujocoJointCfg(...)]`` in the
         spawner's ``joint_drive_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` carries the inherited
-        ``UsdPhysics.DriveAPI`` fields, :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` the
+        ``UsdPhysics.DriveAPI`` fields, :class:`~isaaclab_isaacsim.sim.schemas.PhysxJointCfg` the
         inherited ``max_joint_velocity``, and :class:`MujocoJointCfg` the ``mjc:actuatorgravcomp``
         field defined here. ``ensure_drives_exist`` has no fragment: it is a field on the spawner
         cfg. This class will be removed in 3.2.
@@ -323,7 +323,7 @@ class NewtonCollisionCfg(CollisionFragment):
     :func:`~isaaclab.sim.schemas.apply_collision_properties`.
 
     .. note::
-        The contact / rest offsets live on :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+        The contact / rest offsets live on :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg`
         as ``physxCollision:*`` fields; Newton reads them via its PhysX-bridge resolver, so they
         are not duplicated here.
     """
@@ -368,7 +368,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
         Pass ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]`` in
         the spawner's ``collision_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` carries ``collision_enabled``,
-        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` the inherited ``contact_offset`` /
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxCollisionCfg` the inherited ``contact_offset`` /
         ``rest_offset``, and :class:`NewtonCollisionCfg` the ``newton:*`` fields defined here. The
         nested ``mesh_collision_property`` has no fragment: pass the mesh-collision fragments in
         the spawner's ``mesh_collision_props`` slot instead. This class will be removed in 3.2.
@@ -703,7 +703,7 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     Overrides :attr:`func` with a custom applier
     (:func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`) that gates on the ``MjcTendon``
     prim type. Can be combined with
-    :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` in the same fragment list passed to
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxTendonAxisRootCfg` in the same fragment list passed to
     :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`, which dispatches each fragment to
     its own applier independently.
     """
@@ -741,7 +741,7 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     .. deprecated:: 3.1
         Pass ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]`` in the spawner's
         ``articulation_props`` slot instead:
-        :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` carries the inherited
+        :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg` carries the inherited
         ``articulation_enabled``, whose only USD home is
         ``physxArticulation:articulationEnabled``, and :class:`NewtonArticulationCfg` the
         ``newton:selfCollisionEnabled`` field defined here. The non-USD ``fix_root_link`` flag has
@@ -768,7 +768,7 @@ class NewtonArticulationCfg(ArticulationRootFragment):
 
     A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
     Newton-native self-collision control. It owns the ``NewtonArticulationRootAPI`` applied
-    schema. Composes with :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` in an
+    schema. Composes with :class:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg` in an
     ``articulation_props`` fragment list; the ``UsdPhysics.ArticulationRootAPI`` anchor is
     applied by :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`.
 
@@ -784,5 +784,5 @@ class NewtonArticulationCfg(ArticulationRootFragment):
 
     Written to ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``. Newton's
     resolver checks this native attribute first before falling back to the PhysX namespace
-    (:attr:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg.enabled_self_collisions`).
+    (:attr:`~isaaclab_isaacsim.sim.schemas.PhysxArticulationCfg.enabled_self_collisions`).
     """

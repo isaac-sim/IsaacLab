@@ -9,7 +9,7 @@ launch_test_simulation(enable_cameras=True)
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

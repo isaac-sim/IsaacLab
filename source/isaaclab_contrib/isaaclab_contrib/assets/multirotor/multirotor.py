@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_physx.assets.articulation import Articulation
+from isaaclab_isaacsim.assets.articulation import Articulation
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import instantiate

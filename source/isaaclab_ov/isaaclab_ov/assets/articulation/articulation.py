@@ -1952,7 +1952,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_friction_coefficient_to_sim_index`:
         Coulomb (static & dynamic) friction with an optional viscous term.  Any of the three
         components can be left unset by passing ``None``; the corresponding slot in the
         combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)`` binding is preserved.
@@ -2078,7 +2078,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint dynamic friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim_index`:
         updates only the dynamic (Coulomb) slot of the combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)``
         binding; the static and viscous components are preserved.
 
@@ -2189,7 +2189,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint viscous friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim_index`:
         updates only the viscous slot of the combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)``
         binding; the static and dynamic components are preserved.
 
@@ -4277,7 +4277,7 @@ class Articulation(BaseArticulation):
     def _validate_cfg(self) -> None:
         """Validate the configuration after processing.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation._validate_cfg` (raises
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation._validate_cfg` (raises
         ``ValueError`` with a per-joint message when any default joint position
         is outside ``[lower, upper]`` or any default joint velocity exceeds the
         per-joint max velocity).  Reads come from :attr:`ArticulationData`

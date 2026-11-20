@@ -6,9 +6,9 @@
 """Tests for Agibot place environment backend compatibility."""
 
 import pytest
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.assets import RigidObjectCfg

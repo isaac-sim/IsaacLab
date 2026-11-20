@@ -12,12 +12,12 @@ from .base_joint_wrench_sensor import BaseJointWrenchSensor
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.joint_wrench import JointWrenchSensor as PhysXJointWrenchSensor
+    from isaaclab_isaacsim.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensor as NewtonJointWrenchSensor
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
     from isaaclab_ov.sensors.joint_wrench import JointWrenchSensor as OvPhysxJointWrenchSensor
     from isaaclab_ov.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
-    from isaaclab_physx.sensors.joint_wrench import JointWrenchSensor as PhysXJointWrenchSensor
-    from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
 
 
 class JointWrenchSensor(FactoryBase, BaseJointWrenchSensor):

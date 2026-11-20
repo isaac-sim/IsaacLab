@@ -12,10 +12,10 @@ from .base_contact_sensor import BaseContactSensor
 from .base_contact_sensor_data import BaseContactSensorData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.contact_sensor import ContactSensor as PhysXContactSensor
+    from isaaclab_isaacsim.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
     from isaaclab_newton.sensors.contact_sensor import ContactSensor as NewtonContactSensor
     from isaaclab_newton.sensors.contact_sensor import ContactSensorData as NewtonContactSensorData
-    from isaaclab_physx.sensors.contact_sensor import ContactSensor as PhysXContactSensor
-    from isaaclab_physx.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
 
 
 class ContactSensor(FactoryBase, BaseContactSensor):

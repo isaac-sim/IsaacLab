@@ -67,7 +67,7 @@ def _collect_renderer_cfg_params() -> list:
     """
     params: list = []
     try:
-        from isaaclab_physx.renderers import IsaacRtxRendererCfg
+        from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
         params.append(pytest.param(IsaacRtxRendererCfg, id="isaac_rtx"))
     except ImportError:
@@ -95,7 +95,7 @@ def _isaac_rtx_sim_cfg(device: str) -> SimulationCfg:
 
 if not _RENDERER_CFG_PARAMS:
     pytest.skip(
-        "No renderer packages installed (isaaclab_physx).",
+        "No renderer packages installed (isaaclab_isaacsim).",
         allow_module_level=True,
     )
 

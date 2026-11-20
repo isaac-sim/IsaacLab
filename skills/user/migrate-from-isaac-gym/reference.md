@@ -138,7 +138,7 @@ For multi-backend tasks, use `PresetCfg` variants so the PhysX and Newton config
 Import backend schema classes from their backend packages, not through deprecated core shims:
 
 - Core universal fragments/base cfgs: `from isaaclab.sim import schemas`
-- PhysX cfgs/fragments: `from isaaclab_physx.sim import schemas as physx_schemas`
+- PhysX cfgs/fragments: `from isaaclab_isaacsim.sim import schemas as physx_schemas`
 - Newton and MuJoCo cfgs/fragments: `from isaaclab_newton.sim import schemas as newton_schemas`
 
 ## Manager-Based Follow-Up Mapping
