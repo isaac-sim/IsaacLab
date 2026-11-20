@@ -23,7 +23,7 @@ from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.string import resolve_matching_names_values
 
-from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
+from isaaclab_assets.robots import H2_SHARPA_CFG
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

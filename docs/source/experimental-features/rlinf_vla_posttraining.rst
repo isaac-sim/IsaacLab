@@ -151,6 +151,12 @@ The H2 examples use N1.7. Download the checkpoint for either task and the shared
 Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
 selected checkpoint repositories.
 
+The recorded evaluations used the task author's
+`Apple checkpoint <https://huggingface.co/LiFanxing/pnp_apple/tree/1f136aee682574518e8fc36e20a091211f10c8b4/checkpoint_1>`__
+and `Pack AGX checkpoint <https://huggingface.co/LiFanxing/pack_agx/tree/40a2c24c04e58a66d1c703dd0cb3027c696eb76c/rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800>`__.
+To use either with the shared Cosmos backbone, download the linked directory and pass its local path
+to ``isaaclab play`` with ``--model_path``. The directory must contain ``config.json``.
+
 The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
 under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
 Isaac asset root before launching:
@@ -162,12 +168,7 @@ Isaac asset root before launching:
 The mirror must retain the ``Isaac/IsaacLab`` subtree, including ``Robots/Unitree/H2``,
 ``Environments/NuRec``, and ``Objects``. For example, the robot USD must be located at
 ``/path/to/mirror/Isaac/IsaacLab/Robots/Unitree/H2/H2_with_sharpa_flat.usd``.
-Replace the former ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` and ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` settings
-with this shared root. The ``assemble_trocar`` scene continues to use the Isaac Healthcare asset bundle.
 
-The apple task uses ``Objects/Plate001/plate001.usd`` under ``ISAACLAB_NUCLEUS_DIR``. This rectangular
-plate replaces the round plate from the temporary asset bundle. Reevaluate existing apple-task policies
-with the updated scene before comparing results or resuming training.
 
 .. _rlinf-decord-aarch64:
 

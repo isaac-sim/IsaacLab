@@ -13,6 +13,7 @@ The following configurations are available:
 * :obj:`H1_CFG`: H1 humanoid robot
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`H2_CFG`: H2 humanoid robot with 31 actuated joints
+* :obj:`H2_SHARPA_CFG`: H2 humanoid robot with Sharpa Wave hands
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
@@ -918,14 +919,9 @@ This configuration is designed for high-precision manipulation tasks such as tro
 """
 
 
-"""Configuration for the Unitree H2 humanoid with Sharpa Wave hands."""
-
-H2_SHARPA_ASSET_ROOT: str = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2"
-H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/H2_with_sharpa_flat.usd"
-
 H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=H2_SHARPA_USD_PATH,
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2/H2_with_sharpa_flat.usd",
         activate_contact_sensors=True,
         rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
@@ -1083,6 +1079,4 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
         ),
     },
 )
-
-
-# Neutral articulation pose; tasks override it through the preset helpers.
+"""Unitree H2 humanoid with Sharpa Wave hands."""

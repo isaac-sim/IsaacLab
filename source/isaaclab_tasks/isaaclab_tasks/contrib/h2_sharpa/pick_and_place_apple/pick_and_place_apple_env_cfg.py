@@ -32,7 +32,7 @@ from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import (
     PolicyStateCfg,
 )
 
-from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
+from isaaclab_assets.sensors import H2_HEAD_CAMERA_CFG
 
 from .mdp import task_success
 
