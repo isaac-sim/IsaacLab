@@ -34,7 +34,7 @@ nondefault Newton target and pad settings are rejected by PhysX.
 
 After simulation initialization, access ``scene["suction"]``. Its ``command`` and measured
 ``state`` are Warp arrays. Commands use +1 to close, -1 to open and 0 to retain the enabled
-vacuum state. The staged command remains zero. States use +1 for sealed, 0 for closing and
+vacuum state. States use +1 for sealed, 0 for closing and
 -1 for open. Stage commands with ``set_grippers_command`` or its index/mask variants;
 ``scene.write_data_to_sim()`` applies them.
 The scene handles state updates and selected-environment resets.
@@ -44,5 +44,7 @@ Its negative policy action closes the gripper, while a nonnegative action opens 
 specialize this action to add release qualification without reimplementing command delivery.
 Managed environments close scene grippers automatically; standalone scene users call
 ``scene.close()`` before destroying the simulation.
+For an enclosing CUDA graph, keep the scene grippers alive through the final replay and
+discard the graph before closing the scene.
 Custom ``SurfaceGripperCfg.class_type`` constructors continue to receive only the
 configuration argument; the standard Lab factory receives the scene's simulation context.
