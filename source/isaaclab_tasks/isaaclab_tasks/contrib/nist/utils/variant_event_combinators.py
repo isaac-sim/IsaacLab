@@ -155,11 +155,17 @@ class variant_reset_accumulator(ManagerTermBase):
         all_env_ids = torch.arange(env.num_envs, device=env.device)
         all_tag_indices = tag_choice.term_samples
         state_size = 0
+        stalled = 0
         pbar = tqdm(total=capacity, desc="reset_accumulator")
         while state_size < capacity:
             counts = torch.bincount(self.state_cell_indices[:state_size], minlength=self._num_cells)
-            cell_weights = counts.float().add_(1.0).reciprocal_()
-            planned_cells = torch.multinomial(cell_weights, env.num_envs, replacement=True)
+            missing_cells = (counts == 0).nonzero().flatten()
+            if missing_cells.numel():
+                shuffled = missing_cells[torch.randperm(len(missing_cells), device=env.device)]
+                planned_cells = shuffled[torch.arange(env.num_envs, device=env.device) % len(shuffled)]
+            else:
+                cell_weights = counts.float().add_(1.0).reciprocal_()
+                planned_cells = torch.multinomial(cell_weights, env.num_envs, replacement=True)
             tag_choice.prepare(torch.div(planned_cells, self._num_variants, rounding_mode="floor"))
             variants.prepare(planned_cells % self._num_variants)
 
@@ -173,10 +179,25 @@ class variant_reset_accumulator(ManagerTermBase):
 
             valid_env_ids = all_env_ids[valid_mask]
             if valid_env_ids.numel() == 0:
+                stalled += 1
+                if stalled >= max(10, 2000 // env.num_envs):
+                    missing = [
+                        (self.state_tag_names[i // self._num_variants], self.variant_names[i % self._num_variants])
+                        for i in missing_cells.tolist()
+                    ]
+                    raise RuntimeError(f"Reset-state collection stalled; unfilled cells: {missing}")
                 continue
+            stalled = 0
             tags = all_tag_indices[valid_env_ids].long()
             variant_ids = self._variant_ids[valid_env_ids].long()
             cells = tags * self._num_variants + variant_ids
+            if missing_cells.numel():
+                order = torch.argsort(cells, stable=True)
+                ordered_cells = cells[order]
+                unique = torch.ones_like(ordered_cells, dtype=torch.bool)
+                unique[1:] = ordered_cells[1:] != ordered_cells[:-1]
+                valid_env_ids = valid_env_ids[order[unique]]
+                cells = ordered_cells[unique]
 
             count = min(valid_env_ids.numel(), capacity - state_size)
             selected_env_ids = valid_env_ids[:count]
