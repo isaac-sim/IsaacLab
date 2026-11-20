@@ -32,6 +32,9 @@ class FakeModel(WorldModel):
     resets = []
     closed = 0
 
+    def __init__(self, cfg, num_envs, device):
+        self.num_envs, self.device = num_envs, device
+
     def spec(self):
         return WorldModelSpec(chunk_length=T, fps=30, image_size=(H, W))
 
