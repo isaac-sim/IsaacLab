@@ -8,15 +8,11 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
 
 import torch
-from fovi.sensing.projection import CameraCalibration, CameraModel, angular_directions
+from fovi.sensing.projection import CameraCalibration, angular_directions
 
 from isaaclab.sim import PinholeCameraCfg
-
-if TYPE_CHECKING:
-    from .foveated_camera_cfg import FoveatedCameraCfg
 
 IDEAL_IMAGE_WIDTH = 1024
 """Pixel width [px] of the image assigned to a camera derived from ideal spawn optics.
@@ -80,22 +76,6 @@ def camera_model_from_spawn(spawn: PinholeCameraCfg) -> CameraCalibration:
     return CameraCalibration(
         model="pinhole", image_size=(height, width), intrinsics=(focal, focal, (width - 1) / 2, (height - 1) / 2)
     )
-
-
-def resolve_camera_model(cfg: FoveatedCameraCfg) -> CameraModel:
-    """Return the physical camera the retina looks through.
-
-    This is ``cfg.camera_model`` when set, otherwise the camera that ``cfg.spawn``
-    creates (see :func:`camera_model_from_spawn`).
-
-    Raises:
-        ValueError: Neither ``cfg.camera_model`` nor ``cfg.spawn`` describes the camera.
-    """
-    if cfg.camera_model is not None:
-        return CameraModel(**cfg.camera_model)
-    if cfg.spawn is None:
-        raise ValueError("A foveated camera on an existing prim needs camera_model.")
-    return CameraModel(**camera_model_from_spawn(cfg.spawn))
 
 
 def retinal_directions(cartesian: torch.Tensor, fov_deg: float, image_rotation_deg: float = 0.0) -> torch.Tensor:

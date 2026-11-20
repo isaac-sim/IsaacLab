@@ -20,7 +20,7 @@ from isaaclab.sensors.camera.camera import Camera
 from isaaclab.utils.math import convert_camera_frame_orientation_convention, quat_error_magnitude
 from isaaclab.utils.warp import ProxyArray
 
-from .calibrated_geometry import resolve_camera_model, retinal_directions
+from .calibrated_geometry import camera_model_from_spawn, retinal_directions
 from .gaze_kernels import (
     CameraParams,
     apply_gaze_indexed_kernel,
@@ -283,7 +283,12 @@ class FoveatedCamera(Camera):
 
     def _prepare_sampling(self) -> None:
         """Resolve physical calibration and retinal coordinates before the renderer sizes its buffers."""
-        self._camera_model = resolve_camera_model(self.cfg)
+        calibration = self.cfg.camera_model
+        if calibration is None:
+            if self.cfg.spawn is None:
+                raise ValueError("A foveated camera on an existing prim needs camera_model.")
+            calibration = camera_model_from_spawn(self.cfg.spawn)
+        self._camera_model = CameraModel(**calibration)
         self._sampling_coords, self._sampling_coords_highres = build_retinal_coords(self.cfg, self._camera_model, "cpu")
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._native_grid = self.cfg.foveated_style == GRID_STYLE

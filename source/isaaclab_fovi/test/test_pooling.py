@@ -10,8 +10,8 @@ fovi's poolers are tested in fovi; these tests cover what the camera builds on t
 
 import pytest
 import torch
+from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.sensors import FoveatedCameraCfg, pooling
-from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model
 from isaaclab_fovi.sensors.pooling import (
     build_pooler,
     build_retinal_coords,
@@ -20,7 +20,6 @@ from isaaclab_fovi.sensors.pooling import (
     segmentation_neighbor_indices,
 )
 
-from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.kitless
@@ -28,16 +27,17 @@ pytestmark = pytest.mark.kitless
 DEVICE = next(iter(test_devices(DeviceScope.DEFAULT_CUDA)), "cpu")
 """The modal pooling runs the same tensor operations on every device; the default GPU is what simulations use."""
 
+CAMERA_MODEL = CameraModel("pinhole", (1024, 1024), (512.0, 512.0, 511.5, 511.5))
+
 
 def pooling_cfg(**overrides) -> FoveatedCameraCfg:
     """A pooled foveated camera configuration for the pooling helpers, with ``overrides`` applied.
 
-    A 90 degree pinhole window (focal length 1, aperture 2) with a CMF constant of a tenth of it, and a small isotropic
-    retina pooled from three visual-field neighbours.
+    A CMF constant of a tenth of the 90 degree pinhole window, and a small isotropic retina pooled from three
+    visual-field neighbours.
     """
     values = dict(
         prim_path="/World/Camera",
-        spawn=PinholeCameraCfg(focal_length=1.0, horizontal_aperture=2.0),
         cmf_a_deg=9.0,
         foveated_res=8,
         foveated_style="isotropic",
@@ -50,7 +50,7 @@ def pooling_cfg(**overrides) -> FoveatedCameraCfg:
 
 def test_camera_pools_its_buffers_by_its_config() -> None:
     cfg = pooling_cfg(pool_mode="max")
-    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
+    lowres, highres = build_retinal_coords(cfg, CAMERA_MODEL, "cpu")
     # The photoreceptor grid shares the retina's geometry at a higher resolution, and the pooler takes the config.
     assert len(highres) > len(lowres) and highres.cmf_a == lowres.cmf_a and highres.fov == lowres.fov
     pooler, neighbors = build_pooler(cfg, lowres, highres, "cpu")
@@ -63,7 +63,7 @@ def test_camera_pools_its_buffers_by_its_config() -> None:
     torch.testing.assert_close(actual, constants[:, None, None, :].expand(2, len(lowres), 1, 3))
     # Without pooling there is no photoreceptor grid.
     cfg = pooling_cfg(pool_enabled=False)
-    _, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
+    _, highres = build_retinal_coords(cfg, CAMERA_MODEL, "cpu")
     assert highres is None
 
 
@@ -123,7 +123,7 @@ def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Ten
 def test_modal_pooling_uses_the_poolers_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex) -> None:
     """Segmentation pools over the same neighbourhoods as the camera's other outputs: grid windows or KNN."""
     cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex, pool_mode="max")
-    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
+    lowres, highres = build_retinal_coords(cfg, CAMERA_MODEL, "cpu")
     pooler, k = build_pooler(cfg, lowres, highres, "cpu")
     table = segmentation_neighbor_indices(pooler)
     assert table.shape == (k, len(lowres))
@@ -142,7 +142,7 @@ def test_modal_pooling_uses_the_poolers_neighbourhoods(monkeypatch, style: str, 
 @pytest.mark.parametrize(("style", "pool_k", "mode"), [("warped_cartesian_as_grid", 9, "avg"), ("isotropic", 6, "max")])
 def test_pooling_leaves_out_photoreceptors_the_camera_does_not_see(style: str, pool_k: int, mode: str) -> None:
     cfg = pooling_cfg(foveated_style=style, pool_mode=mode, pool_k=pool_k)
-    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), DEVICE)
+    lowres, highres = build_retinal_coords(cfg, CAMERA_MODEL, DEVICE)
     pooler, _ = build_pooler(cfg, lowres, highres, DEVICE)
     # The camera's image edge cuts the retina at x = 0.3 in the first environment; the second sees everything.
     visible = torch.stack([highres.cartesian[:, 0] < 0.3, torch.ones(len(highres), dtype=torch.bool, device=DEVICE)])
