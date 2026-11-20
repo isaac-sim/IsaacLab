@@ -81,7 +81,7 @@ def test_mpm_object_initializes_from_interactive_scene():
 
 
 def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: PLC0415
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: PLC0415
 
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 

@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import traceback
+import warnings
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import is_dataclass
@@ -20,11 +21,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -37,6 +38,7 @@ from ..scene.interactive_scene_cfg import InteractiveSceneCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
 from ..sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
+from ..utils.backend_utils import warn_kit_selector
 from ..utils.device import set_cuda_device
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
@@ -52,7 +54,7 @@ from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
 
-_KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
+_KIT_LAUNCHER = "isaaclab_isaacsim.app:KitLauncher"
 """Launcher for Kit needs that no config names, e.g. a default-renderer camera or ``require_kit``."""
 
 
@@ -252,6 +254,7 @@ def validate_launch(  # noqa: C901
             "newton_mjwarp": NewtonCfg,
             "newton_vbd": lambda: NewtonCfg(solver_cfg=VBDSolverCfg()),
         }
+        warn_kit_selector(launcher_args["physics"], stacklevel=3)
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
         "kit": KitBackendCfg,
@@ -502,6 +505,19 @@ def launch_simulation(
     if sim_cfg is not None:
         launcher_args["device"] = launcher_args.get("device") or sim_cfg.device
 
+    livestream = launcher_args.get("livestream", -1)
+    livestream = int(os.environ.get("LIVESTREAM", 0) if livestream is None or int(livestream) < 0 else livestream)
+    xr = (
+        launcher_args.get("xr", False) is True or os.environ.get("XR", "0") == "1"
+    )  # the XR flag or environment variable
+    if kit_sources and not livestream and not xr:
+        # Livestreaming and XR need Kit and have no replacement yet, so they do not warn.
+        warnings.warn(
+            f"Running on Isaac Sim (Kit) is deprecated in 3.1 and will be removed in 3.2 ({', '.join(kit_sources)}). "
+            "Use Newton or OvPhysX physics, the OVRTX or Newton Warp renderer, and the Newton GL visualizer.",
+            FutureWarning,
+            stacklevel=3,
+        )
     launcher_types = [_KIT_LAUNCHER] if kit_sources else []
     launcher_types += [
         node.launcher_type

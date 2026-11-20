@@ -100,7 +100,7 @@ timed asset calls, then its previous state is restored.
 
 Equivalent sets exist under:
 
-* ``source/isaaclab_physx/benchmark/assets/``
+* ``source/isaaclab_isaacsim/benchmark/assets/``
 * ``source/isaaclab_newton/benchmark/assets/``
 * ``source/isaaclab_ov/benchmark/assets/``
 

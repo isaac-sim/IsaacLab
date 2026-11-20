@@ -11,14 +11,14 @@ import dataclasses
 import inspect
 
 import pytest
-from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
-from isaaclab_physx.sim.schemas import (
+from isaaclab_isaacsim.sim.schemas import (
     PhysxFixedTendonPropertiesCfg,
     PhysxSpatialTendonPropertiesCfg,
     PhysxTendonAttachmentRootCfg,
     PhysxTendonAxisCfg,
     PhysxTendonAxisRootCfg,
 )
+from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
 
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom
 

@@ -28,16 +28,16 @@ class ViewerCfg:
     .. deprecated::
         :class:`ViewerCfg` is deprecated and will be removed in a future release.
         Configure the viewport camera via :class:`~isaaclab.visualizers.VisualizerCfg`
-        on :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead. Select its Kit backend:
+        on :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead. Select its Newton GL backend:
 
     .. code-block:: python
 
         from isaaclab.sim import SimulationCfg
         from isaaclab.visualizers import VisualizerCfg
-        from isaaclab_visualizers.kit import KitBackendCfg
+        from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
         sim_cfg = SimulationCfg(
-            visualizer_cfgs=VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0), backend=KitBackendCfg())
+            visualizer_cfgs=VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0), backend=NewtonGLBackendCfg())
         )
     """
 

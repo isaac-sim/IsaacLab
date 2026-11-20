@@ -72,11 +72,11 @@ if args_cli.physics == "newton_vbd":
     # Newton needs no deformable-body attributes; an empty slot still creates the deformable body
     DEFORMABLE_BODY_PROPS = []
 else:
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import (
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import (
         PhysxDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
     )
-    from isaaclab_physx.sim.spawners.materials import (
+    from isaaclab_isaacsim.sim.spawners.materials import (
         PhysxSurfaceDeformableBodyMaterialCfg as SurfaceDeformableMaterialCfg,
     )
 

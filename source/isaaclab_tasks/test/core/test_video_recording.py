@@ -61,7 +61,7 @@ def _recorder_cfg(output_dir: str, source: str, prefix: str = "clip") -> VideoRe
 
 
 def _cartpole_cfg(*, num_envs: int = 1):
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 

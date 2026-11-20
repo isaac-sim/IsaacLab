@@ -5,9 +5,9 @@
 
 from typing import Any, ClassVar
 
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
