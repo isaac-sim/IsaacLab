@@ -283,8 +283,9 @@ def _prepare_scene_copies(
 ) -> None:
     """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan.
 
-    Every alternative of a reset-time mesh variant is copied under its world's body frame, so a stage
-    consumer can follow Newton's selection by toggling visibility instead of replacing prims.
+    Every alternative of a reset-time mesh variant is copied below its own child frame of the world's
+    body frame, so a stage consumer can follow Newton's selection by moving those child frames instead
+    of replacing prims.
     """
     if not backends:
         return
@@ -319,12 +320,12 @@ def _prepare_scene_copies(
             if rows is None:
                 copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
                 continue
-            # The body frame receives the published pose; every alternative is one of its children.
+            # The body frame receives the published pose; each alternative sits below its own child frame.
             frame = template + cloner.path.relative_to(body_path(sources[rows[0]]), sources[rows[0]])
             for variant, row in enumerate(rows):
                 variant_sources.setdefault(sources[row], body_path(sources[row]))
-                child = f"{frame}/variant_{variant}"
-                copies.setdefault((sources[row], child), []).extend(child.format(int(world)) for world in targets)
+                copy = f"{frame}/variant_{variant}/{sources[row].rsplit('/', 1)[1]}"
+                copies.setdefault((sources[row], copy), []).extend(copy.format(int(world)) for world in targets)
             for world in targets:
                 path = frame.format(int(world))
                 variant_paths[path] = [f"{path}/variant_{variant}" for variant in range(len(rows))]

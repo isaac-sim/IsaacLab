@@ -673,7 +673,7 @@ def _mesh_variant_stage_and_plan(num_envs: int, worlds: tuple[tuple[int, ...], .
 
 @pytest.mark.parametrize("worlds", [((0,), (1,)), ((0,),)], ids=["both-used", "variant-1-unused"])
 def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
-    """Alternatives become hidden children of the published body frame, including one no initial world uses."""
+    """Alternatives land below child frames of the published body frame, including one no initial world uses."""
     stage, plan = _mesh_variant_stage_and_plan(3, worlds)
     root = "/World/IsaacLabPrototypes"
     frames = [f"/World/envs/env_{env}/Object" for env in range(3)]
@@ -681,7 +681,8 @@ def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
     _prepare_clones(renderer, plan, stage=stage)
     backend = renderer.backend
     assert {source: sorted(targets) for source, targets in backend.clone_copies} == {
-        f"{root}/asset_{variant}": [f"{frame}/variant_{variant}" for frame in frames] for variant in range(2)
+        f"{root}/asset_{variant}": [f"{frame}/variant_{variant}/asset_{variant}" for frame in frames]
+        for variant in range(2)
     }
     assert backend.mesh_variant_paths == {frame: [f"{frame}/variant_0", f"{frame}/variant_1"] for frame in frames}
     assert backend.mesh_variant_sources == {
@@ -697,23 +698,25 @@ def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
     exported = Usd.Stage.CreateInMemory()
     assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])
     for frame in frames:
-        assert exported.GetPrimAtPath(frame).IsA(UsdGeom.Xform)
-        assert not exported.GetPrimAtPath(frame).GetChildren()
-    # Each source undoes its body's pose below the root and keeps the body's scale, hidden until selected.
+        for path in (frame, f"{frame}/variant_0", f"{frame}/variant_1"):
+            prim = exported.GetPrimAtPath(path)
+            assert prim.IsA(UsdGeom.Xform) and not UsdGeom.Xformable(prim).GetOrderedXformOps()
+        assert [child.GetName() for child in exported.GetPrimAtPath(frame).GetChildren()] == ["variant_0", "variant_1"]
+    # Each source undoes its body's pose below the root and keeps the body's scale; the prototype root hides it.
     expected = {0: Gf.Matrix4d().SetScale(Gf.Vec3d(2.0)), 1: Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.0, 0.0, -0.2))}
     for index, local in expected.items():
         source = UsdGeom.Xformable(exported.GetPrimAtPath(f"{root}/asset_{index}"))
         assert list(source.GetXformOpOrderAttr().Get()) == ["xformOp:transform"]
         np.testing.assert_allclose(np.array(source.GetLocalTransformation()), np.array(local), atol=1e-12)
-        assert UsdGeom.Imageable(source).GetVisibilityAttr().Get() == UsdGeom.Tokens.invisible
     np.testing.assert_array_equal(renderer._variant_rows, [0, 1, 2])
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
-def test_mesh_variant_selection_toggles_visibility(use_ovstage):
-    """Visibility follows the published selection: show the new alternative and hide the previous one."""
+def test_mesh_variant_selection_moves_child_frames(use_ovstage):
+    """Every alternative starts parked; a selection change puts the new one on the body and parks the old one."""
     import ovstage
     import warp as wp
+    from isaaclab_ov.renderers.ovrtx_renderer import _PARKED_VARIANT_OFFSET
     from ovrtx import Semantic
 
     frames = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
@@ -725,46 +728,53 @@ def test_mesh_variant_selection_toggles_visibility(use_ovstage):
     backend.transform_paths = ["/World/envs/env_0/Robot", *frames]
     backend.variants_timestamp = 1
     backend.transform_variants = wp.array([-1, 0, 1], dtype=wp.int32, device="cpu")
+    writes = Mock()
     if use_ovstage:
-        tokens = {7: "invisible", 8: "inherited"}
         renderer._use_ovstage = True
         renderer.scene.ordinal = 3
         renderer.scene.query = lambda paths: contextlib.nullcontext(list(paths))
-        renderer.scene.paths = SimpleNamespace(
-            intern_token=lambda token: SimpleNamespace(raw_id=next(i for i, t in tokens.items() if t == token))
-        )
-        writes = Mock()
         renderer.scene.stage = SimpleNamespace(write_attribute=writes)
-
-        def written():
-            """Return every visibility write as (paths, tokens) after checking the ovstage call shape."""
-            assert writes.return_value.wait.call_count == writes.call_count
-            for args, kwargs in writes.call_args_list:
-                assert args[1:] == ("visibility",) and kwargs["ordinal"] == 3 and kwargs["is_array"] is False
-                assert kwargs["semantic"] is ovstage.AttributeSemantic.TOKEN_ID and kwargs["tensors"].dtype == np.uint64
-            return [
-                (args[0], [tokens[i] for i in kwargs["tensors"].tolist()]) for args, kwargs in writes.call_args_list
-            ]
-
     else:
-        writes = renderer.backend.renderer.write_attribute = Mock()
+        renderer.backend.renderer.write_attribute = writes
 
-        def written():
-            """Return every visibility write as (paths, tokens) after checking the native call shape."""
-            for args, kwargs in writes.call_args_list:
-                assert args[1] == "visibility" and kwargs == {"semantic": Semantic.TOKEN_STRING}
-            return [(args[0], args[2]) for args, _ in writes.call_args_list]
+    def written():
+        """Return every write as (attribute, paths, value per path) after checking the call shape."""
+        calls = []
+        for args, kwargs in writes.call_args_list:
+            paths, attribute = list(args[0]), args[1]
+            if use_ovstage:
+                tensor = kwargs["tensors"]
+                assert kwargs["ordinal"] == 3 and kwargs["is_array"] is False
+                assert (attribute == "omni:xform") == (kwargs.get("semantic") is ovstage.AttributeSemantic.MATRIX)
+            else:
+                tensor = args[2]
+                assert (attribute == "omni:xform") == (kwargs.get("semantic") is Semantic.XFORM_MAT4x4)
+            if attribute == "omni:xform":
+                assert tensor.shape == (len(paths), 4, 4)
+                values = ["parked" if z == _PARKED_VARIANT_OFFSET else "shown" for z in tensor[:, 3, 2]]
+                assert all(np.array_equal(xform[:3, :3], np.eye(3)) for xform in tensor)
+            else:
+                values = tensor.tolist()
+            calls.append((attribute, paths, values))
+        if use_ovstage:
+            assert writes.return_value.wait.call_count == len(calls)
+        return calls
 
     renderer._setup_mesh_variants()
+    children = [f"{frame}/variant_{v}" for frame in frames for v in range(2)]
+    assert written() == [
+        ("omni:resetXformStack", children, [False] * 4),
+        ("omni:xform", children, ["parked"] * 4),
+    ]
     renderer.update_geometries()
     renderer.update_geometries()
-    assert written() == [([f"{frames[0]}/variant_0", f"{frames[1]}/variant_1"], ["inherited", "inherited"])]
+    assert written()[2:] == [("omni:xform", [f"{frames[0]}/variant_0", f"{frames[1]}/variant_1"], ["shown"] * 2)]
     backend.transform_variants = wp.array([-1, 1, 1], dtype=wp.int32, device="cpu")
     backend.variants_timestamp = 2
     renderer.update_geometries()
-    assert written()[-1] == ([f"{frames[0]}/variant_0", f"{frames[0]}/variant_1"], ["invisible", "inherited"])
+    assert written()[-1] == ("omni:xform", [f"{frames[0]}/variant_0", f"{frames[0]}/variant_1"], ["parked", "shown"])
     backend.transform_variants = None
     backend.variants_timestamp = 3
     renderer.update_geometries()
-    assert written()[-1] == ([f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], ["invisible", "invisible"])
-    assert len(written()) == 3
+    assert written()[-1] == ("omni:xform", [f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], ["parked"] * 2)
+    assert len(written()) == 5

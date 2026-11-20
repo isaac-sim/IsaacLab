@@ -106,6 +106,11 @@ def test_switched_mesh_variants_are_rendered(monkeypatch: pytest.MonkeyPatch, us
         switched = _silhouette_pixels(sim, scene, camera).tolist()
         assert switched[1] == cube and abs(switched[0] - cube) <= 2, (switched, cone, cube)
 
+        # A copy of an alternative that another world parked earlier must still appear in its own world.
+        part.write_mesh_variant_to_sim(torch.tensor([0], dtype=torch.int32, device=sim.device), (1,))
+        swapped = _silhouette_pixels(sim, scene, camera).tolist()
+        assert abs(swapped[0] - cube) <= 2 and abs(swapped[1] - cone) <= 2, (swapped, cone, cube)
+
         part.write_mesh_variant_to_sim(torch.tensor([0, 0], dtype=torch.int32, device=sim.device))
         reverted = _silhouette_pixels(sim, scene, camera).tolist()
         assert all(abs(pixels - cone) <= 2 for pixels in reverted), (reverted, cone, cube)

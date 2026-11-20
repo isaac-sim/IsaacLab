@@ -204,7 +204,7 @@ class OvstageBackend:
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
         self.mesh_variant_paths: dict[str, list[str]] = {}
-        """Alternative prims of each mesh-variant body frame, in variant order."""
+        """Child frames holding each alternative of a mesh-variant body frame, in variant order."""
         self.mesh_variant_sources: dict[str, str] = {}
         """Rigid body of each mesh-variant source, whose frame the copies follow."""
         self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
@@ -376,13 +376,13 @@ def export_stage_to_string(
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Frames to create in the private export before native cloning: environment roots
-            and the body frames that receive mesh-variant copies.
+            and the body and child frames that receive mesh-variant copies.
         preserve_references: Retain clean file-backed references and instances instead of baking
             their geometry into text. Anonymous or unsaved referenced layers require full
             composition so that the returned string does not depend on their Python lifetime.
         variant_sources: Rigid body prim of each mesh-variant source. Copies of a source are placed
-            under the body frame that receives the published pose, so the source is authored
-            invisible, with its body at the frame origin and only the body's scale retained.
+            below the body frame that receives the published pose, so the source is authored with
+            its body at the frame origin and only the body's scale retained.
 
     Returns:
         USDA text containing the selected prototypes. By default, composition arcs are baked.
@@ -465,7 +465,7 @@ def export_stage_to_string(
         xforms = UsdGeom.XformCache()
         for source, body in (variant_sources or {}).items():
             # The source undoes its body's pose so a copy's body lands on its frame; only the body's scale is
-            # kept, because the frame receives a rigid pose.
+            # kept, because the frame receives a rigid pose. The prototype root keeps the sources invisible.
             source_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(source))
             body_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(body))
             local = source_world * body_world.GetInverse() * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
@@ -473,7 +473,6 @@ def export_stage_to_string(
             for name, type_name, value in (
                 ("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, local),
                 (UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray, Vt.TokenArray(["xformOp:transform"])),
-                (UsdGeom.Tokens.visibility, Sdf.ValueTypeNames.Token, UsdGeom.Tokens.invisible),
             ):
                 attribute = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, type_name)
                 attribute.default = value
