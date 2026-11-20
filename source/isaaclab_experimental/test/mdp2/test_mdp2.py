@@ -980,8 +980,8 @@ host_action_l2 = mdp2.Term(torch=lambda actions: actions.square().sum(dim=-1), c
 
 
 def test_world_configs_with_fewer_actions_read_their_own_actions():
-    """The action terms of a world config, eager ones included, see its actions only, not the columns that pad them
-    for a wider config."""
+    """The action terms of a world config, eager ones included, see its actions only: the last actions zero the
+    columns that pad them for a wider config, so equal terms of both configs are one op."""
     for backend in ("torch", "warp"):
         scene = PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
         configs = []
@@ -1010,20 +1010,21 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
             scene.step()
             mdp2.evaluate(mdp, state, transition)
 
-        # Observations of the same name share columns, as wide as the widest, in the order they first appear:
-        # last_action (0-1), action_l2 (2), action_rate_l2 (3), eager_l2 (4), narrow_rate (5).
+        # Observations of the same name share columns, as wide as the widest, in the order of the merged ops:
+        # last_action (0-1), action_l2 (2), action_rate_l2 (3), narrow_rate (4), eager_l2 (5).
         policy = transition.observations["policy"].torch
         torch.testing.assert_close(policy[:2, :2], steps[1][:2])
         torch.testing.assert_close(policy[:2, 2], steps[1][:2].square().sum(-1))
         torch.testing.assert_close(policy[:2, 3], (steps[1][:2] - steps[0][:2]).square().sum(-1))
         # The second column of the actions pads the narrow config: its terms ignore it, and its columns stay zero.
         torch.testing.assert_close(policy[2:, 0], steps[1][2:, 0])
-        assert (policy[2:, 1] == 0.0).all() and (policy[2:, 3] == 0.0).all() and (policy[:2, 5] == 0.0).all()
+        assert (policy[2:, 1] == 0.0).all() and (policy[2:, 3] == 0.0).all() and (policy[:2, 4] == 0.0).all()
         torch.testing.assert_close(policy[2:, 2], steps[1][2:, 0].square())
-        torch.testing.assert_close(policy[2:, 5], (steps[1][2:, 0] - steps[0][2:, 0]).square())
+        torch.testing.assert_close(policy[2:, 4], (steps[1][2:, 0] - steps[0][2:, 0]).square())
         # Eager terms too.
-        torch.testing.assert_close(policy[:2, 4], steps[1][:2].square().sum(-1))
-        torch.testing.assert_close(policy[2:, 4], steps[1][2:, 0].square())
+        torch.testing.assert_close(policy[:2, 5], steps[1][:2].square().sum(-1))
+        torch.testing.assert_close(policy[2:, 5], steps[1][2:, 0].square())
+        assert mdp.action_mask(state).tolist() == [[True, True]] * 2 + [[True, False]] * 2
 
 
 def test_library_action_and_termination_terms():

@@ -99,13 +99,20 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("apply_actions", mdp.num_worlds, mdp.device)
     actions = code.argument("actions", wp.array2d(dtype=wp.float32), lambda call: call.actions.warp)
     last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
-    code.elements(
-        (mdp.action_dim,), f"{last_actions}[world, element] = {actions}[world, element]", writes=[last_action]
-    )
-    for action_dim in mdp.narrow_action_dims:
-        key = last_action, action_dim
-        narrow = _array(code, key, wp.array2d(dtype=wp.float32))
-        code.elements((action_dim,), f"{narrow}[world, element] = {actions}[world, element]", writes=[key])
+    # The last actions keep the columns that each world takes at this step, and zero the others.
+    ignored = []
+    for slot in (slot for slot in mdp.action_slots if slot.partial):
+        covers = []
+        for op in slot.ops:
+            cover = f"element < {op.columns.stop}"
+            covers.append(cover if op.active_key is None else f"({_runs(code, op)} and {cover})")
+        start, stop = slot.columns.start, slot.columns.stop
+        ignored += [f"if element >= {start} and element < {stop} and not ({' or '.join(covers)}):", "    value = 0.0"]
+    if ignored:
+        copy = [f"value = {actions}[world, element]", *ignored, f"{last_actions}[world, element] = value"]
+    else:
+        copy = [f"{last_actions}[world, element] = {actions}[world, element]"]
+    code.elements((mdp.action_dim,), *copy, writes=[last_action])
 
     # Fields with more dimensions per world are flattened; joint fields are views of the solver state that may be
     # strided, so they are passed as they are.
@@ -189,13 +196,12 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 def _reset(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("reset", mdp.num_worlds, mdp.device, _mask)
     length = _array(code, episode_length, wp.array(dtype=wp.int32))
-    keys = [last_action, *((last_action, action_dim) for action_dim in mdp.narrow_action_dims)]
-    fills = [f"{code.function(_fill)}(world, {_array(code, key, wp.array2d(dtype=wp.float32))}, 0.0)" for key in keys]
+    fill = f"{code.function(_fill)}(world, {_array(code, last_action, wp.array2d(dtype=wp.float32))}, 0.0)"
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = 0",
-        *fills,
-        writes=["rng", episode_length, *keys],
+        fill,
+        writes=["rng", episode_length, last_action],
     )
 
     _emit(code, mdp, mdp.plan.reset)

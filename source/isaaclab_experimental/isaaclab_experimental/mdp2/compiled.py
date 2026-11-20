@@ -35,6 +35,7 @@ from .config import (
 )
 from .plan import (
     ActionOp,
+    ActionSlot,
     ExecutionPlan,
     Launches,
     ObservationSlot,
@@ -63,8 +64,6 @@ class MDPState:
 
     - a field or subset selector: the selected fields of the scene, the fields of the MDP (``mdp2.last_action``,
       ``mdp2.commands.<name>``, ...), and the state of every term use, ``mdp2.term_state(use, name)``;
-    - ``(mdp2.last_action, action_dim)``: the first columns of the last actions, which the terms of a world config
-      with ``action_dim`` actions read if other world configs have more;
     - ``"rng"``: the random streams, ``(num_streams, num_worlds)``, see :mod:`.rng`;
     - ``"reward_weights"``: ``(num_worlds, num_rewards)``, which may change while the MDP runs, also in a CUDA graph;
     - ``("timer", op)``: seconds left per world, for a timed op;
@@ -134,7 +133,7 @@ class WorldConfig:
     """Worlds that run one task config, and the columns of the padded buffers that its terms use."""
 
     worlds: range
-    action_dim: int  # Columns of the actions it uses, from the first; the others are padding
+    action_dim: int  # Columns of the action up to the last that it uses; see MDP.action_mask for those it uses
     observation_dims: Mapping[str, int]  # Columns of each observation group it uses, from the first
 
 
@@ -172,17 +171,13 @@ class MDP:
     # The task tree of each world config, if the MDP tracks progress: some task has a completion or a sequence
     tasks: tuple[TaskTree, ...] = ()
     slots: tuple[ObservationSlot, ...] = ()  # Observation slots that some op writes only in some steps
+    action_slots: tuple[ActionSlot, ...] = ()  # The columns of the action of each name, in order
     tuned: tuple[TunedValue, ...] = ()  # Values declared Tunable, which tune changes
     launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
     @property
     def num_worlds(self) -> int:
         return self.schema.num_worlds
-
-    @property
-    def narrow_action_dims(self) -> tuple[int, ...]:
-        """Action counts of the world configs with fewer actions than the widest."""
-        return tuple(sorted({config.action_dim for config in self.world_configs} - {self.action_dim}))
 
     @property
     def step_dt(self) -> float:
@@ -252,6 +247,19 @@ class MDP:
             )
             for buffer, slots in named.items()
         }
+
+    def action_mask(self, state: MDPState) -> torch.Tensor:
+        """Return which columns of the action each world takes at this step, ``(num_worlds, action_dim)`` bool.
+
+        The others pad an action to the widest of its name, or belong to actions of other world configs or of tasks of
+        a sequence that do not run: the MDP ignores them, and stores them as zero in the last actions. Torch operations
+        only, so it can run in a graph.
+        """
+        mask = torch.zeros(self.num_worlds, self.action_dim, dtype=torch.bool, device=self.device)
+        for op in self.ops[Phase.ACTIONS]:
+            taken = True if op.active_key is None else state.arrays[op.active_key].torch[:, None]
+            mask[:, op.columns] |= taken
+        return mask
 
     def observation_mask(self, state: MDPState, buffer: str) -> torch.Tensor:
         """Return which columns of an observation buffer each world writes at this step, ``(num_worlds, dim)`` bool.
@@ -346,8 +354,6 @@ class MDP:
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
         }
-        for action_dim in self.narrow_action_dims:
-            arrays[last_action, action_dim] = self._zeros(self.num_worlds, action_dim)
         arrays |= self._progress_arrays()
         for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)

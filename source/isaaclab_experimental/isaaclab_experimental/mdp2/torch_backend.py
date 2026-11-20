@@ -14,7 +14,7 @@ import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import FieldSelector, Phase, TaskMode, last_action, progress_field, term_state, terminated
+from .config import FieldSelector, Phase, TaskMode, progress_field, term_state, terminated
 from .plan import Call, Launch, Launches, ObservationSlot, Step, StepKind, TaskTree, TermOp, TunedValue
 from .terms import hook_arguments
 
@@ -39,8 +39,15 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
     """Store the actions as the last actions, and write each action's scaled columns to its target field."""
     actions = call.actions.torch
     call.state.actions.torch.copy_(actions)
-    for action_dim in mdp.narrow_action_dims:
-        call.state.arrays[last_action, action_dim].torch.copy_(actions[:, :action_dim])
+    # The last actions keep the columns that each world takes at this step, and zero the others.
+    for slot in (slot for slot in mdp.action_slots if slot.partial):
+        columns = torch.arange(slot.columns.start, slot.columns.stop, device=mdp.device)
+        covered = torch.zeros(mdp.num_worlds, len(columns), dtype=torch.bool, device=mdp.device)
+        for op in slot.ops:
+            active = _active(op, call.state)
+            width = columns < op.columns.stop
+            covered |= width if active is None else active.torch[:, None] & width
+        call.state.actions.torch[:, slot.columns].masked_fill_(~covered, 0.0)
 
     for step in mdp.plan.apply_actions:
         op = step.op
@@ -87,8 +94,6 @@ def _begin_reset(mdp: MDP, call: Call) -> None:
     rng.advance(call.state.rng.torch, mask)
     call.state.episode_length.torch.masked_fill_(mask, 0)
     call.state.actions.torch.masked_fill_(mask[:, None], 0.0)
-    for action_dim in mdp.narrow_action_dims:
-        call.state.arrays[last_action, action_dim].torch.masked_fill_(mask[:, None], 0.0)
 
 
 def _active(op, state: MDPState):

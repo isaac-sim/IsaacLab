@@ -54,6 +54,7 @@ from .config import (
 )
 from .plan import (
     ActionOp,
+    ActionSlot,
     ObservationOutput,
     ObservationSlot,
     Segment,
@@ -158,8 +159,8 @@ class CompileContext:
         }
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
-    action_dim: int = 0
     tasks: tuple[TaskNode, ...] = ()  # The task tree, parents first, if the MDP tracks progress
+    modes: dict[str, TaskMode] = field(default_factory=dict)  # How the subtasks of each task run, by path
 
 
 class MDPBuilder:
@@ -427,25 +428,22 @@ class MDPBuilder:
             for task, _ in tasks.values()
         )
 
+        # The actions of every world config compile first: they share one layout, a range of columns per name, which
+        # sizes the last actions that the other uses read.
         contexts, time_limits = [], set()
-        for index, (schedule, tasks, worlds) in enumerate(configs):
-            context, time_limit = self._compile_schedule(schedule, tasks if tracked else {}, backend)
-            prefix = f"world config {index} ({worlds.start}-{worlds.stop - 1}): " if len(configs) > 1 else ""
-            errors += [prefix + error for error in context.errors]
+        for schedule, tasks, _ in configs:
+            context, time_limit = self._compile_actions(schedule, tasks if tracked else {}, backend)
             contexts.append(context)
             time_limits.add(time_limit)
+        action_dim = _allocate_action_slots(contexts)
+        for index, ((schedule, tasks, worlds), context) in enumerate(zip(configs, contexts)):
+            context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": action_dim}, (action_dim,))
+            self._compile_schedule(schedule, tasks if tracked else {}, context)
+            prefix = f"world config {index} ({worlds.start}-{worlds.stop - 1}): " if len(configs) > 1 else ""
+            errors += [prefix + error for error in context.errors]
 
         if len(time_limits) > 1:
             errors.append(f"The world configs must share one time limit, found {sorted(map(str, time_limits))} s.")
-        # The last actions are padded to the widest world config: the others read a copy with their own columns.
-        action_dim = max(context.action_dim for context in contexts)
-        for context in contexts:
-            for phase, ops in context.ops.items():
-                if phase is Phase.ACTIONS or context.action_dim == action_dim:
-                    continue
-                for k, op in enumerate(ops):
-                    if last_action in op.inputs.values():
-                        ops[k] = replace(op, action_dim=context.action_dim)
         field_shapes = {}
         for context in contexts:
             for op in context.ops[Phase.COMMANDS] + context.ops[Phase.QUANTITIES]:
@@ -462,6 +460,7 @@ class MDPBuilder:
             raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
 
         ops = _merge_ops([(context.ops, worlds) for context, worlds in zip(contexts, world_ranges)], self.schema)
+        action_slots = _action_slots(ops[Phase.ACTIONS])
         trees = tuple(
             TaskTree(worlds, context.tasks, frozenset(_completes(context.tasks)))
             for context, worlds in zip(contexts, world_ranges)
@@ -522,21 +521,25 @@ class MDPBuilder:
             final_observations=final_observations,
             world_configs=tuple(
                 WorldConfig(
-                    worlds, context.action_dim, MappingProxyType(_used_columns(ops[Phase.OBSERVATIONS], worlds))
+                    worlds,
+                    max((op.columns.stop for op in context.ops[Phase.ACTIONS]), default=0),
+                    MappingProxyType(_used_columns(ops[Phase.OBSERVATIONS], worlds)),
                 )
                 for context, worlds in zip(contexts, world_ranges)
             ),
+            action_slots=action_slots,
             tasks=trees,
             slots=slots,
             tuned=tuned,
         )
 
-    def _compile_schedule(
+    def _compile_actions(
         self, schedule: tuple[ScheduleEntry, ...], tasks: dict[str, tuple[TaskCfg, bool]], backend: Backend
     ) -> tuple[CompileContext, float | None]:
-        """Compile the ops of one world config, and its task tree if it has one, and return them with its episode
-        length in seconds."""
+        """Start compiling one world config with its actions, whose columns are given once those of every world
+        config are known, see :func:`_allocate_action_slots`. Returns them with its episode length in seconds."""
         context = CompileContext(backend, _dependency_errors(schedule))
+        context.modes = {path: task.mode for path, (task, _) in tasks.items()}
         # Terms may read the progress of every task.
         for path, (task, _) in tasks.items():
             for name in ("done", "holding", "active"):
@@ -551,8 +554,18 @@ class MDPBuilder:
             context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
         time_limit = time_limits[0].cfg.episode_length_s if time_limits else None
 
-        # Actions compile first, for the size of the last action. Every other use compiles after the uses that
-        # provide the commands, quantities, and term state it reads.
+        for entry in schedule:
+            if isinstance(entry.cfg, DirectAction):
+                self._compile_action(entry, context)
+            elif isinstance(entry.cfg, Action):
+                self._compile_term(entry, context)
+        return context, time_limit
+
+    def _compile_schedule(
+        self, schedule: tuple[ScheduleEntry, ...], tasks: dict[str, tuple[TaskCfg, bool]], context: CompileContext
+    ) -> None:
+        """Compile the uses of one world config other than its actions, and its task tree if it has one."""
+        # Every use compiles after the uses that provide the commands, quantities, and term state it reads.
         entries = {entry.path: entry for entry in schedule}
         providers = {selector: entry.path for entry in schedule for selector in entry.provides}
         # A use's when is read at the start of a step, which no use of its phase needs to run before.
@@ -568,15 +581,10 @@ class MDPBuilder:
                 f"Uses read each other's fields in a cycle: {', '.join(map('.'.join, error.args[1]))}. A use is"
                 " compiled after the uses whose commands, quantities, and state it reads."
             )
-            return context, time_limit
+            return
 
-        actions = [entry for entry in schedule if entry.phase is Phase.ACTIONS]
-        for entry in (*actions, *(entries[path] for path in order if entries[path].phase is not Phase.ACTIONS)):
-            if isinstance(entry.cfg, TimeLimit):
-                continue
-            if isinstance(entry.cfg, DirectAction):
-                self._compile_action(entry, context)
-            else:
+        for entry in (entries[path] for path in order):
+            if entry.phase is not Phase.ACTIONS and not isinstance(entry.cfg, TimeLimit):
                 self._compile_term(entry, context)
 
         # An offset may be a field of the MDP, such as a quantity, which exists once its use is compiled.
@@ -598,7 +606,6 @@ class MDPBuilder:
                 ops[k] = replace(op, index=k)
 
         context.tasks = tuple(self._compile_task(path, tasks, context) for path in tasks)
-        return context, time_limit
 
     def _compile_task(self, path: str, tasks: dict[str, tuple[TaskCfg, bool]], context: CompileContext) -> TaskNode:
         """Compile a task of the tree, or record why its progress cannot be tracked."""
@@ -660,13 +667,10 @@ class MDPBuilder:
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
 
-        columns = slice(context.action_dim, context.action_dim + len(elements))
-        context.action_dim = columns.stop
-        context.mdp_fields[last_action] = ArrayLayout(
-            wp.float32, 2, {"actions": context.action_dim}, (context.action_dim,)
-        )
-        action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset)
-        context.ops[Phase.ACTIONS].append(action)
+        # Its columns of the action are given with those of every world config, by name.
+        slot = entry.name or entry.path[-1]
+        action = ActionOp(str(entry), cfg.target, slice(0, len(elements)), cfg.scale, cfg.offset, subset=cfg.subset)
+        context.ops[Phase.ACTIONS].append(replace(action, slot=slot))
 
     def _compile_term(self, entry: ScheduleEntry, context: CompileContext) -> None:
         """Compile a term use into an op, or record why it cannot be compiled."""
@@ -828,6 +832,7 @@ class MDPBuilder:
                 log=isinstance(cfg, Quantity) and cfg.log,
                 record=isinstance(cfg, Quantity) and cfg.record,
                 columns=columns,
+                slot=(entry.name or entry.path[-1]) if isinstance(cfg, Action) else "",
                 stage=entry.stage,
                 when=when,
                 when_dtype=when_dtype,
@@ -937,10 +942,8 @@ def _allocate_columns(
         output = ObservationOutput(entry.buffer, columns, cfg.noise, cfg.clip, cfg.scale, cfg.history_length)
         return replace(output, slot=entry.name or entry.path[-1]), None
     if isinstance(cfg, Action):
-        columns = slice(context.action_dim, context.action_dim + output_shape[0])
-        context.action_dim = columns.stop
-        context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": columns.stop}, (columns.stop,))
-        return None, columns
+        # Its columns of the action are given with those of every world config, by name.
+        return None, slice(0, output_shape[0])
     return None, None
 
 
@@ -1234,6 +1237,47 @@ def _completes(nodes: tuple[TaskNode, ...]) -> set[str]:
         if node.done is not None or any(child in completes for child in node.children):
             completes.add(node.path)
     return completes
+
+
+def _allocate_action_slots(contexts: list[CompileContext]) -> int:
+    """Give the action ops of every world config their columns: one slot per name, in order, as wide as its widest
+    op, each op taking its first columns. Returns the number of columns.
+
+    Ops of different world configs or of different tasks of a sequence may share a slot, since they never take it in
+    the same world at the same step; other ops of the same name are errors.
+    """
+    widths: dict[str, int] = {}
+    for context in contexts:
+        named: dict[str, list] = {}
+        for op in context.ops[Phase.ACTIONS]:
+            named.setdefault(op.slot, []).append(op)
+            widths[op.slot] = max(widths.get(op.slot, 0), op.columns.stop)
+        for name, slot_ops in named.items():
+            for first, second in itertools.combinations(slot_ops, 2):
+                if not _exclusive(first, second, context.modes):
+                    context.errors.append(
+                        f"'{first.name}' and '{second.name}' share the columns of the action '{name}', so they must run"
+                        " in different world configs or in different tasks of a sequence."
+                    )
+    starts = dict(zip(widths, itertools.accumulate(widths.values(), initial=0)))
+    for context in contexts:
+        actions = context.ops[Phase.ACTIONS]
+        for k, op in enumerate(actions):
+            start = starts[op.slot]
+            actions[k] = replace(op, columns=slice(start, start + op.columns.stop))
+    return sum(widths.values())
+
+
+def _action_slots(ops: tuple[ActionOp | TermOp, ...]) -> tuple[ActionSlot, ...]:
+    """Return the slots of the merged action ops, in column order."""
+    named: dict[str, list] = {}
+    for op in ops:
+        named.setdefault(op.slot, []).append(op)
+    slots = []
+    for name, slot_ops in named.items():
+        start, stop = slot_ops[0].columns.start, max(op.columns.stop for op in slot_ops)
+        slots.append(ActionSlot(name, slice(start, stop), tuple(slot_ops)))
+    return tuple(sorted(slots, key=lambda slot: slot.columns.start))
 
 
 def _allocate_slots(

@@ -19,7 +19,7 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from .config import Entity, FieldSelector, Phase, SubsetSelector, TaskMode, UniformNoise, last_action, progress_field
+from .config import Entity, FieldSelector, Phase, SubsetSelector, TaskMode, UniformNoise, progress_field
 from .terms import State
 
 if TYPE_CHECKING:
@@ -35,11 +35,12 @@ class ActionOp:
 
     name: str
     target: FieldSelector
-    columns: slice  # Columns of the action
+    columns: slice  # Columns of the action: the first of its slot, as many as it writes
     scale: float
     offset: float | FieldSelector  # A field gives an offset per element
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
+    slot: str = ""  # Name of its columns of the action, which the actions of the same name share
 
     @property
     def active_key(self) -> Hashable | None:
@@ -97,8 +98,7 @@ class TermOp:
     record: bool = False  # Quantities: whether the environment records it at the end of every episode
     columns: slice | None = None  # Actions: the columns of the action that the term takes
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
-    # Actions of its world config, if it reads the last actions and other world configs have more
-    action_dim: int | None = None
+    slot: str = ""  # Actions: the name of its columns of the action, which the actions of the same name share
     # The task of a sequence that the op belongs to: it runs only while that task runs, and its state, timer, and
     # command restart when the task starts. Quantities run in every step: they only restart.
     stage: str | None = None
@@ -131,10 +131,7 @@ class TermOp:
 
     def array_key(self, arg: str) -> Hashable:
         """Return the key in :attr:`MDPState.arrays` of the array that the input ``arg`` reads."""
-        selector = self.inputs[arg]
-        if selector == last_action and self.action_dim is not None:
-            return last_action, self.action_dim
-        return selector
+        return self.inputs[arg]
 
 
 class StepKind(enum.Enum):
@@ -218,6 +215,22 @@ class TaskTree:
     def counted(self, node: TaskNode) -> tuple[TaskNode, ...]:
         """Return the subtasks of a task that count towards its completion: those that have one."""
         return tuple(self.node(child) for child in node.children if child in self.completes)
+
+
+@dataclass(frozen=True)
+class ActionSlot:
+    """Columns of the action that the action ops of one name take, each op the first ones, in its worlds and steps."""
+
+    name: str
+    columns: slice
+    ops: tuple[ActionOp | TermOp, ...]
+
+    @property
+    def partial(self) -> bool:
+        """Whether some world does not take all of its columns at some step: no op runs in every world and step
+        with as many columns as the slot."""
+        size = self.columns.stop - self.columns.start
+        return not any(op.active_key is None and op.columns.stop - op.columns.start == size for op in self.ops)
 
 
 @dataclass(frozen=True)

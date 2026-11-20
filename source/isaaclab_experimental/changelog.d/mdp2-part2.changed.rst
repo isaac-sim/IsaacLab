@@ -4,3 +4,7 @@
   ``task=mdp2.split(walk=WALK, stand=STAND, worlds={"walk": 3072, "stand": 1024})``.
 * **Breaking:** Changed the observation columns of MDP2 world configs: observations of the same name share their columns, as wide
   as the widest, and each name has its own, instead of each world config's observations starting at the first column.
+* **Breaking:** Changed the action columns of MDP2 world configs: actions of the same name share their columns, as wide
+  as the widest, as observations do, and the last actions hold zero in the columns a world does not take, which
+  :meth:`~isaaclab_experimental.mdp2.MDP.action_mask` gives. This replaces the narrow copies of the last actions and
+  ``MDP.narrow_action_dims``.
