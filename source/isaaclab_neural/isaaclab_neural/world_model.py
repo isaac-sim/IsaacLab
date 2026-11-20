@@ -23,7 +23,7 @@ class ModelCfg:
     """Base configuration of a world model. Concrete models subclass it and set :attr:`class_type`."""
 
     class_type: type[WorldModel] | str = "{DIR}.world_model:WorldModel"
-    """The :class:`WorldModel` subclass built as ``class_type(cfg, num_envs, device)``."""
+    """The :class:`WorldModel` implementation, built as ``class_type(cfg, num_envs, device)``."""
 
 
 @dataclass(frozen=True)
@@ -78,17 +78,13 @@ def load_reset_records(manifest: str | Path) -> list[ResetRecord]:
 
 
 class WorldModel(ABC):
-    """A learned model that predicts camera frames from joint targets.
+    """Interface of a learned model that predicts camera frames from joint targets.
 
-    The model owns only visual dynamics; it never outputs joint state. Construction is cheap and weights load on
-    the first call. Joint targets and frames are torch tensors on :attr:`device`, the simulation device, so
-    a model that runs on the GPU keeps them there.
+    The model owns only visual dynamics; it never outputs joint state. An implementation is built as
+    ``class_type(cfg, num_envs, device)`` and keeps what it needs of those. Construction is cheap and weights load on
+    the first call. Joint targets and frames are torch tensors on the simulation device, so a model that runs on the
+    GPU keeps them there.
     """
-
-    def __init__(self, cfg: ModelCfg, num_envs: int, device: str):
-        self.cfg = cfg
-        self.num_envs = num_envs
-        self.device = device
 
     @abstractmethod
     def spec(self) -> WorldModelSpec:
@@ -103,8 +99,8 @@ class WorldModel(ABC):
 
         Args:
             env_ids: Environments to restart.
-            images: Start RGB image of each selected environment, shape ``(K, H, W, 3)``, ``uint8``, on
-                :attr:`device`.
+            images: Start RGB image of each selected environment, shape ``(K, H, W, 3)``, ``uint8``, on the
+                simulation device.
             prompts: Task description of each selected environment.
             seeds: Sampling seed of each selected environment.
         """
@@ -118,7 +114,7 @@ class WorldModel(ABC):
             start_joint_state: Joint positions before the chunk, shape ``(N, num_joints)``.
 
         Returns:
-            RGB frames, shape ``(N, chunk_length, H, W, 3)``, ``uint8``, on :attr:`device`.
+            RGB frames, shape ``(N, chunk_length, H, W, 3)``, ``uint8``, on the simulation device.
         """
 
     @abstractmethod

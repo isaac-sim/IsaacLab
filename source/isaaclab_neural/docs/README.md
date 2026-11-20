@@ -70,8 +70,8 @@ chunks, so a reset in the middle of a chunk raises when the chunk ends.
 
 ## Add a world model
 
-Subclass `ModelCfg` and `WorldModel`, and set the configuration's `class_type`. The manager builds the model as
-`class_type(cfg, num_envs, device)` with the simulation device:
+Implement the `WorldModel` interface, subclass `ModelCfg` and set its `class_type`. The manager builds the model as
+`class_type(cfg, num_envs, device)` with the simulation device, and the model keeps what it needs of those:
 
 | Method | Responsibility |
 | --- | --- |
