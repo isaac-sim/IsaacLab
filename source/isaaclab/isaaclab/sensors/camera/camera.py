@@ -750,6 +750,7 @@ class Camera(SensorBase):
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
         self._apply_tensor_processors(env_mask)
+        self._push_frame_history(env_mask)
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -771,6 +772,7 @@ class Camera(SensorBase):
         )
         for camera in ready:
             camera._apply_tensor_processors(camera._is_outdated)
+            camera._push_frame_history(camera._is_outdated)
 
     def _close_tensor_processors(self) -> None:
         """Close every processor, then raise their failures, so one failure does not leave the others open."""
@@ -822,6 +824,21 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _push_frame_history(self, env_mask: wp.array) -> None:
+        """Append the latest RGB capture of the updated environments to the frame history.
+
+        Renderers whose configuration sets ``provides_frame_history`` fill the whole history themselves and are
+        skipped.
+        """
+        history = self._data.frame_history
+        if history is None or getattr(self.cfg.renderer_cfg, "provides_frame_history", False):
+            return
+        updated = wp.to_torch(env_mask).bool()
+        frames = history.torch
+        frames[updated] = torch.roll(frames[updated], shifts=-1, dims=1)
+        frames[updated, -1] = wp.to_torch(self._data.output["rgb"].warp)[updated]
+        wp.to_torch(self._data.frame_history_mask.warp).copy_(updated)
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -882,6 +899,7 @@ class Camera(SensorBase):
             num_views=self._view.count,
             device=self._device,
             supported_specs=specs,
+            history_length=self.cfg.frame_history_length,
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.

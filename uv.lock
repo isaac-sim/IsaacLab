@@ -1830,6 +1830,7 @@ dependencies = [
     { name = "isaaclab-assets" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-experimental" },
+    { name = "isaaclab-neural" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
     { name = "isaaclab-isaacsim" },
@@ -2055,6 +2056,7 @@ requires-dist = [
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
+    { name = "isaaclab-neural", editable = "source/isaaclab_neural" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
@@ -2189,6 +2191,17 @@ requires-dist = [
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
 ]
+
+[[package]]
+name = "isaaclab-neural"
+version = "0.1.0"
+source = { editable = "source/isaaclab_neural" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-newton"
