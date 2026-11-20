@@ -23,4 +23,4 @@
 * Changed ``MDP2EnvCfg.verify_capture`` on physics without a reproducible mode to check the MDP alone, with the physics
   step replaced by nothing, bitwise, instead of comparing to a relative tolerance.
 * Changed :class:`~isaaclab_experimental.envs.MDP2Env` to render only the cameras that some term of the task reads,
-  and to compute ``extras["log"]`` inside the captured step, as views of one buffer.
+  and to compute the averages of ``extras["log"]`` inside the captured step.

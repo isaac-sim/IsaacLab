@@ -2526,8 +2526,13 @@ def test_uses_that_tasks_of_a_sequence_define_alike_run_as_one():
             "shared": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, weight=shared),
             "own": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, weight=weight),
         }
+        # Reads the state of its own shared reward, which may be the one that it shares with another task.
+        total = mdp2.Quantity(generated_commands, inputs={"command": mdp2.term_state("rewards.shared", "total")})
         return mdp2.TaskCfg(
-            rewards=rewards, observations={"policy": {"position": position}}, done=getattr(mdp2.quantities, joint)
+            rewards=rewards,
+            quantities={"total": total},
+            observations={"policy": {"position": position}},
+            done=getattr(mdp2.quantities, joint),
         )
 
     task = mdp2.compose(
@@ -2554,6 +2559,8 @@ def test_uses_that_tasks_of_a_sequence_define_alike_run_as_one():
         return [step[str(mdp2.term_state(use, "total"))].item() for step in history]
 
     assert total("rewards.first.shared") == [0.25, 1.25, 1.75, 1.75]  # Carries on into the second task, not the third
+    # The second task's quantity reads the shared state, from the step before.
+    assert [step["quantities.second.total"].item() for step in history] == [0.0, 0.25, 1.25, 1.75]
     assert total("rewards.second.own") == [0.0, 0.0, 0.5, 0.5]  # Restarted when the second task started
     # The history of joint "a" carries on through all the tasks: [a, b] for the step before, then this step.
     assert [step["policy"][0].tolist() for step in history[2:]] == [[1.0, 0.0, 0.5, 1.0], [0.5, 1.0, 0.75, 0.0]]

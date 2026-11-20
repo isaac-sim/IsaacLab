@@ -913,3 +913,66 @@ def test_replayed_steps_do_the_host_work_of_their_physics_steps():
         assert env.sim.backend_manager.get_simulation_time() - time == pytest.approx(5 * env.step_dt)
     finally:
         env.close()
+
+
+def push_pole_torch(mask, joint_vel, joint_ids):
+    joint_vel[:, joint_ids.long()] += 5.0 * mask[:, None]
+
+
+def test_tunables_switches_stages_variations_and_control_actions_run_in_the_captured_step():
+    """A task with a tunable weight, a switched reward, a variation, an action at the control rate, and a sequence
+    whose second task pushes the pole when it starts, steps alike captured and uncaptured; the solver sees the push,
+    and tunings change replayed steps."""
+    cfg = cartpole_cfg()
+    task = cfg.task
+    task = replace(
+        task,
+        actions={"joint_effort": replace(task.actions["joint_effort"], rate=mdp2.ActionRate.CONTROL)},
+        rewards={
+            **task.rewards,
+            "alive": replace(task.rewards["alive"], weight=mdp2.Tunable(1.0)),
+            "pole_vel": replace(task.rewards["pole_vel"], when=mdp2.Tunable(True)),
+        },
+    )
+    ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": 3})
+    push = mdp2.Event(
+        mdp2.Term(torch=push_pole_torch),
+        inputs={"joint_ids": pole},
+        outputs={"joint_vel": robot.joint_vel},
+        mode=mdp2.EventMode.START,
+    )
+    cfg.task = mdp2.compose(
+        task,
+        mdp.variation("cart_start", robot.joint_pos, cart, mdp.Uniform(-0.1, 0.1)),
+        mdp2.TaskCfg(quantities={"ready": ready}),
+        mdp2.sequence(
+            warm=mdp2.Milestone(mdp2.quantities.ready),
+            push=mdp2.TaskCfg(events={"push": push}, done=mdp2.terminated),
+        ),
+    )
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.verify_capture = 10
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        cart_start = env.state.arrays[mdp2.quantities.cart_start].torch
+        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        pole_vel = env.scene["robot"].data.joint_vel.torch[:, 1]
+        for step in range(1, 6):
+            _, _, _, _, extras = env.step(actions)
+            if step == 2:
+                still = pole_vel.abs().max().item()
+        # The push task started at the end of step 3, and the solver stepped the pushed pole from step 4.
+        assert env.is_captured and still < 2.0 and (pole_vel.abs() > 3.0).all()
+        assert ((cart_start >= -0.1) & (cart_start < 0.1)).all() and cart_start.std() > 0
+        rewards = [op.name for op in env.mdp.ops[mdp2.Phase.REWARDS]]
+        alive, pole_vel_term = rewards.index("rewards.alive"), rewards.index("rewards.pole_vel")
+        env.tune("rewards.alive.weight", 0.0, at="step")
+        env.tune("rewards.pole_vel.when", False, at="step")
+        env.step(actions)
+        assert (env.transition.reward_terms.torch[:, alive] == 0.0).all()
+        env.step(actions)  # The switch turned off at the end of the step before
+        assert (env.transition.reward_terms.torch[:, pole_vel_term] == 0.0).all()
+        assert env.state.revision.torch.tolist() == [2] * NUM_ENVS
+    finally:
+        env.close()

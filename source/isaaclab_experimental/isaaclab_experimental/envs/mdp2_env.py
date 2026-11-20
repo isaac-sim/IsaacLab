@@ -578,14 +578,16 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         if cfg.episode_budget is not None:
             self._init_episode_budget(cfg.episode_budget)
 
-        # The captured step writes the logged values into one buffer, whose elements extras["log"] holds as tensors.
+        # The captured step writes the logged values into one buffer; each step logs a copy, as learners keep the logs
+        # of the steps of a rollout.
         names = [f"Episode_Reward/{name}" for name in self._reward_names]
         names += [f"Episode_Termination/{name}" for name in self._termination_names]
         names += [f"Episode_Termination/{self._time_limit}"] if self._time_limit is not None else []
         names += [f"Metrics/{name}" for name in self._metrics]
         names += list(self._tasks)
+        self._log_names = names
         self._log_values = torch.zeros(len(names), device=self.device)
-        self.extras["log"] = {name: self._log_values[k] for k, name in enumerate(names)}
+        self.extras["log"] = dict(zip(names, self._log_values.clone()))
 
     @property
     def max_episode_length(self) -> int | float:
@@ -624,6 +626,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Apply the actions, step the physics, evaluate the MDP, reset the worlds that ended, and observe."""
         self._step_or_replay(action)
+        self.extras["log"] = dict(zip(self._log_names, self._log_values.clone()))
         self.obs_buf = _clone(self.observations)
 
         transition = self.transition

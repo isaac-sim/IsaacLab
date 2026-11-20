@@ -166,6 +166,7 @@ class CompileContext:
     tasks: tuple[TaskNode, ...] = ()  # The task tree, parents first, if the MDP tracks progress
     modes: dict[str, TaskMode] = field(default_factory=dict)  # How the subtasks of each task run, by path
     staged: dict[str, bool] = field(default_factory=dict)  # Whether the uses of each task start during an episode
+    renamed: dict[str, str] = field(default_factory=dict)  # Uses merged into others, see _share_across_stages
 
 
 class MDPBuilder:
@@ -629,6 +630,7 @@ class MDPBuilder:
     def _compile_task(self, path: str, tasks: dict[str, tuple[TaskCfg, bool]], context: CompileContext) -> TaskNode:
         """Compile a task of the tree, or record why its progress cannot be tracked."""
         task, staged = tasks[path]
+        task = replace(task, done=_renamed_field(task.done, context.renamed))
         name, errors = f"Task '{path}'" if path else "The task", context.errors
         children = tuple(f"{path}.{child}" if path else child for child in task.subtasks)
         done_dtype = None
@@ -1480,8 +1482,9 @@ def _share_across_stages(context: CompileContext) -> None:
     """Merge the ops that tasks of a sequence or a choice define alike, but for their names, into one op that runs
     while any of these tasks runs: its state, timer, and history carry on from one task to the next rather than
     restart. Uses that differ, such as in a reward's weight, stay apart; so do quantities and commands, which write
-    fields of their own, actions, and start events, which run as each task starts."""
-    renamed: dict[str, str] = {}  # The uses of the merged ops, by those of the ops merged into them
+    fields of their own, actions, start events, which run as each task starts, and uses with tunable values, which
+    each task tunes."""
+    renamed = context.renamed  # The uses of the merged ops, by those of the ops merged into them
     for phase, ops in context.ops.items():
         if phase in (Phase.ACTIONS, Phase.QUANTITIES, Phase.COMMANDS, Phase.RESET_EVENTS):
             continue
@@ -1493,6 +1496,7 @@ def _share_across_stages(context: CompileContext) -> None:
                     k
                     for k, other in enumerate(kept)
                     if op.stage is not None
+                    and not (op.tunables or op.tunable_weight or op.when_default is not None)
                     and _stages(other)
                     and replace(other, name="", use="", index=0, stage=None, stages=()) == key
                     and _exclusive(other, op, context.modes)
@@ -1508,17 +1512,25 @@ def _share_across_stages(context: CompileContext) -> None:
         ops[:] = kept
     if not renamed:
         return
-    # Uses that read the state of a merged op read that of the op it merged into.
+    # Uses that read the state of a merged op read that of the op it merged into, as do tasks' completions.
     for ops in context.ops.values():
         for k, op in enumerate(ops):
-            if isinstance(op, TermOp):
-                inputs = {
-                    arg: replace(selector, entity=renamed.get(selector.entity, selector.entity))
-                    if isinstance(selector, FieldSelector) and not selector.scene
-                    else selector
-                    for arg, selector in op.inputs.items()
-                }
-                ops[k] = replace(op, inputs=MappingProxyType(inputs))
+            if isinstance(op, ActionOp):
+                ops[k] = replace(op, offset=_renamed_field(op.offset, renamed))
+                continue
+            inputs = {arg: _renamed_field(selector, renamed) for arg, selector in op.inputs.items()}
+            changes = {"inputs": MappingProxyType(inputs), "when": _renamed_field(op.when, renamed)}
+            if op.observation is not None and op.observation.noise is not None:
+                noise = replace(op.observation.noise, scale=_renamed_field(op.observation.noise.scale, renamed))
+                changes["observation"] = replace(op.observation, noise=noise)
+            ops[k] = replace(op, **changes)
+
+
+def _renamed_field(selector: typing.Any, renamed: Mapping[str, str]) -> typing.Any:
+    """Return a selector of the state of a use merged into another as one of the state of that use."""
+    if isinstance(selector, FieldSelector) and not selector.scene and selector.entity in renamed:
+        return replace(selector, entity=renamed[selector.entity])
+    return selector
 
 
 def _used_columns(ops: tuple[TermOp, ...], worlds: range) -> dict[str, int]:
