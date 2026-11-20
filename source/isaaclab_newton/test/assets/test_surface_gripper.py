@@ -77,7 +77,10 @@ def test_box_acquisition_lift_release_and_rebind(device):
 
         scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=0.0)
         scene_cfg.suction = SurfaceGripperCfg(
-            prim_path=r".*/Robot/panda_hand", target_prim_path=r".*/Cube[0-9]+", class_type=make_cfg_only_gripper
+            prim_path=r".*/Robot/panda_hand",
+            target_prim_path=r".*/Cube[0-9]+",
+            tool_offset=(0.0, 0.0, 0.105),
+            class_type=make_cfg_only_gripper,
         )
         scene = InteractiveScene(scene_cfg)
         gripper = scene["suction"]
