@@ -139,8 +139,9 @@ No source checkout is required.
                data-demo-physics="newton_xpbd" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl,newton_rtx" data-demo-extras="fovi"
                data-demo-description="Explore the cluttered scene from the docs through a foveated fisheye camera.">
-         <img src="../../_static/overview/sensors/foveated_camera_overview.jpg"
-              alt="Foveated retina images fixating a power drill and mustard bottle" loading="lazy">
+         <img src="../../_static/demos/foveated_camera.jpg"
+              alt="The cluttered scene through a 180-degree fisheye, and the foveated retina fixating a mustard bottle"
+              loading="lazy">
          <span>Foveated Camera</span>
        </button>
      </div>
@@ -202,6 +203,8 @@ View the static MicroDuck Warehouse through selectable renderers and saved camer
 Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
 For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
 
+.. _demo-foveated-camera:
+
 Foveated camera
 ---------------
 
@@ -217,27 +220,14 @@ retina to turn the camera. I/K tilt the gaze and J/L pan it independently of the
 Scroll to dolly the camera. Ctrl+scroll magnifies the retina and shrinks its coverage on the sphere.
 Press H to show or hide the viewer controls.
 
-The sensor renderer and the visualizer are selected independently. The demo defaults to the Newton GL visualizer.
-Use ``--viz newton_rtx`` for the RTX visualizer, or ``renderer=ovrtx`` to render the retina with the same path tracer
-as the overview figure.
-
 .. code-block:: bash
 
    uv run --extra fovi isaaclab demo foveated-camera
-   uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera --viz newton_rtx
    uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx --viz newton_gl
-   uv run --extra fovi --extra isaacsim isaaclab demo foveated-camera renderer=isaacsim_rtx --viz newton_gl
    uv run --extra fovi isaaclab demo foveated-camera env.scene.eye.cmf_a_deg=1000
 
-The last command displays a matched, nearly uniform retina for comparison.
-
-OVRTX can spend several minutes compiling shaders on its first frame with a cold cache. To compile them without
-opening a viewer, render one headless frame on the GPU you plan to use for the demo. The first windowed run
-can still compile additional shaders.
-
-.. code-block:: bash
-
-   uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx --viz none --max_steps 1
+The second command renders the retina with OVRTX, the path tracer of the overview figure; with a cold shader cache,
+its first frame can take several minutes. The last command displays a matched, nearly uniform retina for comparison.
 
 
 .. _demo-sonic:

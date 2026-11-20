@@ -7,8 +7,8 @@ Foveated Camera
 
 A :class:`~sensors.FoveatedCamera` samples densely at its fixation and sparsely in the periphery.
 The `fovi <https://nblauch.github.io/fovi>`__ library places the viewing rays. Moving the gaze rotates them
-relative to the physical camera's mount. The demo moves the gaze from object to object; the bracketed options
-render it with OVRTX:
+relative to the physical camera's mount. The :ref:`demo <demo-foveated-camera>` lets you explore the scene below
+by moving the camera and steering its gaze; the bracketed options render the retina with OVRTX:
 
 .. code-block:: bash
 
