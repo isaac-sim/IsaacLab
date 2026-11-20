@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
 # backward compatibility. These mirror the defaults on
-# :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+# :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`.
 _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "semantic_filter": "*:*",
     "colorize_semantic_segmentation": True,
@@ -100,7 +100,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -153,7 +153,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` on
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter` on
         :attr:`renderer_cfg` instead.
     """
 
@@ -165,7 +165,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -177,7 +177,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -189,7 +189,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -211,7 +211,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
         on :attr:`renderer_cfg` instead.
     """
 

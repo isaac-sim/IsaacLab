@@ -134,6 +134,91 @@ def test_kamino_rejects_conflicting_contact_capacities():
         instantiate(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
 
 
+def test_all_shapes_sdf_config_validates_after_update():
+    cfg = NewtonCollisionPipelineCfg.SDFAllShapesCfg()
+    cfg.sdf_max_resolution = 7
+    with pytest.raises(ValueError, match="divisible by 8"):
+        cfg.validate()
+    cfg.sdf_target_voxel_size = 0.01
+    cfg.validate()
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_all_shapes_sdf_provisions_analytic_colliders(device):
+    """Ordinary and variant colliders have SDFs without overriding authored settings."""
+    collision = NewtonCollisionPipelineCfg(
+        speculative_contact_gap_max=0.01,
+        sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32),
+    )
+    cfg = NewtonCfg(
+        solver_cfg=XPBDSolverCfg(),
+        collision_cfg=collision,
+        num_substeps=2,
+        collision_decimation=1,
+        use_cuda_graph=False,
+    )
+    builder = create_builder(cfg)
+    builder.begin_world()
+    body = builder.add_body(mass=1.0)
+    builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_shape_sphere(body=body, radius=0.05)
+    cable = builder.add_shape_capsule(body=body, radius=0.02, half_height=0.13)
+    cable_scale = builder.shape_scale[cable]
+    barrel = builder.add_shape_cylinder(body=body, radius=0.05, half_height=0.04, barrel_radius=0.08)
+    mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    authored_sdf = builder.add_shape_mesh(body=body, mesh=mesh)
+    builder.shape_sdf_max_resolution[authored_sdf] = 16
+    builder.shape_sdf_narrow_band_range[authored_sdf] = (-0.02, 0.03)
+    builder.shape_sdf_texture_format[authored_sdf] = "float32"
+    builder.shape_sdf_padding[authored_sdf] = 0.02
+    force_only = builder.add_shape_mesh(body=body, mesh=mesh)
+    builder.shape_force_sdf[force_only] = True
+    builder.shape_sdf_narrow_band_range[force_only] = (-0.03, 0.04)
+    variants = []
+    for shape in ("box", "sphere"):
+        variant = newton.ModelBuilder(up_axis=builder.up_axis)
+        variant_body = variant.add_body(mass=0.1)
+        if shape == "box":
+            variant.add_shape_box(body=variant_body, hx=0.04, hy=0.04, hz=0.04)
+        else:
+            variant.add_shape_sphere(body=variant_body, radius=0.04)
+        variants.append(variant)
+    builder.add_body_variants(body, variants)
+    builder.end_world()
+    plain_cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    plain_builder = create_builder(plain_cfg)
+    plain_builder.begin_world()
+    plain_builder.add_builder(builder)
+    plain_builder.end_world()
+
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+    assert builder.shape_sdf_max_resolution[authored_sdf] == 16
+    assert builder.shape_sdf_narrow_band_range[authored_sdf] == (-0.02, 0.03)
+    assert builder.shape_sdf_texture_format[authored_sdf] == "float32"
+    assert builder.shape_sdf_padding[authored_sdf] == 0.02
+    assert builder.shape_sdf_max_resolution[force_only] == 32
+    assert builder.shape_sdf_narrow_band_range[force_only] == (-0.03, 0.04)
+    assert collision.to_pipeline_args()["speculative_contact_gap_max"] == 0.01
+    assert backend.model.shape_count == 7
+    barrel_vertices = builder.shape_source[barrel].vertices
+    assert np.hypot(barrel_vertices[:, 0], barrel_vertices[:, 1]).max() > 0.055
+    assert (backend.model._shape_sdf_index.numpy() >= 0).all()
+    assert (backend.model._shape_edge_range.numpy()[:, 1] > 0).all()
+    assert (backend.model._variant_shape_geometry["_shape_sdf_index"].numpy() >= 0).all()
+    backend.model.select_body_variants(
+        wp.array([1], dtype=wp.int32, device=device), bodies=wp.array([body], dtype=wp.int32, device=device)
+    )
+    assert (backend.model._shape_sdf_index.numpy() >= 0).all()
+    scene_data = NewtonSceneDataBackend(SimpleNamespace(backend=backend))
+    scene_data.initialize_geometry([], {"cable": [cable]}, {cable: cable_scale})
+    source, _ = scene_data.get_geometry_batches()[0]
+    assert backend.model.shape_scale.numpy()[cable, 1] == 1.0
+    assert source.shape_scale.numpy()[cable, 1] == pytest.approx(0.13)
+    plain_backend = NewtonBackend(NewtonBackendCfg(physics_cfg=plain_cfg, device=device), plain_builder, dt=0.01)
+    assert newton.GeoType.SPHERE in plain_backend.model._variant_shape_geometry["shape_type"].numpy()
+
+
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
     """Each hard reset finalizes a new backend, dispatches ``PHYSICS_READY``, then builds the solver.
 
@@ -445,6 +530,47 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert observable_requests == []
 
 
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
+    box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
+    box_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+    ground_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+
+    builder.begin_world()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.025), wp.quat_identity()))
+    builder.add_shape_mesh(
+        body,
+        mesh=box_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e6, density=1000.0, margin=0.0, gap=0.0),
+    )
+    builder.add_shape_mesh(
+        -1,
+        xform=wp.transform(wp.vec3(0.0, 0.0, -0.025), wp.quat_identity()),
+        mesh=ground_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e9, margin=0.0, gap=0.0),
+    )
+    builder.end_world()
+
+    # Large nconmax forces required > CollisionPipeline's auto-estimate in non-deterministic mode.
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, nconmax=12000), num_substeps=1)
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=1.0 / 60.0)
+    backend.init_solver()
+    backend.capture = None
+    backend.actuators_active = True
+    backend.step()
+
+    assert backend.contacts.rigid_contact_max == 12000
+    assert backend.contacts.per_contact_shape_properties is True
+    assert backend.contacts.rigid_contact_stiffness is not None
+    contact_count = int(backend.contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
+
+
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), collision_cfg=NewtonCollisionPipelineCfg()),
@@ -577,21 +703,21 @@ def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_
 
 
 @pytest.mark.parametrize(
-    ("collision_decimation", "mid_loop_collides"),
-    [(0, 0), (2, 3), (7, 1)],
+    ("collision_decimation", "horizons"),
+    [(0, [8]), (2, [2, 2, 2, 2]), (7, [7, 1])],
     ids=["disabled", "every_2nd", "only_7th"],
 )
-def test_collision_decimation_recollides_between_substeps_except_after_the_last(
-    collision_decimation, mid_loop_collides
-):
+def test_collision_decimation_recollides_between_substeps_except_after_the_last(collision_decimation, horizons):
     events = []
     backend = _recording_backend(events, num_substeps=8, collision_decimation=collision_decimation)
-    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts: events.append(("collide",)))
+    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts, *, dt: events.append(("collide", dt)))
     backend.contacts = object()
 
     backend.step()
 
-    assert events.count(("collide",)) == 1 + mid_loop_collides
+    assert [event[1] for event in events if event[0] == "collide"] == [
+        horizon * backend.solver_dt for horizon in horizons
+    ]
 
 
 def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignored(caplog):

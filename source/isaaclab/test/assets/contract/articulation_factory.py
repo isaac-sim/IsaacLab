@@ -32,8 +32,8 @@ from .backends import (
 )
 
 if "physx" in AVAILABLE:
-    import isaaclab_physx.assets as physx_assets
-    from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp
+    import isaaclab_isaacsim.assets as physx_assets
+    from isaaclab_isaacsim.test.fixtures.views import MockArticulationViewWarp
 
 if "newton" in AVAILABLE:
     import isaaclab_newton.assets as newton_assets

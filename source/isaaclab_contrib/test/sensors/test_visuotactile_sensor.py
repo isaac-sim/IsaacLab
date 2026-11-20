@@ -15,7 +15,7 @@ import math
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.replicator.core as rep
 from pxr import UsdPhysics
@@ -405,8 +405,10 @@ def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_p
         objects.append(instantiate(nut_cfg))
         mesh = sim_utils.get_first_matching_child_prim(
             contact_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.MeshCollisionAPI)
-            and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
+            predicate=lambda prim: (
+                prim.HasAPI(UsdPhysics.MeshCollisionAPI)
+                and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf"
+            ),
         )
         sim.stage.DefinePrim(str(mesh.GetPath()) + "Copy").GetReferences().AddInternalReference(mesh.GetPath())
     with pytest.raises(RuntimeError, match=rf"Expected 1 prims.*found {sdf_count}\b"):

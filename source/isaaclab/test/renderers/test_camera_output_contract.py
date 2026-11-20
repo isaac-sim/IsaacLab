@@ -15,7 +15,7 @@ import pytest
 import torch
 import warp as wp
 
-pytest.importorskip("isaaclab_physx")
+pytest.importorskip("isaaclab_isaacsim")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

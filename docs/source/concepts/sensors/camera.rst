@@ -30,7 +30,7 @@ when the renderer must be fixed:
    * - Renderer configuration
      - Requires Isaac Sim
      - Characteristics
-   * - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   * - :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`
      - Yes
      - Replicator and RTX rendering through Isaac Sim
    * - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
@@ -226,7 +226,7 @@ Supported outputs vary by renderer. See the table below and the
    * - Output
      - Isaac RTX
      - OVRTX
-     - Newton Warp
+     - Newton Warp and OptiX
    * - ``rgb``, ``rgba``, ``rgb_hdr``
      - Yes
      - Yes
@@ -405,7 +405,7 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    and applies the ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every
    matched camera prim, so RTX does not expose the image a second time. It applies to every color output
    of the camera. Do not combine PPISP with separately authored RTX tonemapping settings. The Newton Warp
-   renderer applies no exposure, so it does not need the setting.
+   and OptiX renderers apply no exposure, so they do not need the setting.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_warp`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).

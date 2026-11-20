@@ -172,7 +172,7 @@ def make_renderer_cfg() -> Any:
 
         return NewtonWarpRendererCfg()
     else:
-        from isaaclab_physx.renderers import IsaacRtxRendererCfg
+        from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
         return IsaacRtxRendererCfg()
 
