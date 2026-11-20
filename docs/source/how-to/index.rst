@@ -490,7 +490,7 @@ How-to Guides
 
          :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
 
-         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+         Tune Newton Kamino PADMM or SCC convergence, stabilization, timestep, and substeps.
 
          .. container:: guide-metadata
 

@@ -8,7 +8,13 @@
 from pathlib import Path
 
 import pytest
-from isaaclab_newton.physics import KaminoDVISolverCfg, KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    KaminoDVISolverCfg,
+    KaminoPADMMSolverCfg,
+    KaminoSCCSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+)
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -122,7 +128,7 @@ def test_get_pretrained_checkpoint_backend_names_identifies_newton_renderer():
     [
         (MJWarpSolverCfg(), "newtonmjwarp"),
         (KaminoPADMMSolverCfg(), "newtonkaminopadmm"),
-        (KaminoDVISolverCfg(), "newtonkaminodvi"),
+        (KaminoSCCSolverCfg(), "newtonkaminodvi"),
     ],
 )
 def test_get_pretrained_checkpoint_backend_names_names_each_newton_solver(solver_cfg, expected):
@@ -130,6 +136,15 @@ def test_get_pretrained_checkpoint_backend_names_names_each_newton_solver(solver
     env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=solver_cfg)))
 
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == (expected, "none")
+
+
+def test_get_pretrained_checkpoint_backend_names_preserves_deprecated_kamino_solver_name() -> None:
+    """Test that legacy Kamino configurations still identify the same checkpoints."""
+    with pytest.warns(DeprecationWarning, match="KaminoSCCSolverCfg"):
+        solver_cfg = KaminoDVISolverCfg()
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=solver_cfg)))
+
+    assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("newtonkaminodvi", "none")
 
 
 def test_get_pretrained_checkpoint_backend_names_identifies_rtx_renderer():
