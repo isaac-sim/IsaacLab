@@ -94,9 +94,6 @@ class SurfaceGripper(AssetBase, BaseSurfaceGripper):
             ("tool_offset", tuple(cfg.tool_offset), defaults.tool_offset),
             ("pad_spacing", cfg.pad_spacing, defaults.pad_spacing),
             ("pad_radius", cfg.pad_radius, defaults.pad_radius),
-            ("contact_gap", cfg.contact_gap, defaults.contact_gap),
-            ("break_distance", cfg.break_distance, defaults.break_distance),
-            ("force_per_pad", cfg.force_per_pad, defaults.force_per_pad),
         ):
             if value != default:
                 raise NotImplementedError(f"PhysX surface grippers do not support the Newton property {name!r}.")

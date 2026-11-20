@@ -1,1 +1,1 @@
-* Implemented the surface-gripper API using Newton's compliant suction model for single-box parcels, with seal measurements refreshed after completed physics steps.
+* Implemented the surface-gripper API using Newton's four-pad compliant suction model for single-box parcels, with fixed force/seal thresholds and configurable tool geometry. Seal measurements refresh after completed physics steps.
