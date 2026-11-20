@@ -73,6 +73,13 @@ def test_record_images_must_match_the_model_size(tmp_path):
             bound_manager(sim)
 
 
+@pytest.mark.parametrize("states", [[np.zeros(1)], [np.zeros(J + 1)], [np.zeros(J), np.zeros(J - 1)]])
+def test_reset_record_joint_counts_must_match_the_robot(tmp_path, states):
+    with world_model_sim(tmp_path, states=states) as sim:
+        with pytest.raises(ValueError, match=f"articulation has {J} joints"):
+            bound_manager(sim)
+
+
 def test_duplicate_binding_is_rejected_and_full_reset_replaces_the_model(tmp_path):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)

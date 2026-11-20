@@ -83,12 +83,19 @@ class WorldModelManager(PhysicsManager):
         """Size the manager for a scene. Called by the articulation when it initializes.
 
         Raises:
-            ValueError: If a second articulation binds in the same initialization.
+            ValueError: If a second articulation binds in the same initialization, or reset records have the wrong
+                number of joint positions.
         """
         if self._bound:
             raise ValueError("The world-model backend drives one articulation, but the scene has more than one.")
         if num_envs % self._cfg.envs_per_reset_record:
             raise ValueError(f"envs_per_reset_record={self._cfg.envs_per_reset_record} must divide num_envs={num_envs}")
+        lengths = {len(record.joint_state) for record in self._split_records}
+        if lengths != {num_joints}:
+            raise ValueError(
+                f"The reset records in {self._cfg.reset_manifest} have {sorted(lengths)} joint positions, but the"
+                f" articulation has {num_joints} joints."
+            )
         self._bound = True
         # A new initialization, after a full simulation reset, replaces the model of the previous one.
         if self.model is not None:
