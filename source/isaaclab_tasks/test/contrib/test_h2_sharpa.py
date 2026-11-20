@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
+from isaaclab.managers import ObservationManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
@@ -41,12 +43,13 @@ def test_policy_actions_preserve_uncontrolled_targets(cfg_type):
         num_joints=len(names),
         num_base_dofs=0,
         find_joints=find_joints,
-        data=SimpleNamespace(gravity_compensation_forces=torch.arange(2 * len(names)).reshape(2, -1).float()),
+        data=SimpleNamespace(gravity_compensation_forces=ProxyArray(wp.from_torch(defaults.clone()))),
         set_joint_position_target_index=set_targets,
         set_joint_effort_target_index=Mock(),
     )
     env = SimpleNamespace(scene={"robot": robot}, num_envs=2, device="cpu")
     action = cfg.actions.joint_pos.class_type(cfg.actions.joint_pos, env)
+    assert type(action) is JointPositionAction
     commands = torch.linspace(-0.4, 0.4, 116).reshape(2, 58)
     action.process_actions(commands)
     action.apply_actions()
@@ -56,7 +59,31 @@ def test_policy_actions_preserve_uncontrolled_targets(cfg_type):
     torch.testing.assert_close(targets[:, other_indices], defaults[:, other_indices])
     assert targets[0, names.index("head_pitch_joint")] == pytest.approx(0.6)
     effort = robot.set_joint_effort_target_index.call_args.kwargs
-    torch.testing.assert_close(effort["target"], robot.data.gravity_compensation_forces[:, effort["joint_ids"]])
+    assert effort["joint_ids"].tolist() == policy_indices[:14]
+    torch.testing.assert_close(effort["target"], robot.data.gravity_compensation_forces.torch[:, policy_indices[:14]])
+
+
+@pytest.mark.parametrize(
+    "cfg_type, expected",
+    [(PnpAppleEnvCfg, [[123, 120, 117]] * 3), (PackAgxOrinEnvCfg, [[161, 149, 151], [134, 135, 131], [149, 147, 147]])],
+)
+def test_camera_group_returns_calibrated_rgb(cfg_type, expected):
+    """The policy receives calibrated uint8 RGB from each configured sensor through the manager."""
+    camera_names = ("front_camera", "left_wrist_camera", "right_wrist_camera")
+    frame = torch.full((1, 1, 1, 3), 128, dtype=torch.uint8)
+
+    class Scene(dict):
+        @property
+        def sensors(self):
+            return self
+
+    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": SimpleNamespace(torch=frame)}))
+    scene = Scene.fromkeys(camera_names, sensor)
+    env = SimpleNamespace(num_envs=1, device="cpu", scene=scene, sim=SimpleNamespace(is_playing=lambda: True))
+    manager = ObservationManager({"camera_images": cfg_type().observations.camera_images}, env)
+    images = manager.compute_group("camera_images")
+    for name, rgb in zip(camera_names, expected, strict=True):
+        torch.testing.assert_close(images[name], torch.tensor(rgb, dtype=torch.uint8).reshape(1, 1, 1, 3))
 
 
 @pytest.mark.parametrize("cfg_type", [PnpAppleEnvCfg, PackAgxOrinEnvCfg])
@@ -67,11 +94,25 @@ def test_progress_without_rewards_and_partial_reset(cfg_type):
     object_name, target_name = ("apple", "plate") if apple else ("agx_orin", "protective_box")
     position = torch.zeros(2, 3)
     wrist = torch.zeros(2, 2, 3)
-    joints = torch.zeros(2, 4)
+    body_names = ["left_wrist_yaw_link", "right_wrist_yaw_link"]
+    joint_names = [
+        "right_thumb_CMC_FE",
+        "right_thumb_CMC_AA",
+        "right_thumb_MCP_AA",
+        "right_thumb_IP",
+        "right_thumb_MCP_FE",
+    ]
+    joints = torch.zeros(2, len(joint_names))
     robot = SimpleNamespace(
-        data=SimpleNamespace(body_pos_w=wrist, joint_pos=joints),
-        find_bodies=lambda names, **kwargs: ([0, 1], names) if isinstance(names, list) else ([1], [names]),
-        find_joints=lambda names, **kwargs: (list(range(4)), names) if isinstance(names, list) else ([0], [names]),
+        data=SimpleNamespace(
+            body_pos_w=ProxyArray(wp.from_torch(wrist, dtype=wp.vec3f)), joint_pos=ProxyArray(wp.from_torch(joints))
+        ),
+        body_names=body_names,
+        num_bodies=len(body_names),
+        joint_names=joint_names,
+        num_joints=len(joint_names),
+        find_bodies=lambda names, **kwargs: resolve_matching_names(names, body_names, **kwargs),
+        find_joints=lambda names, **kwargs: resolve_matching_names(names, joint_names, **kwargs),
     )
     obj = SimpleNamespace(
         data=SimpleNamespace(
@@ -83,6 +124,8 @@ def test_progress_without_rewards_and_partial_reset(cfg_type):
     env = SimpleNamespace(
         scene={object_name: obj, target_name: target, "robot": robot}, num_envs=2, device="cpu", step_dt=0.1
     )
+    cfg.params["robot_cfg"].resolve(env.scene)
+    cfg.params["robot_cfg"].finalize(env.device)
     term = cfg.func(cfg, env)
     env.termination_manager = SimpleNamespace(get_term_cfg=lambda name: SimpleNamespace(func=term))
     term.reset()

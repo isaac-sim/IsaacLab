@@ -927,7 +927,7 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=H2_SHARPA_USD_PATH,
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -938,9 +938,9 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
             solver_position_iteration_count=16,
             solver_velocity_iteration_count=4,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+        fix_root_link=True,
+        articulation_props=PhysxArticulationCfg(
             enabled_self_collisions=False,
-            fix_root_link=True,
             solver_position_iteration_count=16,
             solver_velocity_iteration_count=4,
         ),

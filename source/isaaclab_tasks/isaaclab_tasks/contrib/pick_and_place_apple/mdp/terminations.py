@@ -29,11 +29,6 @@ class task_success(ManagerTermBase):
         self.hold_counter = torch.zeros_like(self.phase)
         self.initial_height = torch.empty(self.num_envs, device=self.device)
         self.left_dist_at_grasp = torch.empty(self.num_envs, device=self.device)
-        robot = env.scene[cfg.params["robot_cfg"].name]
-        self.wrist_ids, _ = robot.find_bodies(["left_wrist_yaw_link", "right_wrist_yaw_link"], preserve_order=True)
-        self.thumb_ids, _ = robot.find_joints(
-            ["right_thumb_CMC_FE", "right_thumb_CMC_AA", "right_thumb_MCP_AA", "right_thumb_IP"], preserve_order=True
-        )
         self.thumb_thresholds = torch.tensor([2.55, 10.35, 23.4, 18.75], device=self.device) * (torch.pi / 180)
 
     def reset(self, env_ids=None) -> None:
@@ -62,7 +57,7 @@ class task_success(ManagerTermBase):
         apple_pos = env.scene[apple_cfg.name].data.root_pos_w
         plate_pos = env.scene[plate_cfg.name].data.root_pos_w
         robot = env.scene[robot_cfg.name]
-        left_wrist, right_wrist = robot.data.body_pos_w[:, self.wrist_ids].unbind(dim=1)
+        left_wrist, right_wrist = robot.data.body_pos_w.torch[:, robot_cfg.body_ids].unbind(dim=1)
         left_dist = torch.linalg.vector_norm(apple_pos - left_wrist, dim=-1)
         right_dist = torch.linalg.vector_norm(apple_pos - right_wrist, dim=-1)
         lifted = apple_pos[:, 2] > self.initial_height + lift_z
@@ -85,7 +80,7 @@ class task_success(ManagerTermBase):
         self.phase, self.hold_counter = advance_phase(
             self.phase, self.hold_counter, 2, on_plate & (right_dist < place_grasp_dist), hold_steps
         )
-        thumb_open = (robot.data.joint_pos[:, self.thumb_ids] < self.thumb_thresholds).sum(dim=1) >= 3
+        thumb_open = (robot.data.joint_pos.torch[:, robot_cfg.joint_ids] < self.thumb_thresholds).sum(dim=1) >= 3
         # Placement and release must occur on different steps.
         released = (self.previous_phase == 3) & on_plate & thumb_open
         self.phase, self.hold_counter = advance_phase(self.phase, self.hold_counter, 3, released, hold_steps)

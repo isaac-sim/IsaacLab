@@ -10,9 +10,9 @@ import os
 
 from isaaclab_isaacsim.physics import PhysxCfg
 
-import isaaclab.envs.mdp as base_mdp
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -22,93 +22,21 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from isaaclab_tasks.contrib.h2_sharpa import (
+    H2_TABLETOP_ROBOT_CFG,
     LEFT_WRIST_CAMERA_CFG,
     POLICY_JOINT_NAMES,
     RIGHT_WRIST_CAMERA_CFG,
-    H2GravityCompensatedJointPositionAction,
+    ActionsCfg,
+    apply_camera_response,
     phase_reward,
-    warm_rgb_image,
 )
 
-from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
-from .. import mdp
-
-# pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
-# apple_pick_and_place_05142000_filtered episode_000043, in POLICY_JOINT_NAMES
-# (left_arm, right_arm, left_hand, right_hand).
-_FRAME0_POLICY_58_POS: tuple[float, ...] = (
-    0.2754,
-    0.0215,
-    -0.0674,
-    -0.0774,
-    0.0518,
-    -0.1481,
-    -0.0260,
-    0.1734,
-    -0.0544,
-    0.0165,
-    -0.0457,
-    0.0006,
-    0.0136,
-    0.1644,
-    0.2834,
-    0.0498,
-    -0.4345,
-    0.2344,
-    0.7783,
-    -0.1513,
-    -0.0731,
-    0.0373,
-    0.1479,
-    -0.1540,
-    0.0019,
-    0.0358,
-    0.1647,
-    -0.1514,
-    0.1047,
-    0.0385,
-    0.1432,
-    0.1048,
-    -0.1552,
-    0.1278,
-    0.0348,
-    0.0924,
-    -0.0452,
-    0.0498,
-    0.3536,
-    0.0689,
-    0.0869,
-    -0.1104,
-    0.1215,
-    0.0687,
-    0.1541,
-    -0.1028,
-    0.1457,
-    0.0810,
-    0.0946,
-    -0.1501,
-    0.1255,
-    0.0361,
-    0.0890,
-    0.1171,
-    -0.1064,
-    0.0177,
-    0.0611,
-    0.0884,
-)
-
-# Arm + Sharpa-hand start pose for the pnp_apple task, keyed by joint name.
-CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_JOINT_NAMES, _FRAME0_POLICY_58_POS, strict=True))
-CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
-
-
-# Task-specific start pose.
-INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
-INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+from ..mdp import terminations
 
 TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256_cloth.usd"
 APPLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Apple/Apple033.usd"
@@ -123,37 +51,11 @@ XY_RANGE = float(os.environ.get("PNP_APPLE_XY_RANGE", "0.015"))
 YAW_RANGE = math.radians(float(os.environ.get("PNP_APPLE_YAW_RANGE_DEG", "0")))
 
 
-def _randomize_asset_pose(
-    asset_name: str,
-    y_range: tuple[float, float],
-) -> EventTermCfg:
-    return EventTermCfg(
-        func=base_mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-XY_RANGE, XY_RANGE),
-                "y": y_range,
-                "yaw": (-YAW_RANGE, YAW_RANGE),
-            },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg(asset_name),
-        },
-    )
-
-
 @configclass
 class PnpAppleSceneCfg(InteractiveSceneCfg):
     """H2 scene with front, left-wrist, and right-wrist cameras."""
 
-    robot = H2_SHARPA_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=INIT_POS,
-            rot=INIT_ROT,
-            joint_pos={**H2_SHARPA_CFG.init_state.joint_pos, **CUSTOM_JOINT_POS},
-        ),
-    )
+    robot = H2_TABLETOP_ROBOT_CFG
 
     background = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/background",
@@ -231,9 +133,7 @@ class PnpAppleSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=TABLE_USD,
             scale=(1.0, 1.0, 1.20),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=True,
-            ),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(-0.42, 0, 0.565),
@@ -252,7 +152,7 @@ class PnpAppleSceneCfg(InteractiveSceneCfg):
             ),
             # 13/20 of the original (1.5885, 1.5885, 1.4274).
             scale=(1.1357775, 1.1357775, 1.120591),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
+            mass_props=sim_utils.MassCfg(mass=0.05),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.48, 0.09, 1.081),
@@ -265,11 +165,9 @@ class PnpAppleSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=PLATE_USD,
             scale=(0.9, 0.9, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=True,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.2),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.5, -0.265, 1.055),
@@ -314,20 +212,6 @@ class PnpAppleSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class ActionsCfg:
-    """RL/Eval joint control with PhysX gravity feed-forward on both arms."""
-
-    joint_pos = mdp.JointPositionActionCfg(
-        class_type=H2GravityCompensatedJointPositionAction,
-        asset_name="robot",
-        joint_names=POLICY_JOINT_NAMES,
-        scale=1.0,
-        use_default_offset=False,
-        preserve_order=True,
-    )
-
-
-@configclass
 class ObservationsCfg:
     """Joint state and three camera observations."""
 
@@ -347,16 +231,19 @@ class ObservationsCfg:
     @configclass
     class CameraImagesCfg(ObsGroup):
         front_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb", "normalize": False},
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
+            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
         )
         left_wrist_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False},
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
+            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
         )
         right_wrist_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False},
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
+            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
         )
 
         def __post_init__(self):
@@ -374,13 +261,21 @@ class EventCfg:
     # command a subset of joints otherwise leave head target at 0 and IdealPD
     # lifts the camera into the wall.
     reset_scene = EventTermCfg(
-        func=base_mdp.reset_scene_to_default,
+        func=mdp.reset_scene_to_default,
         mode="reset",
         params={"reset_joint_targets": True},
     )
 
     # Must follow ``reset_scene`` so the default reset does not overwrite it.
-    randomize_apple_xy = _randomize_asset_pose("apple", y_range=(-XY_RANGE, XY_RANGE))
+    randomize_apple_xy = EventTermCfg(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("apple"),
+            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (-XY_RANGE, XY_RANGE), "yaw": (-YAW_RANGE, YAW_RANGE)},
+            "velocity_range": {},
+        },
+    )
 
 
 @configclass
@@ -389,12 +284,17 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
-        func=mdp.task_success,
+        func=terminations.task_success,
         time_out=False,
         params={
             "apple_cfg": SceneEntityCfg("apple"),
             "plate_cfg": SceneEntityCfg("plate"),
-            "robot_cfg": SceneEntityCfg("robot"),
+            "robot_cfg": SceneEntityCfg(
+                "robot",
+                body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
+                joint_names=["right_thumb_CMC_FE", "right_thumb_CMC_AA", "right_thumb_MCP_AA", "right_thumb_IP"],
+                preserve_order=True,
+            ),
             "lift_z": 0.10,
             "grasp_dist": 0.26,
             "release_dist": 0.08,

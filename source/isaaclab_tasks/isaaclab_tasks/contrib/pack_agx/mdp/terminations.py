@@ -29,9 +29,6 @@ class task_success(ManagerTermBase):
         self.previous_phase = self.phase.clone()
         self.hold_counter = torch.zeros_like(self.phase)
         self.initial_height = torch.empty(self.num_envs, device=self.device)
-        robot = env.scene["robot"]
-        self.wrist_id = robot.find_bodies("right_wrist_yaw_link")[0][0]
-        self.thumb_id = robot.find_joints("right_thumb_MCP_FE")[0][0]
 
     def reset(self, env_ids=None) -> None:
         env_ids = slice(None) if env_ids is None else env_ids
@@ -42,6 +39,7 @@ class task_success(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         agx_orin_cfg: SceneEntityCfg,
+        robot_cfg: SceneEntityCfg,
         protective_box_cfg: SceneEntityCfg,
         lift_z: float = 0.01,
         align_target_z_offset: float = 0.10,
@@ -54,7 +52,7 @@ class task_success(ManagerTermBase):
         """Advance phases using distances [m] and roll/pitch tolerances [rad]."""
         self.previous_phase.copy_(self.phase)
         agx = env.scene[agx_orin_cfg.name]
-        robot = env.scene["robot"]
+        robot = env.scene[robot_cfg.name]
         position = agx.data.root_pos_w
         delta = position - env.scene[protective_box_cfg.name].data.root_pos_w
         roll, pitch, _ = euler_xyz_from_quat(agx.data.root_quat_w.torch)
@@ -71,11 +69,12 @@ class task_success(ManagerTermBase):
         in_box &= (roll.abs() <= 0.2) & (pitch.abs() <= 0.2)
         seated = (self.previous_phase == 2) & in_box
         self.phase, self.hold_counter = advance_phase(self.phase, self.hold_counter, 2, seated, seat_hold_steps)
-        wrist_distance = torch.linalg.vector_norm(robot.data.body_pos_w[:, self.wrist_id] - position, dim=-1)
+        wrist_pos = robot.data.body_pos_w.torch[:, robot_cfg.body_ids].squeeze(1)
+        wrist_distance = torch.linalg.vector_norm(wrist_pos - position, dim=-1)
         released = (
             (self.previous_phase == 3)
             & in_box
-            & (robot.data.joint_pos[:, self.thumb_id] <= 0.261799)
+            & (robot.data.joint_pos.torch[:, robot_cfg.joint_ids].squeeze(1) <= 0.261799)
             & (wrist_distance >= 0.32)
         )
         self.phase, self.hold_counter = advance_phase(self.phase, self.hold_counter, 3, released, seat_hold_steps)

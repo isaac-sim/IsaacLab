@@ -12,20 +12,22 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import mdp as base_mdp
-from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.envs import mdp
 from isaaclab.sensors import CameraCfg
+from isaaclab.utils import configclass
+
+from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.envs.mdp import JointPositionActionCfg
 
-POLICY_JOINT_NAMES = [
+ARM_JOINT_NAMES = [
     f"{side}_{joint}_joint"
     for side in ("left", "right")
     for joint in ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw")
-] + [
+]
+
+POLICY_JOINT_NAMES = ARM_JOINT_NAMES + [
     f"{side}_{joint}"
     for side in ("left", "right")
     for joint in (
@@ -54,6 +56,36 @@ POLICY_JOINT_NAMES = [
     )
 ]
 """Absolute policy joint positions: left arm, right arm, left hand, right hand."""
+
+# pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
+# apple_pick_and_place_05142000_filtered episode_000043, in POLICY_JOINT_NAMES
+# (left_arm, right_arm, left_hand, right_hand).
+# fmt: off
+_FRAME0_POLICY_58_POS = (
+    # Left arm
+    0.2754, 0.0215, -0.0674, -0.0774, 0.0518, -0.1481, -0.026,
+    # Right arm
+    0.1734, -0.0544, 0.0165, -0.0457, 0.0006, 0.0136, 0.1644,
+    # Left hand
+    0.2834, 0.0498, -0.4345, 0.2344, 0.7783, -0.1513, -0.0731, 0.0373, 0.1479, -0.154, 0.0019,
+    0.0358, 0.1647, -0.1514, 0.1047, 0.0385, 0.1432, 0.1048, -0.1552, 0.1278, 0.0348, 0.0924,
+    # Right hand
+    -0.0452, 0.0498, 0.3536, 0.0689, 0.0869, -0.1104, 0.1215, 0.0687, 0.1541, -0.1028, 0.1457,
+    0.081, 0.0946, -0.1501, 0.1255, 0.0361, 0.089, 0.1171, -0.1064, 0.0177, 0.0611, 0.0884,
+)
+# fmt: on
+
+H2_TABLETOP_ROBOT_CFG = H2_SHARPA_CFG.replace(
+    prim_path="{ENV_REGEX_NS}/Robot",
+    init_state=H2_SHARPA_CFG.init_state.replace(
+        joint_pos={
+            **H2_SHARPA_CFG.init_state.joint_pos,
+            **dict(zip(POLICY_JOINT_NAMES, _FRAME0_POLICY_58_POS, strict=True)),
+            "head_pitch_joint": 0.6,
+        },
+    ),
+)
+"""H2 + Sharpa robot in the starting pose shared by both tabletop tasks."""
 
 LEFT_WRIST_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Robot/left_hand_C_MC/left_wrist_camera",
@@ -100,38 +132,25 @@ RIGHT_WRIST_CAMERA_CFG = LEFT_WRIST_CAMERA_CFG.replace(
 """Right Sharpa Wave wrist camera, mirrored from the left mount."""
 
 
-class H2GravityCompensatedJointPositionAction(JointPositionAction):
-    """Absolute joint-position action with PhysX gravity feed-forward on both arms."""
+@configclass
+class ActionsCfg:
+    """Absolute arm and hand position commands with gravity feed-forward on the arms."""
 
-    def __init__(self, cfg: JointPositionActionCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._gravity_joint_ids, _ = self._asset.find_joints(
-            [".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"]
-        )
-        self._gravity_columns = (
-            torch.as_tensor(self._gravity_joint_ids, device=self.device, dtype=torch.long) + self._asset.num_base_dofs
-        )
-
-    def apply_actions(self) -> None:
-        if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            gravity = self._asset.data.gravity_compensation_forces[:, self._gravity_columns]
-            self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._gravity_joint_ids)
-        super().apply_actions()
+    joint_pos = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=POLICY_JOINT_NAMES,
+        gravity_compensation_joint_names=ARM_JOINT_NAMES,
+        use_default_offset=False,
+        preserve_order=True,
+    )
 
 
-def warm_rgb_image(
-    env: ManagerBasedRLEnv,
-    sensor_cfg: SceneEntityCfg,
-    data_type: str = "rgb",
-    normalize: bool = False,
+def apply_camera_response(
+    image: torch.Tensor,
     response_gamma: tuple[float, float, float] = (1.0, 1.0, 1.0),
     response_gain: tuple[float, float, float] = (1.0, 1.0, 1.0),
 ) -> torch.Tensor:
-    """Apply the fitted real-camera color response to an RTX RGB image."""
-    image = base_mdp.image(env, sensor_cfg=sensor_cfg, data_type=data_type, normalize=normalize)
-    if data_type != "rgb":
-        return image
-
+    """Apply the fitted color response to a raw uint8 RGB observation."""
     output_dtype = image.dtype
     image = image.to(torch.float32)
     image = (image / 255.0).clamp(0.0, 1.0)

@@ -10,9 +10,9 @@ import os
 
 from isaaclab_isaacsim.physics import PhysxCfg
 
-import isaaclab.envs.mdp as base_mdp
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -22,92 +22,21 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from isaaclab_tasks.contrib.h2_sharpa import (
+    H2_TABLETOP_ROBOT_CFG,
     LEFT_WRIST_CAMERA_CFG,
     POLICY_JOINT_NAMES,
     RIGHT_WRIST_CAMERA_CFG,
-    H2GravityCompensatedJointPositionAction,
+    ActionsCfg,
+    apply_camera_response,
     phase_reward,
-    warm_rgb_image,
 )
 
-from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
-from .. import mdp
-
-# Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
-# recording supplies a task-specific frame-zero pose.
-_FRAME0_POLICY_58_POS: tuple[float, ...] = (
-    0.2754,
-    0.0215,
-    -0.0674,
-    -0.0774,
-    0.0518,
-    -0.1481,
-    -0.0260,
-    0.1734,
-    -0.0544,
-    0.0165,
-    -0.0457,
-    0.0006,
-    0.0136,
-    0.1644,
-    0.2834,
-    0.0498,
-    -0.4345,
-    0.2344,
-    0.7783,
-    -0.1513,
-    -0.0731,
-    0.0373,
-    0.1479,
-    -0.1540,
-    0.0019,
-    0.0358,
-    0.1647,
-    -0.1514,
-    0.1047,
-    0.0385,
-    0.1432,
-    0.1048,
-    -0.1552,
-    0.1278,
-    0.0348,
-    0.0924,
-    -0.0452,
-    0.0498,
-    0.3536,
-    0.0689,
-    0.0869,
-    -0.1104,
-    0.1215,
-    0.0687,
-    0.1541,
-    -0.1028,
-    0.1457,
-    0.0810,
-    0.0946,
-    -0.1501,
-    0.1255,
-    0.0361,
-    0.0890,
-    0.1171,
-    -0.1064,
-    0.0177,
-    0.0611,
-    0.0884,
-)
-
-# Arm + Sharpa-hand start pose for the pack_agx task, keyed by joint name.
-CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_JOINT_NAMES, _FRAME0_POLICY_58_POS, strict=True))
-CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
-
-
-# Task-specific start pose.
-INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
-INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+from ..mdp import terminations
 
 TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256.usd"
 AGX_ORIN_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/MiniPc001/MiniPc001.usd"
@@ -123,37 +52,11 @@ XY_RANGE = float(os.environ.get("PACK_AGX_XY_RANGE", "0.05"))
 YAW_RANGE = math.radians(float(os.environ.get("PACK_AGX_YAW_RANGE_DEG", "10")))
 
 
-def _randomize_asset_pose(
-    asset_name: str,
-    y_range: tuple[float, float],
-) -> EventTermCfg:
-    return EventTermCfg(
-        func=base_mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-XY_RANGE, XY_RANGE),
-                "y": y_range,
-                "yaw": (-YAW_RANGE, YAW_RANGE),
-            },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg(asset_name),
-        },
-    )
-
-
 @configclass
 class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     """Independent H2 scene for packing an AGX Orin."""
 
-    robot = H2_SHARPA_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=INIT_POS,
-            rot=INIT_ROT,
-            joint_pos={**H2_SHARPA_CFG.init_state.joint_pos, **CUSTOM_JOINT_POS},
-        ),
-    )
+    robot = H2_TABLETOP_ROBOT_CFG
 
     background = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/background",
@@ -225,7 +128,7 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=TABLE_USD,
             scale=(1.07, 0.92, 1.12),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             visual_material=sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(0.75, 0.75, 0.75),
                 roughness=0.8,
@@ -271,7 +174,7 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
                 metallic_texture_influence=0.0,
                 reflection_roughness_texture_influence=0.0,
             ),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.53, -0.03, 0.995),
@@ -313,20 +216,6 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class ActionsCfg:
-    """RL joint control with PhysX gravity feed-forward on both arms."""
-
-    joint_pos = mdp.JointPositionActionCfg(
-        class_type=H2GravityCompensatedJointPositionAction,
-        asset_name="robot",
-        joint_names=POLICY_JOINT_NAMES,
-        scale=1.0,
-        use_default_offset=False,
-        preserve_order=True,
-    )
-
-
-@configclass
 class ObservationsCfg:
     """Robot state and three camera observations."""
 
@@ -346,34 +235,34 @@ class ObservationsCfg:
     @configclass
     class CameraImagesCfg(ObsGroup):
         front_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={
-                "sensor_cfg": SceneEntityCfg("front_camera"),
-                "data_type": "rgb",
-                "normalize": False,
-                "response_gamma": (0.4545, 0.4545, 0.4545),
-                "response_gain": (0.879, 0.824, 0.848),
-            },
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.879, 0.824, 0.848)},
+                )
+            ],
         )
         left_wrist_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={
-                "sensor_cfg": SceneEntityCfg("left_wrist_camera"),
-                "data_type": "rgb",
-                "normalize": False,
-                "response_gamma": (0.4545, 0.4545, 0.4545),
-                "response_gain": (0.732, 0.745, 0.735),
-            },
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.732, 0.745, 0.735)},
+                )
+            ],
         )
         right_wrist_camera = ObsTerm(
-            func=warm_rgb_image,
-            params={
-                "sensor_cfg": SceneEntityCfg("right_wrist_camera"),
-                "data_type": "rgb",
-                "normalize": False,
-                "response_gamma": (0.4545, 0.4545, 0.4545),
-                "response_gain": (0.815, 0.814, 0.826),
-            },
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.815, 0.814, 0.826)},
+                )
+            ],
         )
 
         def __post_init__(self):
@@ -388,12 +277,28 @@ class EventCfg:
     """Reset the scene, then randomize the AGX Orin on the tabletop."""
 
     reset_scene = EventTermCfg(
-        func=base_mdp.reset_scene_to_default,
+        func=mdp.reset_scene_to_default,
         mode="reset",
         params={"reset_joint_targets": True},
     )
-    randomize_agx_orin_xy = _randomize_asset_pose("agx_orin", y_range=(-XY_RANGE, 0.0))
-    randomize_box_xy = _randomize_asset_pose("protective_box", y_range=(0.0, XY_RANGE))
+    randomize_agx_orin_xy = EventTermCfg(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("agx_orin"),
+            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (-XY_RANGE, 0.0), "yaw": (-YAW_RANGE, YAW_RANGE)},
+            "velocity_range": {},
+        },
+    )
+    randomize_box_xy = EventTermCfg(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("protective_box"),
+            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (0.0, XY_RANGE), "yaw": (-YAW_RANGE, YAW_RANGE)},
+            "velocity_range": {},
+        },
+    )
 
 
 @configclass
@@ -402,10 +307,11 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
-        func=mdp.task_success,
+        func=terminations.task_success,
         time_out=False,
         params={
             "agx_orin_cfg": SceneEntityCfg("agx_orin"),
+            "robot_cfg": SceneEntityCfg("robot", body_names="right_wrist_yaw_link", joint_names="right_thumb_MCP_FE"),
             "protective_box_cfg": SceneEntityCfg("protective_box"),
             "lift_z": 0.01,
             "align_target_z_offset": 0.10,
