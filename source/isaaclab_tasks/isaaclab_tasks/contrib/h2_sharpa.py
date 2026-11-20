@@ -10,11 +10,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_newton.controllers import NewtonJointImpedanceControllerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import mdp
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
+from isaaclab.utils.string import resolve_matching_names_values
 
 from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 
@@ -27,7 +29,7 @@ ARM_JOINT_NAMES = [
     for joint in ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw")
 ]
 
-POLICY_JOINT_NAMES = ARM_JOINT_NAMES + [
+HAND_JOINT_NAMES = [
     f"{side}_{joint}"
     for side in ("left", "right")
     for joint in (
@@ -55,6 +57,8 @@ POLICY_JOINT_NAMES = ARM_JOINT_NAMES + [
         "pinky_DIP",
     )
 ]
+
+POLICY_JOINT_NAMES = ARM_JOINT_NAMES + HAND_JOINT_NAMES
 """Absolute policy joint positions: left arm, right arm, left hand, right hand."""
 
 # pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
@@ -77,6 +81,11 @@ _FRAME0_POLICY_58_POS = (
 
 H2_TABLETOP_ROBOT_CFG = H2_SHARPA_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
+    actuators={
+        **H2_SHARPA_CFG.actuators,
+        # The impedance controller supplies the complete arm torque. Keep the actuator effort limits.
+        "arms": H2_SHARPA_CFG.actuators["arms"].replace(stiffness=0.0, damping=0.0),
+    },
     init_state=H2_SHARPA_CFG.init_state.replace(
         joint_pos={
             **H2_SHARPA_CFG.init_state.joint_pos,
@@ -132,14 +141,43 @@ RIGHT_WRIST_CAMERA_CFG = LEFT_WRIST_CAMERA_CFG.replace(
 """Right Sharpa Wave wrist camera, mirrored from the left mount."""
 
 
+class H2ArmImpedanceAction(mdp.JointAction):
+    """Track the H2 arm position commands with the robot's gains and gravity feed-forward."""
+
+    def __init__(self, cfg: mdp.JointActionCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        arms = H2_SHARPA_CFG.actuators["arms"]
+        controller_cfg = NewtonJointImpedanceControllerCfg(
+            stiffness=resolve_matching_names_values(arms.stiffness, self._joint_names)[2],
+            damping=resolve_matching_names_values(arms.damping, self._joint_names)[2],
+            use_inertia_decoupling=False,
+            use_coriolis_compensation=False,
+            use_gravity_compensation=True,
+        )
+        self._controller = instantiate(controller_cfg, self.num_envs, self.action_dim, self.device)
+        self._gravity_ids = self._joint_ids + self._asset.num_base_dofs
+
+    def apply_actions(self):
+        data = self._asset.data
+        effort = self._controller.compute(
+            self.processed_actions,
+            data.joint_pos.torch[:, self._joint_ids],
+            data.joint_vel.torch[:, self._joint_ids],
+            gravity=data.gravity_compensation_forces.torch[:, self._gravity_ids],
+        )
+        self._asset.actuators.target_command.set_effort_index(value=effort, joint_ids=self._joint_ids)
+
+
 @configclass
 class ActionsCfg:
     """Absolute arm and hand position commands with gravity feed-forward on the arms."""
 
-    joint_pos = mdp.JointPositionActionCfg(
+    arms = mdp.JointActionCfg(
+        class_type=H2ArmImpedanceAction, asset_name="robot", joint_names=ARM_JOINT_NAMES, preserve_order=True
+    )
+    hands = mdp.JointPositionActionCfg(
         asset_name="robot",
-        joint_names=POLICY_JOINT_NAMES,
-        gravity_compensation_joint_names=ARM_JOINT_NAMES,
+        joint_names=HAND_JOINT_NAMES,
         use_default_offset=False,
         preserve_order=True,
     )

@@ -87,12 +87,6 @@ class JointPositionActionCfg(JointActionCfg):
     from the articulation asset.
     """
 
-    gravity_compensation_joint_names: list[str] | None = None
-    """Names or patterns within the position-controlled joints to receive gravity feed-forward.
-    An empty selection or an asset-wide gravity disable sends only position targets. Requires a
-    backend that supplies joint-space gravity compensation forces.
-    """
-
 
 @configclass
 class RelativeJointPositionActionCfg(JointActionCfg):

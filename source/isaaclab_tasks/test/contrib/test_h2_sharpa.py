@@ -6,14 +6,12 @@
 """H2 policy action ordering and task progress across episode boundaries."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
 import torch
 import warp as wp
 
-from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
-from isaaclab.managers import ObservationManager
+from isaaclab.managers import ActionManager, ObservationManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
@@ -22,45 +20,59 @@ from isaaclab_tasks.contrib.pack_agx.config.env_config import PackAgxOrinEnvCfg
 from isaaclab_tasks.contrib.pick_and_place_apple.config.env_config import PnpAppleEnvCfg
 
 
-@pytest.mark.parametrize("cfg_type", [PnpAppleEnvCfg, PackAgxOrinEnvCfg])
-def test_policy_actions_preserve_uncontrolled_targets(cfg_type):
-    """Apply ordered absolute commands without changing the reset targets of head, waist, or legs."""
-    cfg = cfg_type()
-    cfg.to_dict()  # Train/play serialize the complete scene before launching the simulator.
+def test_policy_actions_preserve_uncontrolled_targets():
+    """The 58 policy outputs command arm torques and hand positions in dataset order."""
+    cfg = PnpAppleEnvCfg()
     names = sorted(cfg.scene.robot.init_state.joint_pos)
     defaults = torch.tensor([cfg.scene.robot.init_state.joint_pos[name] for name in names]).repeat(2, 1)
     targets = defaults.clone()
+    efforts = torch.zeros_like(defaults)
+    velocity = torch.linspace(-0.5, 0.5, defaults.numel()).reshape_as(defaults)
+    gravity = torch.linspace(-2.0, 2.0, defaults.numel()).reshape_as(defaults)
 
     def find_joints(patterns, preserve_order=False, as_proxy=False):
         indices, selected = resolve_matching_names(patterns, names, preserve_order=preserve_order)
         return (ProxyArray(wp.array(indices, dtype=wp.int32, device="cpu")) if as_proxy else indices), selected
 
-    def set_targets(target, joint_ids):
+    def set_position(target, joint_ids):
         targets[:, joint_ids] = target
 
+    def set_effort(*, value, joint_ids):
+        efforts[:, joint_ids] = value
+
     robot = SimpleNamespace(
-        cfg=cfg.scene.robot,
         num_joints=len(names),
         num_base_dofs=0,
         find_joints=find_joints,
-        data=SimpleNamespace(gravity_compensation_forces=ProxyArray(wp.from_torch(defaults.clone()))),
-        set_joint_position_target_index=set_targets,
-        set_joint_effort_target_index=Mock(),
+        data=SimpleNamespace(
+            joint_pos=ProxyArray(wp.from_torch(defaults)),
+            joint_vel=ProxyArray(wp.from_torch(velocity)),
+            gravity_compensation_forces=ProxyArray(wp.from_torch(gravity)),
+        ),
+        set_joint_position_target_index=set_position,
+        actuators=SimpleNamespace(target_command=SimpleNamespace(set_effort_index=set_effort)),
     )
-    env = SimpleNamespace(scene={"robot": robot}, num_envs=2, device="cpu")
-    action = cfg.actions.joint_pos.class_type(cfg.actions.joint_pos, env)
-    assert type(action) is JointPositionAction
+    env = SimpleNamespace(
+        scene={"robot": robot}, num_envs=2, device="cpu", sim=SimpleNamespace(is_playing=lambda: True)
+    )
+    manager = ActionManager(cfg.actions, env)
     commands = torch.linspace(-0.4, 0.4, 116).reshape(2, 58)
-    action.process_actions(commands)
-    action.apply_actions()
+    manager.process_action(commands)
+    manager.apply_action()
+
     policy_indices = [names.index(name) for name in POLICY_JOINT_NAMES]
-    other_indices = [i for i, name in enumerate(names) if name not in POLICY_JOINT_NAMES]
-    torch.testing.assert_close(targets[:, policy_indices], commands)
-    torch.testing.assert_close(targets[:, other_indices], defaults[:, other_indices])
+    arms, hands = policy_indices[:14], policy_indices[14:]
+    other = [i for i in range(len(names)) if i not in policy_indices]
+    kp = torch.tensor(([150] * 4 + [50] * 3) * 2)
+    kd = torch.tensor(([10] * 4 + [3] * 3) * 2)
+    torch.testing.assert_close(
+        efforts[:, arms], kp * (commands[:, :14] - defaults[:, arms]) - kd * velocity[:, arms] + gravity[:, arms]
+    )
+    torch.testing.assert_close(targets[:, hands], commands[:, 14:])
+    torch.testing.assert_close(targets[:, other], defaults[:, other])
+    assert torch.count_nonzero(efforts[:, hands + other]) == 0
+    assert cfg.scene.robot.actuators["arms"].stiffness == cfg.scene.robot.actuators["arms"].damping == 0.0
     assert targets[0, names.index("head_pitch_joint")] == pytest.approx(0.6)
-    effort = robot.set_joint_effort_target_index.call_args.kwargs
-    assert effort["joint_ids"].tolist() == policy_indices[:14]
-    torch.testing.assert_close(effort["target"], robot.data.gravity_compensation_forces.torch[:, policy_indices[:14]])
 
 
 @pytest.mark.parametrize(
@@ -80,7 +92,9 @@ def test_camera_group_returns_calibrated_rgb(cfg_type, expected):
     sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": SimpleNamespace(torch=frame)}))
     scene = Scene.fromkeys(camera_names, sensor)
     env = SimpleNamespace(num_envs=1, device="cpu", scene=scene, sim=SimpleNamespace(is_playing=lambda: True))
-    manager = ObservationManager({"camera_images": cfg_type().observations.camera_images}, env)
+    cfg = cfg_type()
+    cfg.to_dict()  # Train and play serialize the complete environment configuration.
+    manager = ObservationManager({"camera_images": cfg.observations.camera_images}, env)
     images = manager.compute_group("camera_images")
     for name, rgb in zip(camera_names, expected, strict=True):
         torch.testing.assert_close(images[name], torch.tensor(rgb, dtype=torch.uint8).reshape(1, 1, 1, 3))
