@@ -7,7 +7,7 @@
 
 """Real-backend tests for the OVPhysX IMU sensor.
 
-Mirrors the structure of source/isaaclab_physx/test/sensors/test_imu.py
+Mirrors the structure of source/isaaclab_isaacsim/test/sensors/test_imu.py
 but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
@@ -39,8 +39,8 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 # ---------------------------------------------------------------------------
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402

@@ -6,7 +6,7 @@
 """Tests for :func:`isaaclab_tasks.utils.parse_cfg.parse_env_cfg`."""
 
 import pytest
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab.utils import validate
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

@@ -5,7 +5,7 @@
 
 """Visualizer material-writer contracts."""
 
-from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+from isaaclab_isaacsim.renderers.visual_material import FabricVisualMaterialWriter
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 
 

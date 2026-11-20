@@ -14,7 +14,6 @@ import pytest
 pytest.importorskip("ovphysx")
 
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_USES_TASKS
 from isaaclab_ov.sim.views import OvPhysxView
 
 from pxr import Gf, Sdf, UsdGeom, UsdPhysics
@@ -70,9 +69,8 @@ def test_legacy_joint_properties_reach_native_bindings():
             armature = view.get_attribute("articulation_dof_armature").numpy()[0]
             np.testing.assert_allclose(velocity, [math.pi / 2 if name == "Angular" else 2.0 for name in names])
             np.testing.assert_allclose(armature, 0.25)
-            if OVPHYSX_USES_TASKS:
-                friction = view.get_attribute("articulation_dof_friction_properties").numpy()[0]
-                np.testing.assert_allclose(friction, [replacements[name] for name in names], rtol=1e-5)
+            friction = view.get_attribute("articulation_dof_friction_properties").numpy()[0]
+            np.testing.assert_allclose(friction, [replacements[name] for name in names], rtol=1e-5)
 
 
 @pytest.mark.integration

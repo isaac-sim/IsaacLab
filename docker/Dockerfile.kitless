@@ -81,6 +81,7 @@ RUN uv venv --seed "${VIRTUAL_ENV}" \
 # resolve the Nucleus asset root, so apps/ is required even without Kit.
 COPY apps/ apps/
 COPY scripts/ scripts/
+COPY tools/ tools/
 COPY docs/licenses/ docs/licenses/
 COPY docker/docker-compose.yaml docker/docker-compose.yaml
 COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py
