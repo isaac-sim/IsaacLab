@@ -119,7 +119,7 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
     mask = None if call.mask is None else call.mask.torch
     active = _active(op, state)
     if step.entry:
-        mask, active = state.arrays[progress_field(op.stage, "entered")].torch, None
+        mask, active = state.arrays[op.entry_key].torch, None
     if active is not None:
         mask = active.torch if mask is None else mask & active.torch
 
@@ -227,15 +227,17 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
 
 
 def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tensor | None, push: bool) -> torch.Tensor:
-    """Push a value into an observation's history, or fill the history where it starts if not ``push``: in new
-    episodes, or, for an op of a task of a sequence, where the task started at this step.
+    """Push a value into an observation's history, or fill it where it starts: in new episodes if not ``push``,
+    and, for an op whose scope changes, where its scope started at this step.
 
     Returns the history, oldest first, as ``(num_worlds, history_length, size)``.
     """
     history = state.arrays["history", op.name].torch
     selected = torch.ones_like(value[:, 0], dtype=torch.bool) if mask is None else mask
-    length = state.episode_length.torch
-    starts = length == (0 if op.stage is None else state.arrays[progress_field(op.stage, "started_at")].torch)
+    if push:
+        starts = torch.zeros_like(selected) if op.entry_key is None else state.arrays[op.entry_key].torch
+    else:
+        starts = state.episode_length.torch == 0
 
     filled = value[:, None].expand_as(history)
     if push:

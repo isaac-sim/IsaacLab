@@ -1151,7 +1151,7 @@ def _allocate_slots(
             start = columns.stop
             for op in slot_ops:
                 placed[op.name] = replace(op, observation=replace(op.observation, columns=columns, size=size))
-            if any(op.stage for op in slot_ops):
+            if any(op.entry_key is not None for op in slot_ops):
                 slots.append(ObservationSlot(buffer, columns, size, tuple(placed[op.name] for op in slot_ops)))
         dims[buffer] = start
     return tuple(placed[op.name] for op in ops), tuple(slots), dims, layouts

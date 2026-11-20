@@ -228,8 +228,8 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
         state = [term_state(op.use, name) for name in op.state]
         active = _active(code, op)
         if step.entry:
-            # Where the op's task started at this step, instead of the reset worlds.
-            entered = progress_field(op.stage, "entered")
+            # Where the op's scope started at this step, instead of the reset worlds.
+            entered = op.entry_key
             started = lambda call, entered=entered: call.state.arrays[entered].warp  # noqa: E731
             conditions = [f"if {_array(code, entered, wp.array(dtype=wp.bool))}[world]:"]
             match step.kind:
@@ -317,8 +317,8 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
                 terms = _result(code, "termination_terms")
                 lines.append(f"{terms}[world, {op.index}] = ended")
                 writes.append("termination_terms")
-                if op.stage:
-                    # A task of a sequence that stopped leaves no flag.
+                if op.entry_key is not None:
+                    # An op whose scope stopped leaves no flag.
                     code.world(f"{terms}[world, {op.index}] = False", writes=["termination_terms"])
             code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.REWARDS:
@@ -331,8 +331,8 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
                 terms = _result(code, "reward_terms")
                 lines.append(f"{terms}[world, {op.index}] = reward")
                 writes.append("reward_terms")
-                if op.stage:
-                    # A task of a sequence that stopped leaves no reward.
+                if op.entry_key is not None:
+                    # An op whose scope stopped leaves no reward.
                     code.world(f"{terms}[world, {op.index}] = 0.0", writes=["reward_terms"])
             code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.COMMANDS | Phase.INTERVAL_EVENTS if stepping:
@@ -387,7 +387,7 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
         return
 
     # Each thread keeps the history of its element: stepping shifts it and appends the value, and observing fills it
-    # for new episodes. An op of a task of a sequence also fills it when stepping, where its task started at this step.
+    # for new episodes. An op whose scope changes also fills it when stepping, where its scope started at this step.
     # The group holds the history oldest first, each step in ``size`` columns.
     history = _array(code, ("history", op.name), wp.array3d(dtype=wp.float32))
     size, last = observation.size, observation.history_length - 1
@@ -397,23 +397,19 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
         f"    {history}[world, h, element] = {history}[world, h + 1, element]",
         f"{history}[world, {last}, element] = value",
     ]
-    starts = "0"
-    if stepping and op.stage is None:
+    if stepping and op.entry_key is None:
         update = [*shift[:-1], f"{history}[world, {last}, element] = {value}"]
+    elif stepping:
+        update = [
+            "value = " + value,
+            f"if {_array(code, op.entry_key, wp.array(dtype=wp.bool))}[world]:",
+            *(f"    {line}" for line in fill),
+            "else:",
+            *(f"    {line}" for line in shift),
+        ]
     else:
         length = f"{_array(code, episode_length, wp.array(dtype=wp.int32))}[world]"
-        if op.stage is not None:
-            starts = f"{_array(code, progress_field(op.stage, 'started_at'), wp.array(dtype=wp.int32))}[world]"
-        if stepping:
-            update = [
-                "value = " + value,
-                f"if {length} == {starts}:",
-                *(f"    {line}" for line in fill),
-                "else:",
-                *(f"    {line}" for line in shift),
-            ]
-        else:
-            update = [f"if {length} == {starts}:", "    value = " + value, *(f"    {line}" for line in fill)]
+        update = [f"if {length} == 0:", "    value = " + value, *(f"    {line}" for line in fill)]
     write = [
         f"for h in range({observation.history_length}):",
         f"    {out}[world, {start} + h * {size} + element] = {history}[world, h, element]",
@@ -581,8 +577,8 @@ def _accesses(op: TermOp, mdp: MDP) -> tuple[set[Hashable], set[Hashable]]:
     """
     state = {term_state(op.use, name) for name in op.state}
     reads = {*state, ("selected", op.name), *(["rng"] if op.random else [])}
-    # Hooks of a task of a sequence read where it runs and where it started.
-    reads |= {op.active_key, progress_field(op.stage, "entered")} if op.stage else set()
+    # Hooks of an op whose scope changes read where it runs and where it started.
+    reads |= {op.active_key, op.entry_key} if op.entry_key is not None else set()
     for arg, selector in op.inputs.items():
         if isinstance(selector, Entity):
             reads.update(FieldSelector(selector.name, field) for field in mdp.schema.entities[selector.name].fields)

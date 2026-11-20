@@ -106,6 +106,12 @@ class TermOp:
             return progress_field(self.stage, "active")
         return None if self.worlds is None else ("active", self.name)
 
+    @property
+    def entry_key(self) -> Hashable | None:
+        """Key in :attr:`MDPState.arrays` of the worlds where the op's scope started at this step, in which its state,
+        timer, command, and history restart; None for an op whose scope does not change during an episode."""
+        return None if self.stage is None else progress_field(self.stage, "entered")
+
     def array_key(self, arg: str) -> Hashable:
         """Return the key in :attr:`MDPState.arrays` of the array that the input ``arg`` reads."""
         selector = self.inputs[arg]
@@ -274,12 +280,12 @@ def build_plan(
     # A task that starts restarts the timers, commands, and state of its ops, as a new episode does.
     starts = []
     if any(node.staged for tree in trees for node in tree.nodes):
-        staged = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.stage]
+        scoped = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.entry_key]
         starts = [
             Step(StepKind.START_TASKS, trees),
-            *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.stage),
-            *(Step(StepKind.COMPUTE, op, entry=True) for op in staged if op.phase is Phase.COMMANDS),
-            *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.stage),
+            *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.entry_key),
+            *(Step(StepKind.COMPUTE, op, entry=True) for op in scoped if op.phase is Phase.COMMANDS),
+            *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.entry_key),
         ]
 
     reset_events = []
