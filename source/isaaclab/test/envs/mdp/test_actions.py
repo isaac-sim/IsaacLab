@@ -71,8 +71,11 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
     return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim)
 
 
-@pytest.mark.parametrize("gravity_joints, base_dofs", [(None, 0), (["joint0", "joint2"], 6)])
-def test_position_action_applies_gravity_to_selected_joints(gravity_joints, base_dofs):
+@pytest.mark.parametrize(
+    "gravity_joints, base_dofs, disable_gravity",
+    [(None, 0, False), (["joint0", "joint2"], 6, False), (["joint0", "joint2"], 0, True)],
+)
+def test_position_action_applies_gravity_to_selected_joints(gravity_joints, base_dofs, disable_gravity):
     """Select forces by articulation index while position commands follow the policy order."""
     env = _make_env()
     robot = env.scene["robot"]
@@ -80,6 +83,7 @@ def test_position_action_applies_gravity_to_selected_joints(gravity_joints, base
     ids.torch = torch.tensor([2, 0, 1])
     robot.find_joints = lambda *args, **kwargs: (ids, ["joint2", "joint0", "joint1"])
     robot.num_base_dofs = base_dofs
+    robot.cfg = SimpleNamespace(spawn=SimpleNamespace(rigid_props=[SimpleNamespace(disable_gravity=disable_gravity)]))
     forces = torch.arange(2 * (7 + base_dofs)).reshape(2, -1).float()
     robot.data = SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces))
     robot.set_joint_effort_target_index = Mock()
@@ -99,7 +103,7 @@ def test_position_action_applies_gravity_to_selected_joints(gravity_joints, base
     position = robot.set_joint_position_target_index.call_args.kwargs
     assert position["joint_ids"].tolist() == [2, 0, 1]
     torch.testing.assert_close(position["target"], commands)
-    if gravity_joints is None:
+    if gravity_joints is None or disable_gravity:
         robot.set_joint_effort_target_index.assert_not_called()
     else:
         effort = robot.set_joint_effort_target_index.call_args.kwargs

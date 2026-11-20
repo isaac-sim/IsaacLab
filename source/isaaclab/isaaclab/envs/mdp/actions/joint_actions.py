@@ -180,6 +180,22 @@ class JointAction(ActionTerm):
         index_fill_(self._raw_actions, env_ids, 0.0)
 
 
+def _gravity_disabled_for_asset(asset: Articulation) -> bool:
+    """Return the uniform spawn override, leaving link-specific settings to the backend."""
+    props = getattr(asset.cfg.spawn, "rigid_props", None)
+    if isinstance(props, dict):
+        if props.keys() != {"(/.*)?"}:
+            return False
+        props = props["(/.*)?"]
+    if isinstance(props, (list, tuple)):
+        for fragment in reversed(props):
+            disabled = getattr(fragment, "disable_gravity", None)
+            if disabled is not None:
+                return disabled
+        return False
+    return bool(getattr(props, "disable_gravity", False))
+
+
 def _apply_joint_gravity_compensation(asset: Articulation, joint_ids: torch.Tensor) -> None:
     """Write gravity efforts for the selected joints, skipping any floating-base coordinates."""
     joint_forces = asset.data.gravity_compensation_forces.torch[:, asset.num_base_dofs :]
@@ -202,7 +218,7 @@ class JointPositionAction(JointAction):
             self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
         self._gravity_joint_ids = None
-        if cfg.gravity_compensation_joint_names:
+        if cfg.gravity_compensation_joint_names and not _gravity_disabled_for_asset(self._asset):
             indices, _ = string_utils.resolve_matching_names(cfg.gravity_compensation_joint_names, self._joint_names)
             joint_ids = torch.tensor(indices, device=self.device)
             self._gravity_joint_ids = joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids[joint_ids]
