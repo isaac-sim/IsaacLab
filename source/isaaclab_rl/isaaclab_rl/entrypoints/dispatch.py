@@ -28,6 +28,7 @@ _BACKEND_MODULES = {
         "skrl": "isaaclab_rl.entrypoints.backends.export_skrl",
     },
     "train": {
+        "model_based": "isaaclab_rl.entrypoints.backends.train_model_based",
         "rl_games": "isaaclab_rl.entrypoints.backends.train_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.train_rlinf",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
@@ -36,6 +37,7 @@ _BACKEND_MODULES = {
         "torchrl": "isaaclab_rl.entrypoints.backends.train_torchrl",
     },
     "play": {
+        "model_based": "isaaclab_rl.entrypoints.backends.play_model_based",
         "rl_games": "isaaclab_rl.entrypoints.backends.play_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.play_rlinf",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.play_rsl_rl",
