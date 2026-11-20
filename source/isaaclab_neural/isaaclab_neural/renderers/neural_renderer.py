@@ -31,8 +31,9 @@ if TYPE_CHECKING:
 class _RenderData:
     """Per-camera state."""
 
-    reader: FrameReader
-    """The camera's binding to the world model's frames, made when its render data is created."""
+    readers: dict[str, FrameReader]
+    """The camera's binding to the world model's frames of each of its outputs, made when its render data is
+    created."""
 
 
 class NeuralRenderer(BaseRenderer):
@@ -51,11 +52,13 @@ class NeuralRenderer(BaseRenderer):
         pass
 
     def create_render_data(self, spec: CameraRenderSpec) -> _RenderData:
-        """Bind the camera to the world model's frames and check that it keeps one chunk at the model's image size.
+        """Bind each output of the camera to the world model's frames of it, and check that the camera keeps one chunk
+        of them at the model's image size and the declared layout.
 
         Raises:
             ValueError: If the simulation does not run the world-model backend, the camera does not match the model,
-                or :attr:`~.NeuralRendererCfg.view` names no view of the model.
+                :attr:`~.NeuralRendererCfg.view` names no view of the model, or the model does not predict an output
+                of the camera at its declared layout.
         """
         manager = self._sim.backend_manager
         if not isinstance(manager, NeuralManager):
@@ -64,7 +67,12 @@ class NeuralRenderer(BaseRenderer):
                 f" simulation runs {type(manager).__name__}."
             )
         _check_camera(spec.cfg, manager)
-        return _RenderData(reader=manager.frames(self.cfg.view).reader())
+        readers = {}
+        for name in dict.fromkeys(spec.cfg.data_types):
+            buffer = manager.frames(self.cfg.view, name)
+            _check_layout(name, buffer.frames, self.cfg.outputs[RenderBufferKind(name)])
+            readers[name] = buffer.reader()
+        return _RenderData(readers=readers)
 
     def set_outputs(self, render_data: _RenderData, output_data: dict[str, ProxyArray]) -> None:
         pass
@@ -84,13 +92,17 @@ class NeuralRenderer(BaseRenderer):
     def read_output(self, render_data: _RenderData, camera_data: CameraData) -> None:
         """Copy the environments whose frames changed since the last call, and only on steps where any did."""
         mask = wp.to_torch(camera_data.frame_history_mask.warp)
-        history = wp.to_torch(camera_data.frame_history.warp)
-        if not render_data.reader.read_into(history, mask):
-            return
-        # The newest frame becomes the camera's image, written in place: RGB from the frame, alpha opaque.
-        rgba = wp.to_torch(camera_data.output["rgba"].warp)
-        torch.where(mask[:, None, None, None], history[:, -1], rgba[..., :3], out=rgba[..., :3])
-        rgba[..., 3].masked_fill_(mask[:, None, None], 255)
+        for name, reader in render_data.readers.items():
+            history = camera_data.frame_history[name].torch
+            # Every output of a view is published together, so either all of them changed or none did.
+            if not reader.read_into(history, mask):
+                return
+            # The newest frame becomes the camera's output, written in place.
+            output = wp.to_torch(camera_data.output[name].warp)
+            torch.where(mask.view(-1, 1, 1, 1), history[:, -1], output, out=output)
+        if "rgba" in camera_data.output and "rgb" in render_data.readers:
+            # RGB is a view of the RGBA buffer; its alpha is opaque.
+            wp.to_torch(camera_data.output["rgba"].warp)[..., 3].masked_fill_(mask[:, None, None], 255)
 
     def cleanup(self, render_data: Any) -> None:
         pass
@@ -112,4 +124,18 @@ def _check_camera(cfg: CameraCfg, manager: NeuralManager) -> None:
             f"A world-model camera needs frame_history_length={expected[0]} and a {expected[1]} x {expected[2]} image,"
             f" the model's chunk length and image size; it has "
             + ("no frame history." if not actual[0] else f"{actual[0]} frames of {actual[1]} x {actual[2]}.")
+        )
+
+
+def _check_layout(name: str, frames: torch.Tensor, spec: RenderBufferSpec) -> None:
+    """Check that the model's frames of an output have the layout the renderer declares for it.
+
+    Raises:
+        ValueError: If the channels or dtype differ.
+    """
+    channels, dtype = frames.shape[-1], wp.dtype_to_torch(spec.dtype)
+    if (channels, frames.dtype) != (spec.channels, dtype):
+        raise ValueError(
+            f"The world model predicts '{name}' with {channels} channels of {frames.dtype}, but NeuralRendererCfg"
+            f" declares {spec.channels} channels of {dtype}; set NeuralRendererCfg.outputs to the model's layout."
         )

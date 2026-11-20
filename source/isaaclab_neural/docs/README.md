@@ -31,6 +31,9 @@ model with `NeuralCfg(model_cfg=..., reset_manifest=...)` and `NeuralRendererCfg
 * **Views**: a model predicts one or more named camera views (`WorldModelSpec.views`). Each world-model camera shows
   one of them, set with `NeuralRendererCfg(view=...)`; for a model with one view, `view` can stay `None`. Several
   cameras of a multi-view model each select their own view.
+* **Outputs**: a model predicts one or more camera outputs per view (`WorldModelSpec.outputs`, default `("rgb",)`),
+  named as camera data types. A camera requests them in `data_types`, and `NeuralRendererCfg.outputs` declares their
+  layout, RGB by default; for depth, for example, add `RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32)`.
 * **Joints and limits** come from the spawned USD asset (a URDF spawner converts to USD): the movable joints in
   traversal order, or in the order of `ArticulationCfg.joint_ordering`, which must match the reset records. Joint
   limits are read from the USD, and `soft_joint_pos_limit_factor` applies as usual.
@@ -38,7 +41,8 @@ model with `NeuralCfg(model_cfg=..., reset_manifest=...)` and `NeuralRendererCfg
   Velocity and effort targets, poses, forces and physical properties raise `NotImplementedError`.
 * **Resets**: `Articulation.reset`, which the scene calls before the reset events, samples a reset record (`image`,
   `state`, `prompt`, `split` in the JSON manifest) and starts the episode from it: the record's start image becomes the
-  camera's frames (`image` is a path, or `{view: path}` for a model with several views), and its joint state the joint
+  camera's frames (`image` is a path, `{view: path}`, or `{view: {output: path}}` with `.npy` arrays for outputs other
+  than RGB), and its joint state the joint
   state and the default joint position. The model restarts the environment from the record's image and prompt at the end
   of the next chunk, before it predicts that chunk. The standard `reset_joints_by_offset` and `reset_joints_by_scale`
   events therefore start from the record; a non-zero range moves the joints away from the start image the model sees, so
@@ -78,9 +82,9 @@ Implement the `WorldModel` interface, subclass `ModelCfg` and set its `class_typ
 
 | Method | Responsibility |
 | --- | --- |
-| `spec()` | Chunk length, frame rate, image size, the largest number of environments and the names of the views. |
-| `reset(env_ids, images, prompts, seeds)` | Restart the selected environments (host lists) from their start images, `{view: (K, H, W, 3)}`. Called right before `step()`, for the environments that reset since the last chunk. |
-| `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to frames `{view: (N, T, H, W, 3)}`. |
+| `spec()` | Chunk length, frame rate, image size, the largest number of environments, and the names of the views and outputs. |
+| `reset(env_ids, images, prompts, seeds)` | Restart the selected environments (host lists) from their start frames, `{view: {output: (K, H, W, C)}}`. Called right before `step()`, for the environments that reset since the last chunk. |
+| `step(joint_targets, start_joint_state)` | Joint targets `(N, T, J)` and the state before the chunk `(N, J)` to frames `{view: {output: (N, T, H, W, C)}}`. |
 | `close()` | Release resources. |
 
 Frames are `uint8` torch tensors on the device, and joint targets arrive there. The targets buffer is reused for the

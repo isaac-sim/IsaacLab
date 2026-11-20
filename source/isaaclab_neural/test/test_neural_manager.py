@@ -125,7 +125,7 @@ def test_a_group_shares_a_record_and_other_splits_visit_records_in_order(tmp_pat
 
 
 def test_a_camera_reads_only_the_frames_that_changed():
-    buffer = FrameBuffer(num_envs=3, chunk_length=T, image_size=(2, 2), device="cpu")
+    buffer = FrameBuffer(num_envs=3, chunk_length=T, frame_shape=(2, 2, 3), dtype=torch.uint8, device="cpu")
     reader = buffer.reader()
     history = torch.zeros_like(buffer.frames)
     mask = torch.zeros(3, dtype=torch.bool)
@@ -139,17 +139,23 @@ def test_a_camera_reads_only_the_frames_that_changed():
     assert history[:, :, 0, 0, 0].tolist() == [[7] * T, [9] * T, [7] * T]
 
 
-def test_each_view_has_its_own_frames_and_start_images(tmp_path):
-    with world_model_sim(tmp_path, split="validation", views=("left", "right")) as sim:
+def test_each_view_and_output_has_its_own_frames_and_start_frames(tmp_path):
+    with world_model_sim(tmp_path, split="validation", views=("left", "right"), outputs=("rgb", "depth")) as sim:
         manager = bound_manager(sim)
         manager.reset_envs(envs())
         assert manager.frames("left").frames[0, 0, 0, 0, 0] == 200
         assert manager.frames("right").frames[0, 0, 0, 0, 0] == 220
+        # A depth start frame keeps its own layout: float, one channel.
+        depth = manager.frames("right", "depth").frames
+        assert depth.dtype == torch.float32 and depth.shape[-1] == 1 and depth[0, 0, 0, 0, 0] == 22.0
         for _ in range(T):
             step(manager, 0.0)
         assert manager.frames("left").frames[0, -1, 0, 0, 0] == 13
         assert manager.frames("right").frames[0, -1, 0, 0, 0] == 113
+        assert torch.isclose(manager.frames("right", "depth").frames[0, -1, 0, 0, 0], torch.tensor(11.3))
         with pytest.raises(ValueError, match="views \\['left', 'right'\\]"):
             manager.frames()
         with pytest.raises(ValueError, match="got 'top'"):
             manager.frames("top")
+        with pytest.raises(ValueError, match="not 'normals'"):
+            manager.frames("left", "normals")

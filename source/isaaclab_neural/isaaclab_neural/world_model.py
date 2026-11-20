@@ -37,7 +37,7 @@ class WorldModelSpec:
     """Frame rate of the predicted frames [Hz]."""
 
     image_size: tuple[int, int]
-    """Height and width of each predicted RGB frame [pixels]."""
+    """Height and width of each predicted frame [pixels]."""
 
     max_envs: int | None = None
     """Largest number of environments one model instance serves, or ``None`` for no limit."""
@@ -46,13 +46,18 @@ class WorldModelSpec:
     """Names of the camera views the model predicts. Each world-model camera shows one of them, selected with
     :attr:`~isaaclab_neural.renderers.NeuralRendererCfg.view`."""
 
+    outputs: tuple[str, ...] = ("rgb",)
+    """Camera outputs the model predicts for each view, named as camera data types
+    (:class:`~isaaclab.renderers.RenderBufferKind`), such as ``"rgb"`` or ``"depth"``."""
+
 
 @dataclass(frozen=True)
 class ResetRecord:
     """Initial condition of an episode: a start image, the joint state at that image and a task prompt."""
 
-    image: Path | dict[str, Path]
-    """RGB start image, or one per view for a model that predicts several views."""
+    image: Path | dict[str, Path] | dict[str, dict[str, Path]]
+    """Start image: one path for a model of one view that predicts RGB, one path per view, or one path per view and
+    output. RGB start images are image files; other outputs are ``.npy`` arrays of shape ``(H, W, C)``."""
 
     joint_state: np.ndarray
     """Joint positions [m or rad, depending on joint type] at the start image, shape ``(num_joints,)``."""
@@ -67,18 +72,21 @@ class ResetRecord:
 def load_reset_records(manifest: str | Path) -> list[ResetRecord]:
     """Load reset records from a JSON list of ``{"image", "state", "prompt", "split"}`` objects.
 
-    ``image`` is a path, or an object mapping each view to a path for a model that predicts several views. Relative
-    image paths resolve against the manifest's directory.
+    ``image`` is a path, an object mapping each view to a path, or an object mapping each view to an object that maps
+    each output to a path; see :attr:`ResetRecord.image`. Relative paths resolve against the manifest's directory.
     """
     manifest = Path(manifest)
+
+    def resolve(image):
+        return (
+            {key: resolve(value) for key, value in image.items()}
+            if isinstance(image, dict)
+            else manifest.parent / image
+        )
+
     records = []
     for row in json.loads(manifest.read_text()):
-        image = row["image"]
-        image = (
-            {view: manifest.parent / path for view, path in image.items()}
-            if isinstance(image, dict)
-            else (manifest.parent / image)
-        )
+        image = resolve(row["image"])
         records.append(
             ResetRecord(image, np.asarray(row["state"], np.float32), row["prompt"], row.get("split", "train"))
         )
@@ -86,12 +94,15 @@ def load_reset_records(manifest: str | Path) -> list[ResetRecord]:
 
 
 class WorldModel(ABC):
-    """Interface of a learned model that predicts camera frames from joint targets.
+    """Interface of a learned model that predicts camera outputs from an articulation's joint targets.
 
-    The model owns only visual dynamics; it never outputs joint state. An implementation is built as
-    ``class_type(cfg, num_envs, device)`` and keeps what it needs of those. Construction is cheap and weights load on
-    the first call. Joint targets and frames are torch tensors on the simulation device, so a model that runs on the
-    GPU keeps them there.
+    It covers action-conditioned models whose predictions are camera outputs, such as video world models; each
+    implementation maps the joint targets to its own action space. Models that predict state instead, and policies,
+    are not world models of this kind. The model owns only visual dynamics; it never outputs joint state.
+
+    An implementation is built as ``class_type(cfg, num_envs, device)`` and keeps what it needs of those.
+    Construction is cheap and weights load on the first call. Joint targets and frames are torch tensors on the
+    simulation device, so a model that runs on the GPU keeps them there.
     """
 
     @abstractmethod
@@ -99,7 +110,9 @@ class WorldModel(ABC):
         """Return the model's static properties."""
 
     @abstractmethod
-    def reset(self, env_ids: list[int], images: dict[str, torch.Tensor], prompts: list[str], seeds: list[int]) -> None:
+    def reset(
+        self, env_ids: list[int], images: dict[str, dict[str, torch.Tensor]], prompts: list[str], seeds: list[int]
+    ) -> None:
         """Restart the selected environments from their start images.
 
         The manager calls it right before :meth:`step`, for the environments that reset since the last chunk. The
@@ -107,14 +120,14 @@ class WorldModel(ABC):
 
         Args:
             env_ids: Environments to restart.
-            images: For each of the model's views, the start RGB image of each selected environment, shape
-                ``(K, H, W, 3)``, ``uint8``, on the simulation device.
+            images: For each of the model's views and outputs, the start frame of each selected environment, shape
+                ``(K, H, W, C)``, on the simulation device; RGB is ``uint8`` with ``C = 3``.
             prompts: Task description of each selected environment.
             seeds: Sampling seed of each selected environment.
         """
 
     @abstractmethod
-    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, torch.Tensor]:
+    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, dict[str, torch.Tensor]]:
         """Predict the next chunk of frames for all environments.
 
         Args:
@@ -122,8 +135,8 @@ class WorldModel(ABC):
             start_joint_state: Joint positions before the chunk, shape ``(N, num_joints)``.
 
         Returns:
-            For each of the model's views, RGB frames, shape ``(N, chunk_length, H, W, 3)``, ``uint8``, on the
-            simulation device.
+            For each of the model's views and outputs, frames of shape ``(N, chunk_length, H, W, C)`` with the layout
+            of the start frames, on the simulation device.
         """
 
     @abstractmethod
