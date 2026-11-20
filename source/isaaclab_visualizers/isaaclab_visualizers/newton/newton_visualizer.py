@@ -925,6 +925,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     _capturing_another_view = False
     _warned_recording_stopped = False
     _rtx_appearance: RtxAppearance | None = None
+    _rtx_free_view = None
+    """The free Perspective view the OVRTX camera currently follows; None until one is chosen."""
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
     rtx_view_index: int | None = None
@@ -1120,10 +1122,15 @@ class NewtonVisualizerBase(BaseVisualizer):
         ):  # an off-screen capture swapped the view; the window controls must not act on it
             return
         rtx_index = getattr(self, "rtx_view_index", None)
+        # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
+        indices = sorted(
+            (i for i in range(len(self._image_views)) if i != rtx_index),
+            key=lambda i: self._source_rank(self._image_views[i]),
+        )
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
             sensor = self.sensor_view_selected
-            if sensor:  # The sensor draws its own image, so the choice would only leave the sensor view.
+            if sensor or not indices:  # Without another source there is nothing to switch to or from.
                 imgui.begin_disabled()
             imgui.text("Renderer")
             imgui.same_line()
@@ -1144,17 +1151,15 @@ class NewtonVisualizerBase(BaseVisualizer):
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
-            if sensor:
+            if sensor or not indices:
                 imgui.end_disabled()
         elif isinstance(self, NewtonGLVisualizer):
             self._draw_rtx_unavailable(imgui)
         self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
-        # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
-        indices = sorted(
-            (i for i in range(len(self._image_views)) if i != rtx_index),
-            key=lambda i: self._source_rank(self._image_views[i]),
-        )
+        if not indices:  # the window declares only its OVRTX camera
+            self._draw_camera_info(imgui)
+            return
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
         if current == rtx_index:  # RTX renders the free perspective source or follows a Tracking Camera.
@@ -1652,7 +1657,9 @@ class NewtonVisualizerBase(BaseVisualizer):
             if self._rtx_pose_view is not None:
                 self._apply_view_pose(view)
             else:
-                self._restore_perspective_pose(view)
+                self._rtx_free_view = view
+                if not self._restore_perspective_pose(view):  # a source not visited yet starts from its declared pose
+                    self._apply_declared_pose(view.cfg.source)
             self.current_image_view.invalidate()
             self._sync_tracked_env()
             return
@@ -1663,8 +1670,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
         view = self._pose_source_view()
         if view is not None and view.camera is not None and getattr(self, "rtx_rendering", False):
-            # The OVRTX camera follows the free view when no Tracking Camera drives it.
-            view = next((v for v in self._image_views if v.camera is None and not self._is_tracking_view(v)), None)
+            # The OVRTX camera follows the free view it was last pointed at when no Tracking Camera drives it.
+            view = self._rtx_free_view or next(
+                (v for v in self._image_views if v.camera is None and not self._is_tracking_view(v)), None
+            )
         if view is None or view.camera is not None or self._is_tracking_view(view):
             return None
         return view
@@ -1729,6 +1738,12 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
         return True
 
+    def _apply_declared_pose(self, source: PerspectiveCameraCfg) -> None:
+        """Move the viewer camera to the pose and focal length a free Perspective source declares."""
+        self.set_camera_view(source.eye, source.lookat)
+        self.cfg.focal_length = source.focal_length
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+
     def _release_rtx_scene(self) -> None:
         """Give the scene cameras that share the OVRTX renderer back the overlays and lights the viewer added."""
         if self._overlay_publisher is not None:
@@ -1748,6 +1763,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         leaving_rtx = self.rtx_rendering and index != self.rtx_view_index
         if leaving_rtx:
             self._release_rtx_scene()
+            # the hidden viewer camera goes back to rendering only when read, whichever source replaces it
+            self._image_views[self.rtx_view_index].camera.cfg.render_on_demand = True
         self.current_image_view = self._image_views[index]
         if leaving_rtx:
             self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
@@ -1759,9 +1776,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             if isinstance(camera, TrackingCameraCfg):
                 self._apply_view_pose(self.current_image_view)
             elif not keep_pose and not self._restore_perspective_pose(self.current_image_view):
-                self.set_camera_view(camera.eye, camera.lookat)
-                self.cfg.focal_length = camera.focal_length
-                self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+                self._apply_declared_pose(camera)
         elif keep_pose:
             self._place_scene_camera_at_viewer(self.current_image_view.camera)
         else:
@@ -1892,6 +1907,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._followers.clear()
         self._tracking_defaults.clear()
         self._perspective_poses.clear()
+        self._rtx_free_view = None
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
             if self._rtx_appearance.available:
@@ -2333,6 +2349,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         free = [
             i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_tracking_view(view)
         ]
+        if enabled and self.current_image_view.camera is None and not self._is_tracking_view(self.current_image_view):
+            self._rtx_free_view = self.current_image_view  # RTX continues from the free view that is shown
         # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
         # camera product a second time; otherwise it renders only on demand.
         self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
@@ -2346,7 +2364,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._rtx_appearance.apply_lights()
         else:
             back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
-            fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            followed = (
+                self._image_views.index(self._rtx_free_view) if self._rtx_free_view in self._image_views else None
+            )
+            fallback = (
+                followed
+                if followed in free
+                else free[0]
+                if free
+                else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            )
             target = self._image_views.index(back) if back is not None else fallback
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
