@@ -52,6 +52,7 @@ class ActionOp:
     slot: str = ""  # Name of its columns of the action, which the actions of the same name share
     stage: str | None = None  # The task of a sequence that the op belongs to: it writes only while that task runs
     rate: ActionRate = ActionRate.PHYSICS
+    labels: tuple[str, ...] | None = None  # Names of the elements it writes, such as joint names
 
     @property
     def active_key(self) -> Hashable | None:
@@ -113,6 +114,9 @@ class TermOp:
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     slot: str = ""  # Actions: the name of its columns of the action, which the actions of the same name share
     rate: ActionRate = ActionRate.PHYSICS  # Actions: how often it applies in a control step
+    # Names of the elements of an output of one dimension after the worlds, such as joint names, where its inputs name
+    # them: the elements of a subset or of an entity dimension. None otherwise.
+    labels: tuple[str, ...] | None = None
     # The task of a sequence that the op belongs to: it runs only while that task runs, and its state, timer, and
     # command restart when the task starts. Quantities run in every step: they only restart.
     stage: str | None = None

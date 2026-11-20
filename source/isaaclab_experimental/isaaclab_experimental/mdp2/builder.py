@@ -661,7 +661,10 @@ class MDPBuilder:
         # Its columns of the action are given with those of every world config, by name.
         columns, slot = slice(0, len(elements)), entry.name or entry.path[-1]
         action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset, slot=slot)
-        action = replace(action, stage=entry.stage, rate=cfg.rate)
+        names = self._element_names({"target": cfg.target, **({"subset": cfg.subset} if cfg.subset else {})}, context)
+        labels = names.get("subset" if cfg.subset else next(iter(target.sizes), ""))
+        labels = labels if labels is not None and len(labels) == len(elements) else None
+        action = replace(action, stage=entry.stage, rate=cfg.rate, labels=labels)
         # Action terms may write other elements of the same field, such as other joints, after or before it, and
         # actions of tasks of a sequence that never run together the same ones.
         for op in context.ops[Phase.ACTIONS]:
@@ -785,6 +788,10 @@ class MDPBuilder:
             timer = cfg.interval_range_s
 
         observation, columns = _allocate_columns(entry, output_shape, context)
+        labels = None
+        if len(term.shape) == 2:
+            labels = self._element_names(bound, context).get(term.shape[1])
+            labels = labels if labels is not None and len(labels) == output_shape[0] else None
         if isinstance(cfg, (Command, Quantity)):
             named = {dim: size for dim, size in zip(term.shape[1:], output_shape) if isinstance(dim, str)}
             context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named, output_shape)
@@ -834,6 +841,7 @@ class MDPBuilder:
                 columns=columns,
                 slot=(entry.name or entry.path[-1]) if isinstance(cfg, Action) else "",
                 rate=cfg.rate if isinstance(cfg, Action) else ActionRate.PHYSICS,
+                labels=labels,
                 stage=entry.stage,
                 when=when,
                 when_dtype=when_dtype,
@@ -865,6 +873,33 @@ class MDPBuilder:
         if layout.ndim != 1 or layout.dtype not in (wp.bool, wp.float32, wp.int32):
             errors.append(f"{entry}: when '{cfg.when}' must be a field of one bool, float, or int per world.")
         return cfg.when, layout.dtype
+
+    def _element_names(
+        self, bound: Mapping[str, FieldSelector | SubsetSelector | Entity], context: CompileContext
+    ) -> dict[str, tuple[str, ...]]:
+        """Return the names of the elements of the dimensions that a use's inputs name, by dimension: those of each
+        entity dimension of its scene fields, and those of each subset, also under its argument name. A dimension
+        that inputs name differently, such as the bodies of two entities, is left out."""
+        names: dict[str, tuple[str, ...]] = {}
+        ambiguous = set()
+
+        def add(dim: str, elements: tuple[str, ...]) -> None:
+            if names.setdefault(dim, elements) != elements:
+                ambiguous.add(dim)
+
+        for arg, selector in bound.items():
+            if isinstance(selector, SubsetSelector) and selector in context.subsets:
+                entity = self.schema.entities[selector.entity]
+                add(arg, tuple(entity.names[selector.dim][index] for index in context.subsets[selector]))
+            elif isinstance(selector, FieldSelector) and selector.scene and selector.entity in self.schema.entities:
+                entity = self.schema.entities[selector.entity]
+                schema = entity.fields.get(selector.field)
+                dims = () if schema is None else schema.dims
+                for dim in dims:
+                    add(dim, tuple(entity.names[dim]))
+                if len(dims) == 1:
+                    add(arg, tuple(entity.names[dims[0]]))
+        return {dim: elements for dim, elements in names.items() if dim not in ambiguous}
 
     def _fields_of(self, selector: FieldSelector | Entity) -> tuple[FieldSelector, ...]:
         """Return the fields a write covers: a field itself, or the writable fields of a scene entity."""

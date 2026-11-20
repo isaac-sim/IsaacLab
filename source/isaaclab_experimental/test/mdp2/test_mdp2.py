@@ -1832,8 +1832,12 @@ def test_tasks_of_a_sequence_run_their_uses_in_turn():
     assert policy[2] == [0.0, 0.0, 0.25, 0.75]  # The last subtask keeps running once the sequence is done
 
     mdp, state, _ = run_progress(task, [[0.0, 0.25]], "warp", capture=False)
-    position = mdp.spec()["policy"][1]
+    position = mdp.spec().observations["policy"][1]
     assert (position.name, position.columns, position.history_length) == ("position", slice(2, 4), 2)
+    assert dict(position.labels) == {
+        "observations.policy.reach.position": ("reach",),
+        "observations.policy.lift.position": ("lift",),
+    }
     assert mdp.observation_mask(state, "policy").tolist() == [[True] * 4]
     assert "during reach" in mdp.describe()
 
@@ -2179,6 +2183,10 @@ def test_tasks_of_a_sequence_take_their_own_actions():
         actions = ProxyArray(wp.from_torch(torch.tensor([[0.5, 0.25]], device=DEVICE)))
         captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
         env_reset(mdp, state, scene, transition.observations, torch.ones(1, dtype=torch.bool, device=DEVICE))
+        spec = mdp.spec().actions
+        assert [(columns.name, columns.columns) for columns in spec] == [("effort", slice(0, 1)), ("grip", slice(1, 2))]
+        assert dict(spec[0].labels) == {"actions.reach.effort": ("a",), "actions.lift.effort": ("a",)}
+        assert dict(spec[1].labels) == {"actions.lift.grip": ("b",)}
         history = []
         for joints in ([0.0, 0.0], [1.0, 0.0], [1.0, 0.0]):
             mdp2.apply_actions(mdp, state, actions) if captured is None else captured.apply_actions()

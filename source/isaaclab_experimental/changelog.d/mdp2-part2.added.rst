@@ -18,8 +18,10 @@
   while it does, and restart when it starts. Terms read the progress of every task, such as
   ``mdp2.progress.grasp.done``, and :class:`~isaaclab_experimental.envs.MDP2RLEnv` logs it as ``Progress/<task>`` and
   records the step at which each task was done.
-* Added :meth:`~isaaclab_experimental.mdp2.MDP.spec` and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask`,
-  which name the columns of the observation buffers and the columns each world writes.
+* Added :meth:`~isaaclab_experimental.mdp2.MDP.spec`, which names the columns of the action and of the observation
+  buffers, with the names of their elements, such as joint names, and
+  :meth:`~isaaclab_experimental.mdp2.MDP.action_mask` and :meth:`~isaaclab_experimental.mdp2.MDP.observation_mask`,
+  which give the columns each world takes and writes.
 * Added :data:`~isaaclab_experimental.mdp2.mdp.joint_pos_normalized`, :data:`~isaaclab_experimental.mdp2.mdp.is_true`,
   and :data:`~isaaclab_experimental.mdp2.mdp.one_hot`.
 * Added an episode budget to :class:`~isaaclab_experimental.envs.MDP2RLEnv` for evaluation, ``episode_budget``: worlds

@@ -9,6 +9,7 @@ __all__ = [
     "ActionRate",
     "CapturedMDP",
     "Backend",
+    "Columns",
     "Command",
     "Constant",
     "DirectAction",
@@ -23,7 +24,6 @@ __all__ = [
     "MDPState",
     "Milestone",
     "Observation",
-    "ObservationColumns",
     "ObservationGroup",
     "ObservationSlot",
     "Phase",
@@ -34,6 +34,7 @@ __all__ = [
     "SceneData",
     "SceneSchema",
     "Segment",
+    "Spec",
     "State",
     "Step",
     "StepKind",
@@ -80,7 +81,7 @@ __all__ = [
 from . import mdp
 from .builder import MDPBuilder, ScheduleEntry
 from .capture import CapturedMDP
-from .compiled import MDP, Backend, MDPState, ObservationColumns, Transition, WorldConfig
+from .compiled import MDP, Backend, Columns, MDPState, Spec, Transition, WorldConfig
 from .config import (
     Action,
     ActionRate,

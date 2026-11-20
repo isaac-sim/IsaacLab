@@ -138,14 +138,25 @@ class WorldConfig:
 
 
 @dataclass(frozen=True)
-class ObservationColumns:
-    """Columns of an observation buffer that the observations of one name write, see :meth:`MDP.spec`."""
+class Columns:
+    """Columns of the action, or of an observation buffer, that the ops of one name take or write, see
+    :meth:`MDP.spec`."""
 
     name: str
     columns: slice  # For every step of the history
     size: int  # Columns of one step of history
     history_length: int
-    widths: Mapping[str, int]  # Columns of one step that each op writes, by op name; the others are zero
+    widths: Mapping[str, int]  # Columns of one step that each op takes or writes, by op name; the others are zero
+    # Names of the elements of each op, by op name, such as joint names, for the ops whose inputs name them
+    labels: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Spec:
+    """The interface of an MDP by name: the columns of its action and of its observation buffers."""
+
+    actions: tuple[Columns, ...]
+    observations: Mapping[str, tuple[Columns, ...]]  # By buffer
 
 
 @dataclass(frozen=True)
@@ -225,28 +236,47 @@ class MDP:
     def _scene_writes(self, phase: Phase) -> frozenset[FieldSelector]:
         return frozenset(selector for op in self.ops[phase] for selector in op.writes if selector.scene)
 
-    def spec(self) -> dict[str, tuple[ObservationColumns, ...]]:
-        """Return the columns of every observation buffer, by name, so that learners need not know their offsets.
+    def spec(self) -> Spec:
+        """Return the columns of the action and of every observation buffer by name, with the names of their
+        elements where known, so that learners, policy servers, and exporters need not know their offsets.
 
-        Observations of the same name share their columns, also across world configs and tasks of a sequence; see
-        :meth:`observation_mask` for the columns that the worlds write at a step.
+        Actions, and observations, of the same name share their columns, also across world configs and tasks of a
+        sequence; see :meth:`action_mask` and :meth:`observation_mask` for the columns that the worlds take and write
+        at a step.
         """
+
+        def labels(ops: list) -> Mapping[str, tuple[str, ...]]:
+            return MappingProxyType({op.name: op.labels for op in ops if op.labels is not None})
+
         named: dict[str, dict[str, list[TermOp]]] = {}
         for op in self.ops[Phase.OBSERVATIONS]:
             named.setdefault(op.observation.group, {}).setdefault(op.observation.slot, []).append(op)
-        return {
+        observations = {
             buffer: tuple(
-                ObservationColumns(
+                Columns(
                     name=name,
                     columns=ops[0].observation.columns,
                     size=ops[0].observation.size,
                     history_length=ops[0].observation.history_length,
                     widths=MappingProxyType({op.name: math.prod(op.shape) for op in ops}),
+                    labels=labels(ops),
                 )
                 for name, ops in slots.items()
             )
             for buffer, slots in named.items()
         }
+        actions = tuple(
+            Columns(
+                name=slot.name,
+                columns=slot.columns,
+                size=slot.columns.stop - slot.columns.start,
+                history_length=0,
+                widths=MappingProxyType({op.name: op.columns.stop - op.columns.start for op in slot.ops}),
+                labels=labels(list(slot.ops)),
+            )
+            for slot in self.action_slots
+        )
+        return Spec(actions=actions, observations=MappingProxyType(observations))
 
     def action_mask(self, state: MDPState) -> torch.Tensor:
         """Return which columns of the action each world takes at this step, ``(num_worlds, action_dim)`` bool.

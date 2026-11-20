@@ -50,7 +50,8 @@ Building and running
 
    MDPBuilder
    MDP
-   ObservationColumns
+   Columns
+   Spec
    MDPState
    Transition
    Backend
@@ -108,7 +109,8 @@ Scene data
    :members:
 .. autoclass:: MDP
    :members:
-.. autoclass:: ObservationColumns
+.. autoclass:: Columns
+.. autoclass:: Spec
 .. autoclass:: MDPState
    :members:
 .. autoclass:: Transition
