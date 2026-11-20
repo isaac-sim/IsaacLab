@@ -27,6 +27,7 @@ __all__ = [
     "reset_joints_by_offset",
     "reset_joints_by_scale",
     "reset_root_state_uniform",
+    "Candidates",
     "FillFromCandidates",
     "FillFromFile",
     "FillFromStates",
@@ -111,6 +112,7 @@ from .events import (
     reset_root_state_uniform,
 )
 from .reset_states import (
+    Candidates,
     FillFromCandidates,
     FillFromFile,
     FillFromStates,
