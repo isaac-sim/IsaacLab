@@ -7,7 +7,12 @@ Foveated Camera
 
 A :class:`~sensors.FoveatedCamera` samples densely at its fixation and sparsely in the periphery.
 The `fovi <https://nblauch.github.io/fovi>`__ library places the viewing rays. Moving the gaze rotates them
-relative to the physical camera's mount.
+relative to the physical camera's mount. The demo moves the gaze from object to object; the bracketed options
+render it with OVRTX:
+
+.. code-block:: bash
+
+   uv run --extra fovi [--extra ovrtx] isaaclab demo foveated-camera [renderer=ovrtx]
 
 .. figure:: ../../_static/overview/sensors/foveated_camera_overview.jpg
    :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.
@@ -19,20 +24,43 @@ relative to the physical camera's mount.
 Sampling
 --------
 
-The cortical magnification at angular distance :math:`r` from fixation is :math:`M(r) = 1/(r+a)`.
-On the default warped Cartesian grid, a lattice point at normalized radius :math:`\rho` samples the eccentricity
+The retina places its samples by visual angle, with a density that falls off from the fixation as the cortical
+magnification function (CMF) of human vision does. At eccentricity :math:`r` from the fixation, in degrees,
 
 .. math::
 
-   r(\rho) = a\left[\left(1 + h/a\right)^\rho - 1\right],
+   M(r) = \frac{1}{r + a}, \qquad w(r) = \int_0^r M(t)\,dt = \log\left(1 + \frac{r}{a}\right),
 
-where :math:`h` is half the retinal field of view. Smaller :attr:`~sensors.FoveatedCameraCfg.cmf_a_deg`
-concentrates more samples near fixation. A large value approaches uniform radial spacing on the same grid.
+where :math:`a` is :attr:`~sensors.FoveatedCameraCfg.cmf_a_deg`, :math:`M` is the cortical distance per degree of
+visual angle, and :math:`w` is the cortical distance from the fixation. Samples spaced evenly in :math:`w` are dense
+near the fixation and sparse far from it.
 
-The default grid publishes an upright ``(num_envs, N, N, channels)`` image with
-``N = foveated_res``. Its circular footprint zeros the unused corners. An isotropic retina places samples
-on rings and publishes ``(num_envs, num_samples, 1, channels)``; sample sets are experimental on RTX.
-The camera options describe alternate footprints and sampling shells.
+The default ``foveated_style="warped_cartesian_as_grid"`` warps an :math:`N \times N` lattice, with :math:`N` =
+:attr:`~sensors.FoveatedCameraCfg.foveated_res`, so that its radius :math:`\rho \in [0, 1]` is proportional to
+:math:`w`. A lattice point at radius :math:`\rho` samples the eccentricity
+
+.. math::
+
+   r(\rho) = a\left[\left(1 + \frac{r_{\max}}{a}\right)^{\rho} - 1\right],
+
+where :math:`r_{\max}` is half the retina's field of view, and the camera publishes the lattice as an upright
+``(num_envs, N, N, channels)`` image.
+
+``foveated_style="isotropic"`` instead places rings evenly in :math:`w`, and gives each ring as many samples as keep
+neighbours about equally far apart in every direction:
+
+.. math::
+
+   n_k = \left\lceil \frac{2\pi \rho_k}{\Delta r_k} \right\rceil,
+
+where :math:`\rho_k` is ring :math:`k`'s radius on the viewing sphere and :math:`\Delta r_k` its distance to the
+neighbouring rings. The camera publishes at most :math:`N^2` samples, ``(num_envs, num_samples, 1, channels)``.
+These samples lie on an isotropic manifold in 3D, the viewing sphere, rather than on a 2D image grid, so networks
+process them with kNN convolution, as in `fovi <https://nblauch.github.io/fovi>`__. The isotropic mode is supported
+on Newton Warp and OptiX, but not yet recommended on the RTX renderers, whose lens textures and post-processing
+need a 2D grid.
+
+The viewer shows both styles for an equidistant fisheye or a pinhole camera.
 
 .. raw:: html
 
@@ -40,12 +68,6 @@ The camera options describe alternate footprints and sampling shells.
 
 Camera and gaze
 ---------------
-
-Run the demo with the ``fovi`` extra.
-
-.. code-block:: bash
-
-   uv run --extra fovi isaaclab demo foveated-camera
 
 Declare a :class:`~sensors.FoveatedCameraCfg` directly on the scene. For example, a 32 × 32 RGB retina and a
 pooled variant can share the same camera setup.

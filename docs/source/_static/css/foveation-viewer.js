@@ -365,9 +365,10 @@
     const formatA = (a) => (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a.toFixed(3));
 
     const initSamplingViewer = (root) => {
-        const defaults = {style: "warped_cartesian_as_grid", logA: Math.log10(0.591), res: 32, tilt: 0, pan: 0};
+        const defaults = {camera: "fisheye", style: "warped_cartesian_as_grid", logA: Math.log10(0.591), res: 32, tilt: 0, pan: 0};
         const state = {...defaults};
         const inputs = {
+            camera: select(Object.entries(cameraModels).map(([key, model]) => [key, model.label]), state.camera),
             style: select([["warped_cartesian_as_grid", "warped_cartesian_as_grid"], ["isotropic", "isotropic"]], state.style),
             logA: slider(-2, 3, 0.01, state.logA),
             res: slider(8, 128, 1, state.res),
@@ -378,6 +379,7 @@
         const controls = document.createElement("div");
         controls.className = "fovi-controls";
         controls.append(
+            control("Physical camera", inputs.camera),
             control("<code>foveated_style</code>", inputs.style),
             control("<code>cmf_a_deg</code>", inputs.logA, outputs.logA),
             control("<code>foveated_res</code>", inputs.res, outputs.res),
@@ -422,7 +424,8 @@
             panel.append(title, fovControl, views, labels, note);
             panels.append(panel);
             const view = {...initialView};
-            const camera = {key, model, sphere, image, note, view, fov: model.fov.initial, fovInput, fovOutput};
+            // One camera shows at a time; each keeps its own field of view.
+            const camera = {key, model, panel, sphere, image, note, view, fov: model.fov.initial, fovInput, fovOutput};
             fovInput.addEventListener("input", () => {
                 camera.fov = Number(fovInput.value);
                 sync();
@@ -498,8 +501,11 @@
             const colors = palette(root);
             const rotation = gazeRotation(state.tilt, state.pan);
             const gaze = rotate(rotation, [0, 0, 1]);
-            summary.textContent = "Each camera's retina spans that camera's field of view; move its slider to compare fields.";
+            summary.textContent = "The retina spans the physical camera's field of view; switch the camera or move its slider to compare.";
             for (const camera of cameras) {
+                if (camera.key !== state.camera) {
+                    continue;
+                }
                 const {data, rays, edge, lines} = retinaFor(camera.fov, rotation);
                 const count = rays.length;
                 const dotRadius = Math.max(0.6, Math.min(2.4, 70 / Math.sqrt(count)));
@@ -576,6 +582,7 @@
             outputs.res.textContent = state.res;
             for (const camera of cameras) {
                 camera.fovOutput.textContent = `${camera.fov}°`;
+                camera.panel.hidden = camera.key !== state.camera;
             }
             outputs.tilt.textContent = `${state.tilt}°`;
             outputs.pan.textContent = `${state.pan}°`;
@@ -583,7 +590,7 @@
         };
         for (const [name, input] of Object.entries(inputs)) {
             input.addEventListener("input", () => {
-                state[name] = name === "style" ? input.value : Number(input.value);
+                state[name] = name === "style" || name === "camera" ? input.value : Number(input.value);
                 sync();
             });
         }
