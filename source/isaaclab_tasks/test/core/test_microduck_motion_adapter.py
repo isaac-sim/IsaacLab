@@ -5,11 +5,16 @@
 
 """Protect body-name alignment, velocity reference points, and source immutability."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
 
-from isaaclab_tasks.core.motion_tracking.config.micro_duck.motion_adapter import load_microduck_motion
+from isaaclab_tasks.core.motion_tracking.config.micro_duck.tracking_env_cfg import (
+    MicroDuckMotionCommand,
+    MicroDuckMotionCommandCfg,
+)
 
 
 @pytest.mark.parametrize("velocity_point", ["link", "com"])
@@ -30,14 +35,20 @@ def test_source_motion_adaptation(tmp_path, velocity_point):
         source_contact=[[True, False], [False, True]],
     )
     original_bytes = path.read_bytes()
-    motion = load_microduck_motion(
-        str(path),
-        body_names=["trunk_base", "neck_pitch_1"],
-        joint_names=["left", "right"],
+    command = SimpleNamespace(
+        cfg=MicroDuckMotionCommandCfg(
+            motion_file=str(path), body_names=["trunk_base", "neck_pitch_1"], input_velocity_point=velocity_point
+        ),
+        robot=SimpleNamespace(
+            joint_names=["left", "right"],
+            data=SimpleNamespace(
+                body_com_pos_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0.3, 0.0], [0.2, 0.0, 0.0]]]))
+            ),
+        ),
+        body_indices=[1, 0],
         device="cpu",
-        body_com_pos_b=torch.tensor([[0.2, 0.0, 0.0], [0.0, 0.3, 0.0]]),
-        input_velocity_point=velocity_point,
     )
+    motion = MicroDuckMotionCommand._load_motion(command)
     expected_velocities = (
         [[0.6, 0.0, 0.0], [1.1, 3.0, 4.0]] if velocity_point == "link" else [[1.0, 0.0, 0.0], [2.0, 3.0, 4.0]]
     )
@@ -64,7 +75,15 @@ def test_source_motion_adaptation(tmp_path, velocity_point):
 )
 def test_invalid_velocity_contract(tmp_path, velocity_point, offsets, message):
     """Reject ambiguous velocity conventions and invalid offsets before loading."""
+    command = SimpleNamespace(
+        cfg=MicroDuckMotionCommandCfg(
+            motion_file=str(tmp_path / "not_loaded.npz"), body_names=["trunk_base"], input_velocity_point=velocity_point
+        ),
+        robot=SimpleNamespace(
+            joint_names=["joint"], data=SimpleNamespace(body_com_pos_b=SimpleNamespace(torch=offsets.unsqueeze(0)))
+        ),
+        body_indices=slice(None),
+        device="cpu",
+    )
     with pytest.raises(ValueError, match=message):
-        load_microduck_motion(
-            str(tmp_path / "not_loaded.npz"), ["trunk_base"], ["joint"], "cpu", offsets, velocity_point
-        )
+        MicroDuckMotionCommand._load_motion(command)

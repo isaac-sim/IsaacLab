@@ -9,11 +9,6 @@ from types import SimpleNamespace
 
 import torch
 
-from isaaclab.utils import to_dict
-
-from isaaclab_tasks.core.motion_tracking.config.micro_duck.feet_env_cfg import MicroDuckFeetTrackingEnvCfg
-from isaaclab_tasks.core.motion_tracking.config.micro_duck.rewards import motion_feet_position_error_exp
-from isaaclab_tasks.core.motion_tracking.config.micro_duck.tracking_env_cfg import MicroDuckMotionTrackingEnvCfg
 from isaaclab_tasks.utils import load_cfg_from_registry
 
 
@@ -29,33 +24,35 @@ def test_per_foot_reward_excludes_other_bodies():
         robot_body_pos_w=actual,
     )
     environment = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda name: command))
-    reward = motion_feet_position_error_exp(environment, "motion", ["ankle_left", "ankle_right"], 0.02)
-    torch.testing.assert_close(reward, torch.tensor([1.0, 0.5526996123, 0.1053992246]))
+    configuration = load_cfg_from_registry("Isaac-Motion-Tracking-MicroDuck-Feet-Head", "env_cfg_entry_point")
+    feet = configuration.rewards.motion_feet_pos
+    torch.testing.assert_close(
+        feet.weight * feet.func(environment, **feet.params),
+        4.0 * torch.tensor([1.0, 0.5526996123, 0.1053992246]),
+    )
 
 
 def test_independent_foot_and_head_failure_limits():
-    """Tightening foot tolerance must neither tighten head tolerance nor alter the baseline."""
-    baseline = MicroDuckMotionTrackingEnvCfg()
-    focused = MicroDuckFeetTrackingEnvCfg()
+    """Foot and head height errors use separate limits and tracked bodies."""
+    configuration = load_cfg_from_registry("Isaac-Motion-Tracking-MicroDuck-Feet-Head", "env_cfg_entry_point")
     command = SimpleNamespace(
         cfg=SimpleNamespace(body_names=["ankle_left", "ankle_right", "jaw_soft"]),
-        body_pos_relative_w=torch.zeros(3, 3, 3),
-        robot_body_pos_w=torch.zeros(3, 3, 3),
+        body_pos_relative_w=torch.zeros(4, 3, 3),
+        robot_body_pos_w=torch.zeros(4, 3, 3),
     )
-    command.robot_body_pos_w[0, 0, 2] = 0.031
-    command.robot_body_pos_w[1, 2, 2] = 0.04
-    command.robot_body_pos_w[2, 2, 2] = 0.061
+    command.robot_body_pos_w[0, 0, 2] = 0.091
+    command.robot_body_pos_w[1, 2, 2] = 0.10
+    command.robot_body_pos_w[2, 2, 2] = 0.181
+    command.robot_body_pos_w[3, 1, 2] = 0.20
     environment = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda name: command))
-    feet = focused.terminations.feet_pos
-    head = focused.terminations.ee_body_pos
-    combined = baseline.terminations.ee_body_pos
-    torch.testing.assert_close(feet.func(environment, **feet.params), torch.tensor([True, False, False]))
-    torch.testing.assert_close(head.func(environment, **head.params), torch.tensor([False, False, True]))
-    torch.testing.assert_close(combined.func(environment, **combined.params), torch.tensor([False, False, True]))
-    feet.params["threshold"] = 0.06
+    feet = configuration.terminations.feet_pos
+    head = configuration.terminations.ee_body_pos
+    torch.testing.assert_close(feet.func(environment, **feet.params), torch.tensor([True, False, False, True]))
+    torch.testing.assert_close(head.func(environment, **head.params), torch.tensor([False, False, True, False]))
+    feet.params["threshold"] = 0.18
     torch.testing.assert_close(
         feet.func(environment, **feet.params) | head.func(environment, **head.params),
-        combined.func(environment, **combined.params),
+        torch.tensor([False, False, True, True]),
     )
 
 
@@ -79,14 +76,13 @@ def test_head_reward_tracks_xyz_independently_of_feet():
     )
 
 
-def test_registered_head_task_only_adds_head_reward():
-    """Opting in must preserve observations, dynamics, foot rewards and failure limits."""
-    feet = MicroDuckFeetTrackingEnvCfg()
-    focused = load_cfg_from_registry("Isaac-Motion-Tracking-MicroDuck-Feet-Head", "env_cfg_entry_point")
-    focused_configuration = to_dict(focused)
-    head_reward = focused_configuration["rewards"].pop("motion_head_pos")
-    assert head_reward["weight"] == 4.0
-    assert focused_configuration == to_dict(feet)
-    focused.terminations.feet_pos.params["threshold"] = 0.02
-    assert feet.terminations.feet_pos.params["threshold"] == 0.03
-    assert focused.terminations.ee_body_pos.params["threshold"] == 0.06
+def test_registered_training_defaults_are_independent():
+    """The common training defaults must not be changed by another task instance."""
+    configuration = load_cfg_from_registry("Isaac-Motion-Tracking-MicroDuck-Feet-Head", "env_cfg_entry_point")
+    other = load_cfg_from_registry("Isaac-Motion-Tracking-MicroDuck-Feet-Head", "env_cfg_entry_point")
+    assert configuration.rewards.action_rate_l2.weight == -0.05
+    assert configuration.terminations.anchor_pos.params["threshold"] == 0.15
+    assert configuration.terminations.anchor_ori.params["threshold"] == 0.8
+    configuration.terminations.feet_pos.params["threshold"] = 0.02
+    assert other.terminations.feet_pos.params["threshold"] == 0.09
+    assert configuration.terminations.ee_body_pos.params["threshold"] == 0.18
