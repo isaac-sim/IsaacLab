@@ -285,7 +285,7 @@ Focused examples
          :width: 100%
          :alt: A SHARPA hand holding a green RJ45 connector at a GB300 switch port.
 
-         Kit preview with optional GB300 rack visuals.
+         Kit preview with the full GB300 rack and data-center scenery.
 
       A scripted Rizon 4s and SHARPA hand insert, release, regrasp and extract an
       RJ45 connector in one continuous simulation. The non-RL manager-based
@@ -296,7 +296,8 @@ Focused examples
          uvx isaaclab example sharpa-rj45
 
       From a checkout, use ``uv run isaaclab example sharpa-rj45``.
-      NewtonGL displays one GB300 rack; ``--viz kit`` and ``--viz newton_rtx``
-      load the full render-only data center without adding physics geometry.
+      Newton GL displays the detailed gold switch front and all RJ45 ports; add
+      ``--backdrop datacenter`` for one full rack. ``--viz kit`` and
+      ``--viz newton_rtx`` load the full render-only data center without adding physics geometry.
       Requires the external Rizon/SHARPA robot asset bundle; see the
       :download:`asset and recording setup <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/gb300_sharpa_insertion/README.md>`.

@@ -417,6 +417,8 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     from pxr import Usd, UsdGeom
 
+    from isaaclab.utils.mesh import convert_faces_to_triangles
+
     stage = Usd.Stage.Open(usd_path)
     if stage is None:
         raise RuntimeError(f"Could not open USD asset: {usd_path}")
@@ -443,22 +445,11 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
         homogeneous = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
         transformed_points = (homogeneous @ matrix)[:, :3]
 
-        triangles: list[tuple[int, int, int]] = []
-        cursor = 0
-        for count in face_vertex_counts:
-            for k in range(1, count - 1):
-                triangles.append(
-                    (
-                        face_vertex_indices[cursor],
-                        face_vertex_indices[cursor + k],
-                        face_vertex_indices[cursor + k + 1],
-                    )
-                )
-            cursor += count
-        if not triangles:
+        triangles = convert_faces_to_triangles(face_vertex_indices, face_vertex_counts)
+        if not len(triangles):
             continue
         vertices_list.append(transformed_points.astype(np.float32))
-        triangles_list.append(np.asarray(triangles, dtype=np.int64) + vertex_offset)
+        triangles_list.append(triangles + vertex_offset)
         vertex_offset += points.shape[0]
 
     if not vertices_list:
@@ -568,8 +559,8 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
         """Demo-local exact triangle-mesh asset config."""
 
         func: Callable | str = clone(spawn_demo_mesh)
-        vertices: list[list[float]] = MISSING
-        faces: list[list[int]] = MISSING
+        vertices: np.ndarray = MISSING
+        faces: np.ndarray = MISSING
         mesh_collision_props: sim_utils.UsdPhysicsMeshCollisionCfg | None = None
         rigid_contact_usd: str | None = None
 
@@ -645,8 +636,8 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             # asset's authored convex decomposition is unsuitable for a hollow
             # MPM collider and SolverImplicitMPM does not accept convex meshes.
             spawn=DemoMeshCfg(
-                vertices=container_vertices.tolist(),
-                faces=container_faces.tolist(),
+                vertices=container_vertices,
+                faces=container_faces,
                 rigid_props=[
                     sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
                     PhysxRigidBodyCfg(disable_gravity=True),
@@ -671,7 +662,7 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
                 visible=SHOW_FLUID_PARTICLES,
-                positions=fluid_points.tolist(),
+                positions=fluid_points,
                 mass=particle_mass,
                 radius=particle_radius,
                 material=MPMParticleMaterialCfg(

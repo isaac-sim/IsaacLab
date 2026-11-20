@@ -28,7 +28,8 @@ RIZON_SHARPA_RELATIVE_PATH = (
 )
 RIZON_SHARPA_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
 RIZON_SHARPA_USD_PATH = (
-    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa/{RIZON_SHARPA_USD_NAME}"
+    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa/"
+    "textures_512_2d4d295061de/rizon4s_sharpa_textures_512.usda"
 )
 RIZON_SHARPA_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 RIZON_SHARPA_BUNDLE_SIZE_BYTES = 379_258_308

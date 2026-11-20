@@ -40,7 +40,9 @@ def main() -> None:
 
         # Launch owns the final display and recording producers, including Kit
         # added for livestreaming. Resolve render allocation before scene construction.
-        cfg.sim.physics.load_visual_shapes = bool(cfg.sim.visualizer_cfgs)
+        cfg.sim.physics.load_visual_shapes = any(
+            visualizer.backend.visualizer_type == "newton_gl" for visualizer in cfg.sim.visualizer_cfgs
+        )
         cfg.grains_per_particle = args.grains_per_particle if cfg.sim.visualizer_cfgs else 0
         if args.keep_open and not any(not visualizer.headless for visualizer in cfg.sim.visualizer_cfgs):
             parser.error("--keep_open requires a desktop visualizer.")
