@@ -8,6 +8,7 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -17,7 +18,6 @@ from isaaclab_newton.physics import (
     SteelSolverCfg,
 )
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg

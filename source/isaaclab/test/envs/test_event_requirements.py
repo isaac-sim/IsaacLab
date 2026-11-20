@@ -38,7 +38,7 @@ import sys
 
 class BlockBackends(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split(".")[0] in {"isaaclab_newton", "isaaclab_ov", "isaaclab_physx"}:
+        if fullname.split(".")[0] in {"isaaclab_newton", "isaaclab_ov", "isaaclab_isaacsim"}:
             raise ModuleNotFoundError(fullname)
 
 sys.meta_path.insert(0, BlockBackends())

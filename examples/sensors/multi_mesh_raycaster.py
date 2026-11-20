@@ -63,7 +63,7 @@ if args_cli.physics == "newton_mjwarp" and "kit" in (args_cli.visualizer or []):
 import random
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg

@@ -22,7 +22,7 @@ def test_joint_wrench_contract_registration(source_checkout_root):
 
     implementations = list(source.glob("isaaclab_*/isaaclab_*/sensors/joint_wrench/joint_wrench_sensor.py"))
     backend_packages = {path.parents[2].name for path in implementations}
-    assert backend_packages >= {"isaaclab_newton", "isaaclab_physx", "isaaclab_ov"}
+    assert backend_packages >= {"isaaclab_newton", "isaaclab_isaacsim", "isaaclab_ov"}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             modules = [alias.name for alias in node.names]

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Tests that the forwarding shims resolve the PhysX cfgs that were relocated to
-:mod:`isaaclab_physx`. Covers both the schema cfgs (in :mod:`isaaclab.sim.schemas`) and the
+:mod:`isaaclab_isaacsim`. Covers both the schema cfgs (in :mod:`isaaclab.sim.schemas`) and the
 material cfgs (in :mod:`isaaclab.sim.spawners.materials`).
 
 These tests do not require Isaac Sim — only Python import semantics.
@@ -13,9 +13,9 @@ These tests do not require Isaac Sim — only Python import semantics.
 import warnings
 
 import pytest
+from isaaclab_isaacsim.sim.schemas import schemas_cfg as physx_cfg
+from isaaclab_isaacsim.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 from isaaclab_newton.sim.schemas import schemas_cfg as newton_cfg
-from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
-from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
@@ -91,7 +91,7 @@ NEWTON_FORWARDED_NAMES = [
 @pytest.mark.parametrize("name", FORWARDED_NAMES)
 def test_schemas_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.schemas.<name>`` resolves to the same class object as the one in
-    ``isaaclab_physx.sim.schemas.schemas_cfg``."""
+    ``isaaclab_isaacsim.sim.schemas.schemas_cfg``."""
     assert getattr(schemas, name) is getattr(physx_cfg, name)
 
 
@@ -111,7 +111,7 @@ def test_schemas_cfg_submodule_shim_resolves_to_physx_class(name):
 @pytest.mark.parametrize("name", FORWARDED_MATERIAL_NAMES)
 def test_materials_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.spawners.materials.<name>`` resolves to the same class object as the
-    one in ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``."""
+    one in ``isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg``."""
     assert getattr(materials, name) is getattr(physx_mat_cfg, name)
 
 

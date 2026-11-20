@@ -5,7 +5,7 @@
 
 # Patterns are matched against profile labels, which are built relative to each installed
 # package root. In-repo functions therefore carry no package prefix ("utils.assets:..." for
-# isaaclab, "cloner.replicate:..." for isaaclab_physx); only external packages keep their
+# isaaclab, "cloner.replicate:..." for isaaclab_isaacsim); only external packages keep their
 # full dotted path ("warp._src.context:launch"). Patterns matching nothing are reported as
 # zero and logged as a warning, so check the log after editing this file.
 

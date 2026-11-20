@@ -15,9 +15,9 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonCfg
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
 import isaaclab.sim as sim_utils

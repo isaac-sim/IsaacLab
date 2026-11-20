@@ -50,7 +50,7 @@ def test_sensor_lifecycle_has_single_owners():
                         ), f"{path}:{node.lineno} bypasses the lazy state read boundary"
     for name in (
         "isaaclab/isaaclab/sim/views/fabric_xform_selection.py",
-        "isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py",
+        "isaaclab_isaacsim/isaaclab_isaacsim/sim/views/fabric_frame_view.py",
         "isaaclab_newton/isaaclab_newton/sim/views/newton_site_frame_view.py",
     ):
         path = ISAACLAB_ROOT / "source" / name
