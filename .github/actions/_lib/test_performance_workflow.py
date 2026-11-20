@@ -5,12 +5,14 @@
 
 """Exercise workflow activation, source mounts, and cancellation without starting GPU jobs."""
 
+import importlib.util
 import json
 import os
 import signal
 import subprocess
 import sys
 import textwrap
+import types
 from contextlib import suppress
 from pathlib import Path
 
@@ -304,9 +306,21 @@ process.stdout.write(ok ? '1' : '0');
 
 
 def test_ovstage_ci_coverage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.syspath_prepend(str(_REPO_ROOT / "source/isaaclab"))
+    contract_spec = importlib.util.spec_from_file_location(
+        "isaaclab.renderers.output_contract",
+        _REPO_ROOT / "source/isaaclab/isaaclab/renderers/output_contract.py",
+    )
+    assert contract_spec and contract_spec.loader
+    contract_mod = importlib.util.module_from_spec(contract_spec)
+    monkeypatch.setitem(sys.modules, "isaaclab", types.ModuleType("isaaclab"))
+    monkeypatch.setitem(sys.modules, "isaaclab.renderers", types.ModuleType("isaaclab.renderers"))
+    monkeypatch.setitem(sys.modules, "isaaclab.renderers.output_contract", contract_mod)
+    monkeypatch.delitem(sys.modules, "rendering_cases", raising=False)
+    contract_spec.loader.exec_module(contract_mod)
     monkeypatch.syspath_prepend(str(_REPO_ROOT / "source/_isaaclab_testing/test/rendering"))
     from rendering_cases import KITLESS_RENDERING_CASES
+
+    monkeypatch.delitem(sys.modules, "rendering_cases", raising=False)
 
     expected_ovstage_files = {
         f"test_rendering_kitless_{case.physics}_{case.renderer}.py"
