@@ -81,7 +81,8 @@ DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
 ```
 
 For a static GL approximation, use `--viz newton_gl` and
-`env.sim.physics.load_visual_shapes=True`. External assets download on first use.
+`env.sim.physics.load_visual_shapes=True`. The warehouse composes its USD assets during scene
+construction, including when Newton's visual shape import is disabled. External assets download on first use.
 Compatible policy shapes do not establish successful warehouse sorting; evaluate
 physical transfers and `batch_complete` separately. One direct reset restores the home robot
 and all 24 parcels on the actual feeds; warehouse sorting builds no racetrack reset bank.

@@ -529,7 +529,7 @@ class ResetParcels(ManagerTermBase):
         # Draw its endpoint once per path, so neighboring SGS buckets stay coherent.
         paths = (parcel_ids * self._lane_count + rows % self._lane_count) * 2 + anchor
         return_samples = (
-            torch.quasirandom.SobolEngine(2, scramble=True, seed=env.cfg.seed + 1)
+            torch.quasirandom.SobolEngine(2, scramble=True, seed=None if env.cfg.seed is None else env.cfg.seed + 1)
             .draw(env.cfg.parcel_count * self._lane_count * 2)
             .to(self.device)[paths]
         )
