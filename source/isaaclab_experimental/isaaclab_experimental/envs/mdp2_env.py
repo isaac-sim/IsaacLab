@@ -557,10 +557,12 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._tasks = {
             f"Progress/{path or 'task'}": self.state.arrays[mdp2.progress_field(path, "done")].torch for path in paths
         }
-        self._task_worlds = []
-        for path in paths:
-            worlds = [world for tree in self.mdp.tasks if path in tree.completes for world in tree.worlds]
-            self._task_worlds.append(slice(None) if len(worlds) == self.num_envs else worlds)
+        # The worlds of the world configs that have each task, if some do not.
+        members = torch.zeros(self.num_envs, len(paths), device=self.device)
+        for k, path in enumerate(paths):
+            for tree in self.mdp.tasks:
+                members[tree.worlds.start : tree.worlds.stop, k] = float(path in tree.completes)
+        self._task_members = None if bool(members.all()) else members
         self._last_done = torch.zeros(self.num_envs, len(self._tasks), device=self.device)
         self._last_time_outs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         if cfg.episode_budget is not None:
@@ -748,9 +750,11 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         for name, (_, last, worlds) in self._metrics.items():
             log[f"Metrics/{name}"] = last[worlds].mean()
         # A task is averaged over the worlds of its world config.
-        for k, (name, worlds) in enumerate(zip(self._tasks, self._task_worlds)):
-            runs = self._last_runs[worlds, k]
-            log[name] = (self._last_done[worlds, k] * runs).sum() / runs.sum().clamp(min=1.0)
+        if self._tasks:
+            # A few kernels for all tasks at once: each averaged over the worlds that ran it.
+            runs = self._last_runs if self._task_members is None else self._last_runs * self._task_members
+            rates = (self._last_done * runs).sum(dim=0) / runs.sum(dim=0).clamp(min=1.0)
+            log |= {name: rates[k] for k, name in enumerate(self._tasks)}
         self.extras["log"] = log
 
 

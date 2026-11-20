@@ -165,6 +165,7 @@ class CompileContext:
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
     tasks: tuple[TaskNode, ...] = ()  # The task tree, parents first, if the MDP tracks progress
     modes: dict[str, TaskMode] = field(default_factory=dict)  # How the subtasks of each task run, by path
+    staged: dict[str, bool] = field(default_factory=dict)  # Whether the uses of each task start during an episode
 
 
 class MDPBuilder:
@@ -555,6 +556,7 @@ class MDPBuilder:
         config are known, see :func:`_allocate_action_slots`. Returns them with its episode length in seconds."""
         context = CompileContext(backend, _dependency_errors(schedule))
         context.modes = {path: task.mode for path, (task, _) in tasks.items()}
+        context.staged = {path: staged for path, (_, staged) in tasks.items()}
         # Terms may read the progress of every task.
         for path, (task, _) in tasks.items():
             for name in ("done", "holding", "active"):
@@ -1454,6 +1456,16 @@ def _stages(op: TermOp | ActionOp) -> tuple[str, ...]:
     return () if op.stage is None else (op.stage,)
 
 
+def _scoped_to(op: TermOp, context: CompileContext) -> TermOp:
+    """Return an op of several tasks that are all the subtasks of a sequence or a choice as an op of that task, which
+    runs exactly when one of them does and needs no switch."""
+    parent = op.stages[0].rpartition(".")[0]
+    children = {path for path in context.modes if path.rpartition(".")[0] == parent and path != parent}
+    if set(op.stages) != children:
+        return op
+    return replace(op, stages=(), stage=parent if context.staged.get(parent) else None)
+
+
 def _apart(first: str, second: str, modes: Mapping[str, TaskMode]) -> bool:
     """Return whether two tasks never run at the same step: they are below different subtasks of a sequence or a
     choice, which run one at a time."""
@@ -1491,7 +1503,7 @@ def _share_across_stages(context: CompileContext) -> None:
                 kept.append(op)
                 continue
             other = kept[match]
-            kept[match] = replace(other, stage=None, stages=(*_stages(other), op.stage))
+            kept[match] = _scoped_to(replace(other, stage=None, stages=(*_stages(other), op.stage)), context)
             renamed[op.use] = other.use
         ops[:] = kept
     if not renamed:

@@ -2515,14 +2515,15 @@ def test_resting_on_needs_an_upward_contact_force_and_a_still_object():
 
 
 def test_uses_that_tasks_of_a_sequence_define_alike_run_as_one():
-    """Uses that the tasks of a sequence define alike are one op that runs while any of them runs: its state and
-    observation history carry on from one task to the next. Uses that differ stay apart and restart."""
+    """Uses that tasks of a sequence define alike are one op that runs while any of them runs: its state and
+    observation history carry on from one task to the next. A use of all the tasks is one of the sequence itself.
+    Uses that differ stay apart and restart."""
     inputs = {"joint_pos": robot.joint_pos}
     position = mdp2.Observation(joint_pos, inputs=inputs, history_length=2)
 
-    def stage(joint: str, weight: float) -> mdp2.TaskCfg:
+    def stage(joint: str, shared: float, weight: float) -> mdp2.TaskCfg:
         rewards = {
-            "shared": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}),
+            "shared": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, weight=shared),
             "own": mdp2.Reward(accumulate, inputs=inputs, params={"gain": 1.0}, weight=weight),
         }
         return mdp2.TaskCfg(
@@ -2530,16 +2531,29 @@ def test_uses_that_tasks_of_a_sequence_define_alike_run_as_one():
         )
 
     task = mdp2.compose(
-        mdp2.TaskCfg(quantities=above("a", "b")), mdp2.sequence(first=stage("a", 1.0), second=stage("b", 2.0))
+        mdp2.TaskCfg(quantities=above("a", "b")),
+        mdp2.sequence(first=stage("a", 1.0, 1.0), second=stage("b", 1.0, 2.0), third=stage("a", 3.0, 3.0)),
     )
-    history = check_progress(task, [[0.25, 0.0], [1.0, 0.0], [0.5, 0.0], [0.75, 0.0]])
+    # The first task is done at step 2, the second at step 3, so the third runs from step 4.
+    history = check_progress(task, [[0.25, 0.0], [1.0, 0.0], [0.5, 1.0], [0.75, 0.0]])
     mdp_, _, _ = run_progress(task, [[0.0, 0.0]], "warp", capture=False)
-    rewards = [op.name for op in mdp_.ops[mdp2.Phase.REWARDS]]
-    assert rewards == ["rewards.first.shared", "rewards.first.own", "rewards.second.own"]
-    assert "during first or second" in mdp_.describe()
-    shared = [step[str(mdp2.term_state("rewards.first.shared", "total"))].item() for step in history]
-    own = [step[str(mdp2.term_state("rewards.second.own", "total"))].item() for step in history]
-    assert shared == [0.25, 1.25, 1.75, 2.5]  # Carries on into the second task, from step 3
-    assert own == [0.0, 0.0, 0.5, 1.25]  # Restarted when the second task started
-    # The history of joint "a" carries on too: [a, b] for the step before, then this step.
-    assert [step["policy"][0, :2].tolist() for step in history[2:]] == [[1.0, 0.0], [0.5, 0.0]]
+    ops = {op.name: op for op in mdp_.ops[mdp2.Phase.REWARDS]}
+    assert list(ops) == [
+        "rewards.first.shared",
+        "rewards.first.own",
+        "rewards.second.own",
+        "rewards.third.shared",
+        "rewards.third.own",
+    ]
+    assert ops["rewards.first.shared"].stages == ("first", "second")
+    # The position is one observation of all three tasks: one of the sequence, the root here.
+    position_op = mdp_.ops[mdp2.Phase.OBSERVATIONS][0]
+    assert len(mdp_.ops[mdp2.Phase.OBSERVATIONS]) == 1 and position_op.stage is None and not position_op.stages
+
+    def total(use: str) -> list[float]:
+        return [step[str(mdp2.term_state(use, "total"))].item() for step in history]
+
+    assert total("rewards.first.shared") == [0.25, 1.25, 1.75, 1.75]  # Carries on into the second task, not the third
+    assert total("rewards.second.own") == [0.0, 0.0, 0.5, 0.5]  # Restarted when the second task started
+    # The history of joint "a" carries on through all the tasks: [a, b] for the step before, then this step.
+    assert [step["policy"][0].tolist() for step in history[2:]] == [[1.0, 0.0, 0.5, 1.0], [0.5, 1.0, 0.75, 0.0]]
