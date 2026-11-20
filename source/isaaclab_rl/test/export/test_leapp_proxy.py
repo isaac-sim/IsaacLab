@@ -228,7 +228,7 @@ def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPat
         data.create_buffers(**common, num_filter_objects=1, generate_force_matrix=True)
         friction_shape = (2, 2)
     else:
-        backend = "isaaclab_ov" if layout == "ovphysx" else "isaaclab_physx"
+        backend = "isaaclab_ov" if layout == "ovphysx" else "isaaclab_isaacsim"
         contact_data = pytest.importorskip(f"{backend}.sensors.contact_sensor.contact_sensor_data")
         data = contact_data.ContactSensorData()
         if layout == "ovphysx":
@@ -776,7 +776,7 @@ def test_named_last_action_observations_use_independent_feedback_states(monkeypa
 
 def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.MonkeyPatch):
     """Test PhysX nodal positions are registered with inherited input semantics."""
-    from isaaclab_physx.assets.deformable_object.deformable_object_data import DeformableObjectData
+    from isaaclab_isaacsim.assets.deformable_object.deformable_object_data import DeformableObjectData
 
     annotated_inputs = _capture_leapp_inputs(monkeypatch)
     nodal_pos_w = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)

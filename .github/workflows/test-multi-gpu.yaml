@@ -17,7 +17,7 @@ name: Multi-GPU Training Tests
 on:
   pull_request:
     paths:
-      - "source/isaaclab_physx/isaaclab_physx/app/kit_launcher.py"
+      - "source/isaaclab_isaacsim/isaaclab_isaacsim/app/kit_launcher.py"
       - "source/isaaclab/isaaclab/app/sim_launcher.py"
       - "scripts/reinforcement_learning/train.py"
       - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"
@@ -56,7 +56,7 @@ jobs:
           - physics: physx
             renderer: newton-warp
             task: Isaac-Cartpole-Camera-Direct
-            extra_args: "env.tiled_camera.renderer_cfg=newton_renderer"
+            extra_args: "env.tiled_camera.renderer_cfg=newton_warp"
             trainer: skrl
 
           # Newton physics-only
@@ -69,7 +69,7 @@ jobs:
           - physics: newton
             renderer: newton-warp
             task: Isaac-Cartpole-Camera-Direct
-            extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_renderer"
+            extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_warp"
             trainer: skrl
 
           # Newton + Isaac RTX renderer (hybrid)

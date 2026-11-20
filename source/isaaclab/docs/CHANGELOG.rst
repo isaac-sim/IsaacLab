@@ -3,6 +3,60 @@ Changelog
 
 .. towncrier release notes start
 
+47.2.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``CameraCfg.tensor_processors``, which compute camera outputs from render outputs and earlier
+  processor outputs after each capture, and reset and close with the camera.
+* Camera processors accept an ``env_mask`` keyword identifying the environments due for each capture.
+  Asynchronous rendering passes ``env_mask=None`` because the current capture mask does not describe the
+  published image.
+* Extended ``randomize_rigid_body_material`` with optional contact stiffness [N/m] and damping [N*s/m] ranges. Zero stiffness was rejected because it selects different contact models across engines; use a custom event for that behavior.
+* Added :func:`~isaaclab.sim.utils.newton_model_utils.resolve_display_color`, which returns the display color of a
+  prim's bound visual material.
+* Added a reusable self-collision reward that counts physics frames with filtered
+  robot-to-robot contact forces above a threshold.
+* Added :class:`~isaaclab.utils.datasets.MotionLoader` for named NPZ reference motions,
+  with local and server-hosted files, joint/body reordering and data validation.
+
+Fixed
+^^^^^
+
+* Applied configured visual materials when spawning USD assets without Isaac Sim.
+* Fixed :func:`~isaaclab.utils.configclass` validation recursing forever on objects held by a config that refer back
+  to themselves, such as the module of a Warp function in an MDP2 task.
+
+
+47.1.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional reference bounds to shared camera display normalization, with default display
+  behavior used when explicit bounds were invalid.
+* Added :meth:`~isaaclab.scene.InteractiveScene.export_to_usd` and
+  :attr:`~isaaclab.scene.InteractiveSceneCfg.export_usd_path` to export one initialized environment as USD.
+  The file keeps assets as references to their source files and writes every physics value of the
+  active backend that an import of the USD would not reproduce, such as actuator gains, armature and the
+  initial state of articulation joints and volume deformables. Explicit PD
+  actuators, which run outside the physics engine, are written as joint drive gains. Files the run
+  wrote to the temporary directory, such as re-saved actuator networks, are copied next to the export.
+  On PhysX and OvPhysX, exporting needs ``export_usd_path`` set when the scene is created.
+
+Fixed
+^^^^^
+
+* Fixed crashes and hangs in ``fork()`` when several threads fork at once by raising the ``scipy``
+  dependency floor to 1.18.0 and overriding the ``scipy==1.17.0`` pin from Isaac Sim 6.2. The OpenBLAS
+  bundled with SciPy 1.17.0 could run its pre-fork thread-pool shutdown concurrently and join freed threads.
+* Fixed collision properties being skipped on converted meshes nested beneath importer-created transforms.
+  Regenerate previously converted assets with ``force_usd_conversion=True`` to apply the corrected collider properties.
+
+
 47.0.0 (2026-11-17)
 ~~~~~~~~~~~~~~~~~~~
 

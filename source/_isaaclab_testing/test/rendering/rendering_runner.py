@@ -18,7 +18,7 @@ from golden_image import camera_output_image, compare_to_golden, read_golden_ran
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from newton import StateFlags
 from rendering_cases import RenderCase
 from rendering_runtime import build_rendering_scene

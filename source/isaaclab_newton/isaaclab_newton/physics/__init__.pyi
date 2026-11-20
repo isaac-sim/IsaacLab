@@ -17,6 +17,8 @@ __all__ = [
     "KaminoMaterialsCfg",
     "KaminoPADMMCfg",
     "KaminoPADMMSolverCfg",
+    "KaminoSCCCfg",
+    "KaminoSCCSolverCfg",
     "KaminoSolver",
     "MJWarpSolver",
     "MJWarpSolverCfg",
@@ -57,6 +59,8 @@ from .kamino_solver_cfg import (
     KaminoMaterialsCfg,
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
+    KaminoSCCCfg,
+    KaminoSCCSolverCfg,
 )
 from .mjwarp_actuator_bridge import MjWarpActuatorBridge
 from .mjwarp_solver import MJWarpSolver

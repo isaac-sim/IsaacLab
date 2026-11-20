@@ -107,7 +107,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.FixedTendonFragment` fragments or the legacy
-    :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
@@ -127,7 +127,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.SpatialTendonFragment` fragments or the legacy
-    :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
+    :class:`~isaaclab_isaacsim.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
@@ -193,7 +193,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
     bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
     The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
-    materials inside instances. Named paths create and bind a replacement material only with Kit.
+    materials inside instances. Named paths create and bind a replacement material with or without Kit.
     Ignored when :attr:`visual_material` is None.
     """
 
@@ -287,6 +287,17 @@ class UsdFileCfg(FileCfg):
     at the cost of stage memory, so leave this option disabled unless an override requires it.
 
     Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
+    """
+
+    move_rigid_body_to_root: bool = False
+    """Whether to move the file's single rigid body onto the spawned prim. Defaults to False.
+
+    Enable this option when the file nests its rigid body at a file-specific path and is spawned
+    with other files through :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg`, which
+    needs every file to hold its body at the same path. The move happens before the rigid-body,
+    mass, and collision overrides are applied.
+
+    Please check the :func:`~isaaclab.sim.utils.move_rigid_body_to_root` function for more information.
     """
 
 

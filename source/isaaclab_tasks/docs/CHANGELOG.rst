@@ -3,6 +3,93 @@ Changelog
 
 .. towncrier release notes start
 
+31.0.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``newton_optix`` renderer preset for :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`.
+* Added Newton-based G1 whole-body motion tracking with server-hosted named reference data,
+  asymmetric actor/critic observations, adaptive phase sampling and domain randomization.
+  Episodes end at clip boundaries, and relative tracking rewards align to the current robot pose.
+* Added :class:`~isaaclab_tasks.core.lift.config.franka_soft.agents.rsl_rl_ppo_cfg.FrankaClothCameraPPORunnerCfg`
+  so ``Isaac-Lift-Cloth-Franka-Camera`` logs to its own experiment directory.
+* Added ``Isaac-Cartpole-MDP2``, the Cartpole task written with :mod:`isaaclab_experimental.mdp2` and run by
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` on Newton, in :mod:`isaaclab_tasks.mdp2`.
+* Added ``Isaac-Velocity-Flat-UnitreeGo2-MDP2``, the Unitree Go2 flat velocity task written with
+  :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands. Its play mode removes the
+  random pushes.
+* Added ``Isaac-Velocity-Flat-WalkStand-UnitreeGo2-MDP2``, which trains one Go2 policy in a scene where half of the
+  worlds follow velocity commands and the other half stand still, with their own rewards.
+* Added ``Isaac-Lift-KukaAllegro-MDP2``, the Kuka Allegro lift task written with :mod:`isaaclab_experimental.mdp2`,
+  with its adaptive difficulty curriculum, curriculum gravity, and a reset bank of valid start states per world, all
+  inside the step's CUDA graph. Its play mode starts the curriculum at its end, so a trained policy plays with
+  gravity.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the non-camera soft-beam ``rsl_rl`` experiment name from ``franka_soft`` to
+  ``lift_soft``, matching the ``lift_cloth`` and ``lift_cable`` naming of the sibling tasks. This
+  also moves the logs of the contributed ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task,
+  which reuses the same runner config. Existing checkpoints remain loadable: update log and
+  checkpoint paths that refer to ``logs/rsl_rl/franka_soft``, or pass
+  ``--experiment_name franka_soft``.
+* **Breaking:** Split the camera ``rsl_rl`` experiment name ``franka_deformable_camera``, which
+  ``Isaac-Lift-Soft-Franka-Camera`` and ``Isaac-Lift-Cloth-Franka-Camera`` previously shared, into
+  ``lift_soft_camera`` and ``lift_cloth_camera``. Because both tasks have identical observation and
+  action shapes, a run of one task could silently load the other's checkpoint when replaying without
+  an explicit ``--checkpoint``. Move runs out of ``logs/rsl_rl/franka_deformable_camera`` into the
+  new per-task directories, using the ``task`` field of each run's ``run_manifest.json`` to tell them
+  apart.
+* Changed ``isaaclab_tasks`` to depend on ``isaaclab_experimental``, which provides
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` for the :mod:`isaaclab_tasks.mdp2` tasks.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``newton_renderer`` renderer preset in favor of ``newton_warp``, which names the Newton Warp
+  renderer the same way as ``newton_optix``.
+
+Fixed
+^^^^^
+
+* Authored compliant lift-object contacts with stiffness [2500 N/m] and damping [100 N*s/m], retaining the shared bucketed material randomizer.
+* Fixed the task auto-import skipping packages whose names start with a blacklisted name, such as
+  :mod:`isaaclab_tasks.mdp2` for ``.mdp``. Blacklisted names now match whole package names.
+* Fixed :func:`~isaaclab_tasks.utils.hydra.resolve_presets` reassigning unchanged tuples, which failed on frozen
+  dataclasses in the configuration tree.
+
+
+30.5.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled the minimal collision variant for Go2, ANYmal-D, and G1 29-DoF velocity tasks.
+* Removed ``rigid_compliant_alm=True`` from the shoelace and GB300 Sharpa insertion VBD solver configurations;
+  Newton now always uses compliant ALM.
+* Loaded the G1 platform, ramp, and granular courses from server-hosted, self-contained, solid-color USD assets
+  instead of generating terrain and textures at runtime. Included the dynamic PhysX particle initial
+  state and contacts in a dedicated USD, and declared Newton MPM objects, solver coupling, SONIC gains,
+  and control cadence through backend presets. Retained only device/readback initialization and the
+  post-depth-initialization appearance switch at runtime. Demo commands remain unchanged.
+* Selected courses through the existing ``platforms``, ``ramps``, and ``granular`` presets;
+  removed the ``terrain_name`` field. Preserved explicitly supplied simulation and terrain
+  configurations.
+* Reused the core G1 velocity robot and depth-student defaults in the fixed-course demos,
+  preserving their existing effort limits, full collision variant, and SONIC gain overrides.
+
+Fixed
+^^^^^
+
+* Restored the original minimal G1 rough and flat environment and PPO configurations,
+  including the flat task's ``policy`` observation group. Registered the visual
+  locomotion deployment teacher separately as ``Isaac-Velocity-Rough-G1-29DoF``.
+
+
 30.4.0 (2026-11-17)
 ~~~~~~~~~~~~~~~~~~~
 
