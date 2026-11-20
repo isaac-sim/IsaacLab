@@ -1,4 +1,5 @@
-* Fixed ``extras["final_obs"]`` persisting into later steps without resets in manager-based, direct and
-  multi-agent environments; it now only holds terminal observations captured in the current step.
+* Fixed ``extras["final_obs"]`` persisting into later steps without resets and into explicit :meth:`reset` calls in
+  manager-based, direct and multi-agent environments; it now only holds terminal observations captured in the current
+  step.
 * Fixed terminal observations of direct and multi-agent environments aliasing task buffers that the following
   reset could overwrite; they are now copied before the reset.
