@@ -133,7 +133,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Minimum command delay [physics steps]."""
 
     max_delay: int | None = None
-    """Maximum command delay [physics steps]. Zero disables the delay."""
+    """Maximum command delay [physics steps]. Zero disables the delay when the minimum delay is zero too."""
 
     delay_hold_prob: float | None = None
     """Probability of keeping the current lag instead of resampling it [-]."""
@@ -145,7 +145,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
     For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
-    friction, and applied torque stay on the servo joint. None keeps the USD actuator's backlash flag.
+    friction, and applied torque stay on the servo joint. None keeps the USD actuator's backlash flag; if
+    that flag is set, start-up raises.
     """
 
     stiff_frictionloss: bool = True

@@ -134,7 +134,7 @@ def resolve_per_dof(
 ) -> dict[str, float | int]:
     """Expand scalar or regex-keyed actuator values into a sparse joint-name mapping.
 
-    .. deprecated:: 3.0
+    .. deprecated:: 3.1
         Use :func:`~isaaclab.utils.string.resolve_matching_names_values` for regex mappings.
         Handle None as an empty mapping and broadcast scalars directly.
 
@@ -192,9 +192,10 @@ def define_actuator_properties(
             is used.
 
     Raises:
-        ValueError: If BAM is configured without native Newton execution, if Newton-native
-            execution is enabled and an explicit actuator config is unsupported, or if an actuator
-            component the config adds lacks a required value.
+        ValueError: If BAM is configured without native Newton execution, or if Newton-native execution is
+            enabled and an explicit actuator config is unsupported or invalid, a mapping pattern matches no
+            joint or a joint matches several, or a component the config adds lacks a required value.
+        TypeError: If a config that matches joints leaves a field at ``MISSING``.
     """
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -226,8 +227,9 @@ def author_actuator_prims(
         actuator_cfgs: Mapping of group name to actuator config.
 
     Raises:
-        ValueError: If the articulation prim is missing, a config is unsupported, a mapping pattern matches no
-            joint, or an actuator component the config adds lacks a required value.
+        ValueError: If the articulation prim is missing, a config is unsupported or invalid, a mapping pattern
+            matches no joint or a joint matches several, or a component the config adds lacks a required value.
+        TypeError: If a config that matches joints leaves a field at ``MISSING``.
     """
     art_prim = stage.GetPrimAtPath(articulation_prim_path)
     if not art_prim.IsValid():

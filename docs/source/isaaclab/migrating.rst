@@ -1188,6 +1188,63 @@ Named regular-expression groups retain their configuration behavior; use the can
 names in each group.
 
 
+.. _actuators-usd-override-migration:
+
+.. rubric:: Unset values in explicit actuator configurations
+
+**Behavior change — configurations override only the values they set.** With native actuators
+(:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, on by default on every backend), an
+explicit actuator configuration in Isaac Lab 3.0.0 replaced a joint's USD ``NewtonActuator`` prim
+and filled the values it left unset with code defaults. It is now authored onto that prim when the
+prim is the joint's only actuator and has the configuration's drive schema, so a value left unset
+keeps the asset's value. See :ref:`Existing USD actuators <actuators-usd-override>` for the rules.
+Set the value to get the earlier result:
+
+.. list-table:: Values left unset on a joint whose USD actuator is kept
+   :header-rows: 1
+   :widths: 60 40
+
+   * - Left unset
+     - Earlier result
+   * - ``stiffness`` or ``damping``: ``None``, or a mapping that skips the joint
+     - 0
+   * - ``actuator_effort_limit`` of an ideal PD, delayed PD, DC motor, or neural configuration
+     - The joint's USD drive limit (``float("inf")`` without one), or 0 for a joint a mapping skips
+   * - ``actuator_velocity_limit`` of a DC motor or neural configuration
+     - No velocity limit (``float("inf")``)
+   * - ``max_delay`` of a delayed or remotized PD configuration, whose default changed from ``0`` to
+       ``None``
+     - No delay (``max_delay=0``)
+
+A kept PD actuator also keeps its ``newton:constEffort`` bias, which was 0 earlier and has no
+configuration field. A joint without USD actuators, or with ones the configuration cannot keep,
+still gets a new actuator with the earlier defaults. A warning names the joints whose USD actuators
+are replaced.
+
+**Behavior change — required values and mappings.** These checks changed with or without USD
+actuators:
+
+* ``saturation_effort``, ``joint_parameter_lookup``, and ``network_file`` with its MLP settings
+  (``input_order``, ``input_idx``, ``pos_scale``, ``vel_scale``, and ``torque_scale``) default to
+  ``None`` instead of being required, so omitting one no longer raises ``TypeError`` at configuration
+  validation. With native actuators, the joint keeps its USD actuator's value; if no USD actuator
+  provides one, authoring raises ``ValueError`` when the asset is spawned. With
+  ``use_newton_actuators=False``, the DC motor, remotized PD, and neural models still need the value
+  and raise ``ValueError`` when the articulation initializes. An MLP configuration must set
+  ``network_file`` and its settings together or leave them all unset; otherwise validation raises
+  ``ValueError``.
+* With native actuators, a joint that a ``saturation_effort`` mapping skips no longer gets a
+  saturation effort of 0. It counts as unset, so give every joint of the group a value.
+* With native actuators, the ``saturation_effort`` and ``actuator_velocity_limit`` mappings of a DC
+  motor or neural configuration are resolved strictly, like the other fields: a pattern that matches
+  no joint of the group, or a joint that matches two patterns, raises ``ValueError``. In 3.0.0,
+  unmatched patterns were ignored and the first match won.
+* ``isaaclab.sim.schemas.schemas_actuators.resolve_per_dof`` is deprecated and applies the same strict
+  matching. Use :func:`~isaaclab.utils.string.resolve_matching_names_values` for mappings and
+  broadcast scalars directly.
+* Code that reads ``max_delay`` from a delayed or remotized PD configuration must handle ``None``.
+
+
 .. rubric:: Actuator API Moves to ``ActuatorCollection``
 
 In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a

@@ -103,8 +103,8 @@ The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
 for linkages whose effective lever arm changes through their range of motion.
 
 **ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
-velocity history and clip output with the DC-motor envelope. They require a TorchScript checkpoint.
-See the :mod:`isaaclab.actuators` API reference for configuration details.
+velocity history and clip output with the DC-motor envelope. ``network_file`` is a TorchScript
+checkpoint. See the :mod:`isaaclab.actuators` API reference for configuration details.
 
 **BamActuatorCfg.** A parameter-identified model of a small voltage-controlled servo, described in
 :ref:`actuators-bam`. Unlike the PD models it takes no stiffness or damping: its position loop is
@@ -282,6 +282,13 @@ Value resolution: USD vs. ActuatorCfg
 Gains and limits can come from the USD joint-drive prim or the actuator config. If a config field is
 ``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
 schema supplies joint and body ordering, not actuator parameters.
+
+For an explicit group with :ref:`native actuators <actuators-native>`, the USD value of a gain,
+actuator limit, or delay is the one on the joint's ``NewtonActuator`` prim. A joint without one, or
+with ones the config cannot keep, gets a new actuator with zero gains, no delay, and, except for
+remotized PD and BAM, the joint's USD drive limit. See
+:ref:`Existing USD actuators <actuators-usd-override>`. The log described below reports joint
+properties only, not a USD actuator's values.
 
 Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
 log the USD, configuration, and applied values for every joint when the sources differ or the
@@ -720,16 +727,22 @@ staging.
 
 **Existing USD actuators.** An asset can ship its actuators as ``NewtonActuator`` prims, for example
 an identified servo fit. Joints not covered by an explicit Lab actuator config keep them unchanged.
-For a covered joint whose actuator prim has the config's drive schema (``NewtonPDControlAPI`` for
-the PD models, ``NewtonNeuralControlAPI`` for neural models, ``NewtonBamDriveAPI`` for BAM), the
-config is authored onto that prim:
+A prim drives only the first joint of its ``newton:targets`` and is ignored for joints listed later:
+a config treats such a joint as one without that prim, and changes the prim only when it covers the
+first joint. For a covered joint whose actuator prim has the config's drive schema
+(``NewtonPDControlAPI`` for the PD models, ``NewtonNeuralControlAPI`` for neural models,
+``NewtonBamDriveAPI`` for BAM), the config is authored onto that prim:
 
 * Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
   or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
+  Every pattern of a mapping must still match a joint of the group, and no joint may match two.
 * The config type decides the actuator's components. Clamping and delay schemas that the type does
-  not model are removed with a warning, a type that authors another clamp swaps it, and
-  ``max_delay=0`` removes a delay. A component the prim does not provide, such as a swapped-in clamp,
-  takes the joint's USD drive limit for a joint the config sets no ``actuator_effort_limit`` for.
+  not model are removed together with their values, and a warning is logged. A type that authors
+  another clamp swaps it, and a PD config's ``max_delay=0`` removes a delay. Without a configured
+  ``actuator_effort_limit`` for the joint, a max-effort or DC motor clamp the config adds takes the
+  joint's USD drive limit, or no limit if the joint has none. Unless the config sets
+  ``actuator_velocity_limit``, an added DC motor clamp has no velocity limit, so its torque limit
+  does not decrease with speed.
 * A remotized PD config can leave ``joint_parameter_lookup=None`` to keep the asset's lookup table.
   Neural configs can leave ``network_file=None`` to keep the asset's checkpoint and its preprocessing
   metadata. To replace an MLP checkpoint, supply ``network_file`` together with ``input_order``,
@@ -743,9 +756,12 @@ config is authored onto that prim:
     # The asset ships delayed PD actuators on the legs: retune the gains, keep its limits and delay.
     "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
 
-When the joint has no actuator prim, several, one with another drive, or one with schemas the config
-cannot keep, the existing prims are deactivated and a new prim is defined from the config, with
-defaults such as zero gains for unset values. A warning names the replaced joints.
+When the joint has no actuator prim, several, one with another drive, or one with an unrecognized
+API schema, the existing prims are deactivated and a new prim is defined from the config, with
+defaults such as zero gains for unset values. On a new prim, a joint that an
+``actuator_effort_limit`` mapping skips gets a limit of 0, not the joint's USD drive limit, so it
+produces no torque. A warning names the replaced joints. The
+:ref:`migration guide <actuators-usd-override-migration>` lists what changed since 3.0.0.
 
 .. warning::
 
@@ -828,10 +844,13 @@ every physics step:
 
 When the USD models gearbox play as a passive revolute hinge in series with each servo, set
 ``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
-then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping.
+then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping. Leaving
+the template unset keeps the asset's backlash flag, which only the asset can clear: if its BAM
+actuators model backlash, start-up raises until the template is set.
 
-``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. One motor fit applies to
-every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
+``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. The ``motor`` values a
+group sets apply to every joint in it. Set the reflected rotor inertia through ``armature`` or on
+the joint.
 
 Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
 :ref:`Existing USD actuators <actuators-usd-override>`). A field left as ``None``, here or in
@@ -843,6 +862,11 @@ Like other explicit actuators, BAM is authored onto the joints' existing BAM act
 
 A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
 ``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``.
+Only a new actuator gets the defaults in the table below. On an existing one, a value that neither
+the asset nor the config sets is left to the Newton drive: a missing ``model`` means ``m1`` friction,
+a missing ``max_current`` no current limit, and the drive raises if any other value it requires is
+missing. Without a ``vin_min`` or delay setting from the asset or the config, the supply has only
+its 0 V floor and commands are not delayed.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -875,10 +899,11 @@ A joint without a BAM actuator gets a new one, which needs the motor fit (``mode
      - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
-``max(vin_range) * motor.kt / motor.resistance``; if the config does not set the fit and voltage, the
-asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none, which
-ignores ``vin_range``.
-``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
+``max(vin_range) * motor.kt / motor.resistance``, using ``vin`` when ``vin_range`` is unset. If the
+config leaves ``motor.kt``, ``motor.resistance``, or the voltage unset, the asset's authored cap
+applies, or the drive's ``vin * kt / resistance`` default when it has none, which ignores
+``vin_range``. Setting only some of the three logs a warning; set ``actuator_effort_limit`` to choose
+the cap. ``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
 
 .. _actuators-bam-paths:
 
@@ -898,7 +923,10 @@ reference to reduce creep, since MJWarp has no noslip solver.
 
 The drive draws one command lag per environment, shared by its joints, honoring ``min_delay``,
 ``max_delay``, ``delay_hold_prob`` and ``delay_update_period``. Reset redraws the lag only for the
-selected environments, including during CUDA graph replay.
+selected environments, including during CUDA graph replay. The draws are seeded by the USD
+actuator's ``newton:delaySeed``, which has no config field and is 0 on a new actuator. To turn off an
+asset's lag, set ``min_delay=0`` together with ``max_delay=0``: the drive rejects a ``max_delay``
+below ``min_delay``.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
@@ -960,10 +988,11 @@ Known constraints
 ^^^^^^^^^^^^^^^^^
 
 * **Supply and delay are per drive, not per robot.** Newton builds one drive per set of BAM joints
-  with the same friction ``model``, backlash on or off, ``vin_min``, and delay settings; the other
-  coefficients are per joint. Separate drives sag and delay independently even on one robot. Groups
-  and robots that merge into one drive share its supply and delay within an environment, and must use
-  the same start-up ranges, ``stiff_frictionloss``, and ``backlash_joint_template``.
+  with the same friction ``model``, backlash on or off, ``vin_min``, delay settings, and delay seed;
+  the other coefficients are per joint. Separate drives sag and delay independently even on one
+  robot. Groups and robots that merge into one drive share its supply and delay within an
+  environment, and must use the same start-up ranges, ``stiff_frictionloss``, and
+  ``backlash_joint_template``.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 

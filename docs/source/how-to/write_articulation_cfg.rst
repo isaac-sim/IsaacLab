@@ -240,6 +240,12 @@ property:
     | Override provided      | User's ActuatorCfg     | Same as ActuatorCfg|
     +------------------------+------------------------+--------------------+
 
+For an explicit actuator group with :ref:`native actuators <actuators-native>` (the default), the
+USD value of a gain, actuator limit, or delay is the one on the joint's ``NewtonActuator`` prim, and
+a joint without one gets zero gains and no delay; see
+:ref:`Existing USD actuators <actuators-usd-override>`. The table printed by the flag below reports
+joint properties only, not a USD actuator's values.
+
 
 Digging into USD can sometime be unconvinent, to help clarify what exact value is written, we designed a flag
 :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`,
