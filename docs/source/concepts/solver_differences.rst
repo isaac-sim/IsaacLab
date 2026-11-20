@@ -51,7 +51,7 @@ and experimental features are qualified in each cell.
      - :class:`Newton MJWarp <isaaclab_newton.physics.MJWarpSolverCfg>`
      - Newton Kamino
        (:class:`P-ADMM <isaaclab_newton.physics.KaminoPADMMSolverCfg>` /
-       :class:`DVI <isaaclab_newton.physics.KaminoDVISolverCfg>`)
+       :class:`SCC <isaaclab_newton.physics.KaminoSCCSolverCfg>`)
      - :class:`Newton VBD <isaaclab_newton.physics.VBDSolverCfg>`
      - :class:`Newton MPM <isaaclab_newton.physics.MPMSolverCfg>`
    * - Main workload
@@ -99,7 +99,7 @@ and experimental features are qualified in each cell.
    * - Main tuning controls
      - Timestep, TGS/PGS iterations, GPU capacities
      - Substeps, iterations, contact capacities
-     - Substeps, P-ADMM/DVI convergence, stabilization
+     - Substeps, P-ADMM/SCC convergence, stabilization
      - Substeps, iterations, material and contact stiffness
      - Voxel resolution, substeps, rheology convergence
    * - Solver details
@@ -227,7 +227,7 @@ tick. This setting does not apply when MJWarp uses its internal MuJoCo contact
 path or Kamino uses its internal collision detector.
 
 MJWarp provides outer iterations, line-search iterations, and a residual
-tolerance. Kamino's P-ADMM and DVI modes have different iteration and
+tolerance. Kamino's P-ADMM and SCC modes have different iteration and
 convergence controls. PhysX has its own position and velocity iteration
 model. Consult the generated APIs and the focused tuning guides for current
 controls instead of copying another solver's defaults.

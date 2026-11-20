@@ -37,7 +37,7 @@ list configuration fields and defaults.
      - Experimental reduced-coordinate rigid-body solver with projected
        Gauss-Seidel constraints; select ``presets=newton_steel`` on supported tasks
    * - :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
-       :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`
+       :class:`~isaaclab_newton.physics.KaminoSCCSolverCfg`
      - :ref:`kamino-solver-tuning` for Kamino configuration
    * - :class:`~isaaclab_newton.physics.VBDSolverCfg`
      - :ref:`newton-using-vbd` for cloth, soft bodies, and coupled scenes
