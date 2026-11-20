@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -21,6 +22,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 from isaaclab_neural.mdp import at_chunk_boundary, is_chunk_boundary, reset_from_records
@@ -61,12 +63,12 @@ def event_env(sim, scene, decimation=1, episode_steps=3 * T):
         step_dt=decimation * DT,
         max_episode_length=episode_steps,
         num_envs=N,
-        device="cpu",
+        device=sim.device,
     )
 
 
 @contextlib.contextmanager
-def robot_world(tmp_path, joint_ordering=None):
+def robot_world(tmp_path, joint_ordering=None, device="cpu"):
     """The robot and a camera on the world-model backend, reset as an environment resets."""
     usd = tmp_path / "robot.usda"
     author_robot(usd)
@@ -94,7 +96,7 @@ def robot_world(tmp_path, joint_ordering=None):
 
     ordered = joint_ordering or JOINTS
     states = [np.array([0.1, 0.2])[[JOINTS.index(name) for name in ordered]]]
-    with world_model_sim(tmp_path, states=states) as sim:
+    with world_model_sim(tmp_path, states=states, device=device) as sim:
         scene = InteractiveScene(SceneCfg(num_envs=N, env_spacing=2.0))
         sim.register_interactive_scene(scene)
         sim.reset()
@@ -189,6 +191,33 @@ def test_what_needs_a_simulated_body_raises(world):
         robot.data.root_link_pose_w
     with pytest.raises(NotImplementedError, match="world-model backend"):
         robot.write_root_pose_to_sim_index(root_pose=torch.zeros(N, 7))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_masked_joint_writes_preserve_other_entries_without_host_sync(tmp_path, device):
+    with robot_world(tmp_path, device=device) as (sim, scene):
+        robot = scene["robot"]
+        env_mask = wp.from_torch(torch.tensor([True, False], device=device))
+        joint_mask = wp.from_torch(torch.tensor([False, True], device=device))
+        empty_mask = wp.from_torch(torch.zeros(N, dtype=torch.bool, device=device))
+        values = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=device)
+        previous_mode = torch.cuda.get_sync_debug_mode()
+        try:
+            torch.cuda.set_sync_debug_mode("error")
+            robot.write_joint_position_to_sim_mask(position=values, env_mask=env_mask, joint_mask=joint_mask)
+            state = robot.data.joint_pos.torch.clone()
+            robot.set_joint_position_target_mask(target=values, env_mask=env_mask, joint_mask=joint_mask)
+            robot.set_joint_position_target_mask(target=values, env_mask=empty_mask)
+            targets = robot.data.joint_pos_target.torch.clone()
+            robot.set_joint_position_target_mask(target=values)
+            sim.step(render=False)
+        finally:
+            torch.cuda.set_sync_debug_mode(previous_mode)
+        expected = torch.tensor([[0.1, 2.0], [0.1, 0.2]], device=device)
+        torch.testing.assert_close(state, expected)
+        torch.testing.assert_close(targets, expected)
+        # Unmasked writes reach the shared manager target and are applied on the next backend step.
+        torch.testing.assert_close(robot.data.joint_pos.torch, values)
 
 
 def test_the_reset_event_checks_the_timing_when_the_environment_is_created(world):

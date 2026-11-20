@@ -245,15 +245,14 @@ class Articulation(BaseArticulation):
         buffer[envs[:, None], joints[None, :]] = value.reshape(len(envs), len(joints))
 
     def _set_mask(self, buffer: torch.Tensor, value, joint_mask, env_mask) -> None:
-        value = self._tensor(value)
-        value = value.to(device=buffer.device, dtype=buffer.dtype)
-        envs = torch.arange(buffer.shape[0], device=buffer.device)
-        joints = torch.arange(buffer.shape[1], device=buffer.device)
+        """Write the full-shape ``value`` where both masks are set, without reading the masks on the host."""
+        value = self._tensor(value).to(device=buffer.device, dtype=buffer.dtype)
+        selected = torch.ones(buffer.shape, dtype=torch.bool, device=buffer.device)
         if env_mask is not None:
-            envs = envs[wp.to_torch(env_mask).bool()]
+            selected &= wp.to_torch(env_mask).bool()[:, None]
         if joint_mask is not None:
-            joints = joints[wp.to_torch(joint_mask).bool()]
-        buffer[envs[:, None], joints[None, :]] = value[envs][:, joints]
+            selected &= wp.to_torch(joint_mask).bool()[None, :]
+        torch.where(selected, value, buffer, out=buffer)
 
     # Private hooks of the base class that have nothing to do here.
     def _create_buffers(self) -> None:
