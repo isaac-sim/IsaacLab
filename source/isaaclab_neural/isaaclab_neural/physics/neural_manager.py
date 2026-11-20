@@ -112,6 +112,10 @@ class NeuralManager(PhysicsManager):
             self.model.close()
         self.model = instantiate(self._cfg.model_cfg, num_envs, self._device)
         self.spec = self.model.spec()
+        if self.spec.max_envs is not None and num_envs > self.spec.max_envs:
+            raise ValueError(
+                f"The world model serves at most {self.spec.max_envs} environments, but the scene has {num_envs}."
+            )
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
             raise ValueError(f"sim.dt must equal 1 / fps = {1.0 / self.spec.fps} s, got {self._sim.cfg.dt}")
         for names, what in ((self.spec.views, "views"), (self.spec.outputs, "outputs")):
