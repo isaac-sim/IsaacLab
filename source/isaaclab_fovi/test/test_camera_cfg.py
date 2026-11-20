@@ -19,9 +19,9 @@ from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
 from isaaclab_fovi.sensors.calibrated_geometry import camera_model_from_spawn
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera

@@ -64,11 +64,11 @@ class GazeSupervisedPPO(PPO):
         self.oracle_loss_coef = oracle_loss_coef
         self.oracle_group = oracle_group
 
-    def update(self) -> dict[str, float]:
+    def update(self) -> tuple[dict[str, float], dict[str, float]]:
         totals = torch.zeros(5, device=self.device)
         generator = self.storage.mini_batch_generator(self.num_mini_batches, self.num_learning_epochs)
         for batch in generator:
-            if self.normalize_advantage_per_mini_batch:
+            if self.normalize_advantage_per_mini_batch and batch.advantages.numel() > 1:
                 with torch.no_grad():
                     batch.advantages = (batch.advantages - batch.advantages.mean()) / (batch.advantages.std() + 1e-8)
             with torch.amp.autocast(
@@ -77,7 +77,7 @@ class GazeSupervisedPPO(PPO):
                 self.actor(batch.observations, stochastic_output=True)
                 log_prob = self.actor.get_output_log_prob(batch.actions)
                 values = self.critic(batch.observations)
-                entropy = self.actor.output_entropy.mean()
+                entropy_loss = -self.actor.output_entropy.mean()
                 if self.desired_kl is not None and self.schedule == "adaptive":
                     self._adapt_learning_rate(batch.old_distribution_params, self.actor.output_distribution_params)
                 ratio = torch.exp(log_prob - batch.old_actions_log_prob.squeeze(-1))
@@ -90,7 +90,7 @@ class GazeSupervisedPPO(PPO):
                     clipped = batch.values + (values - batch.values).clamp(-self.clip_param, self.clip_param)
                     value_error = torch.max(value_error, (clipped - batch.returns).pow(2))
                 value_loss = value_error.mean()
-                loss = surrogate + self.value_loss_coef * value_loss - self.entropy_coef * entropy
+                loss = surrogate + self.value_loss_coef * value_loss + self.entropy_coef * entropy_loss
                 if self.oracle_loss_coef > 0:
                     labels = batch.observations[self.oracle_group].float()
                     oracle = gaze_loss(self.actor.output_mean[:, -GAZE_ACTIONS:].float(), labels)
@@ -106,13 +106,18 @@ class GazeSupervisedPPO(PPO):
             nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
             nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
-            totals += torch.stack((value_loss, surrogate, entropy, oracle, valid)).detach().float()
+            totals += torch.stack((value_loss, surrogate, entropy_loss, oracle, valid)).detach().float()
         obs = self.storage.observations.flatten(0, 1)
         self.actor.update_normalization(obs)
         self.critic.update_normalization(obs)
         self.storage.clear()
-        means = (totals / (self.num_learning_epochs * self.num_mini_batches)).tolist()
-        return dict(zip(("value", "surrogate", "entropy", "oracle", "oracle_valid"), means, strict=True))
+        num_updates = self.num_learning_epochs * self.num_mini_batches
+        value, surrogate, entropy, oracle, oracle_valid = (totals / num_updates).tolist()
+        return {"value": value, "surrogate": surrogate, "entropy": entropy, "oracle": oracle}, {
+            "Optimizer/learning_rate": self.learning_rate,
+            "Model/mean_policy_std": self.actor.output_std.mean().item(),
+            "Loss/oracle_valid": oracle_valid,
+        }
 
     def _adapt_learning_rate(self, old_params, new_params):
         """Adapt the learning rate to the policy's KL divergence, as PPO's adaptive schedule does."""

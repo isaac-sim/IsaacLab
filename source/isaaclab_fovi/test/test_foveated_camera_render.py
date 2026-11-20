@@ -17,10 +17,10 @@ launch_test_simulation(enable_cameras=True)
 import foveated_render_cases as cases  # noqa: E402
 import pytest  # noqa: E402
 from isaaclab_fovi.sensors import FoveatedNewtonCamera, FoveatedRTXCamera  # noqa: E402
+from isaaclab_isaacsim.physics import PhysxCfg  # noqa: E402
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg  # noqa: E402
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # noqa: E402
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg  # noqa: E402
-from isaaclab_physx.physics import PhysxCfg  # noqa: E402
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 

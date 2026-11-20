@@ -54,15 +54,15 @@ def _algorithm(
     return GazeSupervisedPPO(actor, critic, storage, oracle_loss_coef=oracle_loss_coef, **settings), obs
 
 
-def _train(algorithm: PPO, obs: TensorDict, iterations: int) -> dict[str, float]:
+def _train(algorithm: PPO, obs: TensorDict, iterations: int) -> tuple[dict[str, float], dict[str, float]]:
     for _ in range(iterations):
         for _ in range(STEPS):
             with torch.inference_mode():
                 algorithm.act(obs)
                 algorithm.process_env_step(obs, torch.zeros(NUM_ENVS), torch.zeros(NUM_ENVS), {})
         algorithm.compute_returns(obs)
-        losses = algorithm.update()
-    return losses
+        result = algorithm.update()
+    return result
 
 
 def test_update_pulls_the_gaze_toward_the_teacher():
@@ -75,26 +75,25 @@ def test_update_pulls_the_gaze_toward_the_teacher():
         return float((mean - obs["oracle"][:, :2])[valid].norm(dim=-1).mean())
 
     before = distance()
-    losses = _train(algorithm, obs, 40)
-    assert losses["oracle_valid"] == pytest.approx(0.75)
+    _, stats = _train(algorithm, obs, 40)
+    assert stats["Loss/oracle_valid"] == pytest.approx(0.75)
     assert all(torch.isfinite(p).all() for p in algorithm.actor.parameters())
     assert distance() < 0.7 * before
 
 
 def test_zero_coefficient_update_matches_stock_ppo_without_labels():
-    def updated(stock: bool) -> tuple[list[torch.Tensor], list[torch.Tensor], dict[str, float]]:
+    def updated(stock: bool) -> tuple[list[torch.Tensor], list[torch.Tensor], dict[str, float], dict[str, float]]:
         algorithm, obs = _algorithm(oracle_loss_coef=0.0, with_labels=False, stock=stock)
         modules = (algorithm.actor, algorithm.critic)
         initial = [p.detach().clone() for module in modules for p in module.parameters()]
         torch.manual_seed(1)
-        losses = _train(algorithm, obs, 1)
-        return initial, [p.detach().clone() for module in modules for p in module.parameters()], losses
+        losses, stats = _train(algorithm, obs, 1)
+        return initial, [p.detach().clone() for module in modules for p in module.parameters()], losses, stats
 
-    initial, gaze_params, losses = updated(stock=False)
-    stock_initial, stock_params, stock_losses = updated(stock=True)
-    assert losses["oracle"] == 0.0 and losses["oracle_valid"] == 0.0
-    for name in ("value", "surrogate", "entropy"):
-        assert losses[name] == pytest.approx(stock_losses[name], rel=1e-6, abs=1e-7)
+    initial, gaze_params, losses, stats = updated(stock=False)
+    stock_initial, stock_params, stock_losses, stock_stats = updated(stock=True)
+    assert losses == pytest.approx(stock_losses | {"oracle": 0.0}, rel=1e-6, abs=1e-7)
+    assert stats == pytest.approx(stock_stats | {"Loss/oracle_valid": 0.0})
     for start, stock_start in zip(initial, stock_initial, strict=True):
         torch.testing.assert_close(start, stock_start, atol=0, rtol=0)
     for param, stock_param in zip(gaze_params, stock_params, strict=True):
