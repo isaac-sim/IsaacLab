@@ -98,6 +98,11 @@ class MicroDuckTrackingActionsCfg(ActionsCfg):
 class MicroDuckTrackingRewardsCfg(RewardsCfg):
     """Track each foot and the head in addition to the shared whole-body rewards."""
 
+    motion_global_anchor_pos = replace(
+        RewardsCfg().motion_global_anchor_pos, params={"command_name": "motion", "std": 0.05}
+    )
+    motion_body_pos = replace(RewardsCfg().motion_body_pos, params={"command_name": "motion", "std": 0.05})
+    motion_body_lin_vel = replace(RewardsCfg().motion_body_lin_vel, params={"command_name": "motion", "std": 0.25})
     motion_feet_pos = RewTerm(
         func=motion_body_position_error_exp,
         weight=4.0,
@@ -107,6 +112,12 @@ class MicroDuckTrackingRewardsCfg(RewardsCfg):
         func=motion_body_position_error_exp,
         weight=4.0,
         params={"command_name": "motion", "body_names": ["jaw_soft"], "std": 0.02},
+    )
+    action_rate_l2 = replace(RewardsCfg().action_rate_l2, weight=-0.05)
+    self_collisions = replace(
+        RewardsCfg().self_collisions,
+        weight=-1.0,
+        params={"sensor_cfg": SceneEntityCfg("self_collision"), "threshold": 0.1},
     )
 
 
@@ -138,12 +149,6 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.6, 0.6, 0.35), lookat=(0.0, 0.0, 0.12))
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.self_collision.update_period = self.sim.dt
-        self.rewards.motion_global_anchor_pos.params["std"] = 0.05
-        self.rewards.motion_body_pos.params["std"] = 0.05
-        self.rewards.motion_body_lin_vel.params["std"] = 0.25
-        self.rewards.action_rate_l2.weight = -0.05
-        self.rewards.self_collisions.weight = -1.0
-        self.rewards.self_collisions.params["threshold"] = 0.1
         self.terminations.anchor_pos.params["threshold"] = 0.15
         self.terminations.ee_body_pos.params.update(threshold=0.18, body_names=["jaw_soft"])
         self.events.base_mass.params.update(
@@ -152,9 +157,3 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
         )
         self.events.physics_material.params.update(static_friction_range=(0.7, 1.3), dynamic_friction_range=(0.7, 1.3))
         self.events.push_robot = None
-
-    def play_mode(self):
-        super().play_mode()
-        self.commands.motion.pose_range = {}
-        self.commands.motion.velocity_range = {}
-        self.commands.motion.joint_position_range = (0.0, 0.0)
