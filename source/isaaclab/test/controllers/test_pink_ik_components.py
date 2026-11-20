@@ -309,16 +309,22 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
         num_base_dofs=num_base_dofs,
         set_joint_effort_target_index=Mock(),
     )
+    asset.set_joint_position_target_index = Mock()
     action = SimpleNamespace(
-        _asset=asset, _controlled_joint_ids=[0, 2], _controlled_joint_ids_tensor=torch.tensor([0, 2])
+        cfg=SimpleNamespace(enable_gravity_compensation=True),
+        _asset=asset,
+        _controlled_joint_ids=[0, 2],
+        _controlled_joint_ids_tensor=torch.tensor([0, 2]),
+        _compute_ik_solutions=lambda: torch.zeros(2, 1),
+        _target_hand_joint_positions=torch.zeros(2, 1),
     )
-    PinkInverseKinematicsAction._apply_gravity_compensation(action)
+    PinkInverseKinematicsAction.apply_actions(action)
 
     if disable_gravity:
         asset.set_joint_effort_target_index.assert_not_called()
     else:
         asset.set_joint_effort_target_index.assert_called_once()
         kwargs = asset.set_joint_effort_target_index.call_args.kwargs
-        assert kwargs["joint_ids"] == [0, 2]
+        assert kwargs["joint_ids"].tolist() == [0, 2]
         expected = forces[:, [0, 2]] if fixed_base else forces[:, [6, 8]]
         torch.testing.assert_close(kwargs["target"], expected)
