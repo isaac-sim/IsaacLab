@@ -108,6 +108,13 @@ def hud_note(imgui: Any, text: str) -> None:
     imgui.pop_style_color()
 
 
+def hud_warning(imgui: Any, text: str) -> None:
+    """Draw a prominent warning line, for something the user is waiting on."""
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.78, 0.25, 1.0))
+    imgui.text_wrapped(text)
+    imgui.pop_style_color()
+
+
 def hover_tooltip(imgui: Any, text: str) -> None:
     """Show ``text`` while the last item is hovered, including when it is disabled."""
     if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
@@ -760,6 +767,10 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_arrows_pending = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
+    _rtx_switch: str | None = None
+    """``"requested"`` once the HUD asked for RTX and showed the wait message, ``"loading"`` until its first frame."""
+    _rtx_perspective = None
+    """The free Perspective view the OVRTX camera follows while RTX is shown."""
     _borrowing_view = False
     """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
     _rtx_appearance: RtxAppearance | None = None
@@ -941,8 +952,9 @@ class NewtonVisualizerBase(BaseVisualizer):
                     else "A scene sensor is rendered by its own renderer. This applies to the free camera"
                 )
             imgui.same_line()
-            if imgui.radio_button("RTX", rtx_on) and not rtx_on:
-                self.set_rtx_rendering(True)
+            if imgui.radio_button("RTX", rtx_on) and not rtx_on and self._rtx_switch is None:
+                # The first RTX frame blocks the window, so show the message for a frame before switching.
+                self._rtx_switch = "requested"
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
                     "OVRTX path-traced rendering of the scene; slower than OpenGL. The first switch can take a minute"
@@ -951,6 +963,8 @@ class NewtonVisualizerBase(BaseVisualizer):
                 )
             if sensor:
                 imgui.end_disabled()
+            if self._rtx_switch is not None:
+                hud_warning(imgui, "Switching to RTX. The first frame can take a while and the window may not respond.")
         elif isinstance(self, NewtonGLVisualizer):
             self._draw_rtx_unavailable(imgui)
         self._draw_appearance(imgui)
@@ -1301,6 +1315,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         view = self._image_views[index]
         if self.rtx_rendering and view.camera is None:
             self._remember_perspective_pose()
+            self._rtx_perspective = view
             self._restore_perspective_pose(view)
             self.current_image_view.invalidate()
             return
@@ -1311,7 +1326,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         view = self.current_image_view
         if view is not None and view.camera is not None and getattr(self, "rtx_rendering", False):
             # The OVRTX camera follows the free view.
-            view = next((v for v in self._image_views if v.camera is None), None)
+            view = self._rtx_perspective or next((v for v in self._image_views if v.camera is None), None)
         if view is None or view.camera is not None:
             return None
         return view
@@ -1490,6 +1505,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
         self._perspective_poses.clear()
+        self._rtx_perspective = None
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
             if self._rtx_appearance.available:
@@ -1748,6 +1764,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
         appearance = self._rtx_appearance
+        if self._rtx_switch == "requested":  # the previous frame showed the message
+            self._rtx_switch = "loading"
+            try:
+                self.set_rtx_rendering(True)
+            except BaseException:
+                self._rtx_switch = None
+                raise
         if appearance is not None and self.rtx_rendering and appearance.available and appearance.poll():
             self.current_image_view.invalidate()  # a sky finished downloading, whether or not its panel is open
         viewer.begin_frame(self._sim_time)
@@ -1779,6 +1802,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._render_live_plots()
         finally:
             viewer.end_frame()
+            self._rtx_switch = None  # the first RTX frame arrived, or the switch failed
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
         self._last_render_step = self._sim.get_physics_step_count()
@@ -1916,6 +1940,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
         free = [i for i, view in enumerate(self._image_views) if view.camera is None]
+        if enabled and self.current_image_view is not None and self.current_image_view.camera is None:
+            self._rtx_perspective = self.current_image_view  # the RTX view continues from this Perspective
         # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
         # camera product a second time; otherwise it renders only on demand.
         self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
@@ -1925,7 +1951,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._rtx_appearance is not None and self._rtx_appearance.available:
                 self._rtx_appearance.apply_lights()
         else:
-            target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            followed = self._rtx_perspective
+            if followed in self._image_views and followed.camera is None:
+                target = self._image_views.index(followed)
+            else:
+                target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
 
