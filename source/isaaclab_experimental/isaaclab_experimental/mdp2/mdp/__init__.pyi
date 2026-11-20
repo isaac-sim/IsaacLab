@@ -4,6 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "Choice",
+    "Replay",
+    "Uniform",
+    "choice_variation",
+    "replay_variation",
+    "uniform_variation",
+    "variation",
     "binary_joint_position",
     "heading_velocity_command",
     "uniform_pose_command",
@@ -126,3 +133,4 @@ from .terminations import (
     joint_vel_out_of_limit,
     root_height_below_minimum,
 )
+from .variations import Choice, Replay, Uniform, choice_variation, replay_variation, uniform_variation, variation

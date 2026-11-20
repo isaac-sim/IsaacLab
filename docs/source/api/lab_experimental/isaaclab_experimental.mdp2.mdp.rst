@@ -44,3 +44,9 @@ Curriculums
 
 .. automodule:: isaaclab_experimental.mdp2.mdp.curriculums
     :members:
+
+Variations
+----------
+
+.. automodule:: isaaclab_experimental.mdp2.mdp.variations
+    :members:

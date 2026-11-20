@@ -63,3 +63,8 @@
 * Added :meth:`~isaaclab_experimental.envs.MDP2Env.update_task`, which replaces the task of a running environment on
   the same scene, such as with a reward added, and :func:`~isaaclab_experimental.mdp2.migrate`, which carries over the
   state, random streams, and reward weights of the uses that both tasks have.
+* Added variations to the MDP2 library, :func:`~isaaclab_experimental.mdp2.mdp.variation`: a reset event that draws a
+  value per world, such as how far a drawer is open, writes it to a scene field, and records it per episode, drawn
+  :class:`~isaaclab_experimental.mdp2.mdp.Uniform` (in a tunable range), from a
+  :class:`~isaaclab_experimental.mdp2.mdp.Choice`, or replayed in the order of the resets with
+  :class:`~isaaclab_experimental.mdp2.mdp.Replay`, independent of the number of worlds.

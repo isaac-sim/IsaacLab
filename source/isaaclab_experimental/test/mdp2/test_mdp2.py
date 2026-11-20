@@ -2399,3 +2399,61 @@ def test_start_events_write_the_scene_when_their_task_starts():
     builder.add_task(mdp2.compose(mdp2.TaskCfg(quantities=above("a")), mdp2.TaskCfg(events={"push": push})))
     with pytest.raises(ValueError, match="a start event runs when its task starts"):
         builder.validate()
+
+
+def test_variations_draw_record_and_replay_values():
+    """Variations draw a value per world at every reset, write it to the scene, and hold it in a recorded quantity:
+    uniformly within a tunable range, from a weighted choice, or replayed in the order of the resets."""
+    joints = robot.joints
+    task = mdp2.compose(
+        mdp2.mdp.variation("open", robot.joint_pos, joints("a"), mdp2.mdp.Uniform(0.25, 0.75)),
+        mdp2.mdp.variation(
+            "pick", robot.joint_pos, joints("b"), mdp2.mdp.Choice((0.1, 0.2, 0.3), weights=(1.0, 0.0, 1.0))
+        ),
+        mdp2.mdp.variation("replay", robot.joint_pos, joints("c"), mdp2.mdp.Replay((1.0, 2.0, 3.0))),
+    )
+
+    def run(backend: str, capture: bool) -> list[torch.Tensor]:
+        scene = PointMassScene(num_worlds=4, joint_names=("a", "b", "c"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp_ = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp_.state(scene), mdp_.transition()
+        mask = ProxyArray(wp.ones(4, dtype=wp.bool, device=DEVICE))
+        actions = ProxyArray(wp.zeros((4, 1), dtype=wp.float32, device=DEVICE))
+        captured = mdp2.CapturedMDP(mdp_, state, transition, actions, mask) if capture else None
+        mdp2.startup(mdp_, state)
+        history = []
+        for resets in ([0, 1, 2, 3], [1, 3], [0, 1, 2, 3]):
+            mask.torch.zero_()
+            mask.torch[resets] = True
+            mdp2.reset(mdp_, state, mask) if captured is None else captured.reset()
+            mdp2.evaluate(mdp_, state, transition) if captured is None else captured.evaluate()
+            values = [state.arrays[getattr(mdp2.quantities, name)].torch for name in ("open", "pick", "replay")]
+            history.append(torch.stack([scene.data("robot", "joint_pos").torch, torch.stack(values, 1)]).clone())
+            mdp2.tune(mdp_, state, "events.open.low", 1.0)
+            mdp2.tune(mdp_, state, "events.open.high", 1.0)
+        assert [op.name for op in mdp_.ops[mdp2.Phase.QUANTITIES] if op.record] == [
+            "quantities.open",
+            "quantities.pick",
+            "quantities.replay",
+            "quantities.replay_row",
+        ]
+        return history
+
+    runs = [run(backend, capture) for backend in ("torch", "warp") for capture in (False, True)]
+    for other in runs[1:]:
+        for expected, actual in zip(runs[0], other):
+            assert torch.equal(expected, actual)
+    first, second, third = runs[0]
+    joint_pos, recorded = first
+    assert torch.equal(joint_pos, recorded)  # The quantities hold the drawn values
+    assert ((joint_pos[:, 0] >= 0.25) & (joint_pos[:, 0] < 0.75)).all()
+    assert ((joint_pos[:, 1] - 0.1).abs() < 1e-6).logical_or((joint_pos[:, 1] - 0.3).abs() < 1e-6).all()
+    assert joint_pos[:, 2].tolist() == [1.0, 2.0, 3.0, 1.0]
+    # Worlds 1 and 3 reset again: they replay the next rows, and take the tuned range of the next reset.
+    assert second[0][:, 2].tolist() == [1.0, 2.0, 3.0, 3.0]
+    assert (
+        second[0][[1, 3], 0].tolist() == [1.0, 1.0] and second[0][[0, 2], 0].tolist() == joint_pos[[0, 2], 0].tolist()
+    )
+    assert third[0][:, 2].tolist() == [1.0, 2.0, 3.0, 1.0]
