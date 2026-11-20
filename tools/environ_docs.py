@@ -676,6 +676,8 @@ def _launchable_visualizers_for_run(
             for cfg in configs
             if (visualizer_type := getattr(cfg, "visualizer_type", None)) in optional_extras
         }
+        if any(getattr(cfg, "renderer_type", None) == "newton_optix" for cfg in configs):
+            extras.add("optix")
         if kit_sources:
             extras.add("isaacsim")
         if needs_ovphysx and needs_ovrtx:

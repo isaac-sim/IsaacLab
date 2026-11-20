@@ -311,6 +311,15 @@ def test_cartpole_browser_viewers_follow_validated_runs_and_install_extras():
     assert visualizer_runs["ovphysx||"]["rerun"] == ["ovphysx", "rerun"]
 
 
+def test_camera_browser_viewers_include_optix_install_extra():
+    row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
+    browser_row = json.loads(render_environment_browser_task_rows([row]).splitlines()[1].strip().removesuffix(","))
+    visualizer_runs = {run: choices for runs, choices in browser_row[12] for run in runs}
+
+    assert visualizer_runs["newton_mjwarp|newton_optix|rgb"]["none"] == ["optix"]
+    assert visualizer_runs["newton_mjwarp|newton_optix|rgb"]["kit"] == ["isaacsim", "optix"]
+
+
 def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
     """Checkpoint preset availability must be carried into generated browser rows."""
     row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
