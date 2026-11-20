@@ -23,7 +23,15 @@ def compile_launches(mdp: MDP) -> Launches:
     """Turn every step of the execution plan into a launch, after the bookkeeping that starts each function."""
     return Launches(
         startup=_launches(mdp, mdp.plan.startup),
-        apply_actions=(Launch(lambda call: _apply_actions(mdp, call)),),
+        # The actions are stored once per control step: with the actions that apply once, if any.
+        process_actions=(
+            (Launch(lambda call: _apply_actions(mdp, call, mdp.plan.process_actions, store=True)),)
+            if mdp.plan.process_actions
+            else ()
+        ),
+        apply_actions=(
+            Launch(lambda call: _apply_actions(mdp, call, mdp.plan.apply_actions, store=not mdp.plan.process_actions)),
+        ),
         evaluate=(Launch(lambda call: _begin_evaluate(mdp, call)), *_launches(mdp, mdp.plan.evaluate, stepping=True)),
         reset=(Launch(lambda call: _begin_reset(mdp, call)), *_launches(mdp, mdp.plan.reset)),
         observe=_launches(mdp, mdp.plan.observe),
@@ -35,21 +43,14 @@ def _launches(mdp: MDP, steps: tuple[Step, ...], stepping: bool = False) -> tupl
     return tuple(Launch(lambda call, step=step: _run(mdp, step, call, stepping), step.capturable) for step in steps)
 
 
-def _apply_actions(mdp: MDP, call: Call) -> None:
-    """Store the actions as the last actions, and write each action's scaled columns to its target field."""
+def _apply_actions(mdp: MDP, call: Call, steps: tuple[Step, ...], store: bool) -> None:
+    """Store the actions as the last actions if ``store``, and run the action steps: write each action's scaled
+    columns to its target field, or run an action term."""
     actions = call.actions.torch
-    call.state.actions.torch.copy_(actions)
-    # The last actions keep the columns that each world takes at this step, and zero the others.
-    for slot in (slot for slot in mdp.action_slots if slot.partial):
-        columns = torch.arange(slot.columns.start, slot.columns.stop, device=mdp.device)
-        covered = torch.zeros(mdp.num_worlds, len(columns), dtype=torch.bool, device=mdp.device)
-        for op in slot.ops:
-            active = _active(op, call.state)
-            width = columns < op.columns.stop
-            covered |= width if active is None else active.torch[:, None] & width
-        call.state.actions.torch[:, slot.columns].masked_fill_(~covered, 0.0)
+    if store:
+        _store_actions(mdp, call)
 
-    for step in mdp.plan.apply_actions:
+    for step in steps:
         op = step.op
         if isinstance(op, TermOp):
             # The hook writes its outputs; it may take the worlds where it is active as ``mask``.
@@ -69,6 +70,20 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
         if active is not None:
             value = torch.where(active.torch[:, None], value, target[:, ids])
         target[:, ids] = value
+
+
+def _store_actions(mdp: MDP, call: Call) -> None:
+    """Store the actions as the last actions, which keep the columns that each world takes at this step and zero the
+    others."""
+    call.state.actions.torch.copy_(call.actions.torch)
+    for slot in (slot for slot in mdp.action_slots if slot.partial):
+        columns = torch.arange(slot.columns.start, slot.columns.stop, device=mdp.device)
+        covered = torch.zeros(mdp.num_worlds, len(columns), dtype=torch.bool, device=mdp.device)
+        for op in slot.ops:
+            active = _active(op, call.state)
+            width = columns < op.columns.stop
+            covered |= width if active is None else active.torch[:, None] & width
+        call.state.actions.torch[:, slot.columns].masked_fill_(~covered, 0.0)
 
 
 def _begin_evaluate(mdp: MDP, call: Call) -> None:

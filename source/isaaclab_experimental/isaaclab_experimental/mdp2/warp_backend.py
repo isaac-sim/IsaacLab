@@ -86,7 +86,16 @@ def _select(mask: wp.array(dtype=wp.bool), active: wp.array(dtype=wp.bool), sele
 
 def compile_launches(mdp: MDP) -> Launches:
     """Generate the kernels of every runtime function, with the hooks that launch their own work between them."""
-    return Launches(_startup(mdp), _apply_actions(mdp), _evaluate(mdp), _reset(mdp), _observe(mdp))
+    # The actions are stored once per control step: with the actions that apply once, if any.
+    control = bool(mdp.plan.process_actions)
+    return Launches(
+        _startup(mdp),
+        _actions(mdp, "process_actions", mdp.plan.process_actions, store=control) if control else (),
+        _actions(mdp, "apply_actions", mdp.plan.apply_actions, store=not control),
+        _evaluate(mdp),
+        _reset(mdp),
+        _observe(mdp),
+    )
 
 
 def _startup(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
@@ -95,24 +104,13 @@ def _startup(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     return code.steps()
 
 
-def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
-    code = Fusion("apply_actions", mdp.num_worlds, mdp.device)
+def _actions(mdp: MDP, name: str, steps: tuple[Step, ...], store: bool) -> tuple[Callable[[Call], None], ...]:
+    """Generate the kernels of the action steps of a runtime function, which first stores the last actions if
+    ``store``."""
+    code = Fusion(name, mdp.num_worlds, mdp.device)
     actions = code.argument("actions", wp.array2d(dtype=wp.float32), lambda call: call.actions.warp)
-    last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
-    # The last actions keep the columns that each world takes at this step, and zero the others.
-    ignored = []
-    for slot in (slot for slot in mdp.action_slots if slot.partial):
-        covers = []
-        for op in slot.ops:
-            cover = f"element < {op.columns.stop}"
-            covers.append(cover if op.active_key is None else f"({_runs(code, op)} and {cover})")
-        start, stop = slot.columns.start, slot.columns.stop
-        ignored += [f"if element >= {start} and element < {stop} and not ({' or '.join(covers)}):", "    value = 0.0"]
-    if ignored:
-        copy = [f"value = {actions}[world, element]", *ignored, f"{last_actions}[world, element] = value"]
-    else:
-        copy = [f"{last_actions}[world, element] = {actions}[world, element]"]
-    code.elements((mdp.action_dim,), *copy, writes=[last_action])
+    if store:
+        _store_actions(code, mdp, actions)
 
     # Fields with more dimensions per world are flattened; joint fields are views of the solver state that may be
     # strided, so they are passed as they are.
@@ -120,7 +118,7 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         field = call.state.arrays[selector].warp
         return field if field.ndim == 2 else field.reshape((mdp.num_worlds, -1))
 
-    for step in mdp.plan.apply_actions:
+    for step in steps:
         op = step.op
         if isinstance(op, TermOp):
             _apply_action_term(code, op)
@@ -139,6 +137,25 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         )
 
     return code.steps()
+
+
+def _store_actions(code: Fusion, mdp: MDP, actions: str) -> None:
+    """Store the actions as the last actions."""
+    last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
+    # The last actions keep the columns that each world takes at this step, and zero the others.
+    ignored = []
+    for slot in (slot for slot in mdp.action_slots if slot.partial):
+        covers = []
+        for op in slot.ops:
+            cover = f"element < {op.columns.stop}"
+            covers.append(cover if op.active_key is None else f"({_runs(code, op)} and {cover})")
+        start, stop = slot.columns.start, slot.columns.stop
+        ignored += [f"if element >= {start} and element < {stop} and not ({' or '.join(covers)}):", "    value = 0.0"]
+    if ignored:
+        copy = [f"value = {actions}[world, element]", *ignored, f"{last_actions}[world, element] = value"]
+    else:
+        copy = [f"{last_actions}[world, element] = {actions}[world, element]"]
+    code.elements((mdp.action_dim,), *copy, writes=[last_action])
 
 
 def _apply_action_term(code: Fusion, op: TermOp) -> None:

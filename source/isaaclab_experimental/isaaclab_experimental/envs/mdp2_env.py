@@ -329,7 +329,9 @@ class MDP2Env:
 
     def _simulate(self) -> None:
         """Apply the actions and step the physics ``decimation`` times."""
-        # Actions apply before every physics step, as in MDP1, so targets relative to the joint state follow it.
+        # Actions apply before every physics step, as in MDP1, so targets relative to the joint state follow it,
+        # unless they apply once per control step.
+        mdp2.process_actions(self.mdp, self.state, self.actions)
         for _ in range(self.cfg.decimation // self._substeps):
             mdp2.apply_actions(self.mdp, self.state, self.actions)
             self.scene.write_data_to_sim()

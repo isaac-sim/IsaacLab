@@ -19,7 +19,16 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from .config import Entity, FieldSelector, Phase, SubsetSelector, TaskMode, UniformNoise, progress_field
+from .config import (
+    ActionRate,
+    Entity,
+    FieldSelector,
+    Phase,
+    SubsetSelector,
+    TaskMode,
+    UniformNoise,
+    progress_field,
+)
 from .terms import State
 
 if TYPE_CHECKING:
@@ -42,6 +51,7 @@ class ActionOp:
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
     slot: str = ""  # Name of its columns of the action, which the actions of the same name share
     stage: str | None = None  # The task of a sequence that the op belongs to: it writes only while that task runs
+    rate: ActionRate = ActionRate.PHYSICS
 
     @property
     def active_key(self) -> Hashable | None:
@@ -102,6 +112,7 @@ class TermOp:
     columns: slice | None = None  # Actions: the columns of the action that the term takes
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     slot: str = ""  # Actions: the name of its columns of the action, which the actions of the same name share
+    rate: ActionRate = ActionRate.PHYSICS  # Actions: how often it applies in a control step
     # The task of a sequence that the op belongs to: it runs only while that task runs, and its state, timer, and
     # command restart when the task starts. Quantities run in every step: they only restart.
     stage: str | None = None
@@ -283,7 +294,8 @@ class ExecutionPlan:
     """Ordered steps of each runtime function. ``reset`` and ``observe`` only act on the masked worlds."""
 
     startup: tuple[Step, ...]
-    apply_actions: tuple[Step, ...]
+    process_actions: tuple[Step, ...]  # Once per control step, before the physics steps
+    apply_actions: tuple[Step, ...]  # Before every physics step
     evaluate: tuple[Step, ...]
     reset: tuple[Step, ...]
     observe: tuple[Step, ...]
@@ -364,7 +376,8 @@ def build_plan(
 
     return ExecutionPlan(
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
-        apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
+        process_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS] if op.rate is ActionRate.CONTROL),
+        apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS] if op.rate is ActionRate.PHYSICS),
         evaluate=(
             # Quantities, progress, terminations, and rewards see the commands that governed the action.
             *computed(ops[Phase.QUANTITIES]),
@@ -440,6 +453,7 @@ class Launches:
     """Launches of each runtime function, in order, compiled from the execution plan by a backend."""
 
     startup: tuple[Callable[[Call], None], ...]
+    process_actions: tuple[Callable[[Call], None], ...]
     apply_actions: tuple[Callable[[Call], None], ...]
     evaluate: tuple[Callable[[Call], None], ...]
     reset: tuple[Callable[[Call], None], ...]

@@ -6,6 +6,7 @@
 __all__ = [
     "MDP",
     "Action",
+    "ActionRate",
     "CapturedMDP",
     "Backend",
     "Command",
@@ -59,6 +60,7 @@ __all__ = [
     "evaluate",
     "last_action",
     "observe",
+    "process_actions",
     "progress",
     "progress_field",
     "quantities",
@@ -81,6 +83,7 @@ from .capture import CapturedMDP
 from .compiled import MDP, Backend, MDPState, ObservationColumns, Transition, WorldConfig
 from .config import (
     Action,
+    ActionRate,
     Command,
     Constant,
     DirectAction,
@@ -120,6 +123,6 @@ from .config import (
 from .eager import TermContext
 from .plan import ExecutionPlan, ObservationSlot, Segment, Step, StepKind, TaskNode, TaskTree, TunedValue
 from .rng import uniform
-from .runtime import apply_actions, evaluate, observe, reset, startup, tune
+from .runtime import apply_actions, evaluate, observe, process_actions, reset, startup, tune
 from .scene import EntitySchema, FieldSchema, SceneData, SceneSchema
 from .terms import Implementation, State, Term

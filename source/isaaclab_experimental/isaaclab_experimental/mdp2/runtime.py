@@ -36,8 +36,17 @@ def startup(mdp: MDP, state: MDPState) -> None:
         launch(call)
 
 
+def process_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
+    """Store the actions, shape ``(num_worlds, action_dim)``, and apply those that apply once per control step, see
+    :class:`~.config.ActionRate`. Call it once per control step, before :func:`apply_actions`. Without such actions it
+    does nothing, and :func:`apply_actions` stores the actions."""
+    call = Call(state, actions=actions)
+    for launch in mdp.launches.process_actions:
+        launch(call)
+
+
 def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
-    """Store the actions, shape ``(num_worlds, action_dim)``, and write them to their target fields."""
+    """Write the actions that apply before every physics step to their target fields; call it before each."""
     call = Call(state, actions=actions)
     for launch in mdp.launches.apply_actions:
         launch(call)

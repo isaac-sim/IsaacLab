@@ -24,6 +24,7 @@ from . import torch_backend, warp_backend
 from .compiled import MDP, Backend, WorldConfig
 from .config import (
     Action,
+    ActionRate,
     Command,
     DirectAction,
     Entity,
@@ -660,7 +661,7 @@ class MDPBuilder:
         # Its columns of the action are given with those of every world config, by name.
         columns, slot = slice(0, len(elements)), entry.name or entry.path[-1]
         action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset, slot=slot)
-        action = replace(action, stage=entry.stage)
+        action = replace(action, stage=entry.stage, rate=cfg.rate)
         # Action terms may write other elements of the same field, such as other joints, after or before it, and
         # actions of tasks of a sequence that never run together the same ones.
         for op in context.ops[Phase.ACTIONS]:
@@ -832,6 +833,7 @@ class MDPBuilder:
                 record=isinstance(cfg, Quantity) and cfg.record,
                 columns=columns,
                 slot=(entry.name or entry.path[-1]) if isinstance(cfg, Action) else "",
+                rate=cfg.rate if isinstance(cfg, Action) else ActionRate.PHYSICS,
                 stage=entry.stage,
                 when=when,
                 when_dtype=when_dtype,

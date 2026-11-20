@@ -2200,3 +2200,56 @@ def test_tasks_of_a_sequence_take_their_own_actions():
     assert [step["last"][0].tolist() for step in history] == [[0.5, 0.0], [0.5, 0.0], [0.5, 0.25]]
     # The mask is of the next step: lift runs from step 3.
     assert [step["mask"][0].tolist() for step in history] == [[True, False], [True, True], [True, True]]
+
+
+@wp.func
+def count_applications_warp(
+    world: int, action: wp.array2d(dtype=float), target: wp.array2d(dtype=float), calls: wp.array(dtype=float)
+):
+    calls[world] = calls[world] + 1.0
+    target[world, 0] = action[world, 0] * calls[world]
+
+
+def count_applications_torch(action, target, calls):
+    calls.add_(1.0)
+    target[:, 0] = action[:, 0] * calls
+
+
+count_applications = mdp2.Term(
+    torch=count_applications_torch,
+    warp=count_applications_warp,
+    shape=("worlds", 1),
+    state={"calls": mdp2.State(persistent=True)},
+)
+"""Write the action's column times the number of times the action applied."""
+
+
+def test_actions_apply_once_per_control_step_or_before_every_physics_step():
+    """An action at the control rate applies once per control step, before the physics steps, and one at the physics
+    rate before each of them. The actions are stored once."""
+    task = mdp2.TaskCfg(
+        actions={
+            "plan": mdp2.Action(
+                count_applications, outputs={"target": robot.joint_effort_target}, rate=mdp2.ActionRate.CONTROL
+            ),
+            "track": mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("b"), scale=2.0),
+        }
+    )
+    for backend in ("torch", "warp"):
+        for capture in (False, True):
+            scene = PointMassScene(num_worlds=2, joint_names=("a", "b"), device=DEVICE)
+            builder = mdp2.MDPBuilder(scene.schema)
+            builder.add_task(task)
+            mdp = builder.finalize(device=DEVICE, backend=backend)
+            state, transition = mdp.state(scene), mdp.transition()
+            actions = ProxyArray(wp.from_torch(torch.tensor([[1.0, 0.5], [2.0, 0.25]], device=DEVICE)))
+            captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
+            for _ in range(3):
+                mdp2.process_actions(mdp, state, actions) if captured is None else captured.process_actions()
+                for _ in range(scene.decimation):
+                    mdp2.apply_actions(mdp, state, actions) if captured is None else captured.apply_actions()
+            calls = state.arrays[mdp2.term_state("actions.plan", "calls")].torch
+            assert calls.tolist() == [3.0, 3.0], (backend, capture)
+            target = scene.data("robot", "joint_effort_target").torch
+            assert target.tolist() == [[3.0, 1.0], [6.0, 0.5]] and torch.equal(state.actions.torch, actions.torch)
+            assert len(mdp.launches.process_actions) == 1 and len(mdp.plan.apply_actions) == 1

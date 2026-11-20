@@ -57,6 +57,7 @@ class CapturedMDP:
         self._pool = torch.cuda.MemPool() if self._on_cuda else None
 
         launches = mdp.launches
+        self._process_actions = self._capture(launches.process_actions, Call(state, actions=actions))
         self._apply_actions = self._capture(launches.apply_actions, Call(state, actions=actions))
         self._evaluate = self._capture(
             launches.evaluate, Call(state, transition=transition, observations=transition.observations)
@@ -64,8 +65,13 @@ class CapturedMDP:
         self._reset = self._capture(launches.reset, Call(state, mask=mask, commit=commit))
         self._observe = self._capture(launches.observe, Call(state, mask=mask, observations=transition.observations))
 
+    def process_actions(self) -> None:
+        """Store the bound actions and apply those that apply once per control step."""
+        for run in self._process_actions:
+            run()
+
     def apply_actions(self) -> None:
-        """Store the bound actions and write them to their target fields."""
+        """Write the bound actions that apply before every physics step to their target fields."""
         for run in self._apply_actions:
             run()
 

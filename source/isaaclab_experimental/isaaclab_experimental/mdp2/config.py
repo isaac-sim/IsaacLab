@@ -292,6 +292,13 @@ class TimeLimit:
     episode_length_s: float  # Episode duration [s]
 
 
+class ActionRate(enum.Enum):
+    """How often an action applies in a control step."""
+
+    PHYSICS = enum.auto()  # Before every physics step, as MDP1 applies actions
+    CONTROL = enum.auto()  # Once, before the physics steps, as MDP1 processes actions: such as an embedded policy
+
+
 @dataclass
 class DirectAction:
     """Configuration for an action that writes ``scale * action + offset`` to an entity field."""
@@ -302,6 +309,7 @@ class DirectAction:
     scale: float = 1.0
     offset: float | FieldSelector = 0.0  # A field gives an offset per element, like robot.default_joint_pos
     subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
+    rate: ActionRate = ActionRate.PHYSICS
 
 
 @dataclass
@@ -310,12 +318,15 @@ class Action(TermCfg):
 
     The term's shape is ``("worlds", n)``, with the number of columns ``n`` it takes, and its hooks get them as
     ``action``: a Python hook ``compute(action, **args)`` writes its outputs in place, and a func
-    ``compute(world, action, **args)`` writes its world. Actions apply before every physics step, as in MDP1.
+    ``compute(world, action, **args)`` writes its world. Actions apply before every physics step, as in MDP1, or
+    once per control step at ``ActionRate.CONTROL``, such as an embedded whole-body controller that writes joint
+    targets.
     """
 
     phase: ClassVar[Phase] = Phase.ACTIONS
 
     outputs: dict[str, FieldSelector] = field(default_factory=dict)  # Passed by argument name; the action writes them
+    rate: ActionRate = ActionRate.PHYSICS
 
 
 class TaskMode(enum.Enum):
