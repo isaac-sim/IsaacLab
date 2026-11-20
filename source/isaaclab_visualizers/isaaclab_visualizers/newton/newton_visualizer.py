@@ -466,11 +466,7 @@ class NewtonViewerGL(ViewerGL):
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
         if getattr(owner, "rtx_rendering", False):
-            hud_note(
-                imgui,
-                "In RTX mode, hidden environments are also hidden for other cameras that share the scene."
-                " Soft objects stay visible.",
-            )
+            hud_note(imgui, "RTX: hidden environments are also hidden from sensor cameras that share the scene.")
 
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
@@ -764,6 +760,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_arrows_pending = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
+    _borrowing_view = False
+    """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
     _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
@@ -1482,7 +1480,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
-            if view.render == self._capture_frame:
+            if view.camera is None and view.render is not None:  # the perspective views bound in initialize
                 view.render = None
                 view.invalidate()
         super().close()

@@ -59,3 +59,26 @@ def test_close_lifts_the_visible_environment_limit_of_the_shared_renderer():
     visualizer.close()
 
     assert seen == [None] and visualizer._is_closed
+
+
+def test_close_unbinds_the_perspective_views_it_rendered():
+    """Perspective views bound as per-view captures are released on close, and sensor views are left alone."""
+    from functools import partial
+
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    visualizer._viewer = Mock()
+    perspective = Mock(camera=None)
+    perspective.render = partial(visualizer._capture_view, perspective)
+    sensor = Mock(render=None)
+    visualizer._image_views = [perspective, sensor]
+
+    visualizer.close()
+
+    assert perspective.render is None
+    perspective.invalidate.assert_called_once()
+    sensor.invalidate.assert_not_called()
+
+
+def test_window_controls_do_not_need_a_capture_to_have_run():
+    """A fresh visualizer is not borrowing a view, so its window controls draw before the first capture."""
+    assert NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))._borrowing_view is False
