@@ -70,7 +70,7 @@ class BrightnessModel(WorldModel):
         BrightnessModel.chunks += 1
         ramp = torch.linspace(0, 1, CHUNK, dtype=torch.float64, device=self.device)[None, :, None, None, None]
         frames = (60 * BrightnessModel.chunks + 10 * ramp).to(torch.uint8)
-        return {"camera": frames.expand(self.num_envs, CHUNK, H, W, 3).contiguous()}
+        return {"camera": {"rgb": frames.expand(self.num_envs, CHUNK, H, W, 3).contiguous()}}
 
     def close(self):
         pass

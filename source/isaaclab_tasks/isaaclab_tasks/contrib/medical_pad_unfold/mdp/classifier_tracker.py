@@ -77,7 +77,7 @@ class ClassifierTracker:
         # reading the camera's mask on the device.
         if not env.sim.backend_manager.new_frames:
             return
-        scores, probabilities = self.classifier.score_frames(data.frame_history.torch)
+        scores, probabilities = self.classifier.score_frames(data.frame_history["rgb"].torch)
         scores = scores.to(env.device)
         labels = probabilities.argmax(-1).to(env.device)
         count, frames = scores.shape
