@@ -142,16 +142,41 @@ def test_partial_reset_keeps_the_last_steps_chunk_boundary_until_the_next_step(t
         assert manager.new_frames and manager.chunk_boundary.all()
 
 
-def test_environments_can_only_reset_between_chunks(tmp_path):
-    with world_model_sim(tmp_path) as sim:
+@pytest.mark.parametrize("device", test_devices())
+def test_environments_can_only_reset_between_chunks(tmp_path, device):
+    with world_model_sim(tmp_path, device=device) as sim:
         manager = bound_manager(sim)
         manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
-        step(manager, 0.0)
-        with pytest.raises(RuntimeError, match="chunk boundaries"):
-            manager.reset_envs(torch.tensor([True, False], device=sim.device))
-        for _ in range(T - 1):
+        for _ in range(T):
             step(manager, 0.0)
-        manager.reset_envs(torch.tensor([True, False], device=sim.device))
+        assert FakeModel.calls == ["reset", "step"]
+        empty = torch.zeros(N, dtype=torch.bool, device=device)
+        selected = torch.tensor([True, False], device=device)
+        for mask, invalid in ((empty, False), (selected, True)):
+            step(manager, 1.0)
+            frames = manager.frames().frames.clone()
+            state = manager.joint_state.clone()
+            on_cuda = device.startswith("cuda")
+            previous_mode = torch.cuda.get_sync_debug_mode() if on_cuda else None
+            try:
+                if on_cuda:
+                    torch.cuda.set_sync_debug_mode("error")
+                manager.reset_envs(mask)
+            finally:
+                if on_cuda:
+                    torch.cuda.set_sync_debug_mode(previous_mode)
+            if not invalid:
+                torch.testing.assert_close(manager.frames().frames, frames)
+                torch.testing.assert_close(manager.joint_state, state)
+            for _ in range(T - 2):
+                step(manager, 1.0)
+            if invalid:
+                with pytest.raises(RuntimeError, match=r"Environments \[0\] reset inside a chunk"):
+                    step(manager, 1.0)
+                assert FakeModel.calls == ["reset", "step", "step"]
+            else:
+                step(manager, 1.0)
+                assert FakeModel.calls == ["reset", "step", "step"]
 
 
 def test_a_group_shares_a_record_and_other_splits_visit_records_in_order(tmp_path):

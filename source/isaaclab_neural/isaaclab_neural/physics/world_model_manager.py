@@ -72,6 +72,7 @@ class WorldModelManager(PhysicsManager):
         self._env_record: torch.Tensor
         self._env_draw: torch.Tensor
         self._restart: torch.Tensor
+        self._mid_chunk: torch.Tensor
         self._generator: torch.Generator
         self._cursor: torch.Tensor
         self._reset_called = False
@@ -127,6 +128,7 @@ class WorldModelManager(PhysicsManager):
         self._env_record = torch.zeros(num_envs, dtype=torch.int64, device=self._device)
         self._env_draw = torch.zeros_like(self._env_record)
         self._restart = torch.zeros(num_envs, dtype=torch.bool, device=self._device)
+        self._mid_chunk = torch.zeros_like(self._restart)
         self._generator = torch.Generator(self._device).manual_seed(self._cfg.seed)
         self._cursor = torch.zeros((), dtype=torch.int64, device=self._device)
         self._reset_called = False
@@ -161,17 +163,15 @@ class WorldModelManager(PhysicsManager):
         Publish the record's state and start image immediately. The model restarts from the selected records just
         before generating the next chunk, after its joint targets have been collected.
 
+        An actual reset inside a chunk is recorded on the device and reported when the chunk ends, before the model
+        is called. An all-false mask does not count as an invalid reset.
+
         Args:
             env_mask: Environments to reset, shape ``(N,)``, ``bool``, on the simulation device.
-
-        Raises:
-            RuntimeError: If called in the middle of a chunk.
         """
         if self._steps_in_chunk:
-            raise RuntimeError(
-                f"Environments can only reset on chunk boundaries, but {self._steps_in_chunk} of "
-                f"{self.spec.chunk_length} steps of the chunk have been taken."
-            )
+            # Reported when the chunk ends, where the device is read anyway.
+            self._mid_chunk |= env_mask
         records = self._sample(env_mask)
         self._draws += 1
         torch.where(env_mask, records, self._env_record, out=self._env_record)
@@ -216,11 +216,26 @@ class WorldModelManager(PhysicsManager):
             self.model.close()
 
     def _restart_model(self) -> None:
-        """Restart only the environments reset since the previous model call, using their latest records."""
-        # Read metadata only when generating a chunk; prompts are host strings.
+        """Restart the model's environments that reset since the last chunk.
+
+        The records' prompts are host strings, so this reads the resets on the host, once per chunk with resets.
+
+        Raises:
+            RuntimeError: If an environment reset in the middle of the chunk.
+        """
         self._reset_called = False
-        restart, records, draws = torch.stack((self._restart, self._env_record, self._env_draw)).tolist()
+        restart, mid_chunk, records, draws = torch.stack(
+            (self._restart, self._mid_chunk, self._env_record, self._env_draw)
+        ).tolist()
         self._restart.zero_()
+        if any(mid_chunk):
+            self._mid_chunk.zero_()
+            raise RuntimeError(
+                f"Environments {[env for env, late in enumerate(mid_chunk) if late]} reset inside a chunk, but"
+                " environments can only reset on chunk boundaries. Make episode_length_s a multiple of the chunk"
+                f" duration ({self.spec.chunk_length / self.spec.fps} s), use a decimation that divides"
+                f" {self.spec.chunk_length}, and wrap terminations with at_chunk_boundary."
+            )
         env_ids = [env for env, flag in enumerate(restart) if flag]
         if not env_ids:
             return

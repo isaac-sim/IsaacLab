@@ -60,7 +60,9 @@ that completes the chunk. For a policy that produces a sequence of actions at th
 and submit one queued action per environment step; the policy network can run once per action sequence.
 
 Isaac Lab resets an environment in any step in which a termination fires, but the model can only restart between
-chunks, so a reset in the middle of a chunk raises.
+chunks. A reset in the middle of a chunk is recorded on the device and raises when the chunk ends, before model
+reset or generation. An all-false reset mask does not trigger this error. Deferring the check avoids reading the
+device during reset; it does not make mid-chunk episode resets supported.
 
 * `reset_from_records` uses `check_chunk_timing` when the environment is created to check that decimation divides
   the chunk length and that `max_episode_length * decimation` is a multiple of `chunk_length`, so the time-out falls
