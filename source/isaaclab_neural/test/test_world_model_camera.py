@@ -15,7 +15,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from isaaclab.utils import configclass
 
-from isaaclab_neural.renderers import WorldModelRenderer, WorldModelRendererCfg
+from isaaclab_neural.renderers import NeuralRenderer, NeuralRendererCfg
 
 from .conftest import DT, H, J, N, T, W, world_model_sim
 
@@ -30,7 +30,7 @@ class SceneCfg(InteractiveSceneCfg):
         data_types=["rgb"],
         frame_history_length=T,
         spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
-        renderer_cfg=WorldModelRendererCfg(),
+        renderer_cfg=NeuralRendererCfg(),
     )
 
 
@@ -73,8 +73,8 @@ def test_a_chunk_fills_the_history_and_rgb_is_its_last_frame(world):
 
 def test_a_camera_is_bound_to_the_world_model_backend_and_must_match_the_model(tmp_path):
     # Another physics backend has no world-model frames to publish.
-    renderer = WorldModelRenderer(WorldModelRendererCfg(), sim=SimpleNamespace(backend_manager=object(), device="cpu"))
-    with pytest.raises(ValueError, match="world-model physics backend"):
+    renderer = NeuralRenderer(NeuralRendererCfg(), sim=SimpleNamespace(backend_manager=object(), device="cpu"))
+    with pytest.raises(ValueError, match="neural physics backend"):
         renderer.create_render_data(SimpleNamespace(cfg=SceneCfg().camera, num_instances=N))
     # The camera is checked against the model when it binds, before any step, and must name an existing view.
     with world_model_sim(tmp_path) as sim:
@@ -92,8 +92,8 @@ def test_each_camera_shows_the_view_it_selects(tmp_path):
 
     @configclass
     class TwoViewSceneCfg(InteractiveSceneCfg):
-        left = camera.replace(prim_path="{ENV_REGEX_NS}/Left", renderer_cfg=WorldModelRendererCfg(view="left"))
-        right = camera.replace(prim_path="{ENV_REGEX_NS}/Right", renderer_cfg=WorldModelRendererCfg(view="right"))
+        left = camera.replace(prim_path="{ENV_REGEX_NS}/Left", renderer_cfg=NeuralRendererCfg(view="left"))
+        right = camera.replace(prim_path="{ENV_REGEX_NS}/Right", renderer_cfg=NeuralRendererCfg(view="right"))
 
     with world_model_sim(tmp_path, envs_per_reset_record=1, split="validation", views=("left", "right")) as sim:
         scene = InteractiveScene(TwoViewSceneCfg(num_envs=N, env_spacing=1.0))

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration of the world-model physics backend."""
+"""Configuration of the neural physics backend."""
 
 from __future__ import annotations
 
@@ -16,15 +16,17 @@ from ..world_model import ModelCfg
 
 
 @configclass
-class WorldModelCfg(PhysicsCfg):
-    """World model that replaces the physics engine, selected through a task's ``physics=`` preset.
+class NeuralCfg(PhysicsCfg):
+    """Neural physics backend, where a world model replaces the physics engine, selected through a task's
+    ``physics=`` preset.
 
-    The task declares an articulation and cameras as usual, and the world model supplies their state.
+    The task declares an articulation and cameras as usual, and the world model supplies their state. The model is
+    chosen with :attr:`model_cfg`, as a Newton solver is with ``NewtonCfg.solver_cfg``.
     """
 
-    class_type: type | str = "{DIR}.world_model_manager:WorldModelManager"
+    class_type: type | str = "{DIR}.neural_manager:NeuralManager"
 
-    model: ModelCfg = MISSING
+    model_cfg: ModelCfg = MISSING
     """The world model, built by the manager."""
 
     reset_manifest: str = MISSING

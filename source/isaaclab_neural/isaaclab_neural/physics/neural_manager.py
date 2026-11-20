@@ -24,14 +24,14 @@ from .frame_buffer import FrameBuffer
 
 if TYPE_CHECKING:
     from ..world_model import ResetRecord, WorldModel, WorldModelSpec
-    from .world_model_manager_cfg import WorldModelCfg
+    from .neural_manager_cfg import NeuralCfg
 
 # There is no physics engine to move prims, so frame prims such as cameras are read from the USD stage. Registering
 # the class here lets ``FrameView`` resolve it for this backend without a backend-specific views package.
 FrameView.register("neural", UsdFrameView)
 
 
-class WorldModelManager(PhysicsManager):
+class NeuralManager(PhysicsManager):
     """Own a world model and each environment's joint state.
 
     The joint state is the reset record's state at reset and the last commanded joint target after that; the model
@@ -46,9 +46,9 @@ class WorldModelManager(PhysicsManager):
     """
 
     backend_name = "neural"
-    _cfg: WorldModelCfg
+    _cfg: NeuralCfg
 
-    def __init__(self, cfg: WorldModelCfg):
+    def __init__(self, cfg: NeuralCfg):
         super().__init__(cfg)
         self.model: WorldModel | None = None
         self.spec: WorldModelSpec | None = None
@@ -107,7 +107,7 @@ class WorldModelManager(PhysicsManager):
         # A new initialization, after a full simulation reset, replaces the model of the previous one.
         if self.model is not None:
             self.model.close()
-        self.model = instantiate(self._cfg.model, num_envs, self._device)
+        self.model = instantiate(self._cfg.model_cfg, num_envs, self._device)
         self.spec = self.model.spec()
         if not math.isclose(self._sim.cfg.dt, 1.0 / self.spec.fps):
             raise ValueError(f"sim.dt must equal 1 / fps = {1.0 / self.spec.fps} s, got {self._sim.cfg.dt}")
@@ -155,7 +155,7 @@ class WorldModelManager(PhysicsManager):
         if view not in self._frames:
             raise ValueError(
                 f"The world model predicts the views {views}; a world-model camera selects one of them with"
-                f" WorldModelRendererCfg.view, got {view!r}."
+                f" NeuralRendererCfg.view, got {view!r}."
             )
         return self._frames[view]
 

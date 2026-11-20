@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_neural.physics import FrameBuffer, WorldModelCfg, WorldModelManager
+from isaaclab_neural.physics import FrameBuffer, NeuralCfg, NeuralManager
 
 from .conftest import FakeModel, FakeModelCfg, J, N, T, world_model_sim, write_manifest
 
@@ -89,9 +89,7 @@ def test_a_new_initialization_replaces_the_model_and_one_articulation_binds(tmp_
 
 def test_the_reset_records_must_match_the_split_and_the_joints(tmp_path):
     with pytest.raises(ValueError, match="no records in split 'validation'"):
-        WorldModelManager(
-            WorldModelCfg(model=FakeModelCfg(), reset_manifest=write_manifest(tmp_path), split="validation")
-        )
+        NeuralManager(NeuralCfg(model_cfg=FakeModelCfg(), reset_manifest=write_manifest(tmp_path), split="validation"))
     with world_model_sim(tmp_path, states=[np.zeros(J + 1)]) as sim:
         with pytest.raises(ValueError, match="joint positions"):
             bound_manager(sim)

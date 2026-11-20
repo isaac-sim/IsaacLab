@@ -17,11 +17,11 @@ from isaaclab.utils import configclass
 
 
 @configclass
-class WorldModelRendererCfg(RendererCfg):
+class NeuralRendererCfg(RendererCfg):
     """Select the world-model renderer through a camera's ``renderer_cfg`` (the task's ``renderer=`` preset)."""
 
-    class_type: type | str = "{DIR}.world_model_renderer:WorldModelRenderer"
-    renderer_type: str = "world_model"
+    class_type: type | str = "{DIR}.neural_renderer:NeuralRenderer"
+    renderer_type: str = "neural"
 
     view: str | None = None
     """The model's view this camera shows, one of :attr:`~isaaclab_neural.world_model.WorldModelSpec.views`. ``None``

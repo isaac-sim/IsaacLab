@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "WorldModelRenderer",
-    "WorldModelRendererCfg",
+    "NeuralRenderer",
+    "NeuralRendererCfg",
 ]
 
-from .world_model_renderer import WorldModelRenderer
-from .world_model_renderer_cfg import WorldModelRendererCfg
+from .neural_renderer import NeuralRenderer
+from .neural_renderer_cfg import NeuralRendererCfg
