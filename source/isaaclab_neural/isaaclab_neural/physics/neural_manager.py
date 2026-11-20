@@ -19,8 +19,8 @@ from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.views import FrameView, UsdFrameView
 from isaaclab.utils.configclass import instantiate
 
+from ..frame_buffer import FrameBuffer
 from ..world_model import load_reset_records
-from .frame_buffer import FrameBuffer
 
 if TYPE_CHECKING:
     from ..world_model import ResetRecord, WorldModel, WorldModelSpec
