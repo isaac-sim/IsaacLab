@@ -878,9 +878,9 @@ jobs:
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
-          test_tmp_valiant_teal_probe.py,
-          test_tmp_valiant_teal_diagnostics.py,
-          test_tmp_valiant_teal_isolated.py
+          test_tmp_valiant_teal_order.py,
+          test_tmp_valiant_teal_order_1_10.py,
+          test_tmp_valiant_teal_order_11_20.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
