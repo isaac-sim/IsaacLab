@@ -58,7 +58,7 @@ Isaac Sim PhysX
 
 Isaac Sim PhysX runs through Isaac Sim and Omniverse Kit. It uses the Temporal
 Gauss-Seidel (TGS) solver by default, with Projective Gauss-Seidel (PGS) also
-available. Configure scene settings through :class:`~isaaclab_physx.physics.PhysxCfg`
+available. Configure scene settings through :class:`~isaaclab_isaacsim.physics.PhysxCfg`
 and asset properties through :doc:`schema_cfgs`. Large or contact-rich scenes may
 need additional GPU buffer capacity.
 
@@ -112,7 +112,7 @@ The help output is the source of truth for that task's ``physics=`` choices.
 For native solver data and views, see the :ref:`PhysX <physx-native-access>`,
 :ref:`Newton <newton-native-access>`, and :ref:`OvPhysX <ovphysx-native-access>`
 access guides. For field-level configuration,
-follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
+follow the generated API links for :class:`~isaaclab_isaacsim.physics.PhysxCfg`,
 :class:`~isaaclab_newton.physics.NewtonCfg`, its solver configurations, and
 :class:`~isaaclab_ov.physics.OvPhysxCfg`.
 

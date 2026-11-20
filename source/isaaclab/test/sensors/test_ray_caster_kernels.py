@@ -53,7 +53,7 @@ def test_ray_caster_binding_ownership(source_checkout_root):
         source / "isaaclab/isaaclab/sensors/ray_caster/base_multi_mesh_ray_caster.py",
         source / "isaaclab_ov/isaaclab_ov/sensors/ray_caster/ray_caster.py",
         source / "isaaclab_newton/isaaclab_newton/sensors/ray_caster/newton_raycast_sensor.py",
-        source / "isaaclab_physx/isaaclab_physx/sensors/ray_caster/ray_caster.py",
+        source / "isaaclab_isaacsim/isaaclab_isaacsim/sensors/ray_caster/ray_caster.py",
     )
     for path in consumers:
         for node in ast.walk(ast.parse(path.read_text())):

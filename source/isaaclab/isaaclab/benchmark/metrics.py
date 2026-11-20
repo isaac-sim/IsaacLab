@@ -45,8 +45,8 @@ RL_LIBRARY_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
     "rsl_rl": RLLibraryDescriptor(
         framework="rsl_rl",
         tfevents_pattern="events*",
-        reward_tag="Train/mean_reward",
-        ep_length_tag="Train/mean_episode_length",
+        reward_tag="Training/mean_reward",
+        ep_length_tag="Training/mean_episode_length",
     ),
     "rl_games": RLLibraryDescriptor(
         framework="rl_games",

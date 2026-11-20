@@ -1066,7 +1066,7 @@ def _run_one_pass(
     # Slug the full test path (not just the basename) into the report filename so
     # two concurrent shards running same-basename files (e.g.
     # ``isaaclab_newton/.../test_articulation.py`` vs
-    # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
+    # ``isaaclab_isaacsim/.../test_articulation.py``) don't write to the same path
     # inside the shared ``/workspace/isaaclab`` mount and trigger false
     # shutdown_hang detections in sibling shards via the report-file existence check.
     # A Windows drive colon would name an alternate data stream instead of a file.

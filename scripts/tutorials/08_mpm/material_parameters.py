@@ -353,10 +353,10 @@ def create_sim_cfg():
 
 def create_scene_cfg():
     """Create the side-by-side tuning specimens and their impact plinths."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
