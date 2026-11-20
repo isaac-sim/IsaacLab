@@ -12,14 +12,16 @@ whose noise is fixed, and the teacher's gaze labels supervise them during traini
 
 from isaaclab_fovi import mdp
 
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import ObservationGroupCfg, SceneEntityCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.cartpole import mdp as cartpole_mdp
 from isaaclab_tasks.core.cartpole.cartpole_common import CartpoleTiledCameraCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleCameraSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import (
+    CartpoleCameraEnvCfg,
+    CartpoleCameraSceneCfg,
+    image_observations_cfg,
+)
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ActionsCfg as CartpoleActionsCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ObservationsCfg as CartpoleObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from .active_gaze_cfg import GazeObservationsCfg, foveated_presets, oracle_observations, select_presets
@@ -31,29 +33,14 @@ RETINA_RES = 32
 """Retina samples across; the stock camera is 96 pixels across."""
 
 
-def observations(data_type: str, image_term) -> object:
+def observations(data_type: str) -> object:
     """The stock camera observations of ``data_type``, the gaze, and the teacher's labels."""
+    camera = image_observations_cfg(data_type)
 
     @configclass
     class ObservationsCfg:
-        @configclass
-        class PolicyCfg(ObservationGroupCfg):
-            image = ObservationTermCfg(
-                func=image_term,
-                params={
-                    "sensor_cfg": SceneEntityCfg("tiled_camera"),
-                    "data_type": data_type,
-                    "channel_first": True,
-                    "frame_stack": 2,
-                },
-            )
-
-            def __post_init__(self):
-                self.enable_corruption = False
-                self.concatenate_terms = True
-
-        policy: ObservationGroupCfg = PolicyCfg()
-        critic: ObservationGroupCfg = CartpoleObservationsCfg.PolicyCfg()
+        policy: ObservationGroupCfg = camera.policy
+        critic: ObservationGroupCfg = camera.critic
         gaze: ObservationGroupCfg = GazeObservationsCfg()
         oracle: ObservationGroupCfg = oracle_observations(SceneEntityCfg("robot", body_names="pole"), POLE_TIP)
 
@@ -80,6 +67,6 @@ class CartpoleCameraFoviEnvCfg(PresetCfg):
         scene: SceneCfg = SceneCfg(num_envs=512, env_spacing=20.0)
         actions: ActionsCfg = ActionsCfg()
 
-    rgb = BaseCfg(observations=observations("rgb", cartpole_mdp.image_rgb))
-    depth = BaseCfg(observations=observations("depth", cartpole_mdp.image_depth))
+    rgb = BaseCfg(observations=observations("rgb"))
+    depth = BaseCfg(observations=observations("depth"))
     default = rgb
