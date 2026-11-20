@@ -10,9 +10,8 @@ is :data:`RETINA_RES` samples across, enough for a task that only needs to see a
 whose noise is fixed, and the teacher's gaze labels supervise them during training.
 """
 
-from dataclasses import MISSING
-
 from isaaclab_fovi import mdp
+from isaaclab_fovi.sensors import FoveatedCameraCfg
 
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass
@@ -26,7 +25,7 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import (
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import ActionsCfg as CartpoleActionsCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from .active_gaze_cfg import GazeObservationsCfg, OracleObservationsCfg, foveated_camera
+from .active_gaze_cfg import GazeObservationsCfg, OracleObservationsCfg
 
 POLE_TIP = (0.0, 0.0, 1.0)
 """The pole's tip in the pole's frame [m]."""
@@ -34,13 +33,23 @@ POLE_TIP = (0.0, 0.0, 1.0)
 RETINA_RES = 32
 """Retina samples across; the stock camera is 96 pixels across."""
 
-_STOCK_CAMERAS = CartpoleTiledCameraCfg()
+_STOCK_CAMERA = CartpoleTiledCameraCfg().rgb
+_RGB_OBSERVATIONS = image_observations_cfg("rgb")
+_RGB_CAMERA = FoveatedCameraCfg(
+    prim_path=_STOCK_CAMERA.prim_path,
+    offset=_STOCK_CAMERA.offset,
+    spawn=_STOCK_CAMERA.spawn,
+    renderer_cfg=_STOCK_CAMERA.renderer_cfg,
+    data_types=["rgb"],
+    foveated_res=RETINA_RES,
+    mask_to_sensor_fov=True,
+)
 
 
 @configclass
 class ObservationsCfg:
-    policy: ObservationGroupCfg = MISSING
-    critic: ObservationGroupCfg = MISSING
+    policy: ObservationGroupCfg = _RGB_OBSERVATIONS.policy
+    critic: ObservationGroupCfg = _RGB_OBSERVATIONS.critic
     gaze: ObservationGroupCfg = GazeObservationsCfg()
     oracle: ObservationGroupCfg = OracleObservationsCfg(
         labels=ObservationTermCfg(
@@ -50,17 +59,12 @@ class ObservationsCfg:
     )
 
 
-def _observations(data_type: str) -> ObservationsCfg:
-    camera = image_observations_cfg(data_type)
-    return ObservationsCfg(policy=camera.policy, critic=camera.critic)
-
-
 @configclass
 class SceneCfg(CartpoleCameraSceneCfg):
     tiled_camera = preset(
-        default=foveated_camera(_STOCK_CAMERAS.default, RETINA_RES),
-        depth=foveated_camera(_STOCK_CAMERAS.depth, RETINA_RES),
-        rgb=foveated_camera(_STOCK_CAMERAS.rgb, RETINA_RES),
+        default=_RGB_CAMERA,
+        depth=_RGB_CAMERA.replace(data_types=["depth"]),
+        rgb=_RGB_CAMERA,
     )
 
 
@@ -79,6 +83,6 @@ class CartpoleCameraFoviEnvCfg(PresetCfg):
         scene: SceneCfg = SceneCfg(num_envs=512, env_spacing=20.0)
         actions: ActionsCfg = ActionsCfg()
 
-    rgb = BaseCfg(observations=_observations("rgb"))
-    depth = BaseCfg(observations=_observations("depth"))
+    rgb = BaseCfg(observations=ObservationsCfg())
+    depth = BaseCfg(observations=ObservationsCfg(policy=image_observations_cfg("depth").policy))
     default = rgb
