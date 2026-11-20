@@ -84,6 +84,36 @@ class FillFromFile:
         return saved["states"]
 
 
+class Candidates:
+    """A candidates task bound to a scene, rolled to propose start states.
+
+    Each :meth:`roll` resets every world through the task's reset events, commits them to the scene, and evaluates
+    its terminations, which reject states. The scene then holds the proposals.
+    """
+
+    def __init__(self, task: TaskCfg, scene_data: Any, device: str, seed: int = 0) -> None:
+        builder = MDPBuilder(scene_data.schema)
+        builder.add_task(task)
+        self.mdp = builder.finalize(device=device, backend="warp")
+        self.state, self.transition = self.mdp.state(scene_data, seed=seed), self.mdp.transition()
+        startup(self.mdp, self.state)
+        self._mask = ProxyArray(wp.ones(self.mdp.num_worlds, dtype=wp.bool, device=device))
+        self._commit = functools.partial(scene_data.commit, self._mask.warp, self.mdp.reset_writes)
+
+    def roll(self) -> torch.Tensor:
+        """Propose a state in every world and return which ones no termination rejects, ``(num_worlds,)``."""
+        reset(self.mdp, self.state, self._mask, self._commit)
+        self._commit()
+        evaluate(self.mdp, self.state, self.transition)
+        return ~self.transition.terminated.torch
+
+    def field(self, selector: Any) -> torch.Tensor:
+        """Return the proposed values of a field of the MDP, such as a command that the candidates sample."""
+        if selector not in self.state.arrays:
+            raise ValueError(f"The candidates task must define '{selector}', which the event restores.")
+        return self.state.arrays[selector].torch
+
+
 @dataclass(frozen=True)
 class FillFromCandidates:
     """Fill the bank by rejection sampling the reset events of a ``candidates`` task.
@@ -100,26 +130,16 @@ class FillFromCandidates:
 
     def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
         num_worlds, device = ctx.num_worlds, ctx.rng.device
-        builder = MDPBuilder(ctx.scene_data.schema)
-        builder.add_task(self.candidates)
-        mdp = builder.finalize(device=str(device), backend="warp")
-        state, transition = mdp.state(ctx.scene_data, seed=int(ctx.rng[0])), mdp.transition()
-        startup(mdp, state)
-
-        descriptor = transition.observations.get("descriptor")
+        candidates = Candidates(self.candidates, ctx.scene_data, str(device), seed=int(ctx.rng[0]))
+        descriptor = candidates.transition.observations.get("descriptor")
         size = self.bank_size if descriptor is None else round(self.bank_size * self.oversample_factor)
         if self.bank_size < 1 or size < self.bank_size:
             raise ValueError("The bank must harvest at least as many states as it keeps, and keep at least one.")
         # Scene outputs are read from the scene the candidates write; commands from the candidates' own state.
-        fields = {}
-        for name, value in ctx.outputs.items():
-            selector = ctx.selectors[name]
-            if selector.scene:
-                fields[name] = value
-            elif selector in state.arrays:
-                fields[name] = state.arrays[selector].torch
-            else:
-                raise ValueError(f"The candidates task must define '{selector}', which the event restores.")
+        fields = {
+            name: value if ctx.selectors[name].scene else candidates.field(ctx.selectors[name])
+            for name, value in ctx.outputs.items()
+        }
         if descriptor is not None:
             fields["descriptor"] = descriptor.torch
         # Root poses are kept relative to the environment origins when the use binds them.
@@ -130,13 +150,8 @@ class FillFromCandidates:
         harvest = {name: value.new_zeros(*rows, *value.shape[1:]) for name, value in fields.items()}
         filled = torch.zeros(num_worlds if not shared else 1, dtype=torch.long, device=device)
         worlds = torch.arange(num_worlds, device=device)
-        mask = ProxyArray(wp.ones(num_worlds, dtype=wp.bool, device=str(device)))
-        commit = functools.partial(ctx.scene_data.commit, mask.warp, mdp.reset_writes)
         for _ in range(self.max_rolls):
-            reset(mdp, state, mask, commit)
-            commit()
-            evaluate(mdp, state, transition)
-            accepted = ~transition.terminated.torch
+            accepted = candidates.roll()
             values = {name: _minus_origin(value, origins) if name in poses else value for name, value in fields.items()}
             if shared:
                 take = worlds[accepted][: size - int(filled)]
