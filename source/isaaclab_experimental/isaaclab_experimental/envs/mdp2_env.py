@@ -12,8 +12,8 @@ import dataclasses
 import functools
 import itertools
 import math
-from collections.abc import Callable
-from typing import Any, ClassVar
+from collections.abc import Callable, Sequence
+from typing import Any, ClassVar, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -195,6 +195,18 @@ class MDP2Env:
         """Apply the actions, step the physics, reset the worlds whose episodes ended, and observe."""
         self._step_or_replay(action)
         return self.observations, self.extras
+
+    def tune(
+        self,
+        path: str,
+        value: Any,
+        worlds: slice | Sequence[int] | torch.Tensor | None = None,
+        at: Literal["reset", "step"] = "reset",
+    ) -> None:
+        """Change a value of the task declared :class:`~isaaclab_experimental.mdp2.Tunable`, such as
+        ``"rewards.track.weight"``, in some or all worlds, at their next reset or from the next step. Captured steps
+        keep replaying. See :func:`~isaaclab_experimental.mdp2.tune`."""
+        mdp2.tune(self.mdp, self.state, path, value, worlds, at)
 
     def close(self) -> None:
         if not self._is_closed:
@@ -567,8 +579,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         The columns are ``world``, ``episode`` (its index among the world's episodes), ``length`` (control steps),
         ``terminated`` and ``truncated``, the value at the end of each recorded quantity, whether each termination
         ended it, as ``termination/<name>``, and, for each task with a completion, the episode step at which it was
-        done (-1 if it was not) as ``progress/<path>`` and the task's score as ``progress/score``. Rows of episodes that
-        ended in the same step are ordered by world. Waits for the device.
+        done (-1 if it was not) as ``progress/<path>`` and the task's score as ``progress/score``, and, for a task with
+        tunable values, the tunings its world had applied as ``revision``. Rows of episodes that ended in the same
+        step are ordered by world. Waits for the device.
         """
         rows = self._records[: self.episodes_completed]
         return {name: rows[:, k] for k, name in enumerate(self._record_columns)}
@@ -595,6 +608,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         if completes:
             self._recorded.append(self.state.arrays[mdp2.progress_field("", "score")].torch)
             self._record_columns.append("progress/score")
+        if self.state.revision is not None:
+            self._recorded.append(self.state.revision.torch)
+            self._record_columns.append("revision")
         self._records = torch.zeros(budget + 1, len(self._record_columns), device=device)
         self._worlds = torch.arange(self.num_envs, device=device)
 

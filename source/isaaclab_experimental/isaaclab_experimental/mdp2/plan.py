@@ -16,6 +16,7 @@ import enum
 import itertools
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from .config import Entity, FieldSelector, Phase, SubsetSelector, TaskMode, UniformNoise, last_action, progress_field
@@ -79,6 +80,9 @@ class TermOp:
     dtype: type  # Output element type
     writes: tuple[FieldSelector, ...] = ()  # A command's value, or the outputs of an event
     weights: tuple[float, ...] = ()  # Rewards: initial weight per world config, 0 where the op is inactive
+    # Default value of each tunable param, by name; the param is an input bound to the field mdp2.tunable(use, name)
+    tunables: Mapping[str, Any] = MappingProxyType({})
+    tunable_weight: bool = False  # Rewards: whether the weight is tunable
     time_out: bool = False  # Terminations: whether a true output truncates
     observation: ObservationOutput | None = None  # Observations only
     timer: tuple[float, float] | None = None  # Seconds between command resamples or interval events
@@ -133,6 +137,17 @@ class StepKind(enum.Enum):
     START_TASKS = enum.auto()  # Start the tasks that a sequence advanced to, top down, and stop those it left
     RESET_PROGRESS = enum.auto()  # Restart the progress of every task for a new episode
     CLEAR = enum.auto()  # Zero the columns of an observation slot that no op writes at this step
+    APPLY_TUNED = enum.auto()  # Apply the values tuned for the next reset, in the worlds that have them
+
+
+@dataclass(frozen=True)
+class TunedValue:
+    """A value of the MDP that :func:`~.tune` changes, declared with :class:`~.config.Tunable`."""
+
+    path: str  # Name of the use and of the value, such as "rewards.track.std" or "rewards.track.weight"
+    key: Hashable  # Key of its array in MDPState.arrays: mdp2.tunable(use, name), or "reward_weights"
+    column: int | None = None  # Reward weights: the column of the reward
+    dtype: Any = None  # Element type of a tunable param's field
 
 
 @dataclass(frozen=True)
@@ -193,7 +208,7 @@ class Step:
     """One unit of work on an op, the task trees, or an observation slot, in a runtime function."""
 
     kind: StepKind
-    op: ActionOp | TermOp | tuple[TaskTree, ...] | ObservationSlot
+    op: ActionOp | TermOp | tuple[TaskTree, ...] | ObservationSlot | tuple[TunedValue, ...]
     entry: bool = False  # Whether it runs for the worlds whose task of the op just started, rather than for the mask
 
     @property
@@ -236,13 +251,14 @@ def build_plan(
     schema: SceneSchema,
     trees: tuple[TaskTree, ...] = (),
     slots: tuple[ObservationSlot, ...] = (),
+    tuned: tuple[TunedValue, ...] = (),
 ) -> ExecutionPlan:
     """Order the steps of every runtime function from the ops of each phase. This defines the step contract.
 
     With task trees, ``evaluate`` counts the tasks' completions after the quantities, so that terminations and
     rewards see this step's progress, and starts the tasks that sequences advanced to after the events, so that the
     successor observations see them. The terminations, rewards, commands, and events of the step run in the tasks that
-    ran when it started.
+    ran when it started. With tunable values, ``reset`` first applies the values tuned for it.
     """
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
@@ -317,6 +333,7 @@ def build_plan(
             *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.OBSERVATIONS] if op.update is not None),
         ),
         reset=(
+            *([Step(StepKind.APPLY_TUNED, tuned)] if tuned else []),
             *([Step(StepKind.RESET_PROGRESS, trees)] if trees else []),
             *(Step(StepKind.RESET_TIMER, op) for op in timed),
             *reset_events,

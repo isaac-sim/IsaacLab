@@ -33,7 +33,18 @@ from .config import (
     term_state,
     terminated,
 )
-from .plan import ActionOp, ExecutionPlan, Launches, ObservationSlot, Segment, Step, TaskTree, TermOp, segments
+from .plan import (
+    ActionOp,
+    ExecutionPlan,
+    Launches,
+    ObservationSlot,
+    Segment,
+    Step,
+    TaskTree,
+    TermOp,
+    TunedValue,
+    segments,
+)
 from .scene import SceneData, SceneSchema
 
 
@@ -64,7 +75,10 @@ class MDPState:
     - ``"interval_worlds"``: the worlds where an interval event that writes scene fields ran in the last
       ``evaluate``, for an MDP with such events;
     - ``mdp2.progress_field(task, name)``: the progress of every task, with the internal ``streak`` (steps that a
-      task's ``done`` held) and ``entered`` (whether a task of a sequence started at this step).
+      task's ``done`` held) and ``entered`` (whether a task of a sequence started at this step);
+    - ``mdp2.tunable(use, name)``: the value of a tunable param per world, and, for an MDP with tunable values,
+      ``("pending", key)``: the values tuned for the next reset of each array, ``"pending"``: the worlds that have
+      them, and ``"revision"``: the number of tunings applied in each world, see :func:`~.tune`.
     """
 
     arrays: dict[Hashable, ProxyArray]
@@ -89,6 +103,11 @@ class MDPState:
     @property
     def rng(self) -> ProxyArray:
         return self.arrays["rng"]
+
+    @property
+    def revision(self) -> ProxyArray | None:
+        """Tunings applied in each world, ``int32`` of shape ``(num_worlds,)``; None without tunable values."""
+        return self.arrays.get("revision")
 
 
 @dataclass
@@ -150,6 +169,7 @@ class MDP:
     # The task tree of each world config, if the MDP tracks progress: some task has a completion or a sequence
     tasks: tuple[TaskTree, ...] = ()
     slots: tuple[ObservationSlot, ...] = ()  # Observation slots that some op writes only in some steps
+    tuned: tuple[TunedValue, ...] = ()  # Values declared Tunable, which tune changes
     launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
     @property
@@ -257,6 +277,8 @@ class MDP:
         ]
         width = max((len(name) for name in self.schedule), default=0)
 
+        if self.tuned:
+            lines.append(f"tunable {', '.join(value.path for value in self.tuned)}")
         for tree in self.tasks:
             worlds = f" (worlds {tree.worlds.start}-{tree.worlds.stop - 1})" if len(self.tasks) > 1 else ""
             lines.append(f"tasks{worlds}")
@@ -324,6 +346,15 @@ class MDP:
         arrays |= self._progress_arrays()
         for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
+        dtypes = {value.key: value.dtype for value in self.tuned}
+        for op in self.term_ops:
+            # Each world config starts the tunable values of its worlds at its own default.
+            for name, default in op.tunables.items():
+                key = op.inputs[name]
+                if key not in arrays:
+                    arrays[key] = self._zeros(self.num_worlds, dtype=dtypes[key])
+                worlds = slice(None) if op.worlds is None else list(op.worlds)
+                arrays[key].torch[worlds] = torch.tensor(default, dtype=arrays[key].torch.dtype, device=self.device)
         for subset, indices in self.subsets.items():
             arrays[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
         # State belongs to the use: the ops that other world configs define differently share it.
@@ -355,6 +386,12 @@ class MDP:
         for index, config in enumerate(self.world_configs):
             weights[config.worlds.start : config.worlds.stop] = [op.weights[index] for op in self.ops[Phase.REWARDS]]
         arrays["reward_weights"] = ProxyArray(wp.array(weights, dtype=wp.float32, device=self.device))
+        if self.tuned:
+            # Values tuned for the next reset wait in a copy of their array, in the worlds marked pending.
+            arrays["pending"] = self._zeros(self.num_worlds, dtype=wp.bool)
+            arrays["revision"] = self._zeros(self.num_worlds, dtype=wp.int32)
+            for key in dict.fromkeys(value.key for value in self.tuned):
+                arrays["pending", key] = ProxyArray(wp.clone(arrays[key].warp))
         if self.interval_writes:
             arrays["interval_worlds"] = self._zeros(self.num_worlds, dtype=wp.bool)
 
@@ -384,12 +421,19 @@ class MDP:
         warp_views = {key: array.warp for key, array in arrays.items()}
         arguments, caches = {}, {}
         for op in self.term_ops:
-            views = torch_views if self.backend is Backend.TORCH or op.torch_hooks else warp_views
+            torch_hooks = self.backend is Backend.TORCH or op.torch_hooks
+            views = torch_views if torch_hooks else warp_views
             python = not isinstance(op.compute, wp.Function)
             arguments[op.name] = {
                 **{
                     arg: scene_data.entity(selector.name) if isinstance(selector, Entity) else views[op.array_key(arg)]
                     for arg, selector in op.inputs.items()
+                },
+                # Torch hooks get a tunable tuple as a tuple of per-world tensors.
+                **{
+                    name: tuple(torch_views[op.inputs[name]].unbind(1))
+                    for name, default in op.tunables.items()
+                    if torch_hooks and isinstance(default, tuple)
                 },
                 **({"cache": caches.setdefault(op.name, {})} if python else {}),
                 **{name: views[term_state(op.use, name)] for name in op.state},

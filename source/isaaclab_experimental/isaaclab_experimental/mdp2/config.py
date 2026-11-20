@@ -134,6 +134,26 @@ Terminations run before rewards, so rewards can read it, like MDP1's ``is_termin
 
 
 @dataclass(frozen=True)
+class Tunable:
+    """A value that may change while the MDP runs, per world: a param, as in ``params={"std": mdp2.Tunable(0.5)}``,
+    or a reward's ``weight``.
+
+    It is a field of the MDP, ``mdp2.tunable("rewards.track", "std")``, of one value per world: ``float32``,
+    ``int32``, ``bool``, or, for a tuple of numbers, a ``float32`` vector. A ``wp.func`` takes it as a param, of its
+    world's value; Python hooks get the array, which Torch hooks get as a ``(num_worlds,)`` tensor per number.
+    :func:`~.tune` changes it, at each world's next reset by default, so that no episode mixes two values; other terms
+    may read it and events may write it, such as a curriculum.
+    """
+
+    default: float | int | bool | tuple[float, ...]
+
+
+def tunable(use: str, name: str) -> FieldSelector:
+    """Select the tunable value ``name`` of a use, a param or ``weight``, as in ``tunable("rewards.track", "std")``."""
+    return FieldSelector("tunables", f"{use}.{name}", scene=False)
+
+
+@dataclass(frozen=True)
 class UniformNoise:
     """Noise drawn uniformly from ``[n_min, n_max]`` for each element, like MDP1's ``UniformNoiseCfg``."""
 
@@ -150,7 +170,8 @@ class TermCfg:
 
     term: Term
     inputs: dict[str, FieldSelector | SubsetSelector] = field(default_factory=dict)  # Passed by name, read-only
-    # Constant keyword arguments. The MDP keeps the values themselves, not copies: do not change them after finalizing.
+    # Constant keyword arguments, or Tunable values. The MDP keeps the values themselves, not copies: do not change
+    # them after finalizing.
     params: dict[str, Any] = field(default_factory=dict)
 
 
@@ -214,7 +235,8 @@ class Reward(TermCfg):
 
     phase: ClassVar[Phase] = Phase.REWARDS
 
-    weight: float = 1.0  # Initial weight, adjustable at runtime through MDPState.reward_weights
+    # Initial weight, which MDPState.reward_weights holds per world; a Tunable weight can be tuned at resets
+    weight: float | Tunable = 1.0
 
 
 @dataclass

@@ -1918,3 +1918,121 @@ def test_task_trees_report_errors():
     builder.add_task(mdp2.compose(quantities, first=sharing, second=sharing))
     with pytest.raises(ValueError, match="share the columns of 'position'"):
         builder.validate()
+
+
+@wp.func
+def scaled_sum_warp(world: int, joint_pos: wp.array2d(dtype=float), gain: float) -> float:
+    total = float(0.0)
+    for j in range(joint_pos.shape[1]):
+        total += joint_pos[world, j]
+    return gain * total
+
+
+scaled_sum = mdp2.Term(torch=lambda joint_pos, *, gain: gain * joint_pos.sum(-1), warp=scaled_sum_warp)
+
+
+@wp.func
+def outside_warp(world: int, joint_pos: wp.array2d(dtype=float), bounds: wp.vec2f) -> bool:
+    return joint_pos[world, 0] < bounds[0] or joint_pos[world, 0] > bounds[1]
+
+
+def outside_torch(joint_pos, *, bounds):
+    low, high = bounds
+    return (joint_pos[:, 0] < low) | (joint_pos[:, 0] > high)
+
+
+outside = mdp2.Term(torch=outside_torch, warp=outside_warp)
+
+
+def test_tunable_values_change_at_resets_or_steps_while_graphs_replay():
+    """Tunable params and weights hold one value per world, which terms read as their world's value and observations
+    as a field. A tuning waits for each world's next reset, or applies at the next step, also between graph replays,
+    and every world counts the tunings it applied."""
+    task = mdp2.TaskCfg(
+        observations={
+            "policy": {
+                "gain": mdp2.Observation(generated_commands, inputs={"command": mdp2.tunable("rewards.scaled", "gain")})
+            }
+        },
+        rewards={
+            "scaled": mdp2.Reward(
+                scaled_sum,
+                inputs={"joint_pos": robot.joint_pos},
+                params={"gain": mdp2.Tunable(1.0)},
+                weight=mdp2.Tunable(1.0),
+            )
+        },
+        terminations={
+            "outside": mdp2.Termination(
+                outside, inputs={"joint_pos": robot.joint_pos}, params={"bounds": mdp2.Tunable((-10.0, 10.0))}
+            )
+        },
+    )
+    num_worlds = 5  # Not the number of joints, so that a wrong broadcast cannot go unseen
+
+    def run(backend: str, capture: bool) -> list[dict[str, torch.Tensor]]:
+        scene = PointMassScene(num_worlds=num_worlds, joint_names=("a", "b", "c"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        mask = ProxyArray(wp.zeros(num_worlds, dtype=wp.bool, device=DEVICE))
+        actions = ProxyArray(wp.zeros((num_worlds, 1), dtype=wp.float32, device=DEVICE))
+        captured = mdp2.CapturedMDP(mdp, state, transition, actions, mask) if capture else None
+        env_reset(mdp, state, scene, transition.observations, torch.ones(num_worlds, dtype=torch.bool, device=DEVICE))
+        scene.data("robot", "joint_pos").torch.fill_(0.5)
+
+        tunings = {
+            1: [("rewards.scaled.gain", 2.0, [1, 3], "reset")],
+            3: [("rewards.scaled.weight", torch.arange(1.0, 6.0, device=DEVICE), None, "step")],
+            4: [("terminations.outside.bounds", (-1.0, 0.25), [4], "step")],
+        }
+        resets = {2: [1]}
+        history = []
+        for step in range(1, 6):
+            if captured is None:
+                mdp2.evaluate(mdp, state, transition)
+            else:
+                captured.evaluate()
+            mask.torch.zero_()
+            mask.torch[resets.get(step, [])] = True
+            if captured is None:
+                mdp2.reset(mdp, state, mask)
+                mdp2.observe(mdp, state, transition.observations, mask)
+            else:
+                captured.reset()
+                captured.observe()
+            history.append(
+                {
+                    "rewards": transition.rewards.torch.clone(),
+                    "terminated": transition.terminated.torch.clone(),
+                    "policy": transition.observations["policy"].torch.clone(),
+                    "revision": state.revision.torch.clone(),
+                }
+            )
+            for path, value, worlds, at in tunings.get(step, []):
+                mdp2.tune(mdp, state, path, value, worlds, at)
+        return history
+
+    runs = [run(backend, capture) for backend in ("torch", "warp") for capture in (False, True)]
+    for other in runs[1:]:
+        for expected, actual in zip(runs[0], other):
+            for name in expected:
+                assert torch.equal(expected[name], actual[name]), name
+
+    history = runs[0]
+    step_dt = 0.02
+    rewards = [(step["rewards"] / (step_dt * 1.5)).tolist() for step in history]
+    assert rewards[1] == pytest.approx([1.0] * 5)  # Tuned for the next reset: no change yet
+    # World 1 reset after step 2 and took the gain of 2; world 3 still waits for its reset.
+    assert rewards[2] == pytest.approx([1.0, 2.0, 1.0, 1.0, 1.0])
+    assert history[2]["policy"][:, 0].tolist() == [1.0, 2.0, 1.0, 1.0, 1.0]
+    assert rewards[3] == pytest.approx([1.0, 4.0, 3.0, 4.0, 5.0])  # Weights of 1 to 5 from the next step
+    assert history[4]["terminated"].tolist() == [False] * 4 + [True]  # World 4's tighter bounds
+    assert history[4]["revision"].tolist() == [1, 2, 1, 1, 2]
+
+    builder = mdp2.MDPBuilder(PointMassScene(num_worlds=2).schema)
+    builder.add_task(dataclasses.replace(task, observations={}))
+    mdp = builder.finalize(device=DEVICE)
+    with pytest.raises(KeyError, match="not tunable: declare it with mdp2.Tunable"):
+        mdp2.tune(mdp, mdp.state(PointMassScene(num_worlds=2, device=DEVICE)), "rewards.scaled.std", 1.0)

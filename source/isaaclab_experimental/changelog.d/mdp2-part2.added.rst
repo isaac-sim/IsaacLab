@@ -28,3 +28,8 @@
 * Added OptiX cameras to :class:`~isaaclab_experimental.envs.MDP2Env`: cameras with
   :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg` render between the CUDA graphs of a step, since OptiX
   refits its acceleration structures on the host.
+* Added runtime values to MDP2: a param or reward weight declared :class:`~isaaclab_experimental.mdp2.Tunable` holds
+  one value per world, which :func:`~isaaclab_experimental.mdp2.tune` and
+  :meth:`~isaaclab_experimental.envs.MDP2Env.tune` change at each world's next reset or from the next step, while
+  captured steps keep replaying. Terms read it as a field, :func:`~isaaclab_experimental.mdp2.tunable`, and each world
+  counts the tunings it applied, recorded as ``revision``.

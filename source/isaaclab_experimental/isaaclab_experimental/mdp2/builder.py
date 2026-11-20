@@ -40,6 +40,7 @@ from .config import (
     TermCfg,
     Termination,
     TimeLimit,
+    Tunable,
     commands,
     episode_length,
     group_terms,
@@ -49,8 +50,19 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    tunable,
 )
-from .plan import ActionOp, ObservationOutput, ObservationSlot, Segment, TaskNode, TaskTree, TermOp, build_plan
+from .plan import (
+    ActionOp,
+    ObservationOutput,
+    ObservationSlot,
+    Segment,
+    TaskNode,
+    TaskTree,
+    TermOp,
+    TunedValue,
+    build_plan,
+)
 from .scene import SceneSchema
 from .terms import Implementation, hook_arguments
 
@@ -105,11 +117,12 @@ class ScheduleEntry:
 
     @property
     def provides(self) -> tuple[FieldSelector, ...]:
-        """Fields of the MDP that other uses can read once this one is compiled: its value and its state."""
+        """Fields of the MDP that other uses can read once this one is compiled: its value, state, and tunables."""
         if not isinstance(self.cfg, TermCfg):
             return ()
         state = [term_state(str(self), name) for name in self.cfg.term.state]
-        return (*(selector for selector in self.writes if not selector.scene), *state)
+        tunables = [tunable(str(self), name) for name, value in self.cfg.params.items() if isinstance(value, Tunable)]
+        return (*(selector for selector in self.writes if not selector.scene), *state, *tunables)
 
 
 @dataclass(frozen=True)
@@ -469,6 +482,7 @@ class MDPBuilder:
             for op in ops[Phase.OBSERVATIONS]
         )
         ops = MappingProxyType(ops)
+        tuned = _tuned_values(ops, errors)
 
         observation_layouts = {
             buffer: layouts.get(buffer, ((dim,), wp.float32)) for buffer, dim in observation_dims.items()
@@ -485,7 +499,7 @@ class MDPBuilder:
             device=device,
             backend=backend,
             ops=ops,
-            plan=build_plan(ops, self.schema, trees, slots),
+            plan=build_plan(ops, self.schema, trees, slots, tuned),
             action_dim=action_dim,
             observation_dims=MappingProxyType(observation_dims),
             observation_layouts=MappingProxyType(observation_layouts),
@@ -502,6 +516,7 @@ class MDPBuilder:
             ),
             tasks=trees,
             slots=slots,
+            tuned=tuned,
         )
 
     def _compile_schedule(
@@ -655,6 +670,7 @@ class MDPBuilder:
         names += ["rng"] if term.random else []
         if len(set(names)) != len(names):
             errors.append(f"{entry}: inputs, outputs, state, params, and rng must have distinct names, got {names}.")
+        tunables, params, weight = _tunables(entry, errors)
 
         # Scene entities bound as inputs or outputs reach Python hooks as objects, such as articulations.
         bound = {**cfg.inputs, **outputs}
@@ -670,11 +686,13 @@ class MDPBuilder:
         fields = {
             arg: self._resolve(entry, arg, selector, context) for arg, selector in bound.items() if arg not in entities
         }
+        for name, default in tunables.items():
+            fields[name] = context.mdp_fields[tunable(str(entry), name)] = _tunable_layout(entry, name, default, errors)
         for arg, selector in outputs.items():
             if arg not in entities and fields[arg] is not None:
                 self._check_writable(entry, selector, errors)
         # Int params, such as a number of points, can also size dimensions.
-        sizes = {name: value for name, value in cfg.params.items() if type(value) is int}
+        sizes = {name: value for name, value in params.items() if type(value) is int}
         sizes |= _dimension_sizes(fields)
         output_shape = _resolve_shape(entry, "output", term.shape, sizes, errors)
         if output_shape and isinstance(cfg, (Reward, Termination)):
@@ -717,7 +735,7 @@ class MDPBuilder:
         }
         if term.init is not None:
             try:
-                inspect.signature(term.init).bind(None, **dict.fromkeys(cfg.params))
+                inspect.signature(term.init).bind(None, **dict.fromkeys(cfg.params))  # Tunables at their default
             except TypeError as error:
                 errors.append(f"{entry}: init {term.init.__name__!r} is called with (ctx, **params): {error}.")
         # Python hooks may also take ``cache``, a dict the use keeps for host objects.
@@ -764,9 +782,11 @@ class MDPBuilder:
                 compute=implementation.compute,
                 update=implementation.update,
                 reset=implementation.reset,
-                inputs=MappingProxyType({**cfg.inputs, **outputs, **command}),
+                inputs=MappingProxyType(
+                    {**cfg.inputs, **outputs, **command, **{name: tunable(str(entry), name) for name in tunables}}
+                ),
                 params=MappingProxyType(
-                    {name: self.schema.step_dt if value is step_dt else value for name, value in cfg.params.items()}
+                    {name: self.schema.step_dt if value is step_dt else value for name, value in params.items()}
                 ),
                 state=MappingProxyType(
                     {
@@ -778,7 +798,9 @@ class MDPBuilder:
                 dtype=dtype,
                 # An entity output writes any of the entity's writable fields.
                 writes=tuple(dict.fromkeys(selector for write in entry.writes for selector in self._fields_of(write))),
-                weights=(cfg.weight,) if isinstance(cfg, Reward) else (),
+                weights=(weight,) if isinstance(cfg, Reward) else (),
+                tunables=MappingProxyType(tunables),
+                tunable_weight=isinstance(cfg, Reward) and isinstance(cfg.weight, Tunable),
                 time_out=cfg.time_out if isinstance(cfg, Termination) else False,
                 observation=observation,
                 timer=timer,
@@ -906,6 +928,49 @@ def _check_output_type(entry: ScheduleEntry, dtype: type, errors: list[str]) -> 
             )
 
 
+def _tunables(
+    entry: ScheduleEntry, errors: list[str]
+) -> tuple[dict[str, typing.Any], dict[str, typing.Any], float | None]:
+    """Return the defaults of a use's tunable params, which are fields of the MDP of one value per world that its
+    hooks read like inputs, its other params, and the default of a reward's weight."""
+    cfg = entry.cfg
+    tunables = {name: value.default for name, value in cfg.params.items() if isinstance(value, Tunable)}
+    params = {name: value for name, value in cfg.params.items() if name not in tunables}
+    weight = cfg.weight if isinstance(cfg, Reward) else None
+    if isinstance(weight, Tunable):
+        weight = weight.default
+        if "weight" in tunables:
+            errors.append(f"{entry}: a reward with a tunable weight cannot have a tunable param named 'weight'.")
+    return tunables, params, weight
+
+
+def _tunable_layout(entry: ScheduleEntry | str, name: str, default: object, errors: list[str]) -> ArrayLayout:
+    """Return the layout of the field of a tunable value: one bool, int, float, or float vector per world."""
+    if isinstance(default, tuple) and default and all(type(value) in (int, float) for value in default):
+        return ArrayLayout(wp.types.vector(len(default), wp.float32), 1, {})
+    dtypes = {bool: wp.bool, int: wp.int32, float: wp.float32}
+    if type(default) not in dtypes:
+        errors.append(
+            f"{entry}: the tunable {name!r} must be a bool, int, float, or tuple of numbers, got {default!r}."
+        )
+    return ArrayLayout(dtypes.get(type(default), wp.float32), 1, {})
+
+
+def _tuned_values(ops: Mapping[Phase, tuple], errors: list[str]) -> tuple[TunedValue, ...]:
+    """Return the tunable values of the ops, once per use, with their reward weights."""
+    tuned: dict[str, TunedValue] = {}
+    for op in (op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp)):
+        values = [
+            TunedValue(f"{op.use}.{name}", op.inputs[name], dtype=_tunable_layout(op.name, name, default, []).dtype)
+            for name, default in op.tunables.items()
+        ]
+        values += [TunedValue(f"{op.use}.weight", "reward_weights", op.index)] if op.tunable_weight else []
+        for value in values:
+            if tuned.setdefault(value.path, value) != value:
+                errors.append(f"The world configs tune '{value.path}' differently: tune it in all or none of them.")
+    return tuple(tuned.values())
+
+
 def _dimension_sizes(fields: Mapping[str, ArrayLayout | None]) -> dict[str, int]:
     """Return the size of each named dimension of a term's inputs.
 
@@ -951,7 +1016,16 @@ def _check_hook(
             return
         for name, annotation in annotations.items():
             bound = arguments[name]
-            if bound is None or not isinstance(annotation, wp.array):
+            if bound is None:
+                continue
+            if not wp.types.is_array(annotation):
+                # A field of one value per world, such as a tunable param, binds to a scalar: its world's value.
+                if bound.ndim != 1 or not wp.types.types_equal(wp.array(dtype=annotation).dtype, bound.dtype):
+                    errors.append(
+                        f"{entry}: wp.func {hook.key!r} takes {name!r} as one value, but it is a"
+                        f" {bound.ndim}-dimensional array of {bound.dtype.__name__}, not one value of that type per"
+                        " world."
+                    )
                 continue
             if annotation.dtype is not bound.dtype or annotation.ndim != bound.ndim:
                 errors.append(

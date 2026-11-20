@@ -47,6 +47,8 @@ __all__ = [
     "TermContext",
     "Termination",
     "TimeLimit",
+    "Tunable",
+    "TunedValue",
     "UniformNoise",
     "Transition",
     "WorldConfig",
@@ -67,6 +69,8 @@ __all__ = [
     "step_dt",
     "term_state",
     "terminated",
+    "tunable",
+    "tune",
     "uniform",
     "mdp",
 ]
@@ -97,6 +101,7 @@ from .config import (
     TermCfg,
     Termination,
     TimeLimit,
+    Tunable,
     UniformNoise,
     commands,
     compose,
@@ -110,10 +115,11 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    tunable,
 )
 from .eager import TermContext
-from .plan import ExecutionPlan, ObservationSlot, Segment, Step, StepKind, TaskNode, TaskTree
+from .plan import ExecutionPlan, ObservationSlot, Segment, Step, StepKind, TaskNode, TaskTree, TunedValue
 from .rng import uniform
-from .runtime import apply_actions, evaluate, observe, reset, startup
+from .runtime import apply_actions, evaluate, observe, reset, startup, tune
 from .scene import EntitySchema, FieldSchema, SceneData, SceneSchema
 from .terms import Implementation, State, Term

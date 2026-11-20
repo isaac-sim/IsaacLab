@@ -15,7 +15,7 @@ import torch
 from . import rng
 from .compiled import MDP, MDPState
 from .config import FieldSelector, Phase, TaskMode, last_action, progress_field, term_state, terminated
-from .plan import Call, Launch, Launches, ObservationSlot, Step, StepKind, TaskTree, TermOp
+from .plan import Call, Launch, Launches, ObservationSlot, Step, StepKind, TaskTree, TermOp, TunedValue
 from .terms import hook_arguments
 
 
@@ -114,6 +114,9 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             return
         case StepKind.CLEAR:
             _clear(mdp, op, call, stepping)
+            return
+        case StepKind.APPLY_TUNED:
+            _apply_tuned(op, state, call.mask.torch)
             return
 
     mask = None if call.mask is None else call.mask.torch
@@ -263,6 +266,19 @@ def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     """Draw a new interval for the timer of an op in the masked worlds."""
     time_left = state.arrays["timer", op.name].torch
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+
+
+def _apply_tuned(tuned: tuple[TunedValue, ...], state: MDPState, mask: torch.Tensor) -> None:
+    """Apply the values tuned for the next reset in the reset worlds that have them, and count the tuning."""
+    pending = state.arrays["pending"].torch
+    applied = pending & mask
+    for value in tuned:
+        live, waiting = state.arrays[value.key].torch, state.arrays["pending", value.key].torch
+        if value.column is not None:
+            live, waiting = live[:, value.column], waiting[:, value.column]
+        live.copy_(torch.where(applied.view(-1, *[1] * (live.ndim - 1)), waiting, live))
+    state.arrays["revision"].torch.add_(applied.int())
+    pending.logical_and_(~applied)
 
 
 def _clear(mdp: MDP, slot: ObservationSlot, call: Call, stepping: bool) -> None:

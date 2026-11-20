@@ -11,8 +11,10 @@ Each function runs its launches eagerly. To replay them as CUDA graphs, bind fix
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import Any, Literal
 
+import torch
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
@@ -68,3 +70,40 @@ def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask
     call = Call(state, mask=mask, observations=observations)
     for launch in mdp.launches.observe:
         launch(call)
+
+
+def tune(
+    mdp: MDP,
+    state: MDPState,
+    path: str,
+    value: Any,
+    worlds: slice | Sequence[int] | torch.Tensor | None = None,
+    at: Literal["reset", "step"] = "reset",
+) -> None:
+    """Change a value declared :class:`~.config.Tunable`, such as ``"rewards.track.std"`` or ``"rewards.track.weight"``.
+
+    ``value`` is one value, or one per selected world. ``worlds`` selects worlds by index, slice, or ``bool`` mask, all
+    of them if None. At ``"reset"``, each world takes the value when its episode next resets, so that no episode mixes
+    two values; at ``"step"``, from the next step on. Each world counts the tunings it applied in
+    :attr:`MDPState.revision`. Writes in place, so captured steps keep replaying. Raises ``KeyError`` for a value that
+    is not tunable.
+    """
+    tuned = {value.path: value for value in mdp.tuned}
+    if path not in tuned:
+        raise KeyError(f"{path!r} is not tunable: declare it with mdp2.Tunable. Tunable values: {sorted(tuned)}.")
+    if at not in ("reset", "step"):
+        raise ValueError(f"Tunings apply at 'reset' or 'step', got {at!r}.")
+    target = tuned[path]
+    selected = torch.zeros(mdp.num_worlds, dtype=torch.bool, device=mdp.device)
+    selected[slice(None) if worlds is None else worlds] = True
+
+    # The value waits in the pending copy; a tuning for this step also writes it in place, and keeps the copy equal.
+    destinations = [state.arrays["pending", target.key].torch]
+    destinations += [state.arrays[target.key].torch] if at == "step" else []
+    for destination in destinations:
+        values = destination if target.column is None else destination[:, target.column]
+        values[selected] = torch.as_tensor(value, dtype=values.dtype, device=mdp.device)
+    if at == "step":
+        state.arrays["revision"].torch.add_(selected.int())
+    else:
+        state.arrays["pending"].torch.logical_or_(selected)

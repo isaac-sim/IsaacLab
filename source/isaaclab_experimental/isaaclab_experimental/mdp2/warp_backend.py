@@ -34,7 +34,7 @@ from .config import (
     terminated,
 )
 from .fusion import Fusion
-from .plan import Call, Launches, ObservationSlot, Step, StepKind, TaskNode, TaskTree, TermOp
+from .plan import Call, Launches, ObservationSlot, Step, StepKind, TaskNode, TaskTree, TermOp, TunedValue
 from .terms import hook_arguments
 
 _RESULTS = {
@@ -223,6 +223,9 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                 continue
             case StepKind.CLEAR:
                 _clear(code, mdp, step.op, stepping)
+                continue
+            case StepKind.APPLY_TUNED:
+                _apply_tuned(code, step.op)
                 continue
         op = step.op
         state = [term_state(op.use, name) for name in op.state]
@@ -516,13 +519,19 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
             values.append(code.constant(annotation, op.params[name]))
         elif name in op.inputs or name in op.state:
             key = op.array_key(name) if name in op.inputs else term_state(op.use, name)
-            values.append(_array(code, key, annotation))
+            if wp.types.is_array(annotation):
+                values.append(_array(code, key, annotation))
+            else:
+                # A field of one value per world, such as a tunable param, passes its world's value.
+                values.append(f"{_array(code, key, wp.array(dtype=annotation))}[world]")
         elif name == "action" and op.columns is not None:
             # The action's columns, as a strided view of the actions.
             columns = op.columns
             values.append(code.argument(("action", op.name), annotation, lambda call: call.actions.warp[:, columns]))
-        else:
+        elif name == "rng":
             values.append(f"{_rng(code)}[{op.stream}, world]")
+        else:
+            raise ValueError(f"{op.name}: wp.func {hook.key!r} takes {name!r}, which the op does not bind.")
     return f"{code.function(hook)}({', '.join(values)})"
 
 
@@ -773,6 +782,34 @@ def _reset_progress(code: Fusion, trees: tuple[TaskTree, ...]) -> None:
             ]
         names = ("done", "holding", "done_at", "started_at", "score", "active", "stage", "streak", "entered")
         code.world(*_under(_in_tree(trees, tree), *lines), writes=_tree_writes(tree, names))
+
+
+def _apply_tuned(code: Fusion, tuned: tuple[TunedValue, ...]) -> None:
+    """Apply the values tuned for the next reset in the reset worlds that have them, and count the tuning."""
+    pending = _array(code, "pending", wp.array(dtype=wp.bool))
+    revision = _array(code, "revision", wp.array(dtype=wp.int32))
+    lines, writes = [], ["pending", "revision"]
+    for value in tuned:
+        if value.column is None:
+            annotation = wp.array(dtype=value.dtype)
+            live, waiting, index = (
+                _array(code, value.key, annotation),
+                _array(code, ("pending", value.key), annotation),
+                "world",
+            )
+        else:
+            annotation = wp.array2d(dtype=wp.float32)
+            live, waiting = _array(code, value.key, annotation), _array(code, ("pending", value.key), annotation)
+            index = f"world, {value.column}"
+        lines.append(f"{live}[{index}] = {waiting}[{index}]")
+        writes.append(value.key)
+    code.world(
+        f"if {pending}[world]:",
+        *(f"    {line}" for line in lines),
+        f"    {revision}[world] = {revision}[world] + 1",
+        f"    {pending}[world] = False",
+        writes=writes,
+    )
 
 
 def _clear(code: Fusion, mdp: MDP, slot: ObservationSlot, stepping: bool) -> None:
