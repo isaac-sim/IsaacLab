@@ -141,9 +141,6 @@ def main():
     # Set termination conditions
     env_cfg.terminations.time_out = None
 
-    # Disable recorder
-    env_cfg.recorders = None
-
     # Extract success checking function
     success_term = _prepare_success_term(env_cfg)
 

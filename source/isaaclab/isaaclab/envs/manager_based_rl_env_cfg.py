@@ -5,10 +5,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+import torch
 
 from ..utils import configclass
+from .common import VecEnvStepReturn
 from .manager_based_env_cfg import ManagerBasedEnvCfg
+
+if TYPE_CHECKING:
+    from .manager_based_rl_env import ManagerBasedRLEnv
 
 
 @configclass
@@ -22,6 +30,16 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
 
     # general settings
+    step_fn: Callable[[ManagerBasedRLEnv, torch.Tensor], VecEnvStepReturn] | None = None
+    """Function bound as the environment's ``step`` method during initialization.
+
+    The function receives the environment and a batch of actions and returns observations,
+    rewards, terminated flags, truncated flags, and extras. It owns the complete step,
+    including physics, counters, resets, observations, and any recorder calls.
+    Defaults to None, which uses the environment class's ``step`` implementation.
+    Changing this setting after initialization does not rebind the method.
+    """
+
     is_finite_horizon: bool = False
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.

@@ -264,8 +264,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             timer=DEBUG_TIMER_STEP,
         )
 
-        self.recorder_manager.record_pre_step()
-
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
         is_rendering = self.sim.is_rendering
@@ -288,7 +286,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMER_STEP, time_unit="us"):
                 self.sim.step(render=False)
-            self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -320,11 +317,9 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             timer=DEBUG_TIMER_STEP,
         )
 
-        self.recorder_manager.record_post_step()
-
         # -- reset envs that terminated/timed-out and log the episode information
         # NOTE: Interim path (intentional).
-        # We still compact `reset_buf` into `env_ids` here because several reset-time managers/recorders
+        # We still compact `reset_buf` into `env_ids` here because several reset-time managers
         # are still `env_ids`-based. Do NOT remove/replace this until mask-based reset is end-to-end.
         with Timer(
             name="reset_selection",
@@ -342,9 +337,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 wp.copy(self.reset_mask_wp, self.termination_manager.dones_wp)
             reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
-            # trigger recorder terms for pre-reset calls
-            self.recorder_manager.record_pre_reset(reset_env_ids)
-
             with Timer(
                 name="reset_idx",
                 msg="Reset idx took:",
@@ -357,9 +349,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-
-            # trigger recorder terms for post-reset calls
-            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
         self.command_manager.compute(dt=float(self.step_dt))
@@ -581,9 +570,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             timer=DEBUG_TIMER_RESET,
         )
 
-        # -- recorder manager
-        recorder_info = self.recorder_manager.reset(env_ids=env_ids)
-
         # reset the episode length buffer
         index_fill_(self.episode_length_buf, env_ids, 0)
 
@@ -597,7 +583,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             command_info,
             event_info,
             termination_info,
-            recorder_info,
         ):
             log.update(info)
         self.extras["log"] = log

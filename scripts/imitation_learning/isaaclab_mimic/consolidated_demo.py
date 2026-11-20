@@ -10,6 +10,8 @@ Script to record teleoperated demos and run mimic dataset generation in real-tim
 # Parse CLI first so we can decide whether to launch Isaac Sim Kit.
 
 import argparse
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -75,12 +77,16 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.datasets import HDF5DatasetFileHandler
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_post_step,
+    record_pre_step,
+)
+from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.datagen.generation import get_datagen_info
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -90,51 +96,6 @@ num_recorded = 0
 num_success = 0
 num_failures = 0
 num_attempts = 0
-
-
-class PreStepDatagenInfoRecorder(RecorderTerm):
-    """Recorder term that records the datagen info data in each step."""
-
-    def record_pre_step(self):
-        eef_pose_dict = {}
-        for eef_name in self._env.cfg.subtask_configs.keys():
-            eef_pose_dict[eef_name] = self._env.get_robot_eef_pose(eef_name)
-
-        datagen_info = {
-            "object_pose": self._env.get_object_poses(),
-            "eef_pose": eef_pose_dict,
-            "target_eef_pose": self._env.action_to_target_eef_pose(self._env.action_manager.action),
-        }
-        return "obs/datagen_info", datagen_info
-
-
-@configclass
-class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
-    """Configuration for the datagen info recorder term."""
-
-    class_type: type[RecorderTerm] = PreStepDatagenInfoRecorder
-
-
-class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
-    """Recorder term that records the subtask completion observations in each step."""
-
-    def record_pre_step(self):
-        return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
-
-
-@configclass
-class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
-    """Configuration for the step subtask terms observation recorder term."""
-
-    class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
-
-
-@configclass
-class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
-    """Mimic specific recorder terms."""
-
-    record_pre_step_datagen_info = PreStepDatagenInfoRecorderCfg()
-    record_pre_step_subtask_term_signals = PreStepSubtaskTermsObservationsRecorderCfg()
 
 
 class RateLimiter:
@@ -166,7 +127,14 @@ class RateLimiter:
 
 
 async def run_teleop_robot(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface
+    env,
+    env_id,
+    env_action_queue,
+    shared_datagen_info_pool,
+    success_term,
+    exported_dataset_path,
+    teleop_interface,
+    recorder,
 ):
     """Run teleop robot."""
     global num_recorded
@@ -194,8 +162,9 @@ async def run_teleop_robot(
     num_recorded = 0
     while True:
         if should_reset_teleop_instance:
-            env.unwrapped.recorder_manager.reset(env_id_tensor)
+            recorder.reset(env_id_tensor)
             env.unwrapped.reset(env_ids=env_id_tensor)
+            record_initial_state(recorder, env.unwrapped, env_id_tensor)
             should_reset_teleop_instance = False
             success_step_count = 0
 
@@ -215,15 +184,15 @@ async def run_teleop_robot(
             if bool(success_term.func(env, **success_term.params)[env_id]):
                 success_step_count += 1
                 if success_step_count >= args_cli.num_success_steps:
-                    env.recorder_manager.set_success_to_episodes(
+                    recorder.set_success_to_episodes(
                         env_id_tensor, torch.tensor([[True]], dtype=torch.bool, device=env.device)
                     )
-                    teleop_episode = env.unwrapped.recorder_manager.get_episode(env_id)
+                    teleop_episode = recorder.get_episode(env_id)
                     await shared_datagen_info_pool.add_episode(teleop_episode)
 
                     recorded_episode_dataset_file_handler.write_episode(teleop_episode)
                     recorded_episode_dataset_file_handler.flush()
-                    env.recorder_manager.reset(env_id_tensor)
+                    recorder.reset(env_id_tensor)
                     num_recorded += 1
                     should_reset_teleop_instance = True
             else:
@@ -231,13 +200,24 @@ async def run_teleop_robot(
 
 
 async def run_data_generator(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, pause_subtask=False, export_demo=True
+    env,
+    env_id,
+    env_action_queue,
+    shared_datagen_info_pool,
+    success_term,
+    pause_subtask=False,
+    export_demo=True,
+    *,
+    recorder: EpisodeRecorder,
+    env_reset_queue: asyncio.Queue,
 ):
     """Run data generator."""
     global num_success, num_failures, num_attempts
     from isaaclab_mimic.datagen.data_generator import DataGenerator
 
-    data_generator = DataGenerator(env=env.unwrapped, src_demo_datagen_info_pool=shared_datagen_info_pool)
+    data_generator = DataGenerator(
+        env=env.unwrapped, recorder=recorder, src_demo_datagen_info_pool=shared_datagen_info_pool
+    )
     idle_action = torch.zeros(env.unwrapped.action_space.shape)[0]
     while True:
         while data_generator.src_demo_datagen_info_pool.num_datagen_infos < 1:
@@ -248,9 +228,7 @@ async def run_data_generator(
             env_id=env_id,
             success_term=success_term,
             env_action_queue=env_action_queue,
-            select_src_per_subtask=env.unwrapped.cfg.datagen_config.generation_select_src_per_subtask,
-            transform_first_robot_pose=env.unwrapped.cfg.datagen_config.generation_transform_first_robot_pose,
-            interpolate_from_last_target_pose=env.unwrapped.cfg.datagen_config.generation_interpolate_from_last_target_pose,
+            env_reset_queue=env_reset_queue,
             pause_subtask=pause_subtask,
             export_demo=export_demo,
         )
@@ -261,7 +239,56 @@ async def run_data_generator(
         num_attempts += 1
 
 
-def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop):
+def _step_consolidated_demo(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Advance the live demonstrations and generated trajectories together."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
+    recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
+    recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
+
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # The workflow decides when attempts finish. A visualizer reset interrupts them.
+    if env.sim.consume_reset_request():
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.int32)
+        env.reset_terminated.fill_(True)
+        recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
+        recorder.export_episodes(env_ids)
+        env._reset_idx(env_ids)
+        record_initial_state(recorder, env, env_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
+def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop, recorder, env_reset_queue):
     """Main loop for the environment."""
     global num_recorded, num_success, num_failures, num_attempts
     prev_num_attempts = 0
@@ -275,6 +302,14 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
     is_first_print = True
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
+            while env_action_queue.qsize() != env.unwrapped.num_envs:
+                asyncio_event_loop.run_until_complete(asyncio.sleep(0))
+                while not env_reset_queue.empty():
+                    env_id = env_reset_queue.get_nowait()
+                    env_ids = torch.tensor([env_id], device=env.unwrapped.device)
+                    env.unwrapped.reset(env_ids=env_ids)
+                    record_initial_state(recorder, env.unwrapped, env_ids)
+                    env_reset_queue.task_done()
             actions = torch.zeros(env.unwrapped.action_space.shape)
 
             # get actions from all the data generators
@@ -359,18 +394,18 @@ def main():
 
     env_cfg.observations.policy.concatenate_terms = False
 
-    env_cfg.recorders = MimicRecorderManagerCfg()
+    recorder_cfg = EpisodeRecorderCfg()
 
-    env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_NONE
+    recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_NONE
     if args_cli.generated_output_file:
         # create output directory for generated episodes if it does not exist
         generated_output_dir = os.path.dirname(args_cli.generated_output_file)
         if not os.path.exists(generated_output_dir):
             os.makedirs(generated_output_dir)
         generated_output_file_name = os.path.splitext(os.path.basename(args_cli.generated_output_file))[0]
-        env_cfg.recorders.dataset_export_dir_path = generated_output_dir
-        env_cfg.recorders.dataset_filename = generated_output_file_name
-        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+        recorder_cfg.dataset_export_dir_path = generated_output_dir
+        recorder_cfg.dataset_filename = generated_output_file_name
+        recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
     teleop_cfg = None
     if args_cli.teleop_env_index is not None and args_cli.teleop_env_index >= 0:
@@ -383,10 +418,10 @@ def main():
             pos_sensitivity=0.2, rot_sensitivity=0.5, sim_device=args_cli.device
         )
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
-        run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup)
+        run_consolidated_demo(env_cfg, success_term, teleop_cfg, recorder_cfg, cleanup)
 
 
-def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
+def run_consolidated_demo(env_cfg, success_term, teleop_cfg, recorder_cfg, cleanup):
     """Create the environment and run teleoperated recording alongside real-time mimic data generation."""
     # the environment and data generation classes load USD, so they are imported once the simulation is launched
     from isaaclab.envs import ManagerBasedRLMimicEnv
@@ -398,6 +433,17 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
     cleanup.callback(env.close)
+    recorder = EpisodeRecorder(
+        recorder_cfg,
+        env.unwrapped.num_envs,
+        env.unwrapped.device,
+        env_name=args_cli.task,
+        env_metadata=get_episode_metadata(env.unwrapped),
+    )
+    cleanup.callback(recorder.close)
+    # This script owns decimation, so each simulator call advances one physics step.
+    env.unwrapped.sim.backend_manager.set_decimation(1)
+    env.unwrapped.step = MethodType(partial(_step_consolidated_demo, recorder=recorder), env.unwrapped)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -415,10 +461,12 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
 
     # reset before starting
     env.reset()
+    record_initial_state(recorder, env.unwrapped)
 
     # Set up asyncio stuff
     asyncio_event_loop = asyncio.get_event_loop()
     env_action_queue = asyncio.Queue()
+    env_reset_queue = asyncio.Queue()
 
     shared_datagen_info_pool_lock = asyncio.Lock()
     shared_datagen_info_pool = DataGenInfoPool(
@@ -456,6 +504,7 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
                         success_term,
                         args_cli.output_file,
                         teleop_interface,
+                        recorder,
                     )
                 )
             )
@@ -469,6 +518,8 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
                     shared_datagen_info_pool,
                     success_term,
                     export_demo=bool(args_cli.generated_output_file),
+                    recorder=recorder,
+                    env_reset_queue=env_reset_queue,
                 )
             )
         )
@@ -478,7 +529,7 @@ def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
     except asyncio.CancelledError:
         print("Tasks were cancelled.")
 
-    env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop)
+    env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop, recorder, env_reset_queue)
 
 
 if __name__ == "__main__":

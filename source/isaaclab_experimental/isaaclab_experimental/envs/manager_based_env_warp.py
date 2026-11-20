@@ -377,11 +377,6 @@ class ManagerBasedEnvWarp:
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         logger.info(f"Event Manager: {self.event_manager}")
-        # -- recorder manager
-        self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
-            self.cfg.recorders, self
-        )
-        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
         logger.info(f"Action Manager: {self.action_manager}")
@@ -436,9 +431,6 @@ class ManagerBasedEnvWarp:
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
 
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
-
         # set the seed
         if seed is not None:
             used_seed = self.seed(seed)
@@ -462,9 +454,6 @@ class ManagerBasedEnvWarp:
         if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -500,9 +489,6 @@ class ManagerBasedEnvWarp:
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
 
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
-
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -519,9 +505,6 @@ class ManagerBasedEnvWarp:
         if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -553,8 +536,6 @@ class ManagerBasedEnvWarp:
         action_wp = wp.from_torch(action_device, dtype=wp.float32)
         self.action_manager.process_action(action_wp)
 
-        self.recorder_manager.record_pre_step()
-
         # check if we need to do rendering within the physics loop
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
@@ -582,7 +563,6 @@ class ManagerBasedEnvWarp:
 
         # -- compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
-        self.recorder_manager.record_post_step()
 
         # return observations and extras
         return self.obs_buf, self.extras
@@ -606,7 +586,6 @@ class ManagerBasedEnvWarp:
             del self.action_manager
             del self.observation_manager
             del self.event_manager
-            del self.recorder_manager
             del self.scene
 
             # self.sim.clear_all_callbacks()
@@ -674,7 +653,6 @@ class ManagerBasedEnvWarp:
             "ActionManager": "actions",
             "ObservationManager": "observations",
             "EventManager": "events",
-            "RecorderManager": "recorders",
             "CommandManager": "commands",
             "TerminationManager": "terminations",
             "RewardManager": "rewards",
@@ -741,7 +719,4 @@ class ManagerBasedEnvWarp:
         self.extras["log"].update(info)
         # -- event manager
         info = self.event_manager.reset(env_mask=env_mask)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)

@@ -18,7 +18,6 @@ __all__ = [
     "ManagerTermBaseCfg",
     "ObservationGroupCfg",
     "ObservationTermCfg",
-    "RecorderTermCfg",
     "RewardTermCfg",
     "TerminationTermCfg",
     "ObservationManager",
@@ -41,7 +40,6 @@ from .manager_term_cfg import (
     ManagerTermBaseCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
-    RecorderTermCfg,
     RewardTermCfg,
     TerminationTermCfg,
 )

@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import os
 from contextlib import ExitStack
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -58,8 +60,20 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_post_step,
+    record_pre_step,
+)
+from isaaclab.utils import index_fill_
+from isaaclab.utils.datasets import (
+    DatasetExportMode,
+    EpisodeData,
+    EpisodeRecorder,
+    EpisodeRecorderCfg,
+    HDF5DatasetFileHandler,
+)
 from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
@@ -323,8 +337,83 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
     return model_input, dummy_action
 
 
+def _step_rollout(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Capture a rollout transition and export completed policy episodes."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # Finalize the terminal sample before resetting the scene.
+    reset_env_ids = env.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+    if len(reset_env_ids) > 0:
+        # capture the terminal observation before reset and expose it for Same-Step autoreset.
+        if env.cfg.compute_final_obs:
+            env.extras["final_obs"] = env.observation_manager.compute()
+
+        success = (
+            env.termination_manager.get_term("success")[reset_env_ids]
+            if "success" in env.termination_manager.active_terms
+            else torch.zeros_like(reset_env_ids, dtype=torch.bool)
+        )
+        recorder.set_success_to_episodes(reset_env_ids, success)
+        recorder.export_episodes(reset_env_ids)
+        env._reset_idx(reset_env_ids)
+
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if env.render_enabled and is_rendering and env.has_rtx_sensors and env.cfg.num_rerenders_on_reset > 0:
+            for _ in range(env.cfg.num_rerenders_on_reset):
+                env.sim.render()
+
+        record_initial_state(recorder, env, reset_env_ids)
+
+    # -- handle episode reset requested from visualizer UI controls
+    if env.sim.consume_reset_request():
+        # Only reset envs not already reset this step to avoid redundant resets.
+        not_yet_reset = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+        index_fill_(not_yet_reset, reset_env_ids, False)
+        manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+        if len(manual_reset_ids) > 0:
+            # mark as terminated so RL wrappers observe the episode boundary
+            index_fill_(env.reset_terminated, manual_reset_ids, True)
+            recorder.set_success_to_episodes(manual_reset_ids, torch.zeros_like(manual_reset_ids, dtype=torch.bool))
+            recorder.export_episodes(manual_reset_ids)
+            env._reset_idx(manual_reset_ids)
+            record_initial_state(recorder, env, manual_reset_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
 def eval_policy(
     env: LocomanipulationSDGEnv,
+    recorder: EpisodeRecorder,
     policy: Policy | PolicyClient,
     input_episode_data: EpisodeData,
     randomize_placement: bool = True,
@@ -355,6 +444,7 @@ def eval_policy(
         env, input_episode_data, approach_distance=0.5, randomize_placement=randomize_placement
     )
 
+    record_initial_state(recorder, env)
     step = 0
 
     action_idx = 0
@@ -380,9 +470,8 @@ def eval_policy(
             action[:, 7:14] = transform_mul(base_pose, action[:, 7:14])
 
             action[:, 28:31] = action[:, 28:31] * 1.0
-            _, _, reset_terminated, reset_time_outs, _ = env.step(
-                action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
-            )
+            step_action = action[action_idx : action_idx + 1].mean(dim=0, keepdim=True)
+            _, _, reset_terminated, reset_time_outs, _ = env.step(step_action)
             if reset_terminated.any():
                 print("Reset terminated")
                 step = 0
@@ -414,13 +503,20 @@ if __name__ == "__main__":
 
             policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
         env_cfg.sim.device = args_cli.device
-        # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
-        # which is only populated by the data-generation state machine, not during policy rollout.
-        env_cfg.recorders = ActionStateRecorderManagerCfg()
-        env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
-        env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
+        recorder_cfg = EpisodeRecorderCfg(
+            dataset_export_dir_path=os.path.dirname(args_cli.output_file),
+            dataset_filename=os.path.basename(args_cli.output_file),
+            dataset_export_mode=DatasetExportMode.EXPORT_ALL,
+        )
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        recorder = EpisodeRecorder(
+            recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
+        )
+        stack.callback(recorder.close)
+        # This script owns decimation, so each simulator call advances one physics step.
+        env.sim.backend_manager.set_decimation(1)
+        env.step = MethodType(partial(_step_rollout, recorder=recorder), env)
 
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
@@ -428,6 +524,7 @@ if __name__ == "__main__":
 
         eval_policy(
             env=env,
+            recorder=recorder,
             policy=policy,
             input_episode_data=input_episode_data,
             randomize_placement=args_cli.randomize_placement,

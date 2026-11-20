@@ -19,7 +19,7 @@ def test_recording_defers_command_resampling(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
     record_demos._parse_args(["--task", "Isaac-Reach-Franka", "--teleop_device", "spacemouse"])
-    cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
+    cfg, _, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
 
     resampling_time_range = cfg.commands.ee_pose.resampling_time_range
     assert all(math.isfinite(bound) for bound in resampling_time_range)

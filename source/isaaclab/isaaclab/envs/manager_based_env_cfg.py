@@ -20,7 +20,6 @@ from . import mdp as mdp
 if TYPE_CHECKING:
     from ..devices.openxr import XrCfg
 from ..managers import EventTermCfg as EventTerm
-from ..managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from ..scene import InteractiveSceneCfg
 from ..sim import SimulationCfg
 from ..utils import configclass
@@ -83,12 +82,6 @@ class ManagerBasedEnvCfg:
     """Scene settings.
 
     Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
-    """
-
-    recorders: object = DefaultEmptyRecorderManagerCfg()
-    """Recorder settings. Defaults to recording nothing.
-
-    Please refer to the :class:`isaaclab.managers.RecorderManager` class for more details.
     """
 
     observations: object = MISSING

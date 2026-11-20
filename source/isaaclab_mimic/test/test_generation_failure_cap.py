@@ -17,7 +17,11 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
+
 from isaaclab_mimic.datagen import generation
+
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 FUSE_STEPS = 40
 
@@ -82,8 +86,9 @@ def _run(
             )
         ),
     )
+    recorder = EpisodeRecorder(EpisodeRecorderCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE), num_envs, "cpu")
     try:
-        generation.env_loop(env, reset_queue, action_queue, None, loop)
+        generation.env_loop(env, reset_queue, action_queue, None, loop, recorder=recorder)
         how = "exited"
     except _Fuse:
         how = "fuse"

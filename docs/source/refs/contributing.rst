@@ -412,6 +412,15 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
   Keep public base classes, backend data classes, and factories available through a deprecation release
   when the broader consolidation is not part of the same change.
+* Keep step ordering explicit in the step function, including the decimation loop, manager
+  computations, resets, command/event updates, and observation computation. Do not hide that
+  sequence behind broad ``simulate``, ``compute_transition``, ``reset_done``, or ``finish_step``
+  phase methods. Concrete custom step functions may place capture calls directly in that sequence.
+* Keep dataset capture in recording workflows or explicit custom step functions. Standard environments
+  must not own episode recorders, dispatch capture hooks, or consult recording capabilities when
+  deciding physics action ownership. Episode storage must not depend on environment managers or
+  maintain a capture-term registry. Each workflow owns its recording step and calls capture functions
+  directly. The shared recorder module contains capture and metadata functions only.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required

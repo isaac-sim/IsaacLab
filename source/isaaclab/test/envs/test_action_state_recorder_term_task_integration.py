@@ -23,8 +23,9 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.envs.mdp.recorders import record_initial_state
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.datasets import EpisodeRecorder, EpisodeRecorderCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -74,7 +75,7 @@ def compare_states(compared_state, ground_truth_state, ground_truth_env_id) -> t
     return True, ""
 
 
-def check_initial_state_recorder_term(env):
+def check_initial_state_recorder_term(env, recorder):
     """Check values recorded by the initial state recorder terms.
 
     Args:
@@ -82,7 +83,7 @@ def check_initial_state_recorder_term(env):
     """
     current_state = env.unwrapped.scene.get_state(is_relative=True)
     for env_id in range(env.unwrapped.num_envs):
-        recorded_initial_state = env.unwrapped.recorder_manager.get_episode(env_id).get_initial_state()
+        recorded_initial_state = recorder.get_episode(env_id).get_initial_state()
         are_states_equal, output_log = compare_states(recorded_initial_state, current_state, env_id)
         assert are_states_equal, output_log
 
@@ -100,20 +101,26 @@ def test_action_state_recorder_terms(task_name, device, temp_dir):
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
     # set recorder configurations for this test
-    env_cfg.recorders = ActionStateRecorderManagerCfg()
-    env_cfg.recorders.dataset_export_dir_path = temp_dir
-    env_cfg.recorders.dataset_filename = dummy_dataset_filename
+    recorder_cfg = EpisodeRecorderCfg()
+    recorder_cfg.dataset_export_dir_path = temp_dir
+    recorder_cfg.dataset_filename = dummy_dataset_filename
 
     # create environment
     env = gym.make(task_name, cfg=env_cfg)
+    recorder = EpisodeRecorder(recorder_cfg, env.unwrapped.num_envs, env.unwrapped.device)
 
-    # reset all environment instances to trigger post-reset recorder callbacks
+    # reset all environment instances, then capture their initial state explicitly
     env.reset()
-    check_initial_state_recorder_term(env)
+    record_initial_state(recorder, env.unwrapped)
+    check_initial_state_recorder_term(env, recorder)
 
     # reset only one environment that is not the first one
-    env.unwrapped.reset(env_ids=torch.tensor([num_envs - 1], device=env.unwrapped.device))
-    check_initial_state_recorder_term(env)
+    env_ids = torch.tensor([num_envs - 1], device=env.unwrapped.device)
+    recorder.reset(env_ids)
+    env.unwrapped.reset(env_ids=env_ids)
+    record_initial_state(recorder, env.unwrapped, env_ids)
+    check_initial_state_recorder_term(env, recorder)
 
     # close the environment
+    recorder.close()
     env.close()
