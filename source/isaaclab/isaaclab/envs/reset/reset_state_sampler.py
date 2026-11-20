@@ -183,7 +183,8 @@ class ResetStateSampler:
             env_ids: Alternative selection using environment indices or a slice.
             success: Previous episode success flags, shape [num_envs]. Omit at startup.
             valid: Completed-episode mask, shape [num_envs]. Exclude unfinished manual resets.
-            state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores.
+            state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores. A request of -1
+                samples from the scores for that environment.
             rng: Caller-owned int32 seeds, shape [num_envs]. Each draw is then
                 ``wp.randf(wp.rand_init(rng[env], 0))`` and the internal streams are untouched;
                 the caller advances its seeds between resets. Omit to use the internal streams.
@@ -229,6 +230,43 @@ class ResetStateSampler:
             device=self.device,
         )
         return self.state_ids
+
+    def forget(
+        self,
+        state_indices: wp.array | ProxyArray | torch.Tensor,
+        mask: wp.array | ProxyArray | torch.Tensor | None = None,
+        *,
+        success_rate: float = 0.0,
+    ) -> None:
+        """Clear the outcome history of entries whose states the caller replaced.
+
+        Their episode counts restart at zero and their success rate is ``success_rate`` until their next outcome,
+        such as a score's target, so that a new state is drawn before its outcomes are known. Probabilities follow at
+        the next :meth:`reset`. Captured like :meth:`reset`.
+
+        Args:
+            state_indices: Dense int32 catalog positions, shape [N]. Invalid positions are skipped.
+            mask: Boolean selection, shape [N]. None forgets every listed entry.
+            success_rate: Success rate of the forgotten entries until their next outcome, in [0, 1].
+        """
+        indices = _warp_array(state_indices)
+        indices = self._input(indices, indices.shape[0] if isinstance(indices, wp.array) else -1)
+        if indices.dtype != wp.int32:
+            raise TypeError("state_indices must use the int32 dtype.")
+        selection = None if mask is None else self._input(mask, indices.shape[0])
+        wp.launch(
+            _forget_outcomes,
+            indices.shape[0],
+            [
+                indices,
+                selection,
+                float(success_rate),
+                self._success_history,
+                self.episode_counts.warp,
+                self.success_rate.warp,
+            ],
+            device=self.device,
+        )
 
     def _resolve_requested_indices(self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor) -> None:
         """Resolve explicit catalog labels before any previous outcomes are credited."""
@@ -373,6 +411,8 @@ def _resolve_requests(
     requested_indices[env] = -1
     if mask[env]:
         value = wp.int64(requested[env])
+        if value == wp.int64(-1):
+            return
         index = int(-1)
         if dense:
             if value >= wp.int64(0) and value < wp.int64(catalog_ids.shape[0]):
@@ -392,6 +432,27 @@ def _resolve_requests(
             requested_indices[env] = index
         else:
             invalid[env] = True
+
+
+@wp.kernel
+def _forget_outcomes(
+    indices: wp.array(dtype=wp.int32),
+    mask: wp.array(dtype=wp.bool),
+    success_rate: float,
+    success_history: wp.array2d(dtype=float),
+    episode_counts: wp.array(dtype=wp.int64),
+    rates: wp.array(dtype=float),
+):
+    i = wp.tid()
+    if mask and not mask[i]:
+        return
+    index = indices[i]
+    if index < 0 or index >= rates.shape[0]:
+        return
+    for h in range(success_history.shape[1]):
+        success_history[index, h] = 0.0
+    episode_counts[index] = wp.int64(0)
+    rates[index] = success_rate
 
 
 @wp.kernel
@@ -545,7 +606,7 @@ def _assign_reset_states(
     env = wp.tid()
     if mask[env] and not invalid[env]:
         index = int(-1)
-        if use_requested:
+        if use_requested and requested[env] >= 0:
             index = requested[env]
         else:
             start = env_group_ids[env] * group_size

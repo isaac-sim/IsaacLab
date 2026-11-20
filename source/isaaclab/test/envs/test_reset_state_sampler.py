@@ -247,3 +247,25 @@ def test_caller_seeds_decide_draws_and_leave_internal_streams_untouched():
     np.testing.assert_array_equal(sampler.reset().warp.numpy(), reference.reset().warp.numpy())
     with pytest.raises(TypeError):
         sampler.reset(rng=wp.zeros(num_envs, dtype=wp.int64, device=device))
+
+
+def test_minus_one_requests_draw_and_forgotten_entries_restart_from_a_prior():
+    sampler = ResetStateSampler(
+        ResetStateSamplerCfg(history_length=4, scores=[]), 4, 64, "cpu", group_ids=torch.arange(4), num_groups=4
+    )
+    requests = torch.tensor([-1, 21, -1, 63])
+    # Worlds 0 and 2 draw within their own group; worlds 1 and 3 replay their requested entry.
+    sampler.reset(state_ids=requests)
+    indices = sampler.indices.warp.numpy()
+    assert 0 <= indices[0] < 16 and 32 <= indices[2] < 48
+    np.testing.assert_array_equal(indices[[1, 3]], [21, 63])
+    assert not sampler.invalid_requests.warp.numpy().any()
+
+    sampler.reset(success=torch.ones(4, dtype=torch.bool), state_ids=requests)
+    np.testing.assert_array_equal(sampler.episode_counts.warp.numpy()[[21, 63]], [1, 1])
+    sampler.forget(wp.array([21, 63], dtype=wp.int32, device="cpu"), torch.tensor([True, False]), success_rate=0.5)
+    np.testing.assert_array_equal(sampler.episode_counts.warp.numpy()[[21, 63]], [0, 1])
+    np.testing.assert_allclose(sampler.success_rate.warp.numpy()[[21, 63]], [0.5, 1.0])
+    # The next outcome replaces the prior.
+    sampler.reset(success=torch.zeros(4, dtype=torch.bool), state_ids=requests)
+    np.testing.assert_allclose(sampler.success_rate.warp.numpy()[[21, 63]], [0.0, 0.5])
