@@ -654,3 +654,8 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
+
+    def validate_config(self):
+        """Reject the Newton OptiX renderer, which does not trace deformable objects."""
+        if self.scene.base_camera.renderer_cfg.renderer_type == "newton_optix":
+            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")

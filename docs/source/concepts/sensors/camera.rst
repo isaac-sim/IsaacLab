@@ -226,7 +226,7 @@ Supported outputs vary by renderer. See the table below and the
    * - Output
      - Isaac RTX
      - OVRTX
-     - Newton Warp
+     - Newton Warp and OptiX
    * - ``rgb``, ``rgba``, ``rgb_hdr``
      - Yes
      - Yes
@@ -385,7 +385,7 @@ The field accepts:
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
 camera anywhere on the stage. Discovery happens once during camera construction.
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
+PPISP is composed by Isaac RTX, OVRTX, Newton Warp, and Newton OptiX. It requires ``rgb`` or ``rgba`` output. A
 static configuration is shared by all cloned views in one camera batch; controller weights may
 predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
 configuration and discovered USD attributes are fixed for the camera lifetime.
