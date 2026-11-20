@@ -93,10 +93,11 @@ class CameraCfg(SensorBaseCfg):
     """
 
     frame_history_length: int = 0
-    """Number of most recent RGB captures kept in :attr:`CameraData.frame_history`. Defaults to 0 (disabled).
+    """Number of most recent captures of each output in :attr:`data_types` kept in
+    :attr:`CameraData.frame_history`. Defaults to 0 (disabled).
 
-    When positive, ``"rgb"`` must be in :attr:`data_types`. A renderer that predicts several frames per update,
-    such as a world model, fills the whole history at once; other renderers push one capture per update.
+    The history holds this many copies of every requested output. A renderer that predicts several frames per
+    update, such as a world model, fills the whole history at once; other renderers push one capture per update.
     """
 
     width: int = MISSING
@@ -287,8 +288,6 @@ class CameraCfg(SensorBaseCfg):
                 )
         if self.frame_history_length < 0:
             raise ValueError(f"frame_history_length must be 0 (off) or positive, got {self.frame_history_length}")
-        if self.frame_history_length and "rgb" not in self.data_types:
-            raise ValueError("frame_history_length requires 'rgb' in data_types")
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
