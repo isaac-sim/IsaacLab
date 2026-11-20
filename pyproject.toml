@@ -395,14 +395,19 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
+name = "isaacsim-internal"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi/simple"
+explicit = false
+
+[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-# unsafe-best-match resolves NVIDIA deps with versions mismatched across
-# pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
+# Prefer compatible public packages before falling back to the internal Isaac Sim index.
+# prerelease=allow covers prerelease-only packages.
 [tool.uv]
-index-strategy = "unsafe-best-match"
+index-strategy = "unsafe-first-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/isaaclab/installation.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
@@ -418,6 +423,9 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
+    # QA-only nightly ranges replace the published Isaac Sim and standalone importer pins.
+    "isaacsim[all,extscache]>=6.3.0.dev0,<6.3.0rc0",
+    "isaacsim-asset-isolated>=6.3.0.dev0,<6.3.0rc0",
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
@@ -427,11 +435,6 @@ override-dependencies = [
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.
     "usd-exchange==3.0.1",
-    # usd-optimize must share usd-exchange's OpenUSD build (26.08); bump the two together.
-    "usd-optimize~=1.3.1",
-    # Standalone importer 6.2.0.1 requires these converters; Isaac Sim 6.2 pins older releases.
-    "urdf-usd-converter==0.3.4",
-    "mujoco-usd-converter==0.7.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     # isaacsim-core 6.2 pins fsspec 2026.2.0, while torch 2.11 requires 2026.6.0.
@@ -451,6 +454,8 @@ package = false
 egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
+isaacsim = { index = "isaacsim-internal" }
+isaacsim-asset-isolated = { index = "isaacsim-internal" }
 ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
