@@ -301,7 +301,7 @@ OVERRIDES = {
     ),
     "examples/demos/microduck_warehouse.py": ScriptOverride(fixed_physics_backend="newton_xpbd"),
     "examples/demos/foveated_camera.py": ScriptOverride(
-        fixed_physics_backend="newton_xpbd", visualizers=(None, "newton_gl")
+        fixed_physics_backend="newton_xpbd", visualizers=(None, "newton_gl", "newton_rtx")
     ),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(

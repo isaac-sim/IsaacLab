@@ -131,7 +131,7 @@ DEMOS = (
     ProgramSpec(
         "foveated-camera",
         "examples/demos/foveated_camera.py",
-        "Watch a foveated camera move its gaze between objects.",
+        "Explore the docs scene through a foveated camera.",
         extras=("fovi",),
         required_modules=("isaaclab_fovi", "fovi"),
     ),

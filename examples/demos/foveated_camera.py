@@ -3,16 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Watch a foveated camera move its gaze between objects.
+"""Explore the docs scene through a foveated camera.
 
-The viewer shows the camera's retina: dense where it looks, sparse in the periphery. The gaze steps from one object
-to the next, so the fovea lands on each in turn.
+Use WASD or the arrow keys to move, and Q/E to lower or raise the camera.
+Drag the viewing sphere to steer the gaze or drag the retina to turn the camera.
+I/K tilt the gaze and J/L pan it. Ctrl+scroll zooms the retina.
+Press H to show or hide the viewer controls.
+Use --target to choose where the retina looks at launch.
 
 .. code-block:: bash
 
     uv run --extra fovi isaaclab demo foveated-camera
-    uv run --extra fovi --extra isaacsim isaaclab demo foveated-camera renderer=isaacsim_rtx
-    uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx
+    uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera --viz newton_rtx
+    uv run --extra fovi --extra isaacsim isaaclab demo foveated-camera renderer=isaacsim_rtx --viz newton_gl
+    uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx --viz newton_gl
     # A large CMF constant gives the matched non-foveated retina, for comparison:
     uv run --extra fovi isaaclab demo foveated-camera env.scene.eye.cmf_a_deg=1000
 """
@@ -21,80 +25,156 @@ from __future__ import annotations
 
 import argparse
 import math
+import time
+from collections.abc import Callable
 
 import gymnasium as gym
-
-from isaaclab.app import add_launcher_args, launch_simulation
-
-from isaaclab_tasks.utils import setup_preset_cli
-
-parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument(
-    "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
-)
-parser.add_argument("--dwell", type=int, default=60, help="Frames the gaze rests on each object.")
-add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
-args_cli, overrides = setup_preset_cli(parser)
-if args_cli.max_steps == 0 or args_cli.max_steps < -1:
-    parser.error("--max_steps must be positive or -1.")
-if args_cli.dwell <= 0:
-    parser.error("--dwell must be positive.")
-
+import numpy as np
 import torch
-from isaaclab_fovi.sensors import FoveatedCameraCfg
+import warp as wp
+from fovi.sensing.projection import gaze_rotation
+from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
+from isaaclab_fovi.sensors.native_grid import GRID_STYLE, native_grid_exit_uv
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
+from PIL import Image, ImageDraw, ImageFont
+
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, instantiate
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_apply,
+    quat_apply_inverse,
+    quat_from_matrix,
+)
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
-from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils import preset, setup_preset_cli
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-EYE_HEIGHT = 0.5
-"""Height of the camera above the ground [m]; it looks along +Y with +Z up, so +X is to its right."""
-
+OFFSET = (0.5, 0.5)
+"""Shift of the whole scene [m], which keeps the ground plane's origin marker behind the camera."""
+EYE = (OFFSET[0], OFFSET[1], 0.35)
+LOOK_AT = (OFFSET[0], OFFSET[1] + 1.0, 0.0)
+YCB = f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned"
+# Docs overview layout: name, USD, azimuth left of centre [deg], distance [m].
 OBJECTS = {
-    "red_cube": ((-0.9, 2.5, 0.2), (0.8, 0.15, 0.1)),
-    "green_sphere": ((0.8, 3.0, 0.25), (0.15, 0.7, 0.2)),
-    "blue_cube": ((0.0, 4.0, 0.6), (0.15, 0.3, 0.85)),
-    "yellow_sphere": ((-0.3, 1.8, 0.15), (0.9, 0.8, 0.1)),
+    "power_drill": (f"{YCB}/035_power_drill.usd", 80.0, 1.0),
+    "foam_brick": (f"{YCB}/061_foam_brick.usd", 74.0, 1.1),
+    "cracker_box": (f"{YCB}/003_cracker_box.usd", 64.0, 0.8),
+    "banana": (f"{YCB}/011_banana.usd", 52.0, 0.38),
+    "pitcher": (f"{YCB}/019_pitcher_base.usd", 40.0, 1.0),
+    "tuna_can": (f"{YCB}/007_tuna_fish_can.usd", 30.0, 0.32),
+    "sugar_box": (f"{YCB}/004_sugar_box.usd", 24.0, 0.6),
+    "bowl": (f"{YCB}/024_bowl.usd", 13.0, 0.85),
+    "mustard_bottle": (f"{YCB}/006_mustard_bottle.usd", 2.0, 0.5),
+    "master_chef_can": (f"{YCB}/002_master_chef_can.usd", -10.0, 0.95),
+    "soup_can": (f"{YCB}/005_tomato_soup_can.usd", -18.0, 0.38),
+    "bleach": (f"{YCB}/021_bleach_cleanser.usd", -30.0, 0.85),
+    "mug": (f"{YCB}/025_mug.usd", -42.0, 0.5),
+    "toy_truck": (f"{ISAACLAB_NUCLEUS_DIR}/Objects/ToyTruck/toy_truck.usd", -54.0, 1.0),
+    "marker": (f"{YCB}/040_large_marker.usd", -64.0, 0.4),
+    "pudding_box": (f"{YCB}/008_pudding_box.usd", -74.0, 0.7),
+    "clamp": (f"{YCB}/051_large_clamp.usd", -86.0, 0.45),
 }
-"""Each object's centre [m] and colour, in the order the gaze visits them."""
+
+# An ideal equidistant fisheye (an OpenCV fisheye without distortion) whose 1024 px image spans 180 degrees.
+FOCAL = 512.0 / (math.pi / 2)
+FISHEYE = sim_utils.PinholeCameraCfg(
+    clipping_range=(0.02, 100.0),
+    distortion=sim_utils.OpenCvFisheyeDistortionCfg(fx=FOCAL, fy=FOCAL, cx=511.5, cy=511.5, image_size=(1024, 1024)),
+)
+PREVIEW_SIZE = 256
 
 
-def _object(prim: str, centre: tuple[float, float, float], colour: tuple[float, float, float]) -> AssetBaseCfg:
-    """A static, coloured cube or sphere sized to its centre's height."""
-    material = sim_utils.PreviewSurfaceCfg(diffuse_color=colour)
-    if "sphere" in prim:
-        spawn = sim_utils.SphereCfg(radius=centre[2], visual_material=material)
-    else:
-        spawn = sim_utils.CuboidCfg(size=(2 * centre[2],) * 3, visual_material=material)
-    return AssetBaseCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/{prim}", spawn=spawn, init_state=AssetBaseCfg.InitialStateCfg(pos=centre)
-    )
+def viewing_sphere_rays(screen: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Trace the docs' oblique perspective view from behind the camera mount."""
+    yaw, pitch = -0.55, 0.5
+    cy, sy, cp, sp = math.cos(yaw), math.sin(yaw), math.cos(pitch), math.sin(pitch)
+    inverse = screen.new_tensor(((cy, sy * sp, -sy * cp), (0, cp, sp), (sy, -cy * sp, cy * cp)))
+    eye = inverse @ screen.new_tensor((0, 0, -3)) + screen.new_tensor((0, 0, 0.4))
+    rays = torch.cat((screen / 2.16, torch.ones_like(screen[..., :1])), dim=-1) @ inverse.T
+    return eye, rays
+
+
+def outline(mask: torch.Tensor) -> torch.Tensor:
+    """A one-pixel inner edge of a projected region."""
+    return mask & torch.nn.functional.max_pool2d((~mask)[None, None].float(), 3, 1, 1)[0, 0].bool()
+
+
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument(
+    "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
+)
+parser.add_argument("--target", choices=OBJECTS, help="Set the initial gaze toward this object.")
+add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_gl"])
+args_cli, overrides = setup_preset_cli(parser)
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
+
+
+def _eye_rotation() -> torch.Tensor:
+    """Return the camera mount's OpenGL orientation in the scene frame."""
+    rotation = create_rotation_matrix_from_view(torch.tensor([EYE]), torch.tensor([LOOK_AT]), up_axis="Z")
+    return quat_from_matrix(rotation)
+
+
+def _add_clutter(scene_cfg: InteractiveSceneCfg) -> dict[str, tuple[float, float, float]]:
+    """Place the docs assets on the ground and return their centres in the scene frame."""
+    centres = {}
+    for name, (usd, azimuth, distance) in OBJECTS.items():
+        stage = Usd.Stage.Open(retrieve_file_path(usd))
+        cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_, UsdGeom.Tokens.render])
+        bounds = cache.ComputeWorldBound(stage.GetDefaultPrim()).ComputeAlignedRange()
+        yaw = math.radians(azimuth + 180.0)
+        angle = math.radians(azimuth)
+        x = OFFSET[0] - distance * math.sin(angle)
+        y = OFFSET[1] + distance * math.cos(angle)
+        height = -bounds.GetMin()[2]
+        asset = AssetBaseCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/{name}",
+            spawn=sim_utils.UsdFileCfg(usd_path=usd),
+            init_state=AssetBaseCfg.InitialStateCfg(
+                pos=(x, y, height),
+                rot=(0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)),
+            ),
+        )
+        setattr(scene_cfg, name, asset)
+        centres[name] = (x, y, height + bounds.GetMidpoint()[2])
+    return centres
 
 
 @configclass
 class FoveatedSceneCfg(InteractiveSceneCfg):
-    """Coloured objects on a ground plane, in front of a foveated camera."""
+    """The cluttered fisheye scene from the foveated camera docs."""
 
     ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=800.0))
-    red_cube = _object("red_cube", *OBJECTS["red_cube"])
-    green_sphere = _object("green_sphere", *OBJECTS["green_sphere"])
-    blue_cube = _object("blue_cube", *OBJECTS["blue_cube"])
-    yellow_sphere = _object("yellow_sphere", *OBJECTS["yellow_sphere"])
+    light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=900.0))
+    # Keep one body below the ground for Newton's model.
+    anchor = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Anchor",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.01, 0.01, 0.01),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.001),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    )
     eye = FoveatedCameraCfg(
         prim_path="{ENV_REGEX_NS}/Eye",
         data_types=["rgb"],
@@ -104,13 +184,10 @@ class FoveatedSceneCfg(InteractiveSceneCfg):
             ovrtx=OVRTXRendererCfg(),
             isaacsim_rtx=IsaacRtxRendererCfg(),
         ),
-        # An ideal pinhole with a 90 degree field of view; the retina spans its short side.
-        spawn=sim_utils.PinholeCameraCfg(focal_length=12.0, horizontal_aperture=24.0),
+        spawn=FISHEYE,
         foveated_res=128,
         mask_to_sensor_fov=True,
-        offset=FoveatedCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, EYE_HEIGHT), rot=(0.70710678, 0.0, 0.0, 0.70710678), convention="opengl"
-        ),
+        offset=FoveatedCameraCfg.OffsetCfg(pos=EYE, rot=tuple(_eye_rotation()[0].tolist()), convention="opengl"),
     )
 
 
@@ -133,14 +210,148 @@ class FoveatedDemoCfg(ManagerBasedEnvCfg):
     )
 
 
-def gaze_toward(centre: tuple[float, float, float]) -> tuple[float, float]:
-    """(tilt, pan) [deg] that look from the camera at ``centre``: positive tilt looks up, positive pan looks left."""
-    x, y, z = centre
-    return math.degrees(math.atan2(z - EYE_HEIGHT, math.hypot(x, y))), -math.degrees(math.atan2(x, y))
+def gaze_toward(centre: tuple[float, float, float], camera_cfg: FoveatedCameraCfg) -> tuple[float, float]:
+    """Return tilt and pan in degrees in the camera's optical frame."""
+    offset = camera_cfg.offset
+    mount = convert_camera_frame_orientation_convention(
+        torch.tensor([offset.rot]), origin=offset.convention, target="ros"
+    )
+    delta = torch.tensor([centre]) - torch.tensor([offset.pos])
+    x, y, z = quat_apply_inverse(mount, delta)[0].tolist()
+    return -math.degrees(math.atan2(y, math.hypot(x, z))), -math.degrees(math.atan2(x, z))
+
+
+def camera_comparison(
+    camera: FoveatedCamera, overview: FoveatedCamera, set_gaze: Callable[[tuple[float, float]], None]
+) -> tuple[Callable[[], None], Callable[[wp.array, float], wp.array], Callable[[float, float], bool]]:
+    """Display the lens and gaze on the viewing sphere used in the docs."""
+    size, gap = PREVIEW_SIZE, 6
+    header_height = 28
+    image_width = 2 * size + gap
+    header_color = (25, 28, 32, 255)
+    header = Image.new("RGBA", (image_width, header_height), header_color)
+    draw = ImageDraw.Draw(header)
+    font = ImageFont.load_default(size=17)
+    draw.text((8, header_height / 2), "Viewing sphere", font=font, fill="white", anchor="lm")
+    draw.text((size + gap + 8, header_height / 2), "FoveatedCamera view", font=font, fill="white", anchor="lm")
+    labels = torch.from_numpy(np.array(header)).to(camera.device)
+    divider = labels[:1, size : size + gap].expand(size, -1, -1)
+    displayed_zoom = None
+    pick_directions = None
+
+    def steer_gaze(u: float, v: float) -> bool:
+        column = int(u * image_width)
+        row = int(v * (size + header_height)) - header_height
+        if column >= size:
+            return False
+        if row >= 0 and pick_directions is not None:
+            x, y, z = pick_directions[row, column].tolist()
+            if x or y or z:
+                set_gaze((-math.degrees(math.atan2(y, math.hypot(x, z))), -math.degrees(math.atan2(x, z))))
+        return True
+
+    coords = overview.sampling_coords
+    retina_coords = camera.sampling_coords
+    pixels = torch.arange(size, device=camera.device)
+    center = (pixels + 0.5) * (2 / size) - 1
+    screen = torch.stack(torch.meshgrid(center, center, indexing="xy"), dim=-1)
+    retina_disc = screen.square().sum(-1) <= 1
+    gl_to_ros = screen.new_tensor((1, -1, -1))
+    roll = math.radians(overview.cfg.image_rotation_deg)
+    c, s = math.cos(roll), math.sin(roll)
+    image_roll = screen.new_tensor(((c, -s, 0), (s, c, 0), (0, 0, 1)))
+    eye, observer_rays = viewing_sphere_rays(screen)
+    reference_pos, reference_q = (value[:1].clone() for value in camera.get_world_poses(convention="opengl"))
+    world_axes = quat_apply(reference_q.expand(3, -1), torch.diag(gl_to_ros))
+    lens_color = screen.new_tensor((20, 112, 102))
+    gaze_color = screen.new_tensor((36, 84, 157))
+
+    def prepare() -> None:
+        overview.set_world_poses(*camera.get_world_poses(convention="opengl"), convention="opengl")
+        if camera.supports_batch_update and overview.supports_batch_update:
+            camera.update_batch((camera, overview), 0.0)
+
+    def compose(retina: wp.array, zoom: float) -> wp.array:
+        nonlocal displayed_zoom, pick_directions
+        if zoom != displayed_zoom:
+            draw.rectangle((image_width - 68, 0, image_width - 1, header_height - 1), fill=header_color)
+            draw.text((image_width - 8, header_height / 2), f"{zoom:.2f}x", font=font, fill="white", anchor="rm")
+            labels.copy_(torch.from_numpy(np.array(header)))
+            displayed_zoom = zoom
+        detail = wp.to_torch(retina)
+        height, width = detail.shape[:2]
+        crop_h, crop_w = max(1, round(height / zoom)), max(1, round(width / zoom))
+        top, left = (height - crop_h) // 2, (width - crop_w) // 2
+
+        # Transform the fixed observer into the live camera frame, independently of active gaze.
+        position, orientation = camera.get_world_poses(convention="opengl")
+        axes = quat_apply_inverse(orientation[:1].expand(3, -1), world_axes) * gl_to_ros
+        offset = quat_apply_inverse(reference_q, position[:1] - reference_pos)[0] * gl_to_ros
+        origin = (eye - 0.22 * torch.tanh(offset / 0.4)) @ axes
+        rays = observer_rays @ axes
+        a = rays.square().sum(-1)
+        b = (rays * origin).sum(-1)
+        discriminant = b.square() - a * (origin.square().sum() - 1)
+        root = discriminant.clamp_min(0).sqrt()
+        near_t, far_t = (-b - root) / a, (-b + root) / a
+        near = origin + near_t[..., None] * rays
+        far = origin + far_t[..., None] * rays
+        _, near_valid = overview.camera_model.project(((near * gl_to_ros) @ image_roll.T) * gl_to_ros)
+        _, far_valid = overview.camera_model.project(((far * gl_to_ros) @ image_roll.T) * gl_to_ros)
+        near_hit = (discriminant >= 0) & (near_t > 0) & near_valid
+        inside = (discriminant >= 0) & (far_t > 0) & far_valid & ~near_hit
+        hit = near_hit | inside
+
+        # The overview texture uses native x/y ordering. Its published image is upright.
+        uv, texture_valid = native_grid_exit_uv(far * gl_to_ros, coords)
+        texture = overview.data.output["rgb"].torch[0, ..., :3]
+        uv = torch.stack((uv[..., 1], 1 - uv[..., 0]), dim=-1)
+        ij = (uv * size).nan_to_num().long().clamp(0, size - 1)
+        rgb = texture[ij[..., 1], ij[..., 0]].float()
+        sampled = inside & texture_valid
+        pick_directions = torch.where(sampled[..., None], far, 0)
+
+        tilt, pan = camera.gaze_angles.torch[0].deg2rad().unbind()
+        direction = torch.stack((-tilt.cos() * pan.sin(), -tilt.sin(), tilt.cos() * pan.cos()))
+        alignment = (far * direction).sum(-1)
+        if retina_coords.style == GRID_STYLE:
+            rotation = gaze_rotation(direction, convention="pan_tilt")
+            grid, _ = native_grid_exit_uv((far @ rotation) * gl_to_ros, retina_coords)
+            radius = torch.linalg.vector_norm(2 * grid - 1, dim=-1)
+        else:
+            radius = torch.acos(alignment.clamp(-1, 1)) / math.radians(retina_coords.fov / 2)
+        in_retina = radius <= min(crop_h / height, crop_w / width)
+
+        # Match the docs: an untextured near shell, a faded peripheral texture, and independent lens/gaze edges.
+        texel = 0.72 * rgb + 0.28 * 255
+        texel = torch.where(in_retina[..., None], texel, 0.45 * texel + 0.55 * 255)
+        shell = torch.where(near_hit, 218.0, 247.0)
+        full = torch.where(sampled[..., None], texel, shell[..., None])
+        if retina_coords.style == GRID_STYLE:
+            cells = torch.floor(grid * 8)
+            lines = torch.zeros_like(hit)
+            lines[:, 1:] |= (cells[:, 1:] != cells[:, :-1]).any(-1)
+            lines[1:, :] |= (cells[1:, :] != cells[:-1, :]).any(-1)
+            lattice = sampled & in_retina & lines
+            full = torch.where(lattice[..., None], torch.lerp(full, gaze_color, 0.42), full)
+        fixation = alignment.masked_fill(~sampled, -torch.inf).argmax()
+        row, col = fixation // size, fixation % size
+        dot = (pixels[None, :] - col).square() + (pixels[:, None] - row).square() <= 9
+        gaze_edge = outline(in_retina) | (dot & (alignment > 0.999))
+        full = torch.where((sampled & gaze_edge)[..., None], gaze_color, full)
+        full = torch.where(outline(hit)[..., None], lens_color, full)
+        full = torch.cat((full.to(torch.uint8), torch.full_like(texture[..., :1], 255)), dim=-1)
+
+        crop = detail[top : top + crop_h, left : left + crop_w].permute(2, 0, 1).unsqueeze(0)
+        detail = torch.nn.functional.interpolate(crop, size=(size, size), mode="nearest")[0].permute(1, 2, 0)
+        detail[..., :3].masked_fill_(~retina_disc[..., None], 0)
+        return wp.from_torch(torch.cat((labels, torch.cat((full, divider, detail), dim=1)), dim=0))
+
+    return prepare, compose, steer_gaze
 
 
 def main() -> None:
-    """Render the scene while the gaze steps between the objects."""
+    """Render the docs scene and let the viewer drive the camera."""
     # Config-only registration reuses the standard preset and Hydra override resolver.
     gym.register(
         "FoveatedCameraDemo",
@@ -148,20 +359,76 @@ def main() -> None:
         kwargs={"env_cfg_entry_point": FoveatedDemoCfg},
     )
     cfg, _ = resolve_task_config("FoveatedCameraDemo", None, overrides=overrides)
+    if cfg.scene.eye.renderer_cfg.renderer_type == "ovrtx":
+        print("Starting OVRTX. The first frame can take several minutes with a cold shader cache.", flush=True)
     with launch_simulation(cfg, args_cli):
         sim_utils.create_new_stage()
         sim = sim_utils.SimulationContext(cfg.sim)
+        centres = _add_clutter(cfg.scene)
+        compare = any(v.backend.visualizer_type in {"newton_gl", "newton_rtx"} for v in cfg.sim.visualizer_cfgs)
+        if compare:
+            cfg.scene.eye.mask_to_sensor_fov = True
+            cfg.scene.overview = cfg.scene.eye.replace(
+                prim_path="{ENV_REGEX_NS}/Overview",
+                foveated_res=PREVIEW_SIZE,
+                foveated_style="warped_cartesian_as_grid",
+                cmf_a_deg=1.0e5,
+                retinal_window_fraction=1.0,
+                fov_type="circular",
+                radius_norm=2.0,
+                pool_enabled=False,
+                mask_to_sensor_fov=True,
+                data_types=["rgb"],
+            )
         scene = instantiate(cfg.scene)
         sim.register_interactive_scene(scene)
         sim.reset()
         camera = scene["eye"]
-        gazes = torch.tensor([gaze_toward(centre) for centre, _ in OBJECTS.values()], device=sim.device)
+        gaze = (0.0, 0.0)
+        if args_cli.target is not None:
+            gaze = gaze_toward(centres[args_cli.target], cfg.scene.eye)
+        angles = torch.tensor([gaze], device=sim.device).repeat(scene.num_envs, 1)
+        if args_cli.target is not None:
+            camera.set_gaze_angles(angles)
+        viewers = [v for v in sim.visualizers if v.cfg.backend.visualizer_type in {"newton_gl", "newton_rtx"}]
+
+        def set_gaze(value: tuple[float, float]) -> None:
+            nonlocal gaze
+            if gaze == value:
+                return
+            gaze = value
+            angles.copy_(angles.new_tensor(gaze).expand_as(angles))
+            camera.set_gaze_angles(angles)
+            for viewer in viewers:
+                viewer.current_image_view.invalidate()
+
+        if viewers:
+            prepare, compositor, pointer = camera_comparison(camera, scene["overview"], set_gaze)
+            for viewer in viewers:
+                viewer.set_scene_camera_compositor(compositor, prepare=prepare, pointer=pointer)
+
+        last_gaze_update = time.monotonic()
         frame = 0
         while sim.is_running() and (args_cli.max_steps < 0 or frame < args_cli.max_steps):
-            if frame % args_cli.dwell == 0:
-                camera.set_gaze_angles(gazes[(frame // args_cli.dwell) % len(gazes)].unsqueeze(0))
+            now = time.monotonic()
+            if viewers and now - last_gaze_update >= 1 / 30:
+                elapsed = min(now - last_gaze_update, 0.05)
+                last_gaze_update = now
+                viewer = viewers[0]
+                tilt = int(viewer.is_key_down("i")) - int(viewer.is_key_down("k"))
+                pan = int(viewer.is_key_down("j")) - int(viewer.is_key_down("l"))
+                if tilt or pan:
+                    set_gaze(
+                        (
+                            max(-85.0, min(85.0, gaze[0] + tilt * 50 * elapsed)),
+                            max(-85.0, min(85.0, gaze[1] + pan * 50 * elapsed)),
+                        )
+                    )
             scene.update(sim.get_physics_dt())
             sim.render()
+            if not sim.visualizers:
+                # Without a viewer, explicitly request sensor data to render the frame.
+                _ = camera.data
             frame += 1
 
 
