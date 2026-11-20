@@ -13,7 +13,7 @@ import logging
 import math
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cache, partial
 from itertools import chain
 from typing import TYPE_CHECKING, Any
@@ -107,7 +107,9 @@ class NewtonCloneRecord:
     particle_ranges: dict[str, tuple[int, int]]
     """``(start, count)`` particle range per replicated deformable prim path."""
     cable_bindings: dict[str, list[int]]
-    """Body indices per replicated cable prim path."""
+    """Shape indices per replicated cable prim path."""
+    cable_scales: dict[int, wp.vec3]
+    """Authored cable capsule scales retained across hard resets."""
     geometry_batches: list
     """Shape batches the scene data backend publishes as geometry."""
     initial_body_variants: tuple[tuple[int, int], ...] = ()
@@ -152,9 +154,21 @@ def _configure_sdf_all_shapes(builder: ModelBuilder, cfg: NewtonCollisionPipelin
         (index, builder.shape_label[index], {name: getattr(builder, name)[index] for name in attributes})
         for index in range(builder.shape_count)
     )
-    # Newton snapshots variant shapes at add_body_variants(), then appends and
-    # finalizes those snapshots after the ordinary builder rows.
-    variant_sets = {id(body.variant_set): body.variant_set for body in builder._body_variants.values()}
+    # Newton shares variant sets across copied builders. Give this builder its own
+    # shape-value dictionaries before changing them for its collision policy.
+    variant_sets = {}
+    for body_index, body_variants in builder._body_variants.items():
+        source = body_variants.variant_set
+        if id(source) not in variant_sets:
+            variant_sets[id(source)] = replace(
+                source,
+                variants=tuple(
+                    replace(variant, shapes=tuple(replace(s, values=s.values.copy()) for s in variant.shapes))
+                    for variant in source.variants
+                ),
+            )
+        builder._body_variants[body_index] = replace(body_variants, variant_set=variant_sets[id(source)])
+    # Newton finalizes variant snapshots after the ordinary builder rows.
     variant_rows = (
         (None, shape.label, shape.values)
         for variant_set in variant_sets.values()

@@ -469,13 +469,10 @@ class NewtonManager(PhysicsManager):
         cable_bindings = {} if clone is None else clone.cable_bindings
         if (solver_cfg := self._cfg.solver_cfg) is not None:
             solver_cfg.class_type.prepare_builder(solver_cfg, builder)
-        # SDF tessellation replaces capsule scales. Keep the authored half-lengths
-        # for the cable endpoint display before the builder is finalized.
-        cable_scales = (
-            {index: builder.shape_scale[index] for shapes in cable_bindings.values() for index in shapes}
-            if self._cfg.collision_cfg is not None and self._cfg.collision_cfg.sdf_all_shapes is not None
-            else None
-        )
+        collision_cfg = self._cfg.collision_cfg
+        cable_scales = None
+        if clone is not None and collision_cfg is not None and collision_cfg.sdf_all_shapes is not None:
+            cable_scales = clone.cable_scales
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",

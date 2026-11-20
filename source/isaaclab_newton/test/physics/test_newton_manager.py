@@ -185,6 +185,11 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
         variants.append(variant)
     builder.add_body_variants(body, variants)
     builder.end_world()
+    plain_cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    plain_builder = create_builder(plain_cfg)
+    plain_builder.begin_world()
+    plain_builder.add_builder(builder)
+    plain_builder.end_world()
 
     backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
     assert builder.shape_sdf_max_resolution[authored_sdf] == 16
@@ -207,6 +212,8 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
     source, _ = scene_data.get_geometry_batches()[0]
     assert backend.model.shape_scale.numpy()[cable, 1] == 1.0
     assert source.shape_scale.numpy()[cable, 1] == pytest.approx(0.13)
+    plain_backend = NewtonBackend(NewtonBackendCfg(physics_cfg=plain_cfg, device=device), plain_builder, dt=0.01)
+    assert newton.GeoType.SPHERE in plain_backend.model._variant_shape_geometry["shape_type"].numpy()
 
 
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
