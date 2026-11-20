@@ -57,6 +57,9 @@ class BrightnessModel(WorldModel):
 
     chunks = 0
 
+    def __init__(self, cfg, num_envs, device):
+        self.num_envs, self.device = num_envs, device
+
     def spec(self):
         return WorldModelSpec(chunk_length=CHUNK, fps=FPS, image_size=(H, W))
 
