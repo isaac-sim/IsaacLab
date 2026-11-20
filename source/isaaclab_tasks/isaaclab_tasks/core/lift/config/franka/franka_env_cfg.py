@@ -12,7 +12,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg, SimReadyUsdFileCfg
 from isaaclab.utils import clone, configclass, replace
 
 from isaaclab_tasks.utils import preset
@@ -327,6 +327,15 @@ class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
 
         # Farthest-point thinning discards valid near-grasp starts.
         reset["diversity_feature"] = None
+
+    def validate_config(self):
+        """Reject SimReady props, which have no aligned pre-grasp in the shape table."""
+        # TODO: remove once reset_to_grasp derives the pre-grasp of a USD file
+        if isinstance(self.scene.object.spawn, SimReadyUsdFileCfg):
+            raise ValueError(
+                "presets=simready is not supported by Isaac-Lift-Franka: its pre-grasp reset covers only the primitive"
+                " shapes. Use Isaac-Lift-KukaAllegro."
+            )
 
     def play_mode(self):
         super().play_mode()

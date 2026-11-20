@@ -39,7 +39,7 @@ _FORBIDDEN_PREFIXES = (
     "isaaclab.sim.spawners.from_files",
     "isaaclab.sim.spawners.shapes",
     "isaaclab.utils.assets",
-    "isaaclab_physx.sim.schemas",
+    "isaaclab_isaacsim.sim.schemas",
 )
 
 

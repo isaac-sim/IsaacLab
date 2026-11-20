@@ -11,8 +11,8 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext

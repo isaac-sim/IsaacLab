@@ -15,16 +15,14 @@ pytestmark = pytest.mark.ov
 
 
 def test_tendon_fragments_use_codeless_schema_names_and_types():
-    from isaaclab_ov.physics.ovphysx_compat import physx_schema_paths
-    from isaaclab_physx.sim.schemas import PhysxTendonAttachmentRootCfg, PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxTendonAttachmentRootCfg, PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
+    from isaaclab_ov.physics.schemas import physx_schema_paths
 
     from isaaclab.sim.schemas import apply_fixed_tendon_properties, apply_spatial_tendon_properties
 
     registry = Plug.Registry()
     registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
-    schema_paths = [
-        str(path) for path in physx_schema_paths(ovphysx) if path.parent.name.casefold() not in registered_names
-    ]
+    schema_paths = [str(path) for path in physx_schema_paths() if path.parent.name.casefold() not in registered_names]
     if schema_paths:
         registry.RegisterPlugins(schema_paths)
 
