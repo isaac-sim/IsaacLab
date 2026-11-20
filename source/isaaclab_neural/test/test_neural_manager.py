@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_neural.physics import FrameBuffer, NeuralCfg, NeuralManager
+from isaaclab_neural.frame_buffer import FrameBuffer
+from isaaclab_neural.physics import NeuralCfg, NeuralManager
 
 from .conftest import FakeModel, FakeModelCfg, J, N, T, world_model_sim, write_manifest
 
