@@ -217,7 +217,7 @@ def test_env_follows_the_gym_interface_and_commits_resets(monkeypatch):
 
         observations, extras = env.reset()
 
-        assert observations["policy"].shape == (NUM_ENVS, 4) and "log" not in extras
+        assert observations["policy"].shape == (NUM_ENVS, 4)
         assert (robot_data.joint_pos.torch[:, 0].abs() <= 1.0).all() and robot_data.joint_pos.torch.std(0).min() > 0
         with pytest.raises(ValueError, match=r"Expected actions of shape \(16, 1\), got \(1, 1\)"):
             env.step(torch.ones(1, 1, device=env.device))
