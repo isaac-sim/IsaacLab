@@ -75,7 +75,7 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
    uv run --extra leapp isaaclab leapp deploy \
        --task <TASK_NAME> \
        --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz newton_gl physics=newton_mjwarp
+       --viz newton physics=newton_mjwarp
 
 Continue with the sections below to select a different RL library, configure the
 export, and validate the generated artifacts.

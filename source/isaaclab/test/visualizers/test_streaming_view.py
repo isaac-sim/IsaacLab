@@ -23,7 +23,7 @@ from matplotlib import colormaps
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
-from isaaclab.utils.images import compose_image, sensor_key_for_gt_type
+from isaaclab.utils.images import compose_image, display_channels, resolve_display_channels, sensor_key_for_gt_type
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.visualizers import ImageView, ImageViewCfg
 
@@ -271,3 +271,50 @@ def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
     sim.close_backend(view)
     assert all(resource is not view for _, resource in sim._backend_registry)
     camera.close.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "available,requested,shown",
+    [
+        (["rgb", "depth"], ["rgb"], ("rgb",)),
+        (["depth"], ["rgb"], ("depth",)),  # A depth-only sensor shows depth when RGB is asked for.
+        (["rgba", "distance_to_image_plane", "normals"], ["normals", "depth"], ("normals", "depth")),
+        (["instance_segmentation", "motion_vectors"], ["rgb"], ("segmentation",)),
+        (["motion_vectors"], ["rgb"], ()),  # Nothing a viewer can display.
+    ],
+)
+def test_a_sensor_shows_its_own_channel_when_the_requested_one_is_missing(available, requested, shown):
+    assert resolve_display_channels(requested, available) == shown
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_switching_a_view_to_depth_recomposes_the_same_sensor(device):
+    wp.init()
+    rgba = np.full((1, 4, 4, 4), 200, np.uint8)
+    depth = np.full((1, 4, 4, 1), 5.0, np.float32)
+    camera = SimpleNamespace(
+        cfg=SimpleNamespace(data_types=["rgba", "depth"]),
+        data=SimpleNamespace(
+            output={
+                "rgba": ProxyArray(wp.array(rgba, device=device)),
+                "depth": ProxyArray(wp.array(depth, device=device)),
+            }
+        ),
+    )
+    view = ImageView(ImageViewCfg(source="camera", envs=(0,), channels=("rgb",)), camera=camera)
+    color = view.read(0).numpy()[..., :3].copy()
+    assert np.all(color == 200)
+    view.cfg.channels = ("depth",)
+    shown = view.read(1).numpy()[..., :3]
+    np.testing.assert_array_equal(shown, _reference_colorize(depth[0], "depth"))
+    view.cfg.depth_range = (0.1, 5.0)  # Changing the color scale recolors without reselecting the sensor.
+    assert not np.array_equal(view.read(2).numpy()[..., :3], shown)
+
+
+def test_display_channels_come_in_viewer_order():
+    assert display_channels(["instance_segmentation", "normals", "rgba", "depth"]) == (
+        "rgb",
+        "depth",
+        "normals",
+        "segmentation",
+    )

@@ -7,12 +7,10 @@
 
 from __future__ import annotations
 
-import warnings
-
 from ...utils import configclass
-from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg
+from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg, warn_deprecated_visualizer
 
-CAPTURE_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx")
+CAPTURE_VISUALIZER_TYPES = ("kit", "newton")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
 
 SENSOR_CHANNELS = ("rgb", "depth", "segmentation", "normals")
@@ -23,9 +21,9 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
-    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, ``"tracking"``, a sensor channel, or ``""``.
-    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the deprecated
-    ``newton`` type is mapped to ``newton_gl`` with a :class:`DeprecationWarning`.
+    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``.
+    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the ``newton_gl``
+    alias is mapped to ``newton``.
     A bare visualizer type is shorthand for ``viz:<type>``.
 
     Raises:
@@ -38,24 +36,16 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     name, sub = (*parts, "", "")[:2]
     if kind == "viz" and not parts:
         return kind, "", ""
-    if (
-        kind == "viz"
-        and parts[1:] in ([], ["streaming_view"], ["tracking"])
-        and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)
-    ):
-        if name in VISUALIZER_ALIASES:
-            warnings.warn(
-                f"Video source type {name!r} is deprecated. Use {VISUALIZER_ALIASES[name]!r} instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+    if kind == "viz":
+        warn_deprecated_visualizer(name, stacklevel=3)
+    if kind == "viz" and parts[1:] in ([], ["streaming_view"]) and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
         return kind, VISUALIZER_ALIASES.get(name, name), sub
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
     raise ValueError(
-        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view', "
-        f"'viz:<type>:tracking' or 'sensor:<name>[:<channel>]', with <type> one of "
-        f"{', '.join(VISUALIZER_TYPES)} and <channel> one of {', '.join(SENSOR_CHANNELS)}."
+        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
+        f"'sensor:<name>[:<channel>]', with <type> one of {', '.join(VISUALIZER_TYPES)} and <channel> one of "
+        f"{', '.join(SENSOR_CHANNELS)}."
     )
 
 
@@ -73,13 +63,11 @@ class VideoRecorderCfg:
     Fields are colon-separated: ``"<kind>:<type>:<sub>"``.
 
     * ``"viz"``                        – the first capture-capable visualizer ``--viz`` selected, else a
-      headless Newton GL visualizer added for the recording.
-    * ``"viz:<type>"``                 – a ``kit``, ``newton_gl`` or ``newton_rtx`` visualizer, interactive
+      headless Newton visualizer added for the recording.
+    * ``"viz:<type>"``                 – a ``kit`` or ``newton`` visualizer, interactive
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
       ``streaming_view=True`` on its :class:`~isaaclab.visualizers.VisualizerCfg`).
-    * ``"viz:<type>:tracking"``        – the first :class:`~isaaclab.visualizers.TrackingCameraCfg` of
-      that visualizer, whichever view its window shows. Only Newton GL supports it.
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).
@@ -90,9 +78,10 @@ class VideoRecorderCfg:
     :func:`~isaaclab.app.launch_simulation` resolves ``"viz"`` and ``"viz:<type>"`` to the visualizer the
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
-    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The deprecated
-    ``newton`` type still works with a warning; use ``newton_gl``. A bare visualizer type is shorthand for
-    ``viz:<type>`` (e.g. ``"newton_gl"`` is ``"viz:newton_gl"``).
+    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). ``newton_gl`` is an
+    alias of ``newton``, and ``newton_rtx`` is a deprecated alias of it that warns (the ``newton`` visualizer
+    supports RTX rendering). A bare visualizer type
+    is shorthand for ``viz:<type>`` (e.g. ``"newton"`` is ``"viz:newton"``).
     """
 
     source: ImageViewCfg | str = "viz"
@@ -176,7 +165,7 @@ class VideoRecorderCfg:
     ``video_interval=1000`` keeps only the three most recently recorded clips::
 
         VideoRecorderCfg(
-            source="viz:newton_gl",
+            source="viz:newton",
             video_interval=1000,
             video_length=200,
             keep_last_n_clips=3,

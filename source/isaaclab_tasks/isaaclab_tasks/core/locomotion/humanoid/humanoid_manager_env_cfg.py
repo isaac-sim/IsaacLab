@@ -26,7 +26,6 @@ from .humanoid_common import (
     FEET_BODY_NAMES,
     JOINT_EFFORT_LIMITS,
     JOINT_GEARS,
-    VISUALIZER_CFG,
     WALK_TARGET_POS,
     HumanoidPhysicsCfg,
 )
@@ -198,7 +197,6 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = HumanoidPhysicsCfg()
-        self.sim.visualizer_cfgs = VISUALIZER_CFG.copy()
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.restitution = 0.0

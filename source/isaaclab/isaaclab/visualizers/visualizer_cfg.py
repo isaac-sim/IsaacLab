@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import math
+import os
+import sys
 import warnings
 from copy import deepcopy
 from dataclasses import MISSING, fields
@@ -20,31 +22,37 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
-VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
+VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
+"""Alternative ``--visualizer`` names and the identifiers they select."""
+
+VISUALIZER_ALIAS_OPTIONS = {"newton_rtx": {"initial_renderer": "rtx"}}
+"""Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
+
+DEPRECATED_VISUALIZER_ALIASES = {
+    "newton_rtx": (
+        "The 'newton_rtx' visualizer option is deprecated and will be removed in the next release; launching the"
+        " 'newton' visualizer instead, started with RTX rendering. Use 'newton' and switch the Renderer to RTX in its"
+        " window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start in RTX."
+    )
+}
+"""Names in :data:`VISUALIZER_ALIASES` that are deprecated, each with the warning that says what happens instead."""
 
 
-def with_free_view(
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg],
-    eye: tuple[float, float, float],
-    lookat: tuple[float, float, float],
-    focal_length: float,
-) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
-    """Return *cameras* with a free perspective view added when it has tracking cameras but no free view of its own.
+def warn_deprecated_visualizer(name: str, stacklevel: int = 2) -> None:
+    """Warn that a ``--visualizer`` name is deprecated, saying which visualizer launches instead.
 
-    A tracking camera follows a robot or frames an environment, so the interactive view that a user moves stays
-    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``. The free view goes
-    right before the first tracking camera, so scene cameras declared ahead of it stay first.
+    Names that are not deprecated are ignored.
+
+    Args:
+        name: Visualizer identifier supplied by the user.
+        stacklevel: Stack level of the warning, relative to the caller of this function.
     """
-    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
-    if perspective and all(isinstance(camera, TrackingCameraCfg) for camera in perspective):
-        free = PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length)
-        first_tracking = next(i for i, camera in enumerate(cameras) if isinstance(camera, PerspectiveCameraCfg))
-        return [*cameras[:first_tracking], free, *cameras[first_tracking:]]
-    return cameras
+    message = DEPRECATED_VISUALIZER_ALIASES.get(name)
+    if message is not None:
+        warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)
 
 
 @configclass
@@ -62,49 +70,6 @@ class PerspectiveCameraCfg:
 
     focal_length: float = 12.0
     """Perspective camera focal length [mm]."""
-
-
-@configclass
-class TrackingCameraCfg(PerspectiveCameraCfg):
-    """A camera that frames an environment or follows an asset in it, however the scene is laid out.
-
-    The visualizer renders it from the viewer camera, so nothing is created in the scene. Only Newton GL
-    supports it; other visualizers ignore it.
-    """
-
-    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Eye position [m], as an offset from the tracked asset, or from the origin of :attr:`env_index`."""
-
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Look-at target [m], in the same frame as :attr:`eye`."""
-
-    env_index: int | None = None
-    """Environment to frame, or the one holding the tracked asset; None picks the middle one of the visible
-    environments."""
-
-    track_path: str | None = None
-    """Scene asset to follow, or None for a view fixed relative to the environment origin.
-
-    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
-    """
-
-    follow_heading: bool = False
-    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
-
-    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
-    """
-
-    heading_smoothing_time_constant: float = 0.0
-    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
-
-    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
-    """
-
-    def __post_init__(self) -> None:
-        if self.env_index is not None and self.env_index < 0:
-            raise ValueError("env_index must be non-negative.")
-        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
-            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
 
 
 @configclass
@@ -186,6 +151,26 @@ class WindowCfg:
         if not math.isfinite(self.fps) or self.fps <= 0:
             raise ValueError("WindowCfg.fps must be finite and positive.")
 
+    def fit_to_display(self, margin: float = 0.92) -> tuple[int, int]:
+        """Shrink :attr:`size`, keeping its aspect ratio, so the window fits the display with room for decorations.
+
+        Args:
+            margin: Fraction of the display the window may occupy.
+
+        Returns:
+            :attr:`size`, or a proportionally smaller size; unchanged when the display size is unknown.
+        """
+        if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+            return self.size
+        try:
+            import pyglet  # noqa: PLC0415
+
+            screen = pyglet.display.get_display().get_default_screen()
+            scale = min(1.0, margin * screen.width / self.size[0], margin * screen.height / self.size[1])
+        except Exception:
+            return self.size
+        return (max(1, int(self.size[0] * scale)), max(1, int(self.size[1] * scale)))
+
 
 @configclass
 class VisualizerBackendCfg:
@@ -224,13 +209,11 @@ class VisualizerCfg:
     """Render on demand without opening a native viewer window."""
 
     # Primary interactive camera settings
-    cameras: list[PerspectiveCameraCfg | TrackingCameraCfg | SceneCameraCfg] | None = None
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view, TrackingCameraCfg a view that frames an environment
-    or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
-    Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
-    view in front of a leading TrackingCameraCfg (see ``with_free_view``) and shows that one first.
+    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
+    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -330,8 +313,8 @@ class VisualizerCfg:
         if self.view is not None:
             backends = self.backend if isinstance(self.backend, list) else [self.backend]
             for backend in backends:
-                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
-                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+                if backend.visualizer_type != "newton":
+                    raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
@@ -344,12 +327,8 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
-            # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
-            if not all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras):
-                self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
-            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not isinstance(
-                camera, TrackingCameraCfg
-            ):
+            self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
+            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
 
 
