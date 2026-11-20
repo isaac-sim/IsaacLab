@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "DatasetExportMode",
+    "EpisodeRecorder",
+    "EpisodeRecorderCfg",
     "DatasetFileHandlerBase",
     "EpisodeData",
     "HDF5DatasetFileHandler",
@@ -14,3 +17,5 @@ from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData
 from .hdf5_dataset_file_handler import HDF5DatasetFileHandler
 from .motion_loader import MotionLoader
+
+from .episode_recorder import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg

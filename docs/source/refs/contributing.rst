@@ -412,6 +412,10 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
   Keep public base classes, backend data classes, and factories available through a deprecation release
   when the broader consolidation is not part of the same change.
+* Keep dataset capture in recording workflows or explicit custom step functions. Standard environments
+  must not own episode recorders, dispatch capture hooks, or consult recording capabilities when
+  deciding physics action ownership. Episode storage must not depend on environment managers or
+  maintain a capture-term registry. Pass storage explicitly and call capture functions directly.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required

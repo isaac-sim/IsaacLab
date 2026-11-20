@@ -360,3 +360,65 @@ local matrices consistent without round-tripping through USD.
 .. automodule:: isaaclab.utils.warp.fabric
    :members:
    :show-inheritance:
+
+
+.. _recorder-capture:
+
+Explicit episode recording
+--------------------------
+
+Recording workflows create :class:`isaaclab.utils.datasets.EpisodeRecorder` and call capture
+functions at the required points. Storage accepts batched tensors and nested dictionaries;
+it has no environment reference, term registry, or lifecycle dispatch.
+
+.. code-block:: python
+
+    from isaaclab.envs.mdp.recorders import record_initial_state, record_pre_step, record_post_step
+    from isaaclab.utils.datasets import EpisodeRecorder, EpisodeRecorderCfg
+
+    recorder = EpisodeRecorder(EpisodeRecorderCfg(), env.num_envs, env.device, env_name="my-task")
+    env.reset()
+    record_initial_state(recorder, env)
+
+    # Inside the recording workflow's control loop:
+    record_pre_step(recorder, env, action)
+    env.simulate(action)
+    env.compute_transition()
+    record_post_step(recorder, env)
+    # Read success/termination terms and export completed episodes before finishing the step.
+    reset_ids = env.reset_done()
+    if len(reset_ids):
+        recorder.export_episodes(reset_ids)
+        record_initial_state(recorder, env, reset_ids)
+    result = env.finish_step()
+
+    # The workflow explicitly exports/discards completed episodes and captures the next initial state.
+    recorder.export_episodes()
+    recorder.close()
+
+Fields can have different sample rates. ``buffer_initial_capacity`` sets initial storage per world
+and field; storage grows as needed and is reused after reset. ``get_episode`` returns an owned
+snapshot with a leading sample dimension; modifying it does not update live storage. Use
+``add_to_episodes`` and ``set_success_to_episodes`` to update collection. ``EXPORT_NONE`` retains
+episodes in memory without writing a file.
+
+**Breaking migration:** ``RecorderManager``, ``RecorderManagerBaseCfg``, ``RecorderTerm``,
+``RecorderTermCfg``, and the environment ``recorders`` setting were removed. Replace term
+configuration classes with direct function calls in your control loop or configured step function.
+Import ``DatasetExportMode`` from ``isaaclab.utils.datasets`` and configure output with
+``EpisodeRecorderCfg``. Pass the recorder explicitly to helpers that need episode storage;
+``env.recorder_manager`` no longer exists. Export or discard the previous episode explicitly,
+then capture initial state after reset and sensor synchronization. Close the recorder in the
+workflow's cleanup path. HDF5 fields and playback tensor formats are unchanged.
+
+For current observations before reset, call
+``env.observation_manager.compute_group("recording", update_history=False)`` on a separate
+noiseless group without history or delay. The policy observation buffer still describes the
+previous policy input until ``finish_step``. Avoid evaluating noisy policy groups a second time.
+
+.. automodule:: isaaclab.utils.datasets.episode_recorder
+   :members:
+   :show-inheritance:
+
+.. automodule:: isaaclab.envs.mdp.recorders.recorders
+   :members:

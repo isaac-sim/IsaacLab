@@ -303,7 +303,6 @@ class _GeneratorEnv(FrankaPourEnv):
         self.reward_manager = None
         self.termination_manager = None
         self.curriculum_manager = None
-        self.recorder_manager = None
         self.action_manager = None
         self.observation_manager = None
 

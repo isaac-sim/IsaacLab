@@ -142,9 +142,15 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.managers import DatasetExportMode
+from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
 from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.datasets import (
+    DatasetExportMode,
+    EpisodeData,
+    EpisodeRecorder,
+    EpisodeRecorderCfg,
+    HDF5DatasetFileHandler,
+)
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed
 
@@ -152,6 +158,7 @@ import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.data_classes import (
     LocomanipulationSDGOutputData,
 )
+from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import locomanipulation_sdg_output_data
 
 if args_cli.seed is not None:
     configure_seed(args_cli.seed)
@@ -833,6 +840,7 @@ def populate_output_data(
 
 def replay(
     env: LocomanipulationSDGEnv,
+    recorder: EpisodeRecorder,
     input_episode_data: EpisodeData,
     lift_step: int,
     navigate_step: int,
@@ -876,9 +884,8 @@ def replay(
         True if the episode ended with success termination, False otherwise.
     """
 
-    # Reset recorder manager to clear any leftover episode data from previous runs
-    # This prevents duplicate exports when reset_to calls record_pre_reset
-    env.recorder_manager.reset(env_ids=[0])
+    # Discard an abandoned attempt before starting a new episode.
+    recorder.reset(env_ids=[0])
 
     # Initialize environment to starting state
     env.reset_to(
@@ -904,9 +911,9 @@ def replay(
         return False
 
     # Background placement can move fixtures and re-project robot/object root poses
-    # after reset_to records initial_state. Re-record from the projected scene.
-    env.recorder_manager.reset(env_ids=[0])
-    env.recorder_manager.record_post_reset(env_ids=[0])
+    # after reset_to. Capture the initial state from the projected scene.
+    recorder.reset(env_ids=[0])
+    record_initial_state(recorder, env, [0])
 
     if sensor_camera_view:
         import omni.kit.viewport.utility
@@ -967,8 +974,7 @@ def replay(
             env, output_data, nav_scene.base_goal, nav_scene.base_goal_approach, nav_scene.base_path_helper.points
         )
 
-        # Attach output data to environment for recording
-        env._locomanipulation_sdg_output_data = output_data
+        recorder.add_to_episodes(*locomanipulation_sdg_output_data(output_data))
 
         # Build and execute action
         action = env.build_action_vector(
@@ -978,15 +984,22 @@ def replay(
             left_hand_pose_target=output_data.left_hand_pose_target,
             right_hand_pose_target=output_data.right_hand_pose_target,
         )
-        _, _, reset_terminated, reset_time_outs, _ = env.step(action)
+        record_pre_step(recorder, env, action)
+        env.simulate(action)
+        env.compute_transition()
+        record_post_step(recorder, env)
+        reset_terminated = env.reset_terminated.clone()
+        reset_time_outs = env.reset_time_outs.clone()
+        success_terminated = "success" in env.termination_manager.active_terms and bool(
+            env.termination_manager.get_term("success")[0].item()
+        )
+        env.reset_done()
+        env.finish_step()
 
         if reset_terminated[0] or reset_time_outs[0]:
             print(f"Environment terminated at state {current_state.name}, step {recording_step}", flush=True)
-            success_terminated = False
-
-            # Check if termination was due to success
-            if hasattr(env, "termination_manager") and "success" in env.termination_manager.active_terms:
-                success_terminated = bool(env.termination_manager.get_term("success")[0].item())
+            recorder.set_success_to_episodes([0], torch.tensor([success_terminated], device=env.device))
+            recorder.export_episodes([0])
 
             if success_terminated:
                 print(f"Success termination at state {current_state.name}, step {recording_step}", flush=True)
@@ -1007,10 +1020,11 @@ if __name__ == "__main__":
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
     with torch.no_grad(), launch_simulation(env_cfg, args_cli):
         env_cfg.sim.device = "cpu"
-        env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
-        env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
-        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
-        env_cfg.recorders.export_in_record_pre_reset = True
+        recorder_cfg = EpisodeRecorderCfg(
+            dataset_export_dir_path=os.path.dirname(args_cli.output_file),
+            dataset_filename=os.path.basename(args_cli.output_file),
+            dataset_export_mode=DatasetExportMode.EXPORT_SUCCEEDED_ONLY,
+        )
 
         nurec_scene_used = (
             args_cli.background_usd_path is not None or args_cli.background_occupancy_yaml_file is not None
@@ -1029,6 +1043,9 @@ if __name__ == "__main__":
         env_cfg.high_res_video = args_cli.high_res_video
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        recorder = EpisodeRecorder(
+            recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
+        )
 
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
@@ -1058,6 +1075,7 @@ if __name__ == "__main__":
 
             success = replay(
                 env=env,
+                recorder=recorder,
                 input_episode_data=input_episode_data,
                 lift_step=args_cli.lift_step,
                 navigate_step=args_cli.navigate_step,
@@ -1077,11 +1095,11 @@ if __name__ == "__main__":
 
             if success:
                 success_runs += 1
-                print("successful episodes count", env.recorder_manager.exported_successful_episode_count, flush=True)
+                print("successful episodes count", recorder.exported_successful_episode_count, flush=True)
             else:
                 print(f"Run {run_id} failed (demo={demo}), retrying...", flush=True)
 
-        env.recorder_manager.close()
+        recorder.close()
         if getattr(env, "viewport_camera_controller", None) is not None:
             env.viewport_camera_controller.update_view_to_world()
         env.close()

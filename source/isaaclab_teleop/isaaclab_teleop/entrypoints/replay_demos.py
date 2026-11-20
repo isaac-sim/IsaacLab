@@ -302,7 +302,6 @@ def main():
         )
 
     # Replay applies recorded actions without automatic episode resets.
-    env_cfg.recorders = {}
 
     with launch_simulation(env_cfg, args_cli):
         replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)

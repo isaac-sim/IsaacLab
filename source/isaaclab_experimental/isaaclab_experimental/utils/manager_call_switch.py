@@ -48,7 +48,6 @@ class ManagerCallSwitch:
         "ActionManager",
         "ObservationManager",
         "EventManager",
-        "RecorderManager",
         "CommandManager",
         "TerminationManager",
         "RewardManager",

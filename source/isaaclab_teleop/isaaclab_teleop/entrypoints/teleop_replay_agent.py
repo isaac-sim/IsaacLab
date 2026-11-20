@@ -1097,14 +1097,10 @@ def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice) -> None:
     instruction-display update, which the headless replay agent doesn't
     own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
     IK seeded against fresh articulation views; see the initial-reset note
-    in :func:`main`. ``env.recorder_manager.reset()`` is a no-op when no
-    recorders are configured (the default for this script), but kept for
-    parity with record_demos.py so future recorder additions don't have to
-    re-derive the call sequence.
+    in :func:`main`.
     """
     print("Resetting environment...")
     env.sim.reset()
-    env.recorder_manager.reset()
     env.reset()
     teleop_interface.reset()
 

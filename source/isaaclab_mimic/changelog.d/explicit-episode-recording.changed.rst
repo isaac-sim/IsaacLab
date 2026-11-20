@@ -1,0 +1,1 @@
+* **Breaking:** Moved episode recording into explicit Mimic generation and annotation workflows. Pass EpisodeRecorder to DataGenerator and the generation loop instead of accessing env.recorder_manager; recorder settings now configure output only.

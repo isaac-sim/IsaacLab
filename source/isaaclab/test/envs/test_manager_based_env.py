@@ -12,6 +12,7 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
 
+from types import MethodType
 from unittest.mock import Mock
 
 import pytest
@@ -19,16 +20,9 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-from isaaclab.managers import (
-    DatasetExportMode,
-    RecorderManager,
-    RecorderManagerBaseCfg,
-    RecorderTerm,
-    RecorderTermCfg,
-    TerminationTermCfg,
-)
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import TerminationTermCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg, make_empty_manager_based_rl_env_cfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
@@ -61,15 +55,6 @@ class EmptyObservationWithHistoryCfg:
 def episode_step(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Expose per-environment step counters as a noiseless observation."""
     return env.episode_length_buf[:, None].float()
-
-
-class StepRecorderTerm(RecorderTerm):
-    """Capture terminal counters directly and through an explicit observation group."""
-
-    def record_post_step(self) -> tuple[None, None]:
-        self.latest = self._env.episode_length_buf.clone()
-        self.observation = self._env.observation_manager.compute_group("state", update_history=False)
-        return None, None
 
 
 # Both devices, so the CPU and GPU simulation pipelines each build and step an environment.
@@ -144,11 +129,17 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
         outputs, rng_states = [], []
         action = torch.empty_like(env.action_manager.action)
         for capture in (False, True):
-            recorders = RecorderManagerBaseCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE)
-            if capture:
-                recorders.step = RecorderTermCfg(class_type=StepRecorderTerm)
-            env.recorder_manager.close()
-            env.recorder_manager = RecorderManager(recorders, env)
+            captured = {}
+
+            def custom_step(env, action):
+                env.simulate(action)
+                env.compute_transition()
+                captured["latest"] = env.episode_length_buf.clone()
+                captured["observation"] = env.observation_manager.compute_group("state", update_history=False)
+                env.reset_done()
+                return env.finish_step()
+
+            env.step = MethodType(custom_step if capture else ManagerBasedRLEnv.step, env)
             env.reset(seed=17)
             trajectory = [env.step(action)[0]["empty_observation"].clone() for _ in range(4)]
             outputs.append(torch.stack(trajectory))
@@ -157,10 +148,8 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
                 rng = torch.cat((rng, torch.cuda.get_rng_state(device)))
             rng_states.append(rng)
             if capture:
-                term = env.recorder_manager.get_term("step")
-                assert torch.equal(term.latest, torch.full_like(term.latest, 4))
-                assert torch.equal(term.observation, term.latest[:, None].float())
-                assert env.recorder_manager.get_episode(1).is_empty()
+                assert torch.equal(captured["latest"], torch.full_like(captured["latest"], 4))
+                assert torch.equal(captured["observation"], captured["latest"][:, None].float())
             assert env.episode_length_buf.tolist() == [0, 4, 4]
         assert torch.equal(outputs[0], outputs[1])
         assert torch.equal(rng_states[0], rng_states[1])

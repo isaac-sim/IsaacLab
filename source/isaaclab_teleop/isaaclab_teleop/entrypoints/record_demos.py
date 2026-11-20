@@ -50,9 +50,10 @@ from isaaclab.cli import load_external_tasks
 from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.envs.mdp.recorders import get_episode_metadata, record_initial_state, record_post_step, record_pre_step
 from isaaclab.envs.utils._manual_success import _prepare_success_term
-from isaaclab.managers import CommandTermCfg, DatasetExportMode
+from isaaclab.managers import CommandTermCfg
+from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
 from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
@@ -273,11 +274,11 @@ def setup_output_directories() -> tuple[str, str]:
 
 def create_environment_config(
     output_dir: str, output_file_name: str
-) -> tuple[ManagerBasedRLEnvCfg | DirectRLEnvCfg, object | None, IsaacTeleopCfg | DeviceCfg]:
+) -> tuple[ManagerBasedRLEnvCfg | DirectRLEnvCfg, object | None, IsaacTeleopCfg | DeviceCfg, EpisodeRecorderCfg]:
     """Create and configure the environment configuration.
 
     Parses the environment configuration and makes necessary adjustments for demo recording.
-    Extracts the success termination function and configures the recorder manager.
+    Extracts the success termination function and configures dataset output.
 
     Args:
         output_dir: Directory where recorded demonstrations will be saved
@@ -288,6 +289,7 @@ def create_environment_config(
             - env_cfg: The configured environment configuration
             - success_term: The success termination object or None if not available
             - teleop_cfg: The resolved Capture or native device configuration
+            - recorder_cfg: Dataset output settings owned by this workflow.
 
     Raises:
         SystemExit: If parsing the environment configuration fails (the error is logged and the process exits).
@@ -354,14 +356,14 @@ def create_environment_config(
 
     demo_recorder_cfg_entry_point = gym.spec(args_cli.task.split(":")[-1]).kwargs.get("demo_recorder_cfg_entry_point")
     if demo_recorder_cfg_entry_point is None:
-        env_cfg.recorders = ActionStateRecorderManagerCfg()
+        recorder_cfg = EpisodeRecorderCfg()
     else:
-        env_cfg.recorders = load_cfg_from_registry(args_cli.task, "demo_recorder_cfg_entry_point")
-    env_cfg.recorders.dataset_export_dir_path = output_dir
-    env_cfg.recorders.dataset_filename = output_file_name
-    env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+        recorder_cfg = load_cfg_from_registry(args_cli.task, "demo_recorder_cfg_entry_point")
+    recorder_cfg.dataset_export_dir_path = output_dir
+    recorder_cfg.dataset_filename = output_file_name
+    recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
-    return env_cfg, success_term, teleop_cfg
+    return env_cfg, success_term, teleop_cfg, recorder_cfg
 
 
 def setup_ui(label_text: str, env: gym.Env) -> "InstructionDisplay":
@@ -394,7 +396,9 @@ def setup_ui(label_text: str, env: gym.Env) -> "InstructionDisplay":
     return instruction_display
 
 
-def process_success_condition(env: gym.Env, success_term: object | None, success_step_count: int) -> tuple[int, bool]:
+def process_success_condition(
+    env: gym.Env, recorder: EpisodeRecorder, success_term: object | None, success_step_count: int
+) -> tuple[int, bool]:
     """Process the success condition for the current step.
 
     Checks if the environment has met the success condition for the required
@@ -416,11 +420,8 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
     if bool(success_term.func(env, **success_term.params)[0]):
         success_step_count += 1
         if success_step_count >= args_cli.num_success_steps:
-            env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
-            env.recorder_manager.set_success_to_episodes(
-                [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
-            )
-            env.recorder_manager.export_episodes([0])
+            recorder.set_success_to_episodes([0], torch.tensor([[True]], dtype=torch.bool, device=env.device))
+            recorder.export_episodes([0])
             print("Success condition met! Recording completed.")
             return success_step_count, True
     else:
@@ -431,6 +432,7 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
 
 def handle_reset(
     env: gym.Env,
+    recorder: EpisodeRecorder,
     success_step_count: int,
     instruction_display: "InstructionDisplay",
     label_text: str,
@@ -438,7 +440,7 @@ def handle_reset(
 ) -> int:
     """Handle resetting the environment.
 
-    Resets the environment, recorder manager, teleop device, and related
+    Resets the environment, episode buffer, teleop device, and related
     state variables.  Updates the instruction display with current status.
 
     Args:
@@ -455,8 +457,9 @@ def handle_reset(
     print("Resetting environment...")
     if args_cli.reset_sim_buffer_each_episode:
         env.sim.reset()
-    env.recorder_manager.reset()
+    recorder.reset()
     env.reset()
+    record_initial_state(recorder, env)
     if teleop_interface is not None and hasattr(teleop_interface, "reset"):
         teleop_interface.reset()
     success_step_count = 0
@@ -466,6 +469,7 @@ def handle_reset(
 
 def run_simulation_loop(  # noqa: C901
     env: gym.Env,
+    recorder: EpisodeRecorder,
     success_term: object | None,
     rate_limiter: RateLimiter | None,
     camera_feed_session: "XrCameraFeedSession",
@@ -571,6 +575,7 @@ def run_simulation_loop(  # noqa: C901
         if args_cli.reset_sim_buffer_each_episode:
             env.sim.reset()
         env.reset()
+        record_initial_state(recorder, env)
         teleop_interface.reset()
 
         # Without --xr there is no headset to send START, so drive the Isaac Capture
@@ -615,7 +620,16 @@ def run_simulation_loop(  # noqa: C901
                 # Perform action on environment
                 if running_recording_instance:
                     # Compute actions based on environment
-                    obv = env.step(actions)
+                    record_pre_step(recorder, env, actions)
+                    env.simulate(actions)
+                    env.compute_transition()
+                    record_post_step(recorder, env)
+                    reset_ids = env.reset_done()
+                    if len(reset_ids):
+                        recorder.set_success_to_episodes(reset_ids, torch.zeros_like(reset_ids, dtype=torch.bool))
+                        recorder.export_episodes(reset_ids)
+                        record_initial_state(recorder, env, reset_ids)
+                    obv = env.finish_step()
                     # render controller haptics from post-step contact forces
                     if haptic_driver is not None:
                         haptic_driver.update()
@@ -632,23 +646,20 @@ def run_simulation_loop(  # noqa: C901
 
                 # Check for success condition
                 success_step_count_new, success_reset_needed = process_success_condition(
-                    env, success_term, success_step_count
+                    env, recorder, success_term, success_step_count
                 )
                 success_step_count = success_step_count_new
                 if success_reset_needed:
                     should_reset_recording_instance = True
 
                 # Update demo count if it has changed
-                if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
-                    current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
+                if recorder.exported_successful_episode_count > current_recorded_demo_count:
+                    current_recorded_demo_count = recorder.exported_successful_episode_count
                     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
                     print(label_text)
 
                 # Check if we've reached the desired number of demos
-                if (
-                    args_cli.num_demos > 0
-                    and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos
-                ):
+                if args_cli.num_demos > 0 and recorder.exported_successful_episode_count >= args_cli.num_demos:
                     label_text = f"All {current_recorded_demo_count} demonstrations recorded.\nExiting the app."
                     instruction_display.show_demo(label_text)
                     print(label_text)
@@ -663,7 +674,7 @@ def run_simulation_loop(  # noqa: C901
                 # Handle reset if requested
                 if should_reset_recording_instance:
                     success_step_count = handle_reset(
-                        env, success_step_count, instruction_display, label_text, teleop_interface
+                        env, recorder, success_step_count, instruction_display, label_text, teleop_interface
                     )
                     camera_feed_session.refresh()
                     should_reset_recording_instance = False
@@ -703,16 +714,17 @@ def main() -> None:
     output_dir, output_file_name = setup_output_directories()
 
     # Create and configure environment
-    env_cfg, success_term, teleop_cfg = create_environment_config(output_dir, output_file_name)
+    env_cfg, success_term, teleop_cfg, recorder_cfg = create_environment_config(output_dir, output_file_name)
 
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
-        record_demos(env_cfg, success_term, teleop_cfg, cleanup)
+        record_demos(env_cfg, success_term, teleop_cfg, recorder_cfg, cleanup)
 
 
 def record_demos(
     env_cfg: ManagerBasedRLEnvCfg,
     success_term: object | None,
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
+    recorder_cfg: EpisodeRecorderCfg,
     cleanup: contextlib.ExitStack,
 ) -> None:
     """Create the environment and record demonstrations until the session ends."""
@@ -763,8 +775,14 @@ def record_demos(
         logger.error(f"Failed to create environment: {e}")
         exit(1)
 
+    recorder = EpisodeRecorder(
+        recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
+    )
+    cleanup.callback(recorder.close)
     # Run simulation loop
-    current_recorded_demo_count = run_simulation_loop(env, success_term, rate_limiter, camera_feed_session, teleop_cfg)
+    current_recorded_demo_count = run_simulation_loop(
+        env, recorder, success_term, rate_limiter, camera_feed_session, teleop_cfg
+    )
 
     # Clean up
     env.close()

@@ -63,11 +63,29 @@ For example, this function delegates to the standard implementation and scales i
     env_cfg.step_fn = custom_step
     env = ManagerBasedRLEnv(cfg=env_cfg)
 
-To implement a different stepping algorithm, replace the function body with your own
-action processing, simulation, rewards, resets, and observation computation. The function
-owns counters, command and event updates, rendering, and recorder calls as well. In
-particular, it must capture terminal data before resetting terminated environments and
-return the observation, reward, terminated, truncated, and extras tuple expected by RL wrappers.
+A custom function can reuse the standard operations and capture a completed transition
+before automatic reset:
+
+.. code-block:: python
+
+    def custom_step(env, action):
+        # Capture policy inputs and requested actions here, if needed.
+        env.simulate(action)
+        env.compute_transition()
+        # Capture terminal state and termination terms here, before reset.
+        reset_ids = env.reset_done()
+        # Capture initial state for reset_ids here, if needed.
+        return env.finish_step()
+
+``simulate`` owns action processing, backend action ownership, physics decimation, rendering,
+and scene updates. ``compute_transition`` advances counters and computes rewards and terminations.
+``reset_done`` resets terminated environments and returns their indices. ``finish_step`` updates
+commands and interval events, advances video capture, and computes observations once with history updates.
+
+Dataset recording is explicit. Environments do not construct a recorder manager or dispatch
+capture callbacks during step, reset, reset_to, or close. Recording workflows own their episode
+storage, initial-state capture after reset, success classification, export, and file closure.
+See :ref:`recorder-capture` for the dataset API and migration.
 
 Calling ``env.step(action)`` inside the custom function recurses; use the explicit class
 method call shown above when delegating to the standard implementation. Leaving

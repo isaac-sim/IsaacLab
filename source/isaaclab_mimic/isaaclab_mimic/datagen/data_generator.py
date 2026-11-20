@@ -25,6 +25,7 @@ from isaaclab.envs import (
     SubTaskConstraintType,
 )
 from isaaclab.managers import TerminationTermCfg
+from isaaclab.utils.datasets import EpisodeRecorder
 
 from isaaclab_mimic.datagen.datagen_info import DatagenInfo
 from isaaclab_mimic.datagen.selection_strategy import make_selection_strategy
@@ -159,6 +160,7 @@ class DataGenerator:
     def __init__(
         self,
         env: ManagerBasedRLMimicEnv,
+        recorder: EpisodeRecorder,
         src_demo_datagen_info_pool: DataGenInfoPool | None = None,
         dataset_path: str | None = None,
         demo_keys: list[str] | None = None,
@@ -166,12 +168,14 @@ class DataGenerator:
         """
         Args:
             env: environment to use for data generation
+            recorder: Episode storage shared with the explicit environment loop.
             src_demo_datagen_info_pool: source demo datagen info pool
             dataset_path: path to hdf5 dataset to use for generation
             demo_keys: list of demonstration keys to use in file. If not provided,
                 all demonstration keys will be used.
         """
         self.env = env
+        self.recorder = recorder
         self.env_cfg = env.cfg
         assert isinstance(self.env_cfg, MimicEnvCfg)
         self.dataset_path = dataset_path
@@ -659,7 +663,7 @@ class DataGenerator:
 
         # reset the env to create a new task demo instance
         env_id_tensor = torch.tensor([env_id], dtype=torch.int64, device=self.env.device)
-        self.env.recorder_manager.reset(env_ids=env_id_tensor)
+        self.recorder.reset(env_ids=env_id_tensor)
         await env_reset_queue.put(env_id)
         await env_reset_queue.join()
         new_initial_state = self.env.scene.get_state(is_relative=True)
@@ -985,11 +989,11 @@ class DataGenerator:
                 break
 
         # Set success to the recorded episode data and export to file
-        self.env.recorder_manager.set_success_to_episodes(
+        self.recorder.set_success_to_episodes(
             env_id_tensor, torch.tensor([[generated_success]], dtype=torch.bool, device=self.env.device)
         )
         if export_demo:
-            self.env.recorder_manager.export_episodes(env_id_tensor)
+            self.recorder.export_episodes(env_id_tensor)
 
         results = dict(
             initial_state=new_initial_state,

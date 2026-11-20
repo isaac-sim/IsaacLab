@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "get_episode_metadata",
     "AbsBinaryJointPositionAction",
     "AbsBinaryJointPositionActionCfg",
     "BinaryJointAction",
@@ -108,17 +109,6 @@ __all__ = [
     "root_lin_vel_w",
     "root_pos_w",
     "root_quat_w",
-    "ActionStateRecorderManagerCfg",
-    "InitialStateRecorder",
-    "InitialStateRecorderCfg",
-    "PostStepProcessedActionsRecorder",
-    "PostStepProcessedActionsRecorderCfg",
-    "PostStepStatesRecorder",
-    "PostStepStatesRecorderCfg",
-    "PreStepActionsRecorder",
-    "PreStepActionsRecorderCfg",
-    "PreStepFlatPolicyObservationsRecorder",
-    "PreStepFlatPolicyObservationsRecorderCfg",
     "action_l2",
     "action_rate_l2",
     "ang_vel_xy_l2",
@@ -282,19 +272,7 @@ from .observations import (
     root_pos_w,
     root_quat_w,
 )
-from .recorders import (
-    ActionStateRecorderManagerCfg,
-    InitialStateRecorder,
-    InitialStateRecorderCfg,
-    PostStepProcessedActionsRecorder,
-    PostStepProcessedActionsRecorderCfg,
-    PostStepStatesRecorder,
-    PostStepStatesRecorderCfg,
-    PreStepActionsRecorder,
-    PreStepActionsRecorderCfg,
-    PreStepFlatPolicyObservationsRecorder,
-    PreStepFlatPolicyObservationsRecorderCfg,
-)
+from .recorders import get_episode_metadata, record_initial_state, record_pre_step, record_post_step
 from .rewards import (
     action_l2,
     action_rate_l2,

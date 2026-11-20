@@ -117,6 +117,8 @@ def main():
 def generate(env_name: str, env_cfg):
     """Configure and create the environment, then run the (optionally SkillGen-based) data generation."""
     from isaaclab.envs import ManagerBasedRLMimicEnv
+    from isaaclab.envs.mdp.recorders import get_episode_metadata
+    from isaaclab.utils.datasets import EpisodeRecorder
 
     from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
     from isaaclab_mimic.datagen.utils import setup_output_paths
@@ -127,7 +129,7 @@ def generate(env_name: str, env_cfg):
     output_dir, output_file_name = setup_output_paths(args_cli.output_file)
 
     # Configure environment
-    env_cfg, success_term = setup_env_config(
+    env_cfg, success_term, recorder_cfg = setup_env_config(
         env_name=env_name,
         output_dir=output_dir,
         output_file_name=output_file_name,
@@ -158,6 +160,9 @@ def generate(env_name: str, env_cfg):
     np.random.seed(env.cfg.datagen_config.seed)
     torch.manual_seed(env.cfg.datagen_config.seed)
 
+    recorder = EpisodeRecorder(
+        recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
+    )
     # Reset before starting
     env.reset()
 
@@ -193,6 +198,7 @@ def generate(env_name: str, env_cfg):
         # Setup and run async data generation
         async_components = setup_async_generation(
             env=env,
+            recorder=recorder,
             num_envs=args_cli.num_envs,
             input_file=args_cli.input_file,
             success_term=success_term,
@@ -209,6 +215,7 @@ def generate(env_name: str, env_cfg):
                 async_components["info_pool"],
                 async_components["event_loop"],
                 data_gen_tasks=data_gen_tasks,
+                recorder=recorder,
             )
         except asyncio.CancelledError:
             print("Tasks were cancelled.")
@@ -232,6 +239,7 @@ def generate(env_name: str, env_cfg):
                 motion_planners.clear()
     finally:
         # Close env after async tasks are done so success_term is never called on a closed env
+        recorder.close()
         env.close()
 
 
