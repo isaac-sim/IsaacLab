@@ -862,7 +862,7 @@ class OVRTXRenderer(BaseRenderer):
                         "camera",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [_handle_raw_id(self.scene.paths.intern_path(path)) for path in lidar_paths],
+                            [self.scene.paths.intern_path(path).raw_id for path in lidar_paths],
                             dtype=np.uint64,
                         ),
                         is_array=True,
@@ -882,10 +882,7 @@ class OVRTXRenderer(BaseRenderer):
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [
-                                _handle_raw_id(self.scene.paths.intern_token(partition))
-                                for partition in lidar_partitions
-                            ],
+                            [self.scene.paths.intern_token(partition).raw_id for partition in lidar_partitions],
                             dtype=np.uint64,
                         ),
                         is_array=False,

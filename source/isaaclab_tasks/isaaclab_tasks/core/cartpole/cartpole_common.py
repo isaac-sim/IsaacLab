@@ -6,7 +6,6 @@
 """Configurations shared by the direct and manager-based cartpole environments."""
 
 import torch
-
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
