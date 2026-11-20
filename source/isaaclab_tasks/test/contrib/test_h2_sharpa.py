@@ -17,9 +17,10 @@ from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_tasks
-from isaaclab_tasks.contrib.h2_sharpa import POLICY_JOINT_NAMES, phase_reward
-from isaaclab_tasks.contrib.pack_agx.pack_agx_env_cfg import PackAgxOrinEnvCfg
-from isaaclab_tasks.contrib.pick_and_place_apple.pick_and_place_apple_env_cfg import PickAndPlaceAppleEnvCfg
+from isaaclab_tasks.contrib.h2_sharpa.mdp import phase_reward
+from isaaclab_tasks.contrib.h2_sharpa.pack_agx.pack_agx_env_cfg import PackAgxOrinEnvCfg
+from isaaclab_tasks.contrib.h2_sharpa.pick_and_place_apple.pick_and_place_apple_env_cfg import PickAndPlaceAppleEnvCfg
+from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import POLICY_JOINT_NAMES
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 
@@ -30,10 +31,11 @@ def test_rlinf_task_registration(task, package):
     """The train and play IDs select the same task-local environment and RLinf recipe."""
     task_id = f"IsaacContrib-{task}-H2-Sharpa"
     root = Path(isaaclab_tasks.__file__).parent
-    task_dir = root / "contrib" / package
+    task_dir = root / "contrib" / "h2_sharpa" / package
+    assert not (root / "contrib" / "h2_sharpa.py").is_file()
     for mode, env_id in (("train", task_id), ("eval", task_id + "-Eval")):
         cfg = load_cfg_from_registry(env_id, "env_cfg_entry_point")
-        assert type(cfg).__module__ == f"isaaclab_tasks.contrib.{package}.{package}_env_cfg"
+        assert type(cfg).__module__ == f"isaaclab_tasks.contrib.h2_sharpa.{package}.{package}_env_cfg"
         recipe = load_cfg_from_registry(env_id, "rlinf_cfg_entry_point")
         assert recipe["env"][mode]["init_params"]["id"] == env_id
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""H2 + Sharpa Wave env for the pick-and-place apple task (PhysX, rigid apple)."""
+"""H2 + Sharpa Wave scene for packing an AGX Orin into a protective box."""
 
 import math
 import os
@@ -24,52 +24,48 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
-from isaaclab_tasks.contrib.h2_sharpa import (
+from isaaclab_tasks.contrib.h2_sharpa.mdp import apply_camera_response, phase_reward
+from isaaclab_tasks.contrib.h2_sharpa.tabletop_env_cfg import (
     H2_TABLETOP_ROBOT_CFG,
     LEFT_WRIST_CAMERA_CFG,
     POLICY_JOINT_NAMES,
     RIGHT_WRIST_CAMERA_CFG,
     ActionsCfg,
-    apply_camera_response,
-    phase_reward,
 )
 
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
 from .mdp import terminations
 
-TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256_cloth.usd"
-APPLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Apple/Apple033.usd"
-PLATE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Plate001/plate001.usd"
+TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256.usd"
+AGX_ORIN_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/MiniPc001/MiniPc001.usd"
+PROTECTIVE_BOX_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/ProtectiveBox001/ProtectiveBox001.usd"
 BACKGROUND_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/NuRec/IMG_6246_nurec_aligned_scaled.usdz"
 
 
-# Reset-pose randomization half-ranges. PNP_APPLE_XY_RANGE (metres) drives the x
-# half-range and the y magnitude; PNP_APPLE_YAW_RANGE_DEG drives yaw. The defaults
-# reproduce the ranges the task's demonstrations were recorded with.
-XY_RANGE = float(os.environ.get("PNP_APPLE_XY_RANGE", "0.015"))
-YAW_RANGE = math.radians(float(os.environ.get("PNP_APPLE_YAW_RANGE_DEG", "0")))
+# Reset-pose randomization half-ranges. PACK_AGX_XY_RANGE (metres) drives the x
+# half-range and the y magnitude; PACK_AGX_YAW_RANGE_DEG drives yaw. The defaults
+# reproduce the ranges the MimicGen dataset was generated with. The OSMO
+# workflows set both from `--set xy_range=... yaw_range_deg=...`.
+XY_RANGE = float(os.environ.get("PACK_AGX_XY_RANGE", "0.05"))
+YAW_RANGE = math.radians(float(os.environ.get("PACK_AGX_YAW_RANGE_DEG", "10")))
 
 
 @configclass
-class PickAndPlaceAppleSceneCfg(InteractiveSceneCfg):
-    """H2 scene with front, left-wrist, and right-wrist cameras."""
+class PackAgxOrinSceneCfg(InteractiveSceneCfg):
+    """Independent H2 scene for packing an AGX Orin."""
 
     robot = H2_TABLETOP_ROBOT_CFG
 
     background = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/background",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=BACKGROUND_USD,
-        ),
+        spawn=sim_utils.UsdFileCfg(usd_path=BACKGROUND_USD),
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(-1.35, -0.45, 2.0),
             rot=(0.0, 0.0, 0.70710678, 0.70710678),
         ),
     )
 
-    # The enclosing room keeps the rendered surroundings identical to the AGX Orin
-    # packing task instead of an open ground plane behind the capture.
     room_left = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/room_left",
         spawn=sim_utils.CuboidCfg(
@@ -123,61 +119,68 @@ class PickAndPlaceAppleSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(
             usd_path=TABLE_USD,
-            scale=(1.0, 1.0, 1.20),
+            scale=(1.07, 0.92, 1.12),
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.75, 0.75, 0.75),
+                roughness=0.8,
+                metallic=0.0,
+            ),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.42, 0, 0.565),
+            pos=(-0.435, 0.05, 0.5088),
             rot=(0, 0, 0.70710678, 0.70710678),
         ),
     )
 
-    apple = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Apple",
+    agx_orin = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/AgxOrin",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=APPLE_USD,
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                static_friction=0.95,
-                dynamic_friction=0.95,
-                restitution=0.0,
+            usd_path=AGX_ORIN_USD,
+            visual_material_path=None,
+            visual_material=sim_utils.PbrMdlCfg(
+                diffuse_color_constant=None,
+                metallic_constant=0.15,
+                reflection_roughness_constant=0.55,
+                albedo_brightness=3.4,
+                metallic_texture_influence=0.0,
+                reflection_roughness_texture_influence=0.0,
             ),
-            # 13/20 of the original (1.5885, 1.5885, 1.4274).
-            scale=(1.1357775, 1.1357775, 1.120591),
-            mass_props=sim_utils.MassCfg(mass=0.05),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(-0.48, 0.09, 1.081),
-            rot=(0, 0, 0, 1),
+            pos=(-0.58, -0.24, 0.97),
+            rot=(0, 0, 0.017099942, 0.99985379),
         ),
     )
 
-    plate = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Plate",
+    protective_box = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/ProtectiveBox",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=PLATE_USD,
-            scale=(0.9, 0.9, 1.0),
+            usd_path=PROTECTIVE_BOX_USD,
+            visual_material_path=None,
+            visual_material=sim_utils.PbrMdlCfg(
+                diffuse_color_constant=None,
+                metallic_constant=0.05,
+                reflection_roughness_constant=0.85,
+                albedo_brightness=2.6,
+                metallic_texture_influence=0.0,
+                reflection_roughness_texture_influence=0.0,
+            ),
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            mass_props=sim_utils.MassCfg(mass=0.2),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(-0.5, -0.265, 1.055),
-            rot=(0, 0, 0, 1),
+            pos=(-0.53, -0.03, 0.995),
+            rot=(0, 0, 0.23344537, 0.97236992),
         ),
     )
 
-    # The room encloses the scene, so every light is local to the env. An infinite
-    # dome or distant light would be blocked by the ceiling, and a copy per env
-    # would light every other env as well.
     overhead_strip = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/overhead_strip",
         spawn=sim_utils.CylinderLightCfg(
@@ -201,7 +204,7 @@ class PickAndPlaceAppleSceneCfg(InteractiveSceneCfg):
             radius=1.0,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.5, 0.0, 1.06),
+            pos=(-0.55, 0.05, 0.98),
             rot=(0.0, 1.0, 0.0, 0.0),
         ),
     )
@@ -213,7 +216,7 @@ class PickAndPlaceAppleSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ObservationsCfg:
-    """Joint state and three camera observations."""
+    """Robot state and three camera observations."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -233,17 +236,32 @@ class ObservationsCfg:
         front_camera = ObsTerm(
             func=mdp.image_rgb,
             params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
-            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.879, 0.824, 0.848)},
+                )
+            ],
         )
         left_wrist_camera = ObsTerm(
             func=mdp.image_rgb,
             params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
-            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.732, 0.745, 0.735)},
+                )
+            ],
         )
         right_wrist_camera = ObsTerm(
             func=mdp.image_rgb,
             params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
-            tensor_processors=[TensorProcessorCfg(func=apply_camera_response)],
+            tensor_processors=[
+                TensorProcessorCfg(
+                    func=apply_camera_response,
+                    params={"response_gamma": (0.4545, 0.4545, 0.4545), "response_gain": (0.815, 0.814, 0.826)},
+                )
+            ],
         )
 
         def __post_init__(self):
@@ -255,24 +273,28 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Reset the scene, then randomize the apple in XY."""
+    """Reset the scene, then randomize the AGX Orin on the tabletop."""
 
-    # Also latch PD targets (esp. head_pitch=0.6). Controllers that only
-    # command a subset of joints otherwise leave head target at 0 and IdealPD
-    # lifts the camera into the wall.
     reset_scene = EventTermCfg(
         func=mdp.reset_scene_to_default,
         mode="reset",
         params={"reset_joint_targets": True},
     )
-
-    # Must follow ``reset_scene`` so the default reset does not overwrite it.
-    randomize_apple_xy = EventTermCfg(
+    randomize_agx_orin_xy = EventTermCfg(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("apple"),
-            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (-XY_RANGE, XY_RANGE), "yaw": (-YAW_RANGE, YAW_RANGE)},
+            "asset_cfg": SceneEntityCfg("agx_orin"),
+            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (-XY_RANGE, 0.0), "yaw": (-YAW_RANGE, YAW_RANGE)},
+            "velocity_range": {},
+        },
+    )
+    randomize_box_xy = EventTermCfg(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("protective_box"),
+            "pose_range": {"x": (-XY_RANGE, XY_RANGE), "y": (0.0, XY_RANGE), "yaw": (-YAW_RANGE, YAW_RANGE)},
             "velocity_range": {},
         },
     )
@@ -280,63 +302,51 @@ class EventCfg:
 
 @configclass
 class TerminationsCfg:
-    """Timeout, phase success, and apple-drop failure."""
+    """Timeout and phase-based completion for RL post-training."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
         func=terminations.task_success,
         time_out=False,
         params={
-            "apple_cfg": SceneEntityCfg("apple"),
-            "plate_cfg": SceneEntityCfg("plate"),
-            "robot_cfg": SceneEntityCfg(
-                "robot",
-                body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
-                joint_names=["right_thumb_CMC_FE", "right_thumb_CMC_AA", "right_thumb_MCP_AA", "right_thumb_IP"],
-                preserve_order=True,
-            ),
-            "lift_z": 0.10,
-            "grasp_dist": 0.26,
-            "release_dist": 0.08,
-            "place_grasp_dist": 0.30,
-            # Broad placement band relative to the plate root. XY proximity
-            # and right-hand control remain required to reject unrelated drops.
-            "xy_radius": 0.10,
-            "z_above": 0.025,
-            "z_window": 0.075,
-            "hold_steps": 1,
+            "agx_orin_cfg": SceneEntityCfg("agx_orin"),
+            "robot_cfg": SceneEntityCfg("robot", body_names="right_wrist_yaw_link", joint_names="right_thumb_MCP_FE"),
+            "protective_box_cfg": SceneEntityCfg("protective_box"),
+            "lift_z": 0.01,
+            "align_target_z_offset": 0.10,
+            "align_xy": 0.025,  # 3D distance tolerance
+            "rotation_tolerance": 0.2,
+            "lift_hold_steps": 5,
+            "align_hold_steps": 5,
+            "seat_hold_steps": 5,
         },
     )
 
 
 @configclass
 class RewardsCfg:
-    """Sparse phase rewards: left lift, right catch, place, then release."""
+    """Sparse phase rewards: lift, align, seat, then release."""
 
-    left_grasp_lift = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 0})
-    handover_to_right = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 1})
-    place_on_plate = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 2})
-    release_on_plate = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 3})
+    lift_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 0})
+    align_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 1})
+    seat_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 2})
+    release_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 3})
 
 
 @configclass
-class PickAndPlaceAppleEnvCfg(ManagerBasedRLEnvCfg):
-    """Unitree H2 + Sharpa Wave pick-and-place apple env (PhysX)."""
+class PackAgxOrinEnvCfg(ManagerBasedRLEnvCfg):
+    """Independent joint-control environment for the AGX Orin packing task."""
 
-    scene: PickAndPlaceAppleSceneCfg = PickAndPlaceAppleSceneCfg(
+    scene: PackAgxOrinSceneCfg = PackAgxOrinSceneCfg(
         num_envs=1,
-        # Prevent replicated background rooms from intersecting.
         env_spacing=10.0,
-        # Envs carry per-env assets, so clone prims rather than replicate physics.
         replicate_physics=False,
     )
-
     viewer: ViewerCfg = ViewerCfg(
-        eye=(0.6, -0.2, 2.4),
-        lookat=(-0.45, 0.0, 1.22),
+        eye=(0.2, -0.2, 2.2),
+        lookat=(-0.40, 0.0, 1.10),
         cam_prim_path="/OmniverseKit_Persp",
     )
-
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
@@ -347,6 +357,6 @@ class PickAndPlaceAppleEnvCfg(ManagerBasedRLEnvCfg):
 
     sim = sim_utils.SimulationCfg(dt=1 / 120, render_interval=4, physics=PhysxCfg(gpu_max_num_partitions=32))
     decimation = 4
-    episode_length_s = 20.0
+    episode_length_s = 15.0
     # Return camera observations from the reset episode, not the previous one.
     num_rerenders_on_reset = 2

@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
-from isaaclab_tasks.contrib.h2_sharpa import advance_phase
+from isaaclab_tasks.contrib.h2_sharpa.mdp import advance_phase
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
