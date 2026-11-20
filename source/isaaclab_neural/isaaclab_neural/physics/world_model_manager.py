@@ -183,8 +183,6 @@ class WorldModelManager(PhysicsManager):
         torch.where(env_mask[:, None], state, self.joint_target, out=self.joint_target)
         for view, buffer in self._frames.items():
             buffer.publish(self._record_images[view][records][:, None], env_mask)
-        self.new_frames = False
-        self.chunk_boundary.zero_()
 
     def set_joint_target(self, target: np.ndarray | torch.Tensor) -> None:
         """Set the joint position targets, shape ``(N, J)``, that the next :meth:`step` applies."""

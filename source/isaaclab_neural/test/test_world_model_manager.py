@@ -125,6 +125,23 @@ def test_the_model_runs_once_per_chunk_and_the_joint_state_follows_the_last_targ
         assert manager.frames().frames.shape[:2] == (N, T)
 
 
+def test_partial_reset_keeps_the_last_steps_chunk_boundary_until_the_next_step(tmp_path):
+    with world_model_sim(tmp_path) as sim:
+        manager = bound_manager(sim)
+        manager.reset_envs(torch.ones(N, dtype=torch.bool, device=sim.device))
+        for _ in range(T):
+            step(manager, 1.0)
+        previous = manager.frames().frames[1].clone()
+        manager.reset_envs(torch.tensor([True, False], device=sim.device))
+        assert manager.new_frames and manager.chunk_boundary.all()
+        torch.testing.assert_close(manager.frames().frames[1], previous)
+        step(manager, 2.0)
+        assert not manager.new_frames and not manager.chunk_boundary.any()
+        for _ in range(T - 1):
+            step(manager, 2.0)
+        assert manager.new_frames and manager.chunk_boundary.all()
+
+
 def test_environments_can_only_reset_between_chunks(tmp_path):
     with world_model_sim(tmp_path) as sim:
         manager = bound_manager(sim)
