@@ -19,7 +19,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from .foveated_camera import OPENGL_TO_ROS_AXES, FoveatedCamera
 from .native_grid import (
-    GRID_STYLE,
     allocate_grid_outputs,
     copy_grid_outputs,
     copy_updated_rows,
@@ -28,7 +27,7 @@ from .native_grid import (
     mask_grid_samples,
     proxy_outputs,
 )
-from .pooling import build_highres_coords, build_lowres_coords, build_pooler
+from .pooling import build_pooler
 
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
@@ -77,11 +76,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
     def _initialize_impl(self):
         # The pooler's KNN tensors are plain attributes that nn.Module.to() does not move, so the coordinates start on
         # the CPU and the pooler is built on the sensor device after the parent initializes.
-        self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
-        self._native_grid = self.cfg.foveated_style == GRID_STYLE
-        self._sampling_coords_highres = build_highres_coords(self.cfg, self._sampling_coords, matched_res)
-        self._num_valid_samples = len(self._sampling_coords)
-        self._num_ray_samples = len(self._sampling_coords_highres or self._sampling_coords)
+        self._prepare_sampling()
         logger.info(
             "FoveatedNewtonCamera: %d samples (%d rendered), style=%s, cmf_a=%.4g deg, field of view=%.1f deg",
             self._num_valid_samples,
@@ -92,8 +87,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
         )
 
         # The parent allocates render buffers for the rendered rays: the high-resolution ones when pooling.
-        ray_coords = self._sampling_coords_highres or self._sampling_coords
-        self.cfg.height, self.cfg.width = grid_output_shape(ray_coords)
+        self.cfg.height, self.cfg.width = grid_output_shape(self._ray_coords)
         renderer = self.cfg.renderer_cfg
         if renderer.render_order == "tiled":
             tile_width = renderer.tile_rendering_width
@@ -112,11 +106,7 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
         super()._initialize_impl()
 
-        self._sampling_coords = self._sampling_coords.to(device=self._device)
-        if self._sampling_coords_highres is not None:
-            self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
-        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
-        self._initialize_gaze()
+        self._initialize_sampling()
         self._pooler, self._pool_k = build_pooler(
             self.cfg, self._sampling_coords, self._sampling_coords_highres, device=str(self._device)
         )

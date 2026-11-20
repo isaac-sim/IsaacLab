@@ -32,7 +32,6 @@ from . import lens_lut
 from .calibrated_geometry import compose_rotations, retinal_directions
 from .foveated_camera import FoveatedCamera
 from .native_grid import (
-    GRID_STYLE,
     allocate_grid_outputs,
     copy_grid_outputs,
     copy_updated_rows,
@@ -40,7 +39,7 @@ from .native_grid import (
     mask_grid_samples,
     proxy_outputs,
 )
-from .pooling import build_highres_coords, build_lowres_coords, build_pooler
+from .pooling import build_pooler
 
 if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
@@ -79,6 +78,7 @@ class FoveatedRTXCamera(FoveatedCamera):
         self._pooled_output: dict[str, torch.Tensor] | None = None
         # The projection sets the texture size on the configuration before the parent allocates for it; the caller's
         # configuration stays untouched.
+        # The textures are square, so the parent's inferred vertical aperture agrees with the lens calibration.
         cfg = clone(cfg)
         self.cfg = cfg
         self._prepare_projection()
@@ -153,13 +153,8 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def _prepare_projection(self) -> None:
         # The lens textures and sample extraction use the rendered samples: the high-resolution ones when pooling.
-        self._sampling_coords, matched_res = build_lowres_coords(self.cfg, device="cpu")
-        self._sampling_coords_highres = build_highres_coords(self.cfg, self._sampling_coords, matched_res)
-        ray_coords = self._sampling_coords_highres or self._sampling_coords
-        self._ray_coords = ray_coords
-        self._native_grid = self.cfg.foveated_style == GRID_STYLE
-        self._num_valid_samples = len(self._sampling_coords)
-        self._num_ray_samples = len(ray_coords)
+        self._prepare_sampling()
+        ray_coords = self._ray_coords
 
         size = ray_coords.resolution
         if not self._native_grid:
@@ -233,11 +228,7 @@ class FoveatedRTXCamera(FoveatedCamera):
                 if not ext_manager.set_extension_enabled_immediate(ext_name, True):
                     logger.warning("Could not enable Kit extension '%s'; the lens lookup may not render.", ext_name)
 
-        self._sampling_coords = self._sampling_coords.to(device=self._device)
-        if self._sampling_coords_highres is not None:
-            self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
-        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
-        self._initialize_gaze()
+        self._initialize_sampling()
         _, local_orientation = self._view.get_local_poses()
         self._base_local_orientation = matrix_from_quat(local_orientation.torch).clone()
         self._pooler, self._pool_k = build_pooler(

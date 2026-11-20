@@ -282,6 +282,7 @@ def publish_grid_kernel(
     or, when masking, the physical camera's view.
 
     ``source`` and ``target`` hold each sample's channels as raw bytes, so one kernel serves every output type.
+    When masking, the first output records visibility and the other outputs reuse it on the same stream.
     """
     env, cell = wp.tid()
     if not updated[env]:
@@ -289,9 +290,11 @@ def publish_grid_kernel(
     sample = indices[cell]
     keep = footprint[sample]
     if mask_to_sensor != 0:
-        seen = sees(rays[sample], rotation[env], frame, camera)
         if record_visible != 0:
+            seen = sees(rays[sample], rotation[env], frame, camera)
             visible[env, sample] = seen
+        else:
+            seen = visible[env, sample]
         keep = keep and seen
     for k in range(target.shape[2]):
         if keep:

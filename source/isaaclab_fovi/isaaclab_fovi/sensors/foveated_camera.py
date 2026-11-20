@@ -34,6 +34,7 @@ from .gaze_kernels import (
 )
 from .native_grid import GRID_STYLE, buffer_tensor, native_grid_directions
 from .pooling import (
+    build_retinal_coords,
     is_segmentation_output,
     pool_hwc_buffer,
     pool_segmentation_buffer,
@@ -280,11 +281,23 @@ class FoveatedCamera(Camera):
             stacklevel=2,
         )
 
-    def _initialize_gaze(self) -> None:
-        """Prepare the gaze geometry: the rendered rays in the physical camera's frame and the pose conversions."""
+    def _prepare_sampling(self) -> None:
+        """Resolve physical calibration and retinal coordinates before the renderer sizes its buffers."""
         self._camera_model = resolve_camera_model(self.cfg)
+        self._sampling_coords, self._sampling_coords_highres = build_retinal_coords(self.cfg, self._camera_model, "cpu")
+        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
+        self._native_grid = self.cfg.foveated_style == GRID_STYLE
+        self._num_valid_samples = len(self._sampling_coords)
+        self._num_ray_samples = len(self._ray_coords)
+
+    def _initialize_sampling(self) -> None:
+        """Move retinal coordinates to the sensor device and prepare the gaze rays and frame conversions."""
+        self._sampling_coords = self._sampling_coords.to(device=self._device)
+        if self._sampling_coords_highres is not None:
+            self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
+        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._gaze_camera = camera_params(self._camera_model)
-        coords = self._sampling_coords_highres or self._sampling_coords
+        coords = self._ray_coords
         rotation_deg = self.cfg.image_rotation_deg
         # The rays as rendered, mount roll included, in the ROS frame the camera model projects.
         if coords.style == GRID_STYLE:

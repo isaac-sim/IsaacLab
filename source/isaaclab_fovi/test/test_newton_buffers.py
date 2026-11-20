@@ -15,23 +15,12 @@ from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.sensors import foveated_camera as base_camera
 from isaaclab_fovi.sensors import foveated_newton_camera as newton_camera
-from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera, explicit_rays
 from isaaclab_fovi.sensors.native_grid import native_grid_directions
 
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
-
-
-def rendered_rays_only(camera) -> None:
-    """Stand-in for the gaze geometry: only the rendered rays, in the ROS frame the camera keeps them in."""
-    coords = camera._ray_coords
-    if coords.style == "warped_cartesian_as_grid":
-        rays = native_grid_directions(coords, image_rotation_deg=0)
-    else:
-        rays = retinal_directions(coords.cartesian, coords.fov, 0)
-    camera._gaze_rays = (rays * rays.new_tensor((1.0, -1.0, -1.0))).float()
 
 
 def new_camera() -> FoveatedNewtonCamera:
@@ -54,10 +43,8 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     highres = coords.clone(resolution=32) if pooled else None
     ray_coords = highres if pooled else coords
     pooler = torch.nn.AdaptiveAvgPool1d(len(coords)) if pooled else None
-    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
-    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
+    monkeypatch.setattr(base_camera, "build_retinal_coords", lambda *args, **kwargs: (coords, highres))
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (pooler, 4))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
 
     def initialize_renderer(camera):
         # Newton launches image tiles; a vector-shaped width of one is not valid.
@@ -85,6 +72,7 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
         cmf_a_deg=0.591,
@@ -129,10 +117,8 @@ def test_native_grid_render_layout_preserves_rays_and_upright_outputs(monkeypatc
 def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeypatch) -> None:
     """A sample-set camera publishes its own buffers: Newton redraws every row, but only updated rows change."""
     coords = SamplingCoords(60.0, 0.591, 8, style="isotropic", field_geometry="spherical", device="cpu")
-    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 8))
-    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: None)
+    monkeypatch.setattr(base_camera, "build_retinal_coords", lambda *args, **kwargs: (coords, None))
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (None, None))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
 
     def initialize_renderer(camera):
         depth = torch.zeros((2, camera.cfg.height, camera.cfg.width, 1))
@@ -147,6 +133,7 @@ def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeyp
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
         foveated_style="isotropic",
         mask_to_sensor_fov=False,
         pool_enabled=False,
@@ -171,10 +158,8 @@ def test_sample_set_publication_keeps_environments_that_were_not_updated(monkeyp
 def test_sample_set_sensor_mask_follows_the_published_frame(monkeypatch) -> None:
     """An environment that was not updated keeps its published samples and the sensor visibility that masked them."""
     coords = SamplingCoords(60.0, 0.591, 8, style="isotropic", field_geometry="spherical", device="cpu")
-    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 8))
-    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: None)
+    monkeypatch.setattr(base_camera, "build_retinal_coords", lambda *args, **kwargs: (coords, None))
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (None, None))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
 
     def initialize_renderer(camera):
         camera.renderer_depth = torch.ones((2, camera.cfg.height, camera.cfg.width, 1))
@@ -185,10 +170,9 @@ def test_sample_set_sensor_mask_follows_the_published_frame(monkeypatch) -> None
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", lambda camera, env_mask: None)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
         foveated_style="isotropic",
         mask_to_sensor_fov=True,
-        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
-        spawn=None,
         pool_enabled=False,
         image_rotation_deg=0,
         update_period=0.0,
@@ -196,8 +180,6 @@ def test_sample_set_sensor_mask_follows_the_published_frame(monkeypatch) -> None
         renderer_cfg=SimpleNamespace(render_order="tiled", tile_rendering_width=8, tile_rendering_height=8),
     )
     camera._initialize_impl()
-    # The real gaze geometry, on stand-in pose buffers.
-    base_camera.FoveatedCamera._initialize_gaze(camera)
     camera._view = SimpleNamespace(count=2, close=lambda: None)
     camera._data.quat_w_ros = ProxyArray(wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2), dtype=wp.quatf))
 
@@ -222,10 +204,8 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     neighbors = torch.stack([4 * runs + j for j in range(4)])
     average = torch.nn.AdaptiveAvgPool1d(len(coords))
 
-    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
-    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
+    monkeypatch.setattr(base_camera, "build_retinal_coords", lambda *args, **kwargs: (coords, highres))
     monkeypatch.setattr(newton_camera, "build_pooler", lambda *args, **kwargs: (average, 4))
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
     # The camera reads the modal neighbourhoods from its standard pooler.
     monkeypatch.setattr(base_camera, "segmentation_neighbor_indices", lambda pooler: neighbors)
 
@@ -255,6 +235,7 @@ def test_pooled_segmentation_publishes_modal_labels_at_full_precision(monkeypatc
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
         foveated_style="warped_cartesian_as_grid",
         mask_to_sensor_fov=False,
         update_period=0.0,
@@ -314,12 +295,10 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch) -> None:
     style = "isotropic"
     coords = SamplingCoords(60.0, 0.591, 16, style=style, field_geometry="spherical", device="cpu")
     highres = coords.clone(resolution=32)
-    monkeypatch.setattr(newton_camera, "build_lowres_coords", lambda *args, **kwargs: (coords, 16))
-    monkeypatch.setattr(newton_camera, "build_highres_coords", lambda *args, **kwargs: highres)
+    monkeypatch.setattr(base_camera, "build_retinal_coords", lambda *args, **kwargs: (coords, highres))
     monkeypatch.setattr(
         newton_camera, "build_pooler", lambda *args, **kwargs: (torch.nn.AdaptiveAvgPool1d(len(coords)), 4)
     )
-    monkeypatch.setattr(FoveatedNewtonCamera, "_initialize_gaze", rendered_rays_only)
 
     def initialize_renderer(camera):
         camera.renderer_rgba = torch.zeros((2, camera.cfg.height, camera.cfg.width, 4), dtype=torch.uint8)
@@ -337,6 +316,7 @@ def test_pooled_rgb_is_the_view_of_pooled_rgba(monkeypatch) -> None:
     monkeypatch.setattr(newton_camera.Camera, "_update_buffers_impl", render)
     camera = new_camera()
     camera.cfg = SimpleNamespace(
+        camera_model=asdict(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
         foveated_style=style,
         mask_to_sensor_fov=False,
         update_period=0.0,

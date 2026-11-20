@@ -15,7 +15,7 @@ the lowres grid (no ``cmf_a_mult``).  Only ``res`` is scaled by
 visual-field geometry at different densities.
 
 Construction happens in two stages to accommodate Isaac's sensor init order:
-1. ``build_lowres_coords`` + ``build_highres_coords`` run *before*
+1. ``build_retinal_coords`` runs *before*
    ``super()._initialize_impl()`` (CPU) so the backend can size its render
    buffers from the highres sample count.
 2. ``build_pooler`` runs *after* coords have been moved to the sensor's
@@ -32,8 +32,7 @@ import torch
 from fovi.arch.knn import KNNPoolingLayer
 from fovi.arch.pooling import GridPoolingLayer, build_retinal_pooler
 from fovi.sensing.coords import SamplingCoords, auto_match_num_coords
-
-from .calibrated_geometry import sampling_geometry
+from fovi.sensing.projection import CameraModel
 
 if TYPE_CHECKING:
     from .foveated_camera_cfg import FoveatedCameraCfg
@@ -44,17 +43,15 @@ if TYPE_CHECKING:
 _MODAL_CHUNK_ELEMENTS = 2**22
 
 
-def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCoords, int]:
-    """Build the lowres (RGC / public output) SamplingCoords.
-
-    Returns ``(lowres_coords, matched_res)`` where ``matched_res`` is the
-    auto-matched radial resolution also needed for the highres grid.
-    """
-    fov, cmf_a = sampling_geometry(cfg)
+def build_retinal_coords(
+    cfg: FoveatedCameraCfg, camera: CameraModel, device: str
+) -> tuple[SamplingCoords, SamplingCoords | None]:
+    """Build the public retina and, when pooling, the denser retina with the same angular geometry."""
+    fov = camera.field_of_view(cfg.retinal_window_reference_side, cfg.retinal_window_fraction)
 
     matched_res, _ = auto_match_num_coords(
         fov,
-        cmf_a,
+        cfg.cmf_a_deg,
         cfg.foveated_res,
         cfg.foveated_style,
         1,
@@ -66,7 +63,7 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
     )
     lowres = SamplingCoords(
         fov=fov,
-        cmf_a=cmf_a,
+        cmf_a=cfg.cmf_a_deg,
         res=matched_res,
         device=device,
         style=cfg.foveated_style,
@@ -75,17 +72,11 @@ def build_lowres_coords(cfg: FoveatedCameraCfg, device: str) -> tuple[SamplingCo
         radius_norm=cfg.radius_norm,
         field_geometry="spherical",
     )
-    return lowres, matched_res
-
-
-def build_highres_coords(cfg: FoveatedCameraCfg, lowres: SamplingCoords, matched_res: int) -> SamplingCoords | None:
-    """Build the highres (photoreceptor) SamplingCoords when pooling is on: the lowres retina's geometry at
-    ``pool_res_mult`` times its resolution, on the same device."""
-    if not cfg.pool_enabled:
-        return None
-    # pool_res_mult is a float to support fractional ratios (e.g. sqrt(2) for
-    # a 2× N_hi/N_lo ratio).  SamplingCoords requires an integer radial res.
-    return lowres.clone(resolution=int(round(cfg.pool_res_mult * matched_res)))
+    highres = None
+    if cfg.pool_enabled:
+        # Fractional ratios (e.g. sqrt(2) for twice as many samples) still need an integer radial resolution.
+        highres = lowres.clone(resolution=int(round(cfg.pool_res_mult * lowres.resolution)))
+    return lowres, highres
 
 
 def build_pooler(

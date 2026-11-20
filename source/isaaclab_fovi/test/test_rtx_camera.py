@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
+from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.sensors import foveated_rtx_camera, lens_lut
 from isaaclab_fovi.sensors.foveated_camera_cfg import FoveatedCameraCfg
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
@@ -100,6 +101,16 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
     def construct(self, cfg):
         self.cfg = cfg
         self.stage = stage
+        self._device = "cpu"
+        # The stock camera infers the vertical aperture using the allocated texture dimensions.
+        self.cfg.spawn.vertical_aperture = cfg.spawn.horizontal_aperture * cfg.height / cfg.width
+
+    field_of_view = CameraModel.field_of_view
+    sampling_models = []
+
+    def measure_window(model, *args):
+        sampling_models.append(model)
+        return field_of_view(model, *args)
 
     build_directions = lens_lut.native_grid_directions
     ray_builds = []
@@ -111,6 +122,7 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
 
     texture_paths = ("/textures/enter.exr", "/textures/exit.exr")
     monkeypatch.setattr(Camera, "__init__", construct)
+    monkeypatch.setattr(CameraModel, "field_of_view", measure_window)
     # Count at both import locations so evaluating a second ray grid in the camera fails this check.
     monkeypatch.setattr(lens_lut, "native_grid_directions", measure_directions)
     monkeypatch.setattr(foveated_rtx_camera, "native_grid_directions", measure_directions, raising=False)
@@ -131,7 +143,10 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
         assert prim.GetAttribute("omni:lensdistortion:lut:rayEnterDirectionTexture").Get().path == "/textures/enter.exr"
     assert camera.cfg is not cfg and (camera.cfg.height, camera.cfg.width) == (16, 16)
     assert len(ray_builds) == 1
-    assert cfg.spawn.lock_camera and (cfg.height, cfg.width) == (1, 1)
+    camera._initialize_sampling()
+    assert len(sampling_models) == 1 and camera.camera_model is sampling_models[0]
+    assert camera.camera_model.image_size == (1024, 1024)
+    assert cfg.spawn.lock_camera and cfg.spawn.vertical_aperture is None and (cfg.height, cfg.width) == (1, 1)
 
 
 def test_lens_lut_survives_usd_export_without_schema_registration() -> None:

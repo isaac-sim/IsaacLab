@@ -11,10 +11,10 @@ fovi's poolers are tested in fovi; these tests cover what the camera builds on t
 import pytest
 import torch
 from isaaclab_fovi.sensors import FoveatedCameraCfg, pooling
+from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model
 from isaaclab_fovi.sensors.pooling import (
-    build_highres_coords,
-    build_lowres_coords,
     build_pooler,
+    build_retinal_coords,
     pool_hwc_buffer,
     pool_segmentation_buffer,
     segmentation_neighbor_indices,
@@ -50,8 +50,7 @@ def pooling_cfg(**overrides) -> FoveatedCameraCfg:
 
 def test_camera_pools_its_buffers_by_its_config() -> None:
     cfg = pooling_cfg(pool_mode="max")
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, lowres, matched)
+    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
     # The photoreceptor grid shares the retina's geometry at a higher resolution, and the pooler takes the config.
     assert len(highres) > len(lowres) and highres.cmf_a == lowres.cmf_a and highres.fov == lowres.fov
     pooler, neighbors = build_pooler(cfg, lowres, highres, "cpu")
@@ -64,8 +63,8 @@ def test_camera_pools_its_buffers_by_its_config() -> None:
     torch.testing.assert_close(actual, constants[:, None, None, :].expand(2, len(lowres), 1, 3))
     # Without pooling there is no photoreceptor grid.
     cfg = pooling_cfg(pool_enabled=False)
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    assert build_highres_coords(cfg, lowres, matched) is None
+    _, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
+    assert highres is None
 
 
 # Three output samples over five input samples; 5 marks an excluded neighbour. Columns are outputs, rows are
@@ -124,8 +123,7 @@ def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Ten
 def test_modal_pooling_uses_the_poolers_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex) -> None:
     """Segmentation pools over the same neighbourhoods as the camera's other outputs: grid windows or KNN."""
     cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex, pool_mode="max")
-    lowres, matched = build_lowres_coords(cfg, "cpu")
-    highres = build_highres_coords(cfg, lowres, matched)
+    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), "cpu")
     pooler, k = build_pooler(cfg, lowres, highres, "cpu")
     table = segmentation_neighbor_indices(pooler)
     assert table.shape == (k, len(lowres))
@@ -144,8 +142,7 @@ def test_modal_pooling_uses_the_poolers_neighbourhoods(monkeypatch, style: str, 
 @pytest.mark.parametrize(("style", "pool_k", "mode"), [("warped_cartesian_as_grid", 9, "avg"), ("isotropic", 6, "max")])
 def test_pooling_leaves_out_photoreceptors_the_camera_does_not_see(style: str, pool_k: int, mode: str) -> None:
     cfg = pooling_cfg(foveated_style=style, pool_mode=mode, pool_k=pool_k)
-    lowres, matched = build_lowres_coords(cfg, DEVICE)
-    highres = build_highres_coords(cfg, lowres, matched)
+    lowres, highres = build_retinal_coords(cfg, resolve_camera_model(cfg), DEVICE)
     pooler, _ = build_pooler(cfg, lowres, highres, DEVICE)
     # The camera's image edge cuts the retina at x = 0.3 in the first environment; the second sees everything.
     visible = torch.stack([highres.cartesian[:, 0] < 0.3, torch.ones(len(highres), dtype=torch.bool, device=DEVICE)])

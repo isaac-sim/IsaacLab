@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pytest
 import torch
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
-from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model, sampling_geometry
+from isaaclab_fovi.sensors.calibrated_geometry import resolve_camera_model
 from isaaclab_fovi.sensors.foveated_newton_camera import FoveatedNewtonCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -55,18 +55,16 @@ def test_defaults_are_grid_sampling_at_the_human_cmf_estimate() -> None:
 
 def test_pinhole_spawn_describes_an_ideal_pinhole_across_its_short_side() -> None:
     spawn = PinholeCameraCfg()
-    fov, cmf_a = sampling_geometry(make_cfg(spawn=spawn))
     expected = math.degrees(2 * math.atan(spawn.horizontal_aperture / (2 * spawn.focal_length)))
-    assert fov == pytest.approx(expected, rel=1e-6)
-    assert cmf_a == 0.591
     camera = resolve_camera_model(make_cfg(spawn=spawn))
+    assert camera.field_of_view("short") == pytest.approx(expected, rel=1e-6)
     assert camera.model == "pinhole"
     assert camera.distortion == ()
     # Without a vertical aperture the image is square; with one, the retina spans the short (vertical) side.
     assert camera.image_size[0] == camera.image_size[1]
     spawn = PinholeCameraCfg(focal_length=10.0, horizontal_aperture=20.0, vertical_aperture=10.0)
-    fov, _ = sampling_geometry(make_cfg(spawn=spawn))
-    assert fov == pytest.approx(math.degrees(2 * math.atan(0.5)), rel=1e-6)
+    camera = resolve_camera_model(make_cfg(spawn=spawn))
+    assert camera.field_of_view("short") == pytest.approx(math.degrees(2 * math.atan(0.5)), rel=1e-6)
 
 
 def test_opencv_pinhole_spawn_gives_that_calibrated_camera() -> None:
@@ -96,8 +94,7 @@ def test_zero_coefficient_opencv_fisheye_is_an_ideal_equidistant_fisheye() -> No
     # Equidistant: the angle off the optical axis grows linearly with image radius.
     for radius in (50.0, 150.0, 310.0):
         assert ray_angle_deg(camera, (319.5 + radius, 319.5)) == pytest.approx(math.degrees(radius / focal), rel=1e-6)
-    fov, _ = sampling_geometry(cfg)
-    assert fov == pytest.approx(math.degrees(640 / focal), rel=1e-6)
+    assert camera.field_of_view("short") == pytest.approx(math.degrees(640 / focal), rel=1e-6)
 
 
 def test_explicit_camera_model_wins_over_the_spawn() -> None:
