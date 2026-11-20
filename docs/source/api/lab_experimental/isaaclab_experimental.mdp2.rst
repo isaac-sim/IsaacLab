@@ -23,6 +23,7 @@ Terms and task configuration
    TaskCfg
    DirectAction
    Action
+   ActionRate
    Observation
    ObservationGroup
    Reward
@@ -33,10 +34,14 @@ Terms and task configuration
    EventMode
    Quantity
    UniformNoise
+   Tunable
+   tunable
    term_state
    compose
    sequence
    split
+   choice
+   rename
    Milestone
    TaskMode
    progress
@@ -57,10 +62,13 @@ Building and running
    Backend
    CapturedMDP
    startup
+   process_actions
    apply_actions
    evaluate
    reset
    observe
+   tune
+   migrate
 
 Scene data
 ----------
@@ -85,6 +93,8 @@ Scene data
 .. autoclass:: TaskCfg
 .. autoclass:: DirectAction
 .. autoclass:: Action
+.. autoclass:: ActionRate
+   :members:
 .. autoclass:: Observation
 .. autoclass:: ObservationGroup
 .. autoclass:: Reward
@@ -96,10 +106,14 @@ Scene data
    :members:
 .. autoclass:: Quantity
 .. autoclass:: UniformNoise
+.. autoclass:: Tunable
+.. autofunction:: tunable
 .. autofunction:: term_state
 .. autofunction:: compose
 .. autofunction:: sequence
 .. autofunction:: split
+.. autofunction:: choice
+.. autofunction:: rename
 .. autoclass:: Milestone
 .. autoclass:: TaskMode
    :members:
@@ -119,10 +133,13 @@ Scene data
 .. autoclass:: CapturedMDP
    :members:
 .. autofunction:: startup
+.. autofunction:: process_actions
 .. autofunction:: apply_actions
 .. autofunction:: evaluate
 .. autofunction:: reset
 .. autofunction:: observe
+.. autofunction:: tune
+.. autofunction:: migrate
 .. autoclass:: SceneData
    :members:
 .. autoclass:: SceneSchema

@@ -115,7 +115,7 @@ class ActuatorBase(ABC):
     They must then not synchronize with the host, nor draw from Torch's random generators, whose draws a replayed
     graph repeats, when Torch joins the capture on the capturing stream. Environments that replay their steps as
     graphs with Torch work inside them, such as MDP2's, accept only such actuators. Unlike
-    :attr:`ActuatorCollection.is_graphable`, Torch models qualify.
+    :attr:`~isaaclab.actuators.ActuatorCollection.is_graphable`, Torch models qualify.
     """
 
     computed_effort: torch.Tensor
