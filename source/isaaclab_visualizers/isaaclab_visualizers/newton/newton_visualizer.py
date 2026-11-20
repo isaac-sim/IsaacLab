@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -794,6 +795,13 @@ class NewtonVisualizerBase(BaseVisualizer):
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
         super().initialize(sim, cameras=cameras)
+        # each perspective view renders itself, so a recorder can capture one the window does not show
+        for view in self._image_views:
+            if view.camera is not None:
+                continue
+            if view.render is not None:
+                raise ValueError("A perspective image view must have exactly one rendering owner.")
+            view.render = partial(self._capture_view, view)
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
