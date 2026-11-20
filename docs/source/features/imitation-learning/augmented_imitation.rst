@@ -3,11 +3,7 @@
 Augmented Imitation Learning
 ============================
 
-.. warning::
-
-   Isaac Lab Mimic is deprecated. Use `AutoData <https://isaac-sim.github.io/AutoData/main/>`__
-   for new data generation workflows. To migrate an existing workflow, see the
-   `Isaac Lab Mimic migration guide <https://isaac-sim.github.io/AutoData/main/pages/workflows/migrate_isaac_lab_mimic.html>`__.
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
 
 Use `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ to add visual variation to
 Isaac Lab demonstrations, then train visuomotor policies on the augmented data.

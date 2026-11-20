@@ -3,11 +3,7 @@
 SkillGen for Automated Demonstration Generation
 ===============================================
 
-.. warning::
-
-   Isaac Lab Mimic is deprecated. Use `AutoData <https://isaac-sim.github.io/AutoData/main/>`__
-   for new data generation workflows. To migrate an existing workflow, see the
-   `Isaac Lab Mimic migration guide <https://isaac-sim.github.io/AutoData/main/pages/workflows/migrate_isaac_lab_mimic.html>`__.
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
 
 SkillGen extends Isaac Lab Mimic with motion planning. It combines annotated human
 skill segments with cuRobo plans to generate demonstrations for new object placements.

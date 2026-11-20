@@ -92,6 +92,12 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    logger.warning(
+        "Isaac Lab Mimic is deprecated. Use AutoData for new data generation workflows.\n"
+        "AutoData documentation https://isaac-sim.github.io/AutoData/main/\n"
+        "Migration guide https://isaac-sim.github.io/AutoData/main/pages/workflows/migrate_isaac_lab_mimic.html"
+    )
+
     num_envs = args_cli.num_envs
 
     # Get env name
