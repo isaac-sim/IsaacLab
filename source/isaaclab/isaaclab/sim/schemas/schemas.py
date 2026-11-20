@@ -58,10 +58,10 @@ MESH_APPROXIMATION_TOKENS = {
 # Lazy accessors. These lists were used by the legacy ``usd_api`` / ``physx_api`` instance-
 # field dispatch in ``modify_mesh_collision_properties``. The new metadata-driven writer
 # does not consult them, but they are preserved as a public API so external code that
-# imported them keeps working. The PhysX leaves now live in ``isaaclab_physx``; we resolve
-# them lazily so this module does not import ``isaaclab_physx`` at load time.
+# imported them keeps working. The PhysX leaves now live in ``isaaclab_isaacsim``; we resolve
+# them lazily so this module does not import ``isaaclab_isaacsim`` at load time.
 def _get_physx_mesh_collision_cfgs() -> list:
-    from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+    from isaaclab_isaacsim.sim.schemas import schemas_cfg as _physx_cfg
 
     return [
         _physx_cfg.PhysxConvexHullPropertiesCfg,
@@ -82,7 +82,7 @@ class _LazyList:
     """Lazy list whose contents are produced on first access.
 
     Used to keep the public ``PHYSX_MESH_COLLISION_CFGS`` / ``USD_MESH_COLLISION_CFGS`` symbols
-    resolvable for callers that imported them, without triggering an ``isaaclab_physx`` import
+    resolvable for callers that imported them, without triggering an ``isaaclab_isaacsim`` import
     at this module's load time.
     """
 

@@ -528,8 +528,8 @@ def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
 
 def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
     """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
-    from isaaclab_physx.physics import PhysxCfg
 
     import isaaclab.sim.simulation_context as simulation_context_module
     from isaaclab.physics import PhysxAutoCfg

@@ -172,9 +172,9 @@ def test_importing_the_export_starts_a_volume_deformable_at_its_reset_state(tmp_
     The reset state is moved off the authored points, so that only the stated one reproduces it. The PhysX backends
     share this export, which writes no other deformable value.
     """
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
     from usd_export_read_import import NODAL_POSITION, read_nodal_positions
 
     import isaaclab.sim as sim_utils

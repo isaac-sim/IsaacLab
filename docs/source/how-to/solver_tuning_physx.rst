@@ -15,7 +15,7 @@ Before changing solver settings, reproduce one issue with a fixed initial
 state, seed, and action sequence. Record the failure, contact behavior, and
 task metric for that reproduction, then change one scene-level setting at a
 time. The generated API documentation for
-:class:`~isaaclab_physx.physics.PhysxCfg` remains authoritative for exact
+:class:`~isaaclab_isaacsim.physics.PhysxCfg` remains authoritative for exact
 fields and current defaults.
 
 Start from an explicit baseline
@@ -28,7 +28,7 @@ universal recommendation:
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     physx_cfg = PhysxCfg(
         solver_type=1,
@@ -133,7 +133,7 @@ cannot correct invalid geometry, solver divergence, or a controller issue.
 See also
 --------
 
-* :class:`~isaaclab_physx.physics.PhysxCfg`
+* :class:`~isaaclab_isaacsim.physics.PhysxCfg`
 * :doc:`/source/concepts/schema_cfgs`
 * :ref:`physics-backends-physx`
 * :doc:`/source/concepts/solver_differences`

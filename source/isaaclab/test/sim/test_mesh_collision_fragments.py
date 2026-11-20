@@ -8,14 +8,14 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
-from isaaclab_newton.sim.schemas import NewtonMeshCollisionCfg, NewtonSDFCollisionCfg
-from isaaclab_physx.sim.schemas import (
+from isaaclab_isaacsim.sim.schemas import (
     PhysxConvexDecompositionCfg,
     PhysxConvexHullCfg,
     PhysxSDFMeshCfg,
     PhysxTriangleMeshCfg,
     PhysxTriangleMeshSimplificationCfg,
 )
+from isaaclab_newton.sim.schemas import NewtonMeshCollisionCfg, NewtonSDFCollisionCfg
 
 from pxr import UsdGeom, UsdPhysics
 
@@ -167,8 +167,8 @@ def test_apply_mesh_collision_writes_namespace_and_implied_token(fragment, attrs
 
 
 def test_apply_mesh_collision_properties_composes_namespaces():
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullCfg
     from isaaclab_newton.sim.schemas import NewtonMeshCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
 
     from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
 
@@ -242,7 +242,7 @@ def test_apply_mesh_collision_properties_aggregates_fragment_results():
 def test_apply_mesh_collision_properties_accepts_generator():
     # the writer dispatches fragments from any iterable; a one-shot generator is consumed once and
     # each fragment authors both its namespace and its implied approximation token
-    from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullCfg
 
     from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
 
