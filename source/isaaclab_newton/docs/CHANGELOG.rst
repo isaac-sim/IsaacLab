@@ -3,6 +3,30 @@ Changelog
 
 .. towncrier release notes start
 
+18.1.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional contact stiffness and damping ranges to material randomization for Newton solvers that consume ke/kd.
+* Added :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`, which renders cameras with Newton's OptiX
+  hardware ray tracing on RTX GPUs. Install it with the ``optix`` extra and select it with ``renderer=newton_optix``.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to render through Newton's
+  :class:`~newton.sensors.SensorCamera` instead of the deprecated ``SensorTiledCamera``.
+* Changed Newton deformables to take the color of their bound visual material. Cameras rendered them white before.
+
+Fixed
+^^^^^
+
+* Read the MJWarp ``update_data_interval`` from the solver configuration on resets, instead of the solver attribute
+  that Newton 1.8 deprecates.
+
+
 18.0.0 (2026-11-18)
 ~~~~~~~~~~~~~~~~~~~
 

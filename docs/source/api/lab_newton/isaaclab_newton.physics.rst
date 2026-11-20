@@ -33,13 +33,15 @@
     SteelSolverCfg
     KaminoCollisionDetectorCfg
     KaminoConstraintsCfg
-    KaminoDVICfg
-    KaminoDVISolverCfg
     KaminoDynamicsCfg
     KaminoFKCfg
     KaminoMaterialsCfg
     KaminoPADMMCfg
     KaminoPADMMSolverCfg
+    KaminoSCCCfg
+    KaminoSCCSolverCfg
+    KaminoDVICfg
+    KaminoDVISolverCfg
     MPMSolverCfg
     MPMSleepingCfg
     MPMWorkingSetCfg
@@ -163,10 +165,14 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoDVICfg
+.. autoclass:: KaminoSCCCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. py:class:: KaminoDVICfg
+
+  Compatibility alias for :class:`KaminoSCCCfg`.
 
 .. autoclass:: KaminoDynamicsCfg
   :members:
@@ -198,10 +204,15 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoDVISolverCfg
+.. autoclass:: KaminoSCCSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. autoclass:: KaminoDVISolverCfg
+  :members: dynamics_solver_cfg
+  :inherited-members:
+  :show-inheritance:
 
 .. autoclass:: MPMSolverCfg
   :members:

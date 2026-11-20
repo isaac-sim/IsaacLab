@@ -432,12 +432,8 @@ def test_native_clone_export_rejects_source_overlap():
     assert stage.GetRootLayer().ExportToString() == before
 
 
-@pytest.mark.parametrize("modern", [False, True])
-def test_export_translates_legacy_joint_properties_without_editing_instances(monkeypatch, modern):
+def test_export_translates_legacy_joint_properties_without_editing_instances():
     """Private exports preserve authored legacy values and modern precedence through instance prototypes."""
-    from isaaclab_ov.physics import ovphysx_compat
-
-    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/Robot")
     for name, joint_type in (("Angular", UsdPhysics.RevoluteJoint), ("Linear", UsdPhysics.PrismaticJoint)):
@@ -477,22 +473,19 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
         for name, velocity in (("Angular", 90.0), ("Linear", 2.0)):
             prim = exported.GetPrimAtPath(f"{root}/{name}")
             attr = prim.GetAttribute("newton:velocityLimit")
-            assert (attr.Get() if attr and attr.HasAuthoredValueOpinion() else None) == (velocity if modern else None)
+            assert (attr.Get() if attr and attr.HasAuthoredValueOpinion() else None) == velocity
             armature = prim.GetAttribute("newton:armature")
-            expected = 0.75 if name == "Linear" else (0.25 if modern else None)
+            expected = 0.75 if name == "Linear" else 0.25
             assert (armature.Get() if armature and armature.HasAuthoredValueOpinion() else None) == expected
             legacy_friction = prim.GetAttribute("physxJoint:jointFriction")
-            if modern:
-                assert not legacy_friction or not legacy_friction.HasAuthoredValueOpinion()
-                if name == "Angular":
-                    assert prim.GetAttribute("physxJointAxis:angular:staticFrictionEffort").Get() == pytest.approx(0.3)
-                    assert prim.GetAttribute("physxJointAxis:angular:dynamicFrictionEffort").Get() == pytest.approx(0.1)
-                else:
-                    assert prim.GetAttribute("newton:friction").Get() == pytest.approx(0.8)
-                    per_axis = prim.GetAttribute("physxJointAxis:linear:staticFrictionEffort")
-                    assert not per_axis or not per_axis.HasAuthoredValueOpinion()
+            assert not legacy_friction or not legacy_friction.HasAuthoredValueOpinion()
+            if name == "Angular":
+                assert prim.GetAttribute("physxJointAxis:angular:staticFrictionEffort").Get() == pytest.approx(0.3)
+                assert prim.GetAttribute("physxJointAxis:angular:dynamicFrictionEffort").Get() == pytest.approx(0.1)
             else:
-                assert legacy_friction.Get() == pytest.approx(0.035)
+                assert prim.GetAttribute("newton:friction").Get() == pytest.approx(0.8)
+                per_axis = prim.GetAttribute("physxJointAxis:linear:staticFrictionEffort")
+                assert not per_axis or not per_axis.HasAuthoredValueOpinion()
         assert (
             exported.GetPrimAtPath(f"{root}/Angular").GetAttribute("physxJointAxis:angular:maxJointVelocity").Get()
             == 45.0
@@ -509,11 +502,8 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
     ],
 )
 def test_export_rejects_unrepresentable_legacy_joint_properties(
-    monkeypatch, property_name, value, joint_type, message, static_effort
+    property_name, value, joint_type, message, static_effort
 ):
-    from isaaclab_ov.physics import ovphysx_compat
-
-    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", True)
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/Robot/Joint", joint_type)
     prim.CreateAttribute(property_name, Sdf.ValueTypeNames.Float).Set(value)

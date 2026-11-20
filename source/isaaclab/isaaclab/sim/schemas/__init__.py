@@ -36,9 +36,9 @@ from ...utils.module import lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
-# Names that moved out of this module into ``isaaclab_physx.sim.schemas``.
+# Names that moved out of this module into ``isaaclab_isaacsim.sim.schemas``.
 # Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
-# not require ``isaaclab_physx`` to be installed.
+# not require ``isaaclab_isaacsim`` to be installed.
 _PHYSX_FORWARDS = frozenset(
     {
         "RigidBodyPropertiesCfg",
@@ -90,11 +90,11 @@ _NEWTON_FORWARDS = frozenset(
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+            from isaaclab_isaacsim.sim.schemas import schemas_cfg as _physx_cfg
         except ImportError as e:
             raise ImportError(
-                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_physx.sim.schemas'."
-                " Install the isaaclab_physx extension or update your import. This forwarding"
+                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_isaacsim.sim.schemas'."
+                " Install the isaaclab_isaacsim extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
         return getattr(_physx_cfg, name)

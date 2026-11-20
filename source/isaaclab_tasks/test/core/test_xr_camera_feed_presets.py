@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import pytest
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,

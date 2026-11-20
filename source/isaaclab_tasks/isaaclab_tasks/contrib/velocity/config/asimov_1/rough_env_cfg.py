@@ -10,7 +10,7 @@ The policy is blind: the height scanner and the terrain curriculum of the shared
 
 import math
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen

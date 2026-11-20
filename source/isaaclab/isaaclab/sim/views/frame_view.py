@@ -6,7 +6,7 @@
 """Backend-dispatching FrameView.
 
 ``FrameView(path, device=...)`` automatically selects the right backend:
-- PhysX: :class:`~isaaclab_physx.sim.views.FabricFrameView`
+- PhysX: :class:`~isaaclab_isaacsim.sim.views.FabricFrameView`
 - Newton: :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
 """
 
@@ -22,7 +22,7 @@ class FrameView(FactoryBase, BaseFrameView):
     Callers use ``FrameView(prim_path, device=device)`` and get the
     correct implementation automatically:
 
-    - **PhysX / no backend**: :class:`~isaaclab_physx.sim.views.FabricFrameView`
+    - **PhysX / no backend**: :class:`~isaaclab_isaacsim.sim.views.FabricFrameView`
       (Fabric GPU acceleration with USD fallback).
     - **OVPhysX**: :class:`~isaaclab_ov.sim.views.OvPhysxFrameView`
       (Warp-native, reads body poses via an OVPhysX ``RIGID_BODY_POSE``

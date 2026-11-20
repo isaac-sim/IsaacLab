@@ -72,8 +72,8 @@ if args_cli.backend == "newton_vbd":
         density=density,
     )
 else:
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
     physics_material = PhysxDeformableBodyMaterialCfg(

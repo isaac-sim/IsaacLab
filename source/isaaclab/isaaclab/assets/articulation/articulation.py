@@ -12,8 +12,8 @@ from .base_articulation import BaseArticulation
 from .base_articulation_data import BaseArticulationData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.articulation import Articulation as PhysXArticulation
-    from isaaclab_physx.assets.articulation import ArticulationData as PhysXArticulationData
+    from isaaclab_isaacsim.assets.articulation import Articulation as PhysXArticulation
+    from isaaclab_isaacsim.assets.articulation import ArticulationData as PhysXArticulationData
 
 
 class Articulation(FactoryBase, BaseArticulation):
