@@ -153,6 +153,72 @@ def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
     assert viz.current_image_view is free and not viz.rtx_rendering
 
 
+def test_rtx_returns_to_the_perspective_it_started_from():
+    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([first, second, rtx])
+    viz.current_image_view = second
+
+    viz.set_rtx_rendering(True)
+    viz.set_rtx_rendering(False)
+
+    assert viz.current_image_view is second
+
+
+def test_choosing_another_perspective_under_rtx_is_the_one_shown_after_leaving_rtx():
+    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([first, second, rtx])
+    viz._perspective_poses = {}
+    viz._restore_perspective_pose = lambda view: True
+    viz._remember_perspective_pose = lambda: None
+    rtx.invalidate = lambda: None
+    viz.set_rtx_rendering(True)
+
+    viz._choose_camera_source(1)
+    viz.set_rtx_rendering(False)
+
+    assert viz.current_image_view is second
+
+
+def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    viz._rtx_switch = "requested"
+    switched = []
+    viz.set_rtx_rendering = lambda enabled: switched.append((enabled, viz._rtx_switch))
+    viz._rtx_appearance = None
+    viz._viewer.begin_frame = lambda t: (_ for _ in ()).throw(RuntimeError("stop"))
+    viz._sim_time = 0.0
+
+    with pytest.raises(RuntimeError, match="stop"):
+        NewtonGLVisualizer._render_frame(viz)
+
+    assert viz._rtx_switch is None  # a failed switch does not leave the message up
+    assert switched == [(True, "loading")]  # the HUD already showed the message for the previous frame
+
+
+def test_a_request_made_while_drawing_the_hud_survives_to_the_next_frame():
+    free = _view(PerspectiveCameraCfg())
+    free.invalidate = lambda: None
+    viz = _switchable([free, _rtx_view()])
+    viz._rtx_appearance, viz._sim_time = None, 0.0
+    viz._pending_mesh_submissions = {}
+    viz._last_render_step = 0
+    viz._sim.get_physics_step_count = lambda: 0
+
+    def end_frame():  # the HUD is drawn here, and the RTX button was clicked
+        viz._rtx_switch = "requested"
+
+    viz._viewer = SimpleNamespace(
+        begin_frame=lambda t: None,
+        end_frame=end_frame,
+        is_paused=lambda: True,
+        is_running=lambda: True,
+    )
+
+    NewtonGLVisualizer._render_frame(viz)
+
+    assert viz._rtx_switch == "requested"
+
+
 def test_leaving_rtx_hides_the_overlays_and_suspends_the_viewer_lights():
     viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
     suspended = []
@@ -260,12 +326,12 @@ def test_leaving_rtx_for_a_perspective_view_returns_to_the_one_rtx_followed():
     for view in (first, second):
         view.invalidate = lambda: None
     viz.set_rtx_rendering(True)
-    assert viz._rtx_free_view is first
+    assert viz._rtx_perspective is first
 
     viz._choose_camera_source(1)  # while RTX is shown
     viz.set_rtx_rendering(False)
 
-    assert viz._rtx_free_view is second and viz.current_image_view is second
+    assert viz.current_image_view is second
 
 
 def test_choosing_an_unvisited_perspective_source_in_rtx_applies_its_declared_pose():
@@ -284,7 +350,7 @@ def test_choosing_an_unvisited_perspective_source_in_rtx_applies_its_declared_po
     viz._choose_camera_source(1)
 
     assert placed == [((4.0, 5.0, 6.0), (0.0, 0.0, 1.0))] and viz.cfg.focal_length == 30.0
-    assert viz._rtx_free_view is second
+    assert viz._rtx_perspective is second
 
 
 def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
