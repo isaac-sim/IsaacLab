@@ -38,13 +38,24 @@ class _OvPhysxRayCasterMixin:
             prim.GetPath(), predicate=lambda ancestor: ancestor.HasAPI(UsdPhysics.RigidBodyAPI)
         )
         if body is None:
-            prims = sim_utils.find_matching_prims(sensor_expr)
-            self._static_view_transforms_wp = wp.array(
-                [(*pos, *quat) for pos, quat in map(sim_utils.resolve_prim_pose, prims)],
-                dtype=wp.transformf,
-                device=self._device,
-            )
-            self._view_count = len(prims)
+            plan = self._sim.get_clone_plan()
+            placed = plan is not None and plan.positions is not None
+            if placed and cloner.path.match(sensor_expr, plan.env_template) is not None:
+                # OVPhysX places cloned environments natively and authors neither their roots' placement
+                # nor every destination root, so the frame keeps its environment-relative pose in each one.
+                root = cloner.path.match(prim.GetPath().pathString, plan.env_template)
+                root_prim = prim.GetStage().GetPrimAtPath(plan.env_template.format(root.instance)) if root else None
+                pos, quat = sim_utils.resolve_prim_pose(prim, root_prim)
+                poses = [
+                    (*(p + float(o) for p, o in zip(pos, origin)), *quat) for origin in plan.positions[: self._num_envs]
+                ]
+            else:
+                poses = [
+                    (*pos, *quat)
+                    for pos, quat in map(sim_utils.resolve_prim_pose, sim_utils.find_matching_prims(sensor_expr))
+                ]
+            self._static_view_transforms_wp = wp.array(poses, dtype=wp.transformf, device=self._device)
+            self._view_count = len(poses)
             offset_pos, offset_quat = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
         else:
             relative = prim.GetPath().MakeRelativePath(body.GetPath()).pathString
