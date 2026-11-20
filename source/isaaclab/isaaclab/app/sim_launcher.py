@@ -368,6 +368,9 @@ def validate_launch(  # noqa: C901
     # A Newton window can switch its main view to an OVRTX camera, which must already exist in the scene.
     implicit_viewer_cameras: list[tuple[str, VisualizerCfg, tuple[int, int], bool]] = []
     for viewer_index, visualizer in enumerate(viewers):
+        backend = visualizer.backend
+        if launcher_args.get("rtx_viewer") and isinstance(backend, NewtonGLBackendCfg) and backend.rtx_camera is None:
+            backend.rtx_camera = True  # --rtx_viewer opts every Newton window in, unless its cfg says False
         if scene_cfg is not None and _wants_rtx_viewer_camera(visualizer):
             implicit_viewer_cameras.append(_declare_viewer_camera(scene_cfg, viewer_index, visualizer))
     configs = _walk_runtime_configs(cfg)

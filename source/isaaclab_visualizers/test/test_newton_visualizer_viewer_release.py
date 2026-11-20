@@ -95,4 +95,5 @@ def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
     imgui.begin_disabled.assert_called_once()
     imgui.end_disabled.assert_called_once()
     assert [call.args[0] for call in imgui.radio_button.call_args_list] == ["OpenGL", "RTX"]
-    assert "rtx_camera=True" in imgui.set_tooltip.call_args.args[0]
+    assert "--rtx_viewer" in imgui.set_tooltip.call_args.args[0]
+    assert any("--rtx_viewer" in str(call.args) for call in imgui.text_wrapped.call_args_list)

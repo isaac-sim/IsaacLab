@@ -420,6 +420,15 @@ class KitLauncher(SimulationLauncher):
             default=argparse.SUPPRESS,
             help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
+        arg_group.add_argument(
+            "--rtx_viewer",
+            action="store_true",
+            default=argparse.SUPPRESS,
+            help=(
+                "Add the OVRTX viewer camera so the Newton window can switch to RTX rendering. It adds a few"
+                " seconds of startup time and some CPU load while the window is open, so it is off by default."
+            ),
+        )
 
     """
     Internal functions.
