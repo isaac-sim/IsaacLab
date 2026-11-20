@@ -15,8 +15,8 @@ pytestmark = pytest.mark.ov
 
 
 def test_tendon_fragments_use_codeless_schema_names_and_types():
+    from isaaclab_isaacsim.sim.schemas import PhysxTendonAttachmentRootCfg, PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
     from isaaclab_ov.physics.schemas import physx_schema_paths
-    from isaaclab_physx.sim.schemas import PhysxTendonAttachmentRootCfg, PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
 
     from isaaclab.sim.schemas import apply_fixed_tendon_properties, apply_spatial_tendon_properties
 

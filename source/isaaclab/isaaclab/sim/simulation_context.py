@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from .. import cloner
@@ -153,7 +153,7 @@ class SimulationContext:
         stage_utils._context.stage = self.stage
 
         if use_isaac_sim:
-            from isaaclab_physx.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
+            from isaaclab_isaacsim.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
 
             # Kit extensions (PhysX views, articulations, the viewport) find the stage through Kit's USD context
             self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))

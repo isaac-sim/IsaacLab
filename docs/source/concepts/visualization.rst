@@ -244,7 +244,7 @@ Visualizer Overview
      - Web-based, supports recording and replay; Recommended
    * - **Rerun**
      - Deprecated in Isaac Lab 3.2 and removed in 3.3; use Viser instead
-   * - **Kit**
+   * - **Kit** (deprecated)
      - High-quality RTX rendering, rich Isaac Sim tooling; longer start-up time
 
 .. tab-set::
@@ -471,6 +471,11 @@ Visualizer Overview
             :pyobject: VisualizerCfg
 
    .. tab-item:: Kit
+
+      .. deprecated:: 3.1
+         The Kit visualizer is deprecated and will be removed in 3.2. Use Newton GL (``--viz newton_gl``)
+         for the interactive window, tracking cameras and RTX rendering, and the OVRTX renderer for
+         Kit-free RTX rendering of sensor cameras. Livestreaming and XR still start Kit and do not warn.
 
       The Kit visualizer embeds Isaac Lab inside a Kit process, providing access to the
       full Isaac Sim USD stage, RTX renderer, and GUI tooling. It has the highest startup and
@@ -1068,7 +1073,7 @@ Where to go next
 - :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
-- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, Newton OptiX, OVRTX)
 - :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/isaaclab/migrating`: visualizer migration reference
