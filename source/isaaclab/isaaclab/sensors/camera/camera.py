@@ -772,8 +772,12 @@ class Camera(SensorBase):
             self._pose_update_registered = True
 
     def _push_renderer_pose(self) -> None:
-        """Write the current camera pose. ``frame_op=0`` does not count a new capture."""
-        if self._render_data is None or self._view is None:
+        """Write the current camera pose. ``frame_op=0`` does not count a new capture.
+
+        A frozen pose (``update_latest_camera_pose`` is false) stays as last written. The
+        camera's own capture still advances its frame through :meth:`_prepare_camera`.
+        """
+        if self._render_data is None or self._view is None or not self.cfg.update_latest_camera_pose:
             return
         self._update_poses(frame_op=0)
 

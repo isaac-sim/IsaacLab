@@ -87,7 +87,11 @@ class LidarCfg(SensorBaseCfg):
     """Maximum return distance, in meters. ``None`` leaves the sensor default of 200 m."""
 
     coords_type: Literal["CARTESIAN", "SPHERICAL"] = "CARTESIAN"
-    """Coordinate convention of the returned points. Defaults to Cartesian ``x, y, z``."""
+    """Coordinate convention of the returned points. Defaults to Cartesian ``x, y, z``.
+
+    ``SPHERICAL`` is rejected. Published points stay Cartesian so each consumer can treat the
+    three components as a position in meters.
+    """
 
     instant_lidar: bool = True
     """Whether one render step publishes a complete scan. Defaults to True."""
@@ -96,7 +100,8 @@ class LidarCfg(SensorBaseCfg):
     """Whether missed rays keep a slot in the point cloud. Defaults to True.
 
     Keeping those slots makes every environment return ``num_rays`` points. Misses are non-finite
-    in :attr:`~isaaclab.sensors.lidar.LidarData.points`.
+    in :attr:`~isaaclab.sensors.lidar.LidarData.points`. ``False`` is rejected: a compacted cloud
+    drops the authored ray index, so a return can no longer be placed on its ray.
     """
 
     renderer_cfg: RendererCfg = MISSING
@@ -121,6 +126,16 @@ class LidarCfg(SensorBaseCfg):
             raise ValueError(f"Lidar tiled_subsampling cannot be negative, got {self.tiled_subsampling}.")
         if self.frame_of_reference == "CUSTOM":
             raise ValueError("Lidar frame_of_reference 'CUSTOM' is not supported. Use 'WORLD' or 'SENSOR'.")
+        if self.coords_type != "CARTESIAN":
+            raise ValueError(
+                f"Lidar coords_type must be 'CARTESIAN' so each return stays a position in meters,"
+                f" got {self.coords_type!r}."
+            )
+        if not self.include_invalid_points:
+            raise ValueError(
+                "Lidar include_invalid_points=False is not supported. Missed rays must keep their"
+                " authored slots until returns can be placed by ray id."
+            )
         if self.far_range is not None and self.far_range <= 0.0:
             raise ValueError(f"Lidar far_range must be positive, got {self.far_range}.")
         if any(time < 0 for time in self.fire_time_ns):

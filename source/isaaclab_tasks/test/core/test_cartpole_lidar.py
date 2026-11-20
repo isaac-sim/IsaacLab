@@ -94,6 +94,16 @@ def test_tiled_lidar_returns_are_local_to_each_environment(task):
         spread = torch.linalg.norm(centers - centers.mean(dim=0), dim=-1).max()
         assert spread < 5.0, f"sensor-frame hit centers differ by {float(spread):.2f} m"
         assert "tiled_camera" not in scene.sensors
+
+        kept = points[1].clone()
+        kept_valid = valid[1].clone()
+        scene["lidar"].reset(env_ids=[0])
+        reset_points = scene["lidar"].data.points.torch
+        reset_valid = scene["lidar"].data.valid.torch
+        assert not reset_valid[0].any()
+        assert not torch.isfinite(reset_points[0]).any()
+        assert torch.equal(reset_points[1], kept)
+        assert torch.equal(reset_valid[1], kept_valid)
     finally:
         if env is not None:
             env.close()

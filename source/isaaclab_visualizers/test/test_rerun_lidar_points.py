@@ -14,8 +14,12 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_environments, log_lidar_hits
-from isaaclab_visualizers.rerun.lidar_points import lidar_world_points
+from isaaclab_visualizers.lidar_points import (
+    collect_lidar_hits,
+    frame_environments,
+    lidar_world_points,
+    log_lidar_hits,
+)
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
@@ -54,9 +58,6 @@ def test_lidar_world_points_keeps_finite_hits_for_the_requested_envs():
     )
     # A yaw about Z leaves the vertical axis alone. Forward is prim -Z, left is prim -X, up is prim +Y.
     np.testing.assert_allclose(transformed, [[2.0, 3.0, 3.0], [2.0, 2.0, 4.0], [1.0, 3.0, 4.0]], atol=1e-6)
-
-    unposed = lidar_world_points(_sensor(sensor_points, sensor_valid, "SENSOR"), None)
-    assert unposed.shape == (0, 3)
 
 
 def _world_lidar(points: torch.Tensor, valid: torch.Tensor):

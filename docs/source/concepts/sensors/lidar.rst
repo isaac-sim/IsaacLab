@@ -12,9 +12,11 @@ renderer step returns a point cloud that is split back into per-environment
 buffers.
 
 :attr:`~sensors.LidarData.points` has shape ``(num_envs, num_rays, 3)`` in the
-Torch view. Misses are non-finite, so every environment keeps the same ray
-slots. :attr:`~sensors.LidarData.intensity` and :attr:`~sensors.LidarData.valid`
-use that same layout. Tile ``i`` is environment ``i``.
+Torch view. The values are Cartesian positions, in meters, in the frame
+selected by ``frame_of_reference`` (``WORLD`` or ``SENSOR``). Misses are
+non-finite, so every environment keeps the same ray slots.
+:attr:`~sensors.LidarData.intensity` and :attr:`~sensors.LidarData.valid` have
+shape ``(num_envs, num_rays)``. Tile ``i`` is environment ``i``.
 
 The sensor requires :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`. Set
 ``motion_bvh`` to ``"auto"`` or ``"enable"`` so a non-visual sensor is rendered.

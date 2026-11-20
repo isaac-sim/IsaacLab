@@ -78,41 +78,42 @@ def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
 
 
 def test_lidar_preset_selects_cnn_agents():
-    """The lidar observation is a range image, so the registered agents use the camera CNN."""
-    from isaaclab_tasks.core.cartpole.agents import (
-        rl_games_camera_cfg,
-        rl_games_direct_camera_cfg,
-        skrl_direct_camera_cfg,
-    )
-    from isaaclab_tasks.core.cartpole.agents.rsl_rl_ppo_cfg import (
-        CartpoleCameraDirectPPORunnerPresetsCfg,
-        CartpoleCameraPPORunnerPresetsCfg,
-    )
+    """The lidar observation is a range image, so the registered tasks select the camera CNN."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    rl_games_cfg = resolve_presets(rl_games_camera_cfg(), {"lidar"})
+    _, rl_games_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera", "rl_games_cfg_entry_point", overrides=["presets=lidar"]
+    )
     rl_games_config = rl_games_cfg["params"]["config"]
     assert "cnn" in rl_games_cfg["params"]["network"]
     assert rl_games_config["name"] == "cartpole_lidar"
     assert rl_games_config["normalize_input"] is False
 
-    rsl_rl_cfg = resolve_presets(CartpoleCameraPPORunnerPresetsCfg(), {"lidar"})
+    _, rsl_rl_cfg = resolve_task_config("Isaac-Cartpole-Camera", "rsl_rl_cfg_entry_point", overrides=["presets=lidar"])
     assert rsl_rl_cfg.actor.class_name == "CNNModel"
     assert rsl_rl_cfg.actor.obs_normalization is False
     assert rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 
-    direct_rl_games_cfg = resolve_presets(rl_games_direct_camera_cfg(), {"lidar"})
+    _, direct_rl_games_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point", overrides=["presets=lidar"]
+    )
     direct_rl_games_config = direct_rl_games_cfg["params"]["config"]
     assert "cnn" in direct_rl_games_cfg["params"]["network"]
     assert direct_rl_games_config["name"] == "cartpole_lidar_direct"
     assert direct_rl_games_config["normalize_input"] is False
 
-    direct_rsl_rl_cfg = resolve_presets(CartpoleCameraDirectPPORunnerPresetsCfg(), {"lidar"})
+    _, direct_rsl_rl_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "rsl_rl_cfg_entry_point", overrides=["presets=lidar"]
+    )
     assert direct_rsl_rl_cfg.actor.class_name == "CNNModel"
     assert direct_rsl_rl_cfg.actor.obs_normalization is False
     assert direct_rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
     assert direct_rsl_rl_cfg.experiment_name == "cartpole_lidar_direct"
 
-    direct_skrl_cfg = resolve_presets(skrl_direct_camera_cfg(), {"lidar"})
+    _, direct_skrl_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "skrl_cfg_entry_point", overrides=["presets=lidar"]
+    )
     assert "conv2d" in direct_skrl_cfg["models"]["policy"]["network"][0]["layers"][0]
     assert direct_skrl_cfg["models"]["separate"] is True
     value_net = direct_skrl_cfg["models"]["value"]["network"][0]
@@ -123,7 +124,7 @@ def test_lidar_preset_selects_cnn_agents():
 
 
 def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():
-    """A hit on the first ray is the top-left pixel, and a miss stays zero."""
+    """An interior ray lands on its elevation row and azimuth column, and a miss stays zero."""
     import torch
 
     from isaaclab_tasks.core.cartpole.cartpole_common import (
@@ -133,15 +134,16 @@ def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():
         cartpole_lidar_range_image,
     )
 
+    elevation, azimuth = 3, 5
     num_rays = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
     points = torch.full((2, num_rays, 3), float("nan"))
-    points[:, 0] = torch.tensor([6.0, 0.0, 0.0])
+    points[:, elevation * CARTPOLE_LIDAR_AZIMUTH_COUNT + azimuth] = torch.tensor([6.0, 0.0, 0.0])
     image = cartpole_lidar_range_image(points)
 
     assert image.shape == (2, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT)
-    assert image[0, 0, 0] == pytest.approx(6.0 / CARTPOLE_LIDAR_FAR_RANGE)
-    assert image[0, 0, 1] == 0.0
-    assert image[0, 1, 0] == 0.0
+    assert image[0, elevation, azimuth] == pytest.approx(6.0 / CARTPOLE_LIDAR_FAR_RANGE)
+    assert image[0, azimuth, elevation] == 0.0
+    assert image[0, 0, 0] == 0.0
     assert float(image.max()) <= 1.0
 
 

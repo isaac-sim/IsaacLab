@@ -37,9 +37,11 @@ class LidarData:
 
     @property
     def points(self) -> ProxyArray:
-        """World-frame returns as a ``vec3f`` array of shape ``(num_envs, num_rays)``.
+        """Cartesian positions in meters, in the frame selected by ``LidarCfg.frame_of_reference``.
 
-        The Torch view has shape ``(num_envs, num_rays, 3)``. Misses are non-finite.
+        That frame is ``WORLD`` or ``SENSOR``. The Warp array has shape ``(num_envs, num_rays)``
+        and dtype ``vec3f``. The Torch view has shape ``(num_envs, num_rays, 3)``. Misses are
+        non-finite.
         """
         return self._points
 
