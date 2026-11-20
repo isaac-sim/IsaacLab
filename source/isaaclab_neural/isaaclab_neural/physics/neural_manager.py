@@ -20,7 +20,7 @@ from isaaclab.sim.views import FrameView, UsdFrameView
 from isaaclab.utils.configclass import instantiate
 
 from ..frame_buffer import FrameBuffer
-from ..world_model import load_reset_records
+from ..world_model import WorldModelAttribute, load_reset_records
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -77,6 +77,7 @@ class NeuralManager(PhysicsManager):
         self._record_images: dict[tuple[str, str], torch.Tensor] = {}
         self._targets: torch.Tensor
         self._chunk_start: torch.Tensor
+        self._inputs: dict[str, torch.Tensor] = {}
         self._steps_in_chunk = 0
         # Per environment, on the device: the record and draw of its last reset, whether the model has yet to restart
         # it, and whether the reset fell inside a chunk.
@@ -116,6 +117,12 @@ class NeuralManager(PhysicsManager):
         for names, what in ((self.spec.views, "views"), (self.spec.outputs, "outputs")):
             if not names or len(set(names)) != len(names):
                 raise ValueError(f"A world model names one or more distinct {what}, got {names}.")
+        provided = [attribute.value for attribute in WorldModelAttribute]
+        if not set(self.spec.inputs) <= set(provided):
+            raise ValueError(
+                f"The neural backend provides the inputs {provided}, but the world model needs"
+                f" {list(self.spec.inputs)}."
+            )
         self.num_envs, self.num_joints = num_envs, num_joints
         device = self._device
         self.joint_state = torch.zeros((num_envs, num_joints), device=device)
@@ -134,6 +141,12 @@ class NeuralManager(PhysicsManager):
         }
         self._targets = torch.zeros((num_envs, self.spec.chunk_length, num_joints), device=device)
         self._chunk_start = torch.zeros_like(self.joint_state)
+        # The buffers behind the model's inputs, written before every step.
+        buffers = {
+            WorldModelAttribute.JOINT_TARGETS: self._targets,
+            WorldModelAttribute.START_JOINT_STATE: self._chunk_start,
+        }
+        self._inputs = {name: buffers[name] for name in self.spec.inputs}
         self._env_record = torch.zeros(num_envs, dtype=torch.int64, device=device)
         self._env_draw = torch.zeros_like(self._env_record)
         self._restart = torch.zeros(num_envs, dtype=torch.bool, device=device)
@@ -216,7 +229,9 @@ class NeuralManager(PhysicsManager):
         if self.new_frames:
             if self._reset_called:
                 self._restart_model()
-            frames = _flatten(self.model.step(self._targets, self._chunk_start))
+            for name, value in self._inputs.items():
+                self.model.write(name, value)
+            frames = _flatten(self.model.step())
             if frames.keys() != self._frames.keys():
                 raise RuntimeError(
                     f"The world model returned the views and outputs {list(frames)}, not {list(self._frames)}."

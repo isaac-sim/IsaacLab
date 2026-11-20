@@ -37,6 +37,7 @@ class FakeModel(WorldModel):
 
     def __init__(self, cfg, num_envs, device):
         self.num_envs, self.device = num_envs, device
+        self.inputs = {}
 
     def spec(self):
         return WorldModelSpec(
@@ -47,7 +48,11 @@ class FakeModel(WorldModel):
         first = images[FakeModel.views[0]]["rgb"]
         FakeModel.resets.append((env_ids, first[:, 0, 0, 0].tolist(), prompts, seeds))
 
-    def step(self, joint_targets, start_joint_state):
+    def write(self, name, value):
+        self.inputs[name] = value
+
+    def step(self):
+        joint_targets, start_joint_state = self.inputs["joint_targets"], self.inputs["start_joint_state"]
         FakeModel.chunks += 1
         FakeModel.steps.append((joint_targets.cpu().numpy().copy(), start_joint_state.cpu().numpy().copy()))
         out = torch.zeros((self.num_envs, T, H, W, 3), dtype=torch.uint8, device=self.device)

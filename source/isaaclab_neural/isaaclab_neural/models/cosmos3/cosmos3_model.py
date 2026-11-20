@@ -22,7 +22,7 @@ from isaaclab_experimental.cosmos._protocol import check_reply, connect, receive
 
 from isaaclab.utils.configclass import instantiate
 
-from ...world_model import WorldModel, WorldModelSpec
+from ...world_model import WorldModel, WorldModelAttribute, WorldModelSpec
 
 if TYPE_CHECKING:
     from .cosmos3_cfg import Cosmos3Cfg
@@ -49,6 +49,7 @@ class Cosmos3Model(WorldModel):
         """``"cuda_ipc"`` or ``"socket"``, once the session is open."""
         self._capabilities: dict = {}
         self._spec: WorldModelSpec | None = None
+        self._inputs: dict[str, torch.Tensor] = {}
         self._socket: socket.socket | None = None
         self._output = None
         self._output_ready = None
@@ -89,15 +90,20 @@ class Cosmos3Model(WorldModel):
         """
         return self._exchange({"op": "step"}, np.ascontiguousarray(controls, dtype=np.float32), shared=True)
 
-    def step(self, joint_targets: torch.Tensor, start_joint_state: torch.Tensor) -> dict[str, dict[str, torch.Tensor]]:
-        """Convert joint targets to controls with the task's joint mapping, then predict the chunk.
+    def write(self, name: str, value: torch.Tensor) -> None:
+        """Keep the chunk's joint targets or the joint state before it for :meth:`step`."""
+        self._inputs[name] = value
+
+    def step(self) -> dict[str, dict[str, torch.Tensor]]:
+        """Convert the written joint targets to controls with the task's joint mapping, then predict the chunk.
 
         The mapping runs on the host and the controls cross to the service there, so the targets are read once per
         chunk.
         """
         if self.mapping is None:
             self.mapping = instantiate(self.cfg.joint_mapping)
-        targets, start = joint_targets.cpu().numpy(), start_joint_state.cpu().numpy()
+        targets = self._inputs[WorldModelAttribute.JOINT_TARGETS].cpu().numpy()
+        start = self._inputs[WorldModelAttribute.START_JOINT_STATE].cpu().numpy()
         controls = np.stack([self.mapping.encode(targets[i], start[i]) for i in range(self.num_envs)])
         (view,) = self.spec().views
         return {view: {"rgb": self.step_controls(controls)}}
