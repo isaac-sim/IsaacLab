@@ -399,7 +399,16 @@
         Object.entries(previewClipNames).flatMap(([folder, names]) => names.map((name) => [name, folder])),
     );
 
+    const taskPreviewClips = {
+        "Isaac-Velocity-Flat-H2": "locomotion/h2_flat.mp4",
+        "Isaac-Velocity-Rough-H2": "locomotion/h2_rough.mp4",
+        "Isaac-Motion-Tracking-G1": "locomotion/g1_cr7.mp4",
+    };
+
     const previewVideoUrl = (task) => {
+        if (taskPreviewClips[task.task]) {
+            return new URL(`environments/previews/${taskPreviewClips[task.task]}`, previewBaseUrl).href;
+        }
         const name = previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, "");
         const folder = previewClipFolders[name];
         return folder ? new URL(`environments/previews/${folder}/${name}.mp4`, previewBaseUrl).href : null;
