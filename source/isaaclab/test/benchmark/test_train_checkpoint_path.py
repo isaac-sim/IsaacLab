@@ -81,6 +81,12 @@ def test_rsl_rl_distillation_benchmark_loads_latest_checkpoint_of_teacher_run_di
 
     assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run)) == str(run / "model_10.pt")
 
+    sibling = run.with_name(run.name + "-retry")
+    sibling.mkdir()
+    (sibling / "model_99.pt").touch()
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run)) == str(run / "model_10.pt")
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run) + "/") == str(run / "model_10.pt")
+
 
 def test_rsl_rl_benchmark_resume_searches_experiment_runs(tmp_path: Path) -> None:
     """A configured resume without ``--checkpoint`` continues the newest run, not an older run with later iterations."""
