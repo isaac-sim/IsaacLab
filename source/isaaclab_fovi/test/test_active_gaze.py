@@ -17,11 +17,13 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_reset_kernel,
     gaze_state,
     gaze_step_kernel,
+    gaze_teacher_labels,
     teacher_labels_kernel,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
@@ -131,14 +133,16 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
 
     labels = torch.empty(count, 3, device=device)
     log = torch.full((2,), float("nan"), device=device)
+    poses = torch.empty(count, 2, 7, device=device)
+    poses[:, 1] = torch.cat((targets, orientations), dim=-1).to(device)
+    target_poses = wp.from_torch(poses, dtype=wp.transformf)[:, 1]
     block = 1024 if torch.device(device).type == "cuda" else 1
     with torch_stream(device):
         wp.launch(
             teacher_labels_kernel,
             dim=(1, block),
             inputs=[
-                wp.from_torch(targets.to(device), dtype=wp.vec3f),
-                wp.from_torch(orientations.to(device), dtype=wp.quatf),
+                target_poses,
                 wp.vec3f(*offset.tolist()),
                 wp.from_torch(positions.to(device), dtype=wp.vec3f),
                 wp.from_torch(mount.to(device), dtype=wp.quatf),
@@ -149,7 +153,7 @@ def test_teacher_labels_kernel_matches_the_torch_labels(device, rotation_deg):
                 limit,
                 camera_params(camera),
             ],
-            outputs=[wp.from_torch(labels), wp.from_torch(log)],
+            outputs=[wp.from_torch(labels, dtype=wp.vec3f), wp.from_torch(log)],
             block_dim=block,
         )
     labels, log = labels.cpu(), log.cpu()
@@ -170,33 +174,38 @@ def test_teacher_gaze_fixates_the_target_through_a_rolled_mount():
     direction = torch.nn.functional.normalize(torch.tensor([[0.25, -0.15, 1.0], [-0.3, 0.2, 1.0]]), dim=-1)
     count = len(direction)
     identity = torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(count, 1)
-    labels, log = torch.empty(count, 3), torch.empty(2)
     with torch_stream("cpu"):
-        wp.launch(
-            teacher_labels_kernel,
-            dim=(1, 1),
-            inputs=[
-                wp.from_torch(direction, dtype=wp.vec3f),
-                wp.from_torch(identity, dtype=wp.quatf),
-                wp.vec3f(0.0, 0.0, 0.0),
-                wp.zeros(count, dtype=wp.vec3f),
-                wp.from_torch(identity, dtype=wp.quatf),
-                wp.zeros(count, dtype=wp.vec2f),
-                wp.mat33f(*frame.flatten().tolist()),
-                field_radius,
-                step,
-                1.0,
-                camera_params(camera),
-            ],
-            outputs=[wp.from_torch(labels), wp.from_torch(log)],
-            block_dim=1,
+        root_pose = ProxyArray(wp.from_torch(torch.cat((direction, identity), dim=-1), dtype=wp.transformf))
+        mount = ProxyArray(wp.from_torch(identity, dtype=wp.quatf))
+        sensor = SimpleNamespace(
+            data=SimpleNamespace(pos_w=ProxyArray(wp.zeros(count, dtype=wp.vec3f))),
+            gaze_angles=ProxyArray(wp.zeros(count, dtype=wp.vec2f)),
+            image_frame=wp.mat33f(*frame.flatten().tolist()),
+            projection_params=camera_params(camera),
         )
+    gaze_term = SimpleNamespace(
+        camera=sensor,
+        teacher_mounts=lambda: mount,
+        field_radius_deg=field_radius,
+        cfg=GazeActionCfg(asset_name="camera", step_size=step),
+    )
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=count,
+        scene={"target": SimpleNamespace(data=SimpleNamespace(root_pose_w=root_pose))},
+        action_manager=SimpleNamespace(get_term=lambda name: gaze_term),
+        extras={},
+    )
+    teacher = gaze_teacher_labels(ObservationTermCfg(func=gaze_teacher_labels), env)
+    labels = teacher(env, SceneEntityCfg("target"))
     assert (labels[:, 2] == 1).all()
     gaze = labels[:, :2] * step
     fixation = angles_to_direction(gaze * field_radius) @ frame.T
     torch.testing.assert_close(fixation, direction, atol=1e-5, rtol=0)
     # The error is the gaze's angle from the target before the step: the gaze starts on the optical axis.
-    torch.testing.assert_close(log[0], direction[:, 2].acos().rad2deg().mean(), atol=1e-3, rtol=0)
+    log = env.extras["log"]
+    torch.testing.assert_close(log["Gaze/target_error_deg"], direction[:, 2].acos().rad2deg().mean(), atol=1e-3, rtol=0)
+    assert float(log["Gaze/valid_target_fraction"]) == 1.0
 
 
 def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():

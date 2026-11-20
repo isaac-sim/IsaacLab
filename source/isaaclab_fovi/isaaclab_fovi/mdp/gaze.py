@@ -78,8 +78,7 @@ def teach(
 
 @wp.kernel(enable_backward=False)
 def teacher_labels_kernel(
-    targets: wp.array(dtype=wp.vec3f),
-    orientations: wp.array(dtype=wp.quatf),
+    target_poses: wp.array(dtype=wp.transformf),
     offset: wp.vec3f,
     positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
@@ -89,7 +88,7 @@ def teacher_labels_kernel(
     step_size: wp.float32,
     gaze_limit: wp.float32,
     camera: CameraParams,
-    labels: wp.array2d(dtype=wp.float32),
+    labels: wp.array(dtype=wp.vec3f),
     log: wp.array(dtype=wp.float32),
 ):
     """Labels (action x, action y, valid) toward the point ``offset`` fixed to each target's frame; and the mean gaze
@@ -99,17 +98,15 @@ def teacher_labels_kernel(
     One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
     """
     _block, lane = wp.tid()
-    count = targets.shape[0]
+    count = target_poses.shape[0]
     error_sum = wp.float32(0.0)
     valid_count = wp.float32(0.0)
     i = lane
     while i < count:
-        point = targets[i] + wp.quat_rotate(orientations[i], offset)
+        point = wp.transform_point(target_poses[i], offset)
         gaze = angles_deg[i] / field_radius_deg
         result = teach(point, positions[i], mounts[i], gaze, frame, field_radius_deg, step_size, gaze_limit, camera)
-        labels[i, 0] = result[0]
-        labels[i, 1] = result[1]
-        labels[i, 2] = result[2]
+        labels[i] = wp.vec3f(result[0], result[1], result[2])
         if result[2] > 0.5:
             error_sum += result[3]
             valid_count += 1.0
@@ -384,12 +381,12 @@ class gaze_teacher_labels(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self._gaze: GazeAction = env.action_manager.get_term(cfg.params.get("action_name", "gaze"))
-        self._labels = ProxyArray(wp.zeros((env.num_envs, 3), dtype=wp.float32, device=env.device))
+        self._labels = ProxyArray(wp.zeros(env.num_envs, dtype=wp.vec3f, device=env.device))
         self._log = ProxyArray(wp.zeros(2, dtype=wp.float32, device=env.device))
         """Mean gaze error to valid targets [deg] and the fraction of valid targets."""
         self._offset: tuple[tuple[float, ...], wp.vec3f] | None = None
-        self._sources = None
-        self._targets = self._orientations = None
+        self._target_key: tuple[int, int | None] | None = None
+        self._target_poses: wp.array | None = None
         self._launch: tuple[tuple, wp.Launch] | None = None
 
     def __call__(
@@ -400,27 +397,21 @@ class gaze_teacher_labels(ManagerTermBase):
         action_name: str = "gaze",
     ) -> torch.Tensor:
         data = env.scene[target_cfg.name].data
-        # Reading the properties refreshes the asset's pose buffers; their Warp views are wrapped once.
-        if target_cfg.body_names is None:
-            positions, orientations = data.root_pos_w, data.root_quat_w
-        else:
-            positions, orientations = data.body_pos_w, data.body_quat_w
-        if self._sources != (id(positions), id(orientations)):
-            self._sources = (id(positions), id(orientations))
-            if target_cfg.body_names is None:
-                self._targets, self._orientations = positions.warp, orientations.warp
-            else:
-                body = target_cfg.body_ids[0]
-                self._targets = wp.from_torch(positions.torch[:, body], dtype=wp.vec3f)
-                self._orientations = wp.from_torch(orientations.torch[:, body], dtype=wp.quatf)
+        # Reading the property refreshes the producer's poses. Keep the selected Warp view until its binding changes.
+        body_id = None if target_cfg.body_names is None else int(target_cfg.body_ids[0])
+        poses = data.root_pose_w.warp if body_id is None else data.body_pose_w.warp
+        target_key = (id(poses), body_id)
+        if self._target_key != target_key:
+            self._target_poses = poses if body_id is None else poses[:, body_id]
+            self._target_key = target_key
         point = tuple(float(value) for value in offset)
         if self._offset is None or self._offset[0] != point:
             self._offset = (point, wp.vec3f(*point))
         gaze = self._gaze
         mounts = gaze.teacher_mounts()
         camera_positions = gaze.camera.data.pos_w.warp
-        # The launch is recorded once and recorded again only when one of its arrays or the point changes.
-        sources = (self._targets, self._orientations, camera_positions, mounts, self._offset[1])
+        # Rebind the launch when the target pose view, camera pose buffers or offset changes.
+        sources = (self._target_poses, camera_positions, mounts, self._offset[1])
         if self._launch is None or any(a is not b for a, b in zip(self._launch[0], sources)):
             # Warp runs CPU blocks as one thread.
             block = 1024 if torch.device(env.device).type == "cuda" else 1
@@ -428,8 +419,7 @@ class gaze_teacher_labels(ManagerTermBase):
                 teacher_labels_kernel,
                 (1, block),
                 [
-                    self._targets,
-                    self._orientations,
+                    self._target_poses,
                     self._offset[1],
                     camera_positions,
                     mounts,
