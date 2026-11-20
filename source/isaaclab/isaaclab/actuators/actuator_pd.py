@@ -266,9 +266,9 @@ class IdealPDActuator(ActuatorBase):
     """
 
     cfg: IdealPDActuatorCfg
+    """The configuration for the actuator model."""
 
     capturable: ClassVar[bool] = True
-    """The configuration for the actuator model."""
 
     actuator_effort_limit: torch.Tensor
     """Actuator-model effort clipping limit [N or N·m, depending on joint type].

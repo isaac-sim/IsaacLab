@@ -20,6 +20,8 @@ import isaaclab.actuators as actuator_api
 from isaaclab.actuators import (
     ActuatorCollection,
     ActuatorControl,
+    ActuatorNetLSTM,
+    ActuatorNetMLP,
     DCMotor,
     DCMotorCfg,
     DelayedPDActuatorCfg,
@@ -912,13 +914,15 @@ def test_write_command_mask_uses_full_sized_value(command_name):
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
 def test_masked_resets_of_delayed_actuators_draw_new_delays_when_a_graph_replays_them():
-    """Delayed actuators are capturable: a mask reset draws its delays on the device, so each replay draws anew."""
+    """Delayed actuators are capturable: a mask reset draws its delays on the device, so each replay draws anew. The
+    network actuators, which subclass a capturable motor model, keep histories that a graph cannot follow."""
     device = "cuda:0"
     control = FakeActuatorControl(num_envs=64, device=device)
     cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=0, max_delay=3)
     collection = ActuatorCollection({"delayed": cfg}, control)
     actuator = collection["delayed"]
     assert type(actuator).capturable
+    assert not ActuatorNetMLP.capturable and not ActuatorNetLSTM.capturable
     env_mask = wp.ones(64, dtype=wp.bool, device=device)
     collection.reset(env_mask=env_mask)  # Loads the kernels
     # Torch joins the capture on Warp's stream, with memory of its own, as environments that replay steps do.
