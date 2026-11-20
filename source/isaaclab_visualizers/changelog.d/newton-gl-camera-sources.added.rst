@@ -1,4 +1,4 @@
-* The Newton GL Camera Source list now reads Perspective, Tracking Camera, then the scene cameras by their own names
+* The Newton GL Camera Source list now reads Perspective, then the scene cameras by their own names
   (for example "Camera (RGB sensor)"). A scene camera with one image per environment tiles up to ``streaming_envs``
   random environments (32 by default); "Tiled Envs" sets how many are shown, and "Environment" picks the one shown when
   it is 1.

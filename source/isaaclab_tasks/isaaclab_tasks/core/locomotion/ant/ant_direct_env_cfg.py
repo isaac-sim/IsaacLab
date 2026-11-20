@@ -21,7 +21,6 @@ from .ant_common import (
     FEET_BODY_NAMES,
     JOINT_GEARS,
     TERRAIN_CFG,
-    VISUALIZER_CFG,
     WALK_TARGET_POS,
     AntPhysicsCfg,
 )
@@ -52,12 +51,7 @@ class AntEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=decimation,
-        physics=AntPhysicsCfg(),
-        visualizer_cfgs=VISUALIZER_CFG.copy(),
-    )
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=AntPhysicsCfg())
 
     # scene
     scene: AntDirectSceneCfg = AntDirectSceneCfg(num_envs=4096, env_spacing=5.0)
