@@ -40,7 +40,9 @@ class Cosmos3Model(WorldModel):
     cfg: Cosmos3Cfg
 
     def __init__(self, cfg: Cosmos3Cfg, num_envs: int, device: str):
-        super().__init__(cfg, num_envs, device)
+        self.cfg = cfg
+        self.num_envs = num_envs
+        self.device = device
         self.mapping = None
         self.transport: str | None = None
         """``"cuda_ipc"`` or ``"socket"``, once the session is open."""
