@@ -18,7 +18,7 @@ from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import clone, index_fill_
 
-from .joint_actions import _apply_joint_gravity_compensation
+from .joint_actions import _apply_joint_gravity_compensation, _gravity_disabled_for_asset
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -313,7 +313,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._processed_actions = all_joint_positions
 
         # Apply gravity compensation to arm joints
-        if self.cfg.enable_gravity_compensation and not self._asset.cfg.spawn.rigid_props.disable_gravity:
+        if self.cfg.enable_gravity_compensation and not _gravity_disabled_for_asset(self._asset):
             _apply_joint_gravity_compensation(self._asset, self._controlled_joint_ids_tensor)
 
         # Apply joint position targets

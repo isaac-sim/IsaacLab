@@ -89,7 +89,7 @@ class JointPositionActionCfg(JointActionCfg):
 
     gravity_compensation_joint_names: list[str] | None = None
     """Names or patterns within the position-controlled joints to receive gravity feed-forward.
-    Leave unset for robots with gravity disabled or to send only position targets. Requires a
+    An empty selection or an asset-wide gravity disable sends only position targets. Requires a
     backend that supplies joint-space gravity compensation forces.
     """
 
