@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg, NewtonMaterialPropertiesCfg
@@ -32,19 +33,14 @@ from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
 from .conveyor_geometry import (
-    BELT_COLOR,
     BELT_INNER_STRAIGHT_Y,
     BELT_OUTER_STRAIGHT_Y,
     CUBE_COLORS,
     CUBE_INNER_SLOT_X,
     CUBE_OUTER_SLOT_X,
-    GUARD_COLOR,
     CuboidSpec,
     MeshSpec,
-    belt_collision_geometry_specs,
-    belt_collision_section_specs,
-    belt_mesh_spec,
-    guard_mesh_specs,
+    racetrack_surface_specs,
 )
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
 from .mdp.kinematics import tool_velocity
@@ -331,51 +327,14 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.8, 0.8, 0.8), intensity=2500.0),
     )
 
-    def __post_init__(self) -> None:
-        """Generate visual belts, velocity-field collision sections, and guardrails."""
-        for side in ("Left", "Right"):
-            belt_spec = belt_mesh_spec(side)
-            setattr(
-                self,
-                f"conveyor_{side.lower()}_belt_visual",
-                _conveyor_asset(
-                    prim_path=f"{{ENV_REGEX_NS}}/{belt_spec.name}",
-                    spec=belt_spec,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BELT_COLOR, roughness=0.9, metallic=0.0),
-                    colliding=False,
-                ),
-            )
-
-            section_keys = ("top_straight", "bottom_straight", "right_turn", "left_turn")
-            for section_key, spec in zip(section_keys, belt_collision_geometry_specs(side), strict=True):
-                setattr(
-                    self,
-                    f"conveyor_{side.lower()}_{section_key}_collision",
-                    _conveyor_asset(
-                        prim_path=f"{{ENV_REGEX_NS}}/{spec.name}",
-                        spec=spec,
-                    ),
-                )
-
-            for spec in guard_mesh_specs(side):
-                boundary = "inner" if spec.name.endswith("Inner") else "outer"
-                setattr(
-                    self,
-                    f"guard_{side.lower()}_{boundary}",
-                    _conveyor_asset(
-                        prim_path=f"{{ENV_REGEX_NS}}/{spec.name}Collision",
-                        spec=spec,
-                        visual_material=sim_utils.PreviewSurfaceCfg(
-                            diffuse_color=GUARD_COLOR, roughness=0.3, metallic=0.8
-                        ),
-                    ),
-                )
+    racetracks = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Racetracks",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(Path(__file__).with_name("assets") / "racetracks.usda")),
+    )
 
     def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[ConveyorSurfaceCfg, ...]:
-        """Describe the velocity field on each authored collision section."""
-        return tuple(
-            section.belt for side in ("Left", "Right") for section in belt_collision_section_specs(side, **kwargs)
-        )
+        """Describe the velocity fields on the authored collision sections."""
+        return racetrack_surface_specs("Left", **kwargs) + racetrack_surface_specs("Right", **kwargs)
 
 
 @configclass

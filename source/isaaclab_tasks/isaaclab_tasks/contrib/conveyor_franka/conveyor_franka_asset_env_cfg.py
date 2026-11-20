@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,7 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.controllers import ConveyorSurfaceCfg
 from isaaclab.managers import EventTermCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
@@ -27,42 +26,10 @@ from .conveyor_franka_env_cfg import (
     ConveyorFrankaSceneCfg,
     _conveyor_asset,
 )
-from .conveyor_geometry import (
-    BELT_CENTER_X,
-    BELT_CENTER_Y,
-    BELT_HALF_STRAIGHT,
-    BELT_TOP_Z,
-    BELT_TURN_RADIUS,
-)
 from .conveyor_warehouse_geometry import warehouse_belt_sections, warehouse_guard_meshes
 
-_THOR_TABLE_ASSET_PATH = f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/thor_table.usd"
-
-# The A12 endpoints are 2.9922 m apart, its belt crown is 1.78053 m above the
-# asset origin. USD point overrides extend the legs to the floor while keeping
-# the upper frames unchanged; presentation roots align the deck with the policy workspace.
-_A12_ENDPOINT_SEPARATION = 2.9922
-_ASSET_BELT_TOP_Z = 1.78053
-_ASSET_XY_SCALE = 2.0 * BELT_TURN_RADIUS / _A12_ENDPOINT_SEPARATION
-# Preserve the upper frames' proportions. The scaled belt crown determines
-# the presentation translation into the policy workspace.
-_ASSET_Z_SCALE = _ASSET_XY_SCALE
-_ASSET_ROOT_Z = 0.55
-_ASSET_BELT_WORLD_Z = _ASSET_ROOT_Z + _ASSET_BELT_TOP_Z * _ASSET_Z_SCALE
-_PRESENTATION_OFFSET_Z = BELT_TOP_Z - _ASSET_BELT_WORLD_Z
-
-# A09 is a 4 m straight. Its travel-axis scale is independent of the common
-# lateral scale so one asset spans the task's complete 0.88 m straight run.
-_A09_LENGTH = 4.0
-_A09_X_SCALE = 2.0 * BELT_HALF_STRAIGHT / _A09_LENGTH
-
-# The Thor table authors its mounting surface at local z=0 and its lowest foot
-# at z=-0.795 m. Uniformly scaling that distance to the robot's height above
-# the warehouse floor puts every foot on the ground without distorting the table.
-_THOR_TABLE_LOWEST_Z = -0.795
-_THOR_TABLE_SCALE = _PRESENTATION_OFFSET_Z / _THOR_TABLE_LOWEST_Z
-
-
+# The physical floor and shared camera align with the authored workcell.
+_PRESENTATION_OFFSET_Z = -0.7956274313214358
 _PHYSICS_SCHEMA_PREFIXES = ("Physics", "Physx", "Newton", "Mujoco")
 _PRESENTATION_ASSETS = Path(__file__).parent / "assets"
 
@@ -106,6 +73,8 @@ def _spawn_authored_visual(
         scale=cfg.scale,
     )
     prim.GetReferences().AddReference(layer.identifier)
+    if cfg.variants is not None:
+        sim_utils.select_usd_variants(prim_path, cfg.variants)
     sim_utils.make_uninstanceable(prim_path)
     _make_usd_subtree_visual_only(prim)
     _extend_conveyor_supports(prim)
@@ -156,7 +125,9 @@ def _spawn_carton_cube(
 
     prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
     UsdGeom.Imageable(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh")).MakeInvisible()
-    visual_cfg = sim_utils.UsdFileCfg(usd_path=cfg.parcel_usd_path)
+    visual_cfg = sim_utils.UsdFileCfg(
+        usd_path=str(_PRESENTATION_ASSETS / "parcel.usda"), variants={"color": cfg.parcel_color}
+    )
     _spawn_authored_visual(f"{prim_path}/CartonVisual", visual_cfg)
     return prim
 
@@ -165,8 +136,8 @@ def _spawn_carton_cube(
 class _ParcelCuboidCfg(sim_utils.CuboidCfg):
     """Original task collider with a separately authored carton appearance."""
 
-    parcel_usd_path: str = str(_PRESENTATION_ASSETS / "parcel.usda")
-    """USD visual, normalized to the task's 40 mm cube."""
+    parcel_color: str = "plain"
+    """Authored color variant of the task's 40 mm carton visual."""
 
 
 def _make_usd_subtree_visual_only(root_prim: Usd.Prim) -> None:
@@ -191,96 +162,27 @@ def _make_usd_subtree_visual_only(root_prim: Usd.Prim) -> None:
                     raise RuntimeError(f"Failed to remove physics schema {schema_name!r} from {child.GetPath()}.")
 
 
-@sim_utils.clone
-def _spawn_visual_only_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> Usd.Prim:
-    """Spawn a USD asset and strip its authored physics metadata."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-
-    # Nested rigid bodies and joints must also stay outside the physics model.
-    _make_usd_subtree_visual_only(prim)
-    return prim
-
-
-def _visual_usd_asset(
-    prim_path: str,
-    usd_path: str,
-    position: tuple[float, float, float],
-    scale: tuple[float, float, float],
-    spawn_func: Callable = _spawn_authored_visual,
-) -> AssetBaseCfg:
-    """Build one visual asset whose authored colliders are explicitly disabled."""
-    return AssetBaseCfg(
-        prim_path=prim_path,
-        init_state=AssetBaseCfg.InitialStateCfg(pos=position),
-        spawn=sim_utils.UsdFileCfg(func=spawn_func, usd_path=usd_path, scale=scale, make_uninstanceable=True),
-    )
-
-
 @configclass
 class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
-    """Checkpoint-compatible Digital Twin scene with visual warehouse dressing."""
+    """Checkpoint-compatible warehouse; static appearance is authored in USD."""
+
+    racetracks = None
+    tabletop = None
+    table_pedestal = None
+    ground = AssetBaseCfg(
+        prim_path="/World/GroundPlane",
+        collision_group=-1,
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, _PRESENTATION_OFFSET_Z)),
+        spawn=sim_utils.GroundPlaneCfg(visible=False, color=(0.055, 0.065, 0.082)),
+    )
+    warehouse_visual = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/WarehouseVisual",
+        spawn=sim_utils.UsdFileCfg(func=_spawn_authored_visual, usd_path=str(_PRESENTATION_ASSETS / "workcell.usda")),
+    )
 
     def __post_init__(self) -> None:
-        """Dress the workcell and extend its returns around the fixed manipulation sections."""
-        super().__post_init__()
-
-        # Translate the warehouse dressing around the unchanged policy workspace.
-        self.ground = AssetBaseCfg(
-            prim_path="/World/GroundPlane",
-            collision_group=-1,
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, _PRESENTATION_OFFSET_Z)),
-            spawn=sim_utils.GroundPlaneCfg(visible=False, color=(0.055, 0.065, 0.082)),
-        )
         self.dome_light.spawn.color = (0.70, 0.78, 0.92)
         self.dome_light.spawn.intensity = 700.0
-
-        right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
-        straight_scale = (_A09_X_SCALE, _ASSET_XY_SCALE, _ASSET_Z_SCALE)
-
-        # The visual table supports the fixed robot base and reaches the ground.
-        self.tabletop = _visual_usd_asset(
-            prim_path="{ENV_REGEX_NS}/RobotThorTableVisual",
-            usd_path=_THOR_TABLE_ASSET_PATH,
-            position=(0.0, 0.0, 0.0),
-            scale=(_THOR_TABLE_SCALE,) * 3,
-            spawn_func=_spawn_visual_only_usd,
-        )
-        self.table_pedestal = None
-
-        for side in ("Left", "Right"):
-            side_key = side.lower()
-            center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
-
-            # Authored modules replace the procedural visuals; task colliders remain authoritative.
-            setattr(self, f"conveyor_{side_key}_belt_visual", None)
-            for boundary in ("inner", "outer"):
-                setattr(self, f"guard_{side_key}_{boundary}", None)
-
-            run = "bottom" if side == "Left" else "top"
-            y_position = center_y + (-BELT_TURN_RADIUS if side == "Left" else BELT_TURN_RADIUS)
-            setattr(
-                self,
-                f"conveyor_{side_key}_{run}_a09_visual",
-                _visual_usd_asset(
-                    prim_path=f"{{ENV_REGEX_NS}}/Conveyor{side}{run.title()}A09Visual",
-                    usd_path=str(_PRESENTATION_ASSETS / "conveyor_straight_supported.usda"),
-                    position=(right_x, y_position, _ASSET_ROOT_Z + _PRESENTATION_OFFSET_Z),
-                    scale=straight_scale,
-                ),
-            )
-
-        self.warehouse_visual = _visual_usd_asset(
-            prim_path="{ENV_REGEX_NS}/WarehouseVisual",
-            usd_path=str(_PRESENTATION_ASSETS / "warehouse.usda"),
-            position=(0.0, 0.0, _PRESENTATION_OFFSET_Z),
-            scale=(1.0, 1.0, 1.0),
-        )
         for cube_id in range(4):
             cube = getattr(self, f"cube_{cube_id}")
             cube.spawn = _ParcelCuboidCfg(**vars(cube.spawn))
@@ -295,13 +197,11 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             raise ValueError("Each authored parcel requires a color: blue, orange, green, or purple.")
         for cube_id, (position, color) in enumerate(zip(positions, parcel_colors, strict=True)):
             cube = self.cube_0.copy()
-            cube.spawn.parcel_usd_path = str(_PRESENTATION_ASSETS / f"parcel_{color}.usda")
+            cube.spawn.parcel_color = color
             cube.prim_path = f"{{ENV_REGEX_NS}}/Cube{cube_id}"
             cube.init_state.pos = position
             setattr(self, f"cube_{cube_id}", cube)
         for side in ("Left", "Right"):
-            for key in ("top_straight", "bottom_straight", "right_turn", "left_turn"):
-                setattr(self, f"conveyor_{side.lower()}_{key}_collision", None)
             for index, section in enumerate(warehouse_belt_sections(side)):
                 setattr(
                     self,

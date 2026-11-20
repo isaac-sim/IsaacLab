@@ -30,8 +30,8 @@ from .conveyor_geometry import (
     ConveyorSectionSpec,
     MeshSpec,
     _turn_collision_mesh,
-    belt_collision_section_specs,
     belt_direction,
+    working_straight_section,
 )
 
 if TYPE_CHECKING:
@@ -168,8 +168,7 @@ def warehouse_belt_sections(side: str, **kwargs: float) -> tuple[ConveyorSection
         if segment.friction is not None:
             surface_kwargs["friction_coefficient"] = segment.friction
         if segment.name == "Working":
-            original = belt_collision_section_specs(side, **kwargs)[1 if sign > 0 else 0]
-            sections.append(original)
+            sections.append(working_straight_section(side, **kwargs))
             continue
         if segment.name in {"PickupBend", "PlacementBend"}:
             pickup = segment.name == "PickupBend"

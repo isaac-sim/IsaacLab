@@ -12,12 +12,6 @@ from dataclasses import dataclass
 
 from isaaclab.controllers import ConveyorSurfaceCfg
 
-BELT_COLOR = (0.09, 0.09, 0.09)
-"""Dark-rubber color used by Newton's conveyor example."""
-
-GUARD_COLOR = (0.66, 0.69, 0.74)
-"""Brushed-metal color used by Newton's conveyor example."""
-
 PARCEL_COLOR = (0.72, 0.55, 0.35)
 """Cardboard color used by Newton's conveyor example."""
 
@@ -94,31 +88,6 @@ def belt_direction(side: str) -> float:
     raise ValueError(f"Unknown conveyor side: {side!r}.")
 
 
-def _racetrack_centerline(center_y: float) -> tuple[tuple[float, float, float, float], ...]:
-    """Sample a clockwise racetrack centerline with an outward normal at every point."""
-    left_x = BELT_CENTER_X - BELT_HALF_STRAIGHT
-    right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
-    radius = BELT_TURN_RADIUS
-    points: list[tuple[float, float, float, float]] = [
-        (left_x, center_y + radius, 0.0, 1.0),
-        (right_x, center_y + radius, 0.0, 1.0),
-    ]
-
-    for index in range(1, TURN_SEGMENT_COUNT + 1):
-        angle = 0.5 * math.pi - index * math.pi / TURN_SEGMENT_COUNT
-        normal_x = math.cos(angle)
-        normal_y = math.sin(angle)
-        points.append((right_x + radius * normal_x, center_y + radius * normal_y, normal_x, normal_y))
-
-    points.append((left_x, center_y - radius, 0.0, -1.0))
-    for index in range(1, TURN_SEGMENT_COUNT):
-        angle = -0.5 * math.pi - index * math.pi / TURN_SEGMENT_COUNT
-        normal_x = math.cos(angle)
-        normal_y = math.sin(angle)
-        points.append((left_x + radius * normal_x, center_y + radius * normal_y, normal_x, normal_y))
-    return tuple(points)
-
-
 def _prism_faces(count: int, *, closed: bool) -> tuple[tuple[int, int, int], ...]:
     """Triangulate top, bottom, and side walls for inner/outer vertex rings.
 
@@ -140,45 +109,6 @@ def _prism_faces(count: int, *, closed: bool) -> tuple[tuple[int, int, int], ...
         end = count - 1
         quads.extend(((0, 2 * count, 3 * count, count), (end, count + end, 3 * count + end, 2 * count + end)))
     return tuple(triangle for a, b, c, d in quads for triangle in ((a, b, c), (a, c, d)))
-
-
-def _racetrack_prism_mesh(
-    name: str,
-    center_y: float,
-    lateral_offset: float,
-    width: float,
-    z_min: float,
-    z_max: float,
-) -> MeshSpec:
-    """Build one closed prism following a racetrack centerline."""
-    centerline = _racetrack_centerline(center_y)
-    half_width = 0.5 * width
-    outer_offset = lateral_offset + half_width
-    inner_offset = lateral_offset - half_width
-
-    points = tuple(
-        (x + nx * offset, y + ny * offset, z)
-        for z in (z_max, z_min)
-        for offset in (inner_offset, outer_offset)
-        for x, y, nx, ny in centerline
-    )
-
-    # Racetrack centerlines are clockwise; reverse the shared counter-clockwise winding.
-    faces = tuple((a, c, b) for a, b, c in _prism_faces(len(centerline), closed=True))
-    return MeshSpec(name=name, vertices=points, faces=faces)
-
-
-def belt_mesh_spec(side: str) -> MeshSpec:
-    """Build the seamless, watertight visual mesh for one conveyor belt."""
-    center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
-    return _racetrack_prism_mesh(
-        name=f"Conveyor{side}BeltVisual",
-        center_y=center_y,
-        lateral_offset=0.0,
-        width=BELT_WIDTH,
-        z_min=BELT_TOP_Z - BELT_THICKNESS,
-        z_max=BELT_TOP_Z,
-    )
 
 
 def _straight_collision_cuboid(name: str, center_y: float) -> CuboidSpec:
@@ -225,96 +155,34 @@ def _turn_collision_mesh(
     )
 
 
-def belt_collision_geometry_specs(side: str) -> tuple[CuboidSpec | MeshSpec, ...]:
-    """Build native straight and closed-mesh turn collision geometry for one racetrack."""
-    center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
-    left_x = BELT_CENTER_X - BELT_HALF_STRAIGHT
-    right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
-    return (
-        _straight_collision_cuboid(f"Conveyor{side}TopStraightCollision", center_y + BELT_TURN_RADIUS),
-        _straight_collision_cuboid(f"Conveyor{side}BottomStraightCollision", center_y - BELT_TURN_RADIUS),
-        _turn_collision_mesh(f"Conveyor{side}RightTurnCollision", right_x, center_y, -0.5 * math.pi),
-        _turn_collision_mesh(f"Conveyor{side}LeftTurnCollision", left_x, center_y, 0.5 * math.pi),
+def racetrack_surface_specs(side: str, **kwargs: float) -> tuple[ConveyorSurfaceCfg, ...]:
+    """Configure traction on the authored fixed racetrack sections."""
+    sign = belt_direction(side)
+    prefix = f"{{ENV_REGEX_NS}}/Racetracks/Conveyor{side}"
+    straights = tuple(
+        ConveyorSurfaceCfg(prim_path=f"{prefix}{name}StraightCollision", direction=(travel_sign, 0.0, 0.0), **kwargs)
+        for name, travel_sign in (("Top", sign), ("Bottom", -sign))
     )
-
-
-def belt_collision_section_specs(
-    side: str,
-    *,
-    velocity: float = 0.0,
-    friction_coefficient: float = 0.7,
-    contact_threshold: float = 0.997,
-) -> tuple[ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec]:
-    """Build collision geometry and authored conveyor intent for one racetrack."""
-    center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
-    left_x = BELT_CENTER_X - BELT_HALF_STRAIGHT
-    right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
-    direction = belt_direction(side)
-    top_straight, bottom_straight, right_turn, left_turn = belt_collision_geometry_specs(side)
-
-    def belt(
-        geometry: MeshSpec | CuboidSpec,
-        travel_direction: tuple[float, float, float],
-        *,
-        curved: bool = False,
-        pivot_point: tuple[float, float, float] = (0.0, 0.0, 0.0),
-        radius: float | None = None,
-    ) -> ConveyorSectionSpec:
-        return ConveyorSectionSpec(
-            geometry=geometry,
-            belt=ConveyorSurfaceCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
-                velocity=velocity,
-                direction=travel_direction,
-                curved=curved,
-                pivot_point=pivot_point,
-                radius=radius,
-                contact_threshold=contact_threshold,
-                friction_coefficient=friction_coefficient,
-            ),
+    turns = tuple(
+        ConveyorSurfaceCfg(
+            prim_path=f"{prefix}{name}TurnCollision",
+            direction=(0.0, 0.0, -sign),
+            curved=True,
+            pivot_point=(BELT_CENTER_X + offset, sign * BELT_CENTER_Y, 0.0),
+            radius=BELT_TURN_RADIUS,
+            **kwargs,
         )
-
-    return (
-        belt(top_straight, (direction, 0.0, 0.0)),
-        belt(bottom_straight, (-direction, 0.0, 0.0)),
-        belt(
-            right_turn,
-            (0.0, 0.0, -direction),
-            curved=True,
-            pivot_point=(right_x, center_y, 0.0),
-            radius=BELT_TURN_RADIUS,
-        ),
-        belt(
-            left_turn,
-            (0.0, 0.0, -direction),
-            curved=True,
-            pivot_point=(left_x, center_y, 0.0),
-            radius=BELT_TURN_RADIUS,
-        ),
+        for name, offset in (("Right", BELT_HALF_STRAIGHT), ("Left", -BELT_HALF_STRAIGHT))
     )
+    return straights + turns
 
 
-def guard_mesh_specs(side: str) -> tuple[MeshSpec, MeshSpec]:
-    """Build seamless inner and outer guardrail meshes for one racetrack."""
-    center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
-    rail_offset = 0.5 * (BELT_WIDTH + GUARD_THICKNESS)
-    z_min = BELT_TOP_Z - GUARD_BASE_OVERLAP
-    z_max = BELT_TOP_Z + GUARD_HEIGHT
-    return (
-        _racetrack_prism_mesh(
-            name=f"Guard{side}Inner",
-            center_y=center_y,
-            lateral_offset=-rail_offset,
-            width=GUARD_THICKNESS,
-            z_min=z_min,
-            z_max=z_max,
-        ),
-        _racetrack_prism_mesh(
-            name=f"Guard{side}Outer",
-            center_y=center_y,
-            lateral_offset=rail_offset,
-            width=GUARD_THICKNESS,
-            z_min=z_min,
-            z_max=z_max,
-        ),
+def working_straight_section(side: str, **kwargs: float) -> ConveyorSectionSpec:
+    """Retain the original work-facing straight in the extended warehouse route."""
+    sign = belt_direction(side)
+    run = "Bottom" if sign > 0 else "Top"
+    name = f"Conveyor{side}{run}StraightCollision"
+    return ConveyorSectionSpec(
+        _straight_collision_cuboid(name, sign * BELT_INNER_STRAIGHT_Y),
+        ConveyorSurfaceCfg(prim_path=f"{{ENV_REGEX_NS}}/{name}", direction=(-1.0, 0.0, 0.0), **kwargs),
     )

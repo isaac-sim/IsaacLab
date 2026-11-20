@@ -9,8 +9,9 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
 reporting. The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
 reset lifecycle; the task owns its geometry, transfer commands, and reset recipes.
-`env.conveyor` uses the public `ConveyorCfg`; `env.belt_speed`, `env.belt_friction` and
-`env.belt_contact_threshold` configure the scene-generated surface profiles.
+`assets/racetracks.usda` contains the fixed decks and rails, exported from the original
+procedural scene with its collision materials and section names. `env.conveyor` uses the
+public `ConveyorCfg`, and the environment configures traction on the named USD sections.
 
 ## Run
 
@@ -86,11 +87,11 @@ physical transfers and `batch_complete` separately. One direct reset restores th
 and all 24 parcels on the actual feeds; warehouse sorting builds no racetrack reset bank.
 Playback parks the arm between assignments.
 
-The task-owned USDA layers define routes, supports, parcel color bands and presentation.
-NVIDIA geometry and textures remain references to their original remote assets under
-their original licenses. `assets/conveyor_routes.usda` owns route centerlines and feed
-positions; `assets/warehouse.usda` owns dressing, cameras, lights and animation. Resetting
-a batch clears its slot assignments and parcel counters together.
+`assets/workcell.usda` composes the table, straight conveyor models and warehouse dressing in the
+policy workspace. `assets/warehouse.usda` owns the cameras, lights and background animation.
+`assets/parcel.usda` owns the carton color variants. NVIDIA geometry and textures remain references
+to their original remote assets under their original licenses. The task derives traction geometry
+and feed positions from `assets/conveyor_routes.usda` and resets batch inventory and counters together.
 
 ## Support and evaluation
 
