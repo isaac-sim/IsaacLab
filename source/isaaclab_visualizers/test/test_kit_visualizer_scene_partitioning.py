@@ -8,6 +8,7 @@
 import contextlib
 import signal
 import sys
+import warnings
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -213,9 +214,9 @@ def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend,
     sim = MagicMock(has_gui=True, stage=Usd.Stage.CreateInMemory(), device="cpu")
     sim.get_scene_data_provider.return_value.num_envs = 0
     fabric = sim.get_or_create_backend.return_value
-    fabric_module = ModuleType("isaaclab_physx.renderers.fabric")
+    fabric_module = ModuleType("isaaclab_isaacsim.renderers.fabric")
     fabric_module.FabricBackendCfg = MagicMock()
-    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric_module)
+    monkeypatch.setitem(sys.modules, "isaaclab_isaacsim.renderers.fabric", fabric_module)
     monkeypatch.setattr(KitVisualizer, "physics_backend", property(lambda _: physics_backend))
     monkeypatch.setattr(visualizer, "_ensure_simulation_app", MagicMock())
     monkeypatch.setattr(visualizer, "_setup_viewport", MagicMock())
@@ -351,3 +352,26 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
     )
 
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+@pytest.mark.parametrize(
+    ("setting", "warns"),
+    [(None, True), ("/isaaclab/livestream", False), ("/isaaclab/xr/enabled", False)],
+    ids=["default", "livestream", "xr"],
+)
+def test_kit_visualizer_warns_of_deprecation_unless_livestreaming_or_xr(monkeypatch, setting, warns):
+    """Creating a Kit visualizer warns of its deprecation, except where Kit is required without a replacement."""
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    settings = get_settings_manager()
+    monkeypatch.setattr(
+        settings, "get", lambda name, default=None: 1 if name == setting else (default if default is not None else 0)
+    )
+    cfg = VisualizerCfg(backend=KitBackendCfg())
+    if warns:
+        with pytest.warns(FutureWarning, match="Kit visualizer .* is deprecated"):
+            KitVisualizer(cfg)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            KitVisualizer(cfg)

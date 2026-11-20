@@ -19,8 +19,8 @@ Reference:
 
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg

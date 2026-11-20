@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.physics import PhysicsCfg, PhysxAutoCfg

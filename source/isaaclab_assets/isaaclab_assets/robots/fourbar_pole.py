@@ -5,8 +5,8 @@
 
 """Configuration for a parallel four-bar linkage with an inverted pendulum pole on the coupler."""
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg

@@ -37,8 +37,8 @@ from isaaclab_experimental.envs.frontend import (
     WarpFrontend,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg

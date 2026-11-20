@@ -23,7 +23,7 @@ dependencies = [
     "isaaclab-contrib",
     "isaaclab-newton",
     "isaaclab-ov",
-    "isaaclab-physx",
+    "isaaclab-isaacsim",
     "isaaclab-visualizers",
 ]
 
@@ -33,7 +33,7 @@ isaaclab = { path = "../isaaclab", editable = true }
 "isaaclab-contrib" = { path = "../isaaclab_contrib", editable = true }
 "isaaclab-newton" = { path = "../isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "../isaaclab_ov", editable = true }
-"isaaclab-physx" = { path = "../isaaclab_physx", editable = true }
+"isaaclab-isaacsim" = { path = "../isaaclab_isaacsim", editable = true }
 "isaaclab-visualizers" = { path = "../isaaclab_visualizers", editable = true }
 
 [project.urls]

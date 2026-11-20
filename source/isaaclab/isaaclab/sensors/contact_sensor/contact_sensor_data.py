@@ -13,8 +13,8 @@ from ...utils.backend_utils import FactoryBase
 from .base_contact_sensor_data import BaseContactSensorData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
     from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData as NewtonContactSensorData
-    from isaaclab_physx.sensors.contact_sensor import ContactSensorData as PhysXContactSensorData
 
 
 class ContactSensorData(FactoryBase, BaseContactSensorData):

@@ -8,7 +8,8 @@ __all__ = [
     "spawn_multi_usd_file",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
+    "SimReadyUsdFileCfg",
 ]
 
 from .wrappers import spawn_multi_asset, spawn_multi_usd_file
-from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
+from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimReadyUsdFileCfg

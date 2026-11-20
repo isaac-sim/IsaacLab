@@ -6,7 +6,7 @@
 """Backend interface and data formats for the scene data provider.
 
 These types live in :mod:`isaaclab.scene_data` rather than
-:mod:`isaaclab.scene` so that physics backends (``isaaclab_physx``,
+:mod:`isaaclab.scene` so that physics backends (``isaaclab_isaacsim``,
 ``isaaclab_newton``) can subclass :class:`SceneDataBackend` without pulling
 :mod:`isaaclab.scene` into the Kit launcher pre-launch import chain.
 ``KitLauncher._create_app`` pops ``*lab*`` modules from ``sys.modules``

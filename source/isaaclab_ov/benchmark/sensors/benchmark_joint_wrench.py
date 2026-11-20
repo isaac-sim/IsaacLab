@@ -5,7 +5,7 @@
 
 """Benchmark the OVPhysX JointWrench sensor update path.
 
-Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_joint_wrench.py`` but runs
+Mirrors ``isaaclab_isaacsim/benchmark/sensors/benchmark_joint_wrench.py`` but runs
 kitless against the OVPhysX backend. Also times the blocking native
 ``LINK_INCOMING_JOINT_FORCE`` read in isolation.
 
