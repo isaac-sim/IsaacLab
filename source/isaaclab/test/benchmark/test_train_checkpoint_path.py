@@ -7,6 +7,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,20 +41,24 @@ def test_resolve_training_checkpoint_path_returns_none_without_checkpoint(tmp_pa
     assert training._resolve_training_checkpoint_path(str(run_dir), "skrl") is None
 
 
-def _rsl_rl_resume_path(tmp_path: Path, *, class_name: str, checkpoint: str | None = None, resume: bool = False):
+def _rsl_rl_resume_path(tmp_path: Path, *, distillation: bool, checkpoint: str | None = None, resume: bool = False):
     from isaaclab.benchmark.entrypoints.backends.rsl_rl.benchmark_train_rsl_rl import _resolve_resume_path
 
+    from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlOnPolicyRunnerCfg
+
     args_cli = SimpleNamespace(checkpoint=checkpoint, task="Isaac-Velocity-Rough-G1-Depth-Student", agent=None)
-    agent_cfg = SimpleNamespace(
-        class_name=class_name, resume=resume, load_run=".*", load_checkpoint=checkpoint or r"model_.*\.pt"
-    )
+    # The resolver dispatches on the config type, so build spec'd stand-ins instead of full runner configs.
+    agent_cfg = MagicMock(spec=RslRlDistillationRunnerCfg if distillation else RslRlOnPolicyRunnerCfg)
+    agent_cfg.resume = resume
+    agent_cfg.load_run = ".*"
+    agent_cfg.load_checkpoint = checkpoint or r"model_.*\.pt"
     return _resolve_resume_path(args_cli, agent_cfg, str(tmp_path / "logs" / "student"))
 
 
 def test_rsl_rl_distillation_benchmark_requires_explicit_teacher_checkpoint(tmp_path: Path) -> None:
     """Distillation without ``--checkpoint`` fails on the missing teacher, not on an empty student log."""
     with pytest.raises(ValueError, match="requires --checkpoint"):
-        _rsl_rl_resume_path(tmp_path, class_name="DistillationRunner")
+        _rsl_rl_resume_path(tmp_path, distillation=True)
 
 
 def test_rsl_rl_distillation_benchmark_loads_explicit_teacher_checkpoint(tmp_path: Path) -> None:
@@ -62,9 +67,9 @@ def test_rsl_rl_distillation_benchmark_loads_explicit_teacher_checkpoint(tmp_pat
     teacher.parent.mkdir()
     teacher.touch()
 
-    assert _rsl_rl_resume_path(tmp_path, class_name="DistillationRunner", checkpoint=str(teacher)) == str(teacher)
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(teacher)) == str(teacher)
     with pytest.raises(FileNotFoundError):
-        _rsl_rl_resume_path(tmp_path, class_name="DistillationRunner", checkpoint=str(teacher.with_name("x.pt")))
+        _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(teacher.with_name("x.pt")))
 
 
 def test_rsl_rl_benchmark_resume_searches_experiment_runs(tmp_path: Path) -> None:
@@ -73,5 +78,5 @@ def test_rsl_rl_benchmark_resume_searches_experiment_runs(tmp_path: Path) -> Non
     checkpoint.parent.mkdir(parents=True)
     checkpoint.touch()
 
-    assert _rsl_rl_resume_path(tmp_path, class_name="OnPolicyRunner", resume=True) == str(checkpoint)
-    assert _rsl_rl_resume_path(tmp_path, class_name="OnPolicyRunner") is None
+    assert _rsl_rl_resume_path(tmp_path, distillation=False, resume=True) == str(checkpoint)
+    assert _rsl_rl_resume_path(tmp_path, distillation=False) is None
