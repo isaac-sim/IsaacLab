@@ -44,7 +44,7 @@ class WorldModelSpec:
 
     views: tuple[str, ...] = ("camera",)
     """Names of the camera views the model predicts. Each world-model camera shows one of them, selected with
-    :attr:`~isaaclab_neural.renderers.WorldModelRendererCfg.view`."""
+    :attr:`~isaaclab_neural.renderers.NeuralRendererCfg.view`."""
 
 
 @dataclass(frozen=True)

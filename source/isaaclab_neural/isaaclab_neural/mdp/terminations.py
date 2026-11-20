@@ -16,7 +16,7 @@ import torch
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from ..physics import WorldModelManager
+    from ..physics import NeuralManager
 
 
 def is_chunk_boundary(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -24,7 +24,7 @@ def is_chunk_boundary(env: ManagerBasedRLEnv) -> torch.Tensor:
 
     Environments can only reset on these steps, and only then do new frames exist.
     """
-    manager: WorldModelManager = env.sim.backend_manager
+    manager: NeuralManager = env.sim.backend_manager
     return manager.chunk_boundary
 
 

@@ -4,7 +4,7 @@
 and cameras; the world model supplies the joint state and the camera frames through the same interfaces.
 
 ```text
-Policy / trainer  ->  Task  ->  Isaac Lab  ->  WorldModelManager  ->  WorldModel
+Policy / trainer  ->  Task  ->  Isaac Lab  ->  NeuralManager  ->  WorldModel
 ```
 
 The world model only generates images. The manager keeps each environment's joint state itself (the reset record's
@@ -14,21 +14,21 @@ state at reset, then the last joint target), so joint observations and actions b
 
 | Component | Role |
 | --- | --- |
-| `WorldModelCfg` | `PhysicsCfg` selected as the task's `physics=` preset. Holds the model configuration and the reset records. |
-| `WorldModelManager` | Physics backend (`backend_name = "neural"`). Buffers one joint target per step, calls the model once per chunk, and keeps the predicted frames of each view. |
+| `NeuralCfg` | `PhysicsCfg` selected as the task's `physics=` preset. Holds the model configuration and the reset records. |
+| `NeuralManager` | Physics backend (`backend_name = "neural"`). Buffers one joint target per step, calls the model once per chunk, and keeps the predicted frames of each view. |
 | `WorldModel` | Abstract model: `spec()`, `reset()`, `step()`, `close()`. |
-| `WorldModelRendererCfg` | Selected as a camera's `renderer_cfg`, with the model view the camera shows. Copies that view's frames into the camera, including its frame history. |
+| `NeuralRendererCfg` | Selected as a camera's `renderer_cfg`, with the model view the camera shows. Copies that view's frames into the camera, including its frame history. |
 | `Articulation` | Virtual articulation. Shares the manager's joint state and targets, so the task's joint observation and action terms work unchanged. Its reset starts an episode from a reset record. Everything that needs a body raises. |
 | `at_chunk_boundary` | Makes a termination function fire only where environments can reset. |
 
 ## Using a task's configuration
 
 The task declares an `ArticulationCfg` and a `CameraCfg` as it would for a physics backend, and selects the world
-model with `WorldModelCfg(model=..., reset_manifest=...)` and `WorldModelRendererCfg()`. The camera needs
+model with `NeuralCfg(model_cfg=..., reset_manifest=...)` and `NeuralRendererCfg()`. The camera needs
 `frame_history_length` equal to the model's chunk length and the model's image size.
 
 * **Views**: a model predicts one or more named camera views (`WorldModelSpec.views`). Each world-model camera shows
-  one of them, set with `WorldModelRendererCfg(view=...)`; for a model with one view, `view` can stay `None`. Several
+  one of them, set with `NeuralRendererCfg(view=...)`; for a model with one view, `view` can stay `None`. Several
   cameras of a multi-view model each select their own view.
 * **Joints and limits** come from the spawned USD asset (a URDF spawner converts to USD): the movable joints in
   traversal order, or in the order of `ArticulationCfg.joint_ordering`, which must match the reset records. Joint

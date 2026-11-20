@@ -25,7 +25,7 @@ from .unsupported import raise_for_unsupported
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
 
-    from ...physics import WorldModelManager
+    from ...physics import NeuralManager
 
 
 def _usd_joints(prim) -> tuple[list[str], list[tuple[float, float]]]:
@@ -122,7 +122,7 @@ class Articulation(BaseArticulation):
     # --------------------------------------------------------------- lifecycle
 
     def _initialize_impl(self) -> None:
-        manager: WorldModelManager = self._backend_manager
+        manager: NeuralManager = self._backend_manager
         prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         self._num_instances = len(prims)
         names, limits = _usd_joints(prims[0])
@@ -155,7 +155,7 @@ class Articulation(BaseArticulation):
 
     def reset(self, env_ids=None, env_mask=None) -> None:
         """Start new episodes from reset records and make each record's state the default joint position."""
-        manager: WorldModelManager = self._backend_manager
+        manager: NeuralManager = self._backend_manager
         if env_mask is not None:
             selected = wp.to_torch(env_mask).bool()
         else:
