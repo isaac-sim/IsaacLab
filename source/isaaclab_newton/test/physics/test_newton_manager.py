@@ -530,6 +530,47 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert observable_requests == []
 
 
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
+    box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
+    box_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+    ground_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+
+    builder.begin_world()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.025), wp.quat_identity()))
+    builder.add_shape_mesh(
+        body,
+        mesh=box_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e6, density=1000.0, margin=0.0, gap=0.0),
+    )
+    builder.add_shape_mesh(
+        -1,
+        xform=wp.transform(wp.vec3(0.0, 0.0, -0.025), wp.quat_identity()),
+        mesh=ground_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e9, margin=0.0, gap=0.0),
+    )
+    builder.end_world()
+
+    # Large nconmax forces required > CollisionPipeline's auto-estimate in non-deterministic mode.
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, nconmax=12000), num_substeps=1)
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=1.0 / 60.0)
+    backend.init_solver()
+    backend.capture = None
+    backend.actuators_active = True
+    backend.step()
+
+    assert backend.contacts.rigid_contact_max == 12000
+    assert backend.contacts.per_contact_shape_properties is True
+    assert backend.contacts.rigid_contact_stiffness is not None
+    contact_count = int(backend.contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
+
+
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), collision_cfg=NewtonCollisionPipelineCfg()),
