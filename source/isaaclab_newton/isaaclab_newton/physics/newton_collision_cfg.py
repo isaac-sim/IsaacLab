@@ -271,13 +271,6 @@ class NewtonCollisionPipelineCfg:
     sdf_all_shapes: SDFAllShapesCfg | None = None
     """Optional strict SDF provisioning for every finite colliding shape."""
 
-    include_static_kinematic_pairs: bool = True
-    """Whether to generate static-kinematic and kinematic-kinematic contacts.
-
-    Static-static pairs are always excluded. Set to ``False`` to also exclude
-    static-kinematic and kinematic-kinematic pairs. Defaults to ``True``, matching Newton's default.
-    """
-
     def to_pipeline_args(self) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.
 

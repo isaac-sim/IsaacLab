@@ -42,8 +42,8 @@ Same-device masks and contiguous int32 indices reuse native storage without a ho
 Strided or int64 indices require normalization. Surface paths follow the simulation's clone
 template, or ``/World/envs/env_{}`` for manually built worlds without a clone plan.
 
-The Newton MJWarp implementation uses Newton's conveyor force model. Straight and curved
-sections retain their authored relative speeds under each environment's multiplier. Independent
-speed profiles can use separate controllers with disjoint collision surfaces. Newton requires
-world-attached static collision shapes for the belt surfaces. Contact forces produce the
-prescribed surface motion.
+The Newton MJWarp implementation uses a pinned extraction of Newton's conveyor force model.
+Straight and curved sections retain their authored relative speeds under each environment's
+multiplier. Independent speed profiles can use separate controllers with disjoint collision surfaces.
+Newton requires world-attached static collision shapes for the belt surfaces. Contact forces produce
+the prescribed surface motion.
