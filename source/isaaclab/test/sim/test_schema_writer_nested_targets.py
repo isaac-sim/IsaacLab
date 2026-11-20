@@ -10,7 +10,7 @@ launch_test_simulation()
 import os
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -117,7 +117,7 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     path and one through the fragment path with equivalent values; asserts every prim in both
     subtrees carries the same applied-schema set and the same authored attribute values.
     """
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyPropertiesCfg
 
     from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg

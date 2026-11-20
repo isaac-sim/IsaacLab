@@ -15,7 +15,7 @@ Shared between the Newton-backend and PhysX-backend actuator test twins:
 * mock scene/env plumbing for driving ``randomize_actuator_gains``.
 
 This module must stay free of backend packages (``isaaclab_newton``,
-``isaaclab_physx``) and of ``isaaclab_assets``; everything backend-specific
+``isaaclab_isaacsim``) and of ``isaaclab_assets``; everything backend-specific
 is injected by the twin test files through subclass hooks.
 """
 

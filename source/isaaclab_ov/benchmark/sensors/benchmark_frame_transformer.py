@@ -5,7 +5,7 @@
 
 """Benchmark the OVPhysX FrameTransformer update path.
 
-Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_frame_transformer.py`` but
+Mirrors ``isaaclab_isaacsim/benchmark/sensors/benchmark_frame_transformer.py`` but
 runs kitless against the OVPhysX backend. Also times the per-body blocking
 ``RIGID_BODY_POSE`` reads in isolation.
 
@@ -36,8 +36,8 @@ args_cli = parser.parse_args()
 import isaaclab_ov.tensor_types as TT
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

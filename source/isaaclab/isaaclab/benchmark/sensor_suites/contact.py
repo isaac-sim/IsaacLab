@@ -32,7 +32,7 @@ def create_contact_sensor_scene_cfg(
     Returns:
         Scene configuration with one contact-sensed cube per environment.
     """
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
     from ... import sim as sim_utils
     from ...assets import RigidObjectCfg

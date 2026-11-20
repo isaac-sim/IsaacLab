@@ -238,7 +238,7 @@ def _make_renderer_cfg(renderer: str, *, enable_shadows: bool = True) -> Any:
 
         return OVRTXRendererCfg()
     if renderer == "isaac_rtx":
-        from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+        from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
         return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(ambient_light_intensity=0.0))
     raise ValueError(f"Unknown renderer: {renderer}")
