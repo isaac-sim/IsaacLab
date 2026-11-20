@@ -197,7 +197,7 @@ def clamp_default_joint_pos_and_update_soft_limits_index(
 ):
     """Clamp default joint positions to new limits and refresh soft limits over (env_ids x joint_ids).
 
-    Mirrors PhysX's :func:`isaaclab_physx.assets.articulation.kernels.write_joint_limit_data_to_buffer`
+    Mirrors PhysX's :func:`isaaclab_isaacsim.assets.articulation.kernels.write_joint_limit_data_to_buffer`
     side-effects, minus the limit-write itself (the existing
     :func:`shared_kernels.write_joint_position_limit_to_buffer_index` launch handles that).
 
@@ -323,7 +323,7 @@ def write_joint_friction_data_to_buffer_index(
 ):
     """Conditionally update the static / dynamic / viscous slots of the friction buffer.
 
-    Mirrors :func:`isaaclab_physx.assets.articulation.kernels.write_joint_friction_data_to_buffer`:
+    Mirrors :func:`isaaclab_isaacsim.assets.articulation.kernels.write_joint_friction_data_to_buffer`:
     each input accepts a scalar, an array, or ``None`` (a null array).
     Scalars are broadcast directly, including zero, so callers can update any subset
     of the friction components without disturbing the others.

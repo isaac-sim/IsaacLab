@@ -6,8 +6,8 @@
 
 import os
 
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.device_base import DevicesCfg

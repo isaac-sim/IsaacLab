@@ -6,8 +6,8 @@
 import math
 
 import torch
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg

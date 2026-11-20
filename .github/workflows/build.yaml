@@ -36,8 +36,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # Pushes, manual runs, and unrelated labels leave the current run in progress.
-  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
+  # Push and workflow_dispatch events carry no label, so this stays false for them and
+  # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' || github.event.label.name == 'ci:run-ovstage' }}
 
 permissions:
   contents: read
@@ -663,7 +664,8 @@ jobs:
         test-jobs: "4"
         container-name: isaac-lab-newton-test
 
-  test-isaaclab-physx:
+  test-isaaclab-isaacsim:
+    # The main/develop ruleset requires this check name, so it keeps the old package name.
     name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -681,7 +683,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_physx"
+        filter-pattern: "isaaclab_isaacsim"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"
@@ -907,6 +909,7 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
+  # Post-merge by default; pull requests opt in per run with ``run-ci ovstage``.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
@@ -914,7 +917,7 @@ jobs:
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: >-
-      github.event_name != 'pull_request' &&
+      (github.event_name != 'pull_request' || github.event.label.name == 'ci:run-ovstage') &&
       needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
@@ -945,6 +948,7 @@ jobs:
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kitless
+        warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
