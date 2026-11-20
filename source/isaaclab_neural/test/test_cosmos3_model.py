@@ -11,13 +11,15 @@ import sys
 import threading
 import time
 from contextlib import suppress
+from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
 from isaaclab_experimental.cosmos import _cuda_ipc, _protocol
 from isaaclab_experimental.cosmos.server.service import serve
-from isaaclab_experimental.cosmos.server.world_model import NUM_CONTROLS, handle_world_model_connection
+from isaaclab_experimental.cosmos.server.world_model import NUM_CONTROLS, Cosmos3Session, handle_world_model_connection
 
 from isaaclab.utils import configclass
 
@@ -101,6 +103,69 @@ def service():
 def start_images(count):
     """The model's one view, whose start image ``i`` is filled with ``100 + i``."""
     return {"camera": (100 + torch.arange(count, dtype=torch.uint8)).view(-1, 1, 1, 1).expand(count, H, W, 3)}
+
+
+@pytest.fixture
+def native_session(tmp_path, monkeypatch):
+    """A service session in the Framework's native session mode, with a fake pipeline that records its start images."""
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+
+    class Native:
+        closed = False
+
+        @property
+        def observation(self):
+            if pipe.fail == "observation":
+                raise RuntimeError("initial observation failed")
+            return torch.zeros(1, 3, 1, H, W)
+
+        def close(self):
+            self.closed = True
+
+    class Pipe:
+        fail = None
+
+        def __init__(self):
+            self.paths, self.sessions = [], []
+
+        def open_bimanual_session(self, **kwargs):
+            self.paths.append(Path(kwargs["vision_path"]))
+            assert self.paths[-1].is_file()
+            if self.fail == "open":
+                raise RuntimeError("open failed")
+            native = Native()
+            self.sessions.append(native)
+            return native
+
+    pipe = Pipe()
+    settings = SimpleNamespace(mode="session", domain_name="hand_pose", fps=30, resolution="480")
+    session = Cosmos3Session(SimpleNamespace(settings=settings, pipe=pipe), 1)
+    try:
+        yield session, pipe
+    finally:
+        session.close()
+
+
+def test_a_native_session_removes_its_start_image_on_reset_and_close(native_session):
+    session, pipe = native_session
+    images = np.zeros((1, H, W, 3), np.uint8)
+    session.reset([0], images, ["first"], [0])
+    assert pipe.paths[0].is_file()
+    session.reset([0], images, ["second"], [1])
+    assert pipe.sessions[0].closed and not pipe.paths[0].parent.exists()
+    assert pipe.paths[1].is_file()
+    session.close()
+    assert pipe.sessions[1].closed and not pipe.paths[1].parent.exists()
+
+
+@pytest.mark.parametrize("failure", ["open", "observation"])
+def test_a_failed_native_reset_removes_its_start_image_and_session(native_session, failure):
+    session, pipe = native_session
+    pipe.fail = failure
+    with pytest.raises(RuntimeError, match="failed"):
+        session.reset([0], np.zeros((1, H, W, 3), np.uint8), ["test"], [0])
+    assert not pipe.paths[0].parent.exists()
+    assert all(native.closed for native in pipe.sessions)
 
 
 def test_the_client_reads_the_spec_resets_from_start_images_and_steps_with_mapped_controls(service):
@@ -207,10 +272,22 @@ def test_chunks_reach_the_simulation_device_through_cuda_ipc():
         model = Cosmos3Model(Cosmos3Cfg(endpoint=endpoint, timeout=10, transport="cuda_ipc"), 2, "cuda:0")
         model.reset([0, 1], start_images(2), ["unfold", "fold"], [3, 4])
         assert model.transport == "cuda_ipc"
-        for chunk in (1, 2):
-            frames = model.step_controls(np.zeros((2, T, NUM_CONTROLS), np.float32))
-            assert frames.device == torch.device("cuda:0") and (frames == chunk).all()
+        controls = np.zeros((2, T, NUM_CONTROLS), np.float32)
+        stream = torch.cuda.Stream()
+        with torch.cuda.stream(stream):
+            # Keep the first copy pending while the next request asks the service to overwrite its buffer.
+            torch.cuda._sleep(1_000_000_000)
+            first = model.step_controls(controls)
+        second = model.step_controls(controls)
+        stream.synchronize()
+        assert first.device == second.device == torch.device("cuda:0")
+        assert (first == 1).all(), "The next chunk overwrote the buffer before the client's copy finished."
+        assert (second == 2).all()
+        with torch.cuda.stream(stream):
+            torch.cuda._sleep(200_000_000)
+            third = model.step_controls(controls)
         model.close()
+        assert (third == 3).all(), "Closing must finish the copy before releasing the service's buffer."
         # The client released the buffer before closing, so the service freed it and serves the next session.
         assert not _protocol.request(endpoint, {"op": "status"}, timeout=2)[0]["session_active"]
     finally:
