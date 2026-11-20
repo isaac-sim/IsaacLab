@@ -7,7 +7,6 @@
 
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 import torch
 
@@ -49,7 +48,7 @@ def world(tmp_path):
 def advance(sim, scene, steps):
     """Step like an environment does: the observation reads the camera after every step."""
     for _ in range(steps):
-        sim.backend_manager.set_joint_target(np.zeros((N, J), np.float32))
+        sim.backend_manager.joint_target.zero_()
         sim.step(render=False)
         scene.update(DT)
         scene["camera"].data

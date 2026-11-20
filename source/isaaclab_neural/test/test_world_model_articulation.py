@@ -163,7 +163,7 @@ def test_a_standard_action_term_drives_the_model(world, decimation):
     term = JointPositionAction(
         JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=False), env
     )
-    sim.backend_manager.set_joint_target(np.zeros((N, 2), dtype=np.float32))
+    scene["robot"].set_joint_position_target_index(target=torch.zeros(N, 2))
     torch.testing.assert_close(scene["robot"].data.joint_pos_target.torch, torch.zeros(N, 2))
     for k in range(T // decimation):
         target = torch.full((N, 2), 0.1 * (k + 1))

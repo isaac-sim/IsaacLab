@@ -27,7 +27,7 @@ def bound_manager(sim, num_envs=N):
 
 
 def step(manager, target):
-    manager.set_joint_target(np.full((manager.num_envs, J), target, np.float32))
+    manager.joint_target.fill_(target)
     manager.step()
 
 

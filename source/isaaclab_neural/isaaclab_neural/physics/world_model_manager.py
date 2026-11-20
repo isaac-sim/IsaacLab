@@ -184,10 +184,6 @@ class WorldModelManager(PhysicsManager):
         for view, buffer in self._frames.items():
             buffer.publish(self._record_images[view][records][:, None], env_mask)
 
-    def set_joint_target(self, target: np.ndarray | torch.Tensor) -> None:
-        """Set the joint position targets, shape ``(N, J)``, that the next :meth:`step` applies."""
-        self.joint_target.copy_(torch.as_tensor(target, dtype=self.joint_target.dtype, device=self._device))
-
     def step(self) -> None:
         """Advance one frame; on the last frame of a chunk, predict the chunk with the model."""
         if not self._steps_in_chunk:
