@@ -16,6 +16,7 @@ import sys
 import time
 import webbrowser
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -104,9 +105,7 @@ _MARKER_TIPS = {
 """What each marker group shows, by the last component of its prim path."""
 
 
-RTX_SHARED_SCENE_NOTE = (
-    "In RTX, hidden environments also disappear for other cameras that share the scene. Soft objects stay visible."
-)
+RTX_SHARED_SCENE_NOTE = "RTX: hidden environments are also hidden from sensor cameras that share the scene."
 """Shown beside the controls that hide environments while the RTX view is selected."""
 
 
@@ -914,6 +913,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     _rtx_visibility_limited = False
+    _borrowing_view = False
+    """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
     _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
@@ -945,6 +946,13 @@ class NewtonVisualizerBase(BaseVisualizer):
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
         super().initialize(sim, cameras=cameras)
+        # each perspective view renders itself, so a recorder can capture one the window does not show
+        for view in self._image_views:
+            if view.camera is not None:
+                continue
+            if view.render is not None:
+                raise ValueError("A perspective image view must have exactly one rendering owner.")
+            view.render = partial(self._capture_view, view)
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
@@ -1051,6 +1059,18 @@ class NewtonVisualizerBase(BaseVisualizer):
                 renderers[id(renderer)] = renderer
         return tuple(renderers.values())
 
+    def _draw_rtx_unavailable(self, imgui) -> None:
+        """Show the Renderer choice greyed out, since without the OVRTX viewer camera it cannot be made at runtime."""
+        imgui.begin_disabled()
+        imgui.text("Renderer")
+        imgui.same_line()
+        imgui.radio_button("OpenGL", True)
+        imgui.same_line()
+        imgui.radio_button("RTX", False)
+        imgui.end_disabled()
+        hover_tooltip(imgui, "RTX is not enabled for this window. Relaunch with --rtx_viewer to switch the view to RTX")
+        hud_note(imgui, "RTX is off. Relaunch with --rtx_viewer to enable it.")
+
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
         if self._borrowing_view:  # an off-screen capture swapped the view; the window controls must not act on it
@@ -1082,6 +1102,8 @@ class NewtonVisualizerBase(BaseVisualizer):
                 )
             if sensor:
                 imgui.end_disabled()
+        elif isinstance(self, NewtonGLVisualizer):
+            self._draw_rtx_unavailable(imgui)
         self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
@@ -1650,7 +1672,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
-            if view.render == self._capture_frame:
+            if view.camera is None and view.render is not None:  # the perspective views bound in initialize
                 view.render = None
                 view.invalidate()
         super().close()

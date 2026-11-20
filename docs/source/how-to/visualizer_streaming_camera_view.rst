@@ -135,8 +135,8 @@ build the selector. Explicitly configured scene-camera choices must support the 
 incompatible choices raise a configuration error during initialization, including inactive choices.
 
 A **Renderer** selector switches the main perspective view between OpenGL and RTX when the scene has the OVRTX
-viewer camera, which launch declares when ``ovrtx`` is installed and the physics is not PhysX. Set
-``NewtonGLBackendCfg.initial_renderer="rtx"`` to start in RTX. The RTX view follows the OpenGL camera pose and
+viewer camera. It is off by default; launch with ``--rtx_viewer`` or set ``NewtonGLBackendCfg.rtx_camera=True`` to add it (``ovrtx`` installed, physics
+not PhysX), otherwise the selector is greyed out. Set ``NewtonGLBackendCfg.initial_renderer="rtx"`` to start in RTX. The RTX view follows the OpenGL camera pose and
 renders only while selected.
 
 Use ``cameras`` to declare a list of selectable views; the first starts active:
