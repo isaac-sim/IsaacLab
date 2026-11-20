@@ -96,6 +96,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         clone_positions=None,
         mesh_variant_paths={},
         mesh_variant_sources={},
+        mesh_variant_selection=None,
         render_products=set(),
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
@@ -655,9 +656,11 @@ def _mesh_variant_stage_and_plan(num_envs: int, worlds: tuple[tuple[int, ...], .
     first.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.2))
     first.AddScaleOp().Set(Gf.Vec3d(2.0, 2.0, 2.0))
     UsdPhysics.RigidBodyAPI.Apply(first.GetPrim())
-    # The second alternative nests its rigid body below the source root, like SimReady props.
-    UsdGeom.Xform.Define(stage, f"{root}/asset_1")
+    # The second alternative nests its rigid body below the source root, like SimReady props; the body
+    # resets its transform stack, so the root's translation does not reach it.
+    UsdGeom.Xform.Define(stage, f"{root}/asset_1").AddTranslateOp().Set(Gf.Vec3d(1.0, 0.0, 0.0))
     nested = UsdGeom.Xform.Define(stage, f"{root}/asset_1/large_part")
+    nested.SetResetXformStack(True)
     nested.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.2))
     UsdPhysics.RigidBodyAPI.Apply(nested.GetPrim())
     prototypes = tuple(
@@ -702,13 +705,17 @@ def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
             prim = exported.GetPrimAtPath(path)
             assert prim.IsA(UsdGeom.Xform) and not UsdGeom.Xformable(prim).GetOrderedXformOps()
         assert [child.GetName() for child in exported.GetPrimAtPath(frame).GetChildren()] == ["variant_0", "variant_1"]
-    # Each source undoes its body's pose below the root and keeps the body's scale; the prototype root hides it.
-    expected = {0: Gf.Matrix4d().SetScale(Gf.Vec3d(2.0)), 1: Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.0, 0.0, -0.2))}
-    for index, local in expected.items():
-        source = UsdGeom.Xformable(exported.GetPrimAtPath(f"{root}/asset_{index}"))
-        assert list(source.GetXformOpOrderAttr().Get()) == ["xformOp:transform"]
-        np.testing.assert_allclose(np.array(source.GetLocalTransformation()), np.array(local), atol=1e-12)
-    np.testing.assert_array_equal(renderer._variant_rows, [0, 1, 2])
+    # Each source undoes its body's pose below the root and keeps the body's scale; a body that reset its
+    # transform stack becomes parent-relative so the frame and the correction reach it.
+    expected = {
+        "asset_0": Gf.Matrix4d().SetScale(Gf.Vec3d(2.0)),
+        "asset_1": Gf.Matrix4d().SetTranslate(Gf.Vec3d(1.0, 0.0, -0.2)),
+        "asset_1/large_part": Gf.Matrix4d().SetTranslate(Gf.Vec3d(-1.0, 0.0, 0.2)),
+    }
+    for path, local in expected.items():
+        prim = UsdGeom.Xformable(exported.GetPrimAtPath(f"{root}/{path}"))
+        assert list(prim.GetXformOpOrderAttr().Get()) == ["xformOp:transform"] and not prim.GetResetXformStack()
+        np.testing.assert_allclose(np.array(prim.GetLocalTransformation()), np.array(local), atol=1e-12)
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
@@ -778,3 +785,14 @@ def test_mesh_variant_selection_moves_child_frames(use_ovstage):
     renderer.update_geometries()
     assert written()[-1] == ("omni:xform", [f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], ["parked"] * 2)
     assert len(written()) == 5
+    # A renderer that joins the populated scene later shares its shown alternatives instead of parking them.
+    other = _make_ovrtx_renderer_without_backend()
+    other.backend = other.scene = renderer.scene
+    other._use_ovstage = use_ovstage
+    other._setup_mesh_variants()
+    other.update_geometries()
+    backend.transform_variants = wp.array([-1, 0, 0], dtype=wp.int32, device="cpu")
+    backend.variants_timestamp = 4
+    other.update_geometries()
+    renderer.update_geometries()
+    assert written()[5:] == [("omni:xform", [f"{frames[0]}/variant_0", f"{frames[1]}/variant_0"], ["shown"] * 2)]

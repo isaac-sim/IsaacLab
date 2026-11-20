@@ -207,6 +207,8 @@ class OvstageBackend:
         """Child frames holding each alternative of a mesh-variant body frame, in variant order."""
         self.mesh_variant_sources: dict[str, str] = {}
         """Rigid body of each mesh-variant source, whose frame the copies follow."""
+        self.mesh_variant_selection: np.ndarray | None = None
+        """Alternative shown per mesh-variant body frame on the populated stage; ``None`` before parking."""
         self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
         self._render_copy_error: Exception | None = None
         self.resources = contextlib.ExitStack()
@@ -382,7 +384,8 @@ def export_stage_to_string(
             composition so that the returned string does not depend on their Python lifetime.
         variant_sources: Rigid body prim of each mesh-variant source. Copies of a source are placed
             below the body frame that receives the published pose, so the source is authored with
-            its body at the frame origin and only the body's scale retained.
+            its body at the frame origin and only the body's scale retained, and descendants that
+            reset their transform stack are rewritten relative to their parent.
 
     Returns:
         USDA text containing the selected prototypes. By default, composition arcs are baked.
@@ -466,16 +469,27 @@ def export_stage_to_string(
         for source, body in (variant_sources or {}).items():
             # The source undoes its body's pose so a copy's body lands on its frame; only the body's scale is
             # kept, because the frame receives a rigid pose. The prototype root keeps the sources invisible.
-            source_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(source))
+            root = export_stage.GetPrimAtPath(source)
+            source_world = xforms.GetLocalToWorldTransform(root)
             body_world = xforms.GetLocalToWorldTransform(export_stage.GetPrimAtPath(body))
-            local = source_world * body_world.GetInverse() * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
-            spec = Sdf.CreatePrimInLayer(layer, source)
-            for name, type_name, value in (
-                ("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, local),
-                (UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray, Vt.TokenArray(["xformOp:transform"])),
-            ):
-                attribute = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, type_name)
-                attribute.default = value
+            locals_ = {
+                source: source_world
+                * body_world.GetInverse()
+                * Gf.Matrix4d().SetScale(Gf.Transform(body_world).GetScale())
+            }
+            for prim in Usd.PrimRange(root):
+                # A descendant that resets its transform stack would ignore the frame and the pose correction.
+                if prim != root and prim.IsA(UsdGeom.Xformable) and UsdGeom.Xformable(prim).GetResetXformStack():
+                    parent_world = xforms.GetLocalToWorldTransform(prim.GetParent())
+                    locals_[str(prim.GetPath())] = xforms.GetLocalToWorldTransform(prim) * parent_world.GetInverse()
+            for path, local in locals_.items():
+                spec = Sdf.CreatePrimInLayer(layer, path)
+                for name, type_name, value in (
+                    ("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, local),
+                    (UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray, Vt.TokenArray(["xformOp:transform"])),
+                ):
+                    attribute = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, type_name)
+                    attribute.default = value
     return layer.ExportToString()
 
 

@@ -119,7 +119,7 @@ _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _PARKED_VARIANT_OFFSET = -1.0e3
-"""Local z offset [m] of unselected mesh-variant copies; they sit far below their body, out of every view."""
+"""Local z offset [m] that parks unselected mesh-variant copies far below their body."""
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -275,6 +275,7 @@ class OVRTXBackend:
             self.clone_positions: np.ndarray | None = None
             self.mesh_variant_paths: dict[str, list[str]] = {}
             self.mesh_variant_sources: dict[str, str] = {}
+            self.mesh_variant_selection: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
@@ -386,10 +387,10 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
-        # Mesh-variant bodies: rows into the SDP transforms, their alternatives' child frames, and the shown ones.
+        # Mesh-variant bodies: rows into the SDP transforms and their alternatives' child frames. The scene
+        # owns the shown alternatives, since every renderer sharing it writes the same child frames.
         self._variant_rows: np.ndarray | None = None
         self._variant_children: list[tuple[str, ...]] = []
-        self._variant_selection = np.empty(0, dtype=np.int32)
         self._variants_timestamp = -1
         self._initialized_scene = False
         self._output_id_color_buffers: dict[str, wp.array] = {}
@@ -448,6 +449,8 @@ class OVRTXRenderer(BaseRenderer):
                 usd = layer.ExportToString()
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
+            # A freshly populated stage holds every alternative on its body; nothing is parked yet.
+            self.scene.mesh_variant_selection = None
             if self._use_ovstage:
                 self.scene.populate(usd)
             else:
@@ -555,10 +558,11 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError(f"Mesh-variant body frames are not published as transforms: {missing[:3]}")
         self._variant_rows = np.fromiter((rows[path] for path in variants), dtype=np.int32, count=len(variants))
         self._variant_children = [tuple(children) for children in variants.values()]
-        # Child frames compose below the body frame, so a parked copy still follows its body out of view.
-        children = [path for group in self._variant_children for path in group]
-        self._write_variant_poses(children, np.ones(len(children), dtype=np.bool_), reset_xform_stack=False)
-        self._variant_selection = np.full(len(variants), -1, dtype=np.int32)
+        if self.scene.mesh_variant_selection is None:
+            # Child frames compose below the body frame, so a parked copy still follows its body.
+            children = [path for group in self._variant_children for path in group]
+            self._write_variant_poses(children, np.ones(len(children), dtype=np.bool_), reset_xform_stack=False)
+            self.scene.mesh_variant_selection = np.full(len(variants), -1, dtype=np.int32)
         self._variants_timestamp = -1
 
     def _update_mesh_variants(self) -> None:
@@ -574,16 +578,17 @@ class OVRTXRenderer(BaseRenderer):
             selected = np.full(len(self._variant_children), -1, dtype=np.int32)
         else:
             selected = variants.numpy()[self._variant_rows]
+        shown = self.scene.mesh_variant_selection
         paths, parked = [], []
-        for row in np.flatnonzero(selected != self._variant_selection):
+        for row in np.flatnonzero(selected != shown):
             children = self._variant_children[row]
-            for variant, park in ((self._variant_selection[row], True), (selected[row], False)):
+            for variant, park in ((shown[row], True), (selected[row], False)):
                 if variant >= 0:
                     paths.append(children[variant])
                     parked.append(park)
         if paths:
             self._write_variant_poses(paths, np.array(parked, dtype=np.bool_))
-        self._variant_selection = selected
+        self.scene.mesh_variant_selection = selected
         self._variants_timestamp = timestamp
 
     def _write_variant_poses(
@@ -1370,7 +1375,6 @@ class OVRTXRenderer(BaseRenderer):
             self._transforms_timestamp = -1
             self._variant_rows = None
             self._variant_children = []
-            self._variant_selection = np.empty(0, dtype=np.int32)
             self._variants_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False

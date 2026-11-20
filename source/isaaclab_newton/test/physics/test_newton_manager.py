@@ -673,8 +673,8 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
     assert not world_mask.numpy().any() and not fk_mask.numpy().any()
 
 
-def test_scene_data_publishes_body_variants_and_stamps_rebuilds_and_selection_changes():
-    """Published variants follow the live model; the timestamp advances on rebuilds, shape changes and raw replays."""
+def test_scene_data_publishes_body_variants_and_stamps_model_rebuilds_and_geometry_versions():
+    """Published variants follow the live model; the timestamp advances on rebuilds, version bumps and raw replays."""
     manager = NewtonManager(NewtonCfg())
     selection = wp.array([-1, 0, 1], dtype=wp.int32, device="cpu")
     manager.backend = backend_stub(

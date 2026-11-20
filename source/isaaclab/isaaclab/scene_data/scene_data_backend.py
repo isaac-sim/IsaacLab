@@ -186,9 +186,10 @@ class SceneDataBackend:
 
     @property
     def transform_variants(self) -> wp.array | None:
-        """Selected mesh-variant index per transform (``int32``), in :attr:`transform_paths` order.
+        """Selected mesh-variant index per transform: ``int32``, shape ``[transform_count]``.
 
-        ``-1`` marks a transform without a selection. Returns ``None`` when no transform declares variants.
-        Reading it must increment ``variants_timestamp`` when the selection may have changed.
+        Rows follow :attr:`transform_paths` and ``-1`` marks a transform without a selection. Returns ``None``
+        when no transform declares variants. Reading it must increment ``variants_timestamp`` when the
+        selection may have changed.
         """
         return None

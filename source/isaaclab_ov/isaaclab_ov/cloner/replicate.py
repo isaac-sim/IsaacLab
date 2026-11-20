@@ -345,6 +345,7 @@ def _prepare_scene_copies(
         backend.clone_positions = plan.positions
         backend.mesh_variant_paths = variant_paths
         backend.mesh_variant_sources = variant_sources
+        backend.mesh_variant_selection = None
 
 
 def ovrtx_replicate(
