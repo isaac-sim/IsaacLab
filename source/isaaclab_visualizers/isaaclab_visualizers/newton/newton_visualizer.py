@@ -1138,6 +1138,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         if self._viewer.gui is not None:
             for callback in (self._viewer._render_training_controls, self._draw_streaming_view_controls):
                 if callback not in self._viewer.gui._ui_callbacks["side"]:
@@ -1248,6 +1249,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _log_scene_state(self, state: newton.State, contacts: newton.Contacts | None) -> None:
         """Log either live state or an isolated history snapshot inside the active GL frame."""
         if state.body_q is None or len(state.body_q):
+            if self._geometry_change_version != self.backend.geometry_change_version:
+                self._viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                self._geometry_change_version = self.backend.geometry_change_version
             self._viewer.log_state(state)
             if contacts is not None:
                 self._viewer.log_contacts(contacts, state)
@@ -1299,6 +1303,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
+        self._geometry_change_version = backend.geometry_change_version
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
             self._viewer.wind = None

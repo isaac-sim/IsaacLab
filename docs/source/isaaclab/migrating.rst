@@ -9,6 +9,13 @@ Choose the path that matches the code you are starting from. The Isaac Lab 2.x p
 the order most projects should migrate: install the new release, configure a backend, update task APIs,
 then move training and visualization workflows.
 
+.. note::
+
+   This guide keeps the package names of the 3.0 release. In 3.1, ``isaaclab_physx`` was renamed to
+   ``isaaclab_isaacsim``, and the old name is deprecated until 3.2. Replace ``isaaclab_physx`` with
+   ``isaaclab_isaacsim`` in the imports below when you migrate directly to 3.1; see
+   :ref:`backends-and-presets` for the rename.
+
 **Choose your starting point:**
 
 * :ref:`Migration from Isaac Lab 2.x to 3.0 <migrating-from-isaaclab-2-x>` -- update an existing

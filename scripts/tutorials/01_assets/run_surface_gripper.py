@@ -34,7 +34,7 @@ args_cli = parser.parse_args()
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_isaacsim.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation

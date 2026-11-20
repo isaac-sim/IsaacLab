@@ -389,7 +389,7 @@ class AssetBase(Asset, ABC):
         # Optional: prim deletion (only supported by Kit PhysX backend, not ovphysx)
         self._prim_deletion_handle = None
         if physics_mgr.backend_name == "physx":
-            from isaaclab_physx.physics import IsaacEvents
+            from isaaclab_isaacsim.physics import IsaacEvents
 
             self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(

@@ -122,7 +122,7 @@ def test_window_session_reuses_native_context_and_releases_scene(monkeypatch, fa
                 assert first._draw_streaming_view_controls not in viewer.gui._ui_callbacks["side"]
                 # Exercise real model rebinding: window controls survive exactly once.
                 provider.create_mapping = lambda _labels: None
-                sim.get_or_create_backend = lambda _cfg: SimpleNamespace(model=model)
+                sim.get_or_create_backend = lambda _cfg: SimpleNamespace(model=model, geometry_change_version=0)
                 second.newton_cfg = object()
                 second._is_initialized = True
                 second.reset()
