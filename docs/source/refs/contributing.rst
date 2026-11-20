@@ -491,37 +491,6 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
-LEAPP Semantic Metadata
-^^^^^^^^^^^^^^^^^^^^^^^
-
-LEAPP labels raw tensor inputs and actuator writes so deployment can identify their physical meaning.
-When adding or changing an observation, check the data properties it reads and the export path that
-annotates them. Metadata on a property is insufficient if the observation bypasses that path.
-
-* Declare ``@leapp_tensor_semantics`` on the shared data property or write method. Concrete backend
-  overrides inherit the metadata through the exporter. Prefer a built-in ``Kind``; use a descriptive
-  custom kind when LEAPP has no matching quantity.
-* Use ``element_names`` or ``element_names_resolver`` for simple labels without constructing LEAPP
-  objects. A flat list labels a vector; nested lists label each non-environment dimension in order.
-  Export marks the leading environment dimension as a system, the trailing dimension of frame/vector
-  quantities as components, and other named dimensions as elements.
-* Use ``axes`` or ``axes_resolver`` for layouts with unspecified dimensions, time sampling, or custom
-  dimension meanings. Explicit axes take precedence over simple names. Match
-  the actual Torch layout with one entry per dimension. Mark the leading environment dimension
-  as ``Axis(AxisKind.SYSTEM)`` for environment-batched scene data, commands, and action targets.
-  Use ``None`` for unspecified dimensions; do not infer a system axis from its size being one.
-  Preserve selected element order, quaternion order, and known reference and expression frames.
-* Mark fixed defaults with ``const=True``. Keep evolving state in explicit feedback. Do not assign
-  physical kinds to normalized features, embeddings, or concatenated observations merely because
-  their raw inputs have physical meaning.
-* Verify the generated input/output metadata and deployment connections. Validate multiple capture
-  steps with changing inputs, then replay unseen inputs and stateful reset sequences. Do not claim
-  export support for a new raw source until its annotation and deployment wiring are covered.
-
-See :doc:`/source/policy_deployment/05_leapp/exporting_policies_with_leapp` for the export workflow and
-``source/isaaclab/isaaclab/utils/leapp/leapp_semantics.py`` for the annotation API and axis resolvers.
-
-
 Array Operations and Runtime Cost
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
