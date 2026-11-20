@@ -5,6 +5,6 @@
   use's Python hooks reuse.
 * Added recording, replay, and saving to ``reset_from_bank``: ``RecordStates`` banks states that the worlds visit during
   training, ``nominal_probability`` keeps a fraction of nominal resets, and ``reset_bank`` returns a ``ResetBank`` to
-  inspect, replay, and save, which ``FillFromFile`` loads.
+  inspect, replay, save, or discard the outcomes of manual resets, and ``FillFromFile`` loads a saved bank.
 * Added scheduling of reset events' ``update`` hooks once per step after the rewards, and ordering of reset events
   that write commands after the commands resample, so that a restored command stands.

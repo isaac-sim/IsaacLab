@@ -110,7 +110,16 @@ class FillFromCandidates:
         size = self.bank_size if descriptor is None else round(self.bank_size * self.oversample_factor)
         if self.bank_size < 1 or size < self.bank_size:
             raise ValueError("The bank must harvest at least as many states as it keeps, and keep at least one.")
-        fields = dict(ctx.outputs)
+        # Scene outputs are read from the scene the candidates write; commands from the candidates' own state.
+        fields = {}
+        for name, value in ctx.outputs.items():
+            selector = ctx.selectors[name]
+            if selector.scene:
+                fields[name] = value
+            elif selector in state.arrays:
+                fields[name] = state.arrays[selector].torch
+            else:
+                raise ValueError(f"The candidates task must define '{selector}', which the event restores.")
         if descriptor is not None:
             fields["descriptor"] = descriptor.torch
         # Root poses are kept relative to the environment origins when the use binds them.
@@ -282,6 +291,10 @@ class ResetBank:
             rows = torch.arange(self.num_worlds, device=slots.device, dtype=torch.int32) * self.size + slots
             slots = torch.where(in_bank, rows, torch.where(slots < 0, -1, self.size * self.num_worlds))
         requests.copy_(slots)
+
+    def discard_outcomes(self) -> None:
+        """Credit none of the worlds' current episodes, such as before resetting them by hand mid-episode."""
+        self._credit.zero_()
 
     def save(self, path: str | Path) -> None:
         """Save the states, to fill a later run's bank with :class:`FillFromFile`."""

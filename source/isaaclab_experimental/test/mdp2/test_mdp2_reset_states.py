@@ -177,6 +177,10 @@ def test_outcomes_are_credited_to_the_state_each_episode_started_from():
     np.testing.assert_allclose(bank.success_rate.cpu().numpy(), [1.0, 0.0])
     assert bank.episode_counts.sum() == 5 * 16  # the first reset has no episode to credit
 
+    bank.discard_outcomes()  # a reset by hand mid-episode credits nothing
+    reset(task_mdp, state, [True] * 16)
+    assert bank.episode_counts.sum() == 5 * 16
+
 
 def test_recording_banks_visited_states_that_replay_restores():
     scene = Scene(num_worlds=2)
@@ -237,6 +241,47 @@ def test_saved_banks_fill_later_runs_with_the_same_worlds(tmp_path):
         assert torch.equal(mdp.reset_bank(loaded).states[name], value)
     with pytest.raises(ValueError, match="holds banks of 4 worlds"):
         build(Scene(num_worlds=2), fill=mdp.FillFromFile(path))
+
+
+@wp.func
+def _sample_goal(world: int, command: wp.array(dtype=float), rng: wp.int32):
+    command[world] = wp.randf(wp.rand_init(rng, 0), 1.0, 2.0)
+
+
+def _sample_goal_torch(mask, command, rng):
+    command.copy_(torch.where(mask, mdp2.uniform(rng, 1.0, 2.0), command))
+
+
+sample_goal = mdp2.Term(torch=_sample_goal_torch, warp=_sample_goal, random=True)
+
+
+def test_banked_commands_are_sampled_by_the_candidates_and_stand_over_the_resample():
+    goal = {"goal": mdp2.commands.goal}
+    commands = {"goal": mdp2.Command(sample_goal)}
+    candidates = mdp2.TaskCfg(
+        commands=commands,
+        events={"draw": mdp2.Event(draw, outputs=outputs)},
+        terminations=CANDIDATES.terminations,
+    )
+    for backend in ("torch", "warp"):
+        scene = Scene(num_worlds=4)
+        event = mdp2.Event(
+            mdp.reset_from_bank,
+            outputs={**outputs, **goal},
+            params={"fill": mdp.FillFromCandidates(candidates, bank_size=3)},
+        )
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(mdp2.TaskCfg(commands=commands, events={"reset": event}))
+        task_mdp = builder.finalize(device=DEVICE, backend=backend)
+        state = task_mdp.state(scene, seed=3)
+        mdp2.startup(task_mdp, state)
+        bank = mdp.reset_bank(state)
+
+        banked = bank.states["goal"]
+        assert ((banked >= 1.0) & (banked < 2.0)).all() and len(banked.unique()) == 12  # sampled, not the initial 0
+        reset(task_mdp, state, [True] * 4)
+        restored = bank.states["goal"][torch.arange(4), bank.slots]
+        assert torch.equal(state.arrays[mdp2.commands.goal].torch, restored)
 
 
 def test_backends_and_graph_replay_restore_and_record_the_same_states():
