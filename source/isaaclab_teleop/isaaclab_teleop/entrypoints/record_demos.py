@@ -496,6 +496,8 @@ def setup_ui(label_text: str, env: gym.Env) -> "InstructionDisplay":
 
 def _step_teleop(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
     """Step teleoperation and export any interrupted demonstration as a failure."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
     env.action_manager.process_action(action.to(env.device))
     record_pre_step(recorder, env, env.action_manager.action)
 

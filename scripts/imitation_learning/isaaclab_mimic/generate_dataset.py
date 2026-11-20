@@ -129,6 +129,8 @@ def main():
 
 def _step_generation(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
     """Advance generated demonstrations and finalize interrupted attempts."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
     env.action_manager.process_action(action.to(env.device))
     record_pre_step(recorder, env, env.action_manager.action)
 
