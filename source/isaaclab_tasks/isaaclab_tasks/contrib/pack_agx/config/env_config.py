@@ -241,16 +241,8 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     agx_orin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AgxOrin",
         spawn=sim_utils.UsdFileCfg(
+            func="isaaclab_tasks.contrib.pack_agx.config.appearance:spawn_pack_prop",
             usd_path=AGX_ORIN_USD,
-            visual_material_path=None,
-            visual_material=sim_utils.PbrMdlCfg(
-                diffuse_color_constant=None,
-                metallic_constant=0.15,
-                reflection_roughness_constant=0.55,
-                albedo_brightness=3.4,
-                metallic_texture_influence=0.0,
-                reflection_roughness_texture_influence=0.0,
-            ),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.58, -0.24, 0.97),
@@ -261,16 +253,8 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     protective_box = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ProtectiveBox",
         spawn=sim_utils.UsdFileCfg(
+            func="isaaclab_tasks.contrib.pack_agx.config.appearance:spawn_pack_prop",
             usd_path=PROTECTIVE_BOX_USD,
-            visual_material_path=None,
-            visual_material=sim_utils.PbrMdlCfg(
-                diffuse_color_constant=None,
-                metallic_constant=0.05,
-                reflection_roughness_constant=0.85,
-                albedo_brightness=2.6,
-                metallic_texture_influence=0.0,
-                reflection_roughness_texture_influence=0.0,
-            ),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(

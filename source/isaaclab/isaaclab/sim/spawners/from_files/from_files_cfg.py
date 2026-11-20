@@ -186,20 +186,18 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     ``ensure_drives_exist`` field.
     """
 
-    visual_material_path: str | None = "material"
+    visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    Relative paths are resolved below the spawned prim. None applies non-None inputs from
-    :attr:`visual_material` to existing shaders, preserving their textures and bindings.
-    Ignored when :attr:`visual_material` is None.
+    If the path is relative, then it will be relative to the prim's path.
+    This parameter is ignored if `visual_material` is not None.
     """
 
     visual_material: materials.VisualMaterialCfg | None = None
-    """Visual material to create and bind, or inputs to apply to the asset's authored shaders.
+    """Visual material properties to override the visual material properties in the URDF file.
 
     Note:
-        If None, materials are unchanged. Set :attr:`visual_material_path` to None to update
-        existing shader inputs without replacing materials. Config fields set to None are not applied.
+        If None, then no visual material will be added.
     """
 
     visual_material_bindings: dict[str, str] = {}

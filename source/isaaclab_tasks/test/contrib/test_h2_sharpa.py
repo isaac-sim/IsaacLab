@@ -110,10 +110,11 @@ def test_progress_without_rewards_and_partial_reset(cfg_type):
 @pytest.mark.parametrize("asset_name", ["agx_orin", "protective_box"])
 def test_prop_material_overrides_clone_with_the_prototype(tmp_path, asset_name):
     """Clones keep distinct authored materials, texture connections, and the configured overrides."""
-    path = str(tmp_path / "prop.usda")
+    asset_id = "MiniPc001" if asset_name == "agx_orin" else "ProtectiveBox001"
+    path = str(tmp_path / f"{asset_id}.usda")
     source = Usd.Stage.CreateNew(path)
     source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Prop").GetPrim())
-    for name in ("body", "label"):
+    for name in (f"M_{asset_id}_001", "label"):
         material = UsdShade.Material.Define(source, f"/Prop/Looks/{name}")
         shader = UsdShade.Shader.Define(source, f"{material.GetPath()}/Shader")
         shader.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
@@ -134,7 +135,7 @@ def test_prop_material_overrides_clone_with_the_prototype(tmp_path, asset_name):
     with use_stage(stage):
         cfg.func("/World/env_.*/Prop", cfg)
     for index in range(2):
-        for name in ("body", "label"):
+        for name in (f"M_{asset_id}_001", "label"):
             root = f"/World/env_{index}/Prop"
             material_path = f"{root}/Looks/{name}"
             binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/{name}"))
@@ -143,11 +144,10 @@ def test_prop_material_overrides_clone_with_the_prototype(tmp_path, asset_name):
             assert shader.GetInput("diffuse_texture").Get().path == f"{name}.png"
             assert shader.GetInput("diffuse_color_constant").Get() == pytest.approx((0.2, 0.3, 0.4))
             assert shader.GetInput("normalmap_texture").GetConnectedSource()[0].GetPath() == f"{material_path}/Texture"
-            for channel in (
-                "metallic_constant",
-                "reflection_roughness_constant",
-                "albedo_brightness",
-                "metallic_texture_influence",
-                "reflection_roughness_texture_influence",
-            ):
-                assert shader.GetInput(channel).Get() == pytest.approx(getattr(cfg.visual_material, channel))
+            brightness = shader.GetInput("albedo_brightness")
+            if name == "label":
+                assert not brightness
+            else:
+                assert brightness.Get() == pytest.approx(3.4 if asset_name == "agx_orin" else 2.6)
+                assert shader.GetInput("metallic_texture_influence").Get() == 0.0
+                assert shader.GetInput("reflection_roughness_texture_influence").Get() == 0.0

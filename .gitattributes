@@ -23,3 +23,5 @@ docs/source/_static/how-to/reset_states/sgs-method-light.gif binary -filter
 
 *.bat text eol=crlf
 *.sh text eol=lf
+
+source/isaaclab_tasks/isaaclab_tasks/contrib/pack_agx/config/pack_appearance.usda -filter diff merge text
