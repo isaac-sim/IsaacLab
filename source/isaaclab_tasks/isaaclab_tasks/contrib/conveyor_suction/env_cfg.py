@@ -179,7 +179,6 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
         )
         self.sim.physics.solver_cfg.nconmax = 400
         self.sim.physics.solver_cfg.njmax = 700
-        self.sim.physics.collision_cfg.include_static_kinematic_pairs = False
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(-2.6, -4.2, 2.8),
             lookat=(0.8, 0.2, -0.25),

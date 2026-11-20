@@ -6,8 +6,8 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 
 ![Racetrack transfer](../../../../../docs/source/_static/tasks/conveyor/racetrack_transfer.jpg)
 
-Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
-reporting. The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
+Traction uses a pinned extraction of Newton's force model and MJWarp contact reporting.
+The public `isaaclab.controllers.Conveyor` API handles batched speed commands and
 reset lifecycle; the task owns its geometry, transfer commands, and reset recipes.
 `assets/racetracks.usda` contains the fixed decks and rails, exported from the original
 procedural scene with its collision materials and section names. `env.conveyor` uses the

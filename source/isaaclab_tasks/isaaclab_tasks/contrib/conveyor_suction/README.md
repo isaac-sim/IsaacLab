@@ -15,8 +15,8 @@ Every full episode starts with all parcels spaced around the racetrack; there is
 
 ## Setup
 
-Use the standard repository environment (`uv sync`). The pinned upstream Newton revision
-provides both conveyor forces and the
+Use the standard repository environment (`uv sync`). Isaac Lab uses a pinned extraction
+of Newton's conveyor force model. Suction uses the pinned Newton
 [surface-gripper model](https://github.com/newton-physics/newton/pull/3974).
 Fixed facility and tool geometry and textured surfaces are authored in `assets/*.usda`.
 Python configures the physical conveyors and randomized layout transforms.
