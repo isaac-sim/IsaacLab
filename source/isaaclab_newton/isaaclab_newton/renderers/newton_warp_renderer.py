@@ -325,6 +325,7 @@ class NewtonWarpRenderer(BaseRenderer):
                 tile_height=self.cfg.tile_rendering_height,
                 block_dim=self.cfg.kernel_block_dim,
             ),
+            load_textures=self.cfg.enable_textures,
         )
         if self.cfg.create_default_light:
             self.newton_sensor.create_default_light(enable_shadows=self.cfg.enable_shadows)
