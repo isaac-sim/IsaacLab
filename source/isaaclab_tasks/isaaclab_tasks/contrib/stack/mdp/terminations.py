@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Termination terms for the cube stack task."""
+"""Common functions that can be used to activate certain terminations for the lift task.
+
+The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
+the termination introduced by the function.
+"""
 
 from __future__ import annotations
 
@@ -31,7 +35,6 @@ def cubes_stacked(
     atol: float = 0.0001,
     rtol: float = 0.0001,
     max_lin_vel: float | None = 0.05,
-    symmetric_height_tolerance: bool = False,
 ) -> torch.Tensor:
     """Whether the cubes are stacked, released, and at rest.
 
@@ -51,27 +54,38 @@ def cubes_stacked(
             open value. Gripper joint tolerances are unused for surface grippers.
         max_lin_vel: Speed [m/s] below which a cube counts as at rest, so that a cube passing through the
             stacked configuration mid-fall is not scored as success. ``None`` disables the check.
-        symmetric_height_tolerance: Also require the vertical separation to be within
-            ``height_threshold`` below ``height_diff``.
-
-    Returns:
-        A boolean tensor of shape [N] indicating success in each environment.
     """
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
 
-    separation_c12 = cube_2.data.root_pos_w.torch - cube_1.data.root_pos_w.torch
-    stacked = _cube_pair_is_aligned(
-        separation_c12, xy_threshold, height_diff, height_threshold, symmetric_height_tolerance
-    )
+    pos_diff_c12 = cube_1.data.root_pos_w.torch - cube_2.data.root_pos_w.torch
+
+    # Compute cube position difference in x-y plane
+    xy_dist_c12 = torch.linalg.norm(pos_diff_c12[:, :2], dim=1)
+
+    # Compute cube height difference
+    h_dist_c12 = torch.linalg.norm(pos_diff_c12[:, 2:], dim=1)
+
+    # Check cube positions
+    stacked = xy_dist_c12 < xy_threshold
+    stacked = torch.logical_and(h_dist_c12 - height_diff < height_threshold, stacked)
+    stacked = torch.logical_and(pos_diff_c12[:, 2] < 0.0, stacked)
 
     if cube_3_cfg is not None:
         cube_3: RigidObject = env.scene[cube_3_cfg.name]
-        separation_c23 = cube_3.data.root_pos_w.torch - cube_2.data.root_pos_w.torch
-        stacked &= _cube_pair_is_aligned(
-            separation_c23, xy_threshold, height_diff, height_threshold, symmetric_height_tolerance
-        )
+        pos_diff_c23 = cube_2.data.root_pos_w.torch - cube_3.data.root_pos_w.torch
+
+        # Compute cube position difference in x-y plane
+        xy_dist_c23 = torch.linalg.norm(pos_diff_c23[:, :2], dim=1)
+
+        # Compute cube height difference
+        h_dist_c23 = torch.linalg.norm(pos_diff_c23[:, 2:], dim=1)
+
+        # Check cube positions
+        stacked = torch.logical_and(xy_dist_c23 < xy_threshold, stacked)
+        stacked = torch.logical_and(h_dist_c23 - height_diff < height_threshold, stacked)
+        stacked = torch.logical_and(pos_diff_c23[:, 2] < 0.0, stacked)
 
     # Check gripper positions
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
@@ -105,33 +119,3 @@ def cubes_stacked(
             stacked &= torch.linalg.norm(cube.data.root_lin_vel_w.torch, dim=1) < max_lin_vel
 
     return stacked
-
-
-def _cube_pair_is_aligned(
-    separation: torch.Tensor,
-    xy_threshold: float,
-    height_diff: float,
-    height_threshold: float,
-    symmetric_height_tolerance: bool,
-) -> torch.Tensor:
-    """Check the world-frame upper-minus-lower cube displacement.
-
-    Args:
-        separation: Cube center displacements in meters, with shape [N, 3].
-        xy_threshold: Maximum horizontal separation in meters.
-        height_diff: Expected vertical separation in meters.
-        height_threshold: Tolerance on the vertical separation in meters.
-        symmetric_height_tolerance: Apply the tolerance below as well as above ``height_diff``.
-
-    Returns:
-        A boolean tensor of shape [N] indicating aligned cube pairs.
-    """
-    height = separation[:, 2]
-    height_error = height - height_diff
-    if symmetric_height_tolerance:
-        height_error = height_error.abs()
-    return (
-        (torch.linalg.norm(separation[:, :2], dim=1) < xy_threshold)
-        & (height > 0.0)
-        & (height_error < height_threshold)
-    )

@@ -8,21 +8,58 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
+from isaaclab.envs.reset import ResetStateSampler, ResetStateSamplerCfg, SamplingScoreCfg
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
-from isaaclab.utils.configclass import instantiate
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from .reset_events import StackResetRecipe, StackResetStateTable
-from .runtime_state import get_stack_reset_runtime_state
+from .runtime_state import get_stack_reset_runtime_state, torch_warp_stream
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+class _StackSamplingScore:
+    """Preserve the curriculum's table share and balance intermediate layouts."""
+
+    def __init__(self, cfg: _StackSamplingScoreCfg):
+        self._cfg = cfg
+
+    def score(self, metrics: Mapping[str, wp.array], out: wp.array) -> None:
+        rate = wp.to_torch(metrics["success_rate"])
+        table_rows = wp.to_torch(metrics["table_rows"])
+        layout_ids = wp.to_torch(metrics["layout_ids"])
+        table_probability = wp.to_torch(metrics["table_probability"])[0]
+
+        cfg = self._cfg.monitor
+        target = min(max(cfg.target_success_rate, 0.0), 1.0)
+        kappa = max(cfg.kappa, 0.0)
+        eps = 1.0e-4
+        adaptive = (rate + eps).pow(kappa * target) * (1.0 - rate + eps).pow(kappa * (1.0 - target))
+        adaptive = adaptive.clamp_min(eps).pow(1.0 / max(cfg.temperature, 1.0))
+        adaptive.masked_fill_(table_rows, 0.0)
+        layout_mass = adaptive.new_zeros(self._cfg.layout_count)
+        layout_mass.scatter_add_(0, layout_ids, adaptive)
+        adaptive /= layout_mass[layout_ids].clamp_min(torch.finfo(adaptive.dtype).tiny)
+        adaptive /= adaptive.sum()
+        table = table_rows.to(dtype=adaptive.dtype)
+        table /= table.sum()
+        wp.to_torch(out).copy_(adaptive * (1.0 - table_probability) + table * table_probability)
+
+
+@configclass
+class _StackSamplingScoreCfg(SamplingScoreCfg):
+    class_type: type = _StackSamplingScore
+    monitor: SuccessMonitorCfg = SuccessMonitorCfg()
+    layout_count: int = 1
 
 
 class StackResetTableCurriculum(ManagerTermBase):
@@ -37,36 +74,38 @@ class StackResetTableCurriculum(ManagerTermBase):
         monitor_cfg = cfg.params["success_monitor"]
         if not isinstance(monitor_cfg, SuccessMonitorCfg):
             raise TypeError("StackResetTableCurriculum requires a SuccessMonitorCfg.")
-        self._progress_monitor = instantiate(
-            monitor_cfg,
-            num_partitions=1,
-            partition_size=reset_term.row_count,
-            device=env.device,
-        )
-        self._attempts = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
-        self._progress_successes = torch.zeros_like(self._attempts)
+        self._target_success_rate = monitor_cfg.target_success_rate
+        self._progress_successes = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
+        self._full_task_successes_by_row = torch.zeros_like(self._progress_successes)
         self._table_rows = reset_term.recipe_ids == StackResetRecipe.TABLE
         if not bool(torch.any(self._table_rows)) or bool(torch.all(self._table_rows)):
             raise RuntimeError("The stack reset table must contain both table and intermediate rows.")
-        self._layout_count = reset_term.layout_count
         self._recipe_rows = tuple(
             (name, reset_term.recipe_ids == recipe) for recipe, name in enumerate(reset_term.recipe_names)
         )
-        self._full_task_successes_by_row = torch.zeros_like(self._attempts)
-
-    def _sampling_distribution(self, table_sampling_probability: float) -> torch.Tensor:
-        """Mix uniform table starts with layout-balanced intermediate starts."""
-        adaptive = self._progress_monitor.target_weights()
-        adaptive[self._table_rows] = 0.0
-        layout_ids = self._reset_term.layout_ids
-        layout_mass = torch.zeros(self._layout_count, dtype=adaptive.dtype, device=adaptive.device)
-        layout_mass.scatter_add_(0, layout_ids, adaptive)
-        adaptive /= layout_mass[layout_ids].clamp_min(torch.finfo(adaptive.dtype).tiny)
-        adaptive /= adaptive.sum()
-        table = self._table_rows.to(dtype=adaptive.dtype)
-        table /= table.sum()
-        probabilities = (1.0 - table_sampling_probability) * adaptive + table_sampling_probability * table
-        return probabilities
+        table_probability = cfg.params.get("table_sampling_probability", 0.35)
+        if not 0.0 < table_probability < 1.0:
+            raise ValueError("table_sampling_probability must lie strictly between zero and one.")
+        self._table_probability = torch.full((reset_term.row_count,), table_probability, device=env.device)
+        sampler_cfg = ResetStateSamplerCfg(
+            history_length=monitor_cfg.monitored_history_len,
+            scores=[_StackSamplingScoreCfg(monitor=monitor_cfg, layout_count=reset_term.layout_count)],
+            uniform_weight=0.0,
+            seed=getattr(env.cfg, "seed", 0) or 0,
+        )
+        with torch_warp_stream(env.device):
+            self._sampler = ResetStateSampler(
+                sampler_cfg,
+                num_envs=env.num_envs,
+                num_states=reset_term.row_count,
+                device=env.device,
+                metrics={
+                    "table_rows": self._table_rows,
+                    "layout_ids": reset_term.layout_ids,
+                    "table_probability": self._table_probability,
+                },
+            )
+        reset_term.set_sampler(self._sampler)
 
     def __call__(
         self,
@@ -87,36 +126,37 @@ class StackResetTableCurriculum(ManagerTermBase):
         metrics: dict[str, torch.Tensor] = {
             "batch_table_full_task_attempts": torch.zeros((), device=env.device),
         }
-        if ids.numel():
-            state = get_stack_reset_runtime_state(env)
-            completed = (state.row_ids[ids] >= 0) & (env.episode_length_buf[ids] > 0) & env.reset_buf[ids]
-            completed_ids = ids[completed]
-            if completed_ids.numel():
-                success_context = env.termination_manager.get_term_cfg(success_context_name).func
-                succeeded = success_context.ever_success[completed_ids]
-                final_success_context = env.termination_manager.get_term_cfg(final_success_context_name).func
-                final_succeeded = final_success_context.ever_success[completed_ids]
-                metrics["batch_success_rate"] = succeeded.float().mean()
-                metrics["batch_full_task_success_rate"] = final_succeeded.float().mean()
-                completed_rows = state.row_ids[completed_ids]
-                completed_table = self._table_rows[completed_rows]
-                table_attempts = completed_table.sum()
-                metrics["batch_table_full_task_attempts"] = table_attempts
-                if bool(table_attempts):
-                    metrics["batch_table_full_task_success_rate"] = final_succeeded[completed_table].float().mean()
-                self._progress_monitor.success_update(completed_rows, succeeded)
-                self._attempts.add_(torch.bincount(completed_rows, minlength=self._reset_term.row_count))
-                self._progress_successes.add_(
-                    torch.bincount(completed_rows[succeeded], minlength=self._reset_term.row_count)
-                )
-                self._full_task_successes_by_row.add_(
-                    torch.bincount(completed_rows[final_succeeded], minlength=self._reset_term.row_count)
-                )
+        state = get_stack_reset_runtime_state(env)
+        completed = (state.row_ids[ids] >= 0) & (env.episode_length_buf[ids] > 0) & env.reset_buf[ids]
+        completed_ids = ids[completed]
+        success = None
+        if completed_ids.numel():
+            success = env.termination_manager.get_term_cfg(success_context_name).func.ever_success
+            succeeded = success[completed_ids]
+            final_success_context = env.termination_manager.get_term_cfg(final_success_context_name).func
+            final_succeeded = final_success_context.ever_success[completed_ids]
+            metrics["batch_success_rate"] = succeeded.float().mean()
+            metrics["batch_full_task_success_rate"] = final_succeeded.float().mean()
+            completed_rows = state.row_ids[completed_ids]
+            completed_table = self._table_rows[completed_rows]
+            table_attempts = completed_table.sum()
+            metrics["batch_table_full_task_attempts"] = table_attempts
+            if bool(table_attempts):
+                metrics["batch_table_full_task_success_rate"] = final_succeeded[completed_table].float().mean()
+            self._progress_successes.add_(
+                torch.bincount(completed_rows[succeeded], minlength=self._reset_term.row_count)
+            )
+            self._full_task_successes_by_row.add_(
+                torch.bincount(completed_rows[final_succeeded], minlength=self._reset_term.row_count)
+            )
 
-        probabilities = self._sampling_distribution(table_sampling_probability)
-        self._reset_term.update_sampling_probabilities(probabilities)
-
-        attempts = self._attempts
+        # Keep assignments when recording outcomes. The reset event draws for the actual restoration mask.
+        self._table_probability.fill_(table_sampling_probability)
+        with torch_warp_stream(env.device):
+            self._sampler.reset(env_ids=completed_ids, success=success, state_ids=state.row_ids)
+            probabilities = self._sampler.probabilities.torch
+            attempts = self._sampler.episode_counts.torch
+            rolling_rates = self._sampler.success_rate.torch
         observed = attempts > 0
         total_attempts = attempts.sum()
         table_attempts = attempts[self._table_rows].sum()
@@ -126,7 +166,6 @@ class StackResetTableCurriculum(ManagerTermBase):
         entropy /= math.log(probabilities.numel())
         active_rows = ~self._table_rows
         unseen_rows = active_rows & ~observed
-        rolling_rates = self._progress_monitor.get_success_rate()
         observed_count = observed.sum().clamp_min(1)
         metrics.update(
             {
@@ -136,9 +175,7 @@ class StackResetTableCurriculum(ManagerTermBase):
                 "sampling_entropy": entropy,
                 "unseen_row_probability_mass": probabilities[unseen_rows].sum(),
                 "table_probability": probabilities[self._table_rows].sum(),
-                "target_band_fraction": (
-                    ((rolling_rates - self._progress_monitor.cfg.target_success_rate).abs() <= 0.1) & observed
-                ).sum()
+                "target_band_fraction": (((rolling_rates - self._target_success_rate).abs() <= 0.1) & observed).sum()
                 / observed_count,
                 "full_task_attempts": total_attempts.float(),
                 "full_task_success_rate": self._full_task_successes_by_row.sum().float() / total_denominator,

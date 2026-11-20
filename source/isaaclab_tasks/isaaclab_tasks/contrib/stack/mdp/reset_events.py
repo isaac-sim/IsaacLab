@@ -15,10 +15,11 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 from isaaclab.utils.math import matrix_from_quat, normalize, quat_mul
 
-from .runtime_state import create_stack_reset_runtime_state
+from .runtime_state import create_stack_reset_runtime_state, torch_warp_stream
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -366,26 +367,34 @@ class StackResetStateTable(ManagerTermBase):
             dtype=torch.long,
             device=env.device,
         )
-        self._build_table(
+        table = self._build_table(
             closed_finger_position=float(cfg.params["closed_finger_position"]),
             placed_finger_position=float(cfg.params["placed_finger_position"]),
             open_finger_position=float(cfg.params["open_finger_position"]),
             table_rows_per_layout=int(cfg.params["table_rows_per_layout"]),
         )
-        self._validate_table()
-        self._restrict_to_workspace()
+        self._validate_table(table)
+        in_workspace = (
+            (table["arm_positions"] >= self._workspace_lower) & (table["arm_positions"] <= self._workspace_upper)
+        ).all(dim=1)
+        table = {name: rows[in_workspace] for name, rows in table.items()}
+        self._recipe_ids = table["recipes"]
+        self._layout_ids = table.pop("layouts")
         self._rows_by_recipe = tuple(
             torch.nonzero(self._recipe_ids == int(recipe), as_tuple=False).flatten() for recipe in StackResetRecipe
         )
         if self._rows_by_recipe[StackResetRecipe.TABLE].numel() == 0:
             raise ValueError("Franka stack arm action workspace excludes every table start.")
+        with torch_warp_stream(self.device):
+            self._buffer = ResetStateBuffer(table)
+        self._selected = {name: value.new_empty((env.num_envs, *value.shape[1:])) for name, value in table.items()}
         self._runtime_state = create_stack_reset_runtime_state(env)
-        self._sampling_probabilities: torch.Tensor | None = None
+        self._sampler: ResetStateSampler | None = None
 
     @property
     def row_count(self) -> int:
         """Number of physical rows in the reset table."""
-        return int(self._arm_positions.shape[0])
+        return self._buffer.num_states
 
     @property
     def recipe_ids(self) -> torch.Tensor:
@@ -407,9 +416,9 @@ class StackResetStateTable(ManagerTermBase):
         """Stable diagnostic names for reset recipes."""
         return tuple(recipe.name.lower() for recipe in StackResetRecipe)
 
-    def update_sampling_probabilities(self, probabilities: torch.Tensor) -> None:
-        """Use the curriculum's distribution for subsequent reset draws."""
-        self._sampling_probabilities = probabilities
+    def set_sampler(self, sampler: ResetStateSampler) -> None:
+        """Share the curriculum's native history, probabilities, and row assignments."""
+        self._sampler = sampler
 
     def _build_table(
         self,
@@ -649,13 +658,13 @@ class StackResetStateTable(ManagerTermBase):
                     -1,
                 )
 
-        self._arm_positions = torch.stack(arm_rows).to(self.device)
-        self._hand_positions = torch.stack(hand_rows).to(self.device)
-        self._role_positions = torch.stack(position_rows).to(self.device)
-        self._recipe_ids = torch.tensor(recipe_rows, dtype=torch.long, device=self.device)
-        self._held_roles = torch.tensor(held_role_rows, dtype=torch.long, device=self.device)
-        self._layout_ids = torch.tensor(layout_rows, dtype=torch.long, device=self.device)
-        self._target_potentials = torch.tensor(
+        arm_positions = torch.stack(arm_rows).to(self.device)
+        hand_positions = torch.stack(hand_rows).to(self.device)
+        role_positions = torch.stack(position_rows).to(self.device)
+        recipe_ids = torch.tensor(recipe_rows, dtype=torch.long, device=self.device)
+        held_roles = torch.tensor(held_role_rows, dtype=torch.long, device=self.device)
+        layout_ids = torch.tensor(layout_rows, dtype=torch.long, device=self.device)
+        target_potentials = torch.tensor(
             tuple(_RECIPE_TARGET_POTENTIAL[StackResetRecipe(recipe)] for recipe in recipe_rows),
             dtype=torch.float32,
             device=self.device,
@@ -663,50 +672,56 @@ class StackResetStateTable(ManagerTermBase):
         # Cache complete cube pose state, not only position. Random yaw is
         # physically immaterial for perfect cubes but prevents the reset
         # mechanism from relying on one authored quaternion representation.
-        row_ids = torch.arange(self._role_positions.shape[0], device=self.device).unsqueeze(1)
+        row_ids = torch.arange(role_positions.shape[0], device=self.device).unsqueeze(1)
         role_ids = torch.arange(3, device=self.device).unsqueeze(0)
         yaw_fraction = torch.remainder(row_ids * 193 + role_ids * 389 + 17, 1021).float() / 1020.0
         half_yaw = math.pi * (2.0 * yaw_fraction - 1.0)
-        self._role_quaternions = torch.zeros(
-            (self._role_positions.shape[0], 3, 4),
+        role_quaternions = torch.zeros(
+            (role_positions.shape[0], 3, 4),
             dtype=torch.float32,
             device=self.device,
         )
-        self._role_quaternions[..., 2] = torch.sin(half_yaw)
-        self._role_quaternions[..., 3] = torch.cos(half_yaw)
-        held_rows = torch.nonzero(self._held_roles >= 0, as_tuple=False).flatten()
+        role_quaternions[..., 2] = torch.sin(half_yaw)
+        role_quaternions[..., 3] = torch.cos(half_yaw)
+        held_rows = torch.nonzero(held_roles >= 0, as_tuple=False).flatten()
         if held_rows.numel() > 0:
             # Place held cubes at the tool center for their authored arm pose.
-            self._role_positions[held_rows, self._held_roles[held_rows]] = _franka_tool_position(
-                self._arm_positions[held_rows]
-            )
-            self._role_quaternions[held_rows, self._held_roles[held_rows]] = self._role_quaternions.new_tensor(
-                (0.0, 0.0, 0.0, 1.0)
-            )
+            role_positions[held_rows, held_roles[held_rows]] = _franka_tool_position(arm_positions[held_rows])
+            role_quaternions[held_rows, held_roles[held_rows]] = role_quaternions.new_tensor((0.0, 0.0, 0.0, 1.0))
 
-    def _validate_table(self) -> None:
+        return {
+            "arm_positions": arm_positions,
+            "hand_positions": hand_positions,
+            "role_positions": role_positions,
+            "role_quaternions": role_quaternions,
+            "recipes": recipe_ids,
+            "held_roles": held_roles,
+            "layouts": layout_ids,
+            "target_potentials": target_potentials,
+        }
+
+    def _validate_table(self, table: dict[str, torch.Tensor]) -> None:
         """Reject non-finite, penetrating, or semantically inconsistent rows."""
-        tensors = (
-            self._arm_positions,
-            self._hand_positions,
-            self._role_positions,
-            self._role_quaternions,
-        )
+        role_positions = table["role_positions"]
+        role_quaternions = table["role_quaternions"]
+        layout_ids = table["layouts"]
+        recipe_ids = table["recipes"]
+        tensors = (table["arm_positions"], table["hand_positions"], role_positions, role_quaternions)
         if any(not bool(torch.isfinite(value).all()) for value in tensors):
             raise RuntimeError("Stack reset table contains non-finite values.")
-        if self._layout_ids.shape != self._recipe_ids.shape:
+        if layout_ids.shape != recipe_ids.shape:
             raise RuntimeError("Stack reset table layout IDs do not align with its physical rows.")
-        if bool(torch.any((self._layout_ids < 0) | (self._layout_ids >= self.layout_count))):
+        if bool(torch.any((layout_ids < 0) | (layout_ids >= self.layout_count))):
             raise RuntimeError("Stack reset table contains an invalid workspace layout ID.")
-        if bool(torch.any(self._role_positions[..., 2] < self._TABLE_HEIGHT - 1.0e-6)):
+        if bool(torch.any(role_positions[..., 2] < self._TABLE_HEIGHT - 1.0e-6)):
             raise RuntimeError("Stack reset table places a cube below the table support height.")
 
-        role_rotations = matrix_from_quat(self._role_quaternions)
+        role_rotations = matrix_from_quat(role_quaternions)
         for first_role, second_role in ((0, 1), (0, 2), (1, 2)):
             intersecting = _oriented_cube_pair_intersections(
-                self._role_positions[:, first_role],
+                role_positions[:, first_role],
                 role_rotations[:, first_role],
-                self._role_positions[:, second_role],
+                role_positions[:, second_role],
                 role_rotations[:, second_role],
                 edge_length=self._CUBE_HEIGHT,
             )
@@ -728,30 +743,14 @@ class StackResetStateTable(ManagerTermBase):
                 int(StackResetRecipe.SECOND_PICK),
                 int(StackResetRecipe.PAIR_READY),
             ),
-            dtype=self._recipe_ids.dtype,
+            dtype=recipe_ids.dtype,
             device=self.device,
         )
-        second_stage_rows = torch.isin(self._recipe_ids, second_stage_recipes)
-        first_support_delta = self._role_positions[second_stage_rows, 1] - self._role_positions[second_stage_rows, 0]
+        second_stage_rows = torch.isin(recipe_ids, second_stage_recipes)
+        first_support_delta = role_positions[second_stage_rows, 1] - role_positions[second_stage_rows, 0]
         expected_support_delta = first_support_delta.new_tensor((0.0, 0.0, self._CUBE_HEIGHT))
         if bool(torch.any(torch.abs(first_support_delta - expected_support_delta) > 1.0e-5)):
             raise RuntimeError("A second-stage stack reset row does not place the first movable cube on the base.")
-
-    def _restrict_to_workspace(self) -> None:
-        """Keep authored states that the action can replay at their validated poses."""
-        in_workspace = (
-            (self._arm_positions >= self._workspace_lower) & (self._arm_positions <= self._workspace_upper)
-        ).all(dim=1)
-        if in_workspace.all():
-            return
-        self._arm_positions = self._arm_positions[in_workspace]
-        self._hand_positions = self._hand_positions[in_workspace]
-        self._role_positions = self._role_positions[in_workspace]
-        self._role_quaternions = self._role_quaternions[in_workspace]
-        self._recipe_ids = self._recipe_ids[in_workspace]
-        self._held_roles = self._held_roles[in_workspace]
-        self._layout_ids = self._layout_ids[in_workspace]
-        self._target_potentials = self._target_potentials[in_workspace]
 
     def __call__(
         self,
@@ -791,8 +790,9 @@ class StackResetStateTable(ManagerTermBase):
         ):
             raise ValueError("Reset-state randomization ranges must be non-negative.")
         state = self._runtime_state
-        if fixed_recipe is None and self._sampling_probabilities is not None:
-            row_ids = torch.multinomial(self._sampling_probabilities, env_ids.numel(), replacement=True)
+        if fixed_recipe is None and self._sampler is not None:
+            # ManagerBasedEnv.reset(seed=...) reseeds Torch but has no hook for the sampler's independent RNG.
+            row_ids = torch.multinomial(self._sampler.probabilities.torch, env_ids.numel(), replacement=True)
         else:
             recipe = StackResetRecipe.TABLE if fixed_recipe is None else StackResetRecipe(fixed_recipe)
             recipe_rows = self._rows_by_recipe[recipe]
@@ -815,16 +815,19 @@ class StackResetStateTable(ManagerTermBase):
                 device=self.device,
             )
         role_to_cube = self._role_permutations[permutation_ids]
-        held_roles = self._held_roles[row_ids]
+        selected = {name: value[: env_ids.numel()] for name, value in self._selected.items()}
+        with torch_warp_stream(self.device):
+            self._buffer.get_state(row_ids, out=selected)
+        held_roles = selected["held_roles"]
         has_held_cube = held_roles >= 0
         selected_cube_ids = role_to_cube.gather(1, held_roles.clamp_min(0).unsqueeze(1)).squeeze(1)
         held_cube_ids = torch.where(has_held_cube, selected_cube_ids, -1)
 
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
-        authored_arm_positions = self._arm_positions[row_ids]
-        joint_positions[:, self._hand_joint_ids] = self._hand_positions[row_ids]
-        table_rows = self._recipe_ids[row_ids] == int(StackResetRecipe.TABLE)
+        authored_arm_positions = selected["arm_positions"]
+        joint_positions[:, self._hand_joint_ids] = selected["hand_positions"]
+        table_rows = selected["recipes"] == int(StackResetRecipe.TABLE)
         arm_noise_scale = torch.full(
             (env_ids.numel(), 1),
             arm_joint_noise_range,
@@ -835,8 +838,8 @@ class StackResetStateTable(ManagerTermBase):
         arm_positions = authored_arm_positions + (2.0 * torch.rand_like(authored_arm_positions) - 1.0) * arm_noise_scale
         arm_positions.clamp_(min=self._workspace_lower, max=self._workspace_upper)
 
-        role_positions = self._role_positions[row_ids].clone()
-        role_quaternions = self._role_quaternions[row_ids].clone()
+        role_positions = selected["role_positions"]
+        role_quaternions = selected["role_quaternions"]
         if arm_joint_noise_range > 0.0:
             held_env_ids = has_held_cube.nonzero(as_tuple=False).flatten()
             if held_env_ids.numel():
@@ -934,6 +937,9 @@ class StackResetStateTable(ManagerTermBase):
 
         state.row_ids[env_ids] = row_ids
         state.role_to_cube[env_ids] = role_to_cube
-        state.recipes[env_ids] = self._recipe_ids[row_ids]
-        state.target_potentials[env_ids] = self._target_potentials[row_ids]
+        state.recipes[env_ids] = selected["recipes"]
+        state.target_potentials[env_ids] = selected["target_potentials"]
         state.held_cube_ids[env_ids] = held_cube_ids
+        if self._sampler is not None:
+            with torch_warp_stream(self.device):
+                self._sampler.reset(env_ids=env_ids, state_ids=state.row_ids)
