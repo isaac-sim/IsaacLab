@@ -177,7 +177,7 @@ model; exposing it as a policy observation is the task integration's responsibil
 
 Target and starting-state buffers are reused for subsequent chunks. An adapter retaining either input must copy
 it. Adapters can convert controls or communicate with another process internally, while honoring the device tensor
-contract at the manager boundary. This package does not provide a model service or IPC transport.
+contract at the manager boundary. The Cosmos3 adapter below uses a separate inference service.
 
 Each model step returns all named views for the same environments, time interval and frame positions. The adapter
 owns that alignment. The manager checks view names and publishes the views together; the renderer does not infer
@@ -198,12 +198,98 @@ configuration. Reset datasets, policy prompt observations, classifier rewards an
 task. Keep these dependencies separate from the generic backend.
 
 Camera outputs can be consumed by application recording code. Standard play/eval video recording through
-`PhysicsManager.video_capture_backend()` is not implemented here; the inherited hook returns `None`. Full model
-services, task integrations and policy wrappers need their own validation alongside this backend.
+`PhysicsManager.video_capture_backend()` is not implemented here; the inherited hook returns `None`. Task
+integrations, policy wrappers and checkpoint quality need their own validation alongside this backend.
+
+## Cosmos3 inference service
+
+The Cosmos3 adapter follows Alex's [world-model service implementation (#9110)](https://github.com/isaac-sim/IsaacLab/pull/9110).
+Isaac Lab runs `Cosmos3Model`, a client of a separate process in the Cosmos Framework environment. The service owns
+weights and generation history. Closing a client releases its session, while the service keeps the weights loaded.
+Only one client session can own the model at a time; that session may contain several vectorized environments.
+
+```text
+Isaac Lab: manager -> Cosmos3Model -> task joint mapping -> normalized controls
+                                     | socket request
+Cosmos environment: resident model <- service -> generated RGB chunk
+                                     | CUDA IPC or socket reply
+Isaac Lab: manager frame buffers <--- client device tensors
+```
+
+The transport protocol, CUDA IPC primitives and endpoint lifecycle were extracted from the shared Cosmos service
+code. This branch includes no Cosmos Transfer model, image-transfer camera processor or Transfer task dependency.
+It keeps the same world-model request protocol and tensor contract as Alex's implementation.
+
+### Start the service
+
+Use a Cosmos Framework environment compatible with your checkpoint. Alex's reference uses Framework commit
+`3a84cd3b67f60520f523e184fa7b82011bc75cb4`. In that environment, install only the lightweight service package from
+this checkout; do not install the whole Isaac Lab workspace there:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+uv pip install --python .venv/bin/python --editable \
+  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+uv run --no-sync isaaclab-cosmos-world-model-server \
+  --checkpoint "$COSMOS3_CHECKPOINT" --mode window --device cuda:0
+```
+
+For a DCP checkpoint, also pass `--config-file /path/to/saved-config.yaml`. `--output-dir` selects the Framework
+artifact directory. `--endpoint unix:///path/to/service.sock` or `--endpoint tcp://host:port` overrides the default;
+use the same endpoint in the client. Wait for `Cosmos ready at ...` before starting the task.
+
+The standalone package adds only NumPy; Torch, torchvision and Cosmos Framework come from the Framework environment.
+The service CLI can display help without importing those inference dependencies. TCP has no authentication; use a
+trusted connection or tunnel when the service runs on another machine.
+
+### Configure the task's client
+
+```python
+from isaaclab_neural.models.cosmos3 import Cosmos3Cfg
+from isaaclab_neural.physics import WorldModelCfg
+
+physics = WorldModelCfg(
+    model=Cosmos3Cfg(joint_mapping=my_robot_mapping_cfg),
+    reset_manifest="/path/to/reset-records.json",
+)
+```
+
+`my_robot_mapping_cfg` is a task-defined `JointMappingCfg`. Its implementation is constructed as `class_type(cfg)`
+and implements `encode(joint_targets, start_joint_state)`: `(T, J)` targets and `(J,)` starting joint positions in
+meters/radians become `(T, 59)` normalized `unified_v1` controls. Robot kinematics and normalization remain with the
+task. Recorded normalized controls can instead be replayed through `Cosmos3Model.step_controls()` after reset.
+This branch does not provide a robot-specific mapping or training task.
+
+| Configuration location | Settings |
+| --- | --- |
+| Isaac Lab `Cosmos3Cfg` | Endpoint, request timeout, transport and task joint mapping. |
+| Service CLI | Checkpoint, saved config, mode, device, endpoint and artifact directory. |
+| Service `Cosmos3Settings` | Also sets image size, chunk length, FPS and sampling parameters when starting programmatically. |
+
+The client reads dimensions and environment limits from the running service. Defaults are 16 generated frames,
+30 FPS and RGB at 480 x 640. Cosmos3 currently predicts the single view `camera`; the generic backend's multi-view
+support does not make this adapter a multi-view model.
+
+- `window` conditions on the reset image, then on the previous generated chunk's last frame. It serves environments
+  sequentially within each chunk. It is the mode for the Stage 0 checkpoint discussed here.
+- `session` uses Cosmos's native causal session and requires a compatible distilled checkpoint. It serves one
+  environment and preserves the native session's internal history.
+
+`transport="auto"` selects CUDA IPC on Linux when the client can directly access the local service's GPU, and
+otherwise uses socket transport. `"socket"` and `"cuda_ipc"` force the choice; forcing unavailable IPC raises an
+error. Reset images and action controls pass through host memory and the socket in both modes. IPC is used for
+returned image chunks, which the client copies into its own device tensors before the service reuses its buffer.
+Socket payloads are capped at 256 MiB per message (about 18 environments at the default output size; allow headroom).
+Each step waits for the generated chunk; running a service does not add asynchronous policy execution.
+
+The backend still publishes the record's original image immediately on reset and defers the model reset to the
+next chunk boundary. The client reset returns no replacement image. In native `session` mode the model's internal
+conditioning comes from its initial decoded observation, following the Framework API.
 
 ## Tests
 
-The tests use a deterministic model and local USD assets, without model weights or a simulation app. Run CPU tests:
+The backend tests use a deterministic model and local USD assets. Service tests use a fake inference model with
+real client/server requests, so neither suite requires weights or a simulation app. Run CPU tests:
 
 ```bash
 ISAACLAB_TEST_DEVICES=1 uv run python -m pytest source/isaaclab_neural/test -q
@@ -217,4 +303,6 @@ ISAACLAB_TEST_DEVICES=11 uv run python -m pytest source/isaaclab_neural/test -q
 
 Coverage includes chunked targets, shared articulation state, record sampling, partial resets, independent camera
 readers and multiple RGB views, timing checks, model environment limits and CUDA synchronization checks. It does
-not validate model quality, depth or end-effector interfaces, hybrid dynamics, or a complete trainer/service setup.
+not validate model quality, depth or end-effector interfaces, hybrid dynamics, or a complete training task. Service
+tests cover socket requests, partial reset, client ownership, failed-session recovery and cross-process CUDA IPC;
+the IPC case requires a CUDA-capable Linux host. These tests do not run checkpoint inference.
