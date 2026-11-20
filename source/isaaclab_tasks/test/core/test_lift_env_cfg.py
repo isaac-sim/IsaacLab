@@ -376,7 +376,6 @@ def _make_pose_command(
         cmd_kind=None,
         element_names=None,
         axes=None,
-        cmd_reference=None,
     )
 
     def _initialize_command_term(command, command_cfg, command_env) -> None:

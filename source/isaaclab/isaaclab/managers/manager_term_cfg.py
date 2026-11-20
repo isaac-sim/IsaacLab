@@ -135,10 +135,6 @@ class CommandTermCfg:
     """Labels for non-environment dimensions. A flat list labels a vector command."""
     axes: list[Axis | None] | None = None
     """Advanced LEAPP layout, including the environment dimension. Overrides :attr:`element_names`."""
-    cmd_reference: str | None = None
-    """Frame relative to which a spatial command is defined. None uses the generator's default."""
-    cmd_expressed_in: str | None = None
-    """Frame whose axes express a spatial command. None uses the generator's default."""
 
 
 ##

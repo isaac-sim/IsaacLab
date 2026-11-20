@@ -862,7 +862,6 @@ def test_simple_property_labels_export_as_axes(monkeypatch, declaration):
         ("velocity", False),
         ("pose", False),
         ("selected_pose", False),
-        ("selected_rigid_pose", False),
         ("planar", False),
         ("velocity", True),
         ("velocity", "duplicates"),
@@ -870,8 +869,8 @@ def test_simple_property_labels_export_as_axes(monkeypatch, declaration):
         ("velocity", "legacy_names"),
     ],
 )
-def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type, custom_axes):
-    """Command annotations use the backend root and leave yaw-only references unspecified."""
+def test_command_metadata_preserves_labels_without_spatial_binding(monkeypatch, command_type, custom_axes):
+    """Commands retain quantity/axis labels without automatically assigning spatial frames."""
     from isaaclab.envs.mdp.commands import (
         UniformPose2dCommand,
         UniformPose2dCommandCfg,
@@ -882,8 +881,6 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
     )
 
     robot = SimpleNamespace(
-        body_names=["leg", "base"],
-        backend_body_names=["base", "leg"],
         find_bodies=lambda name: ([0], [name]),
     )
     env = SimpleNamespace(
@@ -919,14 +916,11 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             ),
         )
         command = UniformPoseCommand(cfg, env)
-    elif command_type in ("selected_pose", "selected_rigid_pose"):
+    elif command_type == "selected_pose":
         from isaaclab_tasks.contrib.multitask_manipulation.mdp.commands import SelectedUniformPoseCommand
         from isaaclab_tasks.contrib.multitask_manipulation.mdp.commands_cfg import SelectedUniformPoseCommandCfg
         from isaaclab_tasks.contrib.multitask_manipulation.selection_utils import SceneEntitySelectionCfg
 
-        if command_type == "selected_rigid_pose":
-            del robot.backend_body_names
-            robot.body_names = ["rigid_root"]
         robot.device, robot.num_instances = "cpu", 1
         robot.root_view = SimpleNamespace(prim_paths=["/World/envs/env_0/Robot"])
         env.scene = _TestScene(env.scene)
@@ -966,7 +960,6 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             "velocity": leapp.Kind.FRAME_TWIST,
             "pose": leapp.Kind.FRAME_POSE,
             "selected_pose": leapp.Kind.FRAME_POSE,
-            "selected_rigid_pose": leapp.Kind.FRAME_POSE,
             "planar": "command/body/pose",
         }[command_type]
     )
@@ -977,11 +970,8 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             "velocity": ["x", "y", "angular_z"],
             "pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
             "selected_pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
-            "selected_rigid_pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
             "planar": ["x", "y", "z", "heading"],
         }[command_type]
         assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), leapp.Axis(leapp.AxisKind.COMPONENT, names=names)]
-    assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
-    assert semantics.reference == {"pose": "base", "selected_pose": "base", "selected_rigid_pose": "rigid_root"}.get(
-        command_type
-    )
+    assert semantics.expressed_in is None
+    assert semantics.reference is None

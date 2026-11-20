@@ -4,5 +4,4 @@
 * Kept shared PVA storage compatible with LEAPP 0.8.1 by inheriting quantity annotations from
   its base data interface.
 * Kept OSC task-space gains internal to exported effort computation instead of labeling them
-  as joint gains. Resolved command root frames independently of public body ordering and left
-  yaw-only planar references unspecified.
+  as joint gains.

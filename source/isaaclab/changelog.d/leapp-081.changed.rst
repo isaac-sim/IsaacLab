@@ -10,8 +10,8 @@
 * Standardized velocity and twist components as ``x``, ``y``, ``z``, ``angular_x``, ``angular_y``,
   and ``angular_z``. Used released quantity helpers for built-in inputs, commands, and PD gains,
   including planar twist setpoints with the subset ``x``, ``y``, and ``angular_z``.
-* Added command reference and expression-frame metadata, contact-duration kinds, cable and
-  joint-wrench axis labels, and constant metadata for the deprecated default root state.
+* Added contact-duration kinds, cable and joint-wrench axis labels, and constant metadata
+  for the deprecated default root state.
   Used built-in quantities for cable pose/velocity and world-frame ray-caster pose inputs.
 * Reduced export adapters to session-scoped RGB normalization and tensor-broadcasting patches.
   Traced original action processing and destination writes while retaining explicit recurrent,

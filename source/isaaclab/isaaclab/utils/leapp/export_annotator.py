@@ -688,11 +688,6 @@ class ExportPatcher:
             constructor = (
                 getattr(leapp, kind.name.lower()) if isinstance(kind, Kind) else partial(TensorSemantics, kind=kind)
             )
-            spatial = {}
-            for field in ("reference", "expressed_in"):
-                value = getattr(command_cfg, f"cmd_{field}", None)
-                if value is not None:
-                    spatial[field] = value
             sem = constructor(
                 name=leapp_input_name,
                 ref=result,
@@ -706,7 +701,6 @@ class ExportPatcher:
                     result,
                 ),
                 is_setpoint=True,
-                **spatial,
             )
             sem.extra = build_command_connection(leapp_input_name)
             return annotate.input_tensors(task_name, sem)
