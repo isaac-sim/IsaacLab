@@ -562,18 +562,24 @@ class NewtonManager(PhysicsManager):
         self._requested_solver_observables[owner] = set(kinds)
 
     def release_solver_observables(self, owner: object) -> None:
-        """Remove an owner's requests without reallocating arrays retained by other consumers."""
-        self._requested_solver_observables.pop(owner, None)
+        """Remove an owner's requests and invalidate the step graph if the active outputs change.
+
+        Retained outputs keep their allocated arrays.
+        """
+        if self._requested_solver_observables.pop(owner, None) is None:
+            return
         backend = self.backend
-        if backend is not None:
-            kinds = set().union(*self._requested_solver_observables.values())
-            if backend.solver_observables is not None:
-                backend.solver_observables = backend.solver_observables.select(kinds) if kinds else None
-            if backend.contact_observables is not None:
-                backend.contact_observables = backend.contact_observables.select(
-                    kinds | SensorContact.solver_observable_kinds
-                )
-            backend.invalidate_graph()
+        if backend is None or backend.solver_observables is None:
+            return
+        kinds = set().union(*self._requested_solver_observables.values())
+        if kinds == backend.solver_observables.kinds:
+            return
+        backend.solver_observables = backend.solver_observables.select(kinds) if kinds else None
+        if backend.contact_observables is not None:
+            backend.contact_observables = backend.contact_observables.select(
+                kinds | SensorContact.solver_observable_kinds
+            )
+        backend.invalidate_graph()
 
     def get_solver_observables(self) -> SolverBase.Observables | None:
         """Return the outputs populated by each solver substep, or ``None`` when unrequested."""
@@ -631,7 +637,7 @@ class NewtonManager(PhysicsManager):
             self.backend.invalidate_graph()
 
     def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
-        """Detach a force callback and recapture an active graph without it."""
+        """Remove a force callback and invalidate Newton's cached step graphs."""
         backend = self.backend
         if backend is not None and callback in backend.state_force_callbacks:
             backend.state_force_callbacks.remove(callback)
@@ -654,7 +660,7 @@ class NewtonManager(PhysicsManager):
     def unregister_post_solver_substep_callback(
         self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
     ) -> None:
-        """Detach a post-solve callback and recapture an active graph without it."""
+        """Remove a post-solve callback and invalidate Newton's cached step graphs."""
         backend = self.backend
         if backend is not None and callback in backend.post_solver_substep_callbacks:
             backend.post_solver_substep_callbacks.remove(callback)
