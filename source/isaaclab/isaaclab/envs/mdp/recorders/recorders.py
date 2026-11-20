@@ -9,12 +9,13 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.utils import index_fill_
 from isaaclab.utils.datasets import EpisodeRecorder
 
+from ...common import VecEnvStepReturn
+
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from ... import ManagerBasedEnv, ManagerBasedRLEnv
 
 
 def record_initial_state(
