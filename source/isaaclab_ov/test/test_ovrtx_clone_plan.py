@@ -95,6 +95,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         population_env_paths=[],
         clone_positions=None,
         render_products=set(),
+        unrendered={},
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
