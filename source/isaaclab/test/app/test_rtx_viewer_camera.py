@@ -10,8 +10,8 @@ import sys
 import types
 
 import pytest
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher

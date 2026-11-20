@@ -5,8 +5,8 @@
 
 from dataclasses import MISSING
 
-from isaaclab_physx.assets import DeformableObjectCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.assets import DeformableObjectCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg

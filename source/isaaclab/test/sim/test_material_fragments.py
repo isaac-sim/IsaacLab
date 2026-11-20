@@ -30,7 +30,7 @@ def cleanup_simulation_context():
 
 
 def test_spawn_physics_material_from_fragments_composes_namespaces():
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
 
     from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
@@ -106,7 +106,7 @@ def test_spawn_rigid_body_material_from_fragments_alias_warns_and_forwards():
 def test_spawn_physics_material_dispatches_fragments_and_legacy():
     """The shared dispatcher handles both a rigid-body fragment collection and a legacy material
     cfg carrying its own ``func``."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
@@ -159,7 +159,7 @@ def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
     """The legacy path is current-stage-bound; an explicit different stage raises instead of
     silently authoring on the current stage. Passing the current stage explicitly stays valid
     (the in-tree spawners do so unconditionally)."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from pxr import Usd
 
@@ -179,7 +179,7 @@ def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
 
 def test_fragment_writer_validates_inputs_before_authoring():
     """Direct and dispatched fragment calls share one validation contract and do not leave prims."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from isaaclab.sim.spawners.materials.physics_materials import (
         spawn_physics_material,
@@ -300,9 +300,9 @@ def test_spawn_ground_plane_accepts_fragment_list_physics_material():
 def test_spawn_mesh_with_rigid_props_accepts_legacy_physx_rigid_body_material():
     """Regression test: the mesh guard used to check ``isinstance(cfg.physics_material,
     RigidBodyMaterialCfg)`` -- the deprecated PhysX leaf alias -- which rejected the canonical
-    legacy :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` even though
+    legacy :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg` even though
     :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` accepts it."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
 
@@ -420,7 +420,7 @@ def test_physx_fragment_and_legacy_cfg_match_material_api_schema():
     """Both PhysX interfaces cover the properties declared by ``PhysxMaterialAPI``."""
     import dataclasses
 
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
+    from isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg import (
         PhysxMaterialCfg,
         PhysxRigidBodyMaterialCfg,
     )

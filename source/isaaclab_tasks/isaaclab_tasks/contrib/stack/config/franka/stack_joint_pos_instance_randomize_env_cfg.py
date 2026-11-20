@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.managers import EventTermCfg as EventTerm

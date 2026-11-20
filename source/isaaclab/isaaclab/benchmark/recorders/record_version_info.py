@@ -107,7 +107,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # IsaacLab sub-packages
         self._record("isaaclab_newton", self._get_pkg_version("isaaclab_newton"))
-        self._record("isaaclab_physx", self._get_pkg_version("isaaclab_physx"))
+        self._record("isaaclab_isaacsim", self._get_pkg_version("isaaclab_isaacsim"))
         self._record("isaaclab_ov", self._get_pkg_version("isaaclab_ov"))
         self._record("isaaclab_tasks", self._get_pkg_version("isaaclab_tasks"))
         self._record("isaaclab_rl", self._get_pkg_version("isaaclab_rl"))

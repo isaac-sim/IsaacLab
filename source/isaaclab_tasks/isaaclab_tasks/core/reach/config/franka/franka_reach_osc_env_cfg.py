@@ -7,8 +7,8 @@
 
 import warnings
 
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
