@@ -231,7 +231,7 @@ class TeleopSessionLifecycle:
 
     HAPTIC_FORCE_LEFT_INPUT_NAME = "_haptic_force_left"
     """Well-known name for the ValueInput leaf feeding the left-hand contact
-    force (a 1-taxel ``TactileVector``) into the haptic sink subgraph."""
+    force (a ``TactileVector`` of ``num_taxels`` values) into the haptic sink subgraph."""
 
     HAPTIC_FORCE_RIGHT_INPUT_NAME = "_haptic_force_right"
     """Well-known name for the ValueInput leaf feeding the right-hand contact force."""
@@ -1210,7 +1210,7 @@ class TeleopSessionLifecycle:
 
         Unlike the live path, replay never waits for Kit XR handles or
         pumps the OpenXR runtime: ``TeleopSession`` builds a
-        :class:`isacteleop.deviceio_session.ReplaySession` that feeds the
+        :class:`isaacteleop.deviceio_session.ReplaySession` that feeds the
         pipeline directly from the captured tracker stream.
 
         Returns:
@@ -1548,7 +1548,7 @@ class TeleopSessionLifecycle:
         tick, which is why handle acquisition may be deferred by one frame.
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
-        setting which the :class:`~isaaclab_physx.app.KitLauncher` stores after
+        setting which the :class:`~isaaclab_isaacsim.app.KitLauncher` stores after
         resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.

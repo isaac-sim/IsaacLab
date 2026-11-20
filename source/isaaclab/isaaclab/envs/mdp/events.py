@@ -26,7 +26,7 @@ from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import math as math_utils
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import DeformableObject
+    from isaaclab_isaacsim.assets import DeformableObject
 
     from omni.replicator.core.scripts.utils.rng import ReplicatorRNG
     from pxr import Usd
@@ -185,6 +185,12 @@ class randomize_rigid_body_material(ManagerTermBase):
     On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
     preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
 
+    ``contact_stiffness_range`` [N/m] (kp; Newton ke) and ``contact_damping_range`` [N*s/m]
+    (kd) default to ``None`` and preserve current gains. Stiffness must be positive: zero
+    means rigid contact on PhysX and zero spring stiffness on Newton. Use a custom event
+    for engine-specific zero stiffness. Gains use force-based units and affect Newton
+    solvers that consume ke/kd; OVPhysX runtime gain updates are unsupported.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.
@@ -215,6 +221,12 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
+        stiffness = cfg.params.get("contact_stiffness_range")
+        if stiffness is not None and stiffness[0] <= 0:
+            raise ValueError(
+                "Contact stiffness must be positive: zero means rigid contact on PhysX and zero spring stiffness "
+                "on Newton. Use a custom event for engine-specific zero stiffness."
+            )
         self._impl = _get_backend_events(env).randomize_rigid_body_material(cfg, env)
 
     def __call__(
@@ -227,6 +239,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
+        contact_stiffness_range: tuple[float, float] | None = None,
+        contact_damping_range: tuple[float, float] | None = None,
     ) -> None:
         self._impl(
             env,
@@ -1233,7 +1247,8 @@ def push_by_setting_velocity(
 
     The function takes a dictionary of velocity ranges for each axis and rotation. The keys of the dictionary
     are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form ``(min, max)``.
-    If the dictionary does not contain a key, the velocity is set to zero for that axis.
+    The sampled values are added to the current root velocity. If the dictionary does not contain a key,
+    the velocity along that axis is left unchanged.
     """
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
@@ -1574,7 +1589,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._pos_ranges[joint_ids] += default_joint_pos[joint_ids].unsqueeze(1)
 
         # store the joint pos ids (used later to sample the joint positions)
-        self._pos_joint_ids = torch.tensor(pos_joint_ids, device=self._pos_ranges.device)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, dtype=torch.int32, device=self._pos_ranges.device)
         self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
 
         # create buffers to store the joint velocity range
@@ -1603,7 +1618,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._vel_ranges[joint_ids] += default_joint_vel[joint_ids].unsqueeze(1)
 
         # store the joint vel ids (used later to sample the joint positions)
-        self._vel_joint_ids = torch.tensor(vel_joint_ids, device=self._vel_ranges.device)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, dtype=torch.int32, device=self._vel_ranges.device)
         self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
 
     def __call__(
@@ -1622,19 +1637,18 @@ class reset_joints_within_limits_range(ManagerTermBase):
 
         if len(self._pos_joint_ids) > 0:
             joint_pos_shape = (joint_pos.shape[0], len(self._pos_joint_ids))
+            # clamp the samples to the limits of the sampled joints; the other joints keep their default state
+            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
             joint_pos[:, self._pos_joint_ids] = math_utils.sample_uniform(
                 self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
-            )
-            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
-            joint_pos = joint_pos.clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
+            ).clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
 
         if len(self._vel_joint_ids) > 0:
             joint_vel_shape = (joint_vel.shape[0], len(self._vel_joint_ids))
+            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
             joint_vel[:, self._vel_joint_ids] = math_utils.sample_uniform(
                 self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
-            )
-            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
-            joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
+            ).clamp(-joint_vel_limits, joint_vel_limits)
 
         self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
@@ -1748,7 +1762,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_texture_material(cfg, env)
 
@@ -1800,7 +1814,7 @@ class randomize_visual_color(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        from isaaclab_physx.envs.mdp import events
+        from isaaclab_isaacsim.envs.mdp import events
 
         self._impl = events.randomize_visual_color(cfg, env)
 
@@ -1958,9 +1972,9 @@ def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
         from isaaclab_ov.physics import OvPhysxCfg
 
         expected_cfg_type = OvPhysxCfg
-    elif "isaaclab_physx" in physics_cfg_modules:
-        from isaaclab_physx.envs.mdp import events
-        from isaaclab_physx.physics import PhysxCfg
+    elif "isaaclab_isaacsim" in physics_cfg_modules:
+        from isaaclab_isaacsim.envs.mdp import events
+        from isaaclab_isaacsim.physics import PhysxCfg
 
         expected_cfg_type = PhysxCfg
     else:

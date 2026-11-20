@@ -319,10 +319,6 @@ class CommandManager(ManagerBase):
 
         Args:
             debug_vis: Whether to visualize the command data.
-
-        Returns:
-            Whether the debug visualization was successfully set. False if the command
-            generator does not support debug visualization.
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)

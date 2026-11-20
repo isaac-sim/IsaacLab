@@ -125,10 +125,9 @@ def create_snowball_points(radius: float, seed: int) -> np.ndarray:
 def create_sim_cfg():
     """Create the proxy-coupled Newton simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     if not str(args_cli.device).startswith("cuda"):
         raise RuntimeError("The graph-captured implicit-MPM coupling demo requires a CUDA device.")

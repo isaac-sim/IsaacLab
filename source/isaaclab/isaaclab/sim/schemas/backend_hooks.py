@@ -6,7 +6,7 @@
 """Backend registration hooks for schema writers.
 
 This module holds the inversion-of-control registries that let physics backends (e.g.
-``isaaclab_physx``, ``isaaclab_newton``) inject backend-specific behaviour into the core schema
+``isaaclab_isaacsim``, ``isaaclab_newton``) inject backend-specific behaviour into the core schema
 writers without core importing any backend. It is deliberately kept free of ``pxr``/``omni`` imports
 so a backend can register its hook at package-import time without eagerly pulling USD libraries into
 an otherwise USD-free import path.

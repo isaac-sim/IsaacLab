@@ -14,7 +14,7 @@ rough terrain on the Newton backend:
   refit (the refit is shared with the tiled-camera renderer in real scenes).
 
 Usage:
-    uv run python scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
+    uv run python scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024
 """
 
 import argparse
@@ -30,12 +30,13 @@ parser.add_argument("--grid_resolution", type=float, default=0.1, help="Grid pat
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
+import itertools
 import math
 import time
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonQueries
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -154,13 +155,14 @@ def main():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         backend = sim.backend_manager.backend
+        versions = itertools.count(1 << 32)
 
         def run_bvh_with_refit():
-            NewtonQueries._refit_bvh(backend)
+            backend.refit_bvh(next(versions))
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            NewtonQueries._refit_bvh(backend)
+            backend.refit_bvh(next(versions))
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,

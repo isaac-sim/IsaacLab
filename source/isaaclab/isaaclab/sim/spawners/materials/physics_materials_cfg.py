@@ -14,9 +14,9 @@ from isaaclab.utils import configclass
 
 from ...schemas.schemas_cfg import SchemaFragment
 
-# Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
+# Names that moved out of this submodule into ``isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
-# import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_physx`` at module
+# import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_isaacsim`` at module
 # load time.
 _PHYSX_FORWARDS = frozenset(
     {
@@ -33,12 +33,12 @@ _PHYSX_FORWARDS = frozenset(
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
+            from isaaclab_isaacsim.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
-                " 'isaaclab_physx.sim.spawners.materials.physics_materials_cfg'. Install the"
-                " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
+                " 'isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg'. Install the"
+                " isaaclab_isaacsim extension or update your import. This forwarding shim is scheduled"
                 " for removal in 4.0."
             ) from e
         return getattr(_physx_mat_cfg, name)
@@ -115,7 +115,7 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     Contains the friction, restitution, and density fields from the `UsdPhysics.MaterialAPI`_ that
     are common across all simulation backends. For properties in the ``physxMaterial`` namespace
     (compliant-contact spring and combine modes), use
-    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
 
@@ -157,7 +157,7 @@ class RigidBodyMaterialFragment(SchemaFragment):
     physics-material schemas. The fragments author single namespaces onto that prim: the
     solver-common ``physics:*`` friction/restitution/density
     (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific namespace (e.g. PhysX
-    ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
+    ``physxMaterial:*`` via :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxMaterialCfg`).
     The defining ``UsdPhysics.MaterialAPI`` anchor is applied by the family writer
     (:func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`).
     """

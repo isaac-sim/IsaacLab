@@ -41,6 +41,8 @@ from isaaclab_ov.sim.views.ovphysx_view import (  # noqa: E402
 )
 from ovphysx.types import TensorType  # noqa: E402
 
+pytestmark = pytest.mark.ov
+
 wp.init()
 wp.set_device("cpu")
 _HAS_CUDA = wp.get_cuda_device_count() > 0
@@ -370,7 +372,7 @@ def test_int32_binding_accepts_int32_and_rejects_float32():
         )
 
 
-def test_missing_or_unsupported_binding_dtype_raises_compatibility_error():
+def test_unsupported_binding_dtype_raises_dtype_mismatch():
     view = _make_view(n=1)
     binding = view.binding_for(TensorType.RIGID_BODY_MASS)
     binding.dtype = _FakeDtype(code=2, bits=64)

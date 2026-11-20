@@ -48,7 +48,7 @@ jobs:
         run: git fetch origin ${{ steps.base.outputs.ref }}
 
       - name: Verify changelog fragments
-        run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}
+        run: python3 tools/changelog/cli.py check FETCH_HEAD
 
       # The unit tests run the real uv and towncrier (via uvx), as the nightly compile does.
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
@@ -66,7 +66,7 @@ jobs:
         # PRs are already covered by the content gate above, so paying for a
         # pytest install + run on every PR is wasted.
         run: |
-          if ! git diff --name-only origin/${{ steps.base.outputs.ref }}...HEAD | grep -qE '^tools/changelog/'; then
+          if ! git diff --name-only FETCH_HEAD...HEAD | grep -qE '^tools/changelog/'; then
             echo "PR does not touch tools/changelog/ — skipping unit tests."
             exit 0
           fi

@@ -87,12 +87,12 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
         ALIGN_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
     )
-    """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+    """The configuration for the goal pose visualization marker. Defaults to ALIGN_MARKER_CFG."""
 
     curr_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
         ALIGN_MARKER_CFG, prim_path="/Visuals/Command/body_pose"
     )
-    """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+    """The configuration for the current pose visualization marker. Defaults to ALIGN_MARKER_CFG."""
 
     success_vis_asset_name: str | None = None
     """Name of the asset at which the success markers are drawn, or None for no markers."""

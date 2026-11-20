@@ -8,7 +8,8 @@ Renderers produce camera images for policy observations and synthetic data.
 :doc:`Visualizers <visualization>` provide interactive views for inspection and
 recording. All renderers implement :class:`~isaaclab.renderers.BaseRenderer`.
 
-Isaac Lab supports three rendering backends. See :ref:`renderer-details` for their execution models,
+Isaac Lab supports three rendering backends; the Newton renderer ray traces with Warp or, on RTX GPUs,
+with OptiX (``renderer=newton_optix``). See :ref:`renderer-details` for their execution models,
 output coverage, and limitations, and :ref:`camera-supported-annotators` for the output-by-backend
 support matrix.
 
@@ -27,18 +28,21 @@ Choosing a renderer backend
 
    .. grid-item-card:: Newton Warp :bdg-info:`Lightweight`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton.webp
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
          :width: 100%
 
       Warp ray tracing with direct lighting. Use it when camera throughput and memory matter more than
       material and lighting fidelity.
 
-      ``renderer=newton_renderer``
+      ``renderer=newton_warp``
+
+      On RTX GPUs, ``renderer=newton_optix`` traces the same scenes in hardware with OptiX. Install it
+      with ``uv sync --inexact --extra optix``. It does not support particles or deformable surfaces.
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx.webp
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
          :width: 100%
 
@@ -49,7 +53,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: Isaac RTX :bdg-warning:`Legacy`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
          :width: 100%
 
@@ -92,6 +96,17 @@ use case.
    - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`
    - **Best for:** Training workflows where throughput matters more than full RTX fidelity.
 
+.. dropdown:: Newton OptiX renderer
+
+   - **Runtime and physics:** The Newton renderer ray traced in hardware with OptiX on RTX GPUs.
+     Install it with ``uv sync --inexact --extra optix`` (Linux x86-64 and Windows x64) and select it
+     with ``renderer=newton_optix``. Pairs with the same physics backends as Newton Warp.
+   - **Output coverage:** Same outputs and settings as Newton Warp. It does not render particles,
+     deformable surfaces, or Gaussian splats, and it ignores ``use_cuda_graph``.
+   - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`
+   - **Best for:** Rigid-body camera tasks on RTX GPUs, where it replaces Warp's software BVH traversal
+     with hardware ray tracing.
+
 .. dropdown:: OVRTX renderer
 
    - **Runtime and physics:** Provides kit-less RTX rendering through the ``isaaclab_ov`` extension
@@ -108,7 +123,7 @@ use case.
      pairs with Isaac Sim PhysX or Newton.
    - **Output coverage:** Provides RTX Minimal (Isaac Sim 6.0 or later) and photo-real rendering, plus
      the broadest camera-output coverage.
-   - **Configuration:** :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   - **Configuration:** :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`
    - **Best for:** Workflows that must run inside Isaac Sim or Kit.
 
 Installing the OVRTX renderer
@@ -172,7 +187,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_disabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows disabled.
 
@@ -180,7 +195,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_enabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows enabled.
 
@@ -192,7 +207,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+            physics=newton_mjwarp renderer=newton_warp presets=rgb
 
       Enable directional-light shadows explicitly:
 
@@ -200,7 +215,7 @@ documentation for the renderer-level settings and limitations.
 
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+            physics=newton_mjwarp renderer=newton_warp presets=rgb \
             env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
    .. tab-item:: OVRTX Minimal
@@ -330,23 +345,23 @@ The Isaac RTX renderer enables per-environment scene partitioning by default. It
 matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
 camera so tiled views render only that environment's geometry.
 
-Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`:
+Configure the behavior through :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`:
 
 .. code-block:: python
 
-   from isaaclab_physx.renderers import IsaacRtxRendererCfg
+   from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
    renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
 
 Scene partitioning and the all-environment spectator view are separate controls.
-:class:`~isaaclab_physx.app.KitLauncher` enables spectator support before RTX startup only
+:class:`~isaaclab_isaacsim.app.KitLauncher` enables spectator support before RTX startup only
 when the Kit viewport is enabled or Kit visualization, recording, livestreaming, or XR
 is requested. Regular headless training and camera-sensor runs keep it disabled so
 tiled cameras are not exposed to the spectator mode's world-space layout constraints.
 
 ``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
 setting; it is not a separate feature. Its default value of ``None`` preserves the
-launch-time choice made by :class:`~isaaclab_physx.app.KitLauncher`. An explicit value overrides
+launch-time choice made by :class:`~isaaclab_isaacsim.app.KitLauncher`. An explicit value overrides
 that setting when the Isaac RTX renderer is constructed. When enabled, environments must
 remain spatially separated because overlapping partition bounds can make content leak into
 another environment or disappear. When disabled, the Kit viewport displays only the
@@ -355,6 +370,11 @@ selected environment.
 This setting does not affect OVRTX, which always partitions multi-environment scenes.
 
 Prims outside the environment hierarchies remain in the shared background partition.
+Non-instanced lights inside an environment hierarchy receive its matching scene-partition selector.
+Lights inside USD instances do not receive a selector; make their light-containing ancestors
+non-instanceable to partition them. Isaac RTX dome backgrounds may remain shared across tiled
+views even when selectors match, so use analytic lights for independent per-environment illumination.
+Keep a light outside the environment hierarchies to illuminate shared or viewport cameras.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 
@@ -449,7 +469,7 @@ For the RTX renderer (requires Isaac Sim):
 
    import isaaclab.sim as sim_utils
    from isaaclab.renderers import BaseRenderer
-   from isaaclab_physx.renderers import IsaacRtxRendererCfg
+   from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()

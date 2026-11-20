@@ -6,7 +6,7 @@
 # Builds and validates the kit-less training image
 # (docker/Dockerfile.kitless). This is an install/build test of the shipped
 # container artifact: broader library coverage remains in the build.yaml test
-# matrix, and documented native install paths remain in Installation Tests.
+# matrix. Fresh native and wheel installs can be checked with tools/run_install_ci.py.
 
 name: Kit-less Docker Image
 

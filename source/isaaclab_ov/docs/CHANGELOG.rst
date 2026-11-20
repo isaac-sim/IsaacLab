@@ -3,6 +3,207 @@ Changelog
 
 .. towncrier release notes start
 
+9.2.1 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Rejected explicit contact stiffness/damping ranges in material randomization because OVPhysX does not expose runtime gain bindings.
+* Updated the Omniverse library dependency pins to OVRTX 0.7.0.1794596436,
+  OvPhysX 0.8.0.43443703471, and OvStage 0.4.0.1794520352.
+
+
+9.2.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including deformable objects.
+
+Changed
+^^^^^^^
+
+* Replaced the handwritten physics population description with the OvPhysX SDK contract,
+  while preserving legacy domain-based population. Custom properties outside the physics
+  and requested rendering domains are no longer copied to the native stage; the source
+  USD scene remains unchanged.
+
+Fixed
+^^^^^
+
+* Skipped redundant OvPhysX gravity control updates to avoid repeated OVStage seals when reset events sampled unchanged gravity.
+* Included joint armature in OvPhysX articulation mass matrices used by inertia-based controllers.
+
+
+9.1.2 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ovstage physics population overriding RTX exposure settings by excluding properties in the ``exposure`` namespace.
+
+
+9.1.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized scene-data bookkeeping and articulation command bindings in mocked OVPhysX asset benchmarks so pose writes and joint targets completed.
+
+
+9.1.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the env selection helpers of the OVPhysX assets to resolve ``env_ids`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and ``env_mask`` through
+  :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`. Any integer sequence and slices with a negative step are accepted,
+  and a :class:`~isaaclab.utils.warp.ProxyArray` is rejected with a :class:`TypeError`.
+* Changed the body, joint and tendon selection helpers of the OVPhysX assets to resolve ids and masks through
+  :func:`~isaaclab.utils.warp.memory.resolve_ids` and :func:`~isaaclab.utils.warp.memory.resolve_1d_mask`, as the env
+  selection does, so slices other than ``slice(None)`` are accepted.
+* Reduced shared OVStage initialization work and host memory by attaching and cloning physics originals
+  before acquiring bindings and completing render copies. This order is selected automatically with
+  ``ISAAC_LAB_SHARE_OVSTAGE=1``; shared stages remain experimental and opt-in.
+* Completed shared-stage bindings and render copies before public physics-readiness callbacks, preserving
+  startup gravity edits. Failed render copies remained pending and required a stage rebuild before retry.
+* Preserved full-stage physics import and world placement for CPU simulations using a shared OVStage.
+* Respected ``populate_physics`` when deferring render copies, preserving rendering-only population.
+* Restricted early binding initialization to shared stages, preserving non-shared callback priorities
+  during startup, resets, and forced reinitialization.
+* Preserved joints and authored physics properties when selecting clone recipes and original worlds,
+  and rejected unsupported physics-only native clone roots before attachment instead of dropping them.
+  Reused source classifications within each export to avoid repeated USD traversal.
+* Exposed the OVPhysX binding phase through ``binding_init_event`` and ``initialize_event`` attributes,
+  removing asset and contact-sensor dependencies on private event selection.
+
+
+9.0.3 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera tasks stalling when their output is read slowly, for example by a benchmark harness. The
+  default :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_level` is now ``"error"``: lower levels print an
+  OVRTX warning for each attribute of every cloned environment (over a million lines at 8192 environments).
+* Fixed articulation resets with only ``env_mask`` resetting the actuator state of every environment.
+
+
+9.0.2 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reduced OVPhysX training throughput with cloned environments and shared ground by no longer forcing
+  ``physxScene:envIdInBoundsBitCount`` during scene initialization.
+
+
+9.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Authored ``omni:rtx:gaussian:skipTonemapping:enabled = false`` on the OVRTX render product when a camera sets
+  an ISP, so Gaussian splats are tonemapped with the rest of the frame.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX stage population and shared OVRTX stage setup for OVStage 0.4 builds that replaced
+  physics population domains with selectors, while retaining support for older domain-based builds.
+* Fixed OVRTX stage export to compose collider geometry whenever physics population was enabled,
+  including isolated stages.
+* Fixed Newton with OVRTX and OVStage failing during camera initialization with OVStage builds that
+  removed physics population flags, while preserving composed USD export for shared OVPhysX stages.
+
+
+9.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unused native bindings and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of OVPhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other OVRTX scene partitions.
+* Added CPU hierarchy preparation before cloning on the OVStage 0.4 release line, including
+  development builds, to reduce clone time while preserving the GPU hierarchy default at runtime.
+
+
+8.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX stage preparation, camera relationships, and mesh and marker visibility writes with typed OVStage
+  token and path handles (new in OVStage 0.4.0) while preserving compatibility with integer IDs from older builds.
+
+
+8.0.3 (2026-10-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX cameras selecting an intermediate DLSS image instead of the latest capture when
+  frame generation returned multiple frames.
+
+
+8.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the public runtime compatibility set to ``ovrtx==0.6.0.1791947691``,
+  ``ovphysx==0.7.0.74035321``, and ``ovstage==0.3.0.1791986420``. The ``ov`` and
+  ``ovphysx`` extras installed the external PhysX USD schemas required by OvPhysX 0.7.
+  Upgrade the runtimes together with ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed joint friction writers to broadcast scalar coefficients directly in the fused Warp kernels,
+  including integer zero, without allocating expanded input tensors.
+* Fixed stale camera poses in the first legacy OVRTX render with GPU transform propagation
+  by initializing native world transforms without advancing sensor simulation time.
+* Added compatibility with OVRTX 0.7 named segmentation tensors while preserving
+  decoding of the packed label maps returned by the pinned OVRTX 0.6 runtime.
+* Disabled GPU camera transform reads for OVRTX 0.7 only to preserve independent tiled
+  captures and pose updates while retaining GPU scene transforms; pinned OVRTX
+  0.6 behavior was preserved.
+* Preserved renderer API documentation builds when the optional OVRTX distribution is not installed.
+* Fixed runtime meshes disappearing after material or texture changes with OVRTX 0.6 by
+  using a fresh USD reference path for each replacement.
+
+
 8.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~
 

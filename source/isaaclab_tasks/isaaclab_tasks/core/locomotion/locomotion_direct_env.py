@@ -191,7 +191,8 @@ class LocomotionDirectEnv(DirectRLEnv):
         joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
         joint_vel_limits = self.robot.data.soft_joint_vel_limits.torch[env_ids]
         joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
-        self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2].zero_()

@@ -16,7 +16,7 @@ import warp as wp
 from newton._src.actuators.utils import load_checkpoint
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
@@ -131,6 +131,32 @@ def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, t
         resave_checkpoint_with_metadata(str(checkpoint_path), {})
 
     assert not marker_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("model_path", "expected_opt_in"),
+    [
+        ("network.pt", True),
+        ("network.pth", True),
+        ("network.PT2", True),
+        (None, False),
+        ("network.onnx", False),
+        ("network.pt.backup", False),
+    ],
+)
+def test_from_usd_limits_torch_checkpoint_opt_in(monkeypatch, model_path, expected_opt_in):
+    """Pass Newton's unsafe-import opt-in only for authored Torch checkpoint paths."""
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/Actuator", "NewtonActuator")
+    if model_path is not None:
+        prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(model_path))
+    parse = Mock(return_value=None)
+    monkeypatch.setattr("isaaclab.actuators.newton.adapter.parse_actuator_prim", parse)
+
+    with pytest.raises(ValueError, match="No NewtonActuator prims found"):
+        NewtonActuatorAdapter.from_usd(stage, ["joint"], 1, 1, "cpu", articulation_prim_path="/Actuator")
+
+    parse.assert_called_once_with(prim, allow_unsafe_torch_checkpoints=expected_opt_in)
 
 
 @pytest.mark.parametrize("kind", ["mlp", "lstm"])
@@ -443,3 +469,30 @@ def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.Monkey
 
     with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
         runtime.compute(SimpleNamespace(), 0.01)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_masked_reset_resets_only_selected_env_states(device):
+    """A mask reset clears the delay state of the masked environments in both state buffers and keeps the rest."""
+    adapter = NewtonActuatorAdapter.from_usd(
+        stage=_make_actuator_stage(),
+        joint_names=_JOINT_NAMES,
+        num_envs=3,
+        num_joints=len(_JOINT_NAMES),
+        device=device,
+        articulation_prim_path="/World/Robot",
+    )
+    states = [s for s in (*adapter._states_a, *adapter._states_b) if s is not None and s.delay_state is not None]
+    assert states
+    for state in states:
+        state.delay_state.num_pushes.fill_(5)
+    env_mask = torch.tensor([True, False, True], device=device)
+
+    adapter.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+
+    for actuator, pair in zip(adapter.actuators, zip(adapter._states_a, adapter._states_b)):
+        envs = torch.as_tensor(actuator.indices.numpy().astype(np.int64), device=device) // len(_JOINT_NAMES)
+        expected = torch.where(env_mask[envs], 0, 5).to(torch.int32)
+        for state in pair:
+            if state is not None and state.delay_state is not None:
+                torch.testing.assert_close(wp.to_torch(state.delay_state.num_pushes), expected)

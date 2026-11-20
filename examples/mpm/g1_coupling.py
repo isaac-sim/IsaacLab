@@ -197,8 +197,8 @@ def _kinematic_box(
     contact_margin: float,
 ) -> Any:
     """Create one visible kinematic collider."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
@@ -243,7 +243,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.scene.terrain = None
     env_cfg.scene.height_scanner = None
     env_cfg.scene.contact_forces = None
-    env_cfg.observations.policy.height_scan = None
+    env_cfg.observations.height_scan = None
     env_cfg.scene.robot.init_state.pos = (ROBOT_START_X, 0.0, 0.74)
     if args_cli.proxy_bodies == "robot":
         # The velocity task normally uses g1_minimal.usd, whose only collision
@@ -328,13 +328,12 @@ def _configure_particle_runway(env_cfg: Any) -> None:
     """Add the rigid runway, three particle strips, and directed coupler."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-
-    from isaaclab_contrib.coupling import (
+    from isaaclab_newton.physics.coupling import (
         CouplerEntryCfg,
         CouplerProxyCfg,
         CouplerProxyMappingCfg,
     )
+    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     previous_physics = env_cfg.sim.physics
     rigid_solver_cfg = previous_physics.solver_cfg.replace(

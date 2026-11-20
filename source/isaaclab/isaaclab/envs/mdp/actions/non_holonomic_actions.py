@@ -116,7 +116,7 @@ class NonHolonomicAction(ActionTerm):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self.action_names)
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
@@ -128,6 +128,11 @@ class NonHolonomicAction(ActionTerm):
     @property
     def action_dim(self) -> int:
         return 2
+
+    @property
+    def action_names(self) -> list[str]:
+        """Action component names matched by the clip keys: ``lin_vel_x`` [m/s] and ``ang_vel_z`` [rad/s]."""
+        return ["lin_vel_x", "ang_vel_z"]
 
     @property
     def raw_actions(self) -> torch.Tensor:

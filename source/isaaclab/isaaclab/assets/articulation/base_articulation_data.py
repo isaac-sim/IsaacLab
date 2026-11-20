@@ -766,10 +766,14 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia in the world frame.
+        """Flattened body inertia about each body's center of mass, expressed in the body link frame.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        All backends express the tensors in the body link frame, so they can be non-diagonal. To express the
+        inertia in world coordinates, reshape each tensor to (3, 3) and compute ``R @ I @ R.transpose(-1, -2)``,
+        where ``R`` is the rotation matrix from :attr:`body_link_quat_w`.
         """
         raise NotImplementedError
 
@@ -959,6 +963,10 @@ class BaseArticulationData(ABC):
         ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
         relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+
+        The joint armature (:attr:`joint_armature`) is included on the diagonal of the
+        joint DoFs, so ``M(q)`` is the joint-space inertia the solver integrates. The
+        floating-base DoFs carry no armature.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 

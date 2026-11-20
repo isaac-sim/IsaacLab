@@ -29,7 +29,7 @@ between renderers.
 
 Notes:
   * Runs **kit-less**: this test does not call
-    :class:`~isaaclab_physx.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
+    :class:`~isaaclab_isaacsim.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See
@@ -64,7 +64,7 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 # Use collection-time skip markers so unavailable optional modules remain
 # visible per test in reports.

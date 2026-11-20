@@ -231,7 +231,7 @@ class HaplyDevice(DeviceBase):
     def push_force(self, forces: torch.Tensor, position: torch.Tensor) -> None:
         """Push force vector to Haply Inverse3 device.
 
-        Overrides DeviceBase.push_force() to provide force feedback for Haply Inverse3.
+        Provides force feedback for Haply Inverse3.
         Forces are clipped to [-limit_force, limit_force] range for safety.
 
         Args:
@@ -384,7 +384,7 @@ class HaplyDeviceCfg(DeviceCfg):
         websocket_uri: WebSocket URI for Haply SDK connection
         pos_sensitivity: Position sensitivity scaling factor
         data_rate: Data exchange rate in Hz
-        limit_force: Maximum force magnitude in Newtons (safety limit)
+        limit_force: Maximum absolute force per axis in Newtons (safety limit)
     """
 
     websocket_uri: str = "ws://localhost:10001"

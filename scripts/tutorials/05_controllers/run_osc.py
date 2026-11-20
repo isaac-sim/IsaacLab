@@ -307,9 +307,6 @@ def update_states(
         ee_force_b (torch.tensor): End-effector force in the body frame.
         joint_pos (torch.tensor): The joint positions.
         joint_vel (torch.tensor): The joint velocities.
-
-    Raises:
-        ValueError: Undefined target_type.
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1

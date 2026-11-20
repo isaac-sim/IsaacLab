@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.cli import load_external_tasks
@@ -290,7 +290,7 @@ def create_environment_config(
             - teleop_cfg: The resolved Capture or native device configuration
 
     Raises:
-        Exception: If parsing the environment configuration fails
+        SystemExit: If parsing the environment configuration fails (the error is logged and the process exits).
     """
     # Resolve the task configuration through Hydra so CLI presets are applied.
     try:
@@ -723,7 +723,7 @@ def record_demos(
     # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
     # external cameras, or XR).
     if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+        from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
@@ -736,7 +736,7 @@ def record_demos(
     )
     cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+        from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(

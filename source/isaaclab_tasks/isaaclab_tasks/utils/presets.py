@@ -5,9 +5,9 @@
 
 from typing import Any, ClassVar
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.isaac_sim import IsaacSimBackendCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
@@ -31,7 +31,8 @@ class MultiBackendRendererCfg(PresetCfg):
     rtx: _AutoRtxRendererCfg = _AutoRtxRendererCfg()
     ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
     isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+    newton_warp: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+    newton_optix: NewtonOptixRendererCfg = NewtonOptixRendererCfg()
     default: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
 
 

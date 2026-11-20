@@ -733,11 +733,11 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_velocity, env_ids=env_ids)
-        self._robot.write_joint_state_to_sim_index(
-            position=joint_position,
-            velocity=joint_velocity,
-            joint_ids=self._joint_ids,
-            env_ids=env_ids,
+        self._robot.write_joint_position_to_sim_index(
+            position=joint_position, joint_ids=self._joint_ids, env_ids=env_ids
+        )
+        self._robot.write_joint_velocity_to_sim_index(
+            velocity=joint_velocity, joint_ids=self._joint_ids, env_ids=env_ids
         )
         self._robot.set_joint_position_target_index(
             target=joint_position,

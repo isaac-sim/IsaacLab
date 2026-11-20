@@ -11,6 +11,7 @@ external environment configurations.
 
 import warnings
 from copy import deepcopy
+from dataclasses import dataclass
 
 import pytest
 
@@ -106,6 +107,7 @@ class PolicyModeCfg(PresetCfg):
 @configclass
 class PresetCfgEnvCfg:
     decimation: int = 4
+    range: tuple[float, float] = (0.6, 1.7)
     backend: SimBackendCfg = SimBackendCfg()
     observations: ObsModeCfg = ObsModeCfg()
 
@@ -470,6 +472,43 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
+def test_selecting_a_preset_that_picks_the_kit_backend_warns_and_still_resolves():
+    """A deprecated Isaac Sim (Kit) preset keeps working and warns that it runs on Kit."""
+    from isaaclab_isaacsim.physics import PhysxCfg as KitPhysxCfg
+
+    env = PresetCfgEnvCfg()
+    env.backend = preset(default=NewtonCfg(), isaacsim_physx=KitPhysxCfg())
+    with pytest.warns(FutureWarning, match=r"'isaacsim_physx' runs on Isaac Sim"):
+        env_cfg, _, _ = _register(env, overrides=["presets=isaacsim_physx"])
+    assert isinstance(env_cfg.backend, KitPhysxCfg)
+
+
+@pytest.mark.parametrize("name", ["isaacsim_physx", "isaacsim_rtx"])
+def test_a_preset_named_like_a_kit_selector_that_changes_another_field_does_not_warn(name):
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, **{name: 8})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        env_cfg, _, _ = _register(env, overrides=[f"presets={name}"])
+    assert env_cfg.decimation == 8
+
+
+def test_a_rejected_isaac_sim_preset_reports_only_its_own_error():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        with pytest.raises(ValueError):
+            _register(PresetCfgEnvCfg(), overrides=["physics=isaacsim_physx"])
+
+
+def test_register_task_warns_about_a_misspelled_field():
+    """A misspelled env override warns that it adds a field beside the one it was meant to set."""
+    with pytest.warns(UserWarning, match="has no field 'decimaton'"):
+        env_cfg, _, _ = _register(PresetCfgEnvCfg(), overrides=["env.decimaton=10"])
+    assert env_cfg.decimation == 4
+    with pytest.warns(UserWarning, match="has no field 'dtt'"):
+        _register(PresetCfgEnvCfg(), overrides=["env.backend.dtt=0.001"])
+
+
 def test_resolve_task_config_replaces_task_without_migration_warnings(monkeypatch, tmp_path):
     """Repeated composition uses the latest task config without Hydra migration warnings."""
     import sys
@@ -656,7 +695,7 @@ class RendererBCfg:
 @configclass
 class RendererPresetCfg(PresetCfg):
     default: RendererACfg = RendererACfg()
-    newton_renderer: RendererBCfg = RendererBCfg()
+    newton_warp: RendererBCfg = RendererBCfg()
 
 
 @configclass
@@ -694,7 +733,7 @@ def test_root_presetcfg_with_nested_preset_collect():
     assert "sensor" in presets
     assert set(presets["sensor"].keys()) == {"default", "depth"}
     assert "sensor.renderer" in presets
-    assert set(presets["sensor.renderer"].keys()) == {"default", "newton_renderer"}
+    assert set(presets["sensor.renderer"].keys()) == {"default", "newton_warp"}
 
 
 def test_root_presetcfg_resolve_defaults():
@@ -807,6 +846,18 @@ def test_resolve_presets_traverses_dict_values():
     resolved = resolve_presets(cfg)
     assert resolved.robot.actuators["legs"].armature == 0.0
     assert not isinstance(resolved.robot.actuators["legs"].armature, PresetCfg)
+
+
+def test_resolve_presets_keeps_unchanged_tuples_of_frozen_dataclasses():
+    """resolve_presets does not reassign a frozen dataclass field whose tuple holds no preset."""
+
+    @dataclass(frozen=True)
+    class FrozenTermCfg:
+        joint_ids: tuple = (0, 1)
+
+    term = FrozenTermCfg()
+    resolved = resolve_presets({"term": term})
+    assert resolved["term"] is term
 
 
 def test_dict_preset_global_newton_mjwarp():

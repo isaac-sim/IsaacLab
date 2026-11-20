@@ -19,16 +19,3 @@ def imu_copy_kernel(
         return
     out_lin_acc_b[idx] = accelerometer[idx]
     out_ang_vel_b[idx] = gyroscope[idx]
-
-
-@wp.kernel
-def imu_reset_kernel(
-    env_mask: wp.array(dtype=wp.bool),
-    out_lin_acc_b: wp.array(dtype=wp.vec3f),
-    out_ang_vel_b: wp.array(dtype=wp.vec3f),
-):
-    idx = wp.tid()
-    if not env_mask[idx]:
-        return
-    out_lin_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_ang_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)

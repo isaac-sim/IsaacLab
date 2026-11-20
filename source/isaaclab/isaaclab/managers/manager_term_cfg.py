@@ -100,7 +100,11 @@ class ActionTermCfg:
     """Whether to visualize debug information. Defaults to False."""
 
     clip: dict[str, tuple] | None = None
-    """Clip range for the action (dict of regex expressions). Defaults to None."""
+    """Clip range for the processed action (dict of regex expressions). Defaults to None.
+
+    The keys are matched against the joint names for joint action terms and against the action names
+    (:attr:`action_names`) for task-space and non-holonomic action terms.
+    """
 
 
 ##

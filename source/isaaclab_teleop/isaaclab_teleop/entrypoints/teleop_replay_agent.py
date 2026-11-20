@@ -7,7 +7,7 @@
 
 This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
 a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
-configured in :class:`isacteleop.teleop_session_manager.SessionMode.REPLAY`,
+configured in :class:`isaacteleop.teleop_session_manager.SessionMode.REPLAY`,
 and pumps the simulation loop until the recorded operator presses STOP (or
 ``--max_replay_duration_s`` elapses, or the simulator is closed). The user-journey
 teleop script remains ``teleop_se3_agent.py``.
@@ -211,7 +211,7 @@ XR-active replay:
        tracker stream (head / hands / controllers) lives in
        OpenXR-local space; the world-frame poses the env consumes
        come from ``world_T_anchor @ oxr_pose``. With XR active,
-       :class:`~isaaclab_teleop.XrAnchorManager` resolves
+       :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` resolves
        ``world_T_anchor`` through ``XrAnchorSynchronizer`` (the same
        path used at record time), so the live anchor semantics --
        including any dynamic-anchor following of a prim and runtime
@@ -263,7 +263,7 @@ from typing import Protocol, runtime_checkable
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.cli import load_external_tasks
@@ -313,7 +313,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1,
         help=(
             "Number of consecutive steps the task success term must hold before declaring success and"
-            " resetting the env. Mirrors the equivalent flag in record_demos.py."
+            " ending the run. Mirrors the equivalent flag in record_demos.py."
         ),
     )
     parser.add_argument(
@@ -822,7 +822,7 @@ def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
 def _aggregate_runs(run_dicts: list[dict]) -> dict:
     """Aggregate per-run CPU / FPS stats across a multi-run batch.
 
-    Returns ``mean_of_means``, ``p90_of_p90s``, etc. so reviewers can scan
+    Returns ``mean_of_means``, ``mean_of_p90s``, etc. so reviewers can scan
     a one-line summary without recomputing from individual runs. Runs that
     produced no active frames (e.g. the recording never reached START)
     contribute no samples and are skipped for that field; if no run had
@@ -1055,9 +1055,8 @@ def _prepare_env_cfg(
     * Other failure terms (e.g. ``object_dropping``, ``object_too_far``)
       are left active. ``env.step`` then auto-invokes ``_reset_idx`` for any
       env whose termination fires; the main loop detects this via the
-      returned ``terminated``/``truncated`` tensors and completes the reset
-      cycle (sim reinit + teleop device reset) so Pink IK starts the next
-      attempt with fresh articulation views.
+      returned ``terminated``/``truncated`` tensors and ends the run with a
+      ``failure`` outcome, since the recorded trajectory did not reproduce.
 
     Args:
         task: Registered task name to load the env config for.
@@ -1261,7 +1260,7 @@ def _run_single_replay(
         # at the cost of doing nothing measurable (the wait returns
         # immediately on a fully-loaded stage anyway).
         if run_index == 0:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
+            from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
 
             print("Waiting for USD stage to finish loading...")
             wait_for_stage_load(args_cli.max_stage_load_wait_s, settle_frames=_RENDERER_SETTLE_FRAMES)
@@ -1496,8 +1495,10 @@ def main() -> int:
         batch finishes.
 
     Stats output:
-        Each iteration where ``env.step()`` ran contributes one CPU
-        frame-time sample (``perf_counter`` delta in ms). At the end of
+        Each ``env.sim.render()`` call made from within an active
+        ``env.step()``, after the first, contributes one CPU frame-time
+        sample (the ``perf_counter`` delta in ms since the previous such
+        render). At the end of
         the run the samples are summarised into mean / p50 / p90 / p95 /
         p99 / min / max / stddev + a mean / instantaneous-min / max FPS
         triple, then serialised into the ``runs[]`` array of the report
@@ -1558,7 +1559,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         cloudxr_launcher = _maybe_launch_cloudxr(args_cli.cloudxr_env, args_cli.auto_launch_cloudxr)
 
         if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+            from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
             apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"))
 

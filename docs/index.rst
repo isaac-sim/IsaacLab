@@ -109,6 +109,7 @@ Table of Contents
    source/isaaclab/interactive_demos
    source/how-to/index
    source/isaaclab/migrating
+   source/isaaclab/community_projects
 
 
 .. toctree::
@@ -165,6 +166,7 @@ Table of Contents
 
    source/experimental-features/bleeding-edge
    source/concepts/warp_environments
+   source/experimental-features/mdp2
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining

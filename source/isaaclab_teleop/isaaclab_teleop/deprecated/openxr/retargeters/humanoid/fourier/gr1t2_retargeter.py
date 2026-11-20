@@ -38,10 +38,7 @@ class GR1T2Retargeter(RetargeterBase):
         """Initialize the GR1T2 hand retargeter.
 
         Args:
-            enable_visualization: If True, visualize tracked hand joints
-            num_open_xr_hand_joints: Number of joints tracked by OpenXR
-            device: PyTorch device for computations
-            hand_joint_names: List of robot hand joint names
+            cfg: The retargeter configuration.
         """
 
         super().__init__(cfg)
@@ -71,10 +68,11 @@ class GR1T2Retargeter(RetargeterBase):
             data: Dictionary mapping tracking targets to joint data dictionaries.
 
         Returns:
-            tuple containing:
-                Left wrist pose
-                Right wrist pose in USD frame
-                Retargeted hand joint angles
+            A single tensor that concatenates the following values, in order.
+
+            - Left wrist pose
+            - Right wrist pose in USD frame
+            - Retargeted hand joint angles
         """
 
         # Access the left and right hand data using the enum key
@@ -163,6 +161,12 @@ class GR1T2RetargeterCfg(RetargeterCfg):
     """Configuration for the GR1T2 retargeter."""
 
     enable_visualization: bool = False
+    """If True, visualize the tracked hand joints. Defaults to False."""
+
     num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    """Number of joints tracked by OpenXR. Defaults to 100."""
+
+    hand_joint_names: list[str] | None = None
+    """List of robot hand joint names. Defaults to None."""
+
     retargeter_type: type[RetargeterBase] = GR1T2Retargeter

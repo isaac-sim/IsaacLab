@@ -100,8 +100,8 @@ A deformable is a mesh spawner with two extra fields:
 Each fragment writes one USD namespace, so a backend's properties are split across fragments:
 :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` carries the ``omniphysics:*`` body
 attributes (``mass``, ``kinematic_enabled``, ``deformable_body_enabled``),
-:class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
-:class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
 An empty slot creates the body with the active backend's defaults; add fragments only for
 properties you want to set. The backend applies its own deformable anchor schemas.
 
@@ -111,7 +111,7 @@ Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a run
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
@@ -194,7 +194,7 @@ the deformable schema to the loaded prim, or modifies it in place if the prim al
 .. code-block:: python
 
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
 
     cfg_usd = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
@@ -511,7 +511,7 @@ everything else fixed. The labels give the value used in each run.
 Volume
 ^^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_youngs_1e3_1e4_1e5.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_youngs_1e3_1e4_1e5.gif
     :width: 640px
     :align: center
     :alt: A soft ball dropped on a table at three values of Young's modulus
@@ -520,7 +520,7 @@ Volume
     impact; at ``1e5`` Pa it barely deforms. This is the first knob to reach for when a soft body
     is too floppy or too rigid.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_poisson.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_poisson.gif
     :width: 640px
     :align: center
     :alt: A soft ball dropped on a table at three values of Poisson's ratio
@@ -529,7 +529,7 @@ Volume
     the ball squashes without spreading. At ``0.49`` it is nearly incompressible, so the same
     squash has to go somewhere and pushes outward into a wide bulge.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_particle_radius.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_particle_radius.gif
     :width: 640px
     :align: center
     :alt: A soft ball resting on a table at three values of particle radius
@@ -542,7 +542,7 @@ Volume
 Surface
 ^^^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloth_stretch_stiffness.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cloth_stretch_stiffness.gif
     :width: 640px
     :align: center
     :alt: A cloth sheet draped over a roller at three values of stretch stiffness
@@ -550,7 +550,7 @@ Surface
     **Stretch stiffness**: resistance to in-plane elongation. The low value lets the sheet stretch
     and sag under its own weight; the high value holds it near its rest length.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloth_bendstiffness.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cloth_bendstiffness.gif
     :width: 640px
     :align: center
     :alt: A cloth sheet falling from a roller at three values of bend stiffness
@@ -562,7 +562,7 @@ Surface
 Cable
 ^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cable_bend_1e0_1e1_1e.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cable_bend_1e0_1e1_1e.gif
     :width: 640px
     :align: center
     :alt: A cable spanning two posts at three values of bend stiffness
@@ -570,7 +570,7 @@ Cable
     **Bend stiffness**: at ``1e0`` the cable droops between its supports like slack rope; at
     ``1e2`` it holds itself straight like a stiff hose.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cable_twiststiffness_1e_1_1e0_1e1.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cable_twiststiffness_1e_1_1e0_1e1.gif
     :width: 640px
     :align: center
     :alt: A weighted hanging cable twisted at the top, at three values of twist stiffness

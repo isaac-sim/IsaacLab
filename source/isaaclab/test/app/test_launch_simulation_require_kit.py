@@ -15,11 +15,13 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import contextlib
 import signal
 import sys
 import types
+import warnings
 
-import isaaclab_physx.app as physx_app
+import isaaclab_isaacsim.app as physx_app
 import pytest
 
 from pxr import Gf
@@ -43,39 +45,6 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
     return taken
-
-
-def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
-    """A direct OmniClient read inside a kitless runtime must see profile routing."""
-    events = []
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: events.append("configured"))
-
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
-        events.append("user-code")
-
-    assert events == ["configured", "user-code"]
-    assert kit_branch_taken == []
-
-
-def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPatch):
-    """A profile failure after Kit starts must still close the application."""
-    close_calls = []
-
-    class FakeKitLauncher(SimulationLauncher):
-        def close(self, exit_code=0):
-            close_calls.append(exit_code)
-
-    def reject_profile():
-        raise RuntimeError("profile rejected")
-
-    monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
-
-    with pytest.raises(RuntimeError, match="profile rejected"):
-        with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
-            pass
-
-    assert close_calls == [1]
 
 
 @pytest.mark.parametrize(
@@ -116,13 +85,12 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
     with launch_simulation(
         SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"), {"visualizer": ["newton_rtx"]}
     ):
         calls.append("user")
 
-    assert calls == ["register", "storage", "user"]
+    assert calls == ["register", "user"]
 
 
 @pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
@@ -170,9 +138,9 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
-    """A config-selected launcher closes on success or interruption with the correct exit status."""
+@pytest.mark.parametrize(("outcome", "exit_code"), [("ok", 0), ("interrupt", 130), ("error", 1)])
+def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, outcome, exit_code):
+    """A config-selected launcher closes on success, interruption or failure with the matching exit status."""
     events = []
 
     class FakeLauncher(SimulationLauncher):
@@ -188,17 +156,14 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
     cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
 
-    try:
-        with launch_simulation(cfg):
-            events.append("user")
-            if interrupt:
-                signal.raise_signal(signal.SIGINT)
-    except KeyboardInterrupt:
-        assert interrupt
-    else:
-        assert not interrupt
+    with contextlib.suppress(KeyboardInterrupt, RuntimeError), launch_simulation(cfg):
+        events.append("user")
+        if outcome == "interrupt":
+            signal.raise_signal(signal.SIGINT)
+        elif outcome == "error":
+            raise RuntimeError("user failure")
 
-    assert events == ["start", "user", 130 if interrupt else 0]
+    assert events == ["start", "user", exit_code]
 
 
 @pytest.mark.parametrize("producer_count", [0, 1, 2])
@@ -256,3 +221,42 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
         assert args.get("enable_cameras", False) == (source == "kit")
     assert kit_branch_taken == [True] * (source == "kit")
+
+
+def test_launching_kit_warns_with_the_reason_it_is_needed(kit_branch_taken):
+    with pytest.warns(FutureWarning, match=r"Running on Isaac Sim \(Kit\) is deprecated .*explicit Kit requirement"):
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+@pytest.mark.parametrize("launcher_args", [{"livestream": 1}, {"xr": True}], ids=["livestream", "xr"])
+def test_livestream_and_xr_launch_kit_without_the_deprecation_warning(kit_branch_taken, launcher_args):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(
+            SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True, **launcher_args}
+        ):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+def test_the_xr_environment_variable_launches_kit_without_the_deprecation_warning(kit_branch_taken, monkeypatch):
+    monkeypatch.setenv("XR", "1")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it():
+    from isaaclab_isaacsim.physics import PhysxCfg
+
+    cfg = SimulationCfg(device="cpu")
+    with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
+        sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
+    assert isinstance(cfg.physics, PhysxCfg)

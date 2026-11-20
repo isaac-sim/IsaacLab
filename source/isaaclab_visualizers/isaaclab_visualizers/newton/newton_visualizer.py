@@ -163,7 +163,7 @@ class NewtonViewerGL(ViewerGL):
 
         New section order:
 
-        1. **Isaac Lab** (open) — physics backend, model info, training controls.
+        1. **Simulation** (open) — physics backend, model info, training controls.
         2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
            is called.
         3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
@@ -172,7 +172,7 @@ class NewtonViewerGL(ViewerGL):
         6. **Selection API** (closed) — Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
-        handled by the IsaacLab training controls inside **Isaac Lab**.
+        handled by the IsaacLab training controls inside **Simulation**.
         """
         import newton as nt
 
@@ -849,10 +849,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         physics_backend = sim.backend_manager.backend if newton_backend_active else None
         picking_supported = (
             physics_backend is not None
-            and physics_backend.solver is not None
-            and physics_backend.cfg.solver_cfg.class_type.applies_body_forces(
-                physics_backend.cfg.solver_cfg, physics_backend.solver
-            )
+            and physics_backend.solver_ops is not None
+            and physics_backend.solver_ops.applies_body_forces()
         )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
@@ -864,6 +862,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -917,6 +916,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             elif not viewer.is_paused():
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
+                    if self._geometry_change_version != self.backend.geometry_change_version:
+                        viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                        self._geometry_change_version = self.backend.geometry_change_version
                     viewer.log_state(state)
                     contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
@@ -959,7 +961,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
@@ -970,6 +973,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
+            self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def close(self) -> None:
         """Release picking and scene references without destroying Kit's shared GL context."""

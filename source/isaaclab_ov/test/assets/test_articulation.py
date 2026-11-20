@@ -43,6 +43,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
 from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
@@ -50,7 +51,6 @@ from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorCont
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -72,7 +72,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
@@ -458,29 +458,6 @@ def test_static_property_reads_are_not_invalidated_by_simulation_steps():
     torch.testing.assert_close(wp.to_torch(user_buffer.data), torch.tensor([[2.0, 1.0]]))
 
 
-def test_joint_dof_sign_resolution_traverses_instance_proxies():
-    """Resolve reversed joints inside an instanceable articulation."""
-    source_stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(source_stage, "/Robot")
-    UsdGeom.Xform.Define(source_stage, "/Robot/base")
-    UsdGeom.Xform.Define(source_stage, "/Robot/link")
-    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
-    joint.GetBody0Rel().SetTargets(["/Robot/link"])
-    joint.GetBody1Rel().SetTargets(["/Robot/base"])
-    stage = Usd.Stage.CreateInMemory()
-    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
-    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
-    instance.SetInstanceable(True)
-
-    articulation = Mock(
-        cfg=Mock(prim_path="/World/Robot"),
-        _joint_names=["joint"],
-        _body_names=["base", "link"],
-    )
-
-    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
-
-
 def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     """Define a revolute joint prim with a tendon schema marker."""
     joint = UsdPhysics.RevoluteJoint.Define(stage, path)
@@ -620,7 +597,7 @@ def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_
 @pytest.mark.parametrize(
     "module_name",
     [
-        "isaaclab_physx.assets.articulation.actuator_control",
+        "isaaclab_isaacsim.assets.articulation.actuator_control",
         "isaaclab_ov.assets.articulation.actuator_control",
     ],
 )
@@ -1345,18 +1322,38 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False)
 
-    # Inertia and armature each affect only the generalized mass matrix.
+    # Inertia affects only the generalized mass matrix.
     inertias = data.body_inertia.torch.clone()
     inertias[:, -1, [0, 4, 8]] *= 1.1
     articulation.set_inertias_index(inertias=inertias)
     assert data._mass_matrix.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False, gravity=False)
 
-    armature = data.joint_armature.torch.clone()
-    armature[:, -1] += 0.01
-    articulation.write_joint_armature_to_sim_index(armature=armature)
-    assert data._mass_matrix.timestamp < data._sim_timestamp
-    assert_dynamics_match(jacobian=False, gravity=False)
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+def test_joint_armature_updates_mass_matrix_without_accumulating(scene: _ArticulationScene) -> None:
+    """Armature adds joint inertia in public order without changing the leading floating-base inertia."""
+    for articulation in (scene.islands["dynamics"], scene.islands["floating"]):
+        data = articulation.data
+        original_armature = data.joint_armature.torch.clone()
+        before = data.mass_matrix.torch.clone()
+        increment = 0.125 * torch.arange(
+            1, original_armature.numel() + 1, device=scene.device, dtype=original_armature.dtype
+        ).reshape_as(original_armature)
+        expected_change = torch.zeros_like(before)
+        joint_dofs = articulation.num_base_dofs + torch.arange(articulation.num_joints, device=scene.device)
+        expected_change[:, joint_dofs, joint_dofs] = increment
+        try:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature + increment)
+            after = data.mass_matrix.torch.clone()
+            torch.testing.assert_close(after - before, expected_change, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+
+            # Advancing the cache timestamp without stepping preserves the pose and must not add armature again.
+            articulation.update(scene.sim.cfg.dt)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+        finally:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

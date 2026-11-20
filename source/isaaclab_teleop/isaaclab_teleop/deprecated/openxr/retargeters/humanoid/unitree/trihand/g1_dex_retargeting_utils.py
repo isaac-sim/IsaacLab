@@ -84,6 +84,10 @@ class G1TriHandDexRetargeting:
             hand_joint_names: Names of hand joints in the robot model
             right_hand_config_filename: Config file for right hand retargeting
             left_hand_config_filename: Config file for left hand retargeting
+            left_hand_urdf_path: Asset path or URL for the left-hand URDF. The retrieved
+                local path replaces the URDF path in the left-hand retargeting YAML.
+            right_hand_urdf_path: Asset path or URL for the right-hand URDF. The retrieved
+                local path replaces the URDF path in the right-hand retargeting YAML.
         """
         data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/"))
         config_dir = os.path.join(data_dir, "configs/dex-retargeting")

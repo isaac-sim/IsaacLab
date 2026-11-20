@@ -17,28 +17,23 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Usd, UsdPhysics
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.ordering_resolvers import (
-    _BODY_KIND,
-    _JOINT_KIND,
-    _canonical_joint_dof_name,
-)
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
-from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .actuator_control import OvPhysxActuatorControl
@@ -76,7 +71,7 @@ class Articulation(BaseArticulation):
 
     OVPhysX exposes per-tensor-type :class:`ovphysx.TensorBinding` objects rather than a single
     opaque view; binding handles are created eagerly in :meth:`_initialize_impl` and reused across
-    reads and writes. CPU-only bindings (mass, CoM, inertia, joint properties, tendon properties)
+    reads and writes. CPU-only bindings (mass, CoM, inertia, joint properties)
     are routed through pinned-host staging buffers managed by :class:`ArticulationData`.
 
     .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
@@ -220,7 +215,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -917,6 +912,10 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set joint positions and velocities over selected indices into the simulation.
 
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
+
         The joint position and velocity caches, finite-difference velocity baseline, and
         joint acceleration cache are updated in one device kernel.
 
@@ -933,6 +932,12 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -1478,8 +1483,8 @@ class Articulation(BaseArticulation):
                 shape (len(env_ids), len(joint_ids)) with dtype wp.vec2f.
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
-            warn_limit_violation: If True, log a warning when the provided limits
-                are inconsistent (lower > upper). Defaults to True.
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits and are clamped. Defaults to True.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -1578,8 +1583,8 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, all joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, all instances are updated.
                 Shape is (num_instances,).
-            warn_limit_violation: If True, log a warning when the provided limits
-                are inconsistent (lower > upper). Defaults to True.
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits and are clamped. Defaults to True.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -1947,7 +1952,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_friction_coefficient_to_sim_index`:
         Coulomb (static & dynamic) friction with an optional viscous term.  Any of the three
         components can be left unset by passing ``None``; the corresponding slot in the
         combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)`` binding is preserved.
@@ -2073,7 +2078,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint dynamic friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim_index`:
         updates only the dynamic (Coulomb) slot of the combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)``
         binding; the static and viscous components are preserved.
 
@@ -2184,7 +2189,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         r"""Write joint viscous friction coefficients over selected env / joint indices into the simulation.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim_index`:
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim_index`:
         updates only the viscous slot of the combined ``DOF_FRICTION_PROPERTIES`` ``(N, J, 3)``
         binding; the static and dynamic components are preserved.
 
@@ -2702,8 +2707,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon stiffness over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2748,8 +2753,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2794,8 +2799,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon damping over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2840,8 +2845,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon damping over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2884,8 +2889,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon limit stiffness over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -2934,8 +2939,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon limit stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -2980,8 +2985,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon position limits over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3045,8 +3050,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon position limits over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_LIMIT`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_LIMIT`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3105,8 +3110,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon rest lengths over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_REST_LENGTH`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_REST_LENGTH`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3153,8 +3158,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon rest lengths over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_REST_LENGTH`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_REST_LENGTH`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3205,7 +3210,7 @@ class Articulation(BaseArticulation):
         The offset that realizes a target length is therefore ``rest_length - target``.
 
         This function does not apply the target to the simulation. It only fills the offset buffer,
-        which :meth:`write_data_to_sim` pushes with the other tendon properties.
+        which :meth:`write_data_to_sim` pushes on its own; the other tendon properties are not written.
 
         .. note::
             This method expects partial data.
@@ -3246,8 +3251,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon offsets over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3335,8 +3340,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set fixed-tendon offsets over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``FIXED_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``FIXED_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3506,8 +3511,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3552,8 +3557,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon damping over selected env / tendon indices into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.
@@ -3596,8 +3601,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon damping over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_DAMPING`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_DAMPING`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3694,8 +3699,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon limit stiffness over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_LIMIT_STIFFNESS`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3786,8 +3791,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon offsets over selected env / tendon masks into the simulation.
 
-        This is a CPU-only write routed through pinned-host staging because
-        ``SPATIAL_TENDON_OFFSET`` is a CPU-only OVPhysX binding.
+        ``SPATIAL_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the write goes directly
+        from the sim-device buffer to the binding.
 
         .. note::
             This method expects full data.
@@ -3835,7 +3840,7 @@ class Articulation(BaseArticulation):
         spatial tendons.  Only the four wheel-supported tensor types are
         written; ``ARTICULATION_SPATIAL_TENDON_LIMIT`` and
         ``ARTICULATION_SPATIAL_TENDON_REST_LENGTH`` are forward-compat
-        stubs (see ``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``).
+        stubs.
 
         Args:
             spatial_tendon_ids: Accepted for PhysX API parity; ignored.
@@ -3984,12 +3989,6 @@ class Articulation(BaseArticulation):
 
         # construct the data container; counts come from the view's bindings
         self._data = ArticulationData(self._root_view, self._device, backend_manager=self._backend_manager)
-        # OvPhysX 0.6 already corrects reversed-joint dynamics in the runtime.
-        if requires_legacy_joint_sign_correction(OVPHYSX_VERSION):
-            joint_dof_signs = self._resolve_joint_dof_signs(stage)
-            if -1 in joint_dof_signs:
-                self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
-                self._data._has_reversed_joints = True
         self._resolve_and_install_ordering_maps()
         self._data.fixed_tendon_names = self._fixed_tendon_names
         self._data.spatial_tendon_names = self._spatial_tendon_names
@@ -4016,40 +4015,6 @@ class Articulation(BaseArticulation):
 
         # mark data as ready
         self._data.is_primed = True
-
-    def _resolve_joint_dof_signs(self, stage: Usd.Stage) -> tuple[int, ...]:
-        """Resolve joint directions once from the source USD."""
-        source_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, stage=stage)
-        if source_prim is None:
-            return (1,) * self.num_joints
-        joint_prims_by_name = {}
-        for prim in Usd.PrimRange(source_prim, Usd.TraverseInstanceProxies()):
-            if not prim.IsA(UsdPhysics.Joint):
-                continue
-            joint_prims_by_name[_JOINT_KIND.resolve_target_name(prim)] = prim
-
-        body_indices = {name: index for index, name in enumerate(self._body_names)}
-        signs = []
-        for dof_name in self._joint_names:
-            canonical_dof_name = _canonical_joint_dof_name(dof_name)
-            matches = [
-                (name, prim)
-                for name, prim in joint_prims_by_name.items()
-                if canonical_dof_name == _canonical_joint_dof_name(name)
-                or canonical_dof_name.startswith(_canonical_joint_dof_name(name) + "_")
-            ]
-            if not matches:
-                signs.append(1)
-                continue
-            joint = UsdPhysics.Joint(max(matches, key=lambda item: len(item[0]))[1])
-            body0 = joint.GetBody0Rel().GetTargets()
-            body1 = joint.GetBody1Rel().GetTargets()
-            body0_name = _BODY_KIND.resolve_target_name(stage.GetPrimAtPath(body0[0])) if body0 else ""
-            body1_name = _BODY_KIND.resolve_target_name(stage.GetPrimAtPath(body1[0])) if body1 else ""
-            body0_index = body_indices.get(body0_name)
-            body1_index = body_indices.get(body1_name)
-            signs.append(-1 if body0_index is not None and body1_index is not None and body0_index > body1_index else 1)
-        return tuple(signs)
 
     def _create_buffers(self) -> None:
         """Allocate asset-side buffers (index/mask constants, wrench buf, pinned CPU staging)."""
@@ -4312,7 +4277,7 @@ class Articulation(BaseArticulation):
     def _validate_cfg(self) -> None:
         """Validate the configuration after processing.
 
-        Mirrors :meth:`isaaclab_physx.assets.Articulation._validate_cfg` (raises
+        Mirrors :meth:`isaaclab_isaacsim.assets.Articulation._validate_cfg` (raises
         ``ValueError`` with a per-joint message when any default joint position
         is outside ``[lower, upper]`` or any default joint velocity exceeds the
         per-joint max velocity).  Reads come from :attr:`ArticulationData`
@@ -4359,79 +4324,27 @@ class Articulation(BaseArticulation):
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices on ``self._device``."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        if isinstance(env_ids, torch.Tensor):
-            return env_ids.to(device=self._device)
-        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
-            env_ids = wp.clone(env_ids, device=self._device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if body_ids is None or body_ids == slice(None):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self._device)
-        if isinstance(body_ids, torch.Tensor):
-            return body_ids.to(device=self._device)
-        if isinstance(body_ids, wp.array) and str(body_ids.device) != self._device:
-            body_ids = wp.clone(body_ids, device=self._device)
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
-        if isinstance(joint_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if joint_ids is None or joint_ids == slice(None):
-            return self._ALL_JOINT_INDICES
-        if isinstance(joint_ids, list):
-            return wp.array(joint_ids, dtype=wp.int32, device=self._device)
-        if isinstance(joint_ids, torch.Tensor):
-            return joint_ids.to(device=self._device)
-        if isinstance(joint_ids, wp.array) and str(joint_ids.device) != self._device:
-            joint_ids = wp.clone(joint_ids, device=self._device)
-        return joint_ids
+        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES)
 
     def _resolve_fixed_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
-        if isinstance(tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if tendon_ids is None or tendon_ids == slice(None):
-            return self._ALL_FIXED_TENDON_INDICES
-        if isinstance(tendon_ids, list):
-            return wp.array(tendon_ids, dtype=wp.int32, device=self._device)
-        if isinstance(tendon_ids, torch.Tensor):
-            return tendon_ids.to(device=self._device)
-        if isinstance(tendon_ids, wp.array) and str(tendon_ids.device) != self._device:
-            tendon_ids = wp.clone(tendon_ids, device=self._device)
-        return tendon_ids
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
-        if isinstance(tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if tendon_ids is None or tendon_ids == slice(None):
-            return self._ALL_SPATIAL_TENDON_INDICES
-        if isinstance(tendon_ids, list):
-            return wp.array(tendon_ids, dtype=wp.int32, device=self._device)
-        if isinstance(tendon_ids, torch.Tensor):
-            return tendon_ids.to(device=self._device)
-        if isinstance(tendon_ids, wp.array) and str(tendon_ids.device) != self._device:
-            tendon_ids = wp.clone(tendon_ids, device=self._device)
-        return tendon_ids
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
 
     def _broadcast_scalar_to_2d(
         self, value: float | torch.Tensor | wp.array, shape: tuple[int, int]
@@ -4453,13 +4366,7 @@ class Articulation(BaseArticulation):
         no ``torch.nonzero`` conversion is needed. ``None`` returns the pre-allocated
         all-true mask.
         """
-        if env_mask is None:
-            return self._ALL_TRUE_ENV_MASK
-        if isinstance(env_mask, torch.Tensor):
-            return wp.from_torch(env_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
-            env_mask = wp.clone(env_mask, device=self._device)
-        return env_mask
+        return resolve_1d_mask(mask=env_mask, all_mask=self._ALL_TRUE_ENV_MASK)
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix view of the simulator-index scratch buffer."""
@@ -4475,43 +4382,19 @@ class Articulation(BaseArticulation):
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
         """Resolve a body mask to a ``wp.bool`` array on ``self._device`` (Newton-style)."""
-        if body_mask is None:
-            return self._ALL_TRUE_BODY_MASK
-        if isinstance(body_mask, torch.Tensor):
-            return wp.from_torch(body_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(body_mask, wp.array) and str(body_mask.device) != self._device:
-            body_mask = wp.clone(body_mask, device=self._device)
-        return body_mask
+        return resolve_1d_mask(mask=body_mask, all_mask=self._ALL_TRUE_BODY_MASK)
 
     def _resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
         """Resolve a joint mask to a ``wp.bool`` array on ``self._device``."""
-        if joint_mask is None:
-            return self._ALL_TRUE_JOINT_MASK
-        if isinstance(joint_mask, torch.Tensor):
-            return wp.from_torch(joint_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(joint_mask, wp.array) and str(joint_mask.device) != self._device:
-            joint_mask = wp.clone(joint_mask, device=self._device)
-        return joint_mask
+        return resolve_1d_mask(mask=joint_mask, all_mask=self._ALL_TRUE_JOINT_MASK)
 
     def _resolve_fixed_tendon_mask(self, tendon_mask: wp.array | None) -> wp.array:
         """Resolve a fixed-tendon mask to a ``wp.bool`` array on ``self._device``."""
-        if tendon_mask is None:
-            return self._ALL_TRUE_FIXED_TENDON_MASK
-        if isinstance(tendon_mask, torch.Tensor):
-            return wp.from_torch(tendon_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(tendon_mask, wp.array) and str(tendon_mask.device) != self._device:
-            tendon_mask = wp.clone(tendon_mask, device=self._device)
-        return tendon_mask
+        return resolve_1d_mask(mask=tendon_mask, all_mask=self._ALL_TRUE_FIXED_TENDON_MASK)
 
     def _resolve_spatial_tendon_mask(self, tendon_mask: wp.array | None) -> wp.array:
         """Resolve a spatial-tendon mask to a ``wp.bool`` array on ``self._device``."""
-        if tendon_mask is None:
-            return self._ALL_TRUE_SPATIAL_TENDON_MASK
-        if isinstance(tendon_mask, torch.Tensor):
-            return wp.from_torch(tendon_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(tendon_mask, wp.array) and str(tendon_mask.device) != self._device:
-            tendon_mask = wp.clone(tendon_mask, device=self._device)
-        return tendon_mask
+        return resolve_1d_mask(mask=tendon_mask, all_mask=self._ALL_TRUE_SPATIAL_TENDON_MASK)
 
     def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
         """Return a pinned-host CPU copy of :paramref:`env_mask` for a CPU-only binding write.
@@ -4616,7 +4499,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_com_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """
@@ -4638,7 +4521,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_com_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root CoM state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root CoM state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """
@@ -4660,7 +4543,7 @@ class Articulation(BaseArticulation):
         :meth:`write_root_link_velocity_to_sim_index` instead.
 
         Args:
-            root_state: Root link state [m, m, m, qw, qx, qy, qz, m/s, m/s, m/s, rad/s, rad/s, rad/s].
+            root_state: Root link state [m, m, m, qx, qy, qz, qw, m/s, m/s, m/s, rad/s, rad/s, rad/s].
                 Shape is (len(env_ids), 13) with dtype wp.float32.
             env_ids: Environment indices. Defaults to None (all environments).
         """

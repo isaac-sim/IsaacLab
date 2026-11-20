@@ -41,7 +41,7 @@ def cpu_mpm_solver_and_state():
         warmstart_mode="none",
         transfer_scheme="pic",
     )
-    solver = MPMSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+    solver = MPMSolver(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED).native
     return solver, model.state()
 
 

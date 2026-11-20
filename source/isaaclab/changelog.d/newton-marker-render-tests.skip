@@ -1,0 +1,1 @@
+Update Newton marker render fixtures to initialize through the backend constructor and consume Warp arrays.

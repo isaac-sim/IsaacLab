@@ -431,10 +431,11 @@ def set_reset_state(
         if name in reset_assets:
             write_root(articulation)
             num_joints = articulation.num_joints
-            articulation.write_joint_state_to_sim_index(
-                position=states[:, offset : offset + num_joints].contiguous(),
-                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(),
-                env_ids=env_ids,
+            articulation.write_joint_position_to_sim_index(
+                position=states[:, offset : offset + num_joints].contiguous(), env_ids=env_ids
+            )
+            articulation.write_joint_velocity_to_sim_index(
+                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(), env_ids=env_ids
             )
             offset += 2 * num_joints
     for name, rigid_object in env.scene.rigid_objects.items():

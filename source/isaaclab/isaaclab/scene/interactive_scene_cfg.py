@@ -39,7 +39,8 @@ class InteractiveSceneCfg:
         import isaaclab.sim as sim_utils
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
-        from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
+        from isaaclab.sensors.ray_caster import RayCasterCfg
+        from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
         from isaaclab.utils import configclass, replace
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
@@ -124,6 +125,14 @@ class InteractiveSceneCfg:
 
     clone_cfg: CloneCfg = CloneCfg()
     """Clone execution and legal scene-combination configuration."""
+
+    export_usd_path: str | None = None
+    """USD file to export environment 0 to after asset initialization. Defaults to None (no export).
+
+    The export happens before startup events and the first physics step; see
+    :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`. On PhysX and OvPhysX, setting it also has the
+    scene read the engine before its assets initialize, which the export compares against.
+    """
 
 
 def add(

@@ -30,8 +30,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
@@ -245,7 +245,6 @@ autodoc_mock_imports = [
     "omni.kit",
     "omni.log",
     "omni.usd",
-    "omni.client",
     "omni.physx",
     "omni.physics",
     "ovphysx",

@@ -40,7 +40,7 @@ scenes illustrate policy control; use native playback for full task evaluation.
    :physics: rigid
    :activity: policy
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/reinforcement_learning/rl_learning_progression_anymal_d.gif
    :width: 100%
    :align: center
    :alt: ANYmal-D locomotion at RSL-RL training iterations 0, 100, and 299
@@ -216,6 +216,9 @@ Use ``play`` with one of the following checkpoint selectors:
      - Downloads a published checkpoint for a supported task and backend.
    * - ``/path/to/checkpoint``
      - Loads a specific checkpoint.
+   * - ``wandb:<entity>/<project>/<run_id>``
+     - Downloads the latest checkpoint of a W&B run (RSL-RL only). A run URL also works; append
+       ``?checkpoint=<iteration>`` to choose an iteration.
 
 For example, play the best local checkpoint and record a short video:
 
@@ -264,6 +267,13 @@ Resume from the latest compatible checkpoint:
 
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
        --checkpoint latest
+
+With RSL-RL, you can also resume from a W&B run, for example one trained on a cluster:
+
+.. code-block:: bash
+
+   uv run --extra wandb isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
+       --checkpoint wandb:<entity>/<project>/<run_id>
 
 When loading a checkpoint, match the original task, agent, ML framework, and
 observation/action presets.
@@ -340,7 +350,7 @@ and other domains. Append selectors without leading dashes:
 
    uv run isaaclab train --rl_library rsl_rl \
        --task Isaac-Cartpole-Camera-Direct \
-       physics=newton_mjwarp renderer=newton_renderer presets=rgb
+       physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Not every task supports every backend. See
 :doc:`/source/concepts/backends_and_presets` for the presets declared by a
