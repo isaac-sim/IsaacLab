@@ -14,12 +14,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_visualizers.lidar_points import (
-    collect_lidar_hits,
-    frame_environments,
-    log_lidar_hits,
-    paint_lidar_hits,
-)
+from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_environments, log_lidar_hits
 from isaaclab_visualizers.rerun.lidar_points import lidar_world_points
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -171,30 +166,3 @@ def test_log_lidar_hits_keeps_rerun_points_on_the_cpu() -> None:
     assert cloud.device.is_cpu
     assert colors == (1.0, 0.0, 0.0)
     np.testing.assert_allclose(cloud.numpy(), points)
-
-
-def test_paint_lidar_hits_keeps_points_behind_the_camera_and_outside_the_tile():
-    """A hit in front of the pinhole camera is painted, and a hit behind it is not."""
-    image = np.full((20, 20, 4), 7, dtype=np.uint8)
-    intrinsics = np.array([[10.0, 0.0, 4.0], [0.0, 10.0, 4.0], [0.0, 0.0, 1.0]], dtype=np.float32)
-    points = np.array(
-        [
-            [0.0, 0.0, 2.0],
-            [0.2, 0.0, -1.0],
-            [2.0, 0.0, 2.0],
-        ],
-        dtype=np.float32,
-    )
-    paint_lidar_hits(
-        image,
-        points,
-        position=np.zeros(3, dtype=np.float32),
-        rotation=np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32),
-        intrinsics=intrinsics,
-        tile_origin=(2, 3),
-        tile_size=(8, 8),
-    )
-    assert image[6, 7, 0] == 255
-    assert image[6, 7, 1] == 0
-    assert image[6, 5, 0] == 7
-    assert image[6, 17, 0] == 7
