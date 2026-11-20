@@ -915,8 +915,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         imgui.same_line()
         imgui.radio_button("RTX", False)
         imgui.end_disabled()
-        hover_tooltip(imgui, "RTX is not enabled for this window. Relaunch with --rtx_viewer to switch the view to RTX")
-        hud_note(imgui, "RTX is off. Relaunch with --rtx_viewer to enable it.")
+        hover_tooltip(
+            imgui, "RTX is not enabled for this window. Relaunch with --viz newton_rtx to switch the view to RTX"
+        )
+        hud_note(imgui, "RTX is off. Relaunch with --viz newton_rtx to enable it.")
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
